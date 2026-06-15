@@ -70,6 +70,15 @@ final class DocxOpenXmlReader
     private const THUMBNAIL_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
     private const DIGITAL_SIGNATURE_ORIGIN_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     private const DIGITAL_SIGNATURE_SIGNATURE_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+    private const STANDARD_PACKAGE_ROOT_RELATIONSHIP_TYPES = [
+        self::OFFICE_DOCUMENT_REL,
+        self::CORE_PROPERTIES_REL,
+        self::EXTENDED_PROPERTIES_REL,
+        self::CUSTOM_PROPERTIES_REL,
+        self::THUMBNAIL_REL,
+        self::DIGITAL_SIGNATURE_ORIGIN_REL,
+        self::DIGITAL_SIGNATURE_SIGNATURE_REL,
+    ];
     private const NS_XMLDSIG = 'http://www.w3.org/2000/09/xmldsig#';
     private const CT_WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
     private const CT_WORD_TEMPLATE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml';
@@ -183,6 +192,15 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['digitalSignatureUnexpectedRootCount'] = $digitalSignatures['unexpectedSignatureRootCount'];
         $packageProvenance['summary']['digitalSignatureIssueCount'] = $digitalSignatures['issueCount'];
         $packageProvenance['summary']['digitalSignatureIssueCodes'] = $digitalSignatures['issueCodes'];
+        $packageRootResources = $this->packageRootRelationshipResources($parts, $rootRelationships, $contentTypes);
+        $packageProvenance['packageRootRelationshipResources'] = $packageRootResources;
+        $packageProvenance['summary']['packageRootRelationshipResourceCount'] = $packageRootResources['count'];
+        $packageProvenance['summary']['packageRootRelationshipResourceExistingCount'] = $packageRootResources['existingCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceMissingCount'] = $packageRootResources['missingCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceExternalCount'] = $packageRootResources['externalCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipCount'] = $packageRootResources['targetRelationshipCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceIssueCount'] = $packageRootResources['issueCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceIssueCodes'] = $packageRootResources['issueCodes'];
         $stylesPart = $this->stylesPart($parts, $documentRelationships, $documentPart);
         $styles = $this->readStyles($stylesPart['xml'], $stylesPart['partName']);
         $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
@@ -691,6 +709,7 @@ final class DocxOpenXmlReader
                 'contentControls' => $contentControls,
                 'packageThumbnails' => $packageThumbnails,
                 'digitalSignatures' => $digitalSignatures,
+                'packageRootRelationshipResources' => $packageRootResources,
                 'media' => $media,
             ],
         ];
@@ -7933,6 +7952,130 @@ final class DocxOpenXmlReader
     private function isImageContentType(string $contentType): bool
     {
         return str_starts_with(strtolower(trim(explode(';', $contentType, 2)[0])), 'image/');
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function packageRootRelationshipResources(array $parts, array $rootRelationships, array $contentTypes): array
+    {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $relationshipTypes = [];
+        $targetParts = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+
+        foreach ($rootRelationships as $relationship) {
+            if (in_array($relationship['type'], self::STANDARD_PACKAGE_ROOT_RELATIONSHIP_TYPES, true)) {
+                continue;
+            }
+
+            $summary = $this->relationshipInventorySummary($parts, $relationship, '/', '_rels/.rels', $contentTypes);
+            $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+            $external = (bool) ($summary['external'] ?? false);
+            $exists = (bool) ($summary['exists'] ?? false);
+            $relationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+            $targetHasRelationships = $relationshipsPart !== null && isset($parts[$relationshipsPart]);
+            $issues = [];
+
+            if ($external) {
+                $issues[] = 'external-package-root-relationship';
+            } elseif (!$exists) {
+                $issues[] = 'missing-package-root-target';
+            }
+            if (!$external && ($summary['contentTypeSource'] ?? '') === 'missing') {
+                $issues[] = 'missing-package-root-content-type';
+            }
+
+            $issues = array_values(array_unique($issues));
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $item = [
+                'source' => '/',
+                'id' => $summary['id'],
+                'type' => $summary['type'],
+                'target' => $summary['target'],
+                'targetMode' => $summary['targetMode'],
+                'external' => $external,
+                'resolvedTarget' => $summary['resolvedTarget'],
+                'targetPart' => $targetPart,
+                'targetQuery' => $summary['targetQuery'],
+                'targetFragment' => $summary['targetFragment'],
+                'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+                'targetParentTraversalCount' => $summary['targetParentTraversalCount'],
+                'targetHasParentTraversal' => $summary['targetHasParentTraversal'],
+                'targetStartsAtPackageRoot' => $summary['targetStartsAtPackageRoot'],
+                'sameSourcePart' => $summary['sameSourcePart'],
+                'exists' => $exists,
+                'contentType' => $summary['contentType'],
+                'contentTypeBase' => $summary['contentTypeBase'],
+                'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+                'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+                'contentTypeParameters' => $summary['contentTypeParameters'],
+                'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+                'contentTypeSource' => $summary['contentTypeSource'],
+                'defaultExtension' => $summary['defaultExtension'],
+                'overridePartName' => $summary['overridePartName'],
+                'relationshipsPart' => '_rels/.rels',
+                'targetRelationshipsPart' => $relationshipsPart,
+                'targetHasRelationships' => $targetHasRelationships,
+                'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+                'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+                'sha256' => $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
+                'canExposeBytes' => false,
+                'byteExposurePolicy' => 'package-root-relationship-bytes-blocked',
+                'reviewPolicy' => 'package-root-relationship-metadata-only',
+                'valid' => $issues === [],
+                'issues' => $issues,
+            ];
+
+            $items[] = $item;
+            $byRelationshipId[(string) $item['id']] = $item;
+            $relationshipIds[] = (string) $item['id'];
+            $this->appendUniqueString($relationshipTypes, is_string($item['type'] ?? null) ? $item['type'] : null);
+            $this->appendUniqueString($targetParts, $targetPart);
+            if ($external) {
+                $this->appendUniqueString($externalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+            }
+            $this->appendUniqueString($contentTypesSeen, is_string($summary['contentType'] ?? null) ? $summary['contentType'] : null);
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'count' => count($items),
+            'existingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === true,
+            )),
+            'missingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
+            )),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'targetRelationshipCount' => count(array_filter($items, static fn (array $item): bool => $item['targetHasRelationships'] === true)),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'relationshipTypes' => $relationshipTypes,
+            'targetParts' => $targetParts,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'byteExposurePolicy' => 'package-root-relationship-bytes-blocked',
+            'reviewPolicy' => 'package-root-relationship-metadata-only',
+            'canExposeBytes' => false,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
     }
 
     /**

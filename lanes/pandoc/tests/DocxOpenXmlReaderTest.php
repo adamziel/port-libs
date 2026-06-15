@@ -1860,6 +1860,116 @@ XML;
         $t->same(1, $package['relationshipTypes'][$customXmlType]['packageRootTargetCount']);
         $t->true(in_array('custom-xml-part', $package['parts']['customXml/root-review.xml']['roles'], true), 'package-root customXml role missing');
     },
+    'preserves docx package root relationship resources as metadata only' => static function (TestRunner $t): void {
+        $resourceType = 'http://example.test/openxml/relationships/reviewResource';
+        $reviewXml = '<review-resource role="audit">root package metadata</review-resource>';
+        $sidecarXml = '<review-resource role="sidecar">sidecar metadata</review-resource>';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/docProps/review-audit.xml" ContentType="application/vnd.example.review+xml; profile=root-audit"/>' . "\n" .
+            '  <Override PartName="/docProps/sidecar-audit.xml" ContentType="application/vnd.example.review+xml; profile=sidecar"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rPackageAudit" Type="' . $resourceType . '" Target="docProps/review-audit.xml?slot=root#review"/>' . "\n" .
+            '  <Relationship Id="rPackageSidecar" Type="' . $resourceType . '" Target="docProps/sidecar-audit.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingPackageAudit" Type="' . $resourceType . '" Target="docProps/missing-audit.xml"/>' . "\n" .
+            '  <Relationship Id="rExternalPackageAudit" Type="' . $resourceType . '" Target="https://example.test/root-audit.xml?remote=1#payload" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['docProps/review-audit.xml'] = $reviewXml;
+        $parts['docProps/sidecar-audit.xml'] = $sidecarXml;
+        $parts['docProps/_rels/sidecar-audit.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSidecarPreview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="sidecar-preview.png"/>
+</Relationships>
+XML;
+        $parts['docProps/sidecar-preview.png'] = 'sidecar preview bytes';
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $package = $docx['packageProvenance'];
+        $resources = $package['packageRootRelationshipResources'];
+        $summary = $package['summary'];
+        $audit = $resources['byRelationshipId']['rPackageAudit'];
+        $sidecar = $resources['byRelationshipId']['rPackageSidecar'];
+        $missing = $resources['byRelationshipId']['rMissingPackageAudit'];
+        $external = $resources['byRelationshipId']['rExternalPackageAudit'];
+        $relationshipType = $package['relationshipTypes'][$resourceType];
+
+        $t->same($resources, $docx['packageRootRelationshipResources']);
+        $t->same(true, $resources['present']);
+        $t->same(4, $resources['count']);
+        $t->same(2, $resources['existingCount']);
+        $t->same(1, $resources['missingCount']);
+        $t->same(1, $resources['externalCount']);
+        $t->same(1, $resources['targetRelationshipCount']);
+        $t->same(2, $resources['issueCount']);
+        $t->same(['external-package-root-relationship', 'missing-package-root-target'], $resources['issueCodes']);
+        $t->same(['rPackageAudit', 'rPackageSidecar', 'rMissingPackageAudit', 'rExternalPackageAudit'], $resources['relationshipIds']);
+        $t->same([$resourceType], $resources['relationshipTypes']);
+        $t->same(['docProps/review-audit.xml', 'docProps/sidecar-audit.xml', 'docProps/missing-audit.xml'], $resources['targetParts']);
+        $t->same(['https://example.test/root-audit.xml?remote=1#payload'], $resources['externalTargets']);
+        $t->same('package-root-relationship-bytes-blocked', $resources['byteExposurePolicy']);
+        $t->same('package-root-relationship-metadata-only', $resources['reviewPolicy']);
+        $t->same(false, $resources['canExposeBytes']);
+
+        $t->same('docProps/review-audit.xml?slot=root#review', $audit['target']);
+        $t->same('docProps/review-audit.xml', $audit['targetPart']);
+        $t->same('slot=root', $audit['targetQuery']);
+        $t->same('review', $audit['targetFragment']);
+        $t->same('?slot=root#review', $audit['targetReferenceSuffix']);
+        $t->same('application/vnd.example.review+xml; profile=root-audit', $audit['contentType']);
+        $t->same('application/vnd.example.review+xml', $audit['contentTypeBase']);
+        $t->same(['profile' => 'root-audit'], $audit['contentTypeParameterMap']);
+        $t->same(strlen($reviewXml), $audit['byteLength']);
+        $t->same(sprintf('%08x', crc32($reviewXml)), $audit['crc32']);
+        $t->same(hash('sha256', $reviewXml), $audit['sha256']);
+        $t->same(false, $audit['canExposeBytes']);
+        $t->same([], $audit['issues']);
+        $t->same(true, $audit['valid']);
+
+        $t->same('docProps/_rels/sidecar-audit.xml.rels', $sidecar['targetRelationshipsPart']);
+        $t->same(true, $sidecar['targetHasRelationships']);
+        $t->same(strlen($sidecarXml), $sidecar['byteLength']);
+        $t->same('application/vnd.example.review+xml; profile=sidecar', $sidecar['contentType']);
+        $t->same([], $sidecar['issues']);
+        $t->same(true, $sidecar['valid']);
+
+        $t->same('docProps/missing-audit.xml', $missing['targetPart']);
+        $t->same(false, $missing['exists']);
+        $t->same(null, $missing['byteLength']);
+        $t->same('application/xml', $missing['contentType']);
+        $t->same(['missing-package-root-target'], $missing['issues']);
+        $t->same(false, $missing['valid']);
+
+        $t->same(true, $external['external']);
+        $t->same(null, $external['targetPart']);
+        $t->same('remote=1', $external['targetQuery']);
+        $t->same('payload', $external['targetFragment']);
+        $t->same(null, $external['byteLength']);
+        $t->same(['external-package-root-relationship'], $external['issues']);
+        $t->same(false, $external['valid']);
+
+        $t->same(4, $summary['packageRootRelationshipResourceCount']);
+        $t->same(2, $summary['packageRootRelationshipResourceExistingCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceMissingCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceExternalCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipCount']);
+        $t->same(2, $summary['packageRootRelationshipResourceIssueCount']);
+        $t->same($resources['issueCodes'], $summary['packageRootRelationshipResourceIssueCodes']);
+        $t->same(4, $relationshipType['count']);
+        $t->same(3, $relationshipType['internalCount']);
+        $t->same(1, $relationshipType['externalCount']);
+        $t->same(['docProps/review-audit.xml', 'docProps/sidecar-audit.xml'], $relationshipType['existingTargetParts']);
+        $t->same(['docProps/missing-audit.xml'], $relationshipType['missingTargetParts']);
+        $t->true(in_array('root-relationship-target', $package['parts']['docProps/review-audit.xml']['roles'], true), 'package root resource target role missing');
+        $t->true(!isset($docx['media']['docProps/review-audit.xml']), 'package root resource bytes should not be exposed as document media');
+    },
     'reports docx package thumbnail provenance as metadata only' => static function (TestRunner $t): void {
         $thumbnailType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
         $thumbnailBytes = 'jpeg thumbnail bytes';
