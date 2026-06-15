@@ -127,6 +127,13 @@ final class EpubPackage
         'properties' => true,
         'xml:lang' => true,
     ];
+    private const OPF_GUIDE_REFERENCE_STRUCTURAL_ATTRIBUTES = [
+        'dir' => true,
+        'href' => true,
+        'title' => true,
+        'type' => true,
+        'xml:lang' => true,
+    ];
     private const OPF_COLLECTION_STRUCTURAL_ATTRIBUTES = [
         'dir' => true,
         'id' => true,
@@ -602,6 +609,7 @@ final class EpubPackage
         $spineAuthoring = self::spineItemrefAuthoringReport($this->spine);
         $collectionAuthoring = self::collectionAuthoringReport($this->collections);
         $guideReport = $this->guideReport();
+        $guideAuthoring = self::guideReferenceAuthoringReport($this->guideReferences);
         $ocfSidecars = $this->ocfSidecars();
         $packageInventory = self::packageInventoryReport(
             $this->package,
@@ -677,6 +685,7 @@ final class EpubPackage
             'spineAuthoring' => $spineAuthoring,
             'guide' => $this->guideReferences,
             'guideReport' => $guideReport,
+            'guideAuthoring' => $guideAuthoring,
             'collections' => $this->collections,
             'collectionHierarchy' => $collectionHierarchy,
             'collectionAuthoring' => $collectionAuthoring,
@@ -818,6 +827,8 @@ final class EpubPackage
                 'guideReferenceManifestMediaTypeParameterItems' => $guideReport['manifestMediaTypeParameterItems'],
                 'guideReferenceManifestMediaTypeParameterNames' => $guideReport['manifestMediaTypeParameterNames'],
                 'guideReferenceManifestMediaTypeDiagnostics' => $guideReport['manifestMediaTypeDiagnostics'],
+                'guideReferenceAuthoring' => $guideAuthoring,
+                'guideReferenceAuthoringItems' => $guideAuthoring['items'],
                 'collections' => $this->collections,
                 'collectionHierarchy' => $collectionHierarchy,
                 'collectionHierarchyItems' => $collectionHierarchy['items'],
@@ -7365,6 +7376,28 @@ final class EpubPackage
     }
 
     /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
+    private static function guideReferenceCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OPF_GUIDE_REFERENCE_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
      * @param list<array<string, mixed>> $rootfiles
      *
      * @return array<string, mixed>
@@ -7769,6 +7802,68 @@ final class EpubPackage
                 'linear' => (bool) ($item['linear'] ?? true),
                 'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
                 'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+                'attributes' => $attributes,
+                'attributeCount' => count($attributes),
+                'customAttributes' => $customAttributes,
+                'customAttributeCount' => count($customAttributes),
+            ];
+
+            $items[] = $summary;
+            $itemsByIndex[$index] = $summary;
+            if ($summary['language'] !== null) {
+                $languageItems[] = $summary;
+            }
+            if ($summary['direction'] !== null) {
+                $directionItems[] = $summary;
+            }
+            if ($customAttributes !== []) {
+                $customAttributeItems[] = $summary;
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'items' => $items,
+            'itemsByIndex' => array_values($itemsByIndex),
+            'languageItemCount' => count($languageItems),
+            'languageItems' => $languageItems,
+            'directionItemCount' => count($directionItems),
+            'directionItems' => $directionItems,
+            'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeItems' => $customAttributeItems,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     *
+     * @return array<string, mixed>
+     */
+    private static function guideReferenceAuthoringReport(array $references): array
+    {
+        $items = [];
+        $itemsByIndex = [];
+        $languageItems = [];
+        $directionItems = [];
+        $customAttributeItems = [];
+
+        foreach ($references as $reference) {
+            $index = count($items);
+            $attributes = is_array($reference['attributes'] ?? null) ? $reference['attributes'] : [];
+            $customAttributes = is_array($reference['customAttributes'] ?? null)
+                ? $reference['customAttributes']
+                : self::guideReferenceCustomAttributes($attributes);
+            $summary = [
+                'index' => $index,
+                'type' => is_string($reference['type'] ?? null) ? $reference['type'] : null,
+                'title' => is_string($reference['title'] ?? null) ? $reference['title'] : null,
+                'href' => is_string($reference['href'] ?? null) ? $reference['href'] : null,
+                'target' => is_string($reference['target'] ?? null) ? $reference['target'] : null,
+                'partName' => is_string($reference['partName'] ?? null) ? $reference['partName'] : null,
+                'manifestId' => is_string($reference['manifestId'] ?? null) ? $reference['manifestId'] : null,
+                'language' => is_string($reference['language'] ?? null) ? $reference['language'] : null,
+                'direction' => is_string($reference['direction'] ?? null) ? $reference['direction'] : null,
                 'attributes' => $attributes,
                 'attributeCount' => count($attributes),
                 'customAttributes' => $customAttributes,
@@ -10430,6 +10525,10 @@ final class EpubPackage
         $exists = false;
         $entry = null;
         $manifestItem = null;
+        $language = self::metadataElementLanguage($reference);
+        $direction = self::metadataElementDirection($reference);
+        $attributes = self::elementAttributes($reference);
+        $customAttributes = self::guideReferenceCustomAttributes($attributes);
         $hrefSuffix = [
             'hasQuery' => false,
             'query' => null,
@@ -10513,6 +10612,10 @@ final class EpubPackage
             'manifestProperties' => is_array($manifestItem) && is_array($manifestItem['properties'] ?? null)
                 ? array_values($manifestItem['properties'])
                 : [],
+            'language' => $language,
+            'direction' => $direction,
+            'attributes' => $attributes,
+            'customAttributes' => $customAttributes,
             'hrefHasQuery' => $hrefSuffix['hasQuery'],
             'hrefQuery' => $hrefSuffix['query'],
             'hrefHasFragment' => $hrefSuffix['hasFragment'],

@@ -2365,6 +2365,63 @@ XML;
         $t->same([], $summary['wordpressImport']['guideReferenceManifestMediaTypeDiagnostics']);
     },
 
+    'preserves OPF guide reference authoring attributes for package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithGuideAuthoring = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" xmlns:review="https://example.invalid/epub-review" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            $epub3OpfXml
+        );
+        $opfWithGuideAuthoring = str_replace(
+            '</spine>',
+            '</spine>
+  <guide>
+    <reference type="text" title="Debut de lecture" href="text/chapter1.xhtml#install" xml:lang="fr" dir="rtl" data-review="start" review:source="wp-import"/>
+    <reference type="cover" title="Cover thumbnail" href="images/cover.png" dir="ltr" data-review="cover"/>
+    <reference type="toc" title="Guide entry without href" data-review="toc"/>
+  </guide>',
+            $opfWithGuideAuthoring
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithGuideAuthoring],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="install">Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $guide = $epub->guideReferences();
+        $summary = $epub->summary();
+        $authoring = $summary['guideAuthoring'];
+
+        $t->same(3, count($guide));
+        $t->same('fr', $guide[0]['language']);
+        $t->same('rtl', $guide[0]['direction']);
+        $t->same('fr', $guide[0]['attributes']['xml:lang']);
+        $t->same('wp-import', $guide[0]['attributes']['review:source']);
+        $t->same(['data-review' => 'start', 'review:source' => 'wp-import'], $guide[0]['customAttributes']);
+        $t->same(null, $guide[1]['language']);
+        $t->same('ltr', $guide[1]['direction']);
+        $t->same(['data-review' => 'cover'], $guide[1]['customAttributes']);
+        $t->same(null, $guide[2]['href']);
+        $t->same(['data-review' => 'toc'], $guide[2]['customAttributes']);
+
+        $t->same(true, $authoring['present']);
+        $t->same(3, $authoring['itemCount']);
+        $t->same(1, $authoring['languageItemCount']);
+        $t->same(2, $authoring['directionItemCount']);
+        $t->same(3, $authoring['customAttributeItemCount']);
+        $t->same([0], array_column($authoring['languageItems'], 'index'));
+        $t->same([0, 1], array_column($authoring['directionItems'], 'index'));
+        $t->same([0, 1, 2], array_column($authoring['customAttributeItems'], 'index'));
+        $t->same('wp-import', $authoring['itemsByIndex'][0]['customAttributes']['review:source']);
+        $t->same('toc', $authoring['itemsByIndex'][2]['customAttributes']['data-review']);
+        $t->same($authoring, $summary['wordpressImport']['guideReferenceAuthoring']);
+        $t->same($authoring['items'], $summary['wordpressImport']['guideReferenceAuthoringItems']);
+    },
+
     'summarizes EPUB3 auxiliary navigation sections for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $navWithAuxiliarySections = str_replace(
             '</body>',
