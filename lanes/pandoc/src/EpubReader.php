@@ -730,7 +730,7 @@ final class EpubReader
         $mediaTypes = self::manifestMediaTypeReport($manifest);
         $navItem = $this->firstManifestItemWithProperty($manifest, 'nav');
         $ncxItem = $this->ncxManifestItem($spineElement, $manifestById, $manifest);
-        $assetReport = $this->assetReport($package, $opfPart, $manifest, $manifestById, $metadata);
+        $assetReport = $this->assetReport($package, $opfPart, $manifest, $manifestById, $metadata, $encryption);
         $manifestByPart = self::manifestByPart($manifestById);
         $nav = $navItem === null ? null : $this->readNavDocument($package, $navItem, $manifestByPart);
         $nav = $nav === null ? null : self::navWithPrimaryNavigationTargetPolicy($nav, $spine);
@@ -5871,7 +5871,7 @@ final class EpubReader
             }
 
             $manifestItem = $manifestByPart[$part] ?? null;
-            $mediaType = is_array($manifestItem) ? (string) $manifestItem['mediaType'] : null;
+            $mediaType = is_array($manifestItem) ? (string) $manifestItem['mediaType'] : self::mediaTypeFromPart($part);
             $properties = is_array($manifestItem) && is_array($manifestItem['properties'] ?? null)
                 ? array_values($manifestItem['properties'])
                 : [];
@@ -7237,19 +7237,7 @@ final class EpubReader
      */
     private function attachEncryptionToManifest(array $manifestById, array $encryption): array
     {
-        $encryptionByPart = [];
-        foreach ($encryption['items'] ?? [] as $item) {
-            if (!is_array($item) || !isset($item['part'])) {
-                continue;
-            }
-
-            $part = $item['part'];
-            if (!is_string($part) || $part === '') {
-                continue;
-            }
-
-            $encryptionByPart[$part][] = $item;
-        }
+        $encryptionByPart = self::encryptionItemsByPart($encryption);
 
         foreach ($manifestById as $id => $item) {
             $entries = $encryptionByPart[(string) $item['part']] ?? [];
@@ -7280,6 +7268,30 @@ final class EpubReader
         }
 
         return $manifestById;
+    }
+
+    /**
+     * @param array<string, mixed> $encryption
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function encryptionItemsByPart(array $encryption): array
+    {
+        $itemsByPart = [];
+        foreach ($encryption['items'] ?? [] as $item) {
+            if (!is_array($item) || !isset($item['part'])) {
+                continue;
+            }
+
+            $part = $item['part'];
+            if (!is_string($part) || $part === '') {
+                continue;
+            }
+
+            $itemsByPart[$part][] = $item;
+        }
+
+        return $itemsByPart;
     }
 
     /**
@@ -21480,6 +21492,7 @@ final class EpubReader
      * @param list<array<string, mixed>> $manifest
      * @param array<string, array<string, mixed>> $manifestById
      * @param array<string, mixed> $metadata
+     * @param array<string, mixed> $encryption
      *
      * @return array<string, mixed>
      */
@@ -21488,7 +21501,8 @@ final class EpubReader
         string $opfPart,
         array $manifest,
         array $manifestById,
-        array $metadata
+        array $metadata,
+        array $encryption
     ): array {
         $assets = [];
         $manifestParts = [];
@@ -21641,7 +21655,7 @@ final class EpubReader
             $manifestParts[$linkedPart] = true;
         }
 
-        $unmanifestedItems = $this->unmanifestedPackageAssets($package, $manifestParts, $opfPart);
+        $unmanifestedItems = $this->unmanifestedPackageAssets($package, $manifestParts, $opfPart, $encryption);
         $diagnostics = $coverImageReport['diagnostics'];
         if ($unmanifestedItems !== []) {
             $diagnostics[] = [
@@ -22037,12 +22051,19 @@ final class EpubReader
 
     /**
      * @param array<string, bool> $manifestParts
+     * @param array<string, mixed> $encryption
      *
      * @return list<array<string, mixed>>
      */
-    private function unmanifestedPackageAssets(ZipPackage $package, array $manifestParts, string $opfPart): array
+    private function unmanifestedPackageAssets(
+        ZipPackage $package,
+        array $manifestParts,
+        string $opfPart,
+        array $encryption
+    ): array
     {
         $items = [];
+        $encryptionByPart = self::encryptionItemsByPart($encryption);
         foreach ($package->entries() as $entry) {
             if ($entry->isDirectory()) {
                 continue;
@@ -22054,21 +22075,50 @@ final class EpubReader
             }
 
             $mediaType = self::mediaTypeFromPart($part);
-            $attachmentCandidate = self::isAttachmentCandidate($mediaType, $part, false);
+            $encryptionItems = $encryptionByPart[$part] ?? [];
+            $encrypted = $encryptionItems !== [];
+            $obfuscatedFont = self::containsObfuscatedFont($encryptionItems);
+            $canExposeBytes = !$encrypted;
+            $attachmentRole = self::attachmentRole($mediaType, $part, false);
+            $attachmentCandidate = $canExposeBytes && self::isAttachmentCandidate($mediaType, $part, false);
             $diagnostics = [[
                 'type' => 'unmanifested-package-resource',
                 'part' => $part,
                 'message' => 'EPUB package resource is present in ZIP but absent from the OPF manifest',
             ]];
             $byteSha256 = null;
-            try {
-                $byteSha256 = hash('sha256', $package->read($part));
-            } catch (\Throwable $exception) {
-                $diagnostics[] = [
-                    'type' => 'unmanifested-package-resource-bytes-unavailable',
-                    'part' => $part,
-                    'message' => $exception->getMessage(),
+            $encryptionReport = null;
+            if ($encrypted) {
+                $encryptionReport = [
+                    'items' => $encryptionItems,
+                    'algorithm' => $encryptionItems[0]['algorithm'] ?? null,
+                    'role' => $encryptionItems[0]['role'] ?? self::encryptedResourceRole($mediaType, $part),
+                    'obfuscatedFont' => $obfuscatedFont,
+                    'canExposeBytes' => false,
+                    'reviewPolicy' => $obfuscatedFont ? 'obfuscated-font-review' : 'encrypted-resource-review',
+                    'byteExposurePolicy' => $obfuscatedFont ? 'obfuscated-font-bytes-blocked' : 'encrypted-resource-bytes-blocked',
+                    'attachmentCandidateBlocked' => count(array_filter(
+                        $encryptionItems,
+                        static fn (array $item): bool => ($item['attachmentCandidateBlocked'] ?? false) === true,
+                    )) > 0,
                 ];
+                $diagnostics[] = [
+                    'type' => 'encrypted-unmanifested-package-resource',
+                    'part' => $part,
+                    'reviewPolicy' => $encryptionReport['reviewPolicy'],
+                    'byteExposurePolicy' => $encryptionReport['byteExposurePolicy'],
+                    'message' => 'EPUB package resource is encrypted and absent from the OPF manifest; package bytes remain metadata-only',
+                ];
+            } else {
+                try {
+                    $byteSha256 = hash('sha256', $package->read($part));
+                } catch (\Throwable $exception) {
+                    $diagnostics[] = [
+                        'type' => 'unmanifested-package-resource-bytes-unavailable',
+                        'part' => $part,
+                        'message' => $exception->getMessage(),
+                    ];
+                }
             }
 
             $items[] = [
@@ -22078,8 +22128,11 @@ final class EpubReader
                 'byteLength' => $entry->uncompressedSize,
                 'crc32' => $entry->crc32Hex(),
                 'byteSha256' => $byteSha256,
+                'encrypted' => $encrypted,
+                'canExposeBytes' => $canExposeBytes,
+                'encryption' => $encryptionReport,
                 'attachmentCandidate' => $attachmentCandidate,
-                'attachmentRole' => self::attachmentRole($mediaType, $part, false),
+                'attachmentRole' => $attachmentRole,
                 'diagnostics' => $diagnostics,
             ];
         }

@@ -8588,6 +8588,60 @@ XML;
         $t->same('obfuscated-font-review', $manifestById['font-main']['encryption']['reviewPolicy']);
         $t->same($exposure, $result['importReport']['encryption']['exposure']);
     },
+    'keeps encrypted unmanifested EPUB package resources metadata-only' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $lockedAudio = 'LOCKED-BONUS-AUDIO';
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="OEBPS/audio/bonus.mp3"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            null,
+            [
+                ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+                ['name' => 'OEBPS/audio/bonus.mp3', 'data' => $lockedAudio],
+            ]
+        ));
+
+        $encryption = $result['encryption'];
+        $t->same(true, $encryption['present']);
+        $t->same(['encrypted-resource-not-in-manifest'], array_column($encryption['diagnostics'], 'type'));
+        $t->same('/OEBPS/audio/bonus.mp3', $encryption['items'][0]['part']);
+        $t->same(null, $encryption['items'][0]['manifestId']);
+        $t->same('audio/mpeg', $encryption['items'][0]['mediaType']);
+        $t->same('audio', $encryption['items'][0]['role']);
+        $t->same(false, $encryption['items'][0]['canExposeBytes']);
+        $t->same(true, $encryption['items'][0]['attachmentCandidateBlocked']);
+        $t->same(['/OEBPS/audio/bonus.mp3'], $encryption['exposure']['nonObfuscatedEncryptedParts']);
+        $t->same(1, $encryption['exposure']['blockedByteExposureCount']);
+
+        $unmanifestedByPart = [];
+        foreach ($result['importReport']['assets']['unmanifestedItems'] as $item) {
+            $unmanifestedByPart[$item['part']] = $item;
+        }
+        $asset = $unmanifestedByPart['/OEBPS/audio/bonus.mp3'];
+        $t->same('audio/mpeg', $asset['mediaType']);
+        $t->same(strlen($lockedAudio), $asset['byteLength']);
+        $t->same(null, $asset['byteSha256']);
+        $t->same(true, $asset['encrypted']);
+        $t->same(false, $asset['canExposeBytes']);
+        $t->same(false, $asset['attachmentCandidate']);
+        $t->same('audio', $asset['attachmentRole']);
+        $t->same('audio', $asset['encryption']['role']);
+        $t->same('encrypted-resource-review', $asset['encryption']['reviewPolicy']);
+        $t->same('encrypted-resource-bytes-blocked', $asset['encryption']['byteExposurePolicy']);
+        $t->same(true, $asset['encryption']['attachmentCandidateBlocked']);
+        $t->same([
+            'unmanifested-package-resource',
+            'encrypted-unmanifested-package-resource',
+        ], array_column($asset['diagnostics'], 'type'));
+        $t->same($result['assetReport']['unmanifestedItems'], $result['importReport']['assets']['unmanifestedItems']);
+    },
     'reports OCF metadata sidecar records for container-level review' => static function (TestRunner $t) use ($buildEpubPackage, $metadataXml): void {
         $sourceBytes = '{"source":"wordpress-import","review":true}';
         $result = (new EpubReader())->readPackage($buildEpubPackage(
