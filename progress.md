@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,632 pass / 0 fail | [3,670 / 2,276 (161.2%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue bounded EPUB3 package-reader hardening after package identity reporting while keeping phpFail at zero | pandoc-epub-reader-identity-report |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,633 pass / 0 fail | [3,671 / 2,276 (161.3%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue bounded CSL/BibLaTeX number and label rendering coverage after article-number support while keeping phpFail at zero | pandoc-csl-article-number-number-label |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -39,7 +39,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | EPUB/EPUB3 | `epub` | partial | 78 | 9 | Package identity reports, direct manifest suffix diagnostics, manifest resource-property ZIP provenance, skipped spine-entry reporting, XHTML definition-list handoff, direct XHTML table ingestion, OPF collection hierarchy review, OPF metadata item/report review, XHTML table-section review metadata, compact nav/NCX label provenance, NCX hierarchy diagnostics, nav fragment target diagnostics, and nav document section diagnostics are covered; finish broader EPUB package reader parity. |
 | ODF/ODT/OpenDocument | `odt` | ship-ready | 78 | 20 | 0 critical gaps for native PHP ODT import; compact raw ZIP name provenance, compact manifest custom attribute collision provenance, manifest media-family classification, preferred-view-mode token diagnostics, package signature sidecar metadata-only policy, sidecar package byte-exposure ordering, and handoff ordering across missing package parts plus unsupported-compression byte blocks are covered. Continue only non-critical hardening slices as discovered. |
 | Shared ZIP/OPC package | dependency for package readers | partial dependency | 107 | 67 | Selected-entry role bucket handoff is covered; finish shared ZIP/OPC package ingestion used by DOCX, EPUB, ODT, PPTX, and XLSX. |
-| CSL/BibTeX/BibLaTeX/csljson citations | `bibtex`, `biblatex`, `csljson`, `endnotexml`, `ris` | mixed | 79 | 8 | Citation prefix/suffix affix review metadata, bounded RIS item parsing, and bounded EndNote XML name-group diagnostics are covered; broader EndNote XML reader parity, broader RIS coverage, and full reader-registry parity remain. |
+| CSL/BibTeX/BibLaTeX/csljson citations | `bibtex`, `biblatex`, `csljson`, `endnotexml`, `ris` | mixed | 80 | 8 | Article-number number/label rendering, citation prefix/suffix affix review metadata, bounded RIS item parsing, and bounded EndNote XML name-group diagnostics are covered; broader EndNote XML reader parity, broader RIS coverage, and full reader-registry parity remain. |
 | LaTeX/TeX/math | `latex` | partial | 21 | 14 | Labelled note anchor handoff is covered for LaTeX writer output; finish LaTeX reader and math conversion parity. |
 | DocBook/list/table geometry | `docbook` | partial | 23 | 16 | DocBook bibliography/reference diagnostics, inline media alt diagnostics, list metadata/diagnostics, structural review, structural/media packets, media role/caption diagnostics, and section metadata diagnostics are covered; finish DocBook XML reader parity, body conversion, inline/block/reference/bibliography mapping, actual media/admonition conversion, generated AST parity, and broader fixture hydration. |
 | RTF | `rtf` | partial | 4 | 3 | Finish RTF reader parity. |
@@ -56,6 +56,14 @@ Adjacent import targets outside the Pandoc input denominator:
 | PDF | 49 / 17 | Pandoc has `pdf` as an output target, not an input format. | Track as separate PDF import/markerPDF ingestion work. |
 | Legacy DOC/CFB | 7 / 7 | Not a current upstream Pandoc input token. | Decide and track as separate legacy document import support. |
 | IPYNB/notebook | skipped | Upstream Pandoc input token intentionally skipped for this phase. | No work in this burn-down. |
+
+### CSL Article-Number Number/Label Update (2026-06-15)
+
+Bounded native PHP CSL/BibLaTeX rendering coverage advanced by one article-number number/label case after the EPUB reader identity report slice. `CitationCslProcessor` now exposes imported BibLaTeX `eid` / `articlenumber` values to CSL `article-number` labels, number forms, numeric text forms, `is-numeric` conditionals, and sort keys.
+
+Verification passed `php -l` for `CslStyle.php`, `CitationCslProcessor.php`, and `CitationCslProcessorTest.php`; focused `CitationCslProcessorTest.php` passed (`1` file, `5,813` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `85,500` assertions, `0` failures). No Pandoc binary, citeproc, BibTeX, Biber, bibliography manager, browser renderer, online service, live provider test, live-service provider test, or external validator was invoked.
+
+CSL/BibTeX evidence is now 80 local mapped cases against the 8 accepted static upstream CSL/BibTeX rows. Citation support remains mixed pending broader reader-registry parity and remaining EndNote/RIS coverage.
 
 ### EPUB Reader Identity Report Update (2026-06-15)
 

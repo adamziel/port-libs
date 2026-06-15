@@ -1708,6 +1708,7 @@ final class CslStyle
             'page',
             'page-first',
             'number',
+            'article-number',
             'edition',
             'volume',
             'issue',

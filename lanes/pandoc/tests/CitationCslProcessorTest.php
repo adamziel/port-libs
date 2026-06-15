@@ -21394,19 +21394,31 @@ XML);
   date          = {2025},
   articlenumber = {A-77}
 }
+
+@article{numeric-article-number-source,
+  author        = {Lin, Lee},
+  title         = {Numeric Article Number Packet},
+  journaltitle  = {Journal of Numeric Imports},
+  date          = {2024},
+  articlenumber = {42}
+}
 BIB;
 
         $items = CitationCslProcessor::bibtexItems($bibtex);
-        $t->same(2, count($items));
+        $t->same(3, count($items));
         $t->same('e2026-42', $items[0]['article-number'] ?? null);
         $t->same('A-77', $items[1]['article-number'] ?? null);
+        $t->same('42', $items[2]['article-number'] ?? null);
 
         $processor = CitationCslProcessor::fromBibtex($bibtex);
         $article = $processor->item('article-number-source');
         $explicit = $processor->item('explicit-article-number-source');
+        $numeric = $processor->item('numeric-article-number-source');
         $t->same('e2026-42', $article['articleNumber'] ?? null);
         $t->same('A-77', $explicit['articleNumber'] ?? null);
+        $t->same('42', $numeric['articleNumber'] ?? null);
         $t->same('Doe, Jane. Numbered Source Packet. Journal of Import Articles. 2026. Article number: e2026-42. DOI 10.5555/article-number.', $processor->renderBibliographyEntry('article-number-source'));
+        $t->same('Lin, Lee. Numeric Article Number Packet. Journal of Numeric Imports. 2024. Article number: 42.', $processor->renderBibliographyEntry('numeric-article-number-source'));
 
         $styled = $processor->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -21433,6 +21445,78 @@ XML);
             $citation('explicit-article-number-source', '[@explicit-article-number-source]'),
         ]));
         $t->same('Numbered Source Packet :: e2026-42 :: 10.5555/article-number', $styled->renderBibliographyEntry('article-number-source'));
+
+        $numbered = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Article Number Label Review</title>
+    <id>https://example.test/styles/bounded-article-number-label-review</id>
+    <updated>2026-06-15T02:58:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="article-number"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if is-numeric="article-number">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <label variable="article-number" form="short" plural="never"/>
+            <number variable="article-number" form="ordinal"/>
+            <text variable="article-number" form="roman"/>
+          </group>
+        </if>
+        <else>
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="article-number"/>
+          </group>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="article-number"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <label variable="article-number" form="short" plural="never"/>
+      <number variable="article-number" form="roman"/>
+      <text variable="article-number" form="ordinal"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $numbered->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $children = $branch['children'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Article Number Label Review', $summary['title'] ?? null);
+        $t->same('article-number', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('article-number', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same(['article-number'], $branch['isNumeric'] ?? null);
+        $t->same('article-number', $children[1]['variable'] ?? null);
+        $t->same('article-number', $children[2]['variable'] ?? null);
+        $t->same('ordinal', $children[2]['form'] ?? null);
+        $t->same('article-number', $children[3]['variable'] ?? null);
+        $t->same('roman', $children[3]['form'] ?? null);
+        $t->same('article-number', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('article-number', $bibliographyChildren[2]['variable'] ?? null);
+        $t->same('roman', $bibliographyChildren[2]['form'] ?? null);
+        $t->same('article-number', $bibliographyChildren[3]['variable'] ?? null);
+        $t->same('ordinal', $bibliographyChildren[3]['form'] ?? null);
+        $t->same('[Lin | art. | 42nd | xlii; Doe | art. | e2026-42 | e2026-42; Ng | A-77]', $numbered->renderCitationCluster([
+            $citation('article-number-source', '[@article-number-source]'),
+            $citation('explicit-article-number-source', '[@explicit-article-number-source]'),
+            $citation('numeric-article-number-source', '[@numeric-article-number-source]'),
+        ]));
+        $t->same('Numeric Article Number Packet :: art. :: xlii :: 42nd', $numbered->renderBibliographyEntry('numeric-article-number-source'));
+        $t->same('Numbered Source Packet :: art. :: e2026-42 :: e2026-42', $numbered->renderBibliographyEntry('article-number-source'));
+        $t->same('Explicit Article Number Packet :: art. :: A-77 :: A-77', $numbered->renderBibliographyEntry('explicit-article-number-source'));
 
         $direct = CitationCslProcessor::fromItems([[
             'id' => 'direct-article-number',
