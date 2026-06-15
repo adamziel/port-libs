@@ -46,7 +46,7 @@ final class MarkdownWriter
     private int $fancyOrderedMarkerEscapeSuppression = 0;
 
     /**
-     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool} $options
+     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool, semanticTableHtmlFallback?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -1629,6 +1629,10 @@ final class MarkdownWriter
                     (bool) ($this->options['htmlTableAutoFallback'] ?? false)
                     && $this->tableRequiresHtmlFallback($node, $columnCount)
                 )
+                || (
+                    $this->tableRequestsSemanticHtmlFallback($node)
+                    && $this->tableRequiresHtmlFallback($node, $columnCount)
+                )
             );
     }
 
@@ -1645,6 +1649,16 @@ final class MarkdownWriter
         }
 
         return false;
+    }
+
+    private function tableRequestsSemanticHtmlFallback(AstNode $node): bool
+    {
+        $format = strtolower(trim((string) $node->attr('markdownTableFormat', '')));
+        if (in_array($format, ['auto', 'auto_html', 'auto-html', 'preserve', 'preserve-html', 'semantic-html'], true)) {
+            return true;
+        }
+
+        return (bool) ($this->options['semanticTableHtmlFallback'] ?? false);
     }
 
     private function tableRequiresHtmlFallback(AstNode $node, int $columnCount): bool
