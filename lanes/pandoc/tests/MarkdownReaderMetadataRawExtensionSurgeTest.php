@@ -280,6 +280,97 @@ foreach ($rawSurgeCases as $case) {
         };
 }
 
+$rawSurgeAttributeTokenVariants = [
+    'leading token after id class' => static function (array $case) use ($rawSurgeSlug): string {
+        $slug = $rawSurgeSlug($case['format']);
+
+        return '{#raw-' . $slug
+            . ' .raw-token .' . $case['family']
+            . ' =' . $case['format']
+            . ' data-family="' . $case['family'] . '"'
+            . ' data-format="' . $case['format'] . '"}';
+    },
+    'trailing token after quoted attributes' => static function (array $case) use ($rawSurgeSlug): string {
+        $slug = $rawSurgeSlug($case['format']);
+
+        return '{.raw-token'
+            . ' data-family="' . $case['family'] . '"'
+            . ' data-format="' . $case['format'] . '"'
+            . ' title="Raw attribute ' . $slug . '"'
+            . ' =' . $case['format'] . '}';
+    },
+];
+
+foreach ($rawSurgeCases as $case) {
+    foreach ($rawSurgeAttributeTokenVariants as $variant => $rawSurgeAttributeSource) {
+        $tests['maps upstream markdown fenced raw format attribute token ' . $variant . ' ' . $case['format']] =
+            static function (TestRunner $t) use (
+                $case,
+                $rawSurgeAttributeSource,
+                $rawSurgeBlockPayload,
+                $rawSurgeExpectedNodeType,
+                $rawSurgeReviewValue,
+                $rawSurgeTextAttr
+            ): void {
+                $format = $case['format'];
+                $rawText = $rawSurgeBlockPayload($case);
+                $document = (new MarkdownReader())->read(implode("\n", [
+                    '---',
+                    'title: Raw format attribute token',
+                    'review: {format: "' . $format . '", family: ' . $case['family'] . ', channel: attribute-token}',
+                    '...',
+                    '',
+                    '```' . $rawSurgeAttributeSource($case),
+                    $rawText,
+                    '```',
+                    '',
+                    'After raw token block.',
+                ]));
+                $raw = $document->children[0] ?? new AstNode('missing');
+                $paragraph = $document->children[1] ?? new AstNode('missing');
+
+                $t->same('raw_block', $raw->type);
+                $t->same($format, $raw->attr('format'));
+                $t->same($rawText, $raw->attr('text'));
+                $t->same('paragraph', $paragraph->type);
+                $t->same('After raw token block.', $paragraph->attr('text'));
+
+                $jsonPacket = (new PandocJsonWriter())->toArray($document);
+                $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+                $roundTrips = [
+                    'json' => (new PandocJsonReader())->readPacket($jsonPacket),
+                    'native' => (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR)),
+                ];
+
+                foreach ($roundTrips as $source => $roundTrip) {
+                    $meta = $roundTrip->attr('meta');
+                    $roundTripRaw = $roundTrip->children[0] ?? new AstNode('missing');
+                    $markdown = (new MarkdownWriter())->write($roundTrip);
+
+                    $t->same($format, $rawSurgeReviewValue($meta, 'format'), "{$source} metadata format");
+                    $t->same($case['family'], $rawSurgeReviewValue($meta, 'family'), "{$source} metadata family");
+                    $t->same('attribute-token', $rawSurgeReviewValue($meta, 'channel'), "{$source} metadata channel");
+                    $t->same($rawSurgeExpectedNodeType($case, 'block'), $roundTripRaw->type, "{$source} raw block family node");
+                    $t->same($format, $roundTripRaw->attr('format'), "{$source} raw block format");
+                    $t->same($rawText, $rawSurgeTextAttr($roundTripRaw, $case), "{$source} raw block text");
+                    $t->contains($rawText, $markdown);
+                }
+
+                $blocks = (new WordPressBlockWriter())->write($document);
+                if ($case['family'] === 'html') {
+                    $t->contains('<!-- wp:html -->' . "\n" . $rawText . "\n" . '<!-- /wp:html -->', $blocks);
+                } elseif ($case['family'] === 'tex') {
+                    $t->contains(
+                        '<pre class="wp-block-code"><code class="language-tex">'
+                        . htmlspecialchars($rawText, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+                        . '</code></pre>',
+                        $blocks
+                    );
+                }
+            };
+    }
+}
+
 $nativeSpanInlineText = static function (AstNode $node) use (&$nativeSpanInlineText): string {
     if ($node->type === 'text' || $node->type === 'code' || $node->type === 'math') {
         return (string) $node->attr('text', '');
