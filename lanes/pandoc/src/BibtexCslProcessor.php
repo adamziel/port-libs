@@ -226,6 +226,19 @@ final class BibtexCslProcessor
             }
             $parts[] = 'Translated title: ' . $translatedTitle;
         }
+        foreach ([
+            'reviewed-title' => 'Reviewed title',
+            'reviewed-genre' => 'Reviewed genre',
+            'main-title' => 'Main title',
+            'volume-title' => 'Volume title',
+            'volume-title-short' => 'Volume title abbreviation',
+            'part-title' => 'Part title',
+            'issue-title' => 'Issue title',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $parts[] = $label . ': ' . rtrim((string) $item[$field], '.');
+            }
+        }
 
         $container = (string) ($item['container-title'] ?? '');
         $volume = (string) ($item['volume'] ?? '');
@@ -451,10 +464,43 @@ final class BibtexCslProcessor
             $item['translated-subtitle'] = $translatedSubtitle;
         }
 
+        $composedTitleFields = [
+            'main-title' => [
+                ['maintitle', 'main-title', 'maintitletext', 'main-title-text'],
+                ['mainsubtitle', 'main-subtitle'],
+            ],
+            'reviewed-title' => [
+                ['reviewtitle', 'reviewedtitle', 'reviewed-title'],
+                ['reviewsubtitle', 'reviewedsubtitle', 'reviewed-subtitle'],
+            ],
+            'volume-title' => [
+                ['volumetitle', 'volume-title', 'volumetitletext', 'volume-title-text'],
+                ['volumesubtitle', 'volume-subtitle'],
+            ],
+            'part-title' => [
+                ['parttitle', 'part-title', 'parttitletext', 'part-title-text'],
+                ['partsubtitle', 'part-subtitle'],
+            ],
+            'issue-title' => [
+                ['issuetitle', 'issue-title', 'issuetitletext', 'issue-title-text'],
+                ['issuesubtitle', 'issue-subtitle'],
+            ],
+        ];
+        foreach ($composedTitleFields as $target => [$titleNames, $subtitleNames]) {
+            $value = $this->composedTitle($fields, $titleNames, $subtitleNames);
+            if ($value !== null && $value !== '') {
+                $item[$target] = $value;
+            }
+        }
+
         $stringFields = [
             'short-title' => ['shorttitle'],
             'title-addon' => ['titleaddon'],
             'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
+            'main-title-addon' => ['maintitleaddon', 'main-title-addon'],
+            'reviewed-genre' => ['reviewedgenre', 'reviewed-genre', 'reviewgenre', 'review-genre'],
+            'volume-title-short' => ['shortvolumetitle', 'short-volume-title', 'volumetitleshort', 'volume-title-short'],
+            'issue-title-addon' => ['issuetitleaddon', 'issue-title-addon', 'issuetitle-addon'],
             'event' => ['eventtitle', 'event-title', 'event'],
             'event-title-addon' => ['eventtitleaddon', 'event-title-addon'],
             'event-place' => ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'],

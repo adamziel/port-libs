@@ -852,6 +852,104 @@ BIB;
         $t->contains('Call number: MS 42 Box 4', $markdown);
         $t->contains('Call number: Reading Room Shelf B/12', $blocks);
     },
+    'carries biblatex review title hierarchy aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@review{review-handoff,
+  author            = {Critic, Casey},
+  title             = {Legacy Review Packet},
+  reviewed-title    = {Source Manual},
+  reviewed-subtitle = {Field Appendix},
+  reviewed-genre    = {migration handbook},
+  maintitle         = {Collected Review Set},
+  mainsubtitle      = {Legacy Volume},
+  maintitleaddon    = {archive set},
+  volume-title      = {Volume Packet},
+  volume-subtitle   = {Review Notes},
+  short-volume-title = {Vol. Pkt.},
+  parttitle         = {Part Source},
+  partsubtitle      = {Chapter Notes},
+  issue-title       = {Special Issue},
+  issue-subtitle    = {Audit Week},
+  issue-title-addon = {guest-edited dossier},
+  journaltitle      = {Review Journal},
+  volume            = {7},
+  number            = {2},
+  date              = {2026}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['review-handoff'];
+
+        $t->same('article', $item['type']);
+        $t->same('Source Manual: Field Appendix', $item['reviewed-title']);
+        $t->same('migration handbook', $item['reviewed-genre']);
+        $t->same('Collected Review Set: Legacy Volume', $item['main-title']);
+        $t->same('archive set', $item['main-title-addon']);
+        $t->same('Volume Packet: Review Notes', $item['volume-title']);
+        $t->same('Vol. Pkt.', $item['volume-title-short']);
+        $t->same('Part Source: Chapter Notes', $item['part-title']);
+        $t->same('Special Issue: Audit Week', $item['issue-title']);
+        $t->same('guest-edited dossier', $item['issue-title-addon']);
+        $t->same('Source Manual', $item['rawBibtex']['fields']['reviewed-title']);
+        $t->same('Review Notes', $item['rawBibtex']['fields']['volume-subtitle']);
+        $t->same('Casey Critic. Legacy Review Packet. Reviewed title: Source Manual: Field Appendix. Reviewed genre: migration handbook. Main title: Collected Review Set: Legacy Volume. Volume title: Volume Packet: Review Notes. Volume title abbreviation: Vol. Pkt. Part title: Part Source: Chapter Notes. Issue title: Special Issue: Audit Week. Review Journal 7(2). 2026.', $processor->renderBibliographyText($item));
+
+        $document = (new MarkdownReader())->read('Review hierarchy [@review-handoff] stays visible.');
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Review Title Hierarchy</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-review-title-hierarchy</id>
+    <updated>2026-06-15T11:12:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="reviewed-title"/>
+        <text variable="reviewed-genre"/>
+        <text variable="main-title"/>
+        <text variable="main-title-addon"/>
+        <text variable="volume-title"/>
+        <text variable="volume-title-short"/>
+        <text variable="part-title"/>
+        <text variable="issue-title"/>
+        <text variable="issue-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="reviewed-title"/>
+      <text variable="reviewed-genre"/>
+      <text variable="main-title"/>
+      <text variable="main-title-addon"/>
+      <text variable="volume-title"/>
+      <text variable="volume-title-short"/>
+      <text variable="part-title"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Review Title Hierarchy', $summary['title'] ?? null);
+        $t->same('reviewed-title', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+        $t->same('[Critic | Source Manual: Field Appendix | migration handbook | Collected Review Set: Legacy Volume | archive set | Volume Packet: Review Notes | Vol. Pkt. | Part Source: Chapter Notes | Special Issue: Audit Week | guest-edited dossier]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'review-handoff', 'text' => '[@review-handoff]']),
+        ]));
+        $t->same('Legacy Review Packet :: Source Manual: Field Appendix :: migration handbook :: Collected Review Set: Legacy Volume :: archive set :: Volume Packet: Review Notes :: Vol. Pkt. :: Part Source: Chapter Notes :: Special Issue: Audit Week :: guest-edited dossier', $styled->renderBibliographyEntry('review-handoff'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review hierarchy [Critic | Source Manual: Field Appendix | migration handbook | Collected Review Set: Legacy Volume | archive set | Volume Packet: Review Notes | Vol. Pkt. | Part Source: Chapter Notes | Special Issue: Audit Week | guest-edited dossier] stays visible.</p>', $blocks);
+        $t->contains('<dt>Critic 2026</dt><dd>Legacy Review Packet :: Source Manual: Field Appendix :: migration handbook :: Collected Review Set: Legacy Volume :: archive set :: Volume Packet: Review Notes :: Vol. Pkt. :: Part Source: Chapter Notes :: Special Issue: Audit Week :: guest-edited dossier</dd>', $blocks);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');
