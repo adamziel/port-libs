@@ -10325,6 +10325,8 @@ MD;
                 new AstNode('text', ['text' => ', ']),
                 new AstNode('raw_inline', ['format' => 'markdown_mmd', 'text' => '[mmd][source]']),
                 new AstNode('text', ['text' => ', ']),
+                new AstNode('raw_inline', ['format' => 'markdown_github', 'text' => '~~github~~']),
+                new AstNode('text', ['text' => ', ']),
                 new AstNode('raw_inline', ['format' => 'commonmark_x', 'text' => '~~gfm extension~~']),
                 new AstNode('text', ['text' => ', and ']),
                 new AstNode('raw_inline', ['format' => 'markdown+tex_math_dollars', 'text' => '$raw$']),
@@ -10339,6 +10341,7 @@ MD;
             new AstNode('raw_block', ['format' => 'markdown_strict', 'text' => '> strict raw handoff']),
             new AstNode('raw_block', ['format' => 'markdown_phpextra', 'text' => '::: {.php-extra-review}' . "\n" . 'extra raw handoff' . "\n" . ':::']),
             new AstNode('raw_block', ['format' => 'markdown_mmd', 'text' => '[source]: https://example.test/source']),
+            new AstNode('raw_block', ['format' => 'markdown_github', 'text' => '- [ ] github raw task']),
             new AstNode('raw_block', ['format' => 'commonmark_x', 'text' => '~~extension raw handoff~~']),
             new AstNode('raw_block', ['format' => 'markdown+pipe_tables', 'text' => '| raw | table |' . "\n" . '| --- | --- |']),
             new AstNode('raw_block', ['format' => 'commonmark_x-smart', 'text' => 'raw -- block']),
@@ -10347,12 +10350,13 @@ MD;
         ]);
 
         $t->same(
-            'Markdown family raw inlines: *strict*, [extra]{.review}, [mmd][source], ~~gfm extension~~, and $raw$, raw -- dash, | raw |, and <span>drop</span>.'
+            'Markdown family raw inlines: *strict*, [extra]{.review}, [mmd][source], ~~github~~, ~~gfm extension~~, and $raw$, raw -- dash, | raw |, and <span>drop</span>.'
                 . "\n\n" . '> strict raw handoff'
                 . "\n\n" . '::: {.php-extra-review}'
                 . "\n" . 'extra raw handoff'
                 . "\n" . ':::'
                 . "\n\n" . '[source]: https://example.test/source'
+                . "\n\n" . '- [ ] github raw task'
                 . "\n\n" . '~~extension raw handoff~~'
                 . "\n\n" . '| raw | table |'
                 . "\n" . '| --- | --- |'
