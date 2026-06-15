@@ -1558,12 +1558,25 @@ final class MarkdownWriter
             return false;
         }
 
-        $placement = strtolower(trim((string) ($captionSource['captionPlacement'] ?? '')));
-        if ($placement === 'before-table') {
-            return true;
+        foreach (['captionPlacement', 'position', 'sourcePosition'] as $name) {
+            if ($this->isBeforeTableCaptionPosition($captionSource[$name] ?? null)) {
+                return true;
+            }
         }
 
         return strtolower(trim((string) ($captionSource['captionSide'] ?? ''))) === 'top';
+    }
+
+    private function isBeforeTableCaptionPosition(mixed $value): bool
+    {
+        if (!is_scalar($value)) {
+            return false;
+        }
+
+        return in_array(str_replace('_', '-', strtolower(trim((string) $value))), [
+            'before-table',
+            'before-table-sections',
+        ], true);
     }
 
     private function shouldRenderHtmlTable(AstNode $node, int $columnCount): bool
@@ -2556,6 +2569,7 @@ final class MarkdownWriter
     private function tableAttrTuple(AstNode $node): array
     {
         $attrs = $this->linkAttrTuple($node);
+        $attrs = $this->mergeAttributeTuples($attrs, $this->tableCaptionSourceAttrTuple($node));
         $attrs['attributes'] = array_filter(
             $attrs['attributes'],
             fn (string $value, string $name): bool => $this->isMarkdownTableAttribute($name),
@@ -2563,6 +2577,73 @@ final class MarkdownWriter
         );
 
         return $attrs;
+    }
+
+    /**
+     * @return array{id:string, classes:list<string>, attributes:array<string, string>}
+     */
+    private function tableCaptionSourceAttrTuple(AstNode $node): array
+    {
+        $captionSource = $node->attr('captionSource', []);
+        if (!is_array($captionSource)) {
+            return ['id' => '', 'classes' => [], 'attributes' => []];
+        }
+
+        $sourceAttributes = $captionSource['sourceAttributes'] ?? [];
+        if (!is_array($sourceAttributes)) {
+            return ['id' => '', 'classes' => [], 'attributes' => []];
+        }
+
+        return $this->attributeTupleFromSourceAttributes($sourceAttributes);
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     * @return array{id:string, classes:list<string>, attributes:array<string, string>}
+     */
+    private function attributeTupleFromSourceAttributes(array $source): array
+    {
+        $attrs = $this->htmlAttributeMapFromSource($source);
+        $id = trim((string) ($attrs['id'] ?? ''));
+        unset($attrs['id']);
+
+        $classes = [];
+        if (isset($attrs['class'])) {
+            $classes = preg_split('/\s+/', trim($attrs['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            unset($attrs['class']);
+        }
+
+        return [
+            'id' => $id,
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => array_filter($attrs, static fn (string $value): bool => $value !== ''),
+        ];
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $primary
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $secondary
+     * @return array{id:string, classes:list<string>, attributes:array<string, string>}
+     */
+    private function mergeAttributeTuples(array $primary, array $secondary): array
+    {
+        if ($primary['id'] === '' && $secondary['id'] !== '') {
+            $primary['id'] = $secondary['id'];
+        }
+
+        foreach ($secondary['classes'] as $class) {
+            if (!in_array($class, $primary['classes'], true)) {
+                $primary['classes'][] = $class;
+            }
+        }
+
+        foreach ($secondary['attributes'] as $name => $value) {
+            if (!array_key_exists($name, $primary['attributes'])) {
+                $primary['attributes'][$name] = $value;
+            }
+        }
+
+        return $primary;
     }
 
     private function isMarkdownTableAttribute(string $name): bool
