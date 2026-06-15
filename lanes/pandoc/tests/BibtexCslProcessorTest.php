@@ -628,6 +628,118 @@ XML);
         $t->contains('<p>Translation review (Garcia | Manual de Migracion: Apendice de Archivo | 2026; Roe | Paquete de Capitulo: Anexo | 2025) keeps translated title metadata visible.</p>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Chapter Packet :: Paquete de Capitulo: Anexo :: Anexo</dd>', $blocks);
     },
+    'carries biblatex title family aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@incollection{legacy-title-family,
+  author          = {Ng, Nia},
+  title           = {Source Chapter},
+  booktitle       = {Migration Handbook},
+  maintitle       = {Migration Source Corpus},
+  mainsubtitle    = {Archive Desk},
+  maintitleaddon  = {source addendum},
+  volumetitle     = {Review Volume},
+  volumesubtitle  = {Appendix},
+  shortvolumetitle = {RV},
+  parttitle       = {Part Ledger},
+  partsubtitle    = {Field Notes},
+  issuetitle      = {Special Issue},
+  issuesubtitle   = {Source Reports},
+  issuetitleaddon = {editorial packet},
+  pages           = {21--23},
+  date            = {2026}
+}
+
+@book{legacy-title-family-compact,
+  author             = {Roe, Rae},
+  title              = {Compact Title Family Packet},
+  main-title-text    = {Compact Main Text},
+  volume-title-text  = {Compact Volume Text},
+  part-title-text    = {Alpha Compact Part},
+  issue-title-text   = {Compact Issue},
+  date               = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $legacy = $items['legacy-title-family'];
+        $compact = $items['legacy-title-family-compact'];
+
+        $t->same('Migration Source Corpus: Archive Desk', $legacy['main-title']);
+        $t->same('source addendum', $legacy['main-title-addon']);
+        $t->same('Review Volume: Appendix', $legacy['volume-title']);
+        $t->same('RV', $legacy['volume-title-short']);
+        $t->same('Part Ledger: Field Notes', $legacy['part-title']);
+        $t->same('Special Issue: Source Reports', $legacy['issue-title']);
+        $t->same('editorial packet', $legacy['issue-title-addon']);
+        $t->same('Migration Source Corpus', $legacy['rawBibtex']['fields']['maintitle']);
+        $t->same('RV', $legacy['rawBibtex']['fields']['shortvolumetitle']);
+        $t->same('Special Issue', $legacy['rawBibtex']['fields']['issuetitle']);
+        $t->same('Compact Main Text', $compact['main-title']);
+        $t->same('Compact Volume Text', $compact['volume-title']);
+        $t->same('Alpha Compact Part', $compact['part-title']);
+        $t->same('Compact Issue', $compact['issue-title']);
+        $t->contains('Main title: Migration Source Corpus: Archive Desk', $processor->renderBibliographyText($legacy));
+        $t->contains('Issue title addendum: editorial packet', $processor->renderBibliographyText($legacy));
+
+        $document = (new MarkdownReader())->read('Legacy title family [@legacy-title-family; @legacy-title-family-compact] keeps imported title metadata visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $t->same(['legacy-title-family', 'legacy-title-family-compact'], $handoff['citedKeys']);
+        $t->same('Part Ledger: Field Notes', $handoff['bibliography']->children[0]->attr('cslItem')['part-title'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Title Family Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-title-family-review</id>
+    <updated>2026-06-15T10:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="main-title"/>
+        <text variable="main-title-addon"/>
+        <text variable="volume-title-short"/>
+        <text variable="part-title"/>
+        <text variable="issue-title"/>
+        <text variable="issue-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="main-title"/>
+      <text variable="main-title-addon"/>
+      <text variable="volume-title"/>
+      <text variable="volume-title-short"/>
+      <text variable="part-title"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Legacy BibLaTeX Title Family Review', $summary['title'] ?? null);
+        $t->same('main-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('volume-title-short', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Ng | Migration Source Corpus: Archive Desk | source addendum | RV | Part Ledger: Field Notes | Special Issue: Source Reports | editorial packet; Roe | Compact Main Text | Alpha Compact Part | Compact Issue]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-title-family', 'text' => '[@legacy-title-family]']),
+            new AstNode('citation', ['id' => 'legacy-title-family-compact', 'text' => '[@legacy-title-family-compact]']),
+        ]));
+        $t->same('Source Chapter :: Migration Handbook :: Migration Source Corpus: Archive Desk :: source addendum :: Review Volume: Appendix :: RV :: Part Ledger: Field Notes :: Special Issue: Source Reports :: editorial packet', $styled->renderBibliographyEntry('legacy-title-family'));
+        $t->same('Compact Title Family Packet :: Compact Main Text :: Compact Volume Text :: Alpha Compact Part :: Compact Issue', $styled->renderBibliographyEntry('legacy-title-family-compact'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legacy title family [Ng | Migration Source Corpus: Archive Desk | source addendum | RV | Part Ledger: Field Notes | Special Issue: Source Reports | editorial packet; Roe | Compact Main Text | Alpha Compact Part | Compact Issue] keeps imported title metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Source Chapter :: Migration Handbook :: Migration Source Corpus: Archive Desk :: source addendum :: Review Volume: Appendix :: RV :: Part Ledger: Field Notes :: Special Issue: Source Reports :: editorial packet</dd>', $blocks);
+    },
     'carries biblatex status taxonomy aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-status-hyphen,

@@ -271,6 +271,19 @@ final class BibtexCslProcessor
         if (($item['URL'] ?? '') !== '') {
             $parts[] = (string) $item['URL'];
         }
+        foreach ([
+            'main-title' => 'Main title',
+            'main-title-addon' => 'Main title addendum',
+            'volume-title' => 'Volume title',
+            'volume-title-short' => 'Volume title abbreviation',
+            'part-title' => 'Part title',
+            'issue-title' => 'Issue title',
+            'issue-title-addon' => 'Issue title addendum',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $parts[] = $label . ': ' . (string) $item[$field];
+            }
+        }
 
         return implode('. ', $parts) . ($parts === [] ? '' : '.');
     }
@@ -428,6 +441,26 @@ final class BibtexCslProcessor
             $item['container-title'] = $containerTitle;
         }
 
+        $mainTitle = $this->composedTitle($fields, ['maintitle', 'main-title', 'maintitletext', 'main-title-text'], ['mainsubtitle', 'main-subtitle']);
+        if ($mainTitle !== null && $mainTitle !== '') {
+            $item['main-title'] = $mainTitle;
+        }
+
+        $volumeTitle = $this->composedTitle($fields, ['volumetitle', 'volume-title', 'volumetitletext', 'volume-title-text'], ['volumesubtitle', 'volume-subtitle']);
+        if ($volumeTitle !== null && $volumeTitle !== '') {
+            $item['volume-title'] = $volumeTitle;
+        }
+
+        $partTitle = $this->composedTitle($fields, ['parttitle', 'part-title', 'parttitletext', 'part-title-text'], ['partsubtitle', 'part-subtitle']);
+        if ($partTitle !== null && $partTitle !== '') {
+            $item['part-title'] = $partTitle;
+        }
+
+        $issueTitle = $this->composedTitle($fields, ['issuetitle', 'issue-title', 'issuetitletext', 'issue-title-text'], ['issuesubtitle', 'issue-subtitle']);
+        if ($issueTitle !== null && $issueTitle !== '') {
+            $item['issue-title'] = $issueTitle;
+        }
+
         $originalTitle = $this->composedTitle($fields, ['origtitle', 'original-title'], ['origsubtitle', 'original-subtitle']);
         if ($originalTitle !== null && $originalTitle !== '') {
             $item['original-title'] = $originalTitle;
@@ -455,6 +488,9 @@ final class BibtexCslProcessor
             'short-title' => ['shorttitle'],
             'title-addon' => ['titleaddon'],
             'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
+            'main-title-addon' => ['maintitleaddon', 'main-title-addon'],
+            'volume-title-short' => ['shortvolumetitle', 'short-volume-title', 'volumetitleshort', 'volume-title-short'],
+            'issue-title-addon' => ['issuetitleaddon', 'issue-title-addon', 'issuetitle-addon'],
             'event' => ['eventtitle', 'event-title', 'event'],
             'event-title-addon' => ['eventtitleaddon', 'event-title-addon'],
             'event-place' => ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'],
