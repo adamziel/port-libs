@@ -3229,7 +3229,7 @@ final class MarkdownWriter
             return '[' . $labelText . ']';
         }
 
-        $suffix = $referenceLabel === $plainLabel ? '[]' : '[' . $referenceLabel . ']';
+        $suffix = $referenceLabel === $plainLabel ? '[]' : '[' . $this->escapeDefinitionLabel($referenceLabel) . ']';
 
         return '[' . $labelText . ']' . $suffix;
     }
@@ -3242,7 +3242,7 @@ final class MarkdownWriter
             'node' => $node,
         ];
 
-        return '[^' . $label . ']';
+        return '[^' . $this->escapeDefinitionLabel($label) . ']';
     }
 
     private function registerNoteLabel(AstNode $node): string
@@ -3264,7 +3264,7 @@ final class MarkdownWriter
     private function sourceNoteLabel(AstNode $node): ?string
     {
         $label = trim((string) $node->attr('label', ''));
-        if ($label === '' || preg_match('/[\[\]\s]/u', $label) === 1) {
+        if ($label === '' || preg_match('/[\[\]\s\x00-\x1F\x7F]/u', $label) === 1) {
             return null;
         }
 
@@ -3846,9 +3846,13 @@ final class MarkdownWriter
 
     private function escapeText(string $text, bool $escapeDefinitionMarker = true): string
     {
+        $text = str_replace("\r\n", "\n", $text);
+        $text = str_replace("\r", ' ', $text);
+        $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/', ' ', $text) ?? $text;
         $escaped = '';
         $length = strlen($text);
         $lineStart = true;
+        $lineIndent = '';
         $definitionLineStart = $escapeDefinitionMarker;
 
         for ($i = 0; $i < $length; $i++) {
@@ -3858,18 +3862,27 @@ final class MarkdownWriter
             if ($char === "\n") {
                 $escaped .= "\n";
                 $lineStart = true;
+                $lineIndent = '';
                 $definitionLineStart = true;
                 continue;
             }
 
-            if ($lineStart && $char === '#' && $this->startsWithAtxHeadingMarker($tail)) {
+            if ($lineStart && ($char === ' ' || $char === "\t")) {
+                $escaped .= $char;
+                $lineIndent .= $char;
+                continue;
+            }
+
+            $escapableLineStart = $lineStart && $this->isEscapableMarkdownLineStartIndent($lineIndent);
+
+            if ($escapableLineStart && $char === '#' && $this->startsWithAtxHeadingMarker($tail)) {
                 $escaped .= '\\#';
                 $lineStart = false;
                 $definitionLineStart = false;
                 continue;
             }
 
-            if ($lineStart && preg_match('/^([0-9]+)([.)])(?=[ \t]|$)/', $tail, $match) === 1) {
+            if ($escapableLineStart && preg_match('/^([0-9]+)([.)])(?=[ \t]|$)/', $tail, $match) === 1) {
                 $escaped .= $match[1] . '\\' . $match[2];
                 $i += strlen($match[1]);
                 $lineStart = false;
@@ -3877,21 +3890,21 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && preg_match('/^#([.)])(?=[ \t]|$)/', $tail) === 1) {
+            if ($escapableLineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && preg_match('/^#([.)])(?=[ \t]|$)/', $tail) === 1) {
                 $escaped .= '\\#';
                 $lineStart = false;
                 $definitionLineStart = false;
                 continue;
             }
 
-            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->startsWithParenthesizedOrderedListMarker($tail)) {
+            if ($escapableLineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->startsWithParenthesizedOrderedListMarker($tail)) {
                 $escaped .= '\\(';
                 $lineStart = false;
                 $definitionLineStart = false;
                 continue;
             }
 
-            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->matchFancyOrderedListMarker($tail, $match)) {
+            if ($escapableLineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->matchFancyOrderedListMarker($tail, $match)) {
                 $escaped .= $match[1] . '\\' . $match[2];
                 $i += strlen($match[1]);
                 $lineStart = false;
@@ -3899,14 +3912,14 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($lineStart && $this->startsWithBulletListMarker($tail)) {
+            if ($escapableLineStart && $this->startsWithBulletListMarker($tail)) {
                 $escaped .= '\\' . $char;
                 $lineStart = false;
                 $definitionLineStart = false;
                 continue;
             }
 
-            if ($definitionLineStart && $this->startsWithDefinitionMarker($tail)) {
+            if ($definitionLineStart && $escapableLineStart && $this->startsWithDefinitionMarker($tail)) {
                 $escaped .= '\\' . $char;
                 $lineStart = false;
                 $definitionLineStart = false;
@@ -3992,6 +4005,11 @@ final class MarkdownWriter
         }
 
         return $escaped;
+    }
+
+    private function isEscapableMarkdownLineStartIndent(string $indent): bool
+    {
+        return $indent === '' || (strlen($indent) <= 3 && strspn($indent, ' ') === strlen($indent));
     }
 
     private function longestColonRun(string $text): int
@@ -4142,7 +4160,16 @@ final class MarkdownWriter
 
     private function normalizeReferenceLabelText(string $label): string
     {
+        $label = preg_replace('/[\x00-\x1F\x7F]+/', ' ', $label) ?? $label;
+
         return trim(preg_replace('/\s+/', ' ', $label) ?? $label);
+    }
+
+    private function escapeDefinitionLabel(string $label): string
+    {
+        $label = trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', $label) ?? $label);
+
+        return str_replace(['\\', '[', ']'], ['\\\\', '\\[', '\\]'], $label);
     }
 
     /**
@@ -4229,12 +4256,12 @@ final class MarkdownWriter
     {
         $body = $this->renderBlockCollection($node->children);
         if ($body === '') {
-            return '[^' . $label . ']:';
+            return '[^' . $this->escapeDefinitionLabel($label) . ']:';
         }
 
         $lines = explode("\n", $body);
         $first = array_shift($lines);
-        $rendered = '[^' . $label . ']: ' . $first;
+        $rendered = '[^' . $this->escapeDefinitionLabel($label) . ']: ' . $first;
         foreach ($lines as $line) {
             $rendered .= "\n" . ($line === '' ? '' : '    ' . $line);
         }
@@ -4252,7 +4279,7 @@ final class MarkdownWriter
             : ' "' . $this->escapeLinkTitle($reference['title']) . '"';
         $attrs = $this->renderAttributesTuple($reference['attrs']);
 
-        return '  [' . $reference['label'] . ']: '
+        return '  [' . $this->escapeDefinitionLabel($reference['label']) . ']: '
             . $this->renderLinkDestination($reference['url'])
             . $title
             . ($attrs === '' ? '' : ' ' . $attrs);
@@ -4260,8 +4287,9 @@ final class MarkdownWriter
 
     private function renderAbbreviationDefinition(string $term, string $title): string
     {
-        $term = trim(preg_replace('/\s+/', ' ', $term) ?? $term);
-        $title = trim(preg_replace('/\s+/', ' ', $title) ?? $title);
+        $term = $this->escapeDefinitionLabel($term);
+        $title = trim(preg_replace('/[\x00-\x1F\x7F\s]+/', ' ', $title) ?? $title);
+        $title = str_replace('\\', '\\\\', $title);
 
         return '*[' . $term . ']: ' . $title;
     }

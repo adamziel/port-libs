@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 6,415 pass / 0 fail | [6,405 / 2,276 (281.4%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Markdown writer auto HTML table fallback validation passed after rebase onto current main | pandoc-markdown-writer-auto-html-table-surge |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 6,566 pass / 0 fail | [6,455 / 2,276 (283.6%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Markdown writer inline/link/escape expansion validation passed after rebase onto current main | pandoc-markdown-writer-inline-link-escape-expansion-surge |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -29,6 +29,14 @@ Input scope after skipping IPYNB:
 | Unsupported native PHP input tokens to implement | 28 |
 
 Focused test counts below are evidence counters, not a strict remaining-test burn-down. Percentages above 100% mean the local PHP tests are more granular than the upstream case counter available for that family; they do not claim upstream runner parity.
+
+### Markdown Writer Inline Link Escape Expansion Surge (2026-06-15)
+
+Bounded native PHP Markdown writer coverage advances by 50 upstream-mapped Markdown/CommonMark/GFM inline/link/escape cases after rebase onto current main `666f6aae2d`. `MarkdownWriter` now escapes ATX, bullet, ordered, default, example, and definition markers after one to three leading spaces in inline text; normalizes C0/DEL controls in emitted text and reference labels; and serializes reference, footnote, and abbreviation definitions with escaped labels/titles while preserving current citation, autolink, attribute, table, numbered-example, and inline completion coverage.
+
+Validation passed after rebase: `php -l` for `MarkdownWriter.php` and `MarkdownWriterInlineLinkEscapeExpansionSurgeTest.php`; focused `MarkdownWriterInlineLinkEscapeExpansionSurgeTest.php` (`1` file, `51` assertions, `0` failures); focused Markdown writer inline/link/escape group (`6` files, `604` assertions, `0` failures); affected table caption/span gate (`2` files, `142` assertions, `0` failures); full `lanes/pandoc/tests` (`79` files, `106,731` assertions, `0` failures); JSON validation; `git diff --check`; and exact conflict-marker scan. No Pandoc binary, cmark/commonmark runner, Cabal/Haskell runner, browser renderer, Node tooling, online service, live provider test, live-service provider test, or external validator is invoked.
+
+Markdown/CommonMark/GFM evidence is now 2,707 local mapped cases against the 1,096 accepted static upstream Markdown rows. The native PHP Markdown reader/writer remains partial pending broader metadata/raw/extension parity.
 
 ### Markdown Writer Auto HTML Table Fallback Surge (2026-06-15)
 

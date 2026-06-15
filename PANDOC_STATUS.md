@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 2,497 | 1,096 |
+| Markdown / CommonMark / GFM | 2,707 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not a current upstream Pandoc input token) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` preserves attributed native HTML div blocks, URL control-byte normalization, explicit figure captions, and existing emoji alias coverage; `MarkdownWriter` preserves hardened inline/link/escape output, numbered-example references, validated block/list/code marker output, and automatic HTML table fallback coverage.
+Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` preserves attributed native HTML div blocks, URL control-byte normalization, explicit figure captions, and existing emoji alias coverage; `MarkdownWriter` preserves hardened inline/link/escape output, indented marker literal escaping, reference/footnote/abbreviation definition escaping, numbered-example references, validated block/list/code marker output, and automatic HTML table fallback coverage.
 
-Current Pandoc counters: 6,415 PHP passes / 0 failures and 6,405 mapped upstream cases. Markdown writer auto HTML table fallback validation passed after rebase onto current main `125ba7381c`: `php -l` for `MarkdownWriter.php` and `MarkdownWriterTableAutoHtmlSurgeTest.php`; focused `MarkdownWriterTableAutoHtmlSurgeTest.php` (`1` file, `199` assertions, `0` failures); focused Markdown writer table group (`8` files, `10,069` assertions, `0` failures); full `lanes/pandoc/tests` (`76` files, `106,444` assertions, `0` failures); `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 6,566 PHP passes / 0 failures and 6,455 mapped upstream cases. Markdown writer inline/link/escape expansion validation passed after rebase onto current main `666f6aae2d`: `php -l` for `MarkdownWriter.php` and `MarkdownWriterInlineLinkEscapeExpansionSurgeTest.php`; focused `MarkdownWriterInlineLinkEscapeExpansionSurgeTest.php` (`1` file, `51` assertions, `0` failures); focused Markdown writer inline/link/escape group (`6` files, `604` assertions, `0` failures); affected table caption/span gate (`2` files, `142` assertions, `0` failures); full `lanes/pandoc/tests` (`79` files, `106,731` assertions, `0` failures); `jq empty`; `git diff --check`; and exact conflict-marker scan.
