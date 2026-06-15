@@ -8666,7 +8666,9 @@ final class MarkdownReader
 
     private function buildLineBlockLine(string $text): AstNode
     {
-        return new AstNode('line', ['text' => $text], $text === '' ? [] : $this->parseInlines($text));
+        $inlines = $text === '' ? [] : $this->parseInlines($text);
+
+        return new AstNode('line', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
     }
 
     /**
@@ -17855,6 +17857,11 @@ final class MarkdownReader
         ];
         if ($title !== '') {
             $attrs['title'] = $title;
+        }
+        foreach (['id', 'classes', 'attributes', 'htmlAttributes'] as $name) {
+            if (array_key_exists($name, $figureAttributes)) {
+                $attrs[$name] = $figureAttributes[$name];
+            }
         }
         if ($figureAttributes !== []) {
             $attrs['figureAttributes'] = $figureAttributes;
