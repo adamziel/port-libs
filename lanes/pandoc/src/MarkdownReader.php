@@ -7569,6 +7569,8 @@ final class MarkdownReader
 
     private function normalizeReferenceLabel(string $label): string
     {
+        $label = $this->decodeHtmlEntities($this->unescapeLinkComponent($label));
+
         return strtolower(trim(preg_replace('/\s+/', ' ', $label) ?? $label));
     }
 
