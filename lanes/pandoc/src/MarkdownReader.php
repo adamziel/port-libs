@@ -15922,6 +15922,14 @@ final class MarkdownReader
             $indent = $this->countIndentColumns($line);
             if ($indent >= $contentIndent) {
                 $stripped = rtrim($this->stripIndentColumns($line, $contentIndent));
+                $setextHeading = $this->tryBuildListItemSetextHeading($paragraph, $stripped);
+                if ($setextHeading !== null) {
+                    $parts[] = $setextHeading;
+                    $paragraph = [];
+                    $cursor++;
+                    continue;
+                }
+
                 if ($this->shouldParseListItemIndentedLineAsBlocks($stripped, $paragraph, $lines, $cursor, $baseIndent, $contentIndent)) {
                     $seedLines = [];
                     $continuesDefinitionList = $paragraph !== []
@@ -16011,6 +16019,36 @@ final class MarkdownReader
 
         return ($paragraph !== [] && $this->isDefinitionMarker($line))
             || ($paragraph === [] && $this->canStartListItemDefinitionBlock($line, $lines, $cursor + 1, $baseIndent, $contentIndent));
+    }
+
+    /**
+     * @param list<string> $paragraph
+     */
+    private function tryBuildListItemSetextHeading(array $paragraph, string $underline): ?AstNode
+    {
+        if ($paragraph === [] || preg_match('/^ {0,3}(=+|-+)[ \t]*$/', $underline, $m) !== 1) {
+            return null;
+        }
+
+        $heading = $this->buildMarkdownHeading(
+            $m[1][0] === '=' ? 1 : 2,
+            implode(' ', array_map(static fn (string $line): string => trim($line), $paragraph))
+        );
+        $usedIds = [];
+        $text = $heading['text'];
+        $attrs = [
+            'level' => $heading['level'],
+            'text' => $text,
+            'id' => $heading['id'] ?? $this->uniqueMarkdownHeadingId($this->slugifyMarkdownHeading($text), $usedIds),
+        ];
+        if ($heading['classes'] !== []) {
+            $attrs['classes'] = $heading['classes'];
+        }
+        if ($heading['attributes'] !== []) {
+            $attrs['attributes'] = $heading['attributes'];
+        }
+
+        return new AstNode('heading', $attrs, $this->parseInlines($text));
     }
 
     private function isListItemBlockStartLine(string $line): bool

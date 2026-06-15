@@ -686,7 +686,7 @@ $continuationCases = [
         'blockType' => 'horizontal_rule',
     ],
     '23 ordered thematic break continuation' => [
-        'markdown' => "1. item\n   ---",
+        'markdown' => "1. item\n   ***",
         'listType' => 'ordered_list',
         'childTypes' => ['text', 'horizontal_rule'],
         'blockType' => 'horizontal_rule',
@@ -697,7 +697,7 @@ $continuationCases = [
         'blockType' => 'horizontal_rule',
     ],
     '25 thematic break continuation preserves sibling item' => [
-        'markdown' => "- item\n  ---\n- next",
+        'markdown' => "- item\n  ***\n- next",
         'childTypes' => ['text', 'horizontal_rule'],
         'blockType' => 'horizontal_rule',
         'itemCount' => 2,
@@ -1149,7 +1149,7 @@ foreach ($markers as $label => $case) {
     };
 
     $tests["maps commonmark block list surge {$label} continuation horizontal rule"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
-        $document = $read($case['marker'] . 'lead' . "\n" . $case['indent'] . '---' . "\n" . $case['next']);
+        $document = $read($case['marker'] . 'lead' . "\n" . $case['indent'] . '***' . "\n" . $case['next']);
         $item = $firstItem($t, $document, $case['list']);
 
         $t->same(['text', 'horizontal_rule'], $types($item));
@@ -1786,6 +1786,79 @@ foreach ($markers as $label => $case) {
         $t->same('After', $after->attr('text'));
     };
 }
+
+foreach ($markers as $label => $case) {
+    $tests["maps commonmark block list setext heading surge {$label} level one item"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'Setext heading' . "\n" . $case['indent'] . '===' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $heading = $item->children[0] ?? new AstNode('missing');
+
+        $t->same(['heading'], $types($item));
+        $t->same(1, $heading->attr('level'));
+        $t->same('Setext heading', $heading->attr('text'));
+        $t->same('setext-heading', $heading->attr('id'));
+    };
+
+    $tests["maps commonmark block list setext heading surge {$label} attributed level two item"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'Attributed setext {#list-setext .review data-source="block"}' . "\n" . $case['indent'] . '---' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $heading = $item->children[0] ?? new AstNode('missing');
+
+        $t->same(['heading'], $types($item));
+        $t->same(2, $heading->attr('level'));
+        $t->same('Attributed setext', $heading->attr('text'));
+        $t->same('list-setext', $heading->attr('id'));
+        $t->same(['review'], $heading->attr('classes'));
+        $t->same(['data-source' => 'block'], $heading->attr('attributes'));
+    };
+
+    $tests["maps commonmark block list setext heading surge {$label} loose paragraph before heading"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'intro' . "\n\n" . $case['indent'] . 'Loose setext' . "\n" . $case['indent'] . '---' . "\n" . $case['next']);
+        $list = $document->children[0] ?? new AstNode('missing');
+        $item = $firstItem($t, $document, $case['list']);
+        $paragraph = $item->children[0] ?? new AstNode('missing');
+        $heading = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(true, (bool) $list->attr('loose'));
+        $t->same(true, (bool) $item->attr('loose'));
+        $t->same(['paragraph', 'heading'], $types($item));
+        $t->same('intro', $paragraph->attr('text'));
+        $t->same(2, $heading->attr('level'));
+        $t->same('Loose setext', $heading->attr('text'));
+    };
+
+    $tests["maps commonmark block list setext heading surge {$label} inline markup"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'Setext **strong** `code`' . "\n" . $case['indent'] . '===' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $heading = $item->children[0] ?? new AstNode('missing');
+        $childTypes = $types($heading);
+
+        $t->same(['heading'], $types($item));
+        $t->same(1, $heading->attr('level'));
+        $t->same('Setext **strong** `code`', $heading->attr('text'));
+        $t->true(in_array('strong', $childTypes, true), 'Setext heading should parse strong inline markup');
+        $t->true(in_array('code', $childTypes, true), 'Setext heading should parse code inline markup');
+    };
+
+    $tests["maps commonmark block list setext heading surge {$label} terminates before following paragraph"] = static function (TestRunner $t) use ($read, $types, $case): void {
+        $document = $read($case['marker'] . 'Terminal setext' . "\n" . $case['indent'] . '===' . "\nAfter");
+        $list = $document->children[0] ?? new AstNode('missing');
+        $item = $list->children[0] ?? new AstNode('missing');
+        $heading = $item->children[0] ?? new AstNode('missing');
+        $after = $document->children[1] ?? new AstNode('missing');
+
+        $t->same([$case['list'], 'paragraph'], $types($document));
+        $t->same(['heading'], $types($item));
+        $t->same(1, $heading->attr('level'));
+        $t->same('Terminal setext', $heading->attr('text'));
+        $t->same('After', $after->attr('text'));
+    };
+}
+
+$tests['records upstream markdown reader list setext heading mapped-case count'] =
+    static function (TestRunner $t) use ($markers): void {
+        $t->same(50, count($markers) * 5);
+    };
 
 $assertListAttrs = static function (TestRunner $t, AstNode $list, array $case): void {
     if (isset($case['start'])) {
