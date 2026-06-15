@@ -94,6 +94,87 @@ BIB;
         $t->same('Import note attached', $item['note']);
         $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
     },
+    'carries biblatex annotations separately from abstracts in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@misc{annotated-source,
+  author     = {Roe, Pat},
+  title      = {Annotated Legacy Packet},
+  date       = {2026},
+  abstract   = {Public summary for migration review.},
+  annotation = {Internal reviewer annotation.},
+  annote     = {Legacy catalog fallback note.},
+  url        = {https://example.test/annotated-legacy}
+}
+
+@misc{annote-only-source,
+  author = {Ng, Nia},
+  title  = {Legacy Annote Packet},
+  date   = {2025},
+  annote = {Legacy annote preserved as annotation.}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $bibliography = $processor->renderBibliographyText($items['annotated-source']);
+
+        $t->same('Public summary for migration review.', $items['annotated-source']['abstract']);
+        $t->same('Internal reviewer annotation.', $items['annotated-source']['annotation']);
+        $t->same('Legacy annote preserved as annotation.', $items['annote-only-source']['abstract']);
+        $t->same('Legacy annote preserved as annotation.', $items['annote-only-source']['annotation']);
+        $t->same('Internal reviewer annotation.', $items['annotated-source']['rawBibtex']['fields']['annotation']);
+        $t->same('Legacy catalog fallback note.', $items['annotated-source']['rawBibtex']['fields']['annote']);
+        $t->same(
+            'Pat Roe. Annotated Legacy Packet. 2026. Annotation: Internal reviewer annotation. https://example.test/annotated-legacy.',
+            $bibliography
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Annote Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-annote-review</id>
+    <updated>2026-06-15T12:44:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="abstract"/>
+        <text variable="annote"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="abstract"/>
+      <text variable="annotation"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('Bounded Legacy BibLaTeX Annote Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same(
+            '[Annotated Legacy Packet | Public summary for migration review. | Internal reviewer annotation.; Legacy Annote Packet | Legacy annote preserved as annotation. | Legacy annote preserved as annotation.]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'annotated-source', 'text' => '[@annotated-source]']),
+                new AstNode('citation', ['id' => 'annote-only-source', 'text' => '[@annote-only-source]']),
+            ])
+        );
+        $t->same('Annotated Legacy Packet :: Public summary for migration review. :: Internal reviewer annotation.', $styled->renderBibliographyEntry('annotated-source'));
+
+        $document = (new MarkdownReader())->read('Legacy annote source @annotated-source keeps annotation metadata visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['annotated-source'], $handoff['citedKeys']);
+        $t->same('Internal reviewer annotation.', $handoff['items'][0]['annotation']);
+        $t->contains('Annotation: Internal reviewer annotation', $blocks);
+    },
     'maps obscure biblatex entry aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @software{tool,

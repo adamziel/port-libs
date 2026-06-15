@@ -262,6 +262,9 @@ final class BibtexCslProcessor
         if (($item['rights'] ?? '') !== '') {
             $parts[] = 'Rights: ' . (string) $item['rights'];
         }
+        if (($item['annotation'] ?? '') !== '') {
+            $parts[] = 'Annotation: ' . rtrim((string) $item['annotation'], '.');
+        }
         if (($item['call-number'] ?? '') !== '') {
             $parts[] = 'Call number: ' . (string) $item['call-number'];
         }
@@ -494,6 +497,7 @@ final class BibtexCslProcessor
             'original-publisher-place' => ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'],
             'original-language' => ['origlanguage', 'originallanguage', 'original-language'],
             'abstract' => ['abstract', 'annotation', 'annote'],
+            'annotation' => ['annotation', 'annote'],
             'note' => ['note', 'addendum'],
             'genre' => ['type', 'entrysubtype'],
         ];
