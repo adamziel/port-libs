@@ -14893,7 +14893,7 @@ final class MarkdownReader
 
         [$caption, $next] = $this->readFigureCaption($lines, $index + 1);
         if (($caption['caption'] ?? '') === '') {
-            return null;
+            return $this->buildFigureFromImageAndCaption($image, $this->buildImplicitFigureCaptionRecord($image));
         }
 
         $index = $next - 1;
@@ -14985,7 +14985,7 @@ final class MarkdownReader
      */
     private function matchFigureCaptionLine(string $line, bool $leading): ?array
     {
-        if (preg_match($this->captionMarkerRegex(['Figure', 'Figures?', 'Fig\\.?', 'Figs\\.?', 'Image', 'Img\\.?', 'Caption']), $line, $m) !== 1) {
+        if (preg_match($this->captionMarkerRegex(['Figure', 'Figures?', 'Fig\\.?', 'Figs\\.?', 'Image', 'Img\\.?', 'Picture', 'Photo', 'Illustration', 'Plate', 'Diagram', 'Caption']), $line, $m) !== 1) {
             return null;
         }
 
@@ -15005,6 +15005,34 @@ final class MarkdownReader
     private function emptyFigureCaptionRecord(): array
     {
         return ['caption' => ''];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildImplicitFigureCaptionRecord(AstNode $image): array
+    {
+        $captionInlines = $image->children;
+        $caption = $captionInlines === []
+            ? (string) $image->attr('caption', $image->attr('alt', ''))
+            : $this->plainTextFromInlines($captionInlines);
+
+        $record = [
+            'caption' => $caption,
+            'captionSource' => [
+                'element' => 'markdown-implicit-figure',
+                'position' => 'image-label',
+                'marker' => 'standalone-image',
+                'captionSide' => 'bottom',
+                'captionSideSource' => 'markdown-implicit-figure',
+            ],
+            'renderCaptionInlines' => true,
+        ];
+        if ($captionInlines !== []) {
+            $record['captionInlines'] = $captionInlines;
+        }
+
+        return $record;
     }
 
     /**
