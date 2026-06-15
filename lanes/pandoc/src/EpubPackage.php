@@ -6165,6 +6165,11 @@ final class EpubPackage
                 'identifierTypes' => $identifierTypes,
                 'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
                 'alternateScripts' => self::metadataRefinementEntries($refinements, 'alternate-script'),
+                'linkedResources' => [],
+                'linkedResourceCount' => 0,
+                'localLinkedResourceCount' => 0,
+                'externalLinkedResourceCount' => 0,
+                'missingLinkedResourceCount' => 0,
                 'refinements' => $refinements,
             ];
         }
@@ -6202,6 +6207,12 @@ final class EpubPackage
         $sourceOfValues = [];
         $identifierTypes = [];
         $typedCount = 0;
+        $linkedResourceCount = 0;
+        $localLinkedResourceCount = 0;
+        $externalLinkedResourceCount = 0;
+        $missingLinkedResourceCount = 0;
+        $relCounts = [];
+        $diagnostics = [];
 
         foreach ($sourceDetails as $detail) {
             $scheme = is_string($detail['scheme'] ?? null) ? trim($detail['scheme']) : '';
@@ -6226,7 +6237,41 @@ final class EpubPackage
                     $identifierTypes[$value] = $value;
                 }
             }
+
+            $linkedResources = is_array($detail['linkedResources'] ?? null) ? $detail['linkedResources'] : [];
+            $linkedResourceCount += count($linkedResources);
+            $localLinkedResourceCount += (int) ($detail['localLinkedResourceCount'] ?? 0);
+            $externalLinkedResourceCount += (int) ($detail['externalLinkedResourceCount'] ?? 0);
+            $missingLinkedResourceCount += (int) ($detail['missingLinkedResourceCount'] ?? 0);
+            foreach ($linkedResources as $link) {
+                if (!is_array($link)) {
+                    continue;
+                }
+
+                foreach (is_array($link['rel'] ?? null) ? $link['rel'] : [] as $rel) {
+                    if (!is_string($rel) || $rel === '') {
+                        continue;
+                    }
+
+                    $relCounts[$rel] = ($relCounts[$rel] ?? 0) + 1;
+                }
+
+                foreach (is_array($link['diagnostics'] ?? null) ? $link['diagnostics'] : [] as $diagnostic) {
+                    if (!is_array($diagnostic)) {
+                        continue;
+                    }
+
+                    $diagnostics[] = [
+                        'sourceIndex' => is_int($detail['index'] ?? null) ? $detail['index'] : null,
+                        'sourceId' => is_string($detail['id'] ?? null) ? $detail['id'] : null,
+                        'linkIndex' => is_int($link['index'] ?? null) ? $link['index'] : null,
+                        'linkId' => is_string($link['id'] ?? null) ? $link['id'] : null,
+                    ] + $diagnostic;
+                }
+            }
         }
+
+        ksort($relCounts, SORT_STRING);
 
         return [
             'present' => $sourceDetails !== [],
@@ -6237,6 +6282,13 @@ final class EpubPackage
             'sourceOfValues' => array_values($sourceOfValues),
             'identifierTypes' => array_values($identifierTypes),
             'schemes' => array_values($schemes),
+            'linkedResourceCount' => $linkedResourceCount,
+            'localLinkedResourceCount' => $localLinkedResourceCount,
+            'externalLinkedResourceCount' => $externalLinkedResourceCount,
+            'missingLinkedResourceCount' => $missingLinkedResourceCount,
+            'linkedResourceRelCounts' => $relCounts,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -6546,6 +6598,15 @@ final class EpubPackage
             $metadata['subjectsByAuthority'] = self::metadataDetailsByField($metadata['subjectDetails'], 'authority');
             $metadata['subjectsByTerm'] = self::metadataDetailsByField($metadata['subjectDetails'], 'term');
             $metadata['subjectSummary'] = self::metadataSubjectSummary($metadata['subjectDetails']);
+        }
+
+        if (is_array($metadata['sourceDetails'] ?? null)) {
+            $metadata['sourceDetails'] = self::attachLinkedResourcesToMetadataDetails(
+                $metadata['sourceDetails'],
+                $linksBySubjectId,
+            );
+            $metadata['sourcesByType'] = self::metadataSourcesByType($metadata['sourceDetails']);
+            $metadata['sourceSummary'] = self::metadataSourceSummary($metadata['sourceDetails']);
         }
 
         return $metadata;

@@ -1816,6 +1816,7 @@ XML;
     },
 
     'summarizes OPF source provenance metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $sourceJson = '{"source":"print","records":1}';
         $opfWithSources = str_replace(
             '<dc:language>en-US</dc:language>',
             '<dc:language>en-US</dc:language>
@@ -1830,7 +1831,16 @@ XML;
     <meta refines="#print-source" property="display-seq">1</meta>
     <meta refines="#archive-source" property="source-of">transcription</meta>
     <meta refines="#archive-source" property="alternate-script" xml:lang="en" dir="ltr">Archive scan packet A translated</meta>
+    <link id="source-record" rel="record source" refines="#print-source" href="meta/source.json?profile=review#record" media-type="application/ld+json"/>
+    <link id="archive-missing-record" rel="record" refines="#archive-source" href="meta/archive-missing.json" media-type="application/json"/>
+    <link id="archive-remote-record" rel="record" refines="#archive-source" href="https://example.invalid/archive-source.json" media-type="application/json"/>
   </metadata>',
+            $opfWithSources
+        );
+        $opfWithSources = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="source-record" href="meta/source.json" media-type="application/ld+json"/>',
             $opfWithSources
         );
 
@@ -1843,11 +1853,15 @@ XML;
             ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
             ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
             ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/source.json', 'data' => $sourceJson],
         ]));
 
         $metadata = $epub->metadata();
         $summary = $epub->summary();
         $sourceDetails = $metadata['sourceDetails'];
+        $printSourceRecord = $sourceDetails[0]['linkedResources'][0];
+        $archiveMissingRecord = $sourceDetails[1]['linkedResources'][0];
+        $archiveRemoteRecord = $sourceDetails[1]['linkedResources'][1];
 
         $t->same(['9781491905012', 'Archive scan packet A'], $metadata['sources']);
         $t->same('9781491905012', $metadata['source']);
@@ -1860,12 +1874,39 @@ XML;
         $t->same('15', $sourceDetails[0]['identifierType']);
         $t->same('onix:codelist5', $sourceDetails[0]['identifierTypes'][0]['scheme']);
         $t->same('1', $sourceDetails[0]['displaySeq']);
+        $t->same(1, $sourceDetails[0]['linkedResourceCount']);
+        $t->same(1, $sourceDetails[0]['localLinkedResourceCount']);
+        $t->same(0, $sourceDetails[0]['externalLinkedResourceCount']);
+        $t->same(0, $sourceDetails[0]['missingLinkedResourceCount']);
+        $t->same('source-record', $printSourceRecord['id']);
+        $t->same(['record', 'source'], $printSourceRecord['rel']);
+        $t->same('/EPUB/meta/source.json?profile=review#record', $printSourceRecord['target']);
+        $t->same('/EPUB/meta/source.json', $printSourceRecord['partName']);
+        $t->same('source-record', $printSourceRecord['manifestId']);
+        $t->same('application/ld+json', $printSourceRecord['manifestMediaType']);
+        $t->same(true, $printSourceRecord['exists']);
+        $t->same(strlen($sourceJson), $printSourceRecord['byteLength']);
+        $t->same(hash('crc32b', $sourceJson), $printSourceRecord['crc32']);
+        $t->same('profile=review', $printSourceRecord['hrefQuery']);
+        $t->same('record', $printSourceRecord['hrefFragment']);
         $t->same('archive-source', $sourceDetails[1]['id']);
         $t->same('fr', $sourceDetails[1]['language']);
         $t->same('ltr', $sourceDetails[1]['direction']);
         $t->same('transcription', $sourceDetails[1]['sourceOf']);
         $t->same('Archive scan packet A translated', $sourceDetails[1]['alternateScripts'][0]['text']);
         $t->same('en', $sourceDetails[1]['alternateScripts'][0]['language']);
+        $t->same(2, $sourceDetails[1]['linkedResourceCount']);
+        $t->same(1, $sourceDetails[1]['localLinkedResourceCount']);
+        $t->same(1, $sourceDetails[1]['externalLinkedResourceCount']);
+        $t->same(1, $sourceDetails[1]['missingLinkedResourceCount']);
+        $t->same('archive-missing-record', $archiveMissingRecord['id']);
+        $t->same('/EPUB/meta/archive-missing.json', $archiveMissingRecord['partName']);
+        $t->same(false, $archiveMissingRecord['exists']);
+        $t->same('missing-package-link-target', $archiveMissingRecord['diagnostics'][0]['type']);
+        $t->same('archive-remote-record', $archiveRemoteRecord['id']);
+        $t->same(true, $archiveRemoteRecord['external']);
+        $t->same('https://example.invalid/archive-source.json', $archiveRemoteRecord['target']);
+        $t->same('external-package-link-target', $archiveRemoteRecord['diagnostics'][0]['type']);
         $t->same('9781491905012', $metadata['sourcesByType']['pagination'][0]['text']);
         $t->same('Archive scan packet A', $metadata['sourcesByType']['transcription'][0]['text']);
         $t->same([
@@ -1877,6 +1918,33 @@ XML;
             'sourceOfValues' => ['pagination', 'transcription'],
             'identifierTypes' => ['15'],
             'schemes' => ['ISBN'],
+            'linkedResourceCount' => 3,
+            'localLinkedResourceCount' => 2,
+            'externalLinkedResourceCount' => 1,
+            'missingLinkedResourceCount' => 1,
+            'linkedResourceRelCounts' => ['record' => 3, 'source' => 1],
+            'diagnosticCount' => 2,
+            'diagnostics' => [
+                [
+                    'sourceIndex' => 1,
+                    'sourceId' => 'archive-source',
+                    'linkIndex' => 1,
+                    'linkId' => 'archive-missing-record',
+                    'type' => 'missing-package-link-target',
+                    'href' => 'meta/archive-missing.json',
+                    'partName' => '/EPUB/meta/archive-missing.json',
+                    'message' => 'EPUB OPF metadata link target is missing from the package',
+                ],
+                [
+                    'sourceIndex' => 1,
+                    'sourceId' => 'archive-source',
+                    'linkIndex' => 2,
+                    'linkId' => 'archive-remote-record',
+                    'type' => 'external-package-link-target',
+                    'href' => 'https://example.invalid/archive-source.json',
+                    'message' => 'EPUB OPF metadata link points outside the package and was not fetched',
+                ],
+            ],
         ], $metadata['sourceSummary']);
 
         $t->same($sourceDetails, $summary['wordpressImport']['metadataDetails']['sourceDetails']);
