@@ -8385,8 +8385,13 @@ XML;
     },
 
     'summarizes EPUB manifest dependency ZIP provenance for compact handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $chapter = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="intro">Chapter</h1></body></html>';
+        $chapterMissingOverlay = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Missing overlay</h1></body></html>';
+        $widget = 'WIDGET';
+        $stylelessWidget = 'STYLELESS';
         $fallback = '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Fallback package content.</p></body></html>';
         $widgetCss = 'body { color: #446688; }';
+        $nav = '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Chapter</a></li></ol></nav></body></html>';
         $overlay = <<<'XML'
 <smil xmlns="http://www.w3.org/ns/SMIL">
   <body>
@@ -8428,11 +8433,11 @@ XML;
             ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
             ['name' => 'EPUB/package.opf', 'data' => $opfWithDependencies],
-            ['name' => 'EPUB/nav.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Chapter</a></li></ol></nav></body></html>'],
-            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="intro">Chapter</h1></body></html>'],
-            ['name' => 'EPUB/chapter-missing-overlay.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Missing overlay</h1></body></html>'],
-            ['name' => 'EPUB/widgets/review.bin', 'data' => 'WIDGET'],
-            ['name' => 'EPUB/widgets/styleless.bin', 'data' => 'STYLELESS'],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $nav],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => $chapter],
+            ['name' => 'EPUB/chapter-missing-overlay.xhtml', 'data' => $chapterMissingOverlay],
+            ['name' => 'EPUB/widgets/review.bin', 'data' => $widget, 'method' => 12],
+            ['name' => 'EPUB/widgets/styleless.bin', 'data' => $stylelessWidget],
             ['name' => 'EPUB/fallback.xhtml', 'data' => $fallback],
             ['name' => 'EPUB/styles/widget.css', 'data' => $widgetCss, 'method' => 12],
             ['name' => 'EPUB/overlays/chapter.smil', 'data' => $overlay],
@@ -8461,6 +8466,22 @@ XML;
         $t->same(1, $inventory['unsupportedCompressionTargetCount']);
         $t->same(2, $inventory['exposableTargetCount']);
         $t->same(3, $inventory['blockedTargetCount']);
+        $t->same(5, $inventory['sourceExistingEdgeCount']);
+        $t->same(2, $inventory['sourceUnsupportedCompressionEdgeCount']);
+        $t->same(3, $inventory['sourceExposableEdgeCount']);
+        $t->same(2, $inventory['sourceBlockedEdgeCount']);
+        $t->same(
+            strlen($chapter) + strlen($chapterMissingOverlay) + (2 * strlen($widget)) + strlen($stylelessWidget),
+            $inventory['sourceTotalByteLength']
+        );
+        $t->same(
+            strlen(gzdeflate($chapter)) + strlen(gzdeflate($chapterMissingOverlay)) + (2 * strlen($widget)) + strlen(gzdeflate($stylelessWidget)),
+            $inventory['sourceTotalCompressedByteLength']
+        );
+        $t->same(strlen($chapter) + strlen($chapterMissingOverlay) + strlen($stylelessWidget), $inventory['sourceExposableByteLength']);
+        $t->same(strlen(gzdeflate($chapter)) + strlen(gzdeflate($chapterMissingOverlay)) + strlen(gzdeflate($stylelessWidget)), $inventory['sourceExposableCompressedByteLength']);
+        $t->same(2 * strlen($widget), $inventory['sourceBlockedByteLength']);
+        $t->same(2 * strlen($widget), $inventory['sourceBlockedCompressedByteLength']);
         $t->same(strlen($fallback) + strlen($widgetCss) + strlen($overlay), $inventory['totalByteLength']);
         $t->same(strlen(gzdeflate($fallback)) + strlen($widgetCss) + strlen(gzdeflate($overlay)), $inventory['totalCompressedByteLength']);
         $t->same(strlen($fallback) + strlen($overlay), $inventory['exposableByteLength']);
@@ -8477,9 +8498,15 @@ XML;
             'missing-manifest-dependency-target-metadata-only' => 2,
             'unsupported-compression-metadata-only' => 1,
         ], $inventory['byteExposurePolicyCounts']);
+        $t->same([
+            'manifest-dependency-source-bytes-exposable' => 3,
+            'unsupported-compression-metadata-only' => 2,
+        ], $inventory['sourceByteExposurePolicyCounts']);
         $t->same(['deflated' => 2, 'unsupported' => 1], $inventory['compressionMethodCounts']);
+        $t->same(['deflated' => 3, 'unsupported' => 2], $inventory['sourceCompressionMethodCounts']);
         $t->same(['mo-chapter', 'missing-overlay', 'fallback-html', 'widget-css', 'missing-css'], $inventory['targetIds']);
         $t->same(['missing-overlay', 'missing-css'], $inventory['missingManifestTargetIds']);
+        $t->same(['/EPUB/widgets/review.bin'], $inventory['sourceUnsupportedCompressionPartNames']);
         $t->same(['/EPUB/styles/widget.css'], $inventory['unsupportedCompressionTargetPartNames']);
         $t->same([
             'missing-manifest-dependency-target',
@@ -8490,6 +8517,12 @@ XML;
         ], $inventory['diagnosticTypes']);
 
         $t->same('fallback', $widgetFallback['relation']);
+        $t->same(true, $widgetFallback['sourceExists']);
+        $t->same(true, $widgetFallback['sourceUnsupportedCompression']);
+        $t->same('unsupported', $widgetFallback['sourceCompressionMethodName']);
+        $t->same(false, $widgetFallback['sourceCanExposeBytes']);
+        $t->same('unsupported-compression-metadata-only', $widgetFallback['sourceByteExposurePolicy']);
+        $t->same(strlen($widget), $widgetFallback['sourceByteLength']);
         $t->same('fallback-html', $widgetFallback['targetId']);
         $t->same('/EPUB/fallback.xhtml', $widgetFallback['targetPartName']);
         $t->same(true, $widgetFallback['targetCanExposeBytes']);
@@ -8499,6 +8532,8 @@ XML;
         $t->same(true, $widgetFallback['relationUsable']);
 
         $t->same('fallback-style', $widgetStyle['relation']);
+        $t->same('/EPUB/widgets/review.bin', $widgetStyle['sourcePartName']);
+        $t->same('unsupported-compression-metadata-only', $widgetStyle['sourceByteExposurePolicy']);
         $t->same('widget-css', $widgetStyle['targetId']);
         $t->same(true, $widgetStyle['targetUnsupportedCompression']);
         $t->same('unsupported', $widgetStyle['targetCompressionMethodName']);
@@ -8506,6 +8541,8 @@ XML;
         $t->same(false, $widgetStyle['relationUsable']);
 
         $t->same('media-overlay', $chapterOverlay['relation']);
+        $t->same(true, $chapterOverlay['sourceCanExposeBytes']);
+        $t->same('manifest-dependency-source-bytes-exposable', $chapterOverlay['sourceByteExposurePolicy']);
         $t->same('mo-chapter', $chapterOverlay['targetId']);
         $t->same('/EPUB/overlays/chapter.smil', $chapterOverlay['targetPartName']);
         $t->same('media-overlay', $chapterOverlay['targetResourceKind']);

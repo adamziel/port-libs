@@ -10295,25 +10295,49 @@ final class EpubPackage
         $relationCounts = [];
         $byteExposurePolicyCounts = [];
         $compressionMethodCounts = [];
+        $sourceByteExposurePolicyCounts = [];
+        $sourceCompressionMethodCounts = [];
         $sourceIds = [];
         $targetIds = [];
+        $sourcePartNames = [];
         $targetPartNames = [];
+        $sourceMissingPackagePartNames = [];
         $missingManifestTargetIds = [];
         $missingPackagePartNames = [];
+        $sourceExternalIds = [];
         $externalTargetIds = [];
+        $sourceEncryptedPartNames = [];
         $encryptedTargetPartNames = [];
+        $sourceObfuscatedFontPartNames = [];
         $obfuscatedFontTargetPartNames = [];
+        $sourceUnsupportedCompressionPartNames = [];
         $unsupportedCompressionTargetPartNames = [];
         $manifestTargetCount = 0;
         $existingTargetCount = 0;
         $missingManifestTargetCount = 0;
         $missingPackagePartTargetCount = 0;
         $externalTargetCount = 0;
+        $sourceExistingEdgeCount = 0;
+        $sourceMissingPackagePartEdgeCount = 0;
+        $sourceExternalEdgeCount = 0;
+        $sourceEncryptedEdgeCount = 0;
+        $sourceObfuscatedFontEdgeCount = 0;
+        $sourceUnsupportedCompressionEdgeCount = 0;
+        $sourceExposableEdgeCount = 0;
+        $sourceBlockedEdgeCount = 0;
         $encryptedTargetCount = 0;
         $obfuscatedFontTargetCount = 0;
         $unsupportedCompressionTargetCount = 0;
         $exposableTargetCount = 0;
         $blockedTargetCount = 0;
+        $sourceTotalByteLength = 0;
+        $sourceTotalCompressedByteLength = 0;
+        $sourceExposableByteLength = 0;
+        $sourceExposableCompressedByteLength = 0;
+        $sourceBlockedByteLength = 0;
+        $sourceBlockedCompressedByteLength = 0;
+        $sourceUnsupportedCompressionByteLength = 0;
+        $sourceUnsupportedCompressionCompressedByteLength = 0;
         $totalByteLength = 0;
         $totalCompressedByteLength = 0;
         $exposableByteLength = 0;
@@ -10336,25 +10360,49 @@ final class EpubPackage
             &$relationCounts,
             &$byteExposurePolicyCounts,
             &$compressionMethodCounts,
+            &$sourceByteExposurePolicyCounts,
+            &$sourceCompressionMethodCounts,
             &$sourceIds,
             &$targetIds,
+            &$sourcePartNames,
             &$targetPartNames,
+            &$sourceMissingPackagePartNames,
             &$missingManifestTargetIds,
             &$missingPackagePartNames,
+            &$sourceExternalIds,
             &$externalTargetIds,
+            &$sourceEncryptedPartNames,
             &$encryptedTargetPartNames,
+            &$sourceObfuscatedFontPartNames,
             &$obfuscatedFontTargetPartNames,
+            &$sourceUnsupportedCompressionPartNames,
             &$unsupportedCompressionTargetPartNames,
             &$manifestTargetCount,
             &$existingTargetCount,
             &$missingManifestTargetCount,
             &$missingPackagePartTargetCount,
             &$externalTargetCount,
+            &$sourceExistingEdgeCount,
+            &$sourceMissingPackagePartEdgeCount,
+            &$sourceExternalEdgeCount,
+            &$sourceEncryptedEdgeCount,
+            &$sourceObfuscatedFontEdgeCount,
+            &$sourceUnsupportedCompressionEdgeCount,
+            &$sourceExposableEdgeCount,
+            &$sourceBlockedEdgeCount,
             &$encryptedTargetCount,
             &$obfuscatedFontTargetCount,
             &$unsupportedCompressionTargetCount,
             &$exposableTargetCount,
             &$blockedTargetCount,
+            &$sourceTotalByteLength,
+            &$sourceTotalCompressedByteLength,
+            &$sourceExposableByteLength,
+            &$sourceExposableCompressedByteLength,
+            &$sourceBlockedByteLength,
+            &$sourceBlockedCompressedByteLength,
+            &$sourceUnsupportedCompressionByteLength,
+            &$sourceUnsupportedCompressionCompressedByteLength,
             &$totalByteLength,
             &$totalCompressedByteLength,
             &$exposableByteLength,
@@ -10371,6 +10419,51 @@ final class EpubPackage
             $sourcePackagePath = self::packageInventoryEntryName($sourcePartName);
             $sourceMediaType = is_string($sourceItem['mediaType'] ?? null) ? $sourceItem['mediaType'] : '';
             $sourceProperties = is_array($sourceItem['properties'] ?? null) ? array_values($sourceItem['properties']) : [];
+            $sourceInventoryItem = $sourcePackagePath !== null
+                && isset($inventoryByPackagePath[$sourcePackagePath])
+                && is_array($inventoryByPackagePath[$sourcePackagePath])
+                    ? $inventoryByPackagePath[$sourcePackagePath]
+                    : null;
+            $sourceExternal = ($sourceItem['external'] ?? false) === true;
+            $sourceExists = !$sourceExternal
+                && ($sourceItem['exists'] ?? false) === true
+                && is_array($sourceInventoryItem);
+            $sourceMissingPackagePart = !$sourceExternal && !$sourceExists;
+            $sourceEncrypted = is_array($sourceInventoryItem) && ($sourceInventoryItem['encrypted'] ?? false) === true;
+            $sourceObfuscatedFont = is_array($sourceInventoryItem) && ($sourceInventoryItem['obfuscatedFont'] ?? false) === true;
+            $sourceCompressionSupported = is_array($sourceInventoryItem) ? ($sourceInventoryItem['compressionSupported'] ?? null) : null;
+            $sourceUnsupportedCompression = $sourceCompressionSupported === false;
+            $sourceCanExposeBytes = $sourceExists
+                && !$sourceEncrypted
+                && !$sourceObfuscatedFont
+                && !$sourceUnsupportedCompression
+                && is_array($sourceInventoryItem)
+                && ($sourceInventoryItem['canExposeBytes'] ?? false) === true;
+            $sourceByteLength = is_array($sourceInventoryItem) && is_int($sourceInventoryItem['byteLength'] ?? null)
+                ? $sourceInventoryItem['byteLength']
+                : null;
+            $sourceCompressedByteLength = is_array($sourceInventoryItem) && is_int($sourceInventoryItem['compressedByteLength'] ?? null)
+                ? $sourceInventoryItem['compressedByteLength']
+                : null;
+            $sourceCompressionMethodName = is_array($sourceInventoryItem) && is_string($sourceInventoryItem['compressionMethodName'] ?? null)
+                ? $sourceInventoryItem['compressionMethodName']
+                : null;
+
+            if ($sourceExternal) {
+                $sourceByteExposurePolicy = 'external-manifest-dependency-source-metadata-only';
+            } elseif ($sourceMissingPackagePart) {
+                $sourceByteExposurePolicy = 'missing-manifest-dependency-source-package-part-metadata-only';
+            } elseif ($sourceObfuscatedFont) {
+                $sourceByteExposurePolicy = 'obfuscated-font-bytes-blocked';
+            } elseif ($sourceEncrypted) {
+                $sourceByteExposurePolicy = 'encrypted-resource-bytes-blocked';
+            } elseif ($sourceUnsupportedCompression) {
+                $sourceByteExposurePolicy = 'unsupported-compression-metadata-only';
+            } elseif ($sourceCanExposeBytes) {
+                $sourceByteExposurePolicy = 'manifest-dependency-source-bytes-exposable';
+            } else {
+                $sourceByteExposurePolicy = 'manifest-dependency-source-metadata-only';
+            }
             $targetId = $targetId === null ? '' : $targetId;
             $targetItem = $targetId !== '' && isset($manifestById[$targetId]) && is_array($manifestById[$targetId])
                 ? $manifestById[$targetId]
@@ -10541,6 +10634,20 @@ final class EpubPackage
                 'sourceResourceKind' => $sourcePackagePath === null
                     ? null
                     : self::packageInventoryResourceKind($sourceMediaType, $sourcePackagePath, $sourceProperties),
+                'sourceExternal' => $sourceExternal,
+                'sourceExists' => $sourceExists,
+                'sourceMissingPackagePart' => $sourceMissingPackagePart,
+                'sourceEncrypted' => $sourceEncrypted,
+                'sourceObfuscatedFont' => $sourceObfuscatedFont,
+                'sourceUnsupportedCompression' => $sourceUnsupportedCompression,
+                'sourceCompressionSupported' => $sourceCompressionSupported,
+                'sourceCompressionMethod' => is_array($sourceInventoryItem) && is_int($sourceInventoryItem['compressionMethod'] ?? null) ? $sourceInventoryItem['compressionMethod'] : null,
+                'sourceCompressionMethodName' => $sourceCompressionMethodName,
+                'sourceByteLength' => $sourceByteLength,
+                'sourceCompressedByteLength' => $sourceCompressedByteLength,
+                'sourceCrc32' => is_array($sourceInventoryItem) && is_string($sourceInventoryItem['crc32'] ?? null) ? $sourceInventoryItem['crc32'] : null,
+                'sourceCanExposeBytes' => $sourceCanExposeBytes,
+                'sourceByteExposurePolicy' => $sourceByteExposurePolicy,
                 'targetId' => $targetId,
                 'targetPresentInManifest' => $targetPresentInManifest,
                 'targetHref' => $targetPresentInManifest && is_string($targetItem['href'] ?? null) ? $targetItem['href'] : null,
@@ -10589,8 +10696,54 @@ final class EpubPackage
 
             $relationCounts[$relation] = ($relationCounts[$relation] ?? 0) + 1;
             $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+            $sourceByteExposurePolicyCounts[$sourceByteExposurePolicy] = ($sourceByteExposurePolicyCounts[$sourceByteExposurePolicy] ?? 0) + 1;
             if ($compressionMethodName !== null) {
                 $compressionMethodCounts[$compressionMethodName] = ($compressionMethodCounts[$compressionMethodName] ?? 0) + 1;
+            }
+            if ($sourceCompressionMethodName !== null) {
+                $sourceCompressionMethodCounts[$sourceCompressionMethodName] = ($sourceCompressionMethodCounts[$sourceCompressionMethodName] ?? 0) + 1;
+            }
+
+            if ($sourcePartName !== null && $sourcePartName !== '') {
+                $sourcePartNames[$sourcePartName] = true;
+            }
+            if ($sourceExists) {
+                ++$sourceExistingEdgeCount;
+            }
+            if ($sourceMissingPackagePart) {
+                ++$sourceMissingPackagePartEdgeCount;
+                if ($sourcePartName !== null && $sourcePartName !== '') {
+                    $sourceMissingPackagePartNames[$sourcePartName] = true;
+                }
+            }
+            if ($sourceExternal) {
+                ++$sourceExternalEdgeCount;
+                if ($sourceId !== '') {
+                    $sourceExternalIds[$sourceId] = true;
+                }
+            }
+            if ($sourceEncrypted) {
+                ++$sourceEncryptedEdgeCount;
+                if ($sourcePartName !== null && $sourcePartName !== '') {
+                    $sourceEncryptedPartNames[$sourcePartName] = true;
+                }
+            }
+            if ($sourceObfuscatedFont) {
+                ++$sourceObfuscatedFontEdgeCount;
+                if ($sourcePartName !== null && $sourcePartName !== '') {
+                    $sourceObfuscatedFontPartNames[$sourcePartName] = true;
+                }
+            }
+            if ($sourceUnsupportedCompression) {
+                ++$sourceUnsupportedCompressionEdgeCount;
+                if ($sourcePartName !== null && $sourcePartName !== '') {
+                    $sourceUnsupportedCompressionPartNames[$sourcePartName] = true;
+                }
+            }
+            if ($sourceCanExposeBytes) {
+                ++$sourceExposableEdgeCount;
+            } else {
+                ++$sourceBlockedEdgeCount;
             }
 
             if ($targetPresentInManifest) {
@@ -10638,6 +10791,22 @@ final class EpubPackage
                 ++$exposableTargetCount;
             } else {
                 ++$blockedTargetCount;
+            }
+
+            $sourceBytes = $sourceByteLength ?? 0;
+            $sourceCompressedBytes = $sourceCompressedByteLength ?? 0;
+            $sourceTotalByteLength += $sourceBytes;
+            $sourceTotalCompressedByteLength += $sourceCompressedBytes;
+            if ($sourceCanExposeBytes) {
+                $sourceExposableByteLength += $sourceBytes;
+                $sourceExposableCompressedByteLength += $sourceCompressedBytes;
+            } else {
+                $sourceBlockedByteLength += $sourceBytes;
+                $sourceBlockedCompressedByteLength += $sourceCompressedBytes;
+            }
+            if ($sourceUnsupportedCompression) {
+                $sourceUnsupportedCompressionByteLength += $sourceBytes;
+                $sourceUnsupportedCompressionCompressedByteLength += $sourceCompressedBytes;
             }
 
             $bytes = $byteLength ?? 0;
@@ -10715,6 +10884,8 @@ final class EpubPackage
         ksort($relationCounts, SORT_STRING);
         ksort($byteExposurePolicyCounts, SORT_STRING);
         ksort($compressionMethodCounts, SORT_STRING);
+        ksort($sourceByteExposurePolicyCounts, SORT_STRING);
+        ksort($sourceCompressionMethodCounts, SORT_STRING);
 
         return [
             'present' => $edges !== [],
@@ -10728,11 +10899,27 @@ final class EpubPackage
             'missingManifestTargetCount' => $missingManifestTargetCount,
             'missingPackagePartTargetCount' => $missingPackagePartTargetCount,
             'externalTargetCount' => $externalTargetCount,
+            'sourceExistingEdgeCount' => $sourceExistingEdgeCount,
+            'sourceMissingPackagePartEdgeCount' => $sourceMissingPackagePartEdgeCount,
+            'sourceExternalEdgeCount' => $sourceExternalEdgeCount,
+            'sourceEncryptedEdgeCount' => $sourceEncryptedEdgeCount,
+            'sourceObfuscatedFontEdgeCount' => $sourceObfuscatedFontEdgeCount,
+            'sourceUnsupportedCompressionEdgeCount' => $sourceUnsupportedCompressionEdgeCount,
+            'sourceExposableEdgeCount' => $sourceExposableEdgeCount,
+            'sourceBlockedEdgeCount' => $sourceBlockedEdgeCount,
             'encryptedTargetCount' => $encryptedTargetCount,
             'obfuscatedFontTargetCount' => $obfuscatedFontTargetCount,
             'unsupportedCompressionTargetCount' => $unsupportedCompressionTargetCount,
             'exposableTargetCount' => $exposableTargetCount,
             'blockedTargetCount' => $blockedTargetCount,
+            'sourceTotalByteLength' => $sourceTotalByteLength,
+            'sourceTotalCompressedByteLength' => $sourceTotalCompressedByteLength,
+            'sourceExposableByteLength' => $sourceExposableByteLength,
+            'sourceExposableCompressedByteLength' => $sourceExposableCompressedByteLength,
+            'sourceBlockedByteLength' => $sourceBlockedByteLength,
+            'sourceBlockedCompressedByteLength' => $sourceBlockedCompressedByteLength,
+            'sourceUnsupportedCompressionByteLength' => $sourceUnsupportedCompressionByteLength,
+            'sourceUnsupportedCompressionCompressedByteLength' => $sourceUnsupportedCompressionCompressedByteLength,
             'totalByteLength' => $totalByteLength,
             'totalCompressedByteLength' => $totalCompressedByteLength,
             'exposableByteLength' => $exposableByteLength,
@@ -10744,14 +10931,22 @@ final class EpubPackage
             'relationCounts' => $relationCounts,
             'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'compressionMethodCounts' => $compressionMethodCounts,
+            'sourceByteExposurePolicyCounts' => $sourceByteExposurePolicyCounts,
+            'sourceCompressionMethodCounts' => $sourceCompressionMethodCounts,
             'sourceIds' => array_keys($sourceIds),
             'targetIds' => array_keys($targetIds),
+            'sourcePartNames' => array_keys($sourcePartNames),
             'targetPartNames' => array_keys($targetPartNames),
+            'sourceMissingPackagePartNames' => array_keys($sourceMissingPackagePartNames),
             'missingManifestTargetIds' => array_keys($missingManifestTargetIds),
             'missingPackagePartNames' => array_keys($missingPackagePartNames),
+            'sourceExternalIds' => array_keys($sourceExternalIds),
             'externalTargetIds' => array_keys($externalTargetIds),
+            'sourceEncryptedPartNames' => array_keys($sourceEncryptedPartNames),
             'encryptedTargetPartNames' => array_keys($encryptedTargetPartNames),
+            'sourceObfuscatedFontPartNames' => array_keys($sourceObfuscatedFontPartNames),
             'obfuscatedFontTargetPartNames' => array_keys($obfuscatedFontTargetPartNames),
+            'sourceUnsupportedCompressionPartNames' => array_keys($sourceUnsupportedCompressionPartNames),
             'unsupportedCompressionTargetPartNames' => array_keys($unsupportedCompressionTargetPartNames),
             'diagnosticCount' => count($diagnostics),
             'diagnosticTypes' => self::compactDiagnosticTypes($diagnostics),
