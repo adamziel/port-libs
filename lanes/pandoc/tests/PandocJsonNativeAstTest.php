@@ -10833,6 +10833,145 @@ return [
             }
         }
     },
+    'accepts single wrapped table helper tuples through rebuilt json and native writers' => static function (TestRunner $t): void {
+        $headCell = ['t' => 'Cell', 'c' => [[
+            ['head-cell', ['header'], [['data-role', 'column']]],
+            ['t' => 'AlignCenter', 'reviewQueue' => 'head-align-source'],
+            ['t' => 'RowSpan', 'c' => [1], 'reviewQueue' => 'head-rowspan-source'],
+            ['t' => 'ColSpan', 'c' => [2], 'reviewQueue' => 'head-colspan-source'],
+            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Head']]]],
+        ]], 'reviewQueue' => 'head-cell-source'];
+        $headRow = ['t' => 'Row', 'c' => [[
+            ['head-row', ['header-row'], []],
+            [$headCell],
+        ]], 'reviewQueue' => 'head-row-source'];
+        $tableHead = ['t' => 'TableHead', 'c' => [[
+            ['head-section', ['thead'], []],
+            [$headRow],
+        ]], 'reviewQueue' => 'head-section-source'];
+
+        $rowHeadColumns = ['t' => 'RowHeadColumns', 'c' => [1], 'reviewQueue' => 'body-row-head-source'];
+        $bodyHeadCell = ['t' => 'Cell', 'c' => [[
+            ['body-head-cell', ['row-head'], []],
+            ['t' => 'AlignLeft'],
+            ['t' => 'RowSpan', 'c' => 1],
+            ['t' => 'ColSpan', 'c' => 1],
+            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'BodyHead']]]],
+        ]], 'reviewQueue' => 'body-head-cell-source'];
+        $bodyHeadRow = ['t' => 'Row', 'c' => [[
+            ['body-head-row', ['row-head'], []],
+            [$bodyHeadCell],
+        ]], 'reviewQueue' => 'body-head-row-source'];
+        $bodyCell = ['t' => 'Cell', 'c' => [[
+            ['body-cell', ['metric'], [['data-kind', 'body']]],
+            ['t' => 'AlignRight', 'reviewQueue' => 'body-align-source'],
+            ['t' => 'RowSpan', 'c' => [2], 'reviewQueue' => 'body-rowspan-source'],
+            ['t' => 'ColSpan', 'c' => [1], 'reviewQueue' => 'body-colspan-source'],
+            [['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Body'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'cell'],
+            ]]],
+        ]], 'reviewQueue' => 'body-cell-source'];
+        $bodyRow = ['t' => 'Row', 'c' => [[
+            ['body-row', ['data-row'], []],
+            [$bodyCell],
+        ]], 'reviewQueue' => 'body-row-source'];
+        $tableBody = ['t' => 'TableBody', 'c' => [[
+            ['body-section', ['tbody'], []],
+            $rowHeadColumns,
+            [$bodyHeadRow],
+            [$bodyRow],
+        ]], 'reviewQueue' => 'body-section-source'];
+
+        $footCell = ['t' => 'Cell', 'c' => [[
+            ['foot-cell', ['footer'], []],
+            ['t' => 'AlignDefault'],
+            ['t' => 'RowSpan', 'c' => 1],
+            ['t' => 'ColSpan', 'c' => 2],
+            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Foot']]]],
+        ]], 'reviewQueue' => 'foot-cell-source'];
+        $footRow = ['t' => 'Row', 'c' => [[
+            ['foot-row', ['footer-row'], []],
+            [$footCell],
+        ]], 'reviewQueue' => 'foot-row-source'];
+        $tableFoot = ['t' => 'TableFoot', 'c' => [[
+            ['foot-section', ['tfoot'], []],
+            [$footRow],
+        ]], 'reviewQueue' => 'foot-section-source'];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['wrapped-table-tuples', ['json-native'], [['data-source', 'table-helper-tuples']]],
+                ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                [
+                    [['t' => 'AlignCenter'], ['t' => 'ColWidthDefault']],
+                    [['t' => 'AlignRight'], ['t' => 'ColWidth', 'c' => [0.25], 'reviewQueue' => 'width-source']],
+                ],
+                $tableHead,
+                [$tableBody],
+                $tableFoot,
+            ],
+            'reviewQueue' => 'table-wrapper-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+        $stripWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $table = $document->children[0];
+            $head = $table->children[0];
+            $body = $table->children[1];
+            $foot = $table->children[2];
+            $headRows = $body->attr('headRows');
+            $headCellNode = $head->children[0]->children[0];
+            $bodyHeadCellNode = $headRows[0]->children[0];
+            $bodyCellNode = $body->children[0]->children[0];
+            $footCellNode = $foot->children[0]->children[0];
+            $rebuiltDocument = new AstNode('document', $document->attrs, [
+                new AstNode('table', $stripWrapper($table), $table->children),
+            ]);
+
+            $t->same($tableHead, $head->attr('native'), "{$source} table head native");
+            $t->same($tableBody, $body->attr('native'), "{$source} table body native");
+            $t->same($tableFoot, $foot->attr('native'), "{$source} table foot native");
+            $t->same(1, $body->attr('rowHeadColumns'), "{$source} row head columns");
+            $t->same($rowHeadColumns, $body->attr('rowHeadColumnsNative'), "{$source} row head native");
+            $t->same('Head', $headCellNode->attr('text'), "{$source} head cell text");
+            $t->same('BodyHead', $bodyHeadCellNode->attr('text'), "{$source} body head row text");
+            $t->same('Body cell', $bodyCellNode->attr('text'), "{$source} body cell text");
+            $t->same(2, $bodyCellNode->attr('rowspan'), "{$source} body cell row span");
+            $t->same($bodyCell['c'][0][2], $bodyCellNode->attr('rowSpanNative'), "{$source} body cell row span native");
+            $t->same('Foot', $footCellNode->attr('text'), "{$source} foot cell text");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuiltDocument),
+                'native' => json_decode((new NativeWriter())->write($rebuiltDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $rebuiltTable = $encoded['blocks'][0];
+
+                $t->same(false, array_key_exists('reviewQueue', $rebuiltTable), "{$source} {$writer} writer rebuilds top table wrapper");
+                $t->same($tableHead, $rebuiltTable['c'][3], "{$source} {$writer} writer preserves wrapped table head");
+                $t->same($tableBody, $rebuiltTable['c'][4][0], "{$source} {$writer} writer preserves wrapped table body");
+                $t->same($tableFoot, $rebuiltTable['c'][5], "{$source} {$writer} writer preserves wrapped table foot");
+                $roundTrip = $writer === 'json'
+                    ? (new PandocJsonReader())->readPacket($encoded)
+                    : (new NativeReader())->read(json_encode($encoded, JSON_THROW_ON_ERROR));
+                $t->same('Body cell', $roundTrip->children[0]->children[1]->children[0]->children[0]->attr('text'), "{$source} {$writer} round trip body cell");
+            }
+        }
+    },
     'preserves single wrapped table section helper constructors through rebuilt writers' => static function (TestRunner $t): void {
         $headCell = ['t' => 'Cell', 'c' => [[
             ['head-cell', ['section'], [['data-kind', 'head']]],
