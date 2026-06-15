@@ -1154,6 +1154,103 @@ foreach ($markers as $label => $case) {
 
         $t->same(['text', 'horizontal_rule'], $types($item));
     };
+
+    $tests["maps commonmark block list table surge {$label} continuation pipe table"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead'
+            . "\n" . $case['indent'] . '| Term | Count |'
+            . "\n" . $case['indent'] . '|:-----|------:|'
+            . "\n" . $case['indent'] . '| A001 | 7 |'
+            . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $table = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'table'], $types($item));
+        $t->same('table', $table->type);
+        $t->same(['left', 'right'], $table->attr('alignments'));
+        $t->same('Term', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('A001', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('7', $table->children[1]->children[0]->children[1]->attr('text'));
+    };
+
+    $tests["maps commonmark block list table surge {$label} continuation grid table"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead'
+            . "\n" . $case['indent'] . '+-------+-------+'
+            . "\n" . $case['indent'] . '| Term  | Count |'
+            . "\n" . $case['indent'] . '+=======+=======+'
+            . "\n" . $case['indent'] . '| A002  | 8     |'
+            . "\n" . $case['indent'] . '+-------+-------+'
+            . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $table = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'table'], $types($item));
+        $t->same('table', $table->type);
+        $t->same('Term', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('A002', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('8', $table->children[1]->children[0]->children[1]->attr('text'));
+    };
+
+    $tests["maps commonmark block list table surge {$label} continuation simple table"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead'
+            . "\n" . $case['indent'] . 'Term          Count'
+            . "\n" . $case['indent'] . '------------  -----'
+            . "\n" . $case['indent'] . 'A003              9'
+            . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $table = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'table'], $types($item));
+        $t->same('table', $table->type);
+        $t->same('Term', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('A003', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('9', $table->children[1]->children[0]->children[1]->attr('text'));
+    };
+
+    $tests["maps commonmark block list table surge {$label} continuation line block"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead'
+            . "\n" . $case['indent'] . '| first line'
+            . "\n" . $case['indent'] . '| second line'
+            . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $lineBlock = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'line_block'], $types($item));
+        $t->same('line_block', $lineBlock->type);
+        $t->same('first line', $lineBlock->children[0]->attr('text'));
+        $t->same('second line', $lineBlock->children[1]->attr('text'));
+    };
+
+    $tests["maps commonmark block list table surge {$label} continuation definition list"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead'
+            . "\n" . $case['indent'] . 'Term'
+            . "\n" . $case['indent'] . ': definition one'
+            . "\n" . $case['indent'] . ': definition two'
+            . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $definitionList = $item->children[1] ?? new AstNode('missing');
+        $definitionItem = $definitionList->children[0] ?? new AstNode('missing');
+
+        $t->same(['text', 'definition_list'], $types($item));
+        $t->same('definition_list', $definitionList->type);
+        $t->same('Term', $definitionItem->attr('term'));
+        $t->same('definition one', $definitionItem->children[1]->children[0]->attr('text'));
+        $t->same('definition two', $definitionItem->children[2]->children[0]->attr('text'));
+    };
+
+    $tests["maps commonmark block list table surge {$label} continuation raw tex environment"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead'
+            . "\n" . $case['indent'] . '\\begin{center}'
+            . "\n" . $case['indent'] . 'Review'
+            . "\n" . $case['indent'] . '\\end{center}'
+            . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $tex = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'raw_tex'], $types($item));
+        $t->same('raw_tex', $tex->type);
+        $t->same('center', $tex->attr('environment'));
+        $t->contains('\\begin{center}', $tex->attr('tex'));
+    };
 }
 
 $blockCases = [

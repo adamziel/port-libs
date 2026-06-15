@@ -15833,7 +15833,10 @@ final class MarkdownReader
         int $baseIndent,
         int $contentIndent
     ): bool {
-        if ($this->isListItemBlockStartLine($line)) {
+        if ($this->isListItemBlockStartLine($line)
+            || $this->isListItemContinuationSimpleTableStartAt($lines, $cursor, $contentIndent)
+            || $this->isListItemContinuationDefinitionListStartAt($lines, $cursor, $contentIndent)
+        ) {
             return true;
         }
 
@@ -15862,7 +15865,8 @@ final class MarkdownReader
 
         return preg_match('/^ {0,3}(?:`{3,}|~{3,})/', $line) === 1
             || preg_match('/^ {0,3}\|/', $line) === 1
-            || preg_match('/^ {0,3}\+[=-]/', $line) === 1;
+            || preg_match('/^ {0,3}\+[=-]/', $line) === 1
+            || $this->isListItemContinuationRawTexBlockStart($line);
     }
 
     /**
@@ -15976,6 +15980,55 @@ final class MarkdownReader
         }
 
         return rtrim($this->stripIndentColumns($line, $contentIndent));
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function isListItemContinuationSimpleTableStartAt(array $lines, int $cursor, int $contentIndent): bool
+    {
+        $line = $this->stripIndentColumns($lines[$cursor] ?? '', $contentIndent);
+        if (trim($line) === '' || str_contains($line, '|')) {
+            return false;
+        }
+
+        $next = $cursor + 1;
+        if (!isset($lines[$next]) || $this->countIndentColumns($lines[$next]) < $contentIndent) {
+            return false;
+        }
+
+        $nextLine = $this->stripIndentColumns($lines[$next], $contentIndent);
+
+        return $this->parseSimpleTableDelimiter($nextLine) !== null
+            || $this->isSimpleTableBoundary($nextLine);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function isListItemContinuationDefinitionListStartAt(array $lines, int $cursor, int $contentIndent): bool
+    {
+        $line = $this->stripIndentColumns($lines[$cursor] ?? '', $contentIndent);
+        if (!$this->canStartDefinitionTerm($line)) {
+            return false;
+        }
+
+        $next = $cursor + 1;
+        while (isset($lines[$next]) && trim($lines[$next]) === '') {
+            $next++;
+        }
+
+        if (!isset($lines[$next]) || $this->countIndentColumns($lines[$next]) < $contentIndent) {
+            return false;
+        }
+
+        return $this->isDefinitionMarker($this->stripIndentColumns($lines[$next], $contentIndent));
+    }
+
+    private function isListItemContinuationRawTexBlockStart(string $line): bool
+    {
+        return preg_match('/^ {0,3}\\\\(?:begin\{[^}\s]+\}|start[A-Za-z]+|placeformula\s+\\\\startformula)(?:[ \t]|$)/', $line) === 1
+            || $this->tryReadRawTexMacroDefinition($line) !== null;
     }
 
     /**
