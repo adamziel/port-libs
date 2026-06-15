@@ -16032,6 +16032,10 @@ final class MarkdownReader
         if ($firstText !== '' && $this->isListItemInitialCodeBlock($marker)) {
             [$codeBlock, $cursor] = $this->readListItemInitialCodeBlock($lines, $cursor + 1, $contentIndent, $firstText);
             $parts[] = $codeBlock;
+        } elseif ($firstText !== '' && $this->isListItemFirstTextBlockStart($lines, $cursor, $marker)) {
+            $block = $this->readListItemBlockFromFirstText($lines, $cursor, $baseIndent, $contentIndent, $firstText);
+            array_push($parts, ...$block['blocks']);
+            $loose = $loose || $block['loose'];
         } elseif ($firstText !== '') {
             $task = $this->stripTaskListMarker($firstText);
             if ($task !== null) {
@@ -16116,6 +16120,14 @@ final class MarkdownReader
             $indent = $this->countIndentColumns($line);
             if ($indent >= $contentIndent) {
                 $stripped = rtrim($this->stripIndentColumns($line, $contentIndent));
+                if ($this->isListItemContinuationBlockStartAt($lines, $cursor, $contentIndent)) {
+                    $this->flushListItemParagraph($paragraph, $parts);
+                    $block = $this->readListItemContinuationBlock($lines, $cursor, $baseIndent, $contentIndent);
+                    array_push($parts, ...$block['blocks']);
+                    $loose = $loose || $block['loose'];
+                    continue;
+                }
+
                 if ($this->shouldParseListItemIndentedLineAsBlocks($stripped, $paragraph, $lines, $cursor, $baseIndent, $contentIndent)) {
                     $seedLines = [];
                     $continuesDefinitionList = $paragraph !== []
@@ -16167,6 +16179,95 @@ final class MarkdownReader
             'text' => $firstText,
             'number' => $marker['start'],
             'taskChecked' => $taskChecked,
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{blocks:list<AstNode>, next:int, loose:bool}
+     */
+    private function readListItemBlockFromFirstText(
+        array $lines,
+        int &$cursor,
+        int $baseIndent,
+        int $contentIndent,
+        string $firstText
+    ): array {
+        $cursor++;
+        $block = $this->readListItemContinuationBlock($lines, $cursor, $baseIndent, $contentIndent);
+        array_unshift($block['content'], rtrim($firstText));
+
+        return [
+            'blocks' => $this->read(implode("\n", $block['content']))->children,
+            'next' => $block['next'],
+            'loose' => $block['loose'],
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{blocks:list<AstNode>, content:list<string>, next:int, loose:bool}
+     */
+    private function readListItemContinuationBlock(array $lines, int &$cursor, int $baseIndent, int $contentIndent): array
+    {
+        $content = [];
+        $loose = false;
+        $count = count($lines);
+
+        while ($cursor < $count) {
+            $line = $lines[$cursor];
+            if (trim($line) === '') {
+                $next = $cursor;
+                while ($next < $count && trim($lines[$next]) === '') {
+                    $next++;
+                }
+
+                if ($next >= $count) {
+                    break;
+                }
+
+                $nextMarker = $this->matchListMarker($lines[$next], $next);
+                if ($nextMarker !== null && $nextMarker['indent'] <= $baseIndent) {
+                    break;
+                }
+
+                $nextIndent = $this->countIndentColumns($lines[$next]);
+                if ($this->isNestedListMarker($nextMarker, $baseIndent, $contentIndent) || $nextIndent >= $contentIndent) {
+                    $content[] = '';
+                    $loose = true;
+                    $cursor = $next;
+                    continue;
+                }
+
+                break;
+            }
+
+            $lineMarker = $this->matchListMarker($line, $cursor);
+            if ($lineMarker !== null && $lineMarker['indent'] <= $baseIndent) {
+                break;
+            }
+
+            if ($lineMarker !== null && !$this->isNestedListMarker($lineMarker, $baseIndent, $contentIndent)) {
+                break;
+            }
+
+            if ($this->countIndentColumns($line) < $contentIndent) {
+                break;
+            }
+
+            $content[] = rtrim($this->stripIndentColumns($line, $contentIndent));
+            $cursor++;
+        }
+
+        while ($content !== [] && trim($content[array_key_last($content)]) === '') {
+            array_pop($content);
+        }
+
+        return [
+            'blocks' => $content === [] ? [] : $this->read(implode("\n", $content))->children,
+            'content' => $content,
+            'next' => $cursor,
+            'loose' => $loose,
         ];
     }
 
@@ -16394,9 +16495,139 @@ final class MarkdownReader
             || $this->tryReadRawTexMacroDefinition($line) !== null;
     }
 
+    private function isListItemContinuationBlockStart(string $line): bool
+    {
+        if (trim($line) === '') {
+            return false;
+        }
+
+        return $this->isBlockQuoteLine($line)
+            || $this->isLineBlockLine($line)
+            || $this->isIndentedCodeLine($line)
+            || $this->isHorizontalRule($line)
+            || $this->tryParseMarkdownHeading($line) !== null
+            || $this->matchFencedDivOpening($line) !== null
+            || $this->isFencedDivClosing($line, 3)
+            || preg_match('/^ {0,3}(`{3,}|~{3,})/', $line) === 1
+            || $this->isRawTexBlockStart($line)
+            || $this->isCommonMarkParagraphInterruptingRawHtmlBlockStart($line);
+    }
+
     /**
      * @param list<string> $lines
      * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null} $marker
+     */
+    private function isListItemFirstTextBlockStart(array $lines, int $cursor, array $marker): bool
+    {
+        $content = [rtrim($marker['text'])];
+        array_push(
+            $content,
+            ...$this->listItemContinuationProbeLines($lines, $cursor + 1, $marker['contentIndent'])
+        );
+
+        return $this->isListItemContinuationContentBlockStart($content, false);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function isListItemContinuationBlockStartAt(array $lines, int $cursor, int $contentIndent): bool
+    {
+        if (!isset($lines[$cursor]) || $this->countIndentColumns($lines[$cursor]) < $contentIndent) {
+            return false;
+        }
+
+        $stripped = rtrim($this->stripIndentColumns($lines[$cursor], $contentIndent));
+        if ($this->isListItemContinuationBlockStart($stripped)) {
+            return true;
+        }
+
+        return $this->isListItemContinuationContentBlockStart(
+            $this->listItemContinuationProbeLines($lines, $cursor, $contentIndent)
+        );
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function listItemContinuationProbeLines(array $lines, int $cursor, int $contentIndent): array
+    {
+        $content = [];
+        $count = count($lines);
+        for (; $cursor < $count; $cursor++) {
+            $line = $lines[$cursor];
+            if (trim($line) === '') {
+                $content[] = '';
+                continue;
+            }
+
+            if ($this->countIndentColumns($line) < $contentIndent) {
+                break;
+            }
+
+            $content[] = rtrim($this->stripIndentColumns($line, $contentIndent));
+        }
+
+        return $content;
+    }
+
+    /**
+     * @param list<string> $content
+     */
+    private function isListItemContinuationContentBlockStart(array $content, bool $allowSetext = true): bool
+    {
+        while ($content !== [] && trim($content[0]) === '') {
+            array_shift($content);
+        }
+
+        if ($content === []) {
+            return false;
+        }
+
+        if ($this->isListItemContinuationBlockStart($content[0])) {
+            return true;
+        }
+
+        if ($allowSetext && $this->tryParseSetextMarkdownHeading($content, 0) !== null) {
+            return true;
+        }
+
+        if ($this->canStartDefinitionListAt($content, 0)) {
+            return true;
+        }
+
+        foreach ([
+            'tryReadLineBlock',
+            'tryReadTableWithLeadingCaption',
+            'tryReadGridTable',
+            'tryReadSimpleTable',
+            'tryReadPipeTable',
+        ] as $reader) {
+            $probeIndex = 0;
+            if ($this->{$reader}($content, $probeIndex) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isLineBlockLine(string $line): bool
+    {
+        return preg_match('/^ {0,3}\|/', $this->expandTabsToSpaces($line)) === 1;
+    }
+
+    private function isRawTexBlockStart(string $line): bool
+    {
+        return preg_match(
+            '/^ {0,3}\\\\(?:begin\{[^}\s]+}|start\[[^\]\r\n]+]|\s*placeformula\s+\\\\startformula|(?:re)?newcommand\b|providecommand\b|Declare(?:MathOperator|PairedDelimiter(?:XPP|X)?)\b)/',
+            $line
+        ) === 1;
+    }
+
+    /**
+     * @param list<string> $lines
      * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null}
      */
     private function parseBlockHtmlListItem(array $lines, int $cursor, array $marker): array
@@ -17173,6 +17404,9 @@ final class MarkdownReader
     private function matchDefinitionMarker(string $line): ?array
     {
         if ($this->matchFencedDivOpening($line) !== null || $this->isFencedDivClosing($line, 3)) {
+            return null;
+        }
+        if (preg_match('/^\s{0,4}~{3,}/', $line) === 1) {
             return null;
         }
 
@@ -20617,7 +20851,10 @@ final class MarkdownReader
             }
 
             $runLength = $this->countDelimiterRun($text, $position, $char);
-            if ($size === 1 && (($text[$position - 1] ?? '') === $char || $runLength > 1)) {
+            if (
+                $this->isEscapedInlinePosition($text, $position)
+                || ($size === 1 && (($text[$position - 1] ?? '') === $char || $runLength > 1))
+            ) {
                 $position = strpos($text, $needle, $position + 1);
                 continue;
             }
@@ -20640,23 +20877,20 @@ final class MarkdownReader
             return false;
         }
 
-        $flanking = $this->inlineDelimiterFlanking($text, $offset, $size);
+        $previous = $this->characterBeforeOffset($text, $offset);
+        $next = $this->characterAtOffset($text, $offset + $size);
+        if ($char === '_' && $this->isAsciiAlnum($previous ?? '') && ($next === '{' || $next === '}')) {
+            return false;
+        }
+
+        $flanking = $this->inlineDelimiterRunFlanking($text, $offset, $size);
         if (!$flanking['left']) {
             return false;
         }
 
-        $previous = $offset > 0 ? $text[$offset - 1] : '';
-        $nextOffset = $offset + $size;
-        $next = $nextOffset < strlen($text) ? $text[$nextOffset] : '';
-        if ($char === '_' && $this->isAsciiAlnum($previous) && ($next === '{' || $next === '}')) {
-            return false;
-        }
-
-        if ($char === '_' && $flanking['right'] && !$flanking['previousPunctuation']) {
-            return false;
-        }
-
-        return true;
+        return $char !== '_'
+            || !$flanking['right']
+            || $this->isMarkdownDelimiterPunctuation($previous);
     }
 
     private function canCloseInlineDelimiter(string $text, int $offset, string $char, int $size): bool
@@ -20665,67 +20899,78 @@ final class MarkdownReader
             return false;
         }
 
-        $flanking = $this->inlineDelimiterFlanking($text, $offset, $size);
+        $previous = $this->characterBeforeOffset($text, $offset);
+        $next = $this->characterAtOffset($text, $offset + $size);
+        if ($char === '_' && ($previous === '{' || $previous === '}') && $this->isAsciiAlnum($next ?? '')) {
+            return false;
+        }
+
+        $flanking = $this->inlineDelimiterRunFlanking($text, $offset, $size);
         if (!$flanking['right']) {
             return false;
         }
 
-        $previous = $offset > 0 ? $text[$offset - 1] : '';
-        $nextOffset = $offset + $size;
-        $next = $nextOffset < strlen($text) ? $text[$nextOffset] : '';
-        if ($char === '_' && ($previous === '{' || $previous === '}') && $this->isAsciiAlnum($next)) {
-            return false;
-        }
-
-        if ($char === '_' && $flanking['left'] && !$flanking['nextPunctuation']) {
-            return false;
-        }
-
-        return true;
+        return $char !== '_'
+            || !$flanking['left']
+            || $this->isMarkdownDelimiterPunctuation($next);
     }
 
     /**
-     * @return array{left:bool, right:bool, previousPunctuation:bool, nextPunctuation:bool}
+     * @return array{left: bool, right: bool}
      */
-    private function inlineDelimiterFlanking(string $text, int $offset, int $size): array
+    private function inlineDelimiterRunFlanking(string $text, int $offset, int $size): array
     {
-        $previous = $this->previousUtf8Character($text, $offset);
-        $next = $this->firstUtf8Character(substr($text, $offset + $size));
-        $previousWhitespace = $previous === null || $this->isInlineDelimiterWhitespace($previous);
-        $nextWhitespace = $next === null || $this->isInlineDelimiterWhitespace($next);
-        $previousPunctuation = $previous !== null && $this->isInlineDelimiterPunctuation($previous);
-        $nextPunctuation = $next !== null && $this->isInlineDelimiterPunctuation($next);
+        $previous = $this->characterBeforeOffset($text, $offset);
+        $next = $this->characterAtOffset($text, $offset + $size);
+        $previousWhitespace = $previous === null || $this->isMarkdownDelimiterWhitespace($previous);
+        $nextWhitespace = $next === null || $this->isMarkdownDelimiterWhitespace($next);
+        $previousPunctuation = $this->isMarkdownDelimiterPunctuation($previous);
+        $nextPunctuation = $this->isMarkdownDelimiterPunctuation($next);
 
         return [
-            'left' => $next !== null
-                && !$nextWhitespace
-                && (!$nextPunctuation || $previousWhitespace || $previousPunctuation),
-            'right' => $previous !== null
-                && !$previousWhitespace
-                && (!$previousPunctuation || $nextWhitespace || $nextPunctuation),
-            'previousPunctuation' => $previousPunctuation,
-            'nextPunctuation' => $nextPunctuation,
+            'left' => !$nextWhitespace && (!$nextPunctuation || $previousWhitespace || $previousPunctuation),
+            'right' => !$previousWhitespace && (!$previousPunctuation || $nextWhitespace || $nextPunctuation),
         ];
-    }
-
-    private function previousUtf8Character(string $text, int $offset): ?string
-    {
-        return $offset <= 0 ? null : $this->lastUtf8Character(substr($text, 0, $offset));
-    }
-
-    private function isInlineDelimiterWhitespace(string $char): bool
-    {
-        return preg_match('/\s/u', $char) === 1;
-    }
-
-    private function isInlineDelimiterPunctuation(string $char): bool
-    {
-        return preg_match('/^[\pP\pS]$/u', $char) === 1;
     }
 
     private function isAsciiAlnum(string $char): bool
     {
         return $char !== '' && preg_match('/[A-Za-z0-9]/', $char) === 1;
+    }
+
+    private function characterBeforeOffset(string $text, int $offset): ?string
+    {
+        if ($offset <= 0) {
+            return null;
+        }
+
+        return preg_match('/.\z/us', substr($text, 0, $offset), $match) === 1 ? $match[0] : null;
+    }
+
+    private function characterAtOffset(string $text, int $offset): ?string
+    {
+        if ($offset >= strlen($text)) {
+            return null;
+        }
+
+        return preg_match('/\A./us', substr($text, $offset), $match) === 1 ? $match[0] : null;
+    }
+
+    private function isMarkdownDelimiterWhitespace(?string $char): bool
+    {
+        return $char !== null && preg_match('/\A\s\z/u', $char) === 1;
+    }
+
+    private function isMarkdownDelimiterPunctuation(?string $char): bool
+    {
+        if ($char === null) {
+            return false;
+        }
+        if (strlen($char) === 1 && $this->isMarkdownEscapablePunctuation($char)) {
+            return true;
+        }
+
+        return preg_match('/\A\pP\z/u', $char) === 1;
     }
 
     private function countBackticks(string $text, int $offset): int

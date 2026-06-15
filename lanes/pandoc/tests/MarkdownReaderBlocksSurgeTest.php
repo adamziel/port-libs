@@ -1918,4 +1918,89 @@ foreach ($emptyMarkerBlockCases as $label => $case) {
     };
 }
 
+$tableCellText = static function (AstNode $table, int $sectionIndex, int $rowIndex, int $cellIndex): string {
+    $section = $table->children[$sectionIndex] ?? new AstNode('missing');
+    $row = $section->children[$rowIndex] ?? new AstNode('missing');
+    $cell = $row->children[$cellIndex] ?? new AstNode('missing');
+
+    return (string) $cell->attr('text', '');
+};
+
+foreach ($markers as $label => $case) {
+    $tests["maps commonmark block list continuation surge {$label} setext heading"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . "\n" . $case['indent'] . 'Nested heading' . "\n" . $case['indent'] . '---' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $heading = $item->children[0] ?? new AstNode('missing');
+
+        $t->same(['heading'], $types($item));
+        $t->same(2, $heading->attr('level'));
+        $t->same('Nested heading', $heading->attr('text'));
+        $t->same('nested-heading', $heading->attr('id'));
+    };
+
+    $tests["maps commonmark block list continuation surge {$label} line block"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . '| first line' . "\n" . $case['indent'] . '| second line' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $lineBlock = $item->children[0] ?? new AstNode('missing');
+
+        $t->same(['line_block'], $types($item));
+        $t->same('line_block', $lineBlock->type);
+        $t->same(['first line', 'second line'], array_map(
+            static fn (AstNode $line): string => (string) $line->attr('text', ''),
+            $lineBlock->children
+        ));
+    };
+
+    $tests["maps commonmark block list continuation surge {$label} definition list"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n" . $case['indent'] . 'Term' . "\n" . $case['indent'] . ': definition' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $definitionList = $item->children[1] ?? new AstNode('missing');
+        $definitionItem = $definitionList->children[0] ?? new AstNode('missing');
+        $term = $definitionItem->children[0] ?? new AstNode('missing');
+        $definition = $definitionItem->children[1] ?? new AstNode('missing');
+        $paragraph = $definition->children[0] ?? new AstNode('missing');
+
+        $t->same(['text', 'definition_list'], $types($item));
+        $t->same('definition_list', $definitionList->type);
+        $t->same('Term', $definitionItem->attr('term'));
+        $t->same('term', $term->type);
+        $t->same('Term', $term->attr('text'));
+        $t->same('definition', $definition->type);
+        $t->same('definition', $paragraph->attr('text'));
+    };
+
+    $tests["maps commonmark block list continuation surge {$label} pipe table"] = static function (TestRunner $t) use ($read, $types, $firstItem, $tableCellText, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n"
+            . $case['indent'] . '| Term | Count |' . "\n"
+            . $case['indent'] . '|:-----|------:|' . "\n"
+            . $case['indent'] . '| Alpha | 2 |' . "\n"
+            . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $table = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'table'], $types($item));
+        $t->same('table', $table->type);
+        $t->same(['left', 'right'], $table->attr('alignments'));
+        $t->same('Term', $tableCellText($table, 0, 0, 0));
+        $t->same('Count', $tableCellText($table, 0, 0, 1));
+        $t->same('Alpha', $tableCellText($table, 1, 0, 0));
+        $t->same('2', $tableCellText($table, 1, 0, 1));
+    };
+
+    $tests["maps commonmark block list continuation surge {$label} raw tex block"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n"
+            . $case['indent'] . '\\begin{note}' . "\n"
+            . $case['indent'] . 'body' . "\n"
+            . $case['indent'] . '\\end{note}' . "\n"
+            . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $rawTex = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'raw_tex'], $types($item));
+        $t->same('raw_tex', $rawTex->type);
+        $t->same('note', $rawTex->attr('environment'));
+        $t->same("\\begin{note}\nbody\n\\end{note}", $rawTex->attr('tex'));
+    };
+}
+
 return $tests;
