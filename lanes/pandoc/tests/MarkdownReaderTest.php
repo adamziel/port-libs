@@ -8706,7 +8706,7 @@ MD;
         $t->same(['Plain', 'BulletList'], array_map(static fn (array $block): string => (string) ($block['t'] ?? ''), $jsonItem));
         $t->same(['Plain', 'BulletList'], array_map(static fn (array $block): string => (string) ($block['t'] ?? ''), $nativeItem));
         $t->same(['plain', 'bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $roundTripItem->children));
-        $t->contains("- [x]\n  Keep completed reviewer tasks\n  - [ ]\n    Attach media checklist follow-up", $roundTripMarkdown);
+        $t->contains("- [x] Keep completed reviewer tasks\n  - [ ] Attach media checklist follow-up", $roundTripMarkdown);
         $t->contains("- [x] Keep completed reviewer tasks\n  - [ ] Attach media checklist follow-up", $sourceMarkdown);
         $t->contains('<li><label><input type="checkbox" checked="" />Keep completed reviewer tasks</label><ul class="task-list"><li><label><input type="checkbox" />Attach media checklist follow-up</label></li></ul></li>', $blocks);
     },
@@ -9799,6 +9799,7 @@ MD;
 
         $t->same(implode("\n\n", [
             "0.  zero indexed review step\n1.  first published step",
+            '<!-- -->',
             '0)  clamped imported negative marker',
             'i.  roman still starts at one',
         ]), (new MarkdownWriter())->write($document));

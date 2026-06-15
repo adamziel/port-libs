@@ -27,6 +27,9 @@ final class MarkdownWriter
     /** @var array<string, string> */
     private array $abbreviationDefinitions = [];
 
+    /** @var array<string, bool> */
+    private array $numberedExampleLabels = [];
+
     /** @var array<string, string> */
     private array $yamlMetadataExplicitCollectionTags = [];
 
@@ -45,8 +48,10 @@ final class MarkdownWriter
 
     private int $fancyOrderedMarkerEscapeSuppression = 0;
 
+    private int $plainTextTriggerEscapeSuppression = 0;
+
     /**
-     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool} $options
+     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool, autoHtmlTables?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -65,6 +70,7 @@ final class MarkdownWriter
         $this->referenceUsedLabels = [];
         $this->referenceTargetLabels = [];
         $this->abbreviationDefinitions = [];
+        $this->numberedExampleLabels = $this->collectNumberedExampleLabels($document);
         $this->yamlMetadataExplicitCollectionTags = [];
         $this->yamlMetadataExplicitScalarTags = [];
         $this->yamlMetadataStandaloneCommentsByPath = [];
@@ -72,6 +78,7 @@ final class MarkdownWriter
         $this->nextNoteNumber = 1;
         $this->lastReferenceIndex = 0;
         $this->fancyOrderedMarkerEscapeSuppression = 0;
+        $this->plainTextTriggerEscapeSuppression = 0;
 
         $blocks = [];
         if ((bool) ($this->options['yamlMetadata'] ?? false)) {
@@ -98,7 +105,7 @@ final class MarkdownWriter
                 $this->appendPendingDefinitions($blocks);
             }
 
-            if ($index > 0 && $this->needsListSeparator($document->children[$index - 1], $node)) {
+            if ($index > 0 && $this->needsBlockSeparator($document->children[$index - 1], $node)) {
                 $blocks[] = '<!-- -->';
             }
 
@@ -985,6 +992,10 @@ final class MarkdownWriter
      */
     private function renderBlock(AstNode $node, int $indent): array
     {
+        if ($this->shouldRenderHtmlBlockFallback($node)) {
+            return $this->renderHtmlBlockFallback($node, $indent);
+        }
+
         return match ($node->type) {
             'paragraph', 'plain' => [str_repeat(' ', $indent) . $this->renderInlines($node->children)],
             'heading' => $this->renderHeading($node, $indent),
@@ -1001,6 +1012,136 @@ final class MarkdownWriter
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => $this->renderRawBlock($node, $indent),
             default => [],
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderHtmlBlockFallback(AstNode $node, int $indent): array
+    {
+        $prefix = str_repeat(' ', $indent);
+
+        return array_map(
+            static fn (string $line): string => $prefix . $line,
+            explode("\n", $this->renderHtmlBlock($node))
+        );
+    }
+
+    private function shouldRenderHtmlBlockFallback(AstNode $node): bool
+    {
+        if ($this->requestsHtmlMarkdownFormat($node->attr('markdownBlockFormat', $node->attr('markdownFormat', '')))) {
+            return true;
+        }
+
+        if (($node->type === 'bullet_list' || $node->type === 'ordered_list' || $node->type === 'definition_list')
+            && $this->requestsHtmlMarkdownFormat($node->attr('markdownListFormat', ''))
+        ) {
+            return true;
+        }
+
+        if ($node->type === 'code_block' && $this->requestsHtmlMarkdownFormat($node->attr('markdownCodeBlockFormat', ''))) {
+            return true;
+        }
+
+        if ($node->type !== 'bullet_list' && $node->type !== 'ordered_list') {
+            return false;
+        }
+
+        return $this->listHasHtmlOnlyAttributes($node);
+    }
+
+    private function requestsHtmlMarkdownFormat(mixed $format): bool
+    {
+        if (!is_scalar($format)) {
+            return false;
+        }
+
+        return in_array(strtolower(trim((string) $format)), ['html', 'html4', 'html5', 'raw_html', 'raw-html'], true);
+    }
+
+    private function listHasHtmlOnlyAttributes(AstNode $node): bool
+    {
+        if ($this->hasHtmlOnlyAttributes($node)) {
+            return true;
+        }
+
+        foreach ($node->children as $item) {
+            if ($item->type !== 'list_item' && $item->type !== 'definition_item') {
+                continue;
+            }
+
+            if ($this->hasHtmlOnlyAttributes($item)) {
+                return true;
+            }
+
+            foreach ($item->children as $child) {
+                if (($child->type === 'definition_term' || $child->type === 'definition') && $this->hasHtmlOnlyAttributes($child)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function hasHtmlOnlyAttributes(AstNode $node): bool
+    {
+        $attrs = $this->htmlAttributeMap($node);
+        unset($attrs['start'], $attrs['type']);
+        $attrs = $this->filterReviewMetadataHtmlAttributes($attrs);
+
+        if ($attrs !== []) {
+            return true;
+        }
+
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+
+        return is_array($htmlAttributes)
+            && strtolower((string) ($htmlAttributes['data-pandoc-writer'] ?? '')) === 'html';
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @return array<string, string>
+     */
+    private function filterReviewMetadataHtmlAttributes(array $attrs): array
+    {
+        foreach ($attrs as $name => $value) {
+            if ($this->isReviewMetadataHtmlAttribute($name) || $this->isMarkdownWriterMetadataHtmlAttribute($name)) {
+                unset($attrs[$name]);
+                continue;
+            }
+
+            if ($name === 'class') {
+                $classes = array_values(array_filter(
+                    preg_split('/\s+/', trim($value)) ?: [],
+                    static fn (string $class): bool => $class !== ''
+                        && !str_starts_with($class, 'docx-')
+                        && !str_starts_with($class, 'odf-')
+                ));
+
+                if ($classes === []) {
+                    unset($attrs[$name]);
+                    continue;
+                }
+
+                $attrs[$name] = implode(' ', $classes);
+            }
+        }
+
+        return $attrs;
+    }
+
+    private function isReviewMetadataHtmlAttribute(string $name): bool
+    {
+        return str_starts_with($name, 'data-docx-')
+            || str_starts_with($name, 'data-odf-');
+    }
+
+    private function isMarkdownWriterMetadataHtmlAttribute(string $name): bool
+    {
+        return $name === 'data-example-label'
+            || $name === 'example-label';
     }
 
     /**
@@ -1132,7 +1273,12 @@ final class MarkdownWriter
      */
     private function renderDefinitionBody(AstNode $definition, int $indent): array
     {
-        $body = $this->renderBlockCollection($definition->children, true);
+        $this->plainTextTriggerEscapeSuppression++;
+        try {
+            $body = $this->renderBlockCollection($definition->children, true);
+        } finally {
+            $this->plainTextTriggerEscapeSuppression--;
+        }
         $markerPrefix = str_repeat(' ', $indent) . ':   ';
         $continuationPrefix = str_repeat(' ', $indent + 4);
 
@@ -1181,7 +1327,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            $marker = $ordered ? $this->orderedListMarker($node, $start + $index, $item) : $this->bulletListMarker();
+            $marker = $ordered ? $this->orderedListMarker($node, $item, $start + $index, $index) : $this->bulletListMarker();
             $itemLoose = $listLoose || (bool) $item->attr('loose', false);
             if ($itemLoose && $lines !== [] && end($lines) !== '') {
                 $lines[] = '';
@@ -1201,13 +1347,13 @@ final class MarkdownWriter
         return $this->renderDivBlock(new AstNode('div', $item->attrs, $item->children), $indent);
     }
 
-    private function orderedListMarker(AstNode $node, int $number, ?AstNode $item = null): string
+    private function orderedListMarker(AstNode $node, AstNode $item, int $number, int $index): string
     {
         $style = $this->orderedListMarkerStyle($node);
         $delimiter = $this->orderedListMarkerDelimiter($node);
 
         if ($style === 'example') {
-            return $this->padOrderedListMarker('(@' . $this->numberedExampleLabel($item, $node) . ')');
+            return $this->padOrderedListMarker('(@' . $this->numberedExampleLabel($item, $node, $index) . ')');
         }
 
         if ($style === 'default') {
@@ -1240,14 +1386,14 @@ final class MarkdownWriter
         return $marker . ' ';
     }
 
-    private function numberedExampleLabel(?AstNode $item, ?AstNode $list = null): string
+    private function numberedExampleLabel(?AstNode $item, ?AstNode $list = null, int $index = 0): string
     {
         foreach ([$item, $list] as $node) {
             if (!$node instanceof AstNode) {
                 continue;
             }
 
-            $label = $this->numberedExampleLabelFromNode($node);
+            $label = $this->numberedExampleLabelFromNode($node, $index);
             if ($label !== '') {
                 return $label;
             }
@@ -1256,7 +1402,7 @@ final class MarkdownWriter
         return '';
     }
 
-    private function numberedExampleLabelFromNode(AstNode $node): string
+    private function numberedExampleLabelFromNode(AstNode $node, int $index = 0): string
     {
         foreach (['exampleLabel', 'label'] as $name) {
             $value = $node->attr($name, '');
@@ -1285,12 +1431,59 @@ final class MarkdownWriter
             }
         }
 
+        $labels = $node->attr('exampleLabels', []);
+        if (is_array($labels)) {
+            $value = $labels[$index] ?? $labels[(string) $index] ?? '';
+            if (is_scalar($value)) {
+                $label = trim((string) $value);
+                if ($this->isNumberedExampleLabel($label)) {
+                    return $label;
+                }
+            }
+        }
+
         return '';
     }
 
     private function isNumberedExampleLabel(string $label): bool
     {
         return $label !== '' && preg_match('/\A[A-Za-z0-9_-]+\z/u', $label) === 1;
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function collectNumberedExampleLabels(AstNode $node): array
+    {
+        $labels = [];
+        $this->collectNumberedExampleLabelsFromNode($node, $labels);
+
+        return $labels;
+    }
+
+    /**
+     * @param array<string, bool> $labels
+     */
+    private function collectNumberedExampleLabelsFromNode(AstNode $node, array &$labels): void
+    {
+        if ($node->type === 'ordered_list' && $this->orderedListMarkerStyle($node) === 'example') {
+            $index = 0;
+            foreach ($node->children as $item) {
+                if ($item->type !== 'list_item') {
+                    continue;
+                }
+
+                $label = $this->numberedExampleLabel($item, $node, $index);
+                if ($label !== '') {
+                    $labels[$label] = true;
+                }
+                $index++;
+            }
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectNumberedExampleLabelsFromNode($child, $labels);
+        }
     }
 
     private function bulletListMarker(): string
@@ -1359,12 +1552,12 @@ final class MarkdownWriter
         $task = $item->attr('taskChecked', null);
         if (is_bool($task)) {
             $prefix .= $task ? '[x] ' : '[ ] ';
-            $continuationIndent += 4;
         }
 
         $inlineChildren = [];
         $lines = [];
         $hasFirstLine = false;
+        $previousBlock = null;
 
         foreach ($item->children as $child) {
             if (!$hasFirstLine && $inlineChildren === [] && $this->canRenderInitialListCodeBlock($child)) {
@@ -1384,7 +1577,7 @@ final class MarkdownWriter
                 $hasFirstLine = true;
             }
 
-            if ($child->type === 'paragraph') {
+            if ($child->type === 'paragraph' || $child->type === 'plain') {
                 if (count($lines) === 1 && rtrim($lines[0]) === rtrim($prefix)) {
                     $lines = [];
                     $lines = $this->appendInlineListItemLines(
@@ -1393,6 +1586,7 @@ final class MarkdownWriter
                         $continuationIndent,
                         $this->renderInlines($child->children)
                     );
+                    $previousBlock = $child;
                     continue;
                 }
 
@@ -1402,12 +1596,29 @@ final class MarkdownWriter
                 foreach (explode("\n", $this->renderInlines($child->children)) as $line) {
                     $lines[] = str_repeat(' ', $continuationIndent) . $line;
                 }
+                $previousBlock = $child;
                 continue;
             }
 
-            foreach ($this->renderBlock($child, $blockIndent) as $nestedLine) {
+            $nestedIndent = $blockIndent;
+            if ($previousBlock instanceof AstNode && $this->needsBlockSeparator($previousBlock, $child)) {
+                if ($lines !== [] && end($lines) !== '') {
+                    $lines[] = '';
+                }
+                $lines[] = str_repeat(' ', $blockIndent) . '<!-- -->';
+                $lines[] = '';
+                if (
+                    ($child->type === 'bullet_list' || $child->type === 'ordered_list')
+                    && $blockIndent >= $indent + 4
+                ) {
+                    $nestedIndent = $indent + 3;
+                }
+            }
+
+            foreach ($this->renderBlock($child, $nestedIndent) as $nestedLine) {
                 $lines[] = $nestedLine;
             }
+            $previousBlock = $child;
         }
 
         if ($inlineChildren !== [] || !$hasFirstLine) {
@@ -1527,7 +1738,7 @@ final class MarkdownWriter
             return [];
         }
 
-        $columnCount = TableGeometry::columnCount($node);
+        $columnCount = $this->tableColumnCount($node);
         if ($columnCount === 0) {
             return [];
         }
@@ -1566,14 +1777,14 @@ final class MarkdownWriter
             ...$this->expandTableRows($footRows, $columnCount),
         ];
         $renderedRows = [...$expandedHeadRows, ...$expandedBodyRows];
-        $widths = $this->tableColumnWidths($renderedRows, $node->attr('widths', []), $columnCount);
+        $widths = $this->tableColumnWidths($renderedRows, $this->tableColumnWidthHints($node, $columnCount), $columnCount);
         $alignments = $this->tableAlignments($node, $columnCount);
         $prefix = str_repeat(' ', $indent);
+        $captionLine = $this->renderTableCaptionLine($node, $prefix);
+        $captionSide = $this->tableCaptionSide($node);
         $lines = [];
 
-        $captionLine = $this->renderTableCaptionLine($node, $prefix);
-        $captionBeforeTable = $captionLine !== '' && $this->tableCaptionBeforeTable($node);
-        if ($captionBeforeTable) {
+        if ($captionLine !== '' && $captionSide === 'top') {
             $lines[] = $captionLine;
             $lines[] = '';
         }
@@ -1586,7 +1797,7 @@ final class MarkdownWriter
             $lines[] = $prefix . $this->renderPipeTableRow($row, $widths, $alignments);
         }
 
-        if ($captionLine !== '' && !$captionBeforeTable) {
+        if ($captionLine !== '' && $captionSide !== 'top') {
             $lines[] = '';
             $lines[] = $captionLine;
         }
@@ -1594,41 +1805,15 @@ final class MarkdownWriter
         return $lines;
     }
 
-    private function renderTableCaptionLine(AstNode $node, string $prefix): string
-    {
-        $caption = $this->renderTableCaption($node);
-        $attrs = $this->renderTableAttributes($node);
-        if ($caption === '' && $attrs === '') {
-            return '';
-        }
-
-        return $prefix . ': ' . trim($caption . ($attrs === '' ? '' : ' ' . $attrs));
-    }
-
-    private function tableCaptionBeforeTable(AstNode $node): bool
-    {
-        $captionSource = $node->attr('captionSource', []);
-        if (!is_array($captionSource)) {
-            return false;
-        }
-
-        $placement = strtolower(trim((string) ($captionSource['captionPlacement'] ?? '')));
-        if ($placement === 'before-table') {
-            return true;
-        }
-
-        return strtolower(trim((string) ($captionSource['captionSide'] ?? ''))) === 'top';
-    }
-
     private function shouldRenderHtmlTable(AstNode $node, int $columnCount): bool
     {
+        $autoFallback = (bool) ($this->options['htmlTableAutoFallback'] ?? false)
+            || (bool) ($this->options['autoHtmlTables'] ?? false);
+
         return $columnCount > 0
             && (
                 $this->tableRequestsHtmlFallback($node)
-                || (
-                    (bool) ($this->options['htmlTableAutoFallback'] ?? false)
-                    && $this->tableRequiresHtmlFallback($node, $columnCount)
-                )
+                || ($autoFallback && $this->tableRequiresHtmlFallback($node, $columnCount))
             );
     }
 
@@ -1658,28 +1843,78 @@ final class MarkdownWriter
         }
 
         foreach ($node->children as $section) {
-            if (!in_array($section->type, ['table_head', 'table_body', 'table_foot'], true)) {
-                continue;
-            }
-
-            if ($this->nodeHasSourceAttributes($section)) {
-                return true;
-            }
-
-            if ($section->type === 'table_body' && TableGeometry::rowHeadColumns($section, $columnCount) > 0) {
-                return true;
-            }
-
-            foreach ($this->tableSectionRowsWithBodyHeads($section) as $row) {
-                if ($this->nodeHasSourceAttributes($row)) {
+            if (in_array($section->type, ['table_head', 'table_body', 'table_foot'], true)) {
+                if ($this->nodeHasSourceAttributes($section)) {
                     return true;
                 }
 
-                foreach ($row->children as $cell) {
-                    if ($cell->type === 'table_cell' && $this->tableCellRequiresHtmlFallback($cell)) {
+                if ($section->type === 'table_body' && TableGeometry::rowHeadColumns($section, $columnCount) > 0) {
+                    return true;
+                }
+
+                foreach ($this->tableSectionRowsForFallbackCheck($section) as $row) {
+                    if ($this->tableRowRequiresHtmlFallback($row)) {
                         return true;
                     }
                 }
+
+                continue;
+            }
+
+            if ($section->type === 'table_row' && $this->tableRowRequiresHtmlFallback($section)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function tableColumnCount(AstNode $node): int
+    {
+        $columnCount = TableGeometry::columnCount($node);
+        $directRows = $this->tableDirectRows($node);
+        if ($directRows !== []) {
+            $columnCount = max($columnCount, TableGeometry::columnCountForRows($directRows));
+        }
+
+        return $columnCount;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableDirectRows(AstNode $node): array
+    {
+        return array_values(array_filter(
+            $node->children,
+            static fn (AstNode $child): bool => $child->type === 'table_row'
+        ));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableSectionRowsForFallbackCheck(AstNode $section): array
+    {
+        $rows = $section->type === 'table_body' ? $this->tableBodyHeadRows($section) : [];
+        foreach ($section->children as $row) {
+            if ($row->type === 'table_row' && !in_array($row, $rows, true)) {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    private function tableRowRequiresHtmlFallback(AstNode $row): bool
+    {
+        if ($this->nodeHasSourceAttributes($row)) {
+            return true;
+        }
+
+        foreach ($row->children as $cell) {
+            if ($cell->type === 'table_cell' && $this->tableCellRequiresHtmlFallback($cell)) {
+                return true;
             }
         }
 
@@ -1879,7 +2114,6 @@ final class MarkdownWriter
 
         return false;
     }
-
     private function nodeHasHtmlAttributes(AstNode $node): bool
     {
         $htmlAttributes = $node->attr('htmlAttributes', []);
@@ -1957,6 +2191,7 @@ final class MarkdownWriter
         $head = null;
         $bodies = [];
         $foot = null;
+        $directRows = [];
         foreach ($node->children as $child) {
             if ($child->type === 'table_head') {
                 $head = $child;
@@ -1970,6 +2205,11 @@ final class MarkdownWriter
 
             if ($child->type === 'table_foot') {
                 $foot = $child;
+                continue;
+            }
+
+            if ($child->type === 'table_row') {
+                $directRows[] = $child;
             }
         }
 
@@ -1992,6 +2232,17 @@ final class MarkdownWriter
             $lines[] = $innerPrefix . '<tbody' . $this->renderHtmlAttributes($this->htmlAttributeMap($body)) . '>';
             array_push($lines, ...$this->renderHtmlTableRows(
                 $this->tableBodyRowEntries($body, $columnCount),
+                $node,
+                $columnCount,
+                $indent + 4
+            ));
+            $lines[] = $innerPrefix . '</tbody>';
+        }
+
+        if ($directRows !== []) {
+            $lines[] = $innerPrefix . '<tbody>';
+            array_push($lines, ...$this->renderHtmlTableRows(
+                $this->tableRowsEntries($directRows, false),
                 $node,
                 $columnCount,
                 $indent + 4
@@ -2082,17 +2333,17 @@ final class MarkdownWriter
 
     private function renderHtmlTableCaptionContent(AstNode $node): string
     {
-        $captionBlocks = $this->htmlTableCaptionBlocks($node->attr('captionBlocks', []));
+        $captionBlocks = $this->tableCaptionBlocksForWriting($node);
         if ($captionBlocks !== []) {
             return $this->renderHtmlBlocks($captionBlocks);
         }
 
-        $captionInlines = $node->attr('captionInlines', []);
-        if (is_array($captionInlines) && $captionInlines !== [] && $this->allAstNodes($captionInlines)) {
+        $captionInlines = $this->tableCaptionInlinesForWriting($node);
+        if ($captionInlines !== []) {
             return $this->renderHtmlInlines($captionInlines);
         }
 
-        return $this->escapeHtml((string) $node->attr('caption', ''));
+        return $this->escapeHtml($this->tableCaptionTextForWriting($node));
     }
 
     /**
@@ -2127,33 +2378,17 @@ final class MarkdownWriter
 
     private function plainHtmlTableShortCaption(AstNode $node): string
     {
-        $shortCaptionBlocks = $this->htmlTableCaptionBlocks($node->attr('shortCaptionBlocks', []));
+        $shortCaptionBlocks = $this->tableShortCaptionBlocksForWriting($node);
         if ($shortCaptionBlocks !== []) {
-            return trim($this->plainInlineText($this->flattenPlainHtmlBlockInlines($shortCaptionBlocks)));
+            return $this->plainBlockText($shortCaptionBlocks);
         }
 
-        $shortCaptionInlines = $node->attr('shortCaptionInlines', []);
-        if (is_array($shortCaptionInlines) && $shortCaptionInlines !== [] && $this->allAstNodes($shortCaptionInlines)) {
+        $shortCaptionInlines = $this->tableShortCaptionInlinesForWriting($node);
+        if ($shortCaptionInlines !== []) {
             return $this->plainInlineText($shortCaptionInlines);
         }
 
-        return trim((string) $node->attr('shortCaption', ''));
-    }
-
-    /**
-     * @param list<AstNode> $blocks
-     * @return list<AstNode>
-     */
-    private function flattenPlainHtmlBlockInlines(array $blocks): array
-    {
-        $inlines = [];
-        foreach ($blocks as $block) {
-            if (in_array($block->type, ['plain', 'paragraph'], true)) {
-                array_push($inlines, ...$block->children);
-            }
-        }
-
-        return $inlines;
+        return trim($this->tableShortCaptionTextForWriting($node));
     }
 
     /**
@@ -2161,12 +2396,63 @@ final class MarkdownWriter
      */
     private function tableRowEntries(AstNode $section, bool $header): array
     {
+        return $this->tableRowsEntries($section->children, $header);
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
+     */
+    private function tableRowsEntries(array $rows, bool $header, int $rowHeadColumns = 0): array
+    {
         $entries = [];
-        foreach ($section->children as $row) {
+        foreach ($rows as $row) {
+            if ($row->type !== 'table_row') {
+                continue;
+            }
+
+            $entries[] = [
+                'row' => $row,
+                'header' => $header || $row->attr('header') === true,
+                'rowHeadColumns' => $rowHeadColumns,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
+     */
+    private function tableDirectRowEntries(array $rows): array
+    {
+        $entries = [];
+        foreach ($rows as $row) {
             if ($row->type === 'table_row') {
                 $entries[] = [
                     'row' => $row,
-                    'header' => $header,
+                    'header' => false,
+                    'rowHeadColumns' => 0,
+                ];
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
+     */
+    private function directTableRowEntries(array $rows): array
+    {
+        $entries = [];
+        foreach ($rows as $row) {
+            if ($row->type === 'table_row') {
+                $entries[] = [
+                    'row' => $row,
+                    'header' => false,
                     'rowHeadColumns' => 0,
                 ];
             }
@@ -2181,24 +2467,10 @@ final class MarkdownWriter
     private function tableBodyRowEntries(AstNode $body, int $columnCount): array
     {
         $entries = [];
-        foreach ($this->tableBodyHeadRows($body) as $row) {
-            $entries[] = [
-                'row' => $row,
-                'header' => true,
-                'rowHeadColumns' => 0,
-            ];
-        }
+        array_push($entries, ...$this->tableRowsEntries($this->tableBodyHeadRows($body), true));
 
         $rowHeadColumns = TableGeometry::rowHeadColumns($body, $columnCount);
-        foreach ($body->children as $row) {
-            if ($row->type === 'table_row') {
-                $entries[] = [
-                    'row' => $row,
-                    'header' => false,
-                    'rowHeadColumns' => $rowHeadColumns,
-                ];
-            }
-        }
+        array_push($entries, ...$this->tableRowsEntries($body->children, false, $rowHeadColumns));
 
         return $entries;
     }
@@ -2237,13 +2509,32 @@ final class MarkdownWriter
             $column = (int) $layoutCell['column'];
             $isHeaderCell = TableGeometry::isHeaderCell($header, $rowHeadColumns, $column, $cell);
             $tag = $isHeaderCell ? 'th' : 'td';
-            $scope = $isHeaderCell ? ($header ? 'col' : 'row') : '';
+            $scope = $isHeaderCell ? $this->htmlTableHeaderScope($header, $rowHeadColumns, $column, $layoutCell) : '';
             $html .= '<' . $tag . $this->renderHtmlTableCellAttributes($table, $column, $layoutCell, $cell, $scope) . '>'
                 . $this->renderHtmlTableCellContent($cell)
                 . '</' . $tag . '>';
         }
 
         return $html . '</tr>';
+    }
+
+    /**
+     * @param array{colspan:int,rowspan:int} $layoutCell
+     */
+    private function htmlTableHeaderScope(bool $headerRow, int $rowHeadColumns, int $column, array $layoutCell): string
+    {
+        $colspan = max(1, (int) $layoutCell['colspan']);
+        $rowspan = max(1, (int) $layoutCell['rowspan']);
+
+        if (!$headerRow && $rowHeadColumns > 0 && $column < $rowHeadColumns) {
+            return $rowspan > 1 ? 'rowgroup' : 'row';
+        }
+
+        if ($headerRow) {
+            return $colspan > 1 ? 'colgroup' : 'col';
+        }
+
+        return $rowspan > 1 ? 'rowgroup' : 'row';
     }
 
     /**
@@ -2332,7 +2623,11 @@ final class MarkdownWriter
             'heading' => $this->renderHtmlHeading($node),
             'bullet_list' => $this->renderHtmlList($node, 'ul'),
             'ordered_list' => $this->renderHtmlList($node, 'ol'),
-            'blockquote' => '<blockquote>' . $this->renderHtmlBlocks($node->children) . '</blockquote>',
+            'definition_list' => $this->renderHtmlDefinitionList($node),
+            'line_block' => $this->renderHtmlLineBlock($node),
+            'blockquote' => '<blockquote' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
+                . $this->renderHtmlBlocks($node->children)
+                . '</blockquote>',
             'code_block' => '<pre><code' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
                 . $this->escapeHtml((string) $node->attr('text', ''))
                 . '</code></pre>',
@@ -2363,6 +2658,15 @@ final class MarkdownWriter
         if ($tag === 'ol' && (int) $node->attr('start', 1) !== 1) {
             $attrs['start'] = (string) (int) $node->attr('start', 1);
         }
+        if ($tag === 'ol') {
+            $type = $this->htmlOrderedListType($node);
+            if ($type !== null && !isset($attrs['type'])) {
+                $attrs['type'] = $type;
+            }
+        }
+        if ($tag === 'ul' && $this->htmlListHasTaskItems($node)) {
+            $this->appendHtmlClass($attrs, 'task-list');
+        }
 
         $html = '<' . $tag . $this->renderHtmlAttributes($attrs) . '>';
         foreach ($node->children as $item) {
@@ -2370,12 +2674,109 @@ final class MarkdownWriter
                 continue;
             }
 
-            $html .= '<li' . $this->renderHtmlAttributes($this->htmlAttributeMap($item)) . '>'
-                . $this->renderHtmlBlocks($item->children)
+            $itemAttrs = $this->htmlAttributeMap($item);
+            $number = $item->attr('number', null);
+            if (is_int($number) || (is_string($number) && preg_match('/\A-?\d+\z/', $number) === 1)) {
+                $itemAttrs['value'] = (string) $number;
+            }
+
+            $html .= '<li' . $this->renderHtmlAttributes($itemAttrs) . '>'
+                . $this->renderHtmlListItemContent($item)
                 . '</li>';
         }
 
         return $html . '</' . $tag . '>';
+    }
+
+    private function htmlOrderedListType(AstNode $node): ?string
+    {
+        return match ((string) $node->attr('style', 'decimal')) {
+            'lower_alpha' => 'a',
+            'upper_alpha' => 'A',
+            'lower_roman' => 'i',
+            'upper_roman' => 'I',
+            default => null,
+        };
+    }
+
+    private function htmlListHasTaskItems(AstNode $node): bool
+    {
+        if ((bool) $node->attr('taskList', false)) {
+            return true;
+        }
+
+        foreach ($node->children as $item) {
+            if ($item->type === 'list_item' && is_bool($item->attr('taskChecked', null))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function renderHtmlListItemContent(AstNode $item): string
+    {
+        $content = $this->renderHtmlBlocks($item->children);
+        $task = $item->attr('taskChecked', null);
+        if (!is_bool($task)) {
+            return $content;
+        }
+
+        return '<input type="checkbox"' . ($task ? ' checked=""' : '') . ' />' . $content;
+    }
+
+    private function renderHtmlDefinitionList(AstNode $node): string
+    {
+        $html = '<dl' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>';
+
+        foreach ($node->children as $item) {
+            if ($item->type !== 'definition_item' || $item->children === []) {
+                continue;
+            }
+
+            $term = $item->children[0];
+            $html .= '<dt' . $this->renderHtmlAttributes($this->htmlAttributeMap($term)) . '>'
+                . $this->renderHtmlDefinitionTerm($term)
+                . '</dt>';
+
+            foreach (array_slice($item->children, 1) as $definition) {
+                if ($definition->type !== 'definition') {
+                    continue;
+                }
+
+                $html .= '<dd' . $this->renderHtmlAttributes($this->htmlAttributeMap($definition)) . '>'
+                    . $this->renderHtmlBlocks($definition->children)
+                    . '</dd>';
+            }
+        }
+
+        return $html . '</dl>';
+    }
+
+    private function renderHtmlDefinitionTerm(AstNode $term): string
+    {
+        $children = in_array($term->type, ['definition_term', 'term'], true) ? $term->children : [$term];
+
+        return $this->renderHtmlInlines($children);
+    }
+
+    private function renderHtmlLineBlock(AstNode $node): string
+    {
+        $attrs = $this->htmlAttributeMap($node);
+        $this->appendHtmlClass($attrs, 'line-block');
+        $lines = [];
+
+        foreach ($node->children as $line) {
+            if ($line->type !== 'line') {
+                continue;
+            }
+
+            $lines[] = $line->children === []
+                ? $this->escapeHtml((string) $line->attr('text', ''))
+                : $this->renderHtmlInlines($line->children);
+        }
+
+        return '<div' . $this->renderHtmlAttributes($attrs) . '>' . implode("<br />\n", $lines) . '</div>';
     }
 
     /**
@@ -2498,14 +2899,10 @@ final class MarkdownWriter
         $attrs = [];
         $htmlAttributes = $source['htmlAttributes'] ?? [];
         if (is_array($htmlAttributes)) {
-            foreach ($htmlAttributes as $name => $value) {
-                if (!is_scalar($value)) {
-                    continue;
-                }
-
-                $name = strtolower(trim((string) $name));
-                if ($name !== '') {
-                    $attrs[$name] = (string) $value;
+            foreach ($this->normalizedAttributePairs($htmlAttributes) as $name => $value) {
+                $name = strtolower($name);
+                if ($name !== '' && !isset($attrs[$name])) {
+                    $attrs[$name] = $value;
                 }
             }
         }
@@ -2518,12 +2915,8 @@ final class MarkdownWriter
         if (isset($attrs['class'])) {
             $classes = preg_split('/\s+/', trim($attrs['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         }
-        if (isset($source['classes']) && is_array($source['classes'])) {
-            foreach ($source['classes'] as $class) {
-                if (is_scalar($class) && trim((string) $class) !== '') {
-                    $classes[] = trim((string) $class);
-                }
-            }
+        foreach ($this->normalizedClassList($source['classes'] ?? $source['className'] ?? null) as $class) {
+            $classes[] = $class;
         }
         if ($classes !== []) {
             $attrs['class'] = implode(' ', array_values(array_unique($classes)));
@@ -2531,14 +2924,10 @@ final class MarkdownWriter
 
         $attributes = $source['attributes'] ?? [];
         if (is_array($attributes)) {
-            foreach ($attributes as $name => $value) {
-                if (!is_scalar($value)) {
-                    continue;
-                }
-
-                $name = strtolower(trim((string) $name));
+            foreach ($this->normalizedAttributePairs($attributes) as $name => $value) {
+                $name = strtolower($name);
                 if ($name !== '' && !isset($attrs[$name])) {
-                    $attrs[$name] = (string) $value;
+                    $attrs[$name] = $value;
                 }
             }
         }
@@ -2784,6 +3173,24 @@ final class MarkdownWriter
     }
 
     /**
+     * @return list<float|null>
+     */
+    private function tableColumnWidthHints(AstNode $node, int $columnCount): array
+    {
+        $widths = $node->attr('widths', []);
+        if (is_array($widths) && $widths !== []) {
+            return array_values($widths);
+        }
+
+        $hints = [];
+        foreach (TableGeometry::columnSpecs($node, $columnCount) as $spec) {
+            $hints[] = isset($spec['width']) && is_numeric($spec['width']) ? (float) $spec['width'] : null;
+        }
+
+        return $hints;
+    }
+
+    /**
      * @return list<string>
      */
     private function tableAlignments(AstNode $node, int $columnCount): array
@@ -2834,33 +3241,33 @@ final class MarkdownWriter
     private function renderTableCaption(AstNode $node): string
     {
         $caption = '';
-        $captionBlocks = $this->renderTableCaptionBlocks($node->attr('captionBlocks', []));
+        $captionBlocks = $this->renderTableCaptionBlocks($this->tableCaptionBlocksForWriting($node));
         if ($captionBlocks !== '') {
             $caption = $captionBlocks;
         } else {
-            $captionInlines = $node->attr('captionInlines', []);
-            if (is_array($captionInlines) && $captionInlines !== [] && $this->allAstNodes($captionInlines)) {
+            $captionInlines = $this->tableCaptionInlinesForWriting($node);
+            if ($captionInlines !== []) {
                 $caption = $this->normalizeTableCaptionMarkdown($this->renderInlines($captionInlines));
             } else {
-                $caption = $this->normalizeTableCaptionMarkdown($this->escapeText((string) $node->attr('caption', '')));
+                $caption = $this->normalizeTableCaptionMarkdown($this->escapeText($this->tableCaptionTextForWriting($node)));
             }
         }
 
-        $shortCaptionInlines = $node->attr('shortCaptionInlines', []);
-        if (is_array($shortCaptionInlines) && $shortCaptionInlines !== [] && $this->allAstNodes($shortCaptionInlines)) {
+        $shortCaptionInlines = $this->tableShortCaptionInlinesForWriting($node);
+        if ($shortCaptionInlines !== []) {
             $shortCaption = '[' . $this->normalizeTableCaptionMarkdown($this->renderInlines($shortCaptionInlines)) . ']';
 
             return $caption === '' ? $shortCaption : $shortCaption . ' ' . $caption;
         }
 
-        $shortCaptionBlocks = $this->renderTableCaptionBlocks($node->attr('shortCaptionBlocks', []));
+        $shortCaptionBlocks = $this->renderTableCaptionBlocks($this->tableShortCaptionBlocksForWriting($node));
         if ($shortCaptionBlocks !== '') {
             $shortCaption = '[' . $shortCaptionBlocks . ']';
 
             return $caption === '' ? $shortCaption : $shortCaption . ' ' . $caption;
         }
 
-        $shortCaption = (string) $node->attr('shortCaption', '');
+        $shortCaption = $this->tableShortCaptionTextForWriting($node);
         if ($shortCaption !== '') {
             $shortCaption = '[' . $this->normalizeTableCaptionMarkdown($this->escapeText($shortCaption)) . ']';
 
@@ -2868,6 +3275,278 @@ final class MarkdownWriter
         }
 
         return $caption;
+    }
+
+    private function renderTableCaptionLine(AstNode $node, string $prefix): string
+    {
+        $caption = $this->renderTableCaption($node);
+        $attrs = $this->renderTableAttributes($node);
+        if ($caption === '' && $attrs === '') {
+            return '';
+        }
+
+        return $prefix . ': ' . trim($caption . ($attrs === '' ? '' : ' ' . $attrs));
+    }
+
+    private function tableCaptionSide(AstNode $node): string
+    {
+        $side = strtolower(trim((string) $node->attr('captionSide', '')));
+        if (in_array($side, ['top', 'bottom'], true)) {
+            return $side;
+        }
+
+        $captionSource = $node->attr('captionSource', []);
+        if (is_array($captionSource)) {
+            $side = strtolower(trim((string) ($captionSource['captionSide'] ?? '')));
+            if (in_array($side, ['top', 'bottom'], true)) {
+                return $side;
+            }
+
+            $placement = strtolower(trim((string) ($captionSource['captionPlacement'] ?? '')));
+            if (in_array($placement, ['before-table', 'before-table-sections'], true)) {
+                return 'top';
+            }
+            if ($placement === 'after-table') {
+                return 'bottom';
+            }
+        }
+
+        return 'bottom';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableCaptionBlocksForWriting(AstNode $node): array
+    {
+        $blocks = $this->explicitCaptionBlocksFromValue($node->attr('captionBlocks', []));
+        if ($blocks !== []) {
+            return $blocks;
+        }
+
+        $source = $this->captionSourceValue($node, ['captionBlocks', 'blocks', 'longBlocks']);
+
+        return $this->captionBlocksFromValue($source);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableCaptionInlinesForWriting(AstNode $node): array
+    {
+        $inlines = $this->captionInlinesFromValue($node->attr('captionInlines', []));
+        if ($inlines !== []) {
+            return $inlines;
+        }
+
+        $caption = $node->attr('caption');
+        $inlines = $this->captionInlinesFromValue($caption);
+        if ($inlines !== []) {
+            return $inlines;
+        }
+
+        $source = $this->captionSourceValue($node, ['captionInlines', 'inlines', 'longInlines']);
+
+        return $this->captionInlinesFromValue($source);
+    }
+
+    private function tableCaptionTextForWriting(AstNode $node): string
+    {
+        $text = $this->captionTextFromValue($node->attr('caption', ''));
+        if ($text !== '') {
+            return $text;
+        }
+
+        return $this->captionTextFromValue($this->captionSourceValue($node, ['caption', 'text', 'long']));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableShortCaptionBlocksForWriting(AstNode $node): array
+    {
+        $blocks = $this->explicitCaptionBlocksFromValue($node->attr('shortCaptionBlocks', []));
+        if ($blocks !== []) {
+            return $blocks;
+        }
+
+        $source = $this->captionSourceValue($node, ['shortCaptionBlocks', 'shortBlocks']);
+
+        return $this->captionBlocksFromValue($source);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableShortCaptionInlinesForWriting(AstNode $node): array
+    {
+        $inlines = $this->captionInlinesFromValue($node->attr('shortCaptionInlines', []));
+        if ($inlines !== []) {
+            return $inlines;
+        }
+
+        $shortCaption = $node->attr('shortCaption');
+        $inlines = $this->captionInlinesFromValue($shortCaption);
+        if ($inlines !== []) {
+            return $inlines;
+        }
+
+        $source = $this->captionSourceValue($node, ['shortCaptionInlines', 'shortInlines']);
+
+        return $this->captionInlinesFromValue($source);
+    }
+
+    private function tableShortCaptionTextForWriting(AstNode $node): string
+    {
+        $text = $this->captionTextFromValue($node->attr('shortCaption', ''));
+        if ($text !== '') {
+            return $text;
+        }
+
+        return $this->captionTextFromValue($this->captionSourceValue($node, ['shortCaption', 'short', 'shortText']));
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private function captionSourceValue(AstNode $node, array $names): mixed
+    {
+        $source = $node->attr('captionSource', []);
+        if (!is_array($source)) {
+            return null;
+        }
+
+        foreach ($names as $name) {
+            if (array_key_exists($name, $source)) {
+                return $source[$name];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function explicitCaptionBlocksFromValue(mixed $value): array
+    {
+        if ($value instanceof AstNode) {
+            return [$value];
+        }
+
+        if (!is_array($value) || $value === []) {
+            return [];
+        }
+
+        $nodes = array_values($value);
+
+        return $this->allAstNodes($nodes) ? $nodes : [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function captionBlocksFromValue(mixed $value): array
+    {
+        if ($value instanceof AstNode) {
+            return $this->isInlineNode($value) ? [] : [$value];
+        }
+
+        if (!is_array($value) || $value === []) {
+            return [];
+        }
+
+        if (isset($value['blocks'])) {
+            return $this->captionBlocksFromValue($value['blocks']);
+        }
+
+        if (isset($value['captionBlocks'])) {
+            return $this->captionBlocksFromValue($value['captionBlocks']);
+        }
+
+        $nodes = array_values($value);
+        if (!$this->allAstNodes($nodes)) {
+            return [];
+        }
+
+        foreach ($nodes as $node) {
+            if (!$this->isInlineNode($node)) {
+                return $nodes;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function captionInlinesFromValue(mixed $value): array
+    {
+        if ($value instanceof AstNode) {
+            if ($this->isInlineNode($value)) {
+                return [$value];
+            }
+
+            if (in_array($value->type, ['plain', 'paragraph'], true) && $this->allAstNodes($value->children)) {
+                return $value->children;
+            }
+
+            return [];
+        }
+
+        if (!is_array($value) || $value === []) {
+            return [];
+        }
+
+        foreach (['inlines', 'captionInlines', 'shortCaptionInlines'] as $name) {
+            if (isset($value[$name])) {
+                return $this->captionInlinesFromValue($value[$name]);
+            }
+        }
+
+        $nodes = array_values($value);
+        if (!$this->allAstNodes($nodes)) {
+            return [];
+        }
+
+        foreach ($nodes as $node) {
+            if (!$this->isInlineNode($node)) {
+                return [];
+            }
+        }
+
+        return $nodes;
+    }
+
+    private function captionTextFromValue(mixed $value): string
+    {
+        if (is_scalar($value)) {
+            return trim((string) $value);
+        }
+
+        $inlines = $this->captionInlinesFromValue($value);
+        if ($inlines !== []) {
+            return $this->plainInlineText($inlines);
+        }
+
+        $blocks = $this->captionBlocksFromValue($value);
+        if ($blocks !== []) {
+            return $this->plainInlineText($this->flattenPlainHtmlBlockInlines($blocks));
+        }
+
+        if (is_array($value)) {
+            foreach (['text', 'caption', 'shortCaption', 'shortText'] as $name) {
+                if (array_key_exists($name, $value)) {
+                    $text = $this->captionTextFromValue($value[$name]);
+                    if ($text !== '') {
+                        return $text;
+                    }
+                }
+            }
+        }
+
+        return '';
     }
 
     private function renderTableCaptionBlocks(mixed $blocks): string
@@ -3120,11 +3799,21 @@ final class MarkdownWriter
             $text .= $this->renderInline(
                 $node,
                 array_slice($nodes, $index + 1),
-                $index === 0 || ($previous instanceof AstNode && ($previous->type === 'softbreak' || $previous->type === 'linebreak'))
+                $index === 0 || $this->previousInlineRenderedLineBreak($previous)
             );
         }
 
         return $text;
+    }
+
+    private function previousInlineRenderedLineBreak(?AstNode $previous): bool
+    {
+        if ($previous === null) {
+            return false;
+        }
+
+        return $previous->type === 'linebreak'
+            || ($previous->type === 'softbreak' && $this->softBreakMarkdown() !== ' ');
     }
 
     /**
@@ -3137,6 +3826,19 @@ final class MarkdownWriter
             return $this->renderInlines($nodes);
         } finally {
             $this->fancyOrderedMarkerEscapeSuppression--;
+        }
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderBracketedLabelInlines(array $nodes): string
+    {
+        $this->plainTextTriggerEscapeSuppression++;
+        try {
+            return $this->renderInlineLabelInlines($nodes);
+        } finally {
+            $this->plainTextTriggerEscapeSuppression--;
         }
     }
 
@@ -3192,7 +3894,7 @@ final class MarkdownWriter
         $title = (string) $node->attr('title', '');
         $titleMarkdown = $title === '' ? '' : ' "' . $this->escapeLinkTitle($title) . '"';
 
-        return '[' . $this->renderInlineLabelInlines($node->children) . ']('
+        return '[' . $this->renderBracketedLabelInlines($node->children) . ']('
             . $this->renderLinkDestination((string) $node->attr('url', ''))
             . $titleMarkdown
             . ')'
@@ -3215,7 +3917,7 @@ final class MarkdownWriter
      */
     private function renderReferenceLink(AstNode $node, array $following): string
     {
-        $labelText = $this->renderInlines($node->children);
+        $labelText = $this->renderBracketedLabelInlines($node->children);
         $plainLabel = $this->normalizeReferenceLabelText($this->plainInlineText($node->children));
         $referenceLabel = $this->registerReference(
             $plainLabel,
@@ -3370,7 +4072,7 @@ final class MarkdownWriter
             return $id;
         }
 
-        return '{' . str_replace(['\\', '}'], ['\\\\', '\\}'], $id) . '}';
+        return '{' . str_replace(['\\', '}', ']'], ['\\\\', '\\}', '\\]'], $id) . '}';
     }
 
     private function citationSuffixMarkdown(AstNode $citation): string
@@ -3427,7 +4129,10 @@ final class MarkdownWriter
 
     private function renderSpan(AstNode $node): string
     {
-        $content = $this->renderInlineLabelInlines($node->children);
+        $attrs = $this->renderLinkAttributes($node);
+        $content = $attrs === ''
+            ? $this->renderInlineLabelInlines($node->children)
+            : $this->renderBracketedLabelInlines($node->children);
         $emojiAlias = $this->markdownEmojiAlias($node, $content);
         if ($emojiAlias !== null) {
             return ':' . $emojiAlias . ':';
@@ -3502,7 +4207,7 @@ final class MarkdownWriter
         $attrs = $this->linkAttrTuple($node);
         array_unshift($attrs['classes'], 'smallcaps');
 
-        return '[' . $this->renderInlineLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+        return '[' . $this->renderBracketedLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
     }
 
     private function renderUnderline(AstNode $node): string
@@ -3510,7 +4215,7 @@ final class MarkdownWriter
         $attrs = $this->linkAttrTuple($node);
         array_unshift($attrs['classes'], 'underline');
 
-        return '[' . $this->renderInlineLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+        return '[' . $this->renderBracketedLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
     }
 
     private function renderStrikeout(AstNode $node): string
@@ -3536,7 +4241,7 @@ final class MarkdownWriter
         $attrs = $this->linkAttrTuple($node);
         array_unshift($attrs['classes'], $semanticClass);
 
-        return '[' . $this->renderInlineLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+        return '[' . $this->renderBracketedLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
     }
 
     private function markdownEmojiAlias(AstNode $node, string $content): ?string
@@ -3852,7 +4557,7 @@ final class MarkdownWriter
     {
         $escaped = '';
         $length = strlen($text);
-        $lineStart = true;
+        $lineStart = $escapeDefinitionMarker;
         $definitionLineStart = $escapeDefinitionMarker;
 
         for ($i = 0; $i < $length; $i++) {
@@ -3863,6 +4568,29 @@ final class MarkdownWriter
                 $escaped .= "\n";
                 $lineStart = true;
                 $definitionLineStart = true;
+                continue;
+            }
+
+            if ($lineStart && $char === '<' && $this->startsWithRawHtmlBlockTag($tail)) {
+                $escaped .= '&lt;';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if ($lineStart && $char === '=' && $this->startsWithSetextHeadingUnderline($tail)) {
+                $escaped .= '\\=';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if ($lineStart && $char === '-' && $this->startsWithDashUnderlineOrThematicBreak($tail)) {
+                $dashRun = strspn($tail, '-');
+                $escaped .= str_repeat('\\-', $dashRun);
+                $i += $dashRun - 1;
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
@@ -3917,8 +4645,26 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($char === '@' && $this->startsWithCitationMarker($text, $i)) {
+            if (
+                $char === '@'
+                && $this->plainTextTriggerEscapeSuppression === 0
+                && ($this->startsWithBareCitationMarker($text, $i) || $this->isBareEmailAtSign($text, $i))
+            ) {
                 $escaped .= '\\@';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if ($char === ':' && $this->plainTextTriggerEscapeSuppression === 0 && $this->isBareUriSchemeColon($text, $i)) {
+                $escaped .= '\\:';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if ($char === '.' && $this->plainTextTriggerEscapeSuppression === 0 && $this->isBareWwwAutolinkDot($text, $i)) {
+                $escaped .= '\\.';
                 $lineStart = false;
                 $definitionLineStart = false;
                 continue;
@@ -4037,6 +4783,24 @@ final class MarkdownWriter
         return preg_match('/^[*+-](?:[ \t]|$)/', $text) === 1;
     }
 
+    private function startsWithRawHtmlBlockTag(string $text): bool
+    {
+        return preg_match(
+            '/^<\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|pre|script|search|section|summary|style|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?=[\s>\/])/i',
+            $text
+        ) === 1;
+    }
+
+    private function startsWithSetextHeadingUnderline(string $text): bool
+    {
+        return preg_match('/^=+[ \t]*(?:\n|\z)/', $text) === 1;
+    }
+
+    private function startsWithDashUnderlineOrThematicBreak(string $text): bool
+    {
+        return preg_match('/^-{3,}[ \t]*(?:\n|\z)/', $text) === 1;
+    }
+
     /**
      * @param array<int, string> $match
      */
@@ -4116,6 +4880,130 @@ final class MarkdownWriter
         return preg_match('/[ \t\r\n\[;,:]/', $text[$offset - 1]) === 1;
     }
 
+    private function startsWithBareCitationMarker(string $text, int $offset): bool
+    {
+        if (($text[$offset] ?? '') !== '@') {
+            return false;
+        }
+
+        $previous = $offset === 0 ? '' : $text[$offset - 1];
+        if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+            return false;
+        }
+
+        if (
+            $previous === '('
+            && ($offset === 1 || ($text[$offset - 2] ?? '') === "\n")
+            && $this->startsWithParenthesizedOrderedListMarker(substr($text, $offset - 1))
+        ) {
+            return false;
+        }
+
+        if ($previous === '(' && $this->startsWithKnownNumberedExampleReference($text, $offset)) {
+            return false;
+        }
+
+        return preg_match(
+            '/\G@(?:\{[^}\r\n]+\}|[A-Za-z0-9_:.#\/$%&+?<>~|-]*[A-Za-z0-9_#\/$%&+?<>~|-])/u',
+            $text,
+            $match,
+            0,
+            $offset
+        ) === 1;
+    }
+
+    private function startsWithKnownNumberedExampleReference(string $text, int $offset): bool
+    {
+        return preg_match('/\G@([A-Za-z0-9_-]+)\)/', $text, $match, 0, $offset) === 1
+            && isset($this->numberedExampleLabels[$match[1]]);
+    }
+
+    private function isBareEmailAtSign(string $text, int $offset): bool
+    {
+        if (($text[$offset] ?? '') !== '@') {
+            return false;
+        }
+
+        $localStart = $offset;
+        while (
+            $localStart > 0
+            && preg_match('/[A-Za-z0-9.!#$%&\'*+\/=?^_`{|}~-]/', $text[$localStart - 1]) === 1
+        ) {
+            $localStart--;
+        }
+
+        if ($localStart === $offset) {
+            return false;
+        }
+
+        $previous = $localStart === 0 ? '' : $text[$localStart - 1];
+        if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+            return false;
+        }
+
+        return preg_match(
+            '/\G@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+/u',
+            $text,
+            $match,
+            0,
+            $offset
+        ) === 1;
+    }
+
+    private function isBareUriSchemeColon(string $text, int $offset): bool
+    {
+        if (($text[$offset] ?? '') !== ':') {
+            return false;
+        }
+
+        $schemeStart = $offset;
+        while (
+            $schemeStart > 0
+            && preg_match('/[A-Za-z0-9+.-]/', $text[$schemeStart - 1]) === 1
+        ) {
+            $schemeStart--;
+        }
+
+        if ($schemeStart === $offset) {
+            return false;
+        }
+
+        $scheme = strtolower(substr($text, $schemeStart, $offset - $schemeStart));
+        if (!in_array($scheme, ['http', 'https', 'git', 'file', 'mailto', 'doi'], true)) {
+            return false;
+        }
+
+        $previous = $schemeStart === 0 ? '' : $text[$schemeStart - 1];
+        if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+            return false;
+        }
+
+        $pattern = match ($scheme) {
+            'http', 'https', 'git', 'file' => '~\G' . preg_quote(substr($text, $schemeStart, $offset - $schemeStart), '~') . '://[^\s<>"\']+~iu',
+            'mailto' => '~\Gmailto:[^\s<>"\']+~iu',
+            'doi' => '~\Gdoi:10\.[^\s<>"\']+~iu',
+            default => null,
+        };
+
+        return $pattern !== null && preg_match($pattern, $text, $match, 0, $schemeStart) === 1;
+    }
+
+    private function isBareWwwAutolinkDot(string $text, int $offset): bool
+    {
+        if (($text[$offset] ?? '') !== '.' || $offset < 3 || strcasecmp(substr($text, $offset - 3, 3), 'www') !== 0) {
+            return false;
+        }
+
+        $start = $offset - 3;
+        $previous = $start === 0 ? '' : $text[$start - 1];
+        if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+            return false;
+        }
+
+        return preg_match('~\Gwww\.[^\s<>"\']+~iu', $text, $match, 0, $start) === 1
+            && strlen($match[0]) > 4;
+    }
+
     private function isIntrawordUnderscore(string $text, int $offset): bool
     {
         $previous = $text[$offset - 1] ?? '';
@@ -4144,6 +5032,45 @@ final class MarkdownWriter
         return trim(preg_replace('/\s+/', ' ', $text) ?? $text);
     }
 
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function plainBlockText(array $nodes): string
+    {
+        $parts = [];
+        foreach ($nodes as $node) {
+            $text = $this->plainNodeText($node);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        $text = implode(' ', $parts);
+
+        return trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+    }
+
+    private function plainNodeText(AstNode $node): string
+    {
+        if ($node->type === 'raw_html' || $node->type === 'raw_markdown' || $node->type === 'raw_block') {
+            return trim((string) $node->attr('text', $node->attr('html', $node->attr('markdown', ''))));
+        }
+
+        if ($this->isInlineNode($node)) {
+            return $this->plainInlineText([$node]);
+        }
+
+        if (in_array($node->type, ['paragraph', 'plain', 'heading', 'table_cell'], true)) {
+            return $this->plainInlineText($node->children);
+        }
+
+        if ($node->type === 'code_block') {
+            return trim((string) $node->attr('text', ''));
+        }
+
+        return $this->plainBlockText($node->children);
+    }
+
     private function normalizeReferenceLabelText(string $label): string
     {
         return trim(preg_replace('/\s+/', ' ', $label) ?? $label);
@@ -4161,7 +5088,7 @@ final class MarkdownWriter
                 $this->appendPendingDefinitions($blocks);
             }
 
-            if ($previous instanceof AstNode && $this->needsListSeparator($previous, $node)) {
+            if ($previous instanceof AstNode && $this->needsBlockSeparator($previous, $node)) {
                 $blocks[] = '<!-- -->';
             }
 
@@ -4534,7 +5461,11 @@ final class MarkdownWriter
             return $url;
         }
 
-        return '<' . str_replace(['\\', '<', '>'], ['\\\\', '\\<', '\\>'], $url) . '>';
+        return '<' . str_replace(
+            ['\\', '<', '>', '"', "'"],
+            ['\\\\', '\\<', '\\>', '\\"', "\\'"],
+            $url
+        ) . '>';
     }
 
     private function escapeLinkDestinationControlCharacters(string $url): string
@@ -4552,7 +5483,7 @@ final class MarkdownWriter
     private function linkDestinationNeedsAngles(string $url): bool
     {
         return $url === ''
-            || preg_match('/[\s\x00-\x1F\x7F<>()]/u', $url) === 1;
+            || preg_match('/[\s\x00-\x1F\x7F<>()"\']/u', $url) === 1;
     }
 
     /**
@@ -4560,30 +5491,87 @@ final class MarkdownWriter
      */
     private function linkAttrTuple(AstNode $node): array
     {
-        $id = (string) $node->attr('id', '');
-        $classes = $node->attr('classes', []);
-        if (!is_array($classes)) {
-            $classes = [];
-        }
-        $classes = array_values(array_filter(
-            array_map(static fn (mixed $class): string => (string) $class, $classes),
-            static fn (string $class): bool => $class !== ''
-        ));
+        $id = is_scalar($node->attr('id')) ? trim((string) $node->attr('id', '')) : '';
+        $classes = $this->normalizedClassList($node->attr('classes', $node->attr('className', [])));
+        $attributes = $this->normalizedAttributePairs($node->attr('attributes', []));
 
-        $attributes = $node->attr('attributes', []);
-        if (!is_array($attributes)) {
-            $attributes = [];
+        $topLevelAttributeNames = ['dir', 'lang', 'role', 'xml:lang'];
+        if (!in_array($node->type, ['link', 'image'], true)) {
+            $topLevelAttributeNames[] = 'title';
         }
-        $attributes = array_filter(
-            array_map(static fn (mixed $value): string => (string) $value, $attributes),
-            static fn (string $value): bool => $value !== ''
-        );
+
+        foreach ($topLevelAttributeNames as $name) {
+            if (!array_key_exists($name, $attributes) && is_scalar($node->attr($name))) {
+                $value = trim((string) $node->attr($name));
+                if ($value !== '') {
+                    $attributes[$name] = $value;
+                }
+            }
+        }
 
         return [
             'id' => $id,
             'classes' => $classes,
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizedClassList(mixed $classes): array
+    {
+        if (is_string($classes)) {
+            $classes = preg_split('/\s+/', trim($classes), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+
+        if (!is_array($classes)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($classes as $class) {
+            if (!is_scalar($class)) {
+                continue;
+            }
+
+            $class = trim((string) $class);
+            if ($class !== '') {
+                $normalized[] = $class;
+            }
+        }
+
+        return array_values(array_unique($normalized));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function normalizedAttributePairs(mixed $attributes): array
+    {
+        if (!is_array($attributes)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($attributes as $name => $value) {
+            if (is_array($value) && array_is_list($value) && count($value) >= 2) {
+                $name = $value[0];
+                $value = $value[1];
+            }
+
+            if (!is_scalar($name) || !is_scalar($value)) {
+                continue;
+            }
+
+            $name = trim((string) $name);
+            $value = (string) $value;
+            if ($name !== '' && $value !== '') {
+                $normalized[$name] = $value;
+            }
+        }
+
+        return $normalized;
     }
 
     private function renderLinkAttributes(AstNode $node): string
@@ -4695,8 +5683,15 @@ final class MarkdownWriter
         return $node->type === 'bullet_list' || $node->type === 'ordered_list' || $node->type === 'definition_list';
     }
 
-    private function needsListSeparator(AstNode $previous, AstNode $current): bool
+    private function needsBlockSeparator(AstNode $previous, AstNode $current): bool
     {
+        if (
+            $this->rendersIndentedCodeBlock($previous)
+            && $this->rendersIndentedCodeBlock($current)
+        ) {
+            return true;
+        }
+
         if (!$this->isListBlock($previous)) {
             return false;
         }
@@ -4715,8 +5710,15 @@ final class MarkdownWriter
 
         return $previous->type === 'ordered_list'
             && $current->type === 'ordered_list'
-            && $this->orderedListMarkerStyle($previous) === $this->orderedListMarkerStyle($current)
-            && $this->orderedListSeparatorDelimiter($previous) === $this->orderedListSeparatorDelimiter($current);
+            && $this->orderedListMarkerStyle($previous) === $this->orderedListMarkerStyle($current);
+    }
+
+    private function rendersIndentedCodeBlock(AstNode $node): bool
+    {
+        return $node->type === 'code_block'
+            && !(bool) ($this->options['fencedCodeBlocks'] ?? false)
+            && $this->renderCodeBlockAttributes($node) === ''
+            && $this->codeBlockInfo($node) === '';
     }
 
     private function orderedListSeparatorDelimiter(AstNode $node): string
