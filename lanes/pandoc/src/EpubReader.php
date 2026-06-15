@@ -19850,6 +19850,8 @@ final class EpubReader
         $localName = strtolower($element->localName);
         $typeRaw = self::nullableAttribute($element, 'type');
         $type = self::xhtmlFormControlType($element);
+        $selectOptions = $localName === 'select' ? self::xhtmlSelectOptions($element) : [];
+        $selectedOptions = self::xhtmlSelectedOptions($selectOptions);
 
         return [
             'index' => $index,
@@ -19861,11 +19863,18 @@ final class EpubReader
             'type' => $type,
             'typeRaw' => $typeRaw,
             'value' => self::nullableAttribute($element, 'value'),
-            'text' => in_array($localName, ['button', 'output'], true) ? self::normalizedText($element) : null,
+            'text' => in_array($localName, ['button', 'output', 'textarea'], true) ? self::normalizedText($element) : null,
             'form' => self::nullableAttribute($element, 'form'),
             'formAction' => self::nullableAttribute($element, 'formaction'),
             'forRaw' => $localName === 'output' ? self::nullableAttribute($element, 'for') : null,
             'forIds' => $localName === 'output' ? self::spaceDelimited($element->getAttribute('for')) : [],
+            'options' => $selectOptions,
+            'optionCount' => count($selectOptions),
+            'selectedOptionCount' => count($selectedOptions),
+            'selectedValues' => array_map(
+                static fn (array $option): string => (string) $option['value'],
+                $selectedOptions
+            ),
             'disabled' => $element->hasAttribute('disabled'),
             'required' => $element->hasAttribute('required'),
             'checked' => $element->hasAttribute('checked'),
@@ -19891,6 +19900,64 @@ final class EpubReader
         }
 
         return $localName;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function xhtmlSelectOptions(\DOMElement $select): array
+    {
+        $options = [];
+        foreach ($select->getElementsByTagName('*') as $candidate) {
+            if (
+                !$candidate instanceof \DOMElement
+                || (string) $candidate->namespaceURI !== self::XHTML_NS
+                || strtolower($candidate->localName) !== 'option'
+            ) {
+                continue;
+            }
+
+            $parent = $candidate->parentNode;
+            $optgroup = $parent instanceof \DOMElement
+                && (string) $parent->namespaceURI === self::XHTML_NS
+                && strtolower($parent->localName) === 'optgroup'
+                    ? $parent
+                    : null;
+            $text = self::normalizedText($candidate);
+            $valueRaw = self::nullableAttribute($candidate, 'value');
+
+            $options[] = [
+                'index' => count($options),
+                'id' => self::nullableAttribute($candidate, 'id'),
+                'value' => $valueRaw ?? $text,
+                'valueRaw' => $valueRaw,
+                'label' => self::nullableAttribute($candidate, 'label'),
+                'text' => $text,
+                'selected' => $candidate->hasAttribute('selected'),
+                'optionDisabled' => $candidate->hasAttribute('disabled'),
+                'optgroupLabel' => $optgroup instanceof \DOMElement ? self::nullableAttribute($optgroup, 'label') : null,
+                'optgroupDisabled' => $optgroup instanceof \DOMElement && $optgroup->hasAttribute('disabled'),
+                'disabled' => $candidate->hasAttribute('disabled')
+                    || ($optgroup instanceof \DOMElement && $optgroup->hasAttribute('disabled')),
+                'attributes' => self::elementAttributes($candidate),
+                'optgroupAttributes' => $optgroup instanceof \DOMElement ? self::elementAttributes($optgroup) : [],
+            ];
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $options
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function xhtmlSelectedOptions(array $options): array
+    {
+        return array_values(array_filter(
+            $options,
+            static fn (array $option): bool => ($option['selected'] ?? false) === true,
+        ));
     }
 
     private static function xhtmlFormControlSubmits(\DOMElement $element): bool

@@ -6860,6 +6860,81 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'reports EPUB XHTML textarea and select control state for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $controlsXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <form id="review-state" action="../forms/review.xhtml#state" method="get">
+      <textarea id="comment-body" name="body" required="required">Needs
+review</textarea>
+      <select id="priority-select" name="priority" multiple="multiple" required="required">
+        <optgroup label="Review queues" disabled="disabled">
+          <option value="low">Low</option>
+          <option id="urgent-option" value="urgent" selected="selected">Urgent</option>
+        </optgroup>
+        <option value="archive" label="Archive" selected="selected">Archive review</option>
+      </select>
+    </form>
+  </body>
+</html>
+XML;
+        $opfWithControls = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="control-state-content" href="text/control-state.xhtml" media-type="application/xhtml+xml"/>'
+                . '<item id="review-target" href="forms/review.xhtml" media-type="application/xhtml+xml"/>'
+                . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithControls = str_replace(
+            '</spine>',
+            '<itemref idref="control-state-content"/></spine>',
+            $opfWithControls
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithControls,
+            null,
+            [
+                ['name' => 'OEBPS/text/control-state.xhtml', 'data' => $controlsXhtml],
+                ['name' => 'OEBPS/forms/review.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><p id="state">Review state target</p></body></html>'],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/control-state.xhtml'];
+        $form = $asset['sideEffects'][0];
+        $textarea = $form['controls'][0];
+        $select = $form['controls'][1];
+
+        $t->same(1, $report['sideEffectAssetCount']);
+        $t->same(1, $report['sideEffectCount']);
+        $t->same(1, $asset['sideEffectReferenceCount']);
+        $t->same('/OEBPS/forms/review.xhtml#state', $form['target']);
+        $t->same('/OEBPS/forms/review.xhtml', $form['part']);
+        $t->same('state', $form['fragment']);
+        $t->same(2, $form['controlCount']);
+        $t->same(0, $form['submitControlCount']);
+        $t->same('textarea', $textarea['element']);
+        $t->same('body', $textarea['name']);
+        $t->same('textarea', $textarea['type']);
+        $t->same('Needs review', $textarea['text']);
+        $t->same(true, $textarea['required']);
+        $t->same('select', $select['element']);
+        $t->same('priority', $select['name']);
+        $t->same('select', $select['type']);
+        $t->same(true, $select['multiple']);
+        $t->same(true, $select['required']);
+        $t->same(3, $select['optionCount']);
+        $t->same(2, $select['selectedOptionCount']);
+        $t->same(['urgent', 'archive'], $select['selectedValues']);
+        $t->same('Review queues', $select['options'][1]['optgroupLabel']);
+        $t->same(true, $select['options'][1]['optgroupDisabled']);
+        $t->same(true, $select['options'][1]['disabled']);
+        $t->same('Archive', $select['options'][2]['label']);
+        $t->same('Archive review', $select['options'][2]['text']);
+        $t->same($asset['sideEffects'], $result['document']->children[2]->attr('contentSideEffects'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+    },
     'reports EPUB stylesheet resource references for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithCssAssets = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',
