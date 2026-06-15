@@ -80,9 +80,15 @@ $buildOdtPackage = static function (
     bool $mimetypeFirst = true,
     int $mimetypeCompression = 0,
     array $extraParts = [],
+    string $mimetypeExtraFieldData = '',
 ) use ($manifestXml, $contentXml, $stylesXml, $metaXml): ZipPackage {
+    $mimetypePart = ['name' => 'mimetype', 'data' => $mimetype, 'compressionMethod' => $mimetypeCompression];
+    if ($mimetypeExtraFieldData !== '') {
+        $mimetypePart['extraFieldData'] = $mimetypeExtraFieldData;
+    }
+
     $parts = [
-        ['name' => 'mimetype', 'data' => $mimetype, 'compressionMethod' => $mimetypeCompression],
+        $mimetypePart,
         ['name' => 'META-INF/manifest.xml', 'data' => $manifest ?? $manifestXml],
         ['name' => 'content.xml', 'data' => $content ?? $contentXml],
         ['name' => 'styles.xml', 'data' => $styles ?? $stylesXml],
@@ -200,6 +206,64 @@ return [
         $t->same(0, $summary['encryptedCount']);
         $t->same([], $summary['encryptedParts']);
         $t->same(3, $summary['contentBlocks']);
+    },
+    'preserves compact ODT mimetype local header provenance for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage());
+        $summary = $odt->summarize();
+        $mimetype = $summary['mimetypeEntry'];
+
+        $t->same('mimetype', $mimetype['name']);
+        $t->same(OpenDocumentPackage::TEXT_MIMETYPE, $mimetype['mediaType']);
+        $t->same(true, $mimetype['firstLocalEntry']);
+        $t->same(true, $mimetype['firstCentralDirectoryEntry']);
+        $t->same(0, $mimetype['localHeaderOrder']);
+        $t->same(0, $mimetype['centralDirectoryIndex']);
+        $t->same(0, $mimetype['localHeaderOffset']);
+        $t->same(30 + strlen('mimetype'), $mimetype['localHeaderLength']);
+        $t->same(strlen('mimetype'), $mimetype['localNameLength']);
+        $t->same(0, $mimetype['localExtraFieldLength']);
+        $t->same(0, $mimetype['localExtraFieldRecordCount']);
+        $t->same([], $mimetype['localExtraFieldIds']);
+        $t->same([], $mimetype['localExtraFieldRecords']);
+        $t->same(0, $mimetype['centralExtraFieldLength']);
+        $t->same(0, $mimetype['centralExtraFieldRecordCount']);
+        $t->same([], $mimetype['centralExtraFieldIds']);
+        $t->same([], $mimetype['centralExtraFieldRecords']);
+        $t->same(false, $mimetype['hasLocalExtraFields']);
+        $t->same(false, $mimetype['hasCentralExtraFields']);
+        $t->same(0, $mimetype['compressionMethod']);
+        $t->same('stored', $mimetype['compressionMethodName']);
+        $t->same(strlen(OpenDocumentPackage::TEXT_MIMETYPE), $mimetype['byteLength']);
+        $t->same(strlen(OpenDocumentPackage::TEXT_MIMETYPE), $mimetype['compressedByteLength']);
+        $t->same($odt->package()->entry('mimetype')->crc32Hex(), $mimetype['crc32']);
+        $t->same(false, $mimetype['canExposeBytes']);
+        $t->same('odf-mimetype-validation-only', $mimetype['byteExposurePolicy']);
+        $t->same([], $mimetype['diagnostics']);
+    },
+    'rejects compact ODT packages whose mimetype is not first in local header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $package = $buildZipPackageWithCentralDirectoryOrder(
+            [
+                ['name' => 'content.xml', 'data' => $contentXml],
+                ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+                ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+                ['name' => 'styles.xml', 'data' => $stylesXml],
+                ['name' => 'meta.xml', 'data' => $metaXml],
+                ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA'],
+            ],
+            ['mimetype', 'META-INF/manifest.xml', 'content.xml', 'styles.xml', 'meta.xml', 'Pictures/hero.png']
+        );
+
+        $t->throws(\RuntimeException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($package));
+    },
+    'rejects compact ODT mimetype local header extra fields before package exposure' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $extraField = pack('vva*', 0xcafe, strlen('odf-review'), 'odf-review');
+
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage(
+                $buildOdtPackage(mimetypeExtraFieldData: $extraField)
+            )
+        );
     },
     'preserves compact ODT manifest media type parameter provenance for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(

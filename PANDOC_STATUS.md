@@ -4,7 +4,7 @@ Updated: 2026-06-15 UTC
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 
-ODF/ODT is marked ship-ready: 82 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
+ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
 
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 82 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest ODF/ODT evidence: `OdfReader` summarizes manifest encryption methods across blocked package parts, including encryption record counts, checksum-type, algorithm, key-derivation, start-key-generation, issue-code, byte-exposure policy, and script-package provenance rows.
+Latest ODF/ODT evidence: `OpenDocumentPackage` validates compact ODT mimetype entries against ZIP local-header order, rejects mimetype local-header extra fields before package exposure, and exposes stored-first mimetype provenance in package review metadata.
 
-Current Pandoc counters: 3,661 PHP passes / 0 failures and 3,698 mapped upstream cases. Verification passed `php -l` for `OdfReader.php` and `OdfReaderTest.php`; focused `OdfReaderTest.php` (`1` file, `4,910` assertions, `0` failures); focused ODF/ODT readiness (`5` files, `6,727` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `86,301` assertions, `0` failures); `jq empty`; and `git diff --check`.
+Current Pandoc counters: 3,664 PHP passes / 0 failures and 3,701 mapped upstream cases. Verification passed `php -l` for `OpenDocumentPackage.php` and `OpenDocumentPackageTest.php`; focused `OpenDocumentPackageTest.php` (`1` file, `1,546` assertions, `0` failures); focused ODF/ODT readiness (`5` files, `6,756` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `86,330` assertions, `0` failures); `jq empty`; and `git diff --check`.

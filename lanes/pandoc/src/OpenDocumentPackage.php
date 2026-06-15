@@ -258,6 +258,7 @@ final class OpenDocumentPackage
     /**
      * @return array{
      *     mimetype:string,
+     *     mimetypeEntry:array<string, mixed>,
      *     manifestVersion:string|null,
      *     contentXml:bool,
      *     stylesXml:bool,
@@ -358,6 +359,7 @@ final class OpenDocumentPackage
 
         return [
             'mimetype' => self::TEXT_MIMETYPE,
+            'mimetypeEntry' => self::mimetypeEntryReview($this->package),
             'manifestVersion' => $this->manifestVersion,
             'manifestRootAttributes' => $this->manifestRootAttributes,
             'contentXml' => isset($this->manifestEntriesByPath['content.xml']),
@@ -3990,15 +3992,115 @@ final class OpenDocumentPackage
             throw new \RuntimeException('ODT package is missing mimetype entry');
         }
 
-        $entries = $package->entries();
+        $entries = $package->localEntries();
         $first = $entries[0] ?? null;
         if (!$first instanceof ZipPackageEntry || $first->name !== 'mimetype' || $first->compressionMethod !== 0) {
-            throw new \RuntimeException('ODT mimetype entry must be first and stored without compression');
+            throw new \RuntimeException('ODT mimetype entry must be first in local-header order and stored without compression');
+        }
+
+        $localMimetype = self::localHeaderPreflightEntry($package, 'mimetype');
+        if (is_array($localMimetype) && ((int) ($localMimetype['localExtraFieldLength'] ?? 0)) > 0) {
+            throw new \RuntimeException('ODT mimetype entry must not contain local header extra fields');
         }
 
         if ($package->read('mimetype') !== self::TEXT_MIMETYPE) {
             throw new \RuntimeException('ODT mimetype entry must be application/vnd.oasis.opendocument.text');
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mimetypeEntryReview(ZipPackage $package): array
+    {
+        $entry = $package->entry('mimetype');
+        $localHeader = self::localHeaderPreflightEntry($package, 'mimetype') ?? [];
+        $centralDirectoryIndex = null;
+        foreach ($package->entries() as $index => $candidate) {
+            if ($candidate->name === 'mimetype') {
+                $centralDirectoryIndex = $index;
+                break;
+            }
+        }
+
+        $localHeaderOrder = null;
+        foreach ($package->localEntries() as $index => $candidate) {
+            if ($candidate->name === 'mimetype') {
+                $localHeaderOrder = $index;
+                break;
+            }
+        }
+
+        $centralExtraFields = self::zipExtraFieldReviewRecords($entry->centralExtraFields());
+        $localExtraFields = is_array($localHeader['localExtraFieldRecords'] ?? null)
+            ? $localHeader['localExtraFieldRecords']
+            : [];
+        $localExtraFieldLength = is_int($localHeader['localExtraFieldLength'] ?? null)
+            ? $localHeader['localExtraFieldLength']
+            : 0;
+
+        return [
+            'name' => $entry->name,
+            'mediaType' => self::TEXT_MIMETYPE,
+            'firstLocalEntry' => $localHeaderOrder === 0,
+            'firstCentralDirectoryEntry' => $centralDirectoryIndex === 0,
+            'localHeaderOrder' => $localHeaderOrder,
+            'centralDirectoryIndex' => $centralDirectoryIndex,
+            'localHeaderOffset' => $entry->localHeaderOffset,
+            'localHeaderLength' => $localHeader['localHeaderLength'] ?? null,
+            'localNameLength' => $localHeader['localNameLength'] ?? null,
+            'localExtraFieldLength' => $localExtraFieldLength,
+            'localExtraFieldRecordCount' => count($localExtraFields),
+            'localExtraFieldIds' => $localHeader['localExtraFieldIds'] ?? [],
+            'localExtraFieldRecords' => $localExtraFields,
+            'centralExtraFieldLength' => strlen($entry->centralExtraFieldData),
+            'centralExtraFieldRecordCount' => count($centralExtraFields),
+            'centralExtraFieldIds' => array_map(
+                static fn (array $field): int => (int) $field['id'],
+                $centralExtraFields
+            ),
+            'centralExtraFieldRecords' => $centralExtraFields,
+            'hasLocalExtraFields' => $localExtraFieldLength > 0,
+            'hasCentralExtraFields' => $centralExtraFields !== [],
+            'compressionMethod' => $entry->compressionMethod,
+            'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+            'byteLength' => $entry->uncompressedSize,
+            'compressedByteLength' => $entry->compressedSize,
+            'crc32' => $entry->crc32Hex(),
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'odf-mimetype-validation-only',
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function localHeaderPreflightEntry(ZipPackage $package, string $name): ?array
+    {
+        foreach ($package->localHeaderPreflight()['entries'] as $entry) {
+            if (($entry['name'] ?? null) === $name) {
+                return $entry;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{id:int, data:string}> $fields
+     * @return list<array{id:int, idHex:string, dataLength:int}>
+     */
+    private static function zipExtraFieldReviewRecords(array $fields): array
+    {
+        return array_map(
+            static fn (array $field): array => [
+                'id' => $field['id'],
+                'idHex' => sprintf('%04x', $field['id']),
+                'dataLength' => strlen($field['data']),
+            ],
+            $fields
+        );
     }
 
     /**
