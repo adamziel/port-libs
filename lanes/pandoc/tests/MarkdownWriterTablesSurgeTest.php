@@ -365,4 +365,381 @@ foreach ($cellCases as $label => $case) {
         };
 }
 
+$bodyHeadCountCases = [
+    'single body head row before delimiter' => static function (TestRunner $t) use ($row, $textCell, $writeDocument): void {
+        $table = new AstNode('table', ['alignments' => ['left', 'right']], [
+            new AstNode('table_body', ['headRowCount' => 1], [
+                $row([$textCell('Queue'), $textCell('Count')]),
+                $row([$textCell('Posts'), $textCell('42')]),
+            ]),
+        ]);
+        $markdown = $writeDocument($table);
+
+        $t->true(strpos($markdown, '| Queue') < strpos($markdown, '|:----'), 'Body headRowCount header should render before delimiter');
+        $t->true(strpos($markdown, '| Posts') > strpos($markdown, '|:----'), 'Body row should render after delimiter');
+    },
+    'two body head rows before delimiter' => static function (TestRunner $t) use ($row, $textCell, $writeDocument): void {
+        $table = new AstNode('table', ['alignments' => ['left', 'right']], [
+            new AstNode('table_body', ['headRowCount' => 2], [
+                $row([$textCell('Queue'), $textCell('Count')]),
+                $row([$textCell('Scope'), $textCell('Items')]),
+                $row([$textCell('Posts'), $textCell('42')]),
+            ]),
+        ]);
+        $markdown = $writeDocument($table);
+
+        $t->true(strpos($markdown, '| Queue') < strpos($markdown, '|:----'), 'First body-local header should precede delimiter');
+        $t->true(strpos($markdown, '| Scope') < strpos($markdown, '|:----'), 'Second body-local header should precede delimiter');
+        $t->true(strpos($markdown, '| Posts') > strpos($markdown, '|:----'), 'Body row should follow delimiter');
+    },
+    'head row count clamps to body rows' => static function (TestRunner $t) use ($row, $textCell, $writeDocument): void {
+        $table = new AstNode('table', ['alignments' => ['left']], [
+            new AstNode('table_body', ['headRowCount' => 4], [
+                $row([$textCell('Only head')]),
+            ]),
+        ]);
+        $markdown = $writeDocument($table);
+
+        $t->same(1, substr_count($markdown, '| Only head |'));
+        $t->true(strpos($markdown, '| Only head |') < strpos($markdown, '|:--------|'), 'Clamped header row should stay before delimiter');
+    },
+    'zero head row count uses synthetic header' => static function (TestRunner $t) use ($row, $textCell, $writeDocument): void {
+        $table = new AstNode('table', ['alignments' => ['center']], [
+            new AstNode('table_body', ['headRowCount' => 0], [
+                $row([$textCell('Body')]),
+            ]),
+        ]);
+        $markdown = $writeDocument($table);
+
+        $t->contains('|:--:|', $markdown);
+        $t->true(strpos($markdown, '| Body |') > strpos($markdown, '|:--:|'), 'Zero headRowCount should leave body row after synthetic delimiter');
+    },
+    'negative head row count uses synthetic header' => static function (TestRunner $t) use ($row, $textCell, $writeDocument): void {
+        $table = new AstNode('table', ['alignments' => ['default']], [
+            new AstNode('table_body', ['headRowCount' => -2], [
+                $row([$textCell('Body')]),
+            ]),
+        ]);
+        $markdown = $writeDocument($table);
+
+        $t->contains('|----|', $markdown);
+        $t->true(strpos($markdown, '| Body |') > strpos($markdown, '|----|'), 'Negative headRowCount should not promote rows');
+    },
+    'numeric string head row count is honored' => static function (TestRunner $t) use ($row, $textCell, $writeDocument): void {
+        $table = new AstNode('table', ['alignments' => ['right']], [
+            new AstNode('table_body', ['headRowCount' => '1'], [
+                $row([$textCell('Count')]),
+                $row([$textCell('42')]),
+            ]),
+        ]);
+        $markdown = $writeDocument($table);
+
+        $t->true(strpos($markdown, '| Count |') < strpos($markdown, '|----:|'), 'Numeric string headRowCount should promote a header row');
+        $t->true(strpos($markdown, '42 |') > strpos($markdown, '|----:|'), 'Remaining body row should follow delimiter');
+    },
+    'explicit head rows are not duplicated when also present in body children' => static function (TestRunner $t) use ($row, $textCell, $writeDocument): void {
+        $headRow = $row([$textCell('Queue')]);
+        $table = new AstNode('table', ['alignments' => ['left']], [
+            new AstNode('table_body', ['headRows' => [$headRow]], [
+                $headRow,
+                $row([$textCell('Posts')]),
+            ]),
+        ]);
+        $markdown = $writeDocument($table);
+
+        $t->same(1, substr_count($markdown, '| Queue |'));
+        $t->true(strpos($markdown, '| Posts |') > strpos($markdown, '|:----|'), 'Body row should remain after delimiter');
+    },
+    'direct table rows render as body rows' => static function (TestRunner $t) use ($row, $textCell, $writeDocument): void {
+        $table = new AstNode('table', ['alignments' => ['left', 'right']], [
+            $row([$textCell('Posts'), $textCell('42')]),
+            $row([$textCell('Media'), $textCell('7')]),
+        ]);
+        $markdown = $writeDocument($table);
+
+        $t->contains('| Posts', $markdown);
+        $t->contains('| Media', $markdown);
+        $t->true(strpos($markdown, '| Posts') > strpos($markdown, '|:---'), 'Direct rows should be downgraded as body rows after a synthetic header');
+    },
+    'direct table rows append after section rows' => static function (TestRunner $t) use ($row, $textCell, $writeDocument): void {
+        $table = new AstNode('table', ['alignments' => ['left']], [
+            new AstNode('table_head', [], [$row([$textCell('Queue')])]),
+            new AstNode('table_body', [], [$row([$textCell('Posts')])]),
+            $row([$textCell('Media')]),
+        ]);
+        $markdown = $writeDocument($table);
+
+        $t->true(strpos($markdown, '| Posts |') < strpos($markdown, '| Media |'), 'Direct rows should append after explicit body rows');
+    },
+    'table head plus body head row both precede delimiter' => static function (TestRunner $t) use ($row, $textCell, $writeDocument): void {
+        $table = new AstNode('table', ['alignments' => ['left', 'right']], [
+            new AstNode('table_head', [], [$row([$textCell('Queue'), $textCell('Count')])]),
+            new AstNode('table_body', ['headRowCount' => 1], [
+                $row([$textCell('Scope'), $textCell('Items')]),
+                $row([$textCell('Posts'), $textCell('42')]),
+            ]),
+        ]);
+        $markdown = $writeDocument($table);
+
+        $t->true(strpos($markdown, '| Queue') < strpos($markdown, '|:----'), 'Table head should precede delimiter');
+        $t->true(strpos($markdown, '| Scope') < strpos($markdown, '|:----'), 'Body-local head should also precede delimiter');
+    },
+];
+
+foreach ($bodyHeadCountCases as $label => $case) {
+    $tests["maps upstream markdown writer body headRowCount {$label}"] = $case;
+}
+
+$textOnlyCellCases = [
+    'line feed normalization' => [
+        'text' => "Line one\nLine two",
+        'expected' => 'Line one<br />Line two',
+    ],
+    'carriage return normalization' => [
+        'text' => "Line one\rLine two",
+        'expected' => 'Line one Line two',
+    ],
+    'pipe and line feed normalization' => [
+        'text' => "A | B\nC | D",
+        'expected' => 'A \\| B<br />C \\| D',
+    ],
+    'atx heading marker escaping' => [
+        'text' => '# Heading',
+        'expected' => '\\# Heading',
+    ],
+    'bullet marker escaping' => [
+        'text' => '- item',
+        'expected' => '\\- item',
+    ],
+    'ordered marker escaping' => [
+        'text' => '1. item',
+        'expected' => '1\\. item',
+    ],
+    'definition marker escaping' => [
+        'text' => ': term',
+        'expected' => '\\: term',
+    ],
+    'image opener escaping' => [
+        'text' => '![alt]',
+        'expected' => '\\![alt\\]',
+    ],
+    'code delimiter escaping' => [
+        'text' => 'Use `code`',
+        'expected' => 'Use \\`code\\`',
+    ],
+    'emphasis delimiter escaping' => [
+        'text' => '*strong-ish*',
+        'expected' => '\\*strong-ish\\*',
+    ],
+    'citation opener escaping' => [
+        'text' => '@doe2026',
+        'expected' => '\\@doe2026',
+    ],
+    'fenced div opener escaping' => [
+        'text' => '::: note',
+        'expected' => '\\::: note',
+    ],
+];
+
+foreach ($textOnlyCellCases as $label => $case) {
+    $tests["maps upstream markdown writer text-only table cell {$label}"] =
+        static function (TestRunner $t) use ($case, $twoColumnTable, $textCell, $writeDocument): void {
+            $markdown = $writeDocument($twoColumnTable($textCell($case['text'])));
+
+            $t->contains($case['expected'], $markdown);
+        };
+}
+
+$captionBreakCases = [
+    'caption inline hard break' => [
+        'attrs' => ['captionInlines' => [$text('Alpha'), new AstNode('linebreak'), $text('Beta')]],
+        'expected' => ': Alpha<br />Beta',
+    ],
+    'caption inline soft break' => [
+        'attrs' => ['captionInlines' => [$text('Alpha'), new AstNode('softbreak'), $text('Beta')]],
+        'expected' => ': Alpha Beta',
+    ],
+    'plain caption line feed' => [
+        'attrs' => ['caption' => "Alpha\nBeta"],
+        'expected' => ': Alpha Beta',
+    ],
+    'short caption line feed' => [
+        'attrs' => ['shortCaption' => "Short\nLabel", 'caption' => 'Long caption'],
+        'expected' => ': [Short Label] Long caption',
+    ],
+    'short caption inline hard break' => [
+        'attrs' => ['shortCaptionInlines' => [$text('Short'), new AstNode('linebreak'), $text('Label')], 'caption' => 'Long caption'],
+        'expected' => ': [Short<br />Label] Long caption',
+    ],
+    'short caption inline soft break' => [
+        'attrs' => ['shortCaptionInlines' => [$text('Short'), new AstNode('softbreak'), $text('Label')], 'caption' => 'Long caption'],
+        'expected' => ': [Short Label] Long caption',
+    ],
+    'caption block hard break' => [
+        'attrs' => ['captionBlocks' => [$paragraph([$text('Alpha'), new AstNode('linebreak'), $text('Beta')])]],
+        'expected' => ': Alpha<br />Beta',
+    ],
+    'caption block soft break' => [
+        'attrs' => ['captionBlocks' => [$paragraph([$text('Alpha'), new AstNode('softbreak'), $text('Beta')])]],
+        'expected' => ': Alpha Beta',
+    ],
+    'caption list block flattening' => [
+        'attrs' => ['captionBlocks' => [new AstNode('bullet_list', [], [
+            new AstNode('list_item', [], [$paragraph([$text('One')])]),
+            new AstNode('list_item', [], [$paragraph([$text('Two')])]),
+        ])]],
+        'expected' => ': - One - Two',
+    ],
+    'short caption block hard break' => [
+        'attrs' => [
+            'shortCaptionBlocks' => [$paragraph([$text('Short'), new AstNode('linebreak'), $text('Block')])],
+            'caption' => 'Long caption',
+        ],
+        'expected' => ': [Short<br />Block] Long caption',
+    ],
+    'caption raw markdown block' => [
+        'attrs' => ['captionBlocks' => [new AstNode('raw_markdown', ['text' => '*raw caption*'])]],
+        'expected' => ': *raw caption*',
+    ],
+    'caption bracket escaping' => [
+        'attrs' => ['caption' => '[Caption]'],
+        'expected' => ': \\[Caption\\]',
+    ],
+    'short-only caption' => [
+        'attrs' => ['shortCaption' => 'Short only'],
+        'expected' => ': [Short only]',
+    ],
+    'caption hard break with table attributes' => [
+        'attrs' => [
+            'captionInlines' => [$text('Alpha'), new AstNode('linebreak'), $text('Beta')],
+            'id' => 'caption-breaks',
+            'classes' => ['review'],
+        ],
+        'expected' => ': Alpha<br />Beta {#caption-breaks .review}',
+    ],
+];
+
+foreach ($captionBreakCases as $label => $case) {
+    $tests["maps upstream markdown writer table {$label}"] =
+        static function (TestRunner $t) use ($case, $twoColumnTable, $textCell, $writeDocument): void {
+            $markdown = $writeDocument($twoColumnTable($textCell('Ready'), $case['attrs']));
+
+            $t->contains($case['expected'], $markdown);
+        };
+}
+
+$spanCompletionCases = [
+    'plain span unwraps when no attributes' => [
+        'inline' => new AstNode('span', [], [$text('plain span')]),
+        'expected' => 'plain span',
+    ],
+    'mark span containing delimiter falls back to bracketed attributes' => [
+        'inline' => new AstNode('span', ['classes' => ['mark']], [$text('a==b')]),
+        'expected' => '[a==b]{.mark}',
+    ],
+    'emoji alias span' => [
+        'inline' => new AstNode('span', ['classes' => ['emoji'], 'attributes' => ['data-emoji' => 'sparkles']], [$text("\u{2728}")]),
+        'expected' => ':sparkles:',
+    ],
+    'emoji alias mismatched glyph falls back to bracketed span' => [
+        'inline' => new AstNode('span', ['classes' => ['emoji'], 'attributes' => ['data-emoji' => 'sparkles']], [$text('x')]),
+        'expected' => '[x]{.emoji data-emoji="sparkles"}',
+    ],
+    'span containing link' => [
+        'inline' => new AstNode('span', ['classes' => ['review']], [
+            $text('See '),
+            new AstNode('link', ['url' => 'https://example.test/review'], [$text('review')]),
+        ]),
+        'expected' => '[See [review](https://example.test/review)]{.review}',
+    ],
+    'span containing image' => [
+        'inline' => new AstNode('span', ['classes' => ['media']], [
+            new AstNode('image', ['url' => 'media/review.png', 'alt' => 'Review image']),
+        ]),
+        'expected' => '[![Review image](media/review.png)]{.media}',
+    ],
+    'span containing raw html inline' => [
+        'inline' => new AstNode('span', ['classes' => ['html']], [
+            new AstNode('raw_html_inline', ['html' => '<kbd>Esc</kbd>']),
+        ]),
+        'expected' => '[<kbd>Esc</kbd>]{.html}',
+    ],
+    'span containing raw inline html format' => [
+        'inline' => new AstNode('span', ['classes' => ['html']], [
+            new AstNode('raw_inline', ['format' => 'html', 'text' => '<span>raw</span>']),
+        ]),
+        'expected' => '[<span>raw</span>]{.html}',
+    ],
+    'span containing raw inline markdown format' => [
+        'inline' => new AstNode('span', ['classes' => ['markdown']], [
+            new AstNode('raw_inline', ['format' => 'markdown', 'text' => '*raw*']),
+        ]),
+        'expected' => '[*raw*]{.markdown}',
+    ],
+    'span containing inline math' => [
+        'inline' => new AstNode('span', ['classes' => ['math']], [
+            new AstNode('math', ['text' => 'x+1']),
+        ]),
+        'expected' => '[$x+1$]{.math}',
+    ],
+    'span containing citation' => [
+        'inline' => new AstNode('span', ['classes' => ['cite']], [
+            new AstNode('citation', ['id' => 'doe2026', 'suffix' => 'p. 4']),
+        ]),
+        'expected' => '[[@doe2026, p. 4]]{.cite}',
+    ],
+    'span containing citation group' => [
+        'inline' => new AstNode('span', ['classes' => ['cite']], [
+            new AstNode('citation_group', [], [
+                new AstNode('citation', ['id' => 'doe2026']),
+                new AstNode('citation', ['id' => 'roe2026', 'mode' => 'suppress_author']),
+            ]),
+        ]),
+        'expected' => '[[@doe2026; -@roe2026]]{.cite}',
+    ],
+    'span containing quoted text' => [
+        'inline' => new AstNode('span', ['classes' => ['quote']], [
+            new AstNode('quoted', ['kind' => 'single'], [$text('quoted')]),
+        ]),
+        'expected' => "[\u{2018}quoted\u{2019}]{.quote}",
+    ],
+    'span containing superscript shortcut' => [
+        'inline' => new AstNode('span', ['classes' => ['power']], [
+            $text('x'),
+            new AstNode('superscript', [], [$text('2')]),
+        ]),
+        'expected' => '[x^2^]{.power}',
+    ],
+    'span containing subscript shortcut' => [
+        'inline' => new AstNode('span', ['classes' => ['formula']], [
+            $text('H'),
+            new AstNode('subscript', [], [$text('2')]),
+            $text('O'),
+        ]),
+        'expected' => '[H~2~O]{.formula}',
+    ],
+    'span attributes preserve dir and language' => [
+        'inline' => new AstNode('span', ['attributes' => ['dir' => 'rtl', 'lang' => 'ar']], [$text('label')]),
+        'expected' => '[label]{dir="rtl" lang="ar"}',
+    ],
+];
+
+foreach ($spanCompletionCases as $label => $case) {
+    $tests["maps upstream markdown writer {$label}"] =
+        static function (TestRunner $t) use ($case, $writeInlineDocument): void {
+            $t->same($case['expected'], $writeInlineDocument($case['inline']));
+        };
+}
+
+$tests['maps upstream markdown writer attributed span containing note definition'] =
+    static function (TestRunner $t) use ($text, $paragraph, $writeInlineDocument): void {
+        $markdown = $writeInlineDocument(new AstNode('span', ['classes' => ['note']], [
+            $text('review'),
+            new AstNode('note', [], [$paragraph([$text('note body')])]),
+        ]));
+
+        $t->contains('[review[^1]]{.note}', $markdown);
+        $t->contains('[^1]: note body', $markdown);
+    };
+
 return $tests;

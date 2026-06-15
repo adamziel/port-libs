@@ -1373,6 +1373,7 @@ final class MarkdownWriter
     {
         $tableHeadRows = [];
         $bodyGroups = [];
+        $directBodyRows = [];
         $footRows = [];
         foreach ($node->children as $child) {
             if ($child->type === 'table_head') {
@@ -1385,14 +1386,7 @@ final class MarkdownWriter
             }
 
             if ($child->type === 'table_body') {
-                $groupHeadRows = $this->tableBodyHeadRows($child);
-                $groupBodyRows = [];
-                foreach ($child->children as $row) {
-                    if ($row->type === 'table_row') {
-                        $groupBodyRows[] = $row;
-                    }
-                }
-
+                [$groupHeadRows, $groupBodyRows] = $this->tableBodyRows($child);
                 $bodyGroups[] = [
                     'headRows' => $groupHeadRows,
                     'bodyRows' => $groupBodyRows,
@@ -1406,7 +1400,18 @@ final class MarkdownWriter
                         $footRows[] = $row;
                     }
                 }
+                continue;
             }
+
+            if ($child->type === 'table_row') {
+                $directBodyRows[] = $child;
+            }
+        }
+        if ($directBodyRows !== []) {
+            $bodyGroups[] = [
+                'headRows' => [],
+                'bodyRows' => $directBodyRows,
+            ];
         }
 
         if ($tableHeadRows === [] && $bodyGroups === [] && $footRows === []) {
@@ -2197,6 +2202,40 @@ final class MarkdownWriter
     /**
      * @return list<AstNode>
      */
+    /**
+     * @return array{0:list<AstNode>,1:list<AstNode>}
+     */
+    private function tableBodyRows(AstNode $body): array
+    {
+        $rows = array_values(array_filter(
+            $body->children,
+            static fn (AstNode $row): bool => $row->type === 'table_row'
+        ));
+
+        $headRows = $this->tableBodyHeadRows($body);
+        if ($headRows !== []) {
+            $bodyRows = array_values(array_filter(
+                $rows,
+                static fn (AstNode $row): bool => !in_array($row, $headRows, true)
+            ));
+
+            return [$headRows, $bodyRows];
+        }
+
+        $headRowCount = max(0, min(count($rows), (int) $body->attr('headRowCount', 0)));
+        if ($headRowCount > 0) {
+            return [
+                array_slice($rows, 0, $headRowCount),
+                array_slice($rows, $headRowCount),
+            ];
+        }
+
+        return [[], $rows];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
     private function tableBodyHeadRows(AstNode $body): array
     {
         $rows = $body->attr('headRows', []);
@@ -2229,7 +2268,7 @@ final class MarkdownWriter
     private function renderTableCell(AstNode $cell): string
     {
         if ($cell->children === []) {
-            return $this->escapeText((string) $cell->attr('text', ''));
+            return $this->normalizeTableCellMarkdown($this->escapeText((string) $cell->attr('text', '')));
         }
 
         $hasOnlyInlines = true;
@@ -2241,6 +2280,12 @@ final class MarkdownWriter
         }
 
         $markdown = $hasOnlyInlines ? $this->renderInlines($cell->children) : $this->renderBlockCollection($cell->children);
+
+        return $this->normalizeTableCellMarkdown($markdown);
+    }
+
+    private function normalizeTableCellMarkdown(string $markdown): string
+    {
         $markdown = $this->escapeTableCellPipes($markdown);
         $markdown = str_replace("\\\r\n", "<br />", $markdown);
         $markdown = str_replace("\\\n", "<br />", $markdown);
@@ -2335,15 +2380,15 @@ final class MarkdownWriter
         } else {
             $captionInlines = $node->attr('captionInlines', []);
             if (is_array($captionInlines) && $captionInlines !== [] && $this->allAstNodes($captionInlines)) {
-                $caption = $this->renderInlines($captionInlines);
+                $caption = $this->normalizeTableCaptionMarkdown($this->renderInlines($captionInlines));
             } else {
-                $caption = $this->escapeText((string) $node->attr('caption', ''));
+                $caption = $this->normalizeTableCaptionMarkdown($this->escapeText((string) $node->attr('caption', '')));
             }
         }
 
         $shortCaptionInlines = $node->attr('shortCaptionInlines', []);
         if (is_array($shortCaptionInlines) && $shortCaptionInlines !== [] && $this->allAstNodes($shortCaptionInlines)) {
-            $shortCaption = '[' . $this->renderInlines($shortCaptionInlines) . ']';
+            $shortCaption = '[' . $this->normalizeTableCaptionMarkdown($this->renderInlines($shortCaptionInlines)) . ']';
 
             return $caption === '' ? $shortCaption : $shortCaption . ' ' . $caption;
         }
@@ -2357,7 +2402,7 @@ final class MarkdownWriter
 
         $shortCaption = (string) $node->attr('shortCaption', '');
         if ($shortCaption !== '') {
-            $shortCaption = '[' . $this->escapeText($shortCaption) . ']';
+            $shortCaption = '[' . $this->normalizeTableCaptionMarkdown($this->escapeText($shortCaption)) . ']';
 
             return $caption === '' ? $shortCaption : $shortCaption . ' ' . $caption;
         }
@@ -2380,13 +2425,21 @@ final class MarkdownWriter
             $rendered = in_array($block->type, ['plain', 'paragraph'], true) && $this->allAstNodes($block->children)
                 ? $this->renderInlines($block->children)
                 : $this->renderBlockCollection([$block]);
-            $rendered = trim(str_replace(["\r\n", "\r", "\n"], [' ', ' ', ' '], $rendered));
+            $rendered = $this->normalizeTableCaptionMarkdown($rendered);
             if ($rendered !== '') {
                 $parts[] = $rendered;
             }
         }
 
         return implode('<br />', $parts);
+    }
+
+    private function normalizeTableCaptionMarkdown(string $markdown): string
+    {
+        $markdown = str_replace("\\\r\n", '<br />', $markdown);
+        $markdown = str_replace("\\\n", '<br />', $markdown);
+
+        return trim(str_replace(["\r\n", "\r", "\n"], [' ', ' ', ' '], $markdown));
     }
 
     /**
