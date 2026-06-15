@@ -1265,5 +1265,7 @@
   "mappedMarkdownNoteCodeBlockRoundTripSurgeCases": 75,
   "markdownNoteCodeBlockRoundTripSurgeAssertions": 601,
   "mappedMarkdownReaderFootnoteLabelBalanceSurgeCases": 75,
-  "markdownReaderFootnoteLabelBalanceSurgeAssertions": 451
+  "markdownReaderFootnoteLabelBalanceSurgeAssertions": 451,
+  "mappedMarkdownReaderRawHtmlContainerSurgeCases": 60,
+  "markdownReaderRawHtmlContainerSurgeAssertions": 487
 }
