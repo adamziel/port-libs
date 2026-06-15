@@ -10,7 +10,7 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
 | Markdown / CommonMark / GFM | 452 | 1,096 |
-| JSON / native AST | 76 | 252 |
+| JSON / native AST | 86 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
 | Wiki / roff / text markup readers | 0 | 20 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest EPUB3 evidence: `EpubPackageReader` reports OPF metadata item kinds, IDs, language/direction/scheme/role/file-as attributes, refinement properties, and local/external metadata links.
+Latest JSON/native evidence: `PandocJsonReader` and `NativeReader` accept single-wrapped block and inline constructor payload lists while writers preserve unchanged wrappers and regenerate edited inline payloads canonically.
 
-Current Pandoc counters: 3,628 PHP passes / 0 failures and 3,657 mapped upstream cases. Verification passed `php -l` for `EpubPackageReader.php` and `EpubPackageReaderTest.php`; focused `EpubPackageReaderTest.php` (`1` file, `992` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,261` assertions, `0` failures); `jq empty`; and `git diff --check`.
+Current Pandoc counters: 3,629 PHP passes / 0 failures and 3,667 mapped upstream cases. Verification passed `php -l` for `PandocJsonReader.php`, `NativeReader.php`, and `PandocJsonNativeAstTest.php`; focused `PandocJsonNativeAstTest.php` (`1` file, `4,131` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,387` assertions, `0` failures); `jq empty`; and `git diff --check`.

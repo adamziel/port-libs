@@ -294,17 +294,7 @@ final class NativeReader
      */
     private function metaConstructorListContent(mixed $content, string $context): array
     {
-        if (
-            is_array($content)
-            && array_is_list($content)
-            && count($content) === 1
-            && is_array($content[0])
-            && array_is_list($content[0])
-        ) {
-            $content = $content[0];
-        }
-
-        return $this->listContent($content, $context);
+        return $this->singleWrappedListContent($content, $context);
     }
 
     /**
@@ -525,9 +515,7 @@ final class NativeReader
      */
     private function blocks(mixed $blocks): array
     {
-        if (!is_array($blocks)) {
-            throw new \InvalidArgumentException('Pandoc native JSON blocks must be an array');
-        }
+        $blocks = $this->singleWrappedListContent($blocks, 'Pandoc native JSON blocks');
 
         $normalized = [];
         foreach ($blocks as $block) {
@@ -1453,9 +1441,7 @@ final class NativeReader
      */
     private function inlines(mixed $nativeInlines): array
     {
-        if (!is_array($nativeInlines)) {
-            throw new \InvalidArgumentException('Pandoc native JSON inlines must be an array');
-        }
+        $nativeInlines = $this->singleWrappedListContent($nativeInlines, 'Pandoc native JSON inlines');
 
         $nodes = [];
         $text = '';
@@ -1841,6 +1827,23 @@ final class NativeReader
         }
 
         return $value;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function singleWrappedListContent(mixed $value, string $context): array
+    {
+        $list = $this->listContent($value, $context);
+        if (
+            count($list) === 1
+            && is_array($list[0])
+            && array_is_list($list[0])
+        ) {
+            return $list[0];
+        }
+
+        return $list;
     }
 
     /**

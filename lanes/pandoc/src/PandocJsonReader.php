@@ -65,7 +65,7 @@ final class PandocJsonReader
             $attrs['metaConstructorProvenance'] = $metaConstructorProvenance;
         }
 
-        return new AstNode('document', $attrs, array_map(fn (mixed $block): AstNode => $this->readBlock($block), $blocks));
+        return new AstNode('document', $attrs, $this->readBlocks($blocks));
     }
 
     /**
@@ -580,11 +580,12 @@ final class PandocJsonReader
     }
 
     /**
-     * @param list<mixed> $blocks
      * @return list<AstNode>
      */
-    private function readBlocks(array $blocks): array
+    private function readBlocks(mixed $blocks): array
     {
+        $blocks = $this->singleWrappedListContent($blocks, 'blocks');
+
         return array_map(fn (mixed $block): AstNode => $this->readBlock($block), $blocks);
     }
 
@@ -1365,11 +1366,12 @@ final class PandocJsonReader
     }
 
     /**
-     * @param list<mixed> $inlines
      * @return list<AstNode>
      */
-    private function readInlines(array $inlines): array
+    private function readInlines(mixed $inlines): array
     {
+        $inlines = $this->singleWrappedListContent($inlines, 'inlines');
+
         return array_map(fn (mixed $inline): AstNode => $this->readInline($inline), $inlines);
     }
 
@@ -1800,6 +1802,23 @@ final class PandocJsonReader
         }
 
         return $value;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function singleWrappedListContent(mixed $value, string $context): array
+    {
+        $list = $this->listContent($value, $context);
+        if (
+            count($list) === 1
+            && is_array($list[0])
+            && array_is_list($list[0])
+        ) {
+            return $list[0];
+        }
+
+        return $list;
     }
 
     /**

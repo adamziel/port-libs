@@ -1231,6 +1231,124 @@ return [
             }
         }
     },
+    'accepts single wrapped constructor list payloads through json and native readers' => static function (TestRunner $t): void {
+        $inlineCases = [
+            ['constructor' => 'Emph', 'type' => 'emph', 'text' => 'emphasis'],
+            ['constructor' => 'Strong', 'type' => 'strong', 'text' => 'strong'],
+            ['constructor' => 'Underline', 'type' => 'underline', 'text' => 'underline'],
+            ['constructor' => 'Strikeout', 'type' => 'strikeout', 'text' => 'strikeout'],
+            ['constructor' => 'Superscript', 'type' => 'superscript', 'text' => 'super'],
+            ['constructor' => 'Subscript', 'type' => 'subscript', 'text' => 'sub'],
+            ['constructor' => 'SmallCaps', 'type' => 'small_caps', 'text' => 'caps'],
+            [
+                'constructor' => 'Span',
+                'type' => 'span',
+                'text' => 'span',
+                'native' => ['t' => 'Span', 'c' => [
+                    ['wrapped-span', ['review'], [['data-kind', 'single-wrap']]],
+                    [[['t' => 'Str', 'c' => 'span']]],
+                ], 'reviewQueue' => 'span-source'],
+            ],
+        ];
+        foreach ($inlineCases as &$case) {
+            $case['native'] ??= [
+                't' => $case['constructor'],
+                'c' => [[['t' => 'Str', 'c' => $case['text']]]],
+                'reviewQueue' => strtolower($case['constructor']) . '-single-wrap-source',
+            ];
+        }
+        unset($case);
+
+        $sourceInlines = array_map(static fn (array $case): array => $case['native'], $inlineCases);
+        $noteNative = ['t' => 'Note', 'c' => [[
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'noted'],
+            ]],
+        ]], 'noteLabel' => 'wrapped-note', 'reviewQueue' => 'note-source'];
+        $blockquoteNative = ['t' => 'BlockQuote', 'c' => [[
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'quoted'],
+            ]],
+        ]], 'reviewQueue' => 'quote-source'];
+        $paragraphNative = ['t' => 'Para', 'c' => [...$sourceInlines, $noteNative], 'reviewQueue' => 'paragraph-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$paragraphNative, $blockquoteNative],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $paragraph = $document->children[0];
+            $blockquote = $document->children[1];
+            $note = $paragraph->children[count($inlineCases)];
+
+            $t->same([...array_column($inlineCases, 'type'), 'note'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children), "{$source} normalizes single wrapped inline constructor payloads");
+            foreach ($inlineCases as $index => $case) {
+                $node = $paragraph->children[$index];
+                $text = $node->children[0] ?? null;
+
+                $t->same($case['constructor'], $node->attr('constructor'), "{$source} {$case['constructor']} constructor");
+                $t->same($case['native'], $node->attr('native'), "{$source} {$case['constructor']} keeps single wrapped native payload");
+                $t->same('text', $text instanceof AstNode ? $text->type : null, "{$source} {$case['constructor']} child type");
+                $t->same($case['text'], $text instanceof AstNode ? $text->attr('text') : null, "{$source} {$case['constructor']} child text");
+            }
+            $t->same('wrapped-span', $paragraph->children[7]->attr('id'), "{$source} span attr id");
+            $t->same(['review'], $paragraph->children[7]->attr('classes'), "{$source} span attr classes");
+            $t->same(['data-kind' => 'single-wrap'], $paragraph->children[7]->attr('attributes'), "{$source} span attr map");
+            $t->same('Note', $note->attr('constructor'), "{$source} note constructor");
+            $t->same($noteNative, $note->attr('native'), "{$source} note keeps single wrapped block payload");
+            $t->same('wrapped-note', $note->attr('label'), "{$source} note label");
+            $t->same('plain', $note->children[0]->type, "{$source} note child block type");
+            $t->same('noted', $note->children[0]->children[0]->attr('text'), "{$source} note child text");
+            $t->same('blockquote', $blockquote->type, "{$source} blockquote type");
+            $t->same('BlockQuote', $blockquote->attr('constructor'), "{$source} blockquote constructor");
+            $t->same($blockquoteNative, $blockquote->attr('native'), "{$source} blockquote keeps single wrapped block payload");
+            $t->same('quoted', $blockquote->children[0]->children[0]->attr('text'), "{$source} blockquote child text");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($packet['blocks'], $encoded['blocks'], "{$source} {$writer} writer preserves unchanged single wrapped wrappers");
+            }
+
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], $paragraph->children),
+                $blockquote,
+            ]);
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} {$writer} writer regenerates rebuilt paragraph");
+                $t->same($sourceInlines, array_slice($encoded['blocks'][0]['c'], 0, count($sourceInlines)), "{$source} {$writer} writer preserves rebuilt inline single wraps");
+                $t->same($noteNative, $encoded['blocks'][0]['c'][count($sourceInlines)], "{$source} {$writer} writer preserves rebuilt note single wrap");
+                $t->same($blockquoteNative, $encoded['blocks'][1], "{$source} {$writer} writer preserves blockquote single wrap");
+            }
+
+            $editedChildren = $paragraph->children;
+            $editedChildren[0] = new AstNode($editedChildren[0]->type, $editedChildren[0]->attrs, [
+                new AstNode('text', ['text' => 'edited']),
+            ]);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], $editedChildren),
+            ]);
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $editedEmph = $encoded['blocks'][0]['c'][0];
+
+                $t->same('Emph', $editedEmph['t'], "{$source} {$writer} writer keeps edited constructor");
+                $t->same([['t' => 'Str', 'c' => 'edited']], $editedEmph['c'], "{$source} {$writer} writer canonicalizes edited single wrapped inline");
+                $t->same(false, array_key_exists('reviewQueue', $editedEmph), "{$source} {$writer} writer drops stale edited inline sidecar");
+                $t->same($sourceInlines[1], $encoded['blocks'][0]['c'][1], "{$source} {$writer} writer keeps neighboring single wrapped inline");
+            }
+        }
+    },
     'round trips core block constructors through pandoc json' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('blockquote', [], [
