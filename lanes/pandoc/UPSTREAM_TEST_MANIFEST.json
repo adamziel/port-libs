@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3547,
-        "latestSlice": "pandoc-opc-relationship-target-resolution-matrix maps nine shared ZIP/OPC relationship target-resolution cases after rebase onto current main a9d60cc69a. OpcRelationshipGraph relationshipTargetSummary now emits targetResolutionKind, targetResolutionKindCounts, targetKeysByResolutionKind, and targetNamesByResolutionKind, covering internal existing, missing, relationship-part, content-types-item, reserved relationship-directory, same-source, external relative, external package-shadow, and blocked external targets without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass remains 3589, phpFail remains 0, mapped upstream cases move 3538 -> 3547, mappedOpcRelationshipTargetResolutionMatrixCases = 9, and opcRelationshipTargetResolutionMatrixAssertions = 18. Verification passed php -l for OpcRelationshipGraph.php and OpenPackagingConventionsTest.php; focused OpenPackagingConventionsTest.php passed 1 file, 4363 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84396 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+        "mapped": 3557,
+        "latestSlice": "pandoc-opc-zip-manifest-override-declaration-matrix maps ten shared ZIP/OPC package-preflight Override declaration rows after rebase onto current main ad79cfb39b. OpcRelationshipGraph now reports aggregate [Content_Types].xml override declaration buckets for exact/equivalent/missing matches, invalid declarations, relationship-part overrides, relationship content-type declarations, non-relationship parts carrying relationship content types, content-types self-targets, reserved _rels overrides, source-missing relationship overrides, and relationship-part source diagnostics before graph construction without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3589 -> 3599, phpFail remains 0, mapped upstream cases move 3547 -> 3557, mappedOpcZipManifestOverrideDeclarationMatrixCases = 10, and opcZipManifestOverrideDeclarationMatrixAssertions = 46. Verification passed php -l for OpcRelationshipGraph.php and OpenPackagingConventionsTest.php; focused OpenPackagingConventionsTest.php passed 1 file, 4409 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84442 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "Shared ZIP/OPC relationship target-resolution matrix is verified after rebase onto current main a9d60cc69a; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-15 Shared ZIP/OPC relationship target-resolution matrix verified after rebase onto current main a9d60cc69a; focused OpenPackagingConventionsTest.php passed 1 file, 4363 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84396 assertions, 0 failures.",
+        "status": "Shared ZIP/OPC manifest override declaration matrix is verified after rebase onto current main ad79cfb39b; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-15 Shared ZIP/OPC manifest override declaration matrix verified after rebase onto current main ad79cfb39b; focused OpenPackagingConventionsTest.php passed 1 file, 4409 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84442 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -453,7 +453,9 @@
         "mappedCslDirectImportAliasVariableRenderCases": 10,
         "cslDirectImportAliasVariableRenderAssertions": 23,
         "mappedOpcRelationshipTargetResolutionMatrixCases": 9,
-        "opcRelationshipTargetResolutionMatrixAssertions": 18
+        "opcRelationshipTargetResolutionMatrixAssertions": 18,
+        "mappedOpcZipManifestOverrideDeclarationMatrixCases": 10,
+        "opcZipManifestOverrideDeclarationMatrixAssertions": 46
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -2058,5 +2060,7 @@
     "mappedCslDirectImportAliasVariableRenderCases": 10,
     "cslDirectImportAliasVariableRenderAssertions": 23,
     "mappedOpcRelationshipTargetResolutionMatrixCases": 9,
-    "opcRelationshipTargetResolutionMatrixAssertions": 18
+    "opcRelationshipTargetResolutionMatrixAssertions": 18,
+    "mappedOpcZipManifestOverrideDeclarationMatrixCases": 10,
+    "opcZipManifestOverrideDeclarationMatrixAssertions": 46
 }

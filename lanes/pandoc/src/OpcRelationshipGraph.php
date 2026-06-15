@@ -406,14 +406,27 @@ final class OpcRelationshipGraph
 
         $contentTypeOverrideDeclarations = [];
         $contentTypeUnusedOverridePartNames = [];
+        $contentTypeExactOverridePartNames = [];
+        $contentTypeEquivalentOverridePartNames = [];
+        $contentTypeInvalidOverridePartNames = [];
+        $contentTypeRelationshipOverridePartNames = [];
+        $contentTypeRelationshipContentTypePartNames = [];
+        $contentTypeNonRelationshipRelationshipContentTypePartNames = [];
+        $contentTypeContentTypesItemOverridePartNames = [];
+        $contentTypeReservedRelationshipDirectoryOverridePartNames = [];
         $contentTypeOverrideDeclarationIssueCounts = [];
         if ($contentTypes instanceof OpcContentTypes) {
             foreach ($contentTypes->overrides() as $overridePartName => $contentType) {
                 $packagePartName = $packagePartNamesByEquivalenceKey[self::partNameEquivalenceKey($overridePartName)] ?? null;
                 $exists = $packagePartName !== null;
                 $relationshipPart = OpcRelationships::isRelationshipPartName($overridePartName);
+                $relationshipContentType = self::contentTypeMatches($contentType, self::RELATIONSHIP_PART_CONTENT_TYPE);
+                $contentTypesItem = self::isContentTypesItemName($overridePartName);
+                $reservedRelationshipDirectoryPart = !$relationshipPart
+                    && self::isReservedRelationshipDirectoryPartName($overridePartName);
                 $relationshipSource = null;
                 $relationshipSourceExists = null;
+                $relationshipSourceIsRelationshipPart = null;
                 $issues = [];
 
                 if (!$exists) {
@@ -421,20 +434,22 @@ final class OpcRelationshipGraph
                     $contentTypeUnusedOverridePartNames[] = $overridePartName;
                 }
 
-                if (self::isContentTypesItemName($overridePartName)) {
+                if ($contentTypesItem) {
                     $issues[] = 'content-types-override-target';
                 }
 
                 if ($relationshipPart) {
                     $relationshipSource = OpcRelationships::sourcePartNameForRelationshipPart($overridePartName);
+                    $relationshipSourceIsRelationshipPart = $relationshipSource !== '/'
+                        && OpcRelationships::isRelationshipPartName($relationshipSource);
                     $relationshipSourceExists = $relationshipSource === '/'
                         || isset($packagePartNamesByEquivalenceKey[self::partNameEquivalenceKey($relationshipSource)]);
 
-                    if (!self::contentTypeMatches($contentType, self::RELATIONSHIP_PART_CONTENT_TYPE)) {
+                    if (!$relationshipContentType) {
                         $issues[] = 'invalid-relationship-content-type';
                     }
 
-                    if ($relationshipSource !== '/' && OpcRelationships::isRelationshipPartName($relationshipSource)) {
+                    if ($relationshipSourceIsRelationshipPart) {
                         $issues[] = 'relationship-part-source';
                     }
 
@@ -445,11 +460,11 @@ final class OpcRelationshipGraph
                     if (!$relationshipSourceExists) {
                         $issues[] = 'relationship-override-source-missing';
                     }
-                } elseif (self::contentTypeMatches($contentType, self::RELATIONSHIP_PART_CONTENT_TYPE)) {
+                } elseif ($relationshipContentType) {
                     $issues[] = 'relationship-content-type-on-non-relationship-part';
                 }
 
-                if (!$relationshipPart && self::isReservedRelationshipDirectoryPartName($overridePartName)) {
+                if ($reservedRelationshipDirectoryPart) {
                     $issues[] = 'reserved-relationship-directory-override';
                 }
 
@@ -467,8 +482,12 @@ final class OpcRelationshipGraph
                     'partNameExactMatch' => $packagePartName === $overridePartName,
                     'partNameEquivalentMatch' => $packagePartName !== null && $packagePartName !== $overridePartName,
                     'relationshipPart' => $relationshipPart,
+                    'relationshipContentType' => $relationshipContentType,
+                    'contentTypesItem' => $contentTypesItem,
+                    'reservedRelationshipDirectoryPart' => $reservedRelationshipDirectoryPart,
                     'relationshipSource' => $relationshipSource,
                     'relationshipSourceExists' => $relationshipSourceExists,
+                    'relationshipSourceIsRelationshipPart' => $relationshipSourceIsRelationshipPart,
                     'valid' => $issues === [],
                     'issues' => $issues,
                 ];
@@ -802,6 +821,35 @@ final class OpcRelationshipGraph
         }
 
         foreach ($contentTypeOverrideDeclarations as $declaration) {
+            if ($declaration['partNameExactMatch']) {
+                self::appendUniqueString($contentTypeExactOverridePartNames, $declaration['partName']);
+            } elseif ($declaration['partNameEquivalentMatch']) {
+                self::appendUniqueString($contentTypeEquivalentOverridePartNames, $declaration['partName']);
+            }
+
+            if (!$declaration['valid']) {
+                self::appendUniqueString($contentTypeInvalidOverridePartNames, $declaration['partName']);
+            }
+
+            if ($declaration['relationshipPart']) {
+                self::appendUniqueString($contentTypeRelationshipOverridePartNames, $declaration['partName']);
+            }
+
+            if ($declaration['relationshipContentType']) {
+                self::appendUniqueString($contentTypeRelationshipContentTypePartNames, $declaration['partName']);
+                if (!$declaration['relationshipPart']) {
+                    self::appendUniqueString($contentTypeNonRelationshipRelationshipContentTypePartNames, $declaration['partName']);
+                }
+            }
+
+            if ($declaration['contentTypesItem']) {
+                self::appendUniqueString($contentTypeContentTypesItemOverridePartNames, $declaration['partName']);
+            }
+
+            if ($declaration['reservedRelationshipDirectoryPart']) {
+                self::appendUniqueString($contentTypeReservedRelationshipDirectoryOverridePartNames, $declaration['partName']);
+            }
+
             foreach ($declaration['issues'] as $issue) {
                 $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
                 self::appendUniqueString($issues, $issue);
@@ -836,6 +884,14 @@ final class OpcRelationshipGraph
         );
         sort($contentTypesItems, SORT_STRING);
         sort($contentTypeUnusedOverridePartNames, SORT_STRING);
+        sort($contentTypeExactOverridePartNames, SORT_STRING);
+        sort($contentTypeEquivalentOverridePartNames, SORT_STRING);
+        sort($contentTypeInvalidOverridePartNames, SORT_STRING);
+        sort($contentTypeRelationshipOverridePartNames, SORT_STRING);
+        sort($contentTypeRelationshipContentTypePartNames, SORT_STRING);
+        sort($contentTypeNonRelationshipRelationshipContentTypePartNames, SORT_STRING);
+        sort($contentTypeContentTypesItemOverridePartNames, SORT_STRING);
+        sort($contentTypeReservedRelationshipDirectoryOverridePartNames, SORT_STRING);
         sort($missingContentTypeParts, SORT_STRING);
         sort($missingContentTypeExtensions, SORT_STRING);
         usort(
@@ -878,11 +934,26 @@ final class OpcRelationshipGraph
             'contentTypeOverrideDeclarationCount' => count($contentTypeOverrideDeclarations),
             'contentTypeUsedOverrideDeclarationCount' => count($contentTypeOverrideDeclarations) - count($contentTypeUnusedOverridePartNames),
             'contentTypeUnusedOverrideDeclarationCount' => count($contentTypeUnusedOverridePartNames),
+            'contentTypeExactOverrideDeclarationCount' => count($contentTypeExactOverridePartNames),
+            'contentTypeEquivalentOverrideDeclarationCount' => count($contentTypeEquivalentOverridePartNames),
             'contentTypeInvalidOverrideDeclarationCount' => count(array_filter(
                 $contentTypeOverrideDeclarations,
                 static fn (array $declaration): bool => !$declaration['valid']
             )),
+            'contentTypeRelationshipOverrideDeclarationCount' => count($contentTypeRelationshipOverridePartNames),
+            'contentTypeRelationshipContentTypeDeclarationCount' => count($contentTypeRelationshipContentTypePartNames),
+            'contentTypeNonRelationshipRelationshipContentTypeDeclarationCount' => count($contentTypeNonRelationshipRelationshipContentTypePartNames),
+            'contentTypeContentTypesItemOverrideDeclarationCount' => count($contentTypeContentTypesItemOverridePartNames),
+            'contentTypeReservedRelationshipDirectoryOverrideDeclarationCount' => count($contentTypeReservedRelationshipDirectoryOverridePartNames),
             'contentTypeUnusedOverridePartNames' => $contentTypeUnusedOverridePartNames,
+            'contentTypeExactOverridePartNames' => $contentTypeExactOverridePartNames,
+            'contentTypeEquivalentOverridePartNames' => $contentTypeEquivalentOverridePartNames,
+            'contentTypeInvalidOverridePartNames' => $contentTypeInvalidOverridePartNames,
+            'contentTypeRelationshipOverridePartNames' => $contentTypeRelationshipOverridePartNames,
+            'contentTypeRelationshipContentTypePartNames' => $contentTypeRelationshipContentTypePartNames,
+            'contentTypeNonRelationshipRelationshipContentTypePartNames' => $contentTypeNonRelationshipRelationshipContentTypePartNames,
+            'contentTypeContentTypesItemOverridePartNames' => $contentTypeContentTypesItemOverridePartNames,
+            'contentTypeReservedRelationshipDirectoryOverridePartNames' => $contentTypeReservedRelationshipDirectoryOverridePartNames,
             'contentTypeOverrideDeclarationIssueCounts' => $contentTypeOverrideDeclarationIssueCounts,
             'equivalentPackagePartNameGroupCount' => count($equivalentPackagePartNameGroups),
             'equivalentPackagePartNameEntryCount' => $equivalentPackagePartNameEntryCount,
