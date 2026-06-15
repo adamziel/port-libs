@@ -19914,18 +19914,23 @@ final class MarkdownReader
 
     private function canOpenInlineDelimiter(string $text, int $offset, string $char, int $size): bool
     {
-        if ($char !== '_') {
-            return true;
+        if ($this->isEscapedInlinePosition($text, $offset)) {
+            return false;
+        }
+
+        $flanking = $this->inlineDelimiterFlanking($text, $offset, $size);
+        if (!$flanking['left']) {
+            return false;
         }
 
         $previous = $offset > 0 ? $text[$offset - 1] : '';
         $nextOffset = $offset + $size;
         $next = $nextOffset < strlen($text) ? $text[$nextOffset] : '';
-        if ($this->isAsciiAlnum($previous) && ($next === '{' || $next === '}')) {
+        if ($char === '_' && $this->isAsciiAlnum($previous) && ($next === '{' || $next === '}')) {
             return false;
         }
 
-        if ($this->isIntrawordUnderscoreBoundary($previous, $next)) {
+        if ($char === '_' && $flanking['right'] && !$flanking['previousPunctuation']) {
             return false;
         }
 
@@ -19934,27 +19939,66 @@ final class MarkdownReader
 
     private function canCloseInlineDelimiter(string $text, int $offset, string $char, int $size): bool
     {
-        if ($char !== '_') {
-            return true;
+        if ($this->isEscapedInlinePosition($text, $offset)) {
+            return false;
+        }
+
+        $flanking = $this->inlineDelimiterFlanking($text, $offset, $size);
+        if (!$flanking['right']) {
+            return false;
         }
 
         $previous = $offset > 0 ? $text[$offset - 1] : '';
         $nextOffset = $offset + $size;
         $next = $nextOffset < strlen($text) ? $text[$nextOffset] : '';
-        if (($previous === '{' || $previous === '}') && $this->isAsciiAlnum($next)) {
+        if ($char === '_' && ($previous === '{' || $previous === '}') && $this->isAsciiAlnum($next)) {
             return false;
         }
 
-        if ($this->isIntrawordUnderscoreBoundary($previous, $next)) {
+        if ($char === '_' && $flanking['left'] && !$flanking['nextPunctuation']) {
             return false;
         }
 
         return true;
     }
 
-    private function isIntrawordUnderscoreBoundary(string $previous, string $next): bool
+    /**
+     * @return array{left:bool, right:bool, previousPunctuation:bool, nextPunctuation:bool}
+     */
+    private function inlineDelimiterFlanking(string $text, int $offset, int $size): array
     {
-        return $this->isAsciiAlnum($previous) && $this->isAsciiAlnum($next);
+        $previous = $this->previousUtf8Character($text, $offset);
+        $next = $this->firstUtf8Character(substr($text, $offset + $size));
+        $previousWhitespace = $previous === null || $this->isInlineDelimiterWhitespace($previous);
+        $nextWhitespace = $next === null || $this->isInlineDelimiterWhitespace($next);
+        $previousPunctuation = $previous !== null && $this->isInlineDelimiterPunctuation($previous);
+        $nextPunctuation = $next !== null && $this->isInlineDelimiterPunctuation($next);
+
+        return [
+            'left' => $next !== null
+                && !$nextWhitespace
+                && (!$nextPunctuation || $previousWhitespace || $previousPunctuation),
+            'right' => $previous !== null
+                && !$previousWhitespace
+                && (!$previousPunctuation || $nextWhitespace || $nextPunctuation),
+            'previousPunctuation' => $previousPunctuation,
+            'nextPunctuation' => $nextPunctuation,
+        ];
+    }
+
+    private function previousUtf8Character(string $text, int $offset): ?string
+    {
+        return $offset <= 0 ? null : $this->lastUtf8Character(substr($text, 0, $offset));
+    }
+
+    private function isInlineDelimiterWhitespace(string $char): bool
+    {
+        return preg_match('/\s/u', $char) === 1;
+    }
+
+    private function isInlineDelimiterPunctuation(string $char): bool
+    {
+        return preg_match('/^[\pP\pS]$/u', $char) === 1;
     }
 
     private function isAsciiAlnum(string $char): bool
