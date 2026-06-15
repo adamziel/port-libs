@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 1,724 | 1,096 |
+| Markdown / CommonMark / GFM | 1,804 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownWriter` emits GitHub wiki-link extension syntax for clean `{.wikilink}` links while escaping wiki-link brackets, pipes, backslashes, and entity-sensitive characters.
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` recognizes 80 additional GFM/Pandoc emoji aliases and preserves shortcode identity in `data-emoji` spans through Markdown and WordPress writers.
 
-Current Pandoc counters: 5,425 PHP passes / 0 failures and 5,415 mapped upstream cases. Verification passed: `php -l` for `MarkdownWriter.php` and `MarkdownWriterWikiLinkSurgeTest.php`; focused `MarkdownWriterWikiLinkSurgeTest.php` plus `MarkdownWriterInlineSurgeTest.php` passed 2 files, 400 assertions, 0 failures; full `lanes/pandoc/tests` passed 67 files, 98429 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 5,505 PHP passes / 0 failures and 5,495 mapped upstream cases. Verification passed: `php -l` for `MarkdownEmojiAliases.php` and `MarkdownReaderEmojiExtensionSurgeTest.php`; focused `MarkdownReaderEmojiExtensionSurgeTest.php` passed 1 file, 560 assertions, 0 failures; focused `MarkdownReaderTest.php` plus `MarkdownReaderEmojiExtensionSurgeTest.php` passed 2 files, 7579 assertions, 0 failures; full `lanes/pandoc/tests` passed 68 files, 98989 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
