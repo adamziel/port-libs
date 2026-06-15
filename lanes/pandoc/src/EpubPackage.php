@@ -23,6 +23,7 @@ final class EpubPackage
     public const NCX_MEDIA_TYPE = 'application/x-dtbncx+xml';
     public const SMIL_MEDIA_TYPE = 'application/smil+xml';
     public const IDPF_FONT_OBFUSCATION_ALGORITHM = 'http://www.idpf.org/2008/embedding';
+    private const MAX_STYLESHEET_REVIEW_BYTES = 1048576;
     private const RESERVED_PACKAGE_PREFIXES = [
         'a11y' => 'http://www.idpf.org/epub/vocab/package/a11y/#',
         'dcterms' => 'http://purl.org/dc/terms/',
@@ -436,6 +437,14 @@ final class EpubPackage
     /**
      * @return array<string, mixed>
      */
+    public function stylesheetResources(): array
+    {
+        return self::stylesheetResourceReport($this->package, $this->manifestItems, $this->encryption);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function encryption(): array
     {
         return $this->encryption;
@@ -611,6 +620,7 @@ final class EpubPackage
         );
         $mediaOverlayDiagnostics = self::mediaOverlayDiagnostics($this->mediaOverlays);
         $manifestFallbacks = $this->manifestFallbacks();
+        $stylesheetResources = $this->stylesheetResources();
         $resourceProperties = $this->resourceProperties();
         $manifestResourceKinds = $this->manifestResourceKinds();
         $validationReport = $this->validationReport();
@@ -672,6 +682,7 @@ final class EpubPackage
             $this->bindings,
             $this->mediaOverlays,
             $manifestFallbacks,
+            $stylesheetResources,
             $this->encryption,
             $manifestResourceKinds,
             $resourceProperties,
@@ -731,6 +742,7 @@ final class EpubPackage
             'bindingAuthoring' => $bindingAuthoring,
             'mediaOverlays' => $this->mediaOverlays,
             'manifestFallbacks' => $manifestFallbacks,
+            'stylesheetResources' => $stylesheetResources,
             'encryption' => $this->encryption,
             'resourceProperties' => $resourceProperties,
             'navigation' => $this->navigation,
@@ -955,6 +967,10 @@ final class EpubPackage
                 'manifestFallbackItems' => $manifestFallbacks['fallbackItems'],
                 'manifestFallbackStyleItems' => $manifestFallbacks['fallbackStyleItems'],
                 'manifestFallbackDiagnostics' => $manifestFallbacks['diagnostics'],
+                'stylesheetResources' => $stylesheetResources,
+                'stylesheetResourceItems' => $stylesheetResources['items'],
+                'stylesheetResourceDiagnostics' => $stylesheetResources['diagnostics'],
+                'stylesheetResourceTargetPartNames' => $stylesheetResources['targetPartNames'],
                 'encryption' => $this->encryption,
                 'encryptedResourceExposure' => $this->encryption['exposure'],
                 'encryptedResourceDiagnostics' => $this->encryption['diagnostics'],
@@ -1203,6 +1219,7 @@ final class EpubPackage
      * @param array<string, mixed> $bindings
      * @param array<string, mixed> $mediaOverlays
      * @param array<string, mixed> $manifestFallbacks
+     * @param array<string, mixed> $stylesheetResources
      * @param array<string, mixed> $encryption
      * @param array<string, mixed> $manifestResourceKinds
      * @param array<string, mixed> $resourceProperties
@@ -1224,6 +1241,7 @@ final class EpubPackage
         array $bindings,
         array $mediaOverlays,
         array $manifestFallbacks,
+        array $stylesheetResources,
         array $encryption,
         array $manifestResourceKinds,
         array $resourceProperties,
@@ -1679,6 +1697,28 @@ final class EpubPackage
                 'blockedByteLength' => (int) ($manifestDependencyInventory['blockedByteLength'] ?? 0),
                 'encryptedByteLength' => (int) ($manifestDependencyInventory['encryptedByteLength'] ?? 0),
                 'obfuscatedFontByteLength' => (int) ($manifestDependencyInventory['obfuscatedFontByteLength'] ?? 0),
+            ],
+        );
+
+        $appendCase(
+            'stylesheet-resources',
+            'manifest',
+            'EPUB stylesheet resource dependencies',
+            (int) ($stylesheetResources['referenceCount'] ?? 0),
+            self::compactDiagnosticList($stylesheetResources['diagnostics'] ?? []),
+            [
+                'stylesheetCount' => (int) ($stylesheetResources['stylesheetCount'] ?? 0),
+                'localReferenceCount' => (int) ($stylesheetResources['localReferenceCount'] ?? 0),
+                'externalReferenceCount' => (int) ($stylesheetResources['externalReferenceCount'] ?? 0),
+                'dataReferenceCount' => (int) ($stylesheetResources['dataReferenceCount'] ?? 0),
+                'missingReferenceCount' => (int) ($stylesheetResources['missingReferenceCount'] ?? 0),
+                'unmanifestedReferenceCount' => (int) ($stylesheetResources['unmanifestedReferenceCount'] ?? 0),
+                'blockedReferenceCount' => (int) ($stylesheetResources['blockedReferenceCount'] ?? 0),
+                'sourceIds' => is_array($stylesheetResources['sourceIds'] ?? null) ? array_values($stylesheetResources['sourceIds']) : [],
+                'targetPartNames' => is_array($stylesheetResources['targetPartNames'] ?? null) ? array_values($stylesheetResources['targetPartNames']) : [],
+                'missingPartNames' => is_array($stylesheetResources['missingPartNames'] ?? null) ? array_values($stylesheetResources['missingPartNames']) : [],
+                'unmanifestedPartNames' => is_array($stylesheetResources['unmanifestedPartNames'] ?? null) ? array_values($stylesheetResources['unmanifestedPartNames']) : [],
+                'byteExposurePolicyCounts' => is_array($stylesheetResources['byteExposurePolicyCounts'] ?? null) ? $stylesheetResources['byteExposurePolicyCounts'] : [],
             ],
         );
 
@@ -11284,6 +11324,496 @@ final class EpubPackage
             'edgesByTargetId' => $edgesByTargetId,
             'edges' => $edges,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestItems
+     * @param array<string, mixed> $encryption
+     *
+     * @return array<string, mixed>
+     */
+    private static function stylesheetResourceReport(ZipPackage $package, array $manifestItems, array $encryption): array
+    {
+        $stylesheets = [];
+        $items = [];
+        $itemsBySourceId = [];
+        $diagnostics = [];
+        $sourceIds = [];
+        $targetPartNames = [];
+        $missingPartNames = [];
+        $unmanifestedPartNames = [];
+        $externalTargets = [];
+        $dataTargets = [];
+        $byteExposurePolicyCounts = [];
+        $localReferenceCount = 0;
+        $externalReferenceCount = 0;
+        $dataReferenceCount = 0;
+        $fragmentReferenceCount = 0;
+        $missingReferenceCount = 0;
+        $unmanifestedReferenceCount = 0;
+        $blockedReferenceCount = 0;
+        $exposableReferenceCount = 0;
+        $totalByteLength = 0;
+        $totalCompressedByteLength = 0;
+
+        $manifestByPart = [];
+        foreach ($manifestItems as $item) {
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            if ($partName !== null && $partName !== '') {
+                $manifestByPart[$partName] = $item;
+            }
+        }
+
+        $encryptionByPart = self::encryptionItemsByPart($encryption);
+
+        foreach ($manifestItems as $sourceIndex => $sourceItem) {
+            $mediaType = is_string($sourceItem['mediaType'] ?? null) ? $sourceItem['mediaType'] : '';
+            $mediaTypeBase = is_string($sourceItem['mediaTypeBase'] ?? null)
+                ? $sourceItem['mediaTypeBase']
+                : self::mediaTypeBase($mediaType);
+            if ($mediaTypeBase !== 'text/css') {
+                continue;
+            }
+
+            $sourceId = is_string($sourceItem['id'] ?? null) ? $sourceItem['id'] : '';
+            $sourcePartName = is_string($sourceItem['partName'] ?? null) ? $sourceItem['partName'] : null;
+            $sourceDiagnostics = [];
+            $stylesheetIndex = count($stylesheets);
+            $stylesheets[] = [
+                'index' => $stylesheetIndex,
+                'manifestIndex' => (int) $sourceIndex,
+                'id' => $sourceId,
+                'href' => is_string($sourceItem['href'] ?? null) ? $sourceItem['href'] : '',
+                'partName' => $sourcePartName,
+                'exists' => ($sourceItem['exists'] ?? false) === true,
+                'canExposeBytes' => ($sourceItem['canExposeBytes'] ?? false) === true,
+                'byteLength' => is_int($sourceItem['byteLength'] ?? null) ? $sourceItem['byteLength'] : null,
+                'compressedByteLength' => is_int($sourceItem['compressedByteLength'] ?? null) ? $sourceItem['compressedByteLength'] : null,
+                'compressionMethod' => is_int($sourceItem['compressionMethod'] ?? null) ? $sourceItem['compressionMethod'] : null,
+                'compressionMethodName' => is_string($sourceItem['compressionMethodName'] ?? null) ? $sourceItem['compressionMethodName'] : null,
+                'referenceCount' => 0,
+                'diagnosticCount' => 0,
+                'diagnostics' => [],
+            ];
+
+            if ($sourceId !== '') {
+                $sourceIds[$sourceId] = true;
+            }
+
+            if ($sourcePartName === null || $sourcePartName === '') {
+                $sourceDiagnostics[] = [
+                    'type' => 'missing-stylesheet-package-part',
+                    'sourceId' => $sourceId,
+                    'message' => 'EPUB stylesheet manifest item does not resolve to a package part',
+                ];
+            } elseif (($sourceItem['exists'] ?? false) !== true) {
+                $sourceDiagnostics[] = [
+                    'type' => 'missing-stylesheet-package-part',
+                    'sourceId' => $sourceId,
+                    'sourcePartName' => $sourcePartName,
+                    'message' => 'EPUB stylesheet package part is missing and cannot be scanned for resource references',
+                ];
+            } elseif (($sourceItem['canExposeBytes'] ?? false) !== true) {
+                $sourceDiagnostics[] = [
+                    'type' => 'unreadable-stylesheet-package-part',
+                    'sourceId' => $sourceId,
+                    'sourcePartName' => $sourcePartName,
+                    'compressionMethod' => is_int($sourceItem['compressionMethod'] ?? null) ? $sourceItem['compressionMethod'] : null,
+                    'compressionMethodName' => is_string($sourceItem['compressionMethodName'] ?? null) ? $sourceItem['compressionMethodName'] : null,
+                    'message' => 'EPUB stylesheet package part bytes are not exposed by the bounded ZIP reader',
+                ];
+            }
+
+            if ($sourceDiagnostics !== []) {
+                array_push($diagnostics, ...$sourceDiagnostics);
+                $stylesheets[$stylesheetIndex]['diagnosticCount'] = count($sourceDiagnostics);
+                $stylesheets[$stylesheetIndex]['diagnostics'] = $sourceDiagnostics;
+                continue;
+            }
+
+            try {
+                $css = $package->read($sourcePartName, self::MAX_STYLESHEET_REVIEW_BYTES);
+            } catch (\RuntimeException $exception) {
+                $sourceDiagnostics[] = [
+                    'type' => 'unreadable-stylesheet-package-part',
+                    'sourceId' => $sourceId,
+                    'sourcePartName' => $sourcePartName,
+                    'message' => $exception->getMessage(),
+                ];
+                array_push($diagnostics, ...$sourceDiagnostics);
+                $stylesheets[$stylesheetIndex]['diagnosticCount'] = count($sourceDiagnostics);
+                $stylesheets[$stylesheetIndex]['diagnostics'] = $sourceDiagnostics;
+                continue;
+            }
+
+            $references = self::stylesheetCssReferences($css);
+            $stylesheets[$stylesheetIndex]['referenceCount'] = count($references);
+
+            foreach ($references as $reference) {
+                $itemDiagnostics = [];
+                $href = (string) ($reference['href'] ?? '');
+                $target = null;
+                $targetPartName = null;
+                $targetPackagePath = null;
+                $targetManifestItem = null;
+                $targetManifestId = null;
+                $targetMediaType = null;
+                $targetMediaTypeBase = null;
+                $targetResourceKind = null;
+                $entry = null;
+                $exists = false;
+                $external = false;
+                $dataReference = false;
+                $fragmentOnly = str_starts_with($href, '#');
+                $unmanifested = false;
+                $encrypted = false;
+                $obfuscatedFont = false;
+                $compressionSupported = null;
+                $canExposeBytes = false;
+                $byteExposurePolicy = 'stylesheet-resource-metadata-only';
+
+                if ($href === '') {
+                    $itemDiagnostics[] = [
+                        'type' => 'empty-stylesheet-resource-reference',
+                        'sourceId' => $sourceId,
+                        'message' => 'EPUB stylesheet resource reference is empty',
+                    ];
+                } elseif (str_starts_with(strtolower($href), 'data:')) {
+                    $dataReference = true;
+                    $byteExposurePolicy = 'embedded-stylesheet-data-uri-metadata-only';
+                    $dataTargets[$href] = true;
+                    $itemDiagnostics[] = [
+                        'type' => 'embedded-stylesheet-data-uri',
+                        'sourceId' => $sourceId,
+                        'message' => 'EPUB stylesheet resource reference embeds a data URI and has no package target',
+                    ];
+                } elseif (self::isAbsoluteUri($href) || str_starts_with($href, '//')) {
+                    $external = true;
+                    $target = $href;
+                    $byteExposurePolicy = 'external-stylesheet-resource-metadata-only';
+                    $externalTargets[$href] = true;
+                    $itemDiagnostics[] = [
+                        'type' => 'external-stylesheet-resource-reference',
+                        'sourceId' => $sourceId,
+                        'target' => $href,
+                        'message' => 'EPUB stylesheet resource reference points outside the package and was not fetched',
+                    ];
+                } else {
+                    try {
+                        $target = self::resolvePackageHref($sourcePartName, $href);
+                        $targetPartName = OpcPackagePath::stripQueryAndFragment($target);
+                        $targetPackagePath = self::packageInventoryEntryName($targetPartName);
+                        if ($targetPartName !== null && $targetPartName !== '') {
+                            $targetPartNames[$targetPartName] = true;
+                            $exists = $package->has($targetPartName);
+                            $entry = $exists ? $package->entry($targetPartName) : null;
+                            $targetManifestItem = $manifestByPart[$targetPartName] ?? null;
+                            $unmanifested = $exists && !is_array($targetManifestItem);
+                            if (is_array($targetManifestItem)) {
+                                $targetManifestId = is_string($targetManifestItem['id'] ?? null) ? $targetManifestItem['id'] : null;
+                                $targetMediaType = is_string($targetManifestItem['mediaType'] ?? null) ? $targetManifestItem['mediaType'] : null;
+                                $targetMediaTypeBase = is_string($targetManifestItem['mediaTypeBase'] ?? null)
+                                    ? $targetManifestItem['mediaTypeBase']
+                                    : self::mediaTypeBase((string) ($targetManifestItem['mediaType'] ?? ''));
+                                $targetResourceKind = self::packageInventoryResourceKind(
+                                    $targetMediaType,
+                                    $targetPackagePath ?? '',
+                                    is_array($targetManifestItem['properties'] ?? null) ? array_values($targetManifestItem['properties']) : [],
+                                );
+                                $encrypted = ($targetManifestItem['encrypted'] ?? false) === true;
+                                $obfuscatedFont = is_array($targetManifestItem['encryption'] ?? null)
+                                    && ($targetManifestItem['encryption']['obfuscatedFont'] ?? false) === true;
+                            } else {
+                                $targetResourceKind = $targetPackagePath === null
+                                    ? null
+                                    : self::packageInventoryResourceKind(null, $targetPackagePath, []);
+                                $encryptedEntries = $encryptionByPart[$targetPartName] ?? [];
+                                $encrypted = $encryptedEntries !== [];
+                                $obfuscatedFont = self::containsObfuscatedFont($encryptedEntries);
+                            }
+
+                            $provenance = self::zipEntryProvenance($entry);
+                            $compressionSupported = $provenance['compressionSupported'];
+                            $canExposeBytes = $exists
+                                && !$encrypted
+                                && !$obfuscatedFont
+                                && ($compressionSupported ?? false) === true;
+
+                            if (!$exists) {
+                                $byteExposurePolicy = 'missing-stylesheet-resource-metadata-only';
+                                $missingPartNames[$targetPartName] = true;
+                                $itemDiagnostics[] = [
+                                    'type' => 'missing-stylesheet-resource-package-part',
+                                    'sourceId' => $sourceId,
+                                    'href' => $href,
+                                    'partName' => $targetPartName,
+                                    'message' => 'EPUB stylesheet resource reference resolves to a package part that is not present in the ZIP',
+                                ];
+                            } elseif ($obfuscatedFont) {
+                                $byteExposurePolicy = 'obfuscated-font-bytes-blocked';
+                                $itemDiagnostics[] = [
+                                    'type' => 'obfuscated-stylesheet-font-reference',
+                                    'sourceId' => $sourceId,
+                                    'href' => $href,
+                                    'partName' => $targetPartName,
+                                    'message' => 'EPUB stylesheet resource reference targets an obfuscated font whose bytes remain blocked',
+                                ];
+                            } elseif ($encrypted) {
+                                $byteExposurePolicy = 'encrypted-resource-bytes-blocked';
+                                $itemDiagnostics[] = [
+                                    'type' => 'encrypted-stylesheet-resource-reference',
+                                    'sourceId' => $sourceId,
+                                    'href' => $href,
+                                    'partName' => $targetPartName,
+                                    'message' => 'EPUB stylesheet resource reference targets an encrypted package part whose bytes remain blocked',
+                                ];
+                            } elseif ($compressionSupported === false) {
+                                $byteExposurePolicy = 'unsupported-compression-metadata-only';
+                                $itemDiagnostics[] = [
+                                    'type' => 'unsupported-stylesheet-resource-compression',
+                                    'sourceId' => $sourceId,
+                                    'href' => $href,
+                                    'partName' => $targetPartName,
+                                    'message' => 'EPUB stylesheet resource reference targets a package part with unsupported ZIP compression',
+                                ];
+                            } elseif ($unmanifested) {
+                                $byteExposurePolicy = 'unmanifested-stylesheet-resource-bytes-exposable';
+                                $unmanifestedPartNames[$targetPartName] = true;
+                                $itemDiagnostics[] = [
+                                    'type' => 'unmanifested-stylesheet-resource-reference',
+                                    'sourceId' => $sourceId,
+                                    'href' => $href,
+                                    'partName' => $targetPartName,
+                                    'message' => 'EPUB stylesheet resource reference targets a package part that is not declared in the OPF manifest',
+                                ];
+                            } elseif ($canExposeBytes) {
+                                $byteExposurePolicy = 'stylesheet-resource-bytes-exposable';
+                            }
+                        }
+                    } catch (\InvalidArgumentException $exception) {
+                        $itemDiagnostics[] = [
+                            'type' => 'invalid-stylesheet-resource-reference',
+                            'sourceId' => $sourceId,
+                            'href' => $href,
+                            'message' => $exception->getMessage(),
+                        ];
+                    }
+                }
+
+                $provenance = self::zipEntryProvenance($entry);
+                $byteLength = $provenance['byteLength'];
+                $compressedByteLength = $provenance['compressedByteLength'];
+                $item = [
+                    'index' => count($items),
+                    'sourceIndex' => $stylesheetIndex,
+                    'sourceId' => $sourceId,
+                    'sourcePartName' => $sourcePartName,
+                    'relation' => (string) ($reference['relation'] ?? 'url'),
+                    'cssOffset' => (int) ($reference['offset'] ?? 0),
+                    'href' => $href,
+                    'target' => $target,
+                    'targetPartName' => $targetPartName,
+                    'targetPackagePath' => $targetPackagePath,
+                    'targetManifestId' => $targetManifestId,
+                    'targetPresentInManifest' => is_array($targetManifestItem),
+                    'targetMediaType' => $targetMediaType,
+                    'targetMediaTypeBase' => $targetMediaTypeBase,
+                    'targetResourceKind' => $targetResourceKind,
+                    'external' => $external,
+                    'dataReference' => $dataReference,
+                    'fragmentOnly' => $fragmentOnly,
+                    'exists' => $exists,
+                    'missing' => !$external && !$dataReference && !$fragmentOnly && $targetPartName !== null && !$exists,
+                    'unmanifested' => $unmanifested,
+                    'encrypted' => $encrypted,
+                    'obfuscatedFont' => $obfuscatedFont,
+                    'compressionSupported' => $compressionSupported,
+                    'compressionMethod' => $provenance['compressionMethod'],
+                    'compressionMethodName' => $provenance['compressionMethodName'],
+                    'canExposeBytes' => $canExposeBytes,
+                    'byteExposurePolicy' => $byteExposurePolicy,
+                    'byteLength' => $byteLength,
+                    'compressedByteLength' => $compressedByteLength,
+                    'crc32' => $provenance['crc32'],
+                    'diagnosticCount' => count($itemDiagnostics),
+                    'diagnostics' => $itemDiagnostics,
+                ];
+
+                $items[] = $item;
+                if ($sourceId !== '') {
+                    $itemsBySourceId[$sourceId][] = $item;
+                }
+
+                $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+                if ($external) {
+                    ++$externalReferenceCount;
+                } elseif ($dataReference) {
+                    ++$dataReferenceCount;
+                } else {
+                    ++$localReferenceCount;
+                }
+                if ($fragmentOnly) {
+                    ++$fragmentReferenceCount;
+                }
+                if ($item['missing']) {
+                    ++$missingReferenceCount;
+                }
+                if ($unmanifested) {
+                    ++$unmanifestedReferenceCount;
+                }
+                if ($exists && !$canExposeBytes) {
+                    ++$blockedReferenceCount;
+                }
+                if ($canExposeBytes) {
+                    ++$exposableReferenceCount;
+                }
+
+                $totalByteLength += $byteLength ?? 0;
+                $totalCompressedByteLength += $compressedByteLength ?? 0;
+                array_push($diagnostics, ...$itemDiagnostics);
+            }
+        }
+
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+        ksort($itemsBySourceId, SORT_STRING);
+        $sourceIds = array_keys($sourceIds);
+        $targetPartNames = array_keys($targetPartNames);
+        $missingPartNames = array_keys($missingPartNames);
+        $unmanifestedPartNames = array_keys($unmanifestedPartNames);
+        $externalTargets = array_keys($externalTargets);
+        $dataTargets = array_keys($dataTargets);
+        sort($sourceIds, SORT_STRING);
+        sort($targetPartNames, SORT_STRING);
+        sort($missingPartNames, SORT_STRING);
+        sort($unmanifestedPartNames, SORT_STRING);
+        sort($externalTargets, SORT_STRING);
+        sort($dataTargets, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'stylesheetCount' => count($stylesheets),
+            'referenceCount' => count($items),
+            'localReferenceCount' => $localReferenceCount,
+            'externalReferenceCount' => $externalReferenceCount,
+            'dataReferenceCount' => $dataReferenceCount,
+            'fragmentReferenceCount' => $fragmentReferenceCount,
+            'missingReferenceCount' => $missingReferenceCount,
+            'unmanifestedReferenceCount' => $unmanifestedReferenceCount,
+            'blockedReferenceCount' => $blockedReferenceCount,
+            'exposableReferenceCount' => $exposableReferenceCount,
+            'totalByteLength' => $totalByteLength,
+            'totalCompressedByteLength' => $totalCompressedByteLength,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'sourceIds' => $sourceIds,
+            'targetPartNames' => $targetPartNames,
+            'missingPartNames' => $missingPartNames,
+            'unmanifestedPartNames' => $unmanifestedPartNames,
+            'externalTargets' => $externalTargets,
+            'dataTargets' => $dataTargets,
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticTypes' => self::compactDiagnosticTypes($diagnostics),
+            'diagnostics' => $diagnostics,
+            'stylesheets' => $stylesheets,
+            'itemsBySourceId' => $itemsBySourceId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return list<array{relation:string, href:string, offset:int}>
+     */
+    private static function stylesheetCssReferences(string $css): array
+    {
+        $withoutComments = preg_replace('/\/\*.*?\*\//s', '', $css);
+        if (is_string($withoutComments)) {
+            $css = $withoutComments;
+        }
+
+        $references = [];
+        $importSpans = [];
+        if (preg_match_all(
+            '/@import\s+(?:url\(\s*)?(?:"([^"]+)"|\'([^\']+)\'|([^\'"\s;)]+))\s*\)?/i',
+            $css,
+            $matches,
+            PREG_SET_ORDER | PREG_OFFSET_CAPTURE
+        ) !== false) {
+            foreach ($matches as $match) {
+                $href = self::stylesheetMatchedHref($match);
+                if ($href === null) {
+                    continue;
+                }
+
+                $offset = (int) $match[0][1];
+                $importSpans[] = [$offset, $offset + strlen($match[0][0])];
+                $references[] = [
+                    'relation' => 'import',
+                    'href' => $href,
+                    'offset' => $offset,
+                ];
+            }
+        }
+
+        if (preg_match_all(
+            '/url\(\s*(?:"([^"]*)"|\'([^\']*)\'|([^\'")]*) )\s*\)/ix',
+            $css,
+            $matches,
+            PREG_SET_ORDER | PREG_OFFSET_CAPTURE
+        ) !== false) {
+            foreach ($matches as $match) {
+                $offset = (int) $match[0][1];
+                if (self::stylesheetOffsetInSpans($offset, $importSpans)) {
+                    continue;
+                }
+
+                $href = self::stylesheetMatchedHref($match);
+                if ($href === null) {
+                    continue;
+                }
+
+                $references[] = [
+                    'relation' => 'url',
+                    'href' => $href,
+                    'offset' => $offset,
+                ];
+            }
+        }
+
+        usort(
+            $references,
+            static fn (array $left, array $right): int => [$left['offset'], $left['relation']] <=> [$right['offset'], $right['relation']]
+        );
+
+        return $references;
+    }
+
+    /**
+     * @param array<int, array{0:string, 1:int}> $match
+     */
+    private static function stylesheetMatchedHref(array $match): ?string
+    {
+        for ($index = 1; $index <= 3; ++$index) {
+            if (!isset($match[$index]) || (int) ($match[$index][1] ?? -1) < 0) {
+                continue;
+            }
+
+            return trim((string) $match[$index][0]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{0:int, 1:int}> $spans
+     */
+    private static function stylesheetOffsetInSpans(int $offset, array $spans): bool
+    {
+        foreach ($spans as $span) {
+            if ($offset >= $span[0] && $offset < $span[1]) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function packageInventoryEntryName(mixed $partName): ?string

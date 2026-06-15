@@ -5636,7 +5636,7 @@ XML;
         $report = $summary['compactPackageReport'];
         $casesById = $report['casesById'];
 
-        $t->same(18, $report['caseCount']);
+        $t->same(19, $report['caseCount']);
         $t->same(16, $report['presentCaseCount']);
         $t->same(0, $report['diagnosticCaseCount']);
         $t->same(0, $report['diagnosticCount']);
@@ -5656,6 +5656,7 @@ XML;
             'media-overlays',
             'manifest-fallbacks',
             'manifest-dependencies',
+            'stylesheet-resources',
             'manifest-resource-kinds',
             'manifest-resource-properties',
             'encrypted-resources',
@@ -5694,6 +5695,7 @@ XML;
             'media-overlays' => 1,
             'manifest-fallbacks' => 1,
             'manifest-dependencies' => 2,
+            'stylesheet-resources' => 0,
             'manifest-resource-kinds' => 8,
             'manifest-resource-properties' => 2,
             'encrypted-resources' => 1,
@@ -5835,7 +5837,7 @@ XML;
         $packageLinks = $report['casesById']['package-links'];
         $containerLinks = $report['casesById']['container-links'];
 
-        $t->same(18, $report['caseCount']);
+        $t->same(19, $report['caseCount']);
         $t->true(in_array('package-links', $report['presentCaseIds'], true));
         $t->true(in_array('container-links', $report['presentCaseIds'], true));
         $t->same(['package-links', 'container-links'], $report['diagnosticCaseIds']);
@@ -8979,6 +8981,159 @@ XML;
         $t->same(3, $case['bindingHandlerEdgeCount']);
         $t->same(['binding-handler' => 3], $case['relationCounts']);
         $t->same($inventory['diagnosticTypes'], $case['diagnosticTypes']);
+    },
+
+    'summarizes EPUB stylesheet package resource references for compact handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $styleCss = <<<'CSS'
+@import "theme.css";
+body { background-image: url("../images/bg.png?rev=1#cover"); }
+.remote { background-image: url("https://example.invalid/remote.png"); }
+.inline { background-image: url(data:image/png;base64,AAA=); }
+.missing { background-image: url("../images/missing.png"); }
+@font-face { font-family: Source; src: url("../fonts/source.woff2"); }
+.unlisted { background-image: url("../images/unlisted.png"); }
+.locked { font-family: Locked; src: url("../fonts/locked.otf"); }
+CSS;
+        $themeCss = 'body { color: #224466; }';
+        $bgBytes = 'BG';
+        $fontBytes = 'FONT';
+        $unlistedBytes = 'UNLISTED';
+        $lockedFontBytes = 'LOCKED-FONT';
+        $opfWithStylesheets = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:stylesheet-resource-review</dc:identifier>
+    <dc:title>Stylesheet Resource Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="style" href="styles/book.css" media-type="text/css"/>
+    <item id="theme" href="styles/theme.css" media-type="text/css"/>
+    <item id="bg" href="images/bg.png" media-type="image/png"/>
+    <item id="font" href="fonts/source.woff2" media-type="font/woff2"/>
+    <item id="locked-font" href="fonts/locked.otf" media-type="font/otf"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <CipherData><CipherReference URI="EPUB/fonts/locked.otf"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithStylesheets],
+            ['name' => 'EPUB/nav.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Chapter</a></li></ol></nav></body></html>'],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => $styleCss],
+            ['name' => 'EPUB/styles/theme.css', 'data' => $themeCss],
+            ['name' => 'EPUB/images/bg.png', 'data' => $bgBytes],
+            ['name' => 'EPUB/images/unlisted.png', 'data' => $unlistedBytes],
+            ['name' => 'EPUB/fonts/source.woff2', 'data' => $fontBytes],
+            ['name' => 'EPUB/fonts/locked.otf', 'data' => $lockedFontBytes],
+        ]));
+
+        $summary = $epub->summary();
+        $report = $epub->stylesheetResources();
+        $case = $summary['compactPackageReport']['casesById']['stylesheet-resources'];
+        $itemsByHref = [];
+        foreach ($report['itemsBySourceId']['style'] as $item) {
+            $itemsByHref[$item['href']] = $item;
+        }
+
+        $t->same($report, $summary['stylesheetResources']);
+        $t->same($report, $summary['wordpressImport']['stylesheetResources']);
+        $t->same($report['items'], $summary['wordpressImport']['stylesheetResourceItems']);
+        $t->same($report['diagnostics'], $summary['wordpressImport']['stylesheetResourceDiagnostics']);
+        $t->same($report['targetPartNames'], $summary['wordpressImport']['stylesheetResourceTargetPartNames']);
+        $t->same(true, $report['present']);
+        $t->same(2, $report['stylesheetCount']);
+        $t->same(8, $report['referenceCount']);
+        $t->same(6, $report['localReferenceCount']);
+        $t->same(1, $report['externalReferenceCount']);
+        $t->same(1, $report['dataReferenceCount']);
+        $t->same(1, $report['missingReferenceCount']);
+        $t->same(1, $report['unmanifestedReferenceCount']);
+        $t->same(1, $report['blockedReferenceCount']);
+        $t->same(4, $report['exposableReferenceCount']);
+        $t->same(strlen($themeCss) + strlen($bgBytes) + strlen($fontBytes) + strlen($unlistedBytes) + strlen($lockedFontBytes), $report['totalByteLength']);
+        $t->same([
+            'embedded-stylesheet-data-uri-metadata-only' => 1,
+            'external-stylesheet-resource-metadata-only' => 1,
+            'missing-stylesheet-resource-metadata-only' => 1,
+            'obfuscated-font-bytes-blocked' => 1,
+            'stylesheet-resource-bytes-exposable' => 3,
+            'unmanifested-stylesheet-resource-bytes-exposable' => 1,
+        ], $report['byteExposurePolicyCounts']);
+        $t->same(['style', 'theme'], $report['sourceIds']);
+        $t->same([
+            '/EPUB/fonts/locked.otf',
+            '/EPUB/fonts/source.woff2',
+            '/EPUB/images/bg.png',
+            '/EPUB/images/missing.png',
+            '/EPUB/images/unlisted.png',
+            '/EPUB/styles/theme.css',
+        ], $report['targetPartNames']);
+        $t->same(['/EPUB/images/missing.png'], $report['missingPartNames']);
+        $t->same(['/EPUB/images/unlisted.png'], $report['unmanifestedPartNames']);
+        $t->same([
+            'external-stylesheet-resource-reference',
+            'embedded-stylesheet-data-uri',
+            'missing-stylesheet-resource-package-part',
+            'unmanifested-stylesheet-resource-reference',
+            'obfuscated-stylesheet-font-reference',
+        ], $report['diagnosticTypes']);
+
+        $t->same('import', $itemsByHref['theme.css']['relation']);
+        $t->same('/EPUB/styles/theme.css', $itemsByHref['theme.css']['targetPartName']);
+        $t->same('theme', $itemsByHref['theme.css']['targetManifestId']);
+        $t->same(true, $itemsByHref['theme.css']['canExposeBytes']);
+        $t->same('stylesheet-resource-bytes-exposable', $itemsByHref['theme.css']['byteExposurePolicy']);
+        $t->same(strlen($themeCss), $itemsByHref['theme.css']['byteLength']);
+
+        $t->same('/EPUB/images/bg.png?rev=1#cover', $itemsByHref['../images/bg.png?rev=1#cover']['target']);
+        $t->same('/EPUB/images/bg.png', $itemsByHref['../images/bg.png?rev=1#cover']['targetPartName']);
+        $t->same('bg', $itemsByHref['../images/bg.png?rev=1#cover']['targetManifestId']);
+        $t->same('image/png', $itemsByHref['../images/bg.png?rev=1#cover']['targetMediaType']);
+
+        $t->same(true, $itemsByHref['https://example.invalid/remote.png']['external']);
+        $t->same('external-stylesheet-resource-metadata-only', $itemsByHref['https://example.invalid/remote.png']['byteExposurePolicy']);
+        $t->same('external-stylesheet-resource-reference', $itemsByHref['https://example.invalid/remote.png']['diagnostics'][0]['type']);
+
+        $t->same(true, $itemsByHref['data:image/png;base64,AAA=']['dataReference']);
+        $t->same('embedded-stylesheet-data-uri-metadata-only', $itemsByHref['data:image/png;base64,AAA=']['byteExposurePolicy']);
+
+        $t->same(true, $itemsByHref['../images/missing.png']['missing']);
+        $t->same('/EPUB/images/missing.png', $itemsByHref['../images/missing.png']['targetPartName']);
+        $t->same('missing-stylesheet-resource-package-part', $itemsByHref['../images/missing.png']['diagnostics'][0]['type']);
+
+        $t->same(true, $itemsByHref['../images/unlisted.png']['unmanifested']);
+        $t->same(false, $itemsByHref['../images/unlisted.png']['targetPresentInManifest']);
+        $t->same('unmanifested-stylesheet-resource-bytes-exposable', $itemsByHref['../images/unlisted.png']['byteExposurePolicy']);
+        $t->same(strlen($unlistedBytes), $itemsByHref['../images/unlisted.png']['byteLength']);
+
+        $t->same(true, $itemsByHref['../fonts/locked.otf']['encrypted']);
+        $t->same(true, $itemsByHref['../fonts/locked.otf']['obfuscatedFont']);
+        $t->same(false, $itemsByHref['../fonts/locked.otf']['canExposeBytes']);
+        $t->same('obfuscated-font-bytes-blocked', $itemsByHref['../fonts/locked.otf']['byteExposurePolicy']);
+
+        $t->same(true, $case['present']);
+        $t->same(8, $case['itemCount']);
+        $t->same(true, $case['reviewRequired']);
+        $t->same(2, $case['stylesheetCount']);
+        $t->same(1, $case['missingReferenceCount']);
+        $t->same(1, $case['unmanifestedReferenceCount']);
+        $t->same(1, $case['blockedReferenceCount']);
+        $t->same($report['byteExposurePolicyCounts'], $case['byteExposurePolicyCounts']);
     },
 
     'summarizes encrypted OPF manifest dependency targets for compact handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
