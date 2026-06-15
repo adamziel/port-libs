@@ -340,7 +340,7 @@ final class MarkdownReader
                     $attrs,
                     $this->parseInlines($text)
                 );
-                $index++;
+                $index = $setextHeading['endIndex'];
                 continue;
             }
             $markdownHeading = $this->tryParseMarkdownHeading($line);
@@ -7653,7 +7653,7 @@ final class MarkdownReader
             }
 
             if ($setext) {
-                $index++;
+                $index = $heading['endIndex'];
             }
         }
 
@@ -7840,18 +7840,18 @@ final class MarkdownReader
      */
     private function tryParseMarkdownHeading(string $line): ?array
     {
-        if (preg_match('/^ {0,3}(#{1,6})[ \t]+(.+)$/', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/', $line, $m) !== 1) {
             return null;
         }
 
-        $text = $this->stripClosingAtxHeadingFence(trim($m[2]));
+        $text = $this->stripClosingAtxHeadingFence(trim($m[2] ?? ''));
 
         return $this->buildMarkdownHeading(strlen($m[1]), $text, true);
     }
 
     /**
      * @param list<string> $lines
-     * @return array{level:int, text:string, id?:string, classes:list<string>, attributes:array<string, string>}|null
+     * @return array{level:int, text:string, id?:string, classes:list<string>, attributes:array<string, string>, endIndex:int}|null
      */
     private function tryParseSetextMarkdownHeading(array $lines, int $index): ?array
     {
@@ -7859,26 +7859,65 @@ final class MarkdownReader
             return null;
         }
 
-        $line = $this->expandTabsToSpaces($lines[$index]);
+        $headingLines = [];
+        $cursor = $index;
+        $count = count($lines);
+        while ($cursor < $count) {
+            $line = $this->expandTabsToSpaces($lines[$cursor]);
+            if (!$this->canBeSetextHeadingContentLine($line)) {
+                return null;
+            }
+
+            $headingLines[] = trim($line);
+            $markerIndex = $cursor + 1;
+            if ($markerIndex < $count) {
+                $marker = $this->expandTabsToSpaces($lines[$markerIndex]);
+                if (preg_match('/^ {0,3}(=+|-+)[ \t]*$/', $marker, $m) === 1) {
+                    $heading = $this->buildMarkdownHeading(
+                        $m[1][0] === '=' ? 1 : 2,
+                        implode(' ', $headingLines)
+                    );
+                    $heading['endIndex'] = $markerIndex;
+
+                    return $heading;
+                }
+            }
+
+            $cursor++;
+        }
+
+        return null;
+    }
+
+    private function canBeSetextHeadingContentLine(string $line): bool
+    {
         if ($this->countIndentColumns($line) > 3) {
-            return null;
+            return false;
         }
 
         $text = trim($line);
-        if ($text === '' || $this->tryParseMarkdownHeading($line) !== null) {
-            return null;
+        if ($text === '' || $this->tryParseMarkdownHeading($line) !== null || $this->isHorizontalRule($line)) {
+            return false;
         }
 
-        $marker = $this->expandTabsToSpaces($lines[$index + 1]);
-        if (preg_match('/^ {0,3}(=+|-+)[ \t]*$/', $marker, $m) !== 1) {
-            return null;
+        if (preg_match('/^ {0,3}[A-Za-z0-9_.-]+:\s*[>|](?:[+-]?[0-9]*)?\s*$/', $line) === 1) {
+            return false;
         }
 
-        return $this->buildMarkdownHeading($m[1][0] === '=' ? 1 : 2, $text);
+        $marker = $this->matchListMarker($line);
+        if ($marker !== null && $marker['indent'] <= 3) {
+            return false;
+        }
+
+        return preg_match('/^ {0,3}(?:`{3,}|~{3,}|>|<\/?[A-Za-z]|<!--|<\?|<!)/', $line) !== 1;
     }
 
     private function stripClosingAtxHeadingFence(string $text): string
     {
+        if (preg_match('/^#+$/', $text) === 1) {
+            return '';
+        }
+
         return rtrim(preg_replace('/[ \t]+#+[ \t]*$/', '', $text) ?? $text);
     }
 
