@@ -1487,7 +1487,7 @@ final class MarkdownWriter
             ...$this->expandTableRows($footRows, $columnCount),
         ];
         $renderedRows = [...$expandedHeadRows, ...$expandedBodyRows];
-        $widths = $this->tableColumnWidths($renderedRows, $node->attr('widths', []), $columnCount);
+        $widths = $this->tableColumnWidths($renderedRows, $this->tableColumnWidthHints($node, $columnCount), $columnCount);
         $alignments = $this->tableAlignments($node, $columnCount);
         $prefix = str_repeat(' ', $indent);
         $lines = [];
@@ -1567,6 +1567,7 @@ final class MarkdownWriter
         $head = null;
         $bodies = [];
         $foot = null;
+        $directRows = [];
         foreach ($node->children as $child) {
             if ($child->type === 'table_head') {
                 $head = $child;
@@ -1580,6 +1581,11 @@ final class MarkdownWriter
 
             if ($child->type === 'table_foot') {
                 $foot = $child;
+                continue;
+            }
+
+            if ($child->type === 'table_row') {
+                $directRows[] = $child;
             }
         }
 
@@ -1602,6 +1608,17 @@ final class MarkdownWriter
             $lines[] = $innerPrefix . '<tbody' . $this->renderHtmlAttributes($this->htmlAttributeMap($body)) . '>';
             array_push($lines, ...$this->renderHtmlTableRows(
                 $this->tableBodyRowEntries($body, $columnCount),
+                $node,
+                $columnCount,
+                $indent + 4
+            ));
+            $lines[] = $innerPrefix . '</tbody>';
+        }
+
+        if ($directRows !== []) {
+            $lines[] = $innerPrefix . '<tbody>';
+            array_push($lines, ...$this->renderHtmlTableRows(
+                $this->directTableRowEntries($directRows),
                 $node,
                 $columnCount,
                 $indent + 4
@@ -1692,17 +1709,17 @@ final class MarkdownWriter
 
     private function renderHtmlTableCaptionContent(AstNode $node): string
     {
-        $captionBlocks = $this->htmlTableCaptionBlocks($node->attr('captionBlocks', []));
+        $captionBlocks = $this->tableCaptionBlocksForWriting($node);
         if ($captionBlocks !== []) {
             return $this->renderHtmlBlocks($captionBlocks);
         }
 
-        $captionInlines = $node->attr('captionInlines', []);
-        if (is_array($captionInlines) && $captionInlines !== [] && $this->allAstNodes($captionInlines)) {
+        $captionInlines = $this->tableCaptionInlinesForWriting($node);
+        if ($captionInlines !== []) {
             return $this->renderHtmlInlines($captionInlines);
         }
 
-        return $this->escapeHtml((string) $node->attr('caption', ''));
+        return $this->escapeHtml($this->tableCaptionTextForWriting($node));
     }
 
     /**
@@ -1737,17 +1754,17 @@ final class MarkdownWriter
 
     private function plainHtmlTableShortCaption(AstNode $node): string
     {
-        $shortCaptionBlocks = $this->htmlTableCaptionBlocks($node->attr('shortCaptionBlocks', []));
+        $shortCaptionBlocks = $this->tableShortCaptionBlocksForWriting($node);
         if ($shortCaptionBlocks !== []) {
             return trim($this->plainInlineText($this->flattenPlainHtmlBlockInlines($shortCaptionBlocks)));
         }
 
-        $shortCaptionInlines = $node->attr('shortCaptionInlines', []);
-        if (is_array($shortCaptionInlines) && $shortCaptionInlines !== [] && $this->allAstNodes($shortCaptionInlines)) {
+        $shortCaptionInlines = $this->tableShortCaptionInlinesForWriting($node);
+        if ($shortCaptionInlines !== []) {
             return $this->plainInlineText($shortCaptionInlines);
         }
 
-        return trim((string) $node->attr('shortCaption', ''));
+        return trim($this->tableShortCaptionTextForWriting($node));
     }
 
     /**
@@ -1777,6 +1794,26 @@ final class MarkdownWriter
                 $entries[] = [
                     'row' => $row,
                     'header' => $header,
+                    'rowHeadColumns' => 0,
+                ];
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
+     */
+    private function directTableRowEntries(array $rows): array
+    {
+        $entries = [];
+        foreach ($rows as $row) {
+            if ($row->type === 'table_row') {
+                $entries[] = [
+                    'row' => $row,
+                    'header' => false,
                     'rowHeadColumns' => 0,
                 ];
             }
@@ -2108,14 +2145,10 @@ final class MarkdownWriter
         $attrs = [];
         $htmlAttributes = $source['htmlAttributes'] ?? [];
         if (is_array($htmlAttributes)) {
-            foreach ($htmlAttributes as $name => $value) {
-                if (!is_scalar($value)) {
-                    continue;
-                }
-
-                $name = strtolower(trim((string) $name));
-                if ($name !== '') {
-                    $attrs[$name] = (string) $value;
+            foreach ($this->normalizedAttributePairs($htmlAttributes) as $name => $value) {
+                $name = strtolower($name);
+                if ($name !== '' && !isset($attrs[$name])) {
+                    $attrs[$name] = $value;
                 }
             }
         }
@@ -2128,12 +2161,8 @@ final class MarkdownWriter
         if (isset($attrs['class'])) {
             $classes = preg_split('/\s+/', trim($attrs['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         }
-        if (isset($source['classes']) && is_array($source['classes'])) {
-            foreach ($source['classes'] as $class) {
-                if (is_scalar($class) && trim((string) $class) !== '') {
-                    $classes[] = trim((string) $class);
-                }
-            }
+        foreach ($this->normalizedClassList($source['classes'] ?? $source['className'] ?? null) as $class) {
+            $classes[] = $class;
         }
         if ($classes !== []) {
             $attrs['class'] = implode(' ', array_values(array_unique($classes)));
@@ -2141,14 +2170,10 @@ final class MarkdownWriter
 
         $attributes = $source['attributes'] ?? [];
         if (is_array($attributes)) {
-            foreach ($attributes as $name => $value) {
-                if (!is_scalar($value)) {
-                    continue;
-                }
-
-                $name = strtolower(trim((string) $name));
+            foreach ($this->normalizedAttributePairs($attributes) as $name => $value) {
+                $name = strtolower($name);
                 if ($name !== '' && !isset($attrs[$name])) {
-                    $attrs[$name] = (string) $value;
+                    $attrs[$name] = $value;
                 }
             }
         }
@@ -2354,6 +2379,24 @@ final class MarkdownWriter
     }
 
     /**
+     * @return list<float|null>
+     */
+    private function tableColumnWidthHints(AstNode $node, int $columnCount): array
+    {
+        $widths = $node->attr('widths', []);
+        if (is_array($widths) && $widths !== []) {
+            return array_values($widths);
+        }
+
+        $hints = [];
+        foreach (TableGeometry::columnSpecs($node, $columnCount) as $spec) {
+            $hints[] = isset($spec['width']) && is_numeric($spec['width']) ? (float) $spec['width'] : null;
+        }
+
+        return $hints;
+    }
+
+    /**
      * @return list<string>
      */
     private function tableAlignments(AstNode $node, int $columnCount): array
@@ -2404,33 +2447,33 @@ final class MarkdownWriter
     private function renderTableCaption(AstNode $node): string
     {
         $caption = '';
-        $captionBlocks = $this->renderTableCaptionBlocks($node->attr('captionBlocks', []));
+        $captionBlocks = $this->renderTableCaptionBlocks($this->tableCaptionBlocksForWriting($node));
         if ($captionBlocks !== '') {
             $caption = $captionBlocks;
         } else {
-            $captionInlines = $node->attr('captionInlines', []);
-            if (is_array($captionInlines) && $captionInlines !== [] && $this->allAstNodes($captionInlines)) {
+            $captionInlines = $this->tableCaptionInlinesForWriting($node);
+            if ($captionInlines !== []) {
                 $caption = $this->normalizeTableCaptionMarkdown($this->renderInlines($captionInlines));
             } else {
-                $caption = $this->normalizeTableCaptionMarkdown($this->escapeText((string) $node->attr('caption', '')));
+                $caption = $this->normalizeTableCaptionMarkdown($this->escapeText($this->tableCaptionTextForWriting($node)));
             }
         }
 
-        $shortCaptionInlines = $node->attr('shortCaptionInlines', []);
-        if (is_array($shortCaptionInlines) && $shortCaptionInlines !== [] && $this->allAstNodes($shortCaptionInlines)) {
+        $shortCaptionInlines = $this->tableShortCaptionInlinesForWriting($node);
+        if ($shortCaptionInlines !== []) {
             $shortCaption = '[' . $this->normalizeTableCaptionMarkdown($this->renderInlines($shortCaptionInlines)) . ']';
 
             return $caption === '' ? $shortCaption : $shortCaption . ' ' . $caption;
         }
 
-        $shortCaptionBlocks = $this->renderTableCaptionBlocks($node->attr('shortCaptionBlocks', []));
+        $shortCaptionBlocks = $this->renderTableCaptionBlocks($this->tableShortCaptionBlocksForWriting($node));
         if ($shortCaptionBlocks !== '') {
             $shortCaption = '[' . $shortCaptionBlocks . ']';
 
             return $caption === '' ? $shortCaption : $shortCaption . ' ' . $caption;
         }
 
-        $shortCaption = (string) $node->attr('shortCaption', '');
+        $shortCaption = $this->tableShortCaptionTextForWriting($node);
         if ($shortCaption !== '') {
             $shortCaption = '[' . $this->normalizeTableCaptionMarkdown($this->escapeText($shortCaption)) . ']';
 
@@ -2438,6 +2481,241 @@ final class MarkdownWriter
         }
 
         return $caption;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableCaptionBlocksForWriting(AstNode $node): array
+    {
+        $blocks = $this->explicitCaptionBlocksFromValue($node->attr('captionBlocks', []));
+        if ($blocks !== []) {
+            return $blocks;
+        }
+
+        $source = $this->captionSourceValue($node, ['captionBlocks', 'blocks', 'longBlocks']);
+
+        return $this->captionBlocksFromValue($source);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableCaptionInlinesForWriting(AstNode $node): array
+    {
+        $inlines = $this->captionInlinesFromValue($node->attr('captionInlines', []));
+        if ($inlines !== []) {
+            return $inlines;
+        }
+
+        $caption = $node->attr('caption');
+        $inlines = $this->captionInlinesFromValue($caption);
+        if ($inlines !== []) {
+            return $inlines;
+        }
+
+        $source = $this->captionSourceValue($node, ['captionInlines', 'inlines', 'longInlines']);
+
+        return $this->captionInlinesFromValue($source);
+    }
+
+    private function tableCaptionTextForWriting(AstNode $node): string
+    {
+        $text = $this->captionTextFromValue($node->attr('caption', ''));
+        if ($text !== '') {
+            return $text;
+        }
+
+        return $this->captionTextFromValue($this->captionSourceValue($node, ['caption', 'text', 'long']));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableShortCaptionBlocksForWriting(AstNode $node): array
+    {
+        $blocks = $this->explicitCaptionBlocksFromValue($node->attr('shortCaptionBlocks', []));
+        if ($blocks !== []) {
+            return $blocks;
+        }
+
+        $source = $this->captionSourceValue($node, ['shortCaptionBlocks', 'shortBlocks']);
+
+        return $this->captionBlocksFromValue($source);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableShortCaptionInlinesForWriting(AstNode $node): array
+    {
+        $inlines = $this->captionInlinesFromValue($node->attr('shortCaptionInlines', []));
+        if ($inlines !== []) {
+            return $inlines;
+        }
+
+        $shortCaption = $node->attr('shortCaption');
+        $inlines = $this->captionInlinesFromValue($shortCaption);
+        if ($inlines !== []) {
+            return $inlines;
+        }
+
+        $source = $this->captionSourceValue($node, ['shortCaptionInlines', 'shortInlines']);
+
+        return $this->captionInlinesFromValue($source);
+    }
+
+    private function tableShortCaptionTextForWriting(AstNode $node): string
+    {
+        $text = $this->captionTextFromValue($node->attr('shortCaption', ''));
+        if ($text !== '') {
+            return $text;
+        }
+
+        return $this->captionTextFromValue($this->captionSourceValue($node, ['shortCaption', 'short', 'shortText']));
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private function captionSourceValue(AstNode $node, array $names): mixed
+    {
+        $source = $node->attr('captionSource', []);
+        if (!is_array($source)) {
+            return null;
+        }
+
+        foreach ($names as $name) {
+            if (array_key_exists($name, $source)) {
+                return $source[$name];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function explicitCaptionBlocksFromValue(mixed $value): array
+    {
+        if ($value instanceof AstNode) {
+            return [$value];
+        }
+
+        if (!is_array($value) || $value === []) {
+            return [];
+        }
+
+        $nodes = array_values($value);
+
+        return $this->allAstNodes($nodes) ? $nodes : [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function captionBlocksFromValue(mixed $value): array
+    {
+        if ($value instanceof AstNode) {
+            return $this->isInlineNode($value) ? [] : [$value];
+        }
+
+        if (!is_array($value) || $value === []) {
+            return [];
+        }
+
+        if (isset($value['blocks'])) {
+            return $this->captionBlocksFromValue($value['blocks']);
+        }
+
+        if (isset($value['captionBlocks'])) {
+            return $this->captionBlocksFromValue($value['captionBlocks']);
+        }
+
+        $nodes = array_values($value);
+        if (!$this->allAstNodes($nodes)) {
+            return [];
+        }
+
+        foreach ($nodes as $node) {
+            if (!$this->isInlineNode($node)) {
+                return $nodes;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function captionInlinesFromValue(mixed $value): array
+    {
+        if ($value instanceof AstNode) {
+            if ($this->isInlineNode($value)) {
+                return [$value];
+            }
+
+            if (in_array($value->type, ['plain', 'paragraph'], true) && $this->allAstNodes($value->children)) {
+                return $value->children;
+            }
+
+            return [];
+        }
+
+        if (!is_array($value) || $value === []) {
+            return [];
+        }
+
+        foreach (['inlines', 'captionInlines', 'shortCaptionInlines'] as $name) {
+            if (isset($value[$name])) {
+                return $this->captionInlinesFromValue($value[$name]);
+            }
+        }
+
+        $nodes = array_values($value);
+        if (!$this->allAstNodes($nodes)) {
+            return [];
+        }
+
+        foreach ($nodes as $node) {
+            if (!$this->isInlineNode($node)) {
+                return [];
+            }
+        }
+
+        return $nodes;
+    }
+
+    private function captionTextFromValue(mixed $value): string
+    {
+        if (is_scalar($value)) {
+            return trim((string) $value);
+        }
+
+        $inlines = $this->captionInlinesFromValue($value);
+        if ($inlines !== []) {
+            return $this->plainInlineText($inlines);
+        }
+
+        $blocks = $this->captionBlocksFromValue($value);
+        if ($blocks !== []) {
+            return $this->plainInlineText($this->flattenPlainHtmlBlockInlines($blocks));
+        }
+
+        if (is_array($value)) {
+            foreach (['text', 'caption', 'shortCaption', 'shortText'] as $name) {
+                if (array_key_exists($name, $value)) {
+                    $text = $this->captionTextFromValue($value[$name]);
+                    if ($text !== '') {
+                        return $text;
+                    }
+                }
+            }
+        }
+
+        return '';
     }
 
     private function renderTableCaptionBlocks(mixed $blocks): string
@@ -4063,30 +4341,87 @@ final class MarkdownWriter
      */
     private function linkAttrTuple(AstNode $node): array
     {
-        $id = (string) $node->attr('id', '');
-        $classes = $node->attr('classes', []);
-        if (!is_array($classes)) {
-            $classes = [];
-        }
-        $classes = array_values(array_filter(
-            array_map(static fn (mixed $class): string => (string) $class, $classes),
-            static fn (string $class): bool => $class !== ''
-        ));
+        $id = is_scalar($node->attr('id')) ? trim((string) $node->attr('id', '')) : '';
+        $classes = $this->normalizedClassList($node->attr('classes', $node->attr('className', [])));
+        $attributes = $this->normalizedAttributePairs($node->attr('attributes', []));
 
-        $attributes = $node->attr('attributes', []);
-        if (!is_array($attributes)) {
-            $attributes = [];
+        $topLevelAttributeNames = ['dir', 'lang', 'role', 'xml:lang'];
+        if (!in_array($node->type, ['link', 'image'], true)) {
+            $topLevelAttributeNames[] = 'title';
         }
-        $attributes = array_filter(
-            array_map(static fn (mixed $value): string => (string) $value, $attributes),
-            static fn (string $value): bool => $value !== ''
-        );
+
+        foreach ($topLevelAttributeNames as $name) {
+            if (!array_key_exists($name, $attributes) && is_scalar($node->attr($name))) {
+                $value = trim((string) $node->attr($name));
+                if ($value !== '') {
+                    $attributes[$name] = $value;
+                }
+            }
+        }
 
         return [
             'id' => $id,
             'classes' => $classes,
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizedClassList(mixed $classes): array
+    {
+        if (is_string($classes)) {
+            $classes = preg_split('/\s+/', trim($classes), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+
+        if (!is_array($classes)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($classes as $class) {
+            if (!is_scalar($class)) {
+                continue;
+            }
+
+            $class = trim((string) $class);
+            if ($class !== '') {
+                $normalized[] = $class;
+            }
+        }
+
+        return array_values(array_unique($normalized));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function normalizedAttributePairs(mixed $attributes): array
+    {
+        if (!is_array($attributes)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($attributes as $name => $value) {
+            if (is_array($value) && array_is_list($value) && count($value) >= 2) {
+                $name = $value[0];
+                $value = $value[1];
+            }
+
+            if (!is_scalar($name) || !is_scalar($value)) {
+                continue;
+            }
+
+            $name = trim((string) $name);
+            $value = (string) $value;
+            if ($name !== '' && $value !== '') {
+                $normalized[$name] = $value;
+            }
+        }
+
+        return $normalized;
     }
 
     private function renderLinkAttributes(AstNode $node): string

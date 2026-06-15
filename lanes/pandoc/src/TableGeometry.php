@@ -14,12 +14,18 @@ final class TableGeometry
     {
         $columnCount = max(
             self::tableAttributeColumnCount($table->attr('alignments', [])),
-            self::tableAttributeColumnCount($table->attr('widths', []))
+            self::tableAttributeColumnCount($table->attr('widths', [])),
+            self::tableAttributeColumnCount($table->attr('columnSpecs', []))
         );
 
         foreach ($table->children as $section) {
             if ($section->type === 'table_body') {
                 $columnCount = max($columnCount, self::columnCountForRows(self::bodyRows($section)));
+                continue;
+            }
+
+            if ($section->type === 'table_row') {
+                $columnCount = max($columnCount, self::columnCountForRows([$section]));
                 continue;
             }
 
@@ -1466,10 +1472,11 @@ final class TableGeometry
         if (!is_array($alignments)) {
             $alignments = [];
         }
+        $sourceSpecs = self::sourceColumnSpecs($table->attr('columnSpecs', []));
 
         $normalized = [];
         for ($index = 0; $index < max(0, $columnCount); $index++) {
-            $alignment = (string) ($alignments[$index] ?? 'default');
+            $alignment = (string) ($alignments[$index] ?? ($sourceSpecs[$index]['alignment'] ?? 'default'));
             $normalized[] = self::normalizeAlignment($alignment);
         }
 
@@ -1524,6 +1531,12 @@ final class TableGeometry
         } else {
             $widths = array_values($widths);
         }
+        $sourceSpecs = self::sourceColumnSpecs($table->attr('columnSpecs', []));
+        if ($widths === [] && $sourceSpecs !== []) {
+            foreach ($sourceSpecs as $sourceSpec) {
+                $widths[] = $sourceSpec['width'] ?? null;
+            }
+        }
 
         $declaredColumnCount = self::declaredColumnCount($table);
         $columnSources = self::columnSources($table);
@@ -1545,6 +1558,8 @@ final class TableGeometry
             ];
             if (isset($columnSources[$column])) {
                 $spec['source'] = $columnSources[$column];
+            } elseif (isset($sourceSpecs[$column]['source']) && is_array($sourceSpecs[$column]['source'])) {
+                $spec['source'] = $sourceSpecs[$column]['source'];
             }
 
             $specs[] = $spec;
@@ -12658,8 +12673,125 @@ final class TableGeometry
     {
         return max(
             self::tableAttributeColumnCount($table->attr('alignments', [])),
-            self::tableAttributeColumnCount($table->attr('widths', []))
+            self::tableAttributeColumnCount($table->attr('widths', [])),
+            self::tableAttributeColumnCount($table->attr('columnSpecs', []))
         );
+    }
+
+    /**
+     * @return array<int, array{alignment?:string,width?:float|null,source?:array<string, mixed>}>
+     */
+    private static function sourceColumnSpecs(mixed $specs): array
+    {
+        if (!is_array($specs)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach (array_values($specs) as $index => $spec) {
+            $record = self::sourceColumnSpec($spec);
+            if ($record === []) {
+                continue;
+            }
+
+            $normalized[$index] = $record;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return array{alignment?:string,width?:float|null,source?:array<string, mixed>}
+     */
+    private static function sourceColumnSpec(mixed $spec): array
+    {
+        if (!is_array($spec)) {
+            return [];
+        }
+
+        $alignmentSource = null;
+        $widthSource = null;
+        $source = [];
+        if (array_is_list($spec)) {
+            $alignmentSource = $spec[0] ?? null;
+            $widthSource = $spec[1] ?? null;
+            $source['kind'] = 'column-spec';
+            $source['sourceShape'] = 'tuple';
+        } else {
+            $alignmentSource = $spec['alignment'] ?? $spec['align'] ?? $spec['alignmentNative'] ?? null;
+            $widthSource = $spec['width'] ?? $spec['colWidth'] ?? $spec['widthNative'] ?? null;
+            if (isset($spec['source']) && is_array($spec['source'])) {
+                $source = self::serializableColumnSource($spec['source']);
+            }
+            if ($source === []) {
+                $source = [
+                    'kind' => (string) ($spec['kind'] ?? 'column-spec'),
+                    'sourceShape' => 'record',
+                ];
+            }
+        }
+
+        $record = [];
+        $alignment = self::sourceColumnSpecAlignment($alignmentSource);
+        if ($alignment !== null) {
+            $record['alignment'] = $alignment;
+            $source['alignment'] = $alignment;
+        }
+
+        $width = self::sourceColumnSpecWidth($widthSource);
+        if ($width !== null || $widthSource !== null) {
+            $record['width'] = $width;
+            if ($width !== null) {
+                $source['width'] = $width;
+            }
+        }
+
+        if ($record !== [] && $source !== []) {
+            $record['source'] = $source;
+        }
+
+        return $record;
+    }
+
+    private static function sourceColumnSpecAlignment(mixed $alignment): ?string
+    {
+        if (is_array($alignment) && !array_is_list($alignment) && isset($alignment['t'])) {
+            return self::normalizeAlignment((string) $alignment['t']);
+        }
+
+        if (is_array($alignment) && array_is_list($alignment) && count($alignment) === 1) {
+            return self::sourceColumnSpecAlignment($alignment[0]);
+        }
+
+        if (!is_scalar($alignment)) {
+            return null;
+        }
+
+        return self::normalizeAlignment((string) $alignment);
+    }
+
+    private static function sourceColumnSpecWidth(mixed $width): ?float
+    {
+        if (is_array($width) && !array_is_list($width) && isset($width['t'])) {
+            $tag = (string) $width['t'];
+            if ($tag === 'ColWidthDefault') {
+                return null;
+            }
+
+            if ($tag === 'ColWidth') {
+                return self::sourceColumnSpecWidth($width['c'] ?? null);
+            }
+        }
+
+        if (is_array($width) && array_is_list($width) && count($width) === 1) {
+            return self::sourceColumnSpecWidth($width[0]);
+        }
+
+        if (!is_numeric($width) || (float) $width <= 0.0) {
+            return null;
+        }
+
+        return (float) $width;
     }
 
     /**
