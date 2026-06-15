@@ -2138,13 +2138,73 @@ foreach ($markers as $label => $case) {
             $document = $read($case['marker'] . 'Review title' . "\n" . $case['indent'] . '===' . "\n" . $case['indent'] . 'after words' . "\n" . $case['next']);
             $item = $firstItem($t, $document, $case['list']);
             $heading = $item->children[0] ?? new AstNode('missing');
-            $text = $item->children[1] ?? new AstNode('missing');
+            $paragraph = $item->children[1] ?? new AstNode('missing');
 
-            $t->same(['heading', 'text'], $types($item));
+            $t->same(['heading', 'paragraph'], $types($item));
             $t->same('Review title', $heading->attr('text'));
             $t->same('review-title', $heading->attr('id'));
-            $t->same('after words', $text->attr('text'));
+            $t->same('after words', $paragraph->attr('text'));
         };
+}
+
+$setextListHeadingVariants = [
+    'marker line h1' => ['lines' => ['Import heading'], 'marker' => '====', 'level' => 1, 'text' => 'Import heading'],
+    'marker line h1 trailing spaces' => ['lines' => ['Review heading'], 'marker' => '====   ', 'level' => 1, 'text' => 'Review heading'],
+    'marker line multiline h1' => ['lines' => ['Wrapped heading', 'second line'], 'marker' => '====', 'level' => 1, 'text' => 'Wrapped heading second line'],
+    'marker line attributed h1' => ['lines' => ['Attributed heading'], 'marker' => '====', 'level' => 1, 'text' => 'Attributed heading', 'attributed' => true],
+    'marker line inline h1' => ['lines' => ['Inline **strong** heading'], 'marker' => '====', 'level' => 1, 'text' => 'Inline **strong** heading', 'inline' => true],
+];
+
+foreach ($markers as $label => $case) {
+    foreach ($setextListHeadingVariants as $variantLabel => $variant) {
+        $tests["maps commonmark block list setext heading surge {$label} {$variantLabel}"] = static function (TestRunner $t) use ($read, $types, $firstItem, $label, $case, $variant): void {
+            $slug = preg_replace('/[^a-z0-9]+/', '-', strtolower($label)) ?? $label;
+            $headingLines = $variant['lines'];
+            if (($variant['attributed'] ?? false) === true) {
+                $headingLines = [$headingLines[0] . ' {#list-setext-' . trim($slug, '-') . ' .review}'];
+            }
+            $markdown = $case['marker'] . $headingLines[0];
+            foreach (array_slice($headingLines, 1) as $line) {
+                $markdown .= "\n" . $case['indent'] . $line;
+            }
+            $markdown .= "\n" . $case['indent'] . $variant['marker'] . "\n" . $case['next'];
+            $document = $read($markdown);
+            $item = $firstItem($t, $document, $case['list']);
+            $heading = $item->children[0] ?? new AstNode('missing');
+
+            $t->same(['heading'], $types($item));
+            $t->same('heading', $heading->type);
+            $t->same($variant['level'], $heading->attr('level'));
+            $t->same($variant['text'], $heading->attr('text'));
+            if (($variant['attributed'] ?? false) === true) {
+                $t->same('list-setext-' . trim($slug, '-'), $heading->attr('id'));
+                $t->same(['review'], $heading->attr('classes'));
+            }
+            if (($variant['inline'] ?? false) === true) {
+                $t->same(['text', 'strong', 'text'], $types($heading));
+                $t->same('strong', $heading->children[1]->children[0]->attr('text'));
+            }
+        };
+    }
+}
+
+foreach ($markers as $label => $case) {
+    $tests["maps commonmark block list simple table marker-line surge {$label}"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'Term          Count'
+            . "\n" . $case['indent'] . '------------  -----'
+            . "\n" . $case['indent'] . 'A001              7'
+            . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $table = $item->children[0] ?? new AstNode('missing');
+
+        $t->same(['table'], $types($item));
+        $t->same('table', $table->type);
+        $t->same(['left', 'default'], $table->attr('alignments'));
+        $t->same('Term', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Count', $table->children[0]->children[0]->children[1]->attr('text'));
+        $t->same('A001', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('7', $table->children[1]->children[0]->children[1]->attr('text'));
+    };
 }
 
 return $tests;
