@@ -2941,6 +2941,144 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{valid:bool, contentTypeCount:int, packagePartCount:int, overridePartCount:int, defaultPartCount:int, relationshipPartCount:int, relationshipSourceCount:int, relationshipTargetReferenceCount:int, relationshipTargetPartCount:int, reachableTargetCount:int, missingOverrideCount:int, invalidPackagePartCount:int, invalidContentTypeCount:int, missingOverrideContentTypeCount:int, relationshipPartContentTypeCount:int, mediaContentTypeCount:int, embeddedPackageContentTypeCount:int, contentTypeNames:list<string>, invalidContentTypes:list<string>, missingOverrideContentTypes:list<string>, relationshipPartContentTypes:list<string>, mediaContentTypes:list<string>, embeddedPackageContentTypes:list<string>, contentTypesByIssue:array<string,list<string>>, issueCounts:array<string,int>, issues:list<string>, contentTypes:list<array{contentType:string, packagePartCount:int, overrideCount:int, defaultPartCount:int, relationshipPartCount:int, relationshipTargetReferenceCount:int, reachableTargetCount:int, missingOverrideCount:int, invalidPackagePartCount:int, valid:bool, issues:list<string>}>}
+     */
+    public function contentTypeInventorySummary(): array
+    {
+        $summary = [
+            'valid' => true,
+            'contentTypeCount' => 0,
+            'packagePartCount' => 0,
+            'overridePartCount' => 0,
+            'defaultPartCount' => 0,
+            'relationshipPartCount' => 0,
+            'relationshipSourceCount' => 0,
+            'relationshipTargetReferenceCount' => 0,
+            'relationshipTargetPartCount' => 0,
+            'reachableTargetCount' => 0,
+            'missingOverrideCount' => 0,
+            'invalidPackagePartCount' => 0,
+            'invalidContentTypeCount' => 0,
+            'missingOverrideContentTypeCount' => 0,
+            'relationshipPartContentTypeCount' => 0,
+            'mediaContentTypeCount' => 0,
+            'embeddedPackageContentTypeCount' => 0,
+            'contentTypeNames' => [],
+            'invalidContentTypes' => [],
+            'missingOverrideContentTypes' => [],
+            'relationshipPartContentTypes' => [],
+            'mediaContentTypes' => [],
+            'embeddedPackageContentTypes' => [],
+            'contentTypesByIssue' => [],
+            'issueCounts' => [],
+            'issues' => [],
+            'contentTypes' => [],
+        ];
+
+        foreach ($this->contentTypeInventory() as $entry) {
+            $contentType = $entry['contentType'];
+            $hasMediaPart = false;
+            $hasEmbeddedPackagePart = false;
+
+            $summary['contentTypeCount']++;
+            $summary['packagePartCount'] += $entry['packagePartCount'];
+            $summary['overridePartCount'] += $entry['overrideCount'];
+            $summary['defaultPartCount'] += $entry['defaultPartCount'];
+            $summary['relationshipPartCount'] += $entry['relationshipPartCount'];
+            $summary['relationshipSourceCount'] += $entry['relationshipSourceCount'];
+            $summary['relationshipTargetReferenceCount'] += $entry['relationshipTargetReferenceCount'];
+            $summary['relationshipTargetPartCount'] += $entry['relationshipTargetPartCount'];
+            $summary['reachableTargetCount'] += $entry['reachableTargetCount'];
+            $summary['missingOverrideCount'] += $entry['missingOverrideCount'];
+            $summary['invalidPackagePartCount'] += $entry['invalidPackagePartCount'];
+            $summary['contentTypeNames'][] = $contentType;
+
+            foreach ($entry['parts'] as $partName) {
+                $hasMediaPart = $hasMediaPart || self::isMediaPartCandidate($partName, $contentType);
+                $hasEmbeddedPackagePart = $hasEmbeddedPackagePart || self::isEmbeddedPackageCandidate($partName, $contentType);
+            }
+
+            if (
+                $entry['relationshipPartCount'] > 0
+                || self::contentTypeMatches($contentType, self::RELATIONSHIP_PART_CONTENT_TYPE)
+            ) {
+                $summary['relationshipPartContentTypeCount']++;
+                $summary['relationshipPartContentTypes'][] = $contentType;
+            }
+
+            if ($hasMediaPart) {
+                $summary['mediaContentTypeCount']++;
+                $summary['mediaContentTypes'][] = $contentType;
+            }
+
+            if ($hasEmbeddedPackagePart) {
+                $summary['embeddedPackageContentTypeCount']++;
+                $summary['embeddedPackageContentTypes'][] = $contentType;
+            }
+
+            if ($entry['missingOverrideCount'] > 0) {
+                $summary['missingOverrideContentTypeCount']++;
+                $summary['missingOverrideContentTypes'][] = $contentType;
+            }
+
+            if ($entry['issues'] !== []) {
+                $summary['valid'] = false;
+                $summary['invalidContentTypeCount']++;
+                $summary['invalidContentTypes'][] = $contentType;
+            }
+
+            foreach ($entry['issues'] as $issue) {
+                $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+                self::appendUniqueString($summary['issues'], $issue);
+                if (!isset($summary['contentTypesByIssue'][$issue])) {
+                    $summary['contentTypesByIssue'][$issue] = [];
+                }
+                self::appendUniqueString($summary['contentTypesByIssue'][$issue], $contentType);
+            }
+
+            $summary['contentTypes'][] = [
+                'contentType' => $contentType,
+                'packagePartCount' => $entry['packagePartCount'],
+                'overrideCount' => $entry['overrideCount'],
+                'defaultPartCount' => $entry['defaultPartCount'],
+                'relationshipPartCount' => $entry['relationshipPartCount'],
+                'relationshipTargetReferenceCount' => $entry['relationshipTargetReferenceCount'],
+                'reachableTargetCount' => $entry['reachableTargetCount'],
+                'missingOverrideCount' => $entry['missingOverrideCount'],
+                'invalidPackagePartCount' => $entry['invalidPackagePartCount'],
+                'valid' => $entry['issues'] === [],
+                'issues' => $entry['issues'],
+            ];
+        }
+
+        foreach ([
+            'contentTypeNames',
+            'invalidContentTypes',
+            'missingOverrideContentTypes',
+            'relationshipPartContentTypes',
+            'mediaContentTypes',
+            'embeddedPackageContentTypes',
+            'issues',
+        ] as $listKey) {
+            sort($summary[$listKey], SORT_STRING);
+        }
+
+        ksort($summary['issueCounts'], SORT_STRING);
+        ksort($summary['contentTypesByIssue'], SORT_STRING);
+        foreach ($summary['contentTypesByIssue'] as &$contentTypes) {
+            sort($contentTypes, SORT_STRING);
+        }
+        unset($contentTypes);
+
+        usort(
+            $summary['contentTypes'],
+            static fn (array $left, array $right): int => $left['contentType'] <=> $right['contentType'],
+        );
+
+        return $summary;
+    }
+
+    /**
      * @return array{valid:bool, defaultCount:int, usedDefaultCount:int, unusedDefaultCount:int, packagePartCount:int, defaultResolvedPartCount:int, overrideResolvedPartCount:int, missingContentTypePartCount:int, relationshipPartDefaultResolvedCount:int, mediaDefaultResolvedCount:int, embeddedPackageDefaultResolvedCount:int, extensionlessMissingPartCount:int, defaultExtensions:list<string>, unusedDefaultExtensions:list<string>, missingExtensions:list<string>, issueCounts:array<string,int>, issues:list<string>, defaults:list<array{extension:string, normalizedExtension:string, contentType:string, packagePartCount:int, relationshipPartCount:int, mediaPartCount:int, embeddedPackageCandidateCount:int, packageParts:list<string>, valid:bool, issues:list<string>}>, missingParts:list<array{partName:string, extension:?string, relationshipPart:bool, issues:list<string>}>}
      */
     public function contentTypeDefaultUsageSummary(): array

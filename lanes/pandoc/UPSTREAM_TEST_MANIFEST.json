@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3578,
-        "latestSlice": "pandoc-odf-manifest-media-family-matrix maps ten native ODF/ODT package ingestion media-family cases after rebase onto current main 5c8e457239. OpenDocumentPackage now classifies manifest-declared package entries into compact review families for XML, image, audio, video, script, configuration, font, RDF, object replacement, embedded OpenDocument objects, binary sidecars, and root package rows, with count and byte/compressed-byte buckets across manifestReview and packageInventory without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3605 -> 3606, phpFail remains 0, mapped upstream cases move 3568 -> 3578, mappedOdfManifestMediaFamilyMatrixCases = 10, and odfManifestMediaFamilyMatrixAssertions = 43. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php passed 1 file, 1452 assertions, 0 failures; focused ODF/ODT suite passed 5 files, 6521 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84577 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+        "mapped": 3579,
+        "latestSlice": "pandoc-opc-content-type-inventory-summary maps one shared ZIP/OPC content-type inventory summary case after rebase onto current main e075f13dcb. OpcRelationshipGraph now aggregates package-wide content-type inventory counts for package parts, overrides, defaults, relationship parts and sources, direct and reachable targets, missing overrides, invalid content types, media content types, embedded-package content types, and issue-to-content-type buckets without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, online services, live provider tests, or external validators. phpPass moves 3606 -> 3607, phpFail remains 0, mapped upstream cases move 3578 -> 3579, mappedOpcContentTypeInventorySummaryCases = 1, and opcContentTypeInventorySummaryAssertions = 39. Verification passed php -l for OpcRelationshipGraph.php and OpenPackagingConventionsTest.php; focused OpenPackagingConventionsTest.php passed 1 file, 4448 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84616 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "ODF/ODT OpenDocument package ingestion media-family matrix is verified after rebase onto current main 5c8e457239; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-15 ODF/ODT OpenDocument package ingestion media-family matrix verified after rebase onto current main 5c8e457239; focused OpenDocumentPackageTest.php passed 1 file, 1452 assertions, 0 failures; focused ODF/ODT suite passed 5 files, 6521 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84577 assertions, 0 failures.",
+        "status": "Shared ZIP/OPC content type inventory summary is verified after rebase onto current main e075f13dcb; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-15 Shared ZIP/OPC content type inventory summary verified after rebase onto current main e075f13dcb; focused OpenPackagingConventionsTest.php passed 1 file, 4448 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84616 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -463,7 +463,9 @@
         "mappedCslDirectAuthorityAliasCases": 2,
         "cslDirectAuthorityAliasAssertions": 21,
         "mappedOdfManifestMediaFamilyMatrixCases": 10,
-        "odfManifestMediaFamilyMatrixAssertions": 43
+        "odfManifestMediaFamilyMatrixAssertions": 43,
+        "mappedOpcContentTypeInventorySummaryCases": 1,
+        "opcContentTypeInventorySummaryAssertions": 39
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -2078,5 +2080,7 @@
     "mappedCslDirectAuthorityAliasCases": null,
     "cslDirectAuthorityAliasAssertions": null,
     "mappedOdfManifestMediaFamilyMatrixCases": 10,
-    "odfManifestMediaFamilyMatrixAssertions": 43
+    "odfManifestMediaFamilyMatrixAssertions": 43,
+    "mappedOpcContentTypeInventorySummaryCases": 1,
+    "opcContentTypeInventorySummaryAssertions": 39
 }

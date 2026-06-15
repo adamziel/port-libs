@@ -9945,6 +9945,128 @@ XML;
         $t->same(['missing-in-package'], $inventory[$imageType]['relationshipTargetReferences'][1]['issues']);
         $t->same(['missing-in-package', 'override-target-missing-part'], $inventory[$imageType]['issues']);
     },
+    'summarizes OPC content type inventory counts for package review' => static function (TestRunner $t): void {
+        $embeddedPackageType = 'application/vnd.openxmlformats-officedocument.package';
+        $imageType = 'image/png';
+        $relationshipType = 'application/vnd.openxmlformats-package.relationships+xml';
+        $contentTypesXml = <<<XML
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="{$relationshipType}"/>
+  <Default Extension="png" ContentType="{$imageType}"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/_rels/comments.xml.rels" ContentType="application/xml"/>
+  <Override PartName="/word/media/stale-review.png" ContentType="{$imageType}"/>
+  <Override PartName="/word/embeddings/nested.docx" ContentType="{$embeddedPackageType}"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>
+  <Relationship Id="rIdEmbeddedPackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/nested.docx"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/embeddings/nested.docx', 'data' => 'DOCX'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $summary = $graph->contentTypeInventorySummary();
+        $contentTypes = [];
+        foreach ($summary['contentTypes'] as $contentType) {
+            $contentTypes[$contentType['contentType']] = $contentType;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(8, $summary['contentTypeCount']);
+        $t->same(9, $summary['packagePartCount']);
+        $t->same(7, $summary['overridePartCount']);
+        $t->same(3, $summary['defaultPartCount']);
+        $t->same(3, $summary['relationshipPartCount']);
+        $t->same(3, $summary['relationshipSourceCount']);
+        $t->same(7, $summary['relationshipTargetReferenceCount']);
+        $t->same(7, $summary['relationshipTargetPartCount']);
+        $t->same(7, $summary['reachableTargetCount']);
+        $t->same(1, $summary['missingOverrideCount']);
+        $t->same(1, $summary['invalidPackagePartCount']);
+        $t->same(2, $summary['invalidContentTypeCount']);
+        $t->same(1, $summary['missingOverrideContentTypeCount']);
+        $t->same(2, $summary['relationshipPartContentTypeCount']);
+        $t->same(1, $summary['mediaContentTypeCount']);
+        $t->same(1, $summary['embeddedPackageContentTypeCount']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.package',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml',
+            'application/vnd.openxmlformats-package.core-properties+xml',
+            $relationshipType,
+            'application/xml',
+            $imageType,
+        ], $summary['contentTypeNames']);
+        $t->same(['application/xml', $imageType], $summary['invalidContentTypes']);
+        $t->same([$imageType], $summary['missingOverrideContentTypes']);
+        $t->same([$relationshipType, 'application/xml'], $summary['relationshipPartContentTypes']);
+        $t->same([$imageType], $summary['mediaContentTypes']);
+        $t->same([$embeddedPackageType], $summary['embeddedPackageContentTypes']);
+        $t->same([
+            'invalid-relationship-content-type' => 1,
+            'missing-in-package' => 1,
+            'override-target-missing-part' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'invalid-relationship-content-type',
+            'missing-in-package',
+            'override-target-missing-part',
+        ], $summary['issues']);
+        $t->same([
+            'invalid-relationship-content-type' => ['application/xml'],
+            'missing-in-package' => [$imageType],
+            'override-target-missing-part' => [$imageType],
+        ], $summary['contentTypesByIssue']);
+
+        $t->same(2, $contentTypes[$relationshipType]['packagePartCount']);
+        $t->same(2, $contentTypes[$relationshipType]['relationshipPartCount']);
+        $t->same(true, $contentTypes[$relationshipType]['valid']);
+        $t->same(1, $contentTypes['application/xml']['packagePartCount']);
+        $t->same(1, $contentTypes['application/xml']['relationshipPartCount']);
+        $t->same(1, $contentTypes['application/xml']['invalidPackagePartCount']);
+        $t->same(false, $contentTypes['application/xml']['valid']);
+        $t->same(1, $contentTypes[$imageType]['packagePartCount']);
+        $t->same(2, $contentTypes[$imageType]['relationshipTargetReferenceCount']);
+        $t->same(1, $contentTypes[$imageType]['missingOverrideCount']);
+        $t->same(false, $contentTypes[$imageType]['valid']);
+        $t->same(1, $contentTypes[$embeddedPackageType]['packagePartCount']);
+        $t->same(1, $contentTypes[$embeddedPackageType]['reachableTargetCount']);
+    },
     'summarizes OPC default content type usage for package preflight handoff' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml): void {
         $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
