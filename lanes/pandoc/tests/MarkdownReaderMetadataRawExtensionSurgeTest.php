@@ -623,6 +623,108 @@ foreach ($nativeSpanCases as $case) {
         };
 }
 
+$nativeSpanMetadataSlug = static function (string $name): string {
+    return trim((string) preg_replace('/[^A-Za-z0-9]+/', '-', strtolower($name)), '-');
+};
+
+$nativeSpanMetadataExtensionCases = [
+    ['name' => 'extension format plus', 'metadata' => ['extension: markdown+native_spans']],
+    ['name' => 'extension space list', 'metadata' => ['extension: raw_html native_spans']],
+    ['name' => 'extension comma list', 'metadata' => ['extension: raw_html,native_spans']],
+    ['name' => 'extension spaced plus list', 'metadata' => ['extension: raw_html + native_spans']],
+    ['name' => 'extensions flow list', 'metadata' => ['extensions: [raw_html, native_spans]']],
+    ['name' => 'extensions scalar', 'metadata' => ['extensions: native_spans']],
+    ['name' => 'enabled extensions flow list', 'metadata' => ['enabledExtensions: [smart, native_spans]']],
+    ['name' => 'reader extensions camel list', 'metadata' => ['readerExtensions: [native_spans, link_attributes]']],
+    ['name' => 'reader extensions snake list', 'metadata' => ['reader_extensions: [emoji, native_spans]']],
+    ['name' => 'format markdown plus', 'metadata' => ['format: markdown+native_spans']],
+    ['name' => 'format pandoc plus', 'metadata' => ['format: pandoc+native_spans']],
+    ['name' => 'format commonmark x plus', 'metadata' => ['format: commonmark_x+native_spans']],
+    ['name' => 'format gfm plus', 'metadata' => ['format: gfm+native_spans']],
+    ['name' => 'from markdown plus', 'metadata' => ['from: markdown+native_spans']],
+    ['name' => 'input format camel plus', 'metadata' => ['inputFormat: markdown+native_spans']],
+    ['name' => 'input format snake plus', 'metadata' => ['input_format: commonmark_x+native_spans']],
+    ['name' => 'review extensions list', 'metadata' => ['review: {extensions: [native_spans, raw_html]}']],
+    ['name' => 'review enabled extensions list', 'metadata' => ['review: {enabledExtensions: [native_spans]}']],
+    ['name' => 'review reader extensions camel', 'metadata' => ['review: {readerExtensions: [native_spans]}']],
+    ['name' => 'review reader extensions snake', 'metadata' => ['review: {reader_extensions: [native_spans]}']],
+    ['name' => 'review format plus', 'metadata' => ['review: {format: markdown+native_spans}']],
+    ['name' => 'review from plus', 'metadata' => ['review: {from: gfm+native_spans}']],
+    ['name' => 'review input format camel', 'metadata' => ['review: {inputFormat: commonmark_x+native_spans}']],
+    ['name' => 'review input format snake', 'metadata' => ['review: {input_format: markdown+native_spans}']],
+    ['name' => 'reader extensions list', 'metadata' => ['reader: {extensions: [native_spans]}']],
+    ['name' => 'reader format plus', 'metadata' => ['reader: {format: markdown+native_spans}']],
+    ['name' => 'reader from plus', 'metadata' => ['reader: {from: markdown+native_spans}']],
+    ['name' => 'reader snake extensions', 'metadata' => ['reader: {reader_extensions: [native_spans]}']],
+    ['name' => 'input extensions list', 'metadata' => ['input: {extensions: [native_spans]}']],
+    ['name' => 'input format plus', 'metadata' => ['input: {format: markdown+native_spans}']],
+    ['name' => 'input snake format plus', 'metadata' => ['input: {input_format: markdown+native_spans}']],
+    ['name' => 'source extensions list', 'metadata' => ['source: {extensions: [native_spans]}']],
+    ['name' => 'source format plus', 'metadata' => ['source: {format: markdown+native_spans}']],
+    ['name' => 'source reader extensions list', 'metadata' => ['source: {readerExtensions: [emoji, native_spans]}']],
+    ['name' => 'pandoc reader extensions list', 'metadata' => ['pandoc: {readerExtensions: [native_spans]}']],
+    ['name' => 'pandoc input format plus', 'metadata' => ['pandoc: {inputFormat: markdown+native_spans}']],
+    ['name' => 'pandoc format plus', 'metadata' => ['pandoc: {format: commonmark_x+native_spans}']],
+    ['name' => 'pandoc extensions list', 'metadata' => ['pandoc: {extensions: [smart, raw_html, native_spans]}']],
+    ['name' => 'extensions flow map boolean', 'metadata' => ['extensions: {native_spans: true}']],
+    ['name' => 'extensions flow map yes', 'metadata' => ['extensions: {native_spans: yes}']],
+    ['name' => 'extensions flow map on', 'metadata' => ['extensions: {native_spans: "on"}']],
+    ['name' => 'extensions flow map one', 'metadata' => ['extensions: {native_spans: 1}']],
+    ['name' => 'reader extensions flow map', 'metadata' => ['readerExtensions: {native_spans: enabled}']],
+    ['name' => 'review extensions flow map', 'metadata' => ['review: {extensions: {native_spans: true}}']],
+    ['name' => 'input extensions flow map', 'metadata' => ['input: {extensions: {native_spans: true}}']],
+    ['name' => 'reader enabled extensions map', 'metadata' => ['reader: {enabledExtensions: {native_spans: true}}']],
+    ['name' => 'source snake extensions map', 'metadata' => ['source: {reader_extensions: {native_spans: true}}']],
+    ['name' => 'pandoc extensions flow map', 'metadata' => ['pandoc: {extensions: {native_spans: true}}']],
+    ['name' => 'format multi extension plus', 'metadata' => ['format: markdown+raw_html+native_spans']],
+    ['name' => 'from multi extension plus', 'metadata' => ['from: gfm+emoji+native_spans']],
+];
+
+foreach ($nativeSpanMetadataExtensionCases as $case) {
+    $tests['maps upstream markdown metadata native span enablement ' . $case['name']] =
+        static function (TestRunner $t) use ($case, $nativeSpanMetadataSlug, $nativeSpanFirst, $nativeSpanInlineText): void {
+            $slug = $nativeSpanMetadataSlug($case['name']);
+            $source = array_merge([
+                '---',
+                'title: Native span metadata packet',
+            ], $case['metadata'], [
+                '...',
+                '',
+                'Before <span class="meta-span" data-case="' . $slug . '">extension ' . $slug . ' <strong>packet</strong></span> after.',
+            ]);
+            $document = (new MarkdownReader())->read(implode("\n", $source));
+            $span = $nativeSpanFirst($document);
+            $markdown = (new MarkdownWriter())->write($document);
+            $blocks = (new WordPressBlockWriter())->write($document);
+            $roundTripDocuments = [
+                'json' => (new PandocJsonReader())->readPacket((new PandocJsonWriter())->toArray($document)),
+                'native' => (new NativeReader())->read((new NativeWriter())->write($document)),
+            ];
+
+            $t->same('span', $span->type, $case['name']);
+            $t->same(['meta-span'], $span->attr('classes'), $case['name'] . ' classes');
+            $t->same(['case' => $slug], $span->attr('attributes'), $case['name'] . ' attributes');
+            $t->same(['class' => 'meta-span', 'data-case' => $slug], $span->attr('htmlAttributes'), $case['name'] . ' html attributes');
+            $t->same('extension ' . $slug . ' packet', $nativeSpanInlineText($span), $case['name'] . ' text');
+            $t->contains('[extension ' . $slug . ' **packet**]{.meta-span case="' . $slug . '"}', $markdown);
+            $t->contains('<span class="meta-span" data-case="' . $slug . '">extension ' . $slug . ' <strong>packet</strong></span>', $blocks);
+
+            foreach ($roundTripDocuments as $sourceName => $roundTrip) {
+                $roundTripSpan = $nativeSpanFirst($roundTrip);
+
+                $t->same('span', $roundTripSpan->type, $case['name'] . ' ' . $sourceName . ' type');
+                $t->same(['meta-span'], $roundTripSpan->attr('classes'), $case['name'] . ' ' . $sourceName . ' classes');
+                $t->same(['case' => $slug], $roundTripSpan->attr('attributes'), $case['name'] . ' ' . $sourceName . ' attributes');
+                $t->same('extension ' . $slug . ' packet', $nativeSpanInlineText($roundTripSpan), $case['name'] . ' ' . $sourceName . ' text');
+            }
+        };
+}
+
+$tests['records upstream markdown metadata native span enablement mapped-case count'] =
+    static function (TestRunner $t) use ($nativeSpanMetadataExtensionCases): void {
+        $t->same(50, count($nativeSpanMetadataExtensionCases));
+    };
+
 $nativeDivAttributeSource = static function (array $attributes): string {
     $parts = [];
     foreach ($attributes as $name => $value) {
