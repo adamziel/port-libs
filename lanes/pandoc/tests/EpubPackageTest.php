@@ -9307,7 +9307,7 @@ XML;
         );
         $opfWithAuthoring = str_replace(
             '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
-            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" xml:lang="fr" dir="rtl" data-review="primary" review:source="wp-import"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" xml:base="../review-candidates/" xml:lang="fr" dir="rtl" data-review="primary" review:source="wp-import"/>',
             $opfWithAuthoring
         );
         $opfWithAuthoring = str_replace(
@@ -9342,10 +9342,18 @@ XML;
         $summary = $epub->summary();
         $manifestAuthoring = $summary['manifestAuthoring'];
         $spineAuthoring = $summary['spineAuthoring'];
+        $resourceKinds = $summary['manifestResourceKinds'];
+        $packageInventory = $summary['packageInventory'];
+        $chapterInventory = $packageInventory['byPackagePath']['EPUB/text/chapter1.xhtml'];
+        $chapterResource = $resourceKinds['itemsById']['chapter1'];
 
         $t->same('fr', $chapter['language']);
         $t->same('rtl', $chapter['direction']);
+        $t->same('../review-candidates/', $chapter['base']);
+        $t->same('reported-not-applied-to-manifest-hrefs', $chapter['baseResolutionPolicy']);
+        $t->same(false, $chapter['baseResolution']['appliesToManifestHrefs']);
         $t->same('fr', $chapter['attributes']['xml:lang']);
+        $t->same('../review-candidates/', $chapter['attributes']['xml:base']);
         $t->same('wp-import', $chapter['attributes']['review:source']);
         $t->same(['data-review' => 'primary', 'review:source' => 'wp-import'], $chapter['customAttributes']);
         $t->same('ltr', $cover['direction']);
@@ -9363,13 +9371,35 @@ XML;
         $t->same(5, $manifestAuthoring['itemCount']);
         $t->same(1, $manifestAuthoring['languageItemCount']);
         $t->same(2, $manifestAuthoring['directionItemCount']);
+        $t->same(1, $manifestAuthoring['baseItemCount']);
         $t->same(2, $manifestAuthoring['customAttributeItemCount']);
         $t->same(['chapter1'], array_column($manifestAuthoring['languageItems'], 'id'));
         $t->same(['cover', 'chapter1'], array_column($manifestAuthoring['directionItems'], 'id'));
+        $t->same(['chapter1'], array_column($manifestAuthoring['baseItems'], 'id'));
+        $t->same('../review-candidates/', $manifestAuthoring['itemsById']['chapter1']['base']);
+        $t->same('reported-not-applied-to-manifest-hrefs', $manifestAuthoring['itemsById']['chapter1']['baseResolutionPolicy']);
         $t->same('primary', $manifestAuthoring['itemsById']['chapter1']['customAttributes']['data-review']);
         $t->same('cover', $manifestAuthoring['itemsById']['cover']['customAttributes']['data-review']);
         $t->same($manifestAuthoring, $summary['wordpressImport']['manifestAuthoring']);
         $t->same($manifestAuthoring['items'], $summary['wordpressImport']['manifestAuthoringItems']);
+        $t->same(1, $resourceKinds['baseItemCount']);
+        $t->same(['chapter1'], $resourceKinds['baseItemIds']);
+        $t->same(['/EPUB/text/chapter1.xhtml'], $resourceKinds['baseItemPartNames']);
+        $t->same(1, $resourceKinds['summary']['baseItemCount']);
+        $t->same('../review-candidates/', $chapterResource['base']);
+        $t->same('reported-not-applied-to-manifest-hrefs', $chapterResource['baseResolutionPolicy']);
+        $t->same(false, $chapterResource['baseResolution']['appliesToManifestHrefs']);
+        $t->same('/EPUB/text/chapter1.xhtml', $chapterResource['partName']);
+        $t->same(1, $packageInventory['manifestBaseItemCount']);
+        $t->same(['/EPUB/text/chapter1.xhtml'], $packageInventory['manifestBasePartNames']);
+        $t->same(['EPUB/text/chapter1.xhtml'], $packageInventory['manifestBasePackagePaths']);
+        $t->same(1, $chapterInventory['manifestBaseItemCount']);
+        $t->same('../review-candidates/', $chapterInventory['manifestBase']);
+        $t->same('reported-not-applied-to-manifest-hrefs', $chapterInventory['manifestBaseResolutionPolicy']);
+        $t->same(false, $chapterInventory['manifestBaseResolution']['appliesToManifestHrefs']);
+        $t->same(true, in_array('opf-manifest-xml-base-candidate', $chapterInventory['roles'], true));
+        $t->same('/EPUB/text/chapter1.xhtml', $chapterInventory['partName']);
+        $t->same($packageInventory, $summary['wordpressImport']['packageInventory']);
 
         $t->same(2, $spineAuthoring['itemCount']);
         $t->same(1, $spineAuthoring['languageItemCount']);

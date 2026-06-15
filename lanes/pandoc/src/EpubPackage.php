@@ -8283,6 +8283,9 @@ final class EpubPackage
         $missingCount = 0;
         $externalCount = 0;
         $exposableCount = 0;
+        $baseItemCount = 0;
+        $baseItemIds = [];
+        $baseItemPartNames = [];
 
         foreach ($manifestItems as $index => $item) {
             $mediaType = is_string($item['mediaType'] ?? null) ? $item['mediaType'] : '';
@@ -8301,6 +8304,10 @@ final class EpubPackage
             $exists = ($item['exists'] ?? false) === true;
             $external = ($item['external'] ?? false) === true;
             $canExposeBytes = ($item['canExposeBytes'] ?? false) === true;
+            $base = is_string($item['base'] ?? null) && $item['base'] !== '' ? $item['base'] : null;
+            $baseResolution = is_array($item['baseResolution'] ?? null)
+                ? $item['baseResolution']
+                : self::manifestItemBaseResolution($base);
 
             $reviewItem = [
                 'index' => (int) $index,
@@ -8312,6 +8319,10 @@ final class EpubPackage
                 'mediaTypeBase' => $baseMediaType,
                 'properties' => $properties,
                 'resourceKind' => $kind,
+                'base' => $base,
+                'baseResolutionPolicy' => $baseResolution['policy'],
+                'baseResolution' => $baseResolution,
+                'hasBase' => $base !== null,
                 'exists' => $exists,
                 'external' => $external,
                 'canExposeBytes' => $canExposeBytes,
@@ -8344,6 +8355,15 @@ final class EpubPackage
             if ($canExposeBytes) {
                 ++$exposableCount;
             }
+            if ($base !== null) {
+                ++$baseItemCount;
+                if ($reviewItem['id'] !== '') {
+                    $baseItemIds[$reviewItem['id']] = $reviewItem['id'];
+                }
+                if ($partName !== null && $partName !== '') {
+                    $baseItemPartNames[$partName] = $partName;
+                }
+            }
         }
 
         ksort($itemsById, SORT_STRING);
@@ -8369,6 +8389,9 @@ final class EpubPackage
             'missingItemCount' => $missingCount,
             'externalItemCount' => $externalCount,
             'exposableItemCount' => $exposableCount,
+            'baseItemCount' => $baseItemCount,
+            'baseItemIds' => array_values($baseItemIds),
+            'baseItemPartNames' => array_values($baseItemPartNames),
             'summary' => [
                 'itemCount' => count($items),
                 'kindCount' => count($kindCounts),
@@ -8378,6 +8401,7 @@ final class EpubPackage
                 'missingItemCount' => $missingCount,
                 'externalItemCount' => $externalCount,
                 'exposableItemCount' => $exposableCount,
+                'baseItemCount' => $baseItemCount,
             ],
             'items' => $items,
             'itemsById' => $itemsById,
@@ -8980,6 +9004,9 @@ final class EpubPackage
         $duplicateManifestIdPartNames = [];
         $duplicateManifestIdPackagePaths = [];
         $duplicateManifestIdItems = [];
+        $manifestBasePartNames = [];
+        $manifestBasePackagePaths = [];
+        $manifestBaseItemCount = 0;
         $opfManifestDeclaredEntryCount = 0;
         $spineEntryCount = 0;
         $encryptedEntryCount = 0;
@@ -9072,6 +9099,28 @@ final class EpubPackage
             $resourceKind = is_array($manifestItem)
                 ? self::packageInventoryResourceKind($mediaType, $packagePath, $properties)
                 : null;
+            $manifestBaseItems = [];
+            foreach ($manifestMatches as $manifestMatch) {
+                if (!is_array($manifestMatch)) {
+                    continue;
+                }
+                $base = is_string($manifestMatch['base'] ?? null) && $manifestMatch['base'] !== ''
+                    ? $manifestMatch['base']
+                    : null;
+                if ($base === null) {
+                    continue;
+                }
+                $baseResolution = is_array($manifestMatch['baseResolution'] ?? null)
+                    ? $manifestMatch['baseResolution']
+                    : self::manifestItemBaseResolution($base);
+                $manifestBaseItems[] = [
+                    'id' => is_string($manifestMatch['id'] ?? null) ? $manifestMatch['id'] : '',
+                    'href' => is_string($manifestMatch['href'] ?? null) ? $manifestMatch['href'] : '',
+                    'base' => $base,
+                    'baseResolutionPolicy' => $baseResolution['policy'],
+                    'baseResolution' => $baseResolution,
+                ];
+            }
             $isMimetype = $packagePath === 'mimetype';
             $isContainer = $packagePath === 'META-INF/container.xml';
             $isOpfPackage = $opfPackagePath !== null && $packagePath === $opfPackagePath;
@@ -9137,6 +9186,12 @@ final class EpubPackage
             if ($duplicateManifestPackagePart) {
                 $addRole('duplicate-opf-manifest-package-part');
                 $addRole('duplicate-opf-manifest-package-path');
+            }
+            if ($manifestBaseItems !== []) {
+                $addRole('opf-manifest-xml-base-candidate');
+                $manifestBaseItemCount += count($manifestBaseItems);
+                $manifestBasePartNames[$partName] = true;
+                $manifestBasePackagePaths[$packagePath] = true;
             }
             if ($resourceKind !== null) {
                 $addRole('resource-kind-' . $resourceKind);
@@ -9254,6 +9309,12 @@ final class EpubPackage
                 'mediaTypeBase' => $mediaTypeBase,
                 'properties' => $properties,
                 'resourceKind' => $resourceKind,
+                'manifestBaseItemCount' => count($manifestBaseItems),
+                'manifestBaseItems' => $manifestBaseItems,
+                'manifestBase' => $manifestBaseItems[0]['base'] ?? null,
+                'manifestBaseResolutionPolicy' => $manifestBaseItems[0]['baseResolutionPolicy'] ?? null,
+                'manifestBaseResolution' => $manifestBaseItems[0]['baseResolution'] ?? null,
+                'hasManifestBase' => $manifestBaseItems !== [],
                 'roles' => $roles,
                 'manifestFallbackRoles' => $fallbackRoles['roles'],
                 'manifestFallbackSourceIds' => $fallbackRoles['sourceIds'],
@@ -9478,6 +9539,9 @@ final class EpubPackage
             'mediaOverlaySourcePartNames' => array_keys($mediaOverlaySourcePartNames),
             'mediaOverlayTextTargetPartNames' => array_keys($mediaOverlayTextTargetPartNames),
             'mediaOverlayAudioTargetPartNames' => array_keys($mediaOverlayAudioTargetPartNames),
+            'manifestBaseItemCount' => $manifestBaseItemCount,
+            'manifestBasePartNames' => array_keys($manifestBasePartNames),
+            'manifestBasePackagePaths' => array_keys($manifestBasePackagePaths),
             'localPackagePaths' => $package->localNames(),
             'centralPackagePaths' => $package->names(),
             'localHeaderOrder' => $localHeaderOrder,
