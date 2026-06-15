@@ -8773,6 +8773,146 @@ XML;
         $t->same($inventory['diagnosticTypes'], $case['diagnosticTypes']);
     },
 
+    'summarizes encrypted OPF manifest dependency targets for compact handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $lockedStyle = 'body { color: #660000; }';
+        $lockedOverlay = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL">
+  <body>
+    <seq>
+      <par>
+        <text src="../chapter.xhtml#locked"/>
+        <audio src="../audio/locked.mp3"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML;
+        $obfuscatedFont = 'OBFUSCATED-FONT-DATA';
+        $opfWithEncryptedDependencies = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:manifest-dependency-encryption</dc:identifier>
+    <dc:title>Manifest Dependency Encryption</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" media-overlay="locked-overlay"/>
+    <item id="remote-chapter" href="remote-chapter.xhtml" media-type="application/xhtml+xml" media-overlay="remote-overlay"/>
+    <item id="widget" href="widgets/review.bin" media-type="application/x-review-widget" fallback="font-main" fallback-style="locked-style"/>
+    <item id="locked-style" href="styles/locked.css" media-type="text/css"/>
+    <item id="font-main" href="fonts/source.otf" media-type="application/vnd.ms-opentype"/>
+    <item id="locked-overlay" href="overlays/locked.smil" media-type="application/smil+xml"/>
+    <item id="remote-overlay" href="https://example.invalid/remote.smil" media-type="application/smil+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+    <itemref idref="remote-chapter"/>
+  </spine>
+</package>
+XML;
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <CipherData><CipherReference URI="EPUB/fonts/source.otf"/></CipherData>
+  </EncryptedData>
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="EPUB/styles/locked.css"/></CipherData>
+  </EncryptedData>
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="EPUB/overlays/locked.smil"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithEncryptedDependencies],
+            ['name' => 'EPUB/nav.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Chapter</a></li></ol></nav></body></html>'],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="locked">Locked chapter</h1></body></html>'],
+            ['name' => 'EPUB/remote-chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Remote overlay chapter</h1></body></html>'],
+            ['name' => 'EPUB/widgets/review.bin', 'data' => 'WIDGET'],
+            ['name' => 'EPUB/styles/locked.css', 'data' => $lockedStyle],
+            ['name' => 'EPUB/fonts/source.otf', 'data' => $obfuscatedFont],
+            ['name' => 'EPUB/overlays/locked.smil', 'data' => $lockedOverlay],
+            ['name' => 'EPUB/audio/locked.mp3', 'data' => 'LOCKED-MP3'],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['manifestDependencyInventory'];
+        $compact = $summary['compactPackageReport']['casesById']['manifest-dependencies'];
+        $widgetFallback = $inventory['edgesBySourceId']['widget'][0];
+        $widgetStyle = $inventory['edgesBySourceId']['widget'][1];
+        $chapterOverlay = $inventory['edgesBySourceId']['chapter'][0];
+        $remoteOverlay = $inventory['edgesBySourceId']['remote-chapter'][0];
+
+        $t->same($inventory, $summary['wordpressImport']['manifestDependencyInventory']);
+        $t->same(4, $inventory['edgeCount']);
+        $t->same([
+            'fallback' => 1,
+            'fallback-style' => 1,
+            'media-overlay' => 2,
+        ], $inventory['relationCounts']);
+        $t->same(4, $inventory['manifestTargetCount']);
+        $t->same(3, $inventory['existingTargetCount']);
+        $t->same(1, $inventory['externalTargetCount']);
+        $t->same(3, $inventory['encryptedTargetCount']);
+        $t->same(1, $inventory['obfuscatedFontTargetCount']);
+        $t->same(0, $inventory['exposableTargetCount']);
+        $t->same(4, $inventory['blockedTargetCount']);
+        $t->same([
+            'encrypted-resource-bytes-blocked' => 2,
+            'external-manifest-dependency-target-metadata-only' => 1,
+            'obfuscated-font-bytes-blocked' => 1,
+        ], $inventory['byteExposurePolicyCounts']);
+        $t->same(['/EPUB/overlays/locked.smil', '/EPUB/fonts/source.otf', '/EPUB/styles/locked.css'], $inventory['encryptedTargetPartNames']);
+        $t->same(['/EPUB/fonts/source.otf'], $inventory['obfuscatedFontTargetPartNames']);
+        $t->same(['remote-overlay'], $inventory['externalTargetIds']);
+        $t->same(strlen($obfuscatedFont) + strlen($lockedStyle) + strlen($lockedOverlay), $inventory['encryptedByteLength']);
+        $t->same(strlen($obfuscatedFont), $inventory['obfuscatedFontByteLength']);
+
+        $t->same('fallback', $widgetFallback['relation']);
+        $t->same('font-main', $widgetFallback['targetId']);
+        $t->same(true, $widgetFallback['targetEncrypted']);
+        $t->same(true, $widgetFallback['targetObfuscatedFont']);
+        $t->same(false, $widgetFallback['targetCanExposeBytes']);
+        $t->same('obfuscated-font-bytes-blocked', $widgetFallback['targetByteExposurePolicy']);
+        $t->true(in_array('obfuscated-font-manifest-dependency-target', array_column($widgetFallback['diagnostics'], 'type'), true));
+
+        $t->same('fallback-style', $widgetStyle['relation']);
+        $t->same('locked-style', $widgetStyle['targetId']);
+        $t->same(true, $widgetStyle['targetEncrypted']);
+        $t->same(false, $widgetStyle['targetObfuscatedFont']);
+        $t->same('encrypted-resource-bytes-blocked', $widgetStyle['targetByteExposurePolicy']);
+        $t->true(in_array('encrypted-manifest-dependency-target', array_column($widgetStyle['diagnostics'], 'type'), true));
+
+        $t->same('media-overlay', $chapterOverlay['relation']);
+        $t->same('locked-overlay', $chapterOverlay['targetId']);
+        $t->same(true, $chapterOverlay['targetEncrypted']);
+        $t->same('/EPUB/overlays/locked.smil', $chapterOverlay['targetPartName']);
+        $t->same('encrypted-resource-bytes-blocked', $chapterOverlay['targetByteExposurePolicy']);
+
+        $t->same('remote-overlay', $remoteOverlay['targetId']);
+        $t->same(true, $remoteOverlay['targetExternal']);
+        $t->same('external-manifest-dependency-target-metadata-only', $remoteOverlay['targetByteExposurePolicy']);
+        $t->same('external-manifest-dependency-target', $remoteOverlay['diagnostics'][0]['type']);
+
+        $t->same(4, $compact['itemCount']);
+        $t->same(1, $compact['externalTargetCount']);
+        $t->same(3, $compact['encryptedTargetCount']);
+        $t->same(1, $compact['obfuscatedFontTargetCount']);
+        $t->same($inventory['encryptedTargetPartNames'], $compact['encryptedTargetPartNames']);
+        $t->same($inventory['obfuscatedFontTargetPartNames'], $compact['obfuscatedFontTargetPartNames']);
+        $t->same($inventory['externalTargetIds'], $compact['externalTargetIds']);
+        $t->same($inventory['encryptedByteLength'], $compact['encryptedByteLength']);
+        $t->same($inventory['obfuscatedFontByteLength'], $compact['obfuscatedFontByteLength']);
+        $t->true(in_array('obfuscated-font-manifest-dependency-target', $compact['diagnosticTypes'], true));
+    },
+
     'reports OPF metadata meta property vocabulary diagnostics for package review' => static function (TestRunner $t) use ($epubContainerXml): void {
         $opfWithMetaVocabulary = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" prefix="review: https://example.invalid/epub-review#">

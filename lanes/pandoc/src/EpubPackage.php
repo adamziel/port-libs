@@ -1536,6 +1536,15 @@ final class EpubPackage
                 'missingManifestTargetIds' => is_array($manifestDependencyInventory['missingManifestTargetIds'] ?? null)
                     ? array_values($manifestDependencyInventory['missingManifestTargetIds'])
                     : [],
+                'externalTargetIds' => is_array($manifestDependencyInventory['externalTargetIds'] ?? null)
+                    ? array_values($manifestDependencyInventory['externalTargetIds'])
+                    : [],
+                'encryptedTargetPartNames' => is_array($manifestDependencyInventory['encryptedTargetPartNames'] ?? null)
+                    ? array_values($manifestDependencyInventory['encryptedTargetPartNames'])
+                    : [],
+                'obfuscatedFontTargetPartNames' => is_array($manifestDependencyInventory['obfuscatedFontTargetPartNames'] ?? null)
+                    ? array_values($manifestDependencyInventory['obfuscatedFontTargetPartNames'])
+                    : [],
                 'unsupportedCompressionTargetPartNames' => is_array($manifestDependencyInventory['unsupportedCompressionTargetPartNames'] ?? null)
                     ? array_values($manifestDependencyInventory['unsupportedCompressionTargetPartNames'])
                     : [],
@@ -1555,6 +1564,8 @@ final class EpubPackage
                 'totalCompressedByteLength' => (int) ($manifestDependencyInventory['totalCompressedByteLength'] ?? 0),
                 'exposableByteLength' => (int) ($manifestDependencyInventory['exposableByteLength'] ?? 0),
                 'blockedByteLength' => (int) ($manifestDependencyInventory['blockedByteLength'] ?? 0),
+                'encryptedByteLength' => (int) ($manifestDependencyInventory['encryptedByteLength'] ?? 0),
+                'obfuscatedFontByteLength' => (int) ($manifestDependencyInventory['obfuscatedFontByteLength'] ?? 0),
             ],
         );
 
@@ -8760,6 +8771,10 @@ final class EpubPackage
         $exposableCompressedByteLength = 0;
         $blockedByteLength = 0;
         $blockedCompressedByteLength = 0;
+        $encryptedByteLength = 0;
+        $encryptedCompressedByteLength = 0;
+        $obfuscatedFontByteLength = 0;
+        $obfuscatedFontCompressedByteLength = 0;
         $unsupportedCompressionByteLength = 0;
         $unsupportedCompressionCompressedByteLength = 0;
 
@@ -10409,6 +10424,10 @@ final class EpubPackage
             &$exposableCompressedByteLength,
             &$blockedByteLength,
             &$blockedCompressedByteLength,
+            &$encryptedByteLength,
+            &$encryptedCompressedByteLength,
+            &$obfuscatedFontByteLength,
+            &$obfuscatedFontCompressedByteLength,
             &$unsupportedCompressionByteLength,
             &$unsupportedCompressionCompressedByteLength,
             $manifestById,
@@ -10606,6 +10625,17 @@ final class EpubPackage
                     'partName' => $targetPartName,
                     'byteExposurePolicy' => $byteExposurePolicy,
                     'message' => 'EPUB OPF manifest dependency target is encrypted and remains metadata-only for compact ingestion',
+                ];
+            }
+            if ($obfuscatedFont) {
+                $itemDiagnostics[] = [
+                    'type' => 'obfuscated-font-manifest-dependency-target',
+                    'relation' => $relation,
+                    'sourceId' => $sourceId,
+                    'targetId' => $targetId,
+                    'partName' => $targetPartName,
+                    'byteExposurePolicy' => $byteExposurePolicy,
+                    'message' => 'EPUB OPF manifest dependency target is an obfuscated font and remains metadata-only for compact ingestion',
                 ];
             }
             if ($unsupportedCompression) {
@@ -10824,6 +10854,14 @@ final class EpubPackage
                 $unsupportedCompressionByteLength += $bytes;
                 $unsupportedCompressionCompressedByteLength += $compressedBytes;
             }
+            if ($encrypted) {
+                $encryptedByteLength += $bytes;
+                $encryptedCompressedByteLength += $compressedBytes;
+            }
+            if ($obfuscatedFont) {
+                $obfuscatedFontByteLength += $bytes;
+                $obfuscatedFontCompressedByteLength += $compressedBytes;
+            }
 
             foreach ($itemDiagnostics as $diagnostic) {
                 if (!is_array($diagnostic)) {
@@ -10926,6 +10964,10 @@ final class EpubPackage
             'exposableCompressedByteLength' => $exposableCompressedByteLength,
             'blockedByteLength' => $blockedByteLength,
             'blockedCompressedByteLength' => $blockedCompressedByteLength,
+            'encryptedByteLength' => $encryptedByteLength,
+            'encryptedCompressedByteLength' => $encryptedCompressedByteLength,
+            'obfuscatedFontByteLength' => $obfuscatedFontByteLength,
+            'obfuscatedFontCompressedByteLength' => $obfuscatedFontCompressedByteLength,
             'unsupportedCompressionByteLength' => $unsupportedCompressionByteLength,
             'unsupportedCompressionCompressedByteLength' => $unsupportedCompressionCompressedByteLength,
             'relationCounts' => $relationCounts,
