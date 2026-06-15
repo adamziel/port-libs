@@ -549,6 +549,85 @@ BIB;
         $t->same('print-on-demand packet', $item['medium']);
         $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
     },
+    'carries biblatex translated title aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{translated-title-source,
+  author              = {Garcia, Gia},
+  title               = {Migration Manual},
+  titleTranslation    = {Manual de Migracion},
+  subtitleTranslation = {Apendice de Archivo},
+  publisher           = {Review Press},
+  date                = {2026}
+}
+
+@incollection{translated-hyphen-source,
+  author              = {Roe, Rae},
+  title               = {Chapter Packet},
+  booktitle           = {Translation Review Sourcebook},
+  translated-title    = {Paquete de Capitulo},
+  translated-subtitle = {Anexo},
+  pages               = {9--12},
+  date                = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $translatedTitle = $items['translated-title-source'];
+        $hyphenTitle = $items['translated-hyphen-source'];
+
+        $t->same('Manual de Migracion', $translatedTitle['translated-title']);
+        $t->same('Apendice de Archivo', $translatedTitle['translated-subtitle']);
+        $t->same('Manual de Migracion', $translatedTitle['rawBibtex']['fields']['titletranslation']);
+        $t->same('Apendice de Archivo', $translatedTitle['rawBibtex']['fields']['subtitletranslation']);
+        $t->same('Paquete de Capitulo', $hyphenTitle['translated-title']);
+        $t->same('Paquete de Capitulo', $hyphenTitle['rawBibtex']['fields']['translated-title']);
+        $t->same('Gia Garcia. Migration Manual. Translated title: Manual de Migracion: Apendice de Archivo. Review Press. 2026.', $processor->renderBibliographyText($translatedTitle));
+
+        $document = (new MarkdownReader())->read('Translation review [@translated-title-source; @translated-hyphen-source] keeps translated title metadata visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $t->same(['translated-title-source', 'translated-hyphen-source'], $handoff['citedKeys']);
+        $t->same('Manual de Migracion', $handoff['bibliography']->children[0]->attr('cslItem')['translated-title'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Translated Title Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-translated-title-review</id>
+    <updated>2026-06-15T04:30:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="translated-title"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="translated-title"/>
+      <text variable="translated-subtitle"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same('Bounded Legacy BibLaTeX Translated Title Review', $summary['title'] ?? null);
+        $t->same('(Garcia | Manual de Migracion: Apendice de Archivo | 2026; Roe | Paquete de Capitulo: Anexo | 2025)', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'translated-title-source', 'text' => '[@translated-title-source]']),
+            new AstNode('citation', ['id' => 'translated-hyphen-source', 'text' => '[@translated-hyphen-source]']),
+        ]));
+        $t->same('Migration Manual :: Manual de Migracion: Apendice de Archivo :: Apendice de Archivo', $styled->renderBibliographyEntry('translated-title-source'));
+        $t->contains('<p>Translation review (Garcia | Manual de Migracion: Apendice de Archivo | 2026; Roe | Paquete de Capitulo: Anexo | 2025) keeps translated title metadata visible.</p>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Chapter Packet :: Paquete de Capitulo: Anexo :: Anexo</dd>', $blocks);
+    },
     'carries biblatex status taxonomy aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-status-hyphen,

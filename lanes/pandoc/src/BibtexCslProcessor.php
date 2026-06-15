@@ -218,6 +218,14 @@ final class BibtexCslProcessor
         if (($item['title'] ?? '') !== '') {
             $parts[] = (string) $item['title'];
         }
+        $translatedTitle = (string) ($item['translated-title'] ?? '');
+        if ($translatedTitle !== '') {
+            $translatedSubtitle = (string) ($item['translated-subtitle'] ?? '');
+            if ($translatedSubtitle !== '') {
+                $translatedTitle .= ': ' . $translatedSubtitle;
+            }
+            $parts[] = 'Translated title: ' . $translatedTitle;
+        }
 
         $container = (string) ($item['container-title'] ?? '');
         $volume = (string) ($item['volume'] ?? '');
@@ -423,6 +431,24 @@ final class BibtexCslProcessor
         $originalTitle = $this->composedTitle($fields, ['origtitle', 'original-title'], ['origsubtitle', 'original-subtitle']);
         if ($originalTitle !== null && $originalTitle !== '') {
             $item['original-title'] = $originalTitle;
+        }
+
+        $translatedSubtitleFields = [
+            'subtitletranslation',
+            'subtitle-translation',
+            'translatedsubtitle',
+            'translated-subtitle',
+            'titletranslationsubtitle',
+            'title-translation-subtitle',
+        ];
+        $translatedTitle = $this->firstField($fields, ['titletranslation', 'title-translation', 'translatedtitle', 'translated-title']);
+        if ($translatedTitle !== null && $translatedTitle !== '') {
+            $item['translated-title'] = $translatedTitle;
+        }
+
+        $translatedSubtitle = $this->firstField($fields, $translatedSubtitleFields);
+        if ($translatedSubtitle !== null && $translatedSubtitle !== '') {
+            $item['translated-subtitle'] = $translatedSubtitle;
         }
 
         $stringFields = [
