@@ -7058,18 +7058,36 @@ return [
         }
 
         $emph = $documents['json']->children[0]->children[0];
-        $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+        $editedDocument = new AstNode('document', [], [
             new AstNode('paragraph', [], [
                 new AstNode('emph', $emph->attrs, [
                     new AstNode('text', ['text' => 'edited emph']),
                 ]),
             ]),
-        ]));
-        $editedEmph = $editedPacket['blocks'][0]['c'][0];
+        ]);
+        $inlineText = static function (array $inlines): string {
+            $text = '';
+            foreach ($inlines as $inline) {
+                $text .= match ($inline['t'] ?? '') {
+                    'Str', 'Code', 'Math' => (string) ($inline['c'] ?? ''),
+                    'Space', 'SoftBreak', 'LineBreak' => ' ',
+                    default => '',
+                };
+            }
 
-        $t->same('Emph', $editedEmph['t']);
-        $t->same('edited emph', $editedEmph['c'][0]['c']);
-        $t->same(false, array_key_exists('reviewQueue', $editedEmph), 'edited structural inline drops stale provenance');
+            return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+        };
+
+        foreach ([
+            'json' => (new PandocJsonWriter())->toArray($editedDocument),
+            'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+        ] as $writer => $editedPacket) {
+            $editedEmph = $editedPacket['blocks'][0]['c'][0];
+
+            $t->same('Emph', $editedEmph['t'], "{$writer} edited structural inline constructor");
+            $t->same('edited emph', $inlineText($editedEmph['c']), "{$writer} edited structural inline text");
+            $t->same(false, array_key_exists('reviewQueue', $editedEmph), "{$writer} edited structural inline drops stale provenance");
+        }
     },
     'preserves markdown note labels through json and native note sidecars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
