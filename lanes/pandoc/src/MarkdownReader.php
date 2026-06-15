@@ -14814,9 +14814,8 @@ final class MarkdownReader
      */
     private function matchFigureCaptionLine(string $line, bool $leading): ?array
     {
-        $markerPattern = $leading
-            ? '(?:Figure|Fig\.?|Image|Caption):'
-            : '(?:(?:Figure|Fig\.?|Image|Caption):|:)';
+        $captionMarker = '(?:Figure|Fig\.?|Image|Caption)(?:\s+\d+[A-Za-z0-9_.-]*)?:';
+        $markerPattern = $leading ? $captionMarker : '(?:' . $captionMarker . '|:)';
         if (preg_match('/^ {0,3}(' . $markerPattern . ')\s*(.*)$/iu', $line, $m) !== 1) {
             return null;
         }
@@ -15042,7 +15041,7 @@ final class MarkdownReader
      */
     private function matchTableCaptionLine(string $line): ?array
     {
-        if (preg_match('/^ {0,3}((?:Table|Caption):|:)\s*(.*)$/iu', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}((?:(?:Table|Tbl\.?|Tab\.?|Caption)(?:\s+\d+[A-Za-z0-9_.-]*)?):|:)\s*(.*)$/iu', $line, $m) !== 1) {
             return null;
         }
 

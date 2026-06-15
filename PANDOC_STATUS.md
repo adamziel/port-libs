@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 2,387 | 1,096 |
+| Markdown / CommonMark / GFM | 2,447 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not a current upstream Pandoc input token) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` preserves attributed native HTML div blocks, URL control-byte normalization, existing emoji alias coverage, and explicit leading/trailing figure captions for standalone inline, attributed, and reference images, including source marker metadata, short captions, multiline caption inlines, figure/html attributes, Markdown output, and WordPress figure handoff.
+Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` accepts numbered and abbreviated table/figure caption markers, records figure-specific `captionSource` provenance on the current figure-caption path, preserves explicit leading/trailing figure captions, attributed native HTML div blocks, URL control-byte normalization, and existing emoji alias coverage.
 
-Current Pandoc counters: 6,245 PHP passes / 0 failures and 6,235 mapped upstream cases. Verification passed after rebase onto current main `c12e4c4023`: `php -l` for `MarkdownReader.php` and `MarkdownReaderFigureCaptionSurgeTest.php`; focused `MarkdownReaderFigureCaptionSurgeTest.php` passed 1 file, 3019 assertions, 0 failures; related Markdown reader/writer gate passed 4 files, 10721 assertions, 0 failures; full `lanes/pandoc/tests` passed 74 files, 106075 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 6,305 PHP passes / 0 failures and 6,295 mapped upstream cases. Verification passed after rebase onto current main `3df651d289`: `php -l` for `MarkdownReader.php` and `MarkdownReaderCaptionSourceNumberedSurgeTest.php`; focused caption-source coverage passed 1 file, 871 assertions, 0 failures; full `lanes/pandoc/tests` passed 75 files, 106946 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
