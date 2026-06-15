@@ -2747,7 +2747,8 @@ final class MarkdownWriter
             $text .= $this->renderInline(
                 $node,
                 array_slice($nodes, $index + 1),
-                $index === 0 || ($previous instanceof AstNode && ($previous->type === 'softbreak' || $previous->type === 'linebreak'))
+                $index === 0 || ($previous instanceof AstNode && ($previous->type === 'softbreak' || $previous->type === 'linebreak')),
+                $previous instanceof AstNode && $this->shouldEscapeLeadingAttributeBrace($node, $previous)
             );
         }
 
@@ -2770,10 +2771,15 @@ final class MarkdownWriter
     /**
      * @param list<AstNode> $following
      */
-    private function renderInline(AstNode $node, array $following = [], bool $escapeDefinitionMarker = false): string
+    private function renderInline(
+        AstNode $node,
+        array $following = [],
+        bool $escapeDefinitionMarker = false,
+        bool $escapeLeadingAttributeBrace = false
+    ): string
     {
         return match ($node->type) {
-            'text' => $this->escapeText((string) $node->attr('text', ''), $escapeDefinitionMarker),
+            'text' => $this->escapeText((string) $node->attr('text', ''), $escapeDefinitionMarker, $escapeLeadingAttributeBrace),
             'space' => ' ',
             'softbreak' => $this->softBreakMarkdown(),
             'linebreak' => "\\\n",
@@ -3365,6 +3371,10 @@ final class MarkdownWriter
             return false;
         }
 
+        if ($this->inlineStartsWithReferenceSuffixConflict($next)) {
+            return false;
+        }
+
         if ($next->type === 'softbreak' || $next->type === 'linebreak') {
             return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
         }
@@ -3435,7 +3445,44 @@ final class MarkdownWriter
         return str_starts_with($text, '[')
             || str_starts_with($text, '(')
             || str_starts_with($text, ':')
+            || str_starts_with($text, '{')
             || str_starts_with($text, ' [');
+    }
+
+    private function inlineStartsWithReferenceSuffixConflict(AstNode $node): bool
+    {
+        if ($node->type === 'note') {
+            return true;
+        }
+
+        if ($node->type === 'small_caps' || $node->type === 'underline') {
+            return true;
+        }
+
+        if ($node->type === 'span') {
+            $attrs = $this->linkAttrTuple($node);
+
+            return $attrs['id'] !== ''
+                || $attrs['classes'] !== []
+                || $attrs['attributes'] !== [];
+        }
+
+        if ($node->type === 'strikeout') {
+            return $this->linkAttrTuple($node) !== ['id' => '', 'classes' => [], 'attributes' => []];
+        }
+
+        if ($node->type === 'superscript' || $node->type === 'subscript') {
+            return $this->linkAttrTuple($node) !== ['id' => '', 'classes' => [], 'attributes' => []];
+        }
+
+        return false;
+    }
+
+    private function shouldEscapeLeadingAttributeBrace(AstNode $node, AstNode $previous): bool
+    {
+        return $node->type === 'text'
+            && str_starts_with((string) $node->attr('text', ''), '{')
+            && in_array($previous->type, ['link', 'image'], true);
     }
 
     private function delimitInlineContent(string $opener, string $closer, string $content): string
@@ -3471,7 +3518,11 @@ final class MarkdownWriter
         return preg_replace('/(?<!\\\\)\$/', '\\\$', $text) ?? $text;
     }
 
-    private function escapeText(string $text, bool $escapeDefinitionMarker = true): string
+    private function escapeText(
+        string $text,
+        bool $escapeDefinitionMarker = true,
+        bool $escapeLeadingAttributeBrace = false
+    ): string
     {
         $escaped = '';
         $length = strlen($text);
@@ -3481,6 +3532,13 @@ final class MarkdownWriter
         for ($i = 0; $i < $length; $i++) {
             $char = $text[$i];
             $tail = substr($text, $i);
+
+            if ($i === 0 && $escapeLeadingAttributeBrace && $char === '{') {
+                $escaped .= '\\{';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
 
             if ($char === "\n") {
                 $escaped .= "\n";
