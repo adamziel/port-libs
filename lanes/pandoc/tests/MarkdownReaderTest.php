@@ -7859,6 +7859,44 @@ return [
         $t->contains('<td>魚</td><td>fish</td>', $blocks);
         $t->contains('<td></td><td></td>', $blocks);
     },
+    'maps upstream markdown reader more grid table deferred caption markers' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '+-------+-------+',
+            '| Term  | Count |',
+            '+=======+=======+',
+            '| Alpha | 7     |',
+            '+-------+-------+',
+            '',
+            'Table: Review *caption* for source tables.',
+        ]));
+        $captionDocument = (new MarkdownReader())->read(implode("\n", [
+            '+-------+-------+',
+            '| Term  | Count |',
+            '+=======+=======+',
+            '| Beta  | 8     |',
+            '+-------+-------+',
+            '',
+            'Caption: Deferred `caption` marker.',
+        ]));
+        $table = $document->children[0];
+        $captionInlines = $table->attr('captionInlines');
+        $captionTable = $captionDocument->children[0];
+        $captionMarkerInlines = $captionTable->attr('captionInlines');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($document->children));
+        $t->same('table', $table->type);
+        $t->same('Review *caption* for source tables.', $table->attr('caption'));
+        $t->same(['text', 'emph', 'text'], array_map(static fn (AstNode $node): string => $node->type, $captionInlines));
+        $t->same('caption', $captionInlines[1]->children[0]->attr('text'));
+        $t->same('Term', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Alpha', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->contains('<figcaption class="wp-element-caption">Review <em>caption</em> for source tables.</figcaption>', $blocks);
+        $t->same(1, count($captionDocument->children));
+        $t->same('Deferred `caption` marker.', $captionTable->attr('caption'));
+        $t->same('code', $captionMarkerInlines[1]->type);
+        $t->same('caption', $captionMarkerInlines[1]->attr('text'));
+    },
     'maps upstream markdown reader more grid tables with multiple block children' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             'Multiple blocks in a cell',

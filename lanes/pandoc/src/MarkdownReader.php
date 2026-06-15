@@ -14380,8 +14380,15 @@ final class MarkdownReader
             $captionCursor++;
         }
 
+        $captionLine = null;
         if ($captionCursor < $count && preg_match('/^ {0,3}:\s*(.*)$/', $lines[$captionCursor], $m) === 1) {
-            $caption = [trim($m[1])];
+            $captionLine = $m[1];
+        } elseif ($captionCursor < $count && preg_match('/^ {0,3}(?:Table|Caption):\s*(.*)$/i', $lines[$captionCursor], $m) === 1) {
+            $captionLine = $m[1];
+        }
+
+        if ($captionLine !== null) {
+            $caption = [trim($captionLine)];
             $next = $captionCursor + 1;
             while (
                 $next < $count
