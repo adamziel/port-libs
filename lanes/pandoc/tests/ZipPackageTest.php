@@ -11784,6 +11784,124 @@ return [
         $t->same(strlen($mediaBytes), $safeSummary['entries'][2]['bytesRead']);
     },
 
+    'summarizes selected zero byte zip handoff buckets before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>selected zero byte handoff</w:p></w:body></w:document>';
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/empty.bin',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/empty-deflated.bin',
+                'data' => '',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/empty-dir/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]));
+        $emptyDeflatedCompressed = strlen(gzdeflate(''));
+        $emptyStoredFile = [
+            'name' => 'word/media/empty.bin',
+            'compressionMethod' => 0,
+            'isDirectory' => false,
+            'compressedSize' => 0,
+            'uncompressedSize' => 0,
+            'expansionRatio' => 0.0,
+        ];
+        $emptyDeflatedFile = [
+            'name' => 'word/media/empty-deflated.bin',
+            'compressionMethod' => 8,
+            'isDirectory' => false,
+            'compressedSize' => $emptyDeflatedCompressed,
+            'uncompressedSize' => 0,
+            'expansionRatio' => 0.0,
+        ];
+        $emptyDirectory = [
+            'name' => 'word/media/empty-dir/',
+            'compressionMethod' => 0,
+            'isDirectory' => true,
+            'compressedSize' => 0,
+            'uncompressedSize' => 0,
+            'expansionRatio' => 0.0,
+        ];
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => '/word/media/empty.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/empty-deflated.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/empty-dir/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/media/missing.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+        ], 2048);
+
+        $t->same(5, $summary['requestedEntryCount']);
+        $t->same(4, $summary['presentEntryCount']);
+        $t->same(4, $summary['selectedUniqueEntryCount']);
+        $t->same(3, $summary['selectedFileEntryCount']);
+        $t->same(1, $summary['selectedDirectoryEntryCount']);
+        $t->same(3, $summary['selectedZeroByteEntryCount']);
+        $t->same(2, $summary['selectedZeroByteFileCount']);
+        $t->same(1, $summary['selectedEmptyDirectoryEntryCount']);
+        $t->same(true, $summary['selectedHasZeroByteEntries']);
+        $t->same([$emptyStoredFile, $emptyDeflatedFile, $emptyDirectory], $summary['selectedZeroByteEntries']);
+        $t->same(4, $summary['handoffEntryCount']);
+        $t->same(4, $summary['readableEntryCount']);
+        $t->same(0, $summary['failedEntryCount']);
+        $t->same(3, $summary['handoffZeroByteEntryCount']);
+        $t->same(2, $summary['handoffZeroByteFileCount']);
+        $t->same(1, $summary['handoffEmptyDirectoryEntryCount']);
+        $t->same(true, $summary['handoffHasZeroByteEntries']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+
+        $emptyStoredHandoff = [
+            'requestIndex' => 1,
+            'requestedName' => '/word/media/empty.bin',
+            'name' => 'word/media/empty.bin',
+            'role' => 'attachment',
+            'required' => false,
+            'expectedKind' => 'file',
+        ] + $emptyStoredFile;
+        $emptyDeflatedHandoff = [
+            'requestIndex' => 2,
+            'requestedName' => 'word/media/empty-deflated.bin',
+            'name' => 'word/media/empty-deflated.bin',
+            'role' => 'attachment',
+            'required' => false,
+            'expectedKind' => 'file',
+        ] + $emptyDeflatedFile;
+        $emptyDirectoryHandoff = [
+            'requestIndex' => 3,
+            'requestedName' => 'word/media/empty-dir/',
+            'name' => 'word/media/empty-dir/',
+            'role' => 'media-directory',
+            'required' => false,
+            'expectedKind' => 'directory',
+        ] + $emptyDirectory;
+        $t->same([$emptyStoredHandoff, $emptyDeflatedHandoff, $emptyDirectoryHandoff], $summary['handoffZeroByteEntries']);
+
+        $emptyStoredEntry = $summary['entries'][1];
+        $emptyDeflatedEntry = $summary['entries'][2];
+        $emptyDirectoryEntry = $summary['entries'][3];
+        $missingEntry = $summary['entries'][4];
+        $t->same(0, $emptyStoredEntry['bytesRead']);
+        $t->same(0, $emptyDeflatedEntry['bytesRead']);
+        $t->same(0, $emptyDirectoryEntry['bytesRead']);
+        $t->same(hash('sha256', ''), $emptyStoredEntry['contentSha256']);
+        $t->same(hash('sha256', ''), $emptyDeflatedEntry['contentSha256']);
+        $t->same(hash('sha256', ''), $emptyDirectoryEntry['contentSha256']);
+        $t->same('missing-optional', $missingEntry['status']);
+        $t->same([], $summary['failedEntries']);
+    },
+
     'preflights selected zip package expansion before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected expansion review</w:p></w:body></w:document>';
         $zeroCompressedName = 'word/media/zero-compressed.bin';
