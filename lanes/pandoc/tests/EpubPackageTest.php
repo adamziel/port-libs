@@ -5262,14 +5262,15 @@ XML;
         $report = $summary['compactPackageReport'];
         $casesById = $report['casesById'];
 
-        $t->same(15, $report['caseCount']);
-        $t->same(13, $report['presentCaseCount']);
+        $t->same(16, $report['caseCount']);
+        $t->same(14, $report['presentCaseCount']);
         $t->same(0, $report['diagnosticCaseCount']);
         $t->same(0, $report['diagnosticCount']);
         $t->same([], $report['diagnosticTypes']);
         $t->same([
             'metadata-refinements',
             'metadata-collection-membership',
+            'metadata-item-authoring',
             'package-links',
             'container-links',
             'navigation-sections',
@@ -5286,6 +5287,7 @@ XML;
         ], $report['caseIds']);
         $t->same([
             'metadata-refinements',
+            'metadata-item-authoring',
             'package-links',
             'container-links',
             'navigation-sections',
@@ -5302,6 +5304,7 @@ XML;
         $t->same([
             'metadata-refinements' => 2,
             'metadata-collection-membership' => 0,
+            'metadata-item-authoring' => 7,
             'package-links' => 1,
             'container-links' => 1,
             'navigation-sections' => 2,
@@ -5317,7 +5320,7 @@ XML;
             'ocf-sidecars' => 2,
         ], $report['caseCounts']);
         $t->same([
-            'metadata' => 3,
+            'metadata' => 10,
             'ocf' => 3,
             'navigation' => 2,
             'guide' => 2,
@@ -5422,7 +5425,7 @@ XML;
         $packageLinks = $report['casesById']['package-links'];
         $containerLinks = $report['casesById']['container-links'];
 
-        $t->same(15, $report['caseCount']);
+        $t->same(16, $report['caseCount']);
         $t->true(in_array('package-links', $report['presentCaseIds'], true));
         $t->true(in_array('container-links', $report['presentCaseIds'], true));
         $t->same(['package-links', 'container-links'], $report['diagnosticCaseIds']);
@@ -8257,6 +8260,102 @@ XML;
         $t->same(true, $authoring['baseResolution']['metadataOnly']);
         $t->same($authoring, $summary['metadataAuthoring']);
         $t->same($authoring, $summary['wordpressImport']['metadataDetails']['metadataAuthoring']);
+    },
+
+    'preserves OPF metadata child authoring attributes for package review handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithMetadataItemAuthoring = str_replace(
+            '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">',
+            '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf" xmlns:review="https://example.invalid/epub-review">',
+            $epub3OpfXml
+        );
+        $opfWithMetadataItemAuthoring = str_replace(
+            '<dc:identifier id="bookid">urn:isbn:9780000000001</dc:identifier>',
+            '<dc:identifier id="bookid" opf:scheme="ISBN">urn:isbn:9780000000001</dc:identifier>',
+            $opfWithMetadataItemAuthoring
+        );
+        $opfWithMetadataItemAuthoring = str_replace(
+            '<dc:title>WordPress Migration Guide</dc:title>',
+            '<dc:title id="title-main" xml:lang="fr" dir="rtl" xml:base="titles/" data-review="title" review:source="wp-import">Guide FR</dc:title>',
+            $opfWithMetadataItemAuthoring
+        );
+        $opfWithMetadataItemAuthoring = str_replace(
+            '<dc:creator id="creator">Data Liberation Team</dc:creator>',
+            '<dc:creator id="creator" xml:lang="pl" dir="ltr" opf:file-as="Team, Data" opf:role="aut">Data Liberation Team</dc:creator>',
+            $opfWithMetadataItemAuthoring
+        );
+        $opfWithMetadataItemAuthoring = str_replace(
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',
+            '<meta id="modified" property="dcterms:modified" refines="#title-main" scheme="dcterms:W3CDTF" xml:lang="en" dir="ltr" xml:base="meta/" data-review="modified">2026-06-03T22:09:50Z</meta>',
+            $opfWithMetadataItemAuthoring
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMetadataItemAuthoring],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $authoring = $metadata['metadataItemAuthoring'];
+        $itemsById = $authoring['itemsById'];
+        $title = $itemsById['title-main'];
+        $creator = $itemsById['creator'];
+        $identifier = $itemsById['bookid'];
+        $modified = $itemsById['modified'];
+        $compactCase = $summary['compactPackageReport']['casesById']['metadata-item-authoring'];
+
+        $t->same(true, $authoring['present']);
+        $t->same(5, $authoring['itemCount']);
+        $t->same(['creator', 'identifier', 'language', 'meta', 'title'], $authoring['kinds']);
+        $t->same(['creator' => 1, 'identifier' => 1, 'language' => 1, 'meta' => 1, 'title' => 1], $authoring['kindCounts']);
+        $t->same(4, $authoring['idItemCount']);
+        $t->same(3, $authoring['languageItemCount']);
+        $t->same(3, $authoring['directionItemCount']);
+        $t->same(2, $authoring['baseItemCount']);
+        $t->same(2, $authoring['schemeItemCount']);
+        $t->same(2, $authoring['customAttributeItemCount']);
+
+        $t->same(1, $title['index']);
+        $t->same('title', $title['kind']);
+        $t->same('dc:title', $title['qualifiedName']);
+        $t->same('fr', $title['language']);
+        $t->same('rtl', $title['direction']);
+        $t->same('titles/', $title['base']);
+        $t->same([
+            'dir' => 'rtl',
+            'id' => 'title-main',
+            'xml:base' => 'titles/',
+            'xml:lang' => 'fr',
+        ], $title['structuralAttributes']);
+        $t->same(['data-review' => 'title', 'review:source' => 'wp-import'], $title['customAttributes']);
+        $t->same('metadata-only-not-applied-to-package-paths', $title['baseResolutionPolicy']);
+        $t->same(false, $title['baseResolution']['appliesToPackagePaths']);
+
+        $t->same('ISBN', $identifier['scheme']);
+        $t->same(['id' => 'bookid', 'opf:scheme' => 'ISBN'], $identifier['structuralAttributes']);
+        $t->same('Team, Data', $creator['structuralAttributes']['opf:file-as']);
+        $t->same('aut', $creator['structuralAttributes']['opf:role']);
+        $t->same(0, $creator['customAttributeCount']);
+
+        $t->same('dcterms:modified', $modified['property']);
+        $t->same('#title-main', $modified['refines']);
+        $t->same('title-main', $modified['subjectId']);
+        $t->same('dcterms:W3CDTF', $modified['scheme']);
+        $t->same(['data-review' => 'modified'], $modified['customAttributes']);
+
+        $t->same($authoring, $summary['metadataItemAuthoring']);
+        $t->same($authoring, $summary['wordpressImport']['metadataItemAuthoring']);
+        $t->same($authoring, $summary['wordpressImport']['metadataDetails']['metadataItemAuthoring']);
+        $t->same($title, $summary['wordpressImport']['metadataItemAuthoringItemsById']['title-main']);
+        $t->same(5, $compactCase['itemCount']);
+        $t->same(2, $compactCase['schemeItemCount']);
+        $t->same(2, $compactCase['customAttributeItemCount']);
     },
 
     'preserves OPF package authoring attributes for package review handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {

@@ -108,6 +108,21 @@ final class EpubPackage
         'xml:base' => true,
         'xml:lang' => true,
     ];
+    private const OPF_METADATA_ITEM_STRUCTURAL_ATTRIBUTES = [
+        'content' => true,
+        'dir' => true,
+        'event' => true,
+        'id' => true,
+        'name' => true,
+        'opf:file-as' => true,
+        'opf:role' => true,
+        'opf:scheme' => true,
+        'property' => true,
+        'refines' => true,
+        'scheme' => true,
+        'xml:base' => true,
+        'xml:lang' => true,
+    ];
     private const OPF_MANIFEST_ITEM_STRUCTURAL_ATTRIBUTES = [
         'dir' => true,
         'fallback' => true,
@@ -606,6 +621,9 @@ final class EpubPackage
         $metadataAuthoring = is_array($this->metadata['metadataAuthoring'] ?? null)
             ? $this->metadata['metadataAuthoring']
             : self::metadataAuthoringReport([], null, null, null, []);
+        $metadataItemAuthoring = is_array($this->metadata['metadataItemAuthoring'] ?? null)
+            ? $this->metadata['metadataItemAuthoring']
+            : self::metadataItemAuthoringReport([]);
         $manifestAuthoring = self::manifestItemAuthoringReport($this->manifestItems);
         $spineAuthoring = self::spineItemrefAuthoringReport($this->spine);
         $collectionAuthoring = self::collectionAuthoringReport($this->collections);
@@ -668,6 +686,7 @@ final class EpubPackage
             'metadata' => $this->metadata,
             'packageAuthoring' => $packageAuthoring,
             'metadataAuthoring' => $metadataAuthoring,
+            'metadataItemAuthoring' => $metadataItemAuthoring,
             'metaPropertyVocabulary' => $metaPropertyVocabulary,
             'metadataRefinementTargets' => $metadataRefinementTargets,
             'collectionMembership' => $collectionMembership,
@@ -736,6 +755,7 @@ final class EpubPackage
                     'packageLanguage' => $this->metadata['packageLanguage'] ?? null,
                     'packageDirection' => $this->metadata['packageDirection'] ?? null,
                     'metadataAuthoring' => $metadataAuthoring,
+                    'metadataItemAuthoring' => $metadataItemAuthoring,
                     'titleDetails' => $this->metadata['titleDetails'] ?? [],
                     'titlesByType' => $this->metadata['titlesByType'] ?? [],
                     'mainTitle' => $this->metadata['mainTitle'] ?? null,
@@ -784,6 +804,10 @@ final class EpubPackage
                     'refinementTargets' => $metadataRefinementTargets,
                 ],
                 'packageAuthoring' => $packageAuthoring,
+                'metadataItemAuthoring' => $metadataItemAuthoring,
+                'metadataItemAuthoringItems' => $metadataItemAuthoring['items'],
+                'metadataItemAuthoringItemsById' => $metadataItemAuthoring['itemsById'],
+                'metadataItemAuthoringCustomAttributeItems' => $metadataItemAuthoring['customAttributeItems'],
                 'metadataPropertyVocabulary' => $metaPropertyVocabulary,
                 'metadataPropertyDiagnostics' => $metaPropertyVocabulary['diagnostics'],
                 'metadataRefinementTargets' => $metadataRefinementTargets,
@@ -1245,6 +1269,27 @@ final class EpubPackage
                 'localLinkedResourceCount' => (int) ($collectionMembership['localLinkedResourceCount'] ?? 0),
                 'externalLinkedResourceCount' => (int) ($collectionMembership['externalLinkedResourceCount'] ?? 0),
                 'missingLinkedResourceCount' => (int) ($collectionMembership['missingLinkedResourceCount'] ?? 0),
+            ],
+        );
+
+        $metadataItemAuthoring = is_array($metadata['metadataItemAuthoring'] ?? null)
+            ? $metadata['metadataItemAuthoring']
+            : self::metadataItemAuthoringReport([]);
+        $appendCase(
+            'metadata-item-authoring',
+            'metadata',
+            'OPF metadata child authoring attributes',
+            (int) ($metadataItemAuthoring['itemCount'] ?? 0),
+            [],
+            [
+                'kindCounts' => is_array($metadataItemAuthoring['kindCounts'] ?? null) ? $metadataItemAuthoring['kindCounts'] : [],
+                'idItemCount' => (int) ($metadataItemAuthoring['idItemCount'] ?? 0),
+                'languageItemCount' => (int) ($metadataItemAuthoring['languageItemCount'] ?? 0),
+                'directionItemCount' => (int) ($metadataItemAuthoring['directionItemCount'] ?? 0),
+                'baseItemCount' => (int) ($metadataItemAuthoring['baseItemCount'] ?? 0),
+                'schemeItemCount' => (int) ($metadataItemAuthoring['schemeItemCount'] ?? 0),
+                'customAttributeItemCount' => (int) ($metadataItemAuthoring['customAttributeItemCount'] ?? 0),
+                'itemsById' => is_array($metadataItemAuthoring['itemsById'] ?? null) ? $metadataItemAuthoring['itemsById'] : [],
             ],
         );
 
@@ -4377,6 +4422,7 @@ final class EpubPackage
         $identifiers = [];
         $dc = [];
         $meta = [];
+        $metadataItemAuthoringItems = [];
         $metaProperties = [];
         $propertyValues = [];
         $refinementsById = [];
@@ -4407,6 +4453,8 @@ final class EpubPackage
                     continue;
                 }
 
+                $attributes = self::elementAttributes($child);
+                $customAttributes = self::metadataItemCustomAttributes($attributes);
                 $entry = [
                     'name' => $child->localName,
                     'text' => $value,
@@ -4415,8 +4463,21 @@ final class EpubPackage
                     'event' => self::metadataElementEvent($child),
                     'language' => self::metadataElementLanguage($child),
                     'direction' => self::metadataElementDirection($child),
+                    'base' => self::metadataElementBase($child),
+                    'attributes' => $attributes,
+                    'attributeCount' => count($attributes),
+                    'customAttributes' => $customAttributes,
+                    'customAttributeCount' => count($customAttributes),
                     'refinements' => [],
                 ];
+                $metadataItemAuthoringItems[] = self::metadataItemAuthoringItem(
+                    $child,
+                    count($metadataItemAuthoringItems),
+                    $value,
+                    $entry,
+                    $attributes,
+                    $customAttributes,
+                );
                 $dc[$child->localName][] = $entry;
 
                 if ($child->localName === 'title') {
@@ -4454,6 +4515,8 @@ final class EpubPackage
             $content = $child->hasAttribute('content') ? $child->getAttribute('content') : self::normalizeText($child->textContent);
             $refines = $child->hasAttribute('refines') ? $child->getAttribute('refines') : null;
             $subjectId = self::metadataRefinementSubject($refines);
+            $attributes = self::elementAttributes($child);
+            $customAttributes = self::metadataItemCustomAttributes($attributes);
             $entry = [
                 'property' => $property,
                 'name' => $name,
@@ -4465,7 +4528,20 @@ final class EpubPackage
                 'subjectId' => $subjectId,
                 'language' => self::metadataElementLanguage($child),
                 'direction' => self::metadataElementDirection($child),
+                'base' => self::metadataElementBase($child),
+                'attributes' => $attributes,
+                'attributeCount' => count($attributes),
+                'customAttributes' => $customAttributes,
+                'customAttributeCount' => count($customAttributes),
             ];
+            $metadataItemAuthoringItems[] = self::metadataItemAuthoringItem(
+                $child,
+                count($metadataItemAuthoringItems),
+                $content,
+                $entry,
+                $attributes,
+                $customAttributes,
+            );
             $entry['propertyVocabulary'] = self::metadataMetaPropertyTokenReport(
                 $property,
                 $prefixBindings,
@@ -4539,6 +4615,7 @@ final class EpubPackage
             'packageAttributes' => $packageAttributes,
             'packageCustomAttributes' => $packageCustomAttributes,
             'metadataAuthoring' => $metadataAuthoring,
+            'metadataItemAuthoring' => self::metadataItemAuthoringReport($metadataItemAuthoringItems),
             'version' => $packageVersion,
             'uniqueIdentifierId' => $uniqueIdentifierId,
             'uniqueIdentifier' => $uniqueIdentifier,
@@ -7375,6 +7452,28 @@ final class EpubPackage
      *
      * @return array<string, string>
      */
+    private static function metadataItemCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OPF_METADATA_ITEM_STRUCTURAL_ATTRIBUTES[$name]) || $name === 'xmlns' || str_starts_with($name, 'xmlns:')) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
     private static function manifestItemCustomAttributes(array $attributes): array
     {
         $custom = [];
@@ -7649,6 +7748,144 @@ final class EpubPackage
                 'appliesToPackagePaths' => false,
                 'policy' => $base === null ? null : 'reported-not-applied-to-package-paths',
             ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @param array<string, string> $attributes
+     * @param array<string, string> $customAttributes
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataItemAuthoringItem(
+        \DOMElement $element,
+        int $index,
+        string $value,
+        array $entry,
+        array $attributes,
+        array $customAttributes
+    ): array {
+        $structuralAttributes = [];
+        foreach ($attributes as $name => $attributeValue) {
+            if (!is_string($name) || !is_string($attributeValue)) {
+                continue;
+            }
+            if (!isset(self::OPF_METADATA_ITEM_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+
+            $structuralAttributes[$name] = $attributeValue;
+        }
+
+        $base = is_string($entry['base'] ?? null) ? $entry['base'] : null;
+
+        return [
+            'index' => $index,
+            'kind' => $element->localName,
+            'name' => $element->localName,
+            'qualifiedName' => self::qualifiedElementName($element),
+            'namespace' => $element->namespaceURI ?? '',
+            'prefix' => $element->prefix ?? '',
+            'value' => $value,
+            'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+            'property' => is_string($entry['property'] ?? null) ? $entry['property'] : null,
+            'refines' => is_string($entry['refines'] ?? null) ? $entry['refines'] : null,
+            'subjectId' => is_string($entry['subjectId'] ?? null) ? $entry['subjectId'] : null,
+            'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+            'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+            'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+            'base' => $base,
+            'attributes' => $attributes,
+            'attributeCount' => count($attributes),
+            'structuralAttributes' => $structuralAttributes,
+            'structuralAttributeCount' => count($structuralAttributes),
+            'customAttributes' => $customAttributes,
+            'customAttributeCount' => count($customAttributes),
+            'hasLanguage' => is_string($entry['language'] ?? null) && $entry['language'] !== '',
+            'hasDirection' => is_string($entry['direction'] ?? null) && $entry['direction'] !== '',
+            'hasBase' => $base !== null,
+            'hasScheme' => is_string($entry['scheme'] ?? null) && $entry['scheme'] !== '',
+            'hasCustomAttributes' => $customAttributes !== [],
+            'baseResolutionPolicy' => $base === null ? null : 'metadata-only-not-applied-to-package-paths',
+            'baseResolution' => [
+                'metadataOnly' => $base !== null,
+                'appliesToPackagePaths' => false,
+                'policy' => $base === null ? null : 'metadata-only-not-applied-to-package-paths',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $metadataItems
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataItemAuthoringReport(array $metadataItems): array
+    {
+        $items = [];
+        $itemsById = [];
+        $itemsByKind = [];
+        $kindCounts = [];
+        $languageItems = [];
+        $directionItems = [];
+        $baseItems = [];
+        $schemeItems = [];
+        $customAttributeItems = [];
+
+        foreach ($metadataItems as $item) {
+            $kind = is_string($item['kind'] ?? null) && $item['kind'] !== ''
+                ? $item['kind']
+                : 'unknown';
+            $id = is_string($item['id'] ?? null) ? $item['id'] : null;
+
+            $items[] = $item;
+            $itemsByKind[$kind][] = $item;
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+            if ($id !== null && $id !== '') {
+                $itemsById[$id] = $item;
+            }
+            if (($item['hasLanguage'] ?? false) === true) {
+                $languageItems[] = $item;
+            }
+            if (($item['hasDirection'] ?? false) === true) {
+                $directionItems[] = $item;
+            }
+            if (($item['hasBase'] ?? false) === true) {
+                $baseItems[] = $item;
+            }
+            if (($item['hasScheme'] ?? false) === true) {
+                $schemeItems[] = $item;
+            }
+            if (($item['hasCustomAttributes'] ?? false) === true) {
+                $customAttributeItems[] = $item;
+            }
+        }
+
+        ksort($itemsById, SORT_STRING);
+        ksort($itemsByKind, SORT_STRING);
+        ksort($kindCounts, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'itemsByKind' => $itemsByKind,
+            'kindCount' => count($kindCounts),
+            'kinds' => array_keys($kindCounts),
+            'kindCounts' => $kindCounts,
+            'idItemCount' => count($itemsById),
+            'languageItemCount' => count($languageItems),
+            'languageItems' => $languageItems,
+            'directionItemCount' => count($directionItems),
+            'directionItems' => $directionItems,
+            'baseItemCount' => count($baseItems),
+            'baseItems' => $baseItems,
+            'schemeItemCount' => count($schemeItems),
+            'schemeItems' => $schemeItems,
+            'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeItems' => $customAttributeItems,
         ];
     }
 
