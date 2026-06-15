@@ -15924,7 +15924,7 @@ final class MarkdownReader
         }
 
         if ($firstText !== '' && $this->isListItemInitialCodeBlock($marker)) {
-            [$codeBlock, $cursor] = $this->readListItemInitialCodeBlock($lines, $cursor + 1, $contentIndent, $firstText);
+            [$codeBlock, $cursor] = $this->readListItemInitialCodeBlock($lines, $cursor + 1, $contentIndent, $firstText, $marker['padding']);
             $parts[] = $codeBlock;
         } elseif ($firstText !== '') {
             $task = $this->stripTaskListMarker($firstText);
@@ -16376,9 +16376,15 @@ final class MarkdownReader
      * @param list<string> $lines
      * @return array{0: AstNode, 1: int}
      */
-    private function readListItemInitialCodeBlock(array $lines, int $cursor, int $contentIndent, string $firstText): array
+    private function readListItemInitialCodeBlock(
+        array $lines,
+        int $cursor,
+        int $contentIndent,
+        string $firstText,
+        int $markerPadding
+    ): array
     {
-        $content = [rtrim($firstText)];
+        $content = [str_repeat(' ', max(0, $markerPadding - 5)) . rtrim($firstText)];
         $count = count($lines);
 
         while ($cursor < $count) {
@@ -16391,22 +16397,23 @@ final class MarkdownReader
 
                 if (
                     $next < $count
-                    && $this->countIndentColumns($lines[$next]) >= $contentIndent
-                    && $this->matchListMarker($lines[$next], $next) === null
+                    && $this->countIndentColumns($lines[$next]) >= $contentIndent + 4
                 ) {
-                    $content[] = '';
-                    $cursor++;
+                    while ($cursor < $next) {
+                        $content[] = '';
+                        $cursor++;
+                    }
                     continue;
                 }
 
                 break;
             }
 
-            if ($this->countIndentColumns($line) < $contentIndent) {
+            if ($this->countIndentColumns($line) < $contentIndent + 4) {
                 break;
             }
 
-            $content[] = rtrim($this->stripIndentColumns($line, $contentIndent));
+            $content[] = rtrim($this->stripIndentColumns($line, $contentIndent + 4));
             $cursor++;
         }
 
@@ -16705,7 +16712,9 @@ final class MarkdownReader
 
     private function listMarkerContentIndent(int $indent, int $markerWidth, int $padding): int
     {
-        return $indent + $markerWidth + max(1, $padding);
+        $normalizedPadding = $padding > 4 ? 1 : max(1, $padding);
+
+        return $indent + $markerWidth + $normalizedPadding;
     }
 
     private function isSameListMarker(
