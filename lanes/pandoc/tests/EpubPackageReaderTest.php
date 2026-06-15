@@ -4048,6 +4048,76 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports direct package spine page-spread itemref properties' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-spine-page-spread-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-spine-page-spread-review</dc:identifier>
+    <dc:title>Spine Page Spread Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="appendix" href="appendix.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref id="chapter-spine" idref="chapter" properties="rendition:page-spread-left page-spread-left"/>
+    <itemref id="appendix-spine" idref="appendix" linear="no" properties="page-spread-right rendition:page-spread-center"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable chapter.</p></body></html>');
+            $writePackageFile($root, 'EPUB/appendix.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Nonlinear appendix.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $spine = $epub['spine'];
+            $spineReport = $epub['spineReport'];
+
+            $t->same('left', $spine[0]['pageSpread']);
+            $t->same(['rendition:page-spread-left', 'page-spread-left'], $spine[0]['pageSpreadProperties']);
+            $t->same(false, $spine[0]['spineItemProperties']['pageSpread']['conflicting']);
+            $t->same([], $spine[0]['spineItemDiagnostics']);
+            $t->same([], $spine[0]['diagnostics']);
+
+            $t->same('right', $spine[1]['pageSpread']);
+            $t->same(['page-spread-right', 'rendition:page-spread-center'], $spine[1]['pageSpreadProperties']);
+            $t->same(true, $spine[1]['spineItemProperties']['pageSpread']['conflicting']);
+            $t->same(['right', 'center'], $spine[1]['spineItemProperties']['pageSpread']['placements']);
+            $t->same(['conflicting-spine-page-spread-properties'], array_column($spine[1]['spineItemDiagnostics'], 'type'));
+            $t->same(['conflicting-spine-page-spread-properties'], array_column($spine[1]['diagnostics'], 'type'));
+
+            $t->same(2, $spineReport['pageSpreadCount']);
+            $t->same(1, $spineReport['pageSpreadLeftCount']);
+            $t->same(1, $spineReport['pageSpreadRightCount']);
+            $t->same(0, $spineReport['pageSpreadCenterCount']);
+            $t->same('chapter-spine', $spineReport['pageSpreadItems'][0]['id']);
+            $t->same('left', $spineReport['pageSpreadItems'][0]['placement']);
+            $t->same(false, $spineReport['pageSpreadItems'][0]['conflicting']);
+            $t->same('appendix-spine', $spineReport['pageSpreadItems'][1]['id']);
+            $t->same('right', $spineReport['pageSpreadItems'][1]['placement']);
+            $t->same(true, $spineReport['pageSpreadItems'][1]['conflicting']);
+            $t->same(1, $spineReport['itemDiagnosticCount']);
+            $t->same('conflicting-spine-page-spread-properties', $spineReport['itemDiagnostics'][0]['type']);
+            $t->same('appendix', $spineReport['itemDiagnostics'][0]['idref']);
+            $t->same(1, $spineReport['diagnosticCount']);
+            $t->same(['conflicting-spine-page-spread-properties'], array_column($spineReport['diagnostics'], 'type'));
+            $t->same($spineReport['pageSpreadItems'], $epub['spinePageSpreadItems']);
+            $t->same($spineReport['itemDiagnostics'], $epub['spineItemDiagnostics']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'rejects missing epub package directories before parsing' => static function (TestRunner $t): void {
         $t->throws(\RuntimeException::class, static function (): void {
             (new EpubPackageReader())->readDirectory(dirname(__DIR__) . '/fixtures/missing-epub-package');
