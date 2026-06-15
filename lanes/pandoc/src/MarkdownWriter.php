@@ -1207,7 +1207,7 @@ final class MarkdownWriter
         $delimiter = $this->orderedListMarkerDelimiter($node);
 
         if ($style === 'example') {
-            return $this->padOrderedListMarker('(@' . $this->numberedExampleLabel($item) . ')');
+            return $this->padOrderedListMarker('(@' . $this->numberedExampleLabel($item, $node) . ')');
         }
 
         if ($style === 'default') {
@@ -1240,14 +1240,26 @@ final class MarkdownWriter
         return $marker . ' ';
     }
 
-    private function numberedExampleLabel(?AstNode $item): string
+    private function numberedExampleLabel(?AstNode $item, ?AstNode $list = null): string
     {
-        if (!$item instanceof AstNode) {
-            return '';
+        foreach ([$item, $list] as $node) {
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            $label = $this->numberedExampleLabelFromNode($node);
+            if ($label !== '') {
+                return $label;
+            }
         }
 
+        return '';
+    }
+
+    private function numberedExampleLabelFromNode(AstNode $node): string
+    {
         foreach (['exampleLabel', 'label'] as $name) {
-            $value = $item->attr($name, '');
+            $value = $node->attr($name, '');
             if (!is_scalar($value)) {
                 continue;
             }
@@ -1258,7 +1270,7 @@ final class MarkdownWriter
             }
         }
 
-        $attributes = $item->attr('attributes', []);
+        $attributes = $node->attr('attributes', []);
         if (is_array($attributes)) {
             foreach (['data-example-label', 'example-label'] as $name) {
                 $value = $attributes[$name] ?? '';
@@ -1355,6 +1367,12 @@ final class MarkdownWriter
         $hasFirstLine = false;
 
         foreach ($item->children as $child) {
+            if (!$hasFirstLine && $inlineChildren === [] && $this->canRenderInitialListCodeBlock($child)) {
+                $lines = $this->appendInitialListCodeBlockLines($lines, $prefix, $indent, $marker, $child);
+                $hasFirstLine = true;
+                continue;
+            }
+
             if ($this->isInlineNode($child)) {
                 $inlineChildren[] = $child;
                 continue;
@@ -1399,6 +1417,42 @@ final class MarkdownWriter
                 $continuationIndent,
                 $this->renderInlines($inlineChildren)
             );
+        }
+
+        return $lines;
+    }
+
+    private function canRenderInitialListCodeBlock(AstNode $node): bool
+    {
+        $text = (string) $node->attr('text', '');
+
+        return $node->type === 'code_block'
+            && $text !== ''
+            && !str_starts_with($text, "\n")
+            && $this->renderCodeBlockAttributes($node) === ''
+            && !(bool) ($this->options['fencedCodeBlocks'] ?? false);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function appendInitialListCodeBlockLines(
+        array $lines,
+        string $prefix,
+        int $indent,
+        string $marker,
+        AstNode $node
+    ): array {
+        $markerPadding = strlen($marker) - strlen(rtrim($marker, ' '));
+        $additionalPadding = str_repeat(' ', max(0, 5 - $markerPadding));
+        $continuationIndent = $indent + strlen($marker) + strlen($additionalPadding);
+        $codeLines = explode("\n", (string) $node->attr('text', ''));
+        $first = array_shift($codeLines);
+
+        $lines[] = rtrim($prefix . $additionalPadding . (string) $first);
+        foreach ($codeLines as $line) {
+            $lines[] = str_repeat(' ', $continuationIndent) . $line;
         }
 
         return $lines;

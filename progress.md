@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 6,305 pass / 0 fail | [6,295 / 2,276 (276.6%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Monitor the next Pandoc upstream gap; this slice is validated | pandoc-markdown-writer-inline-link-escape-completion-surge |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 6,355 pass / 0 fail | [6,345 / 2,276 (278.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Run focused/full Markdown writer block/list/code validation while keeping phpFail at zero | pandoc-markdown-writer-list-style-code-surge |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -30,6 +30,13 @@ Input scope after skipping IPYNB:
 
 Focused test counts below are evidence counters, not a strict remaining-test burn-down. Percentages above 100% mean the local PHP tests are more granular than the upstream case counter available for that family; they do not claim upstream runner parity.
 
+### Markdown Writer List Style/Code Surge (2026-06-15)
+
+Bounded native PHP Markdown writer coverage advances by 50 upstream-mapped Markdown/CommonMark/GFM list/code cases after rebase onto current main `ff183ef1a3`. `MarkdownWriter` emits Pandoc default ordered markers (`#.` and `#)`), numbered example markers with optional labels, and compact indented code-only list items for bullet, decimal, default, example, alpha, and roman markers while keeping attributed or forced code blocks fenced and preserving the current inline/link/escape completion behavior.
+
+Validation passed after conflict resolution: `php -l` for `MarkdownWriter.php`, `MarkdownWriterBlockListCodeSurgeTest.php`, and `MarkdownReaderTest.php`; focused `MarkdownWriterBlockListCodeSurgeTest.php` (`1` file, `425` assertions, `0` failures); focused Markdown writer/readback cluster (`6` files, `11,099` assertions, `0` failures); full `lanes/pandoc/tests` (`75` files, `106,245` assertions, `0` failures); JSON validation; `git diff --check`; and exact conflict-marker scan. No Pandoc binary, cmark/commonmark runner, Cabal/Haskell runner, browser renderer, Node tooling, online service, live provider test, live-service provider test, or external validator is invoked.
+
+Markdown/CommonMark/GFM evidence is now 2,497 local mapped cases against the 1,096 accepted static upstream Markdown rows. The native PHP Markdown reader/writer remains partial pending broader metadata/raw/extension parity.
 ### Markdown Writer Inline Link Escape Completion Surge (2026-06-15)
 
 Bounded native PHP Markdown writer coverage advances by 60 upstream-mapped inline/link/escape completion cases after rebase onto current main `3df651d289`. `MarkdownWriter` escapes citation-looking `@` markers after whitespace, punctuation, softbreaks, hardbreaks, and nested inline labels; only emits compact autolinks for valid 2-32 character URI schemes or valid mailto email addresses with matching `.uri`/`.email` classes; and serializes inline attribute identifiers/values on one line with escaped whitespace/control/braces while preserving current figure-caption, native-div, and URL-normalization coverage.

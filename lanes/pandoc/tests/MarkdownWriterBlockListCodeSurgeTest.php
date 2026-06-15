@@ -472,4 +472,302 @@ foreach ($writerCases as $name => $case) {
     };
 }
 
+$text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+$paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
+$heading = static fn (string $value): AstNode => new AstNode('heading', ['level' => 1], [$text($value)]);
+$listItem = static fn (array $children, array $attrs = []): AstNode => new AstNode('list_item', $attrs, $children);
+$textItem = static fn (string $value, array $attrs = []): AstNode => $listItem([$text($value)], $attrs);
+$bulletList = static fn (array $items, array $attrs = []): AstNode => new AstNode('bullet_list', $attrs, $items);
+$orderedList = static fn (array $items, array $attrs = []): AstNode => new AstNode('ordered_list', $attrs, $items);
+$blockquote = static fn (array $children): AstNode => new AstNode('blockquote', [], $children);
+$div = static fn (array $children = [], array $attrs = []): AstNode => new AstNode('div', $attrs, $children);
+
+$findFirst = static function (AstNode $node, string $type) use (&$findFirst): ?AstNode {
+    if ($node->type === $type) {
+        return $node;
+    }
+
+    foreach ($node->children as $child) {
+        $found = $findFirst($child, $type);
+        if ($found instanceof AstNode) {
+            return $found;
+        }
+    }
+
+    return null;
+};
+
+$pandocListStyleCases = [
+    '01 default period marker simple list' => [
+        'document' => $document($orderedList([$textItem('alpha'), $textItem('beta')], ['style' => 'default'])),
+        'expected' => "#.  alpha\n#.  beta",
+        'listAttrs' => ['style' => 'default', 'delimiter' => 'default'],
+    ],
+    '02 default one paren marker simple list' => [
+        'document' => $document($orderedList([$textItem('alpha'), $textItem('beta')], ['style' => 'default', 'delimiter' => 'one_paren'])),
+        'expected' => "#)  alpha\n#)  beta",
+        'listAttrs' => ['style' => 'default', 'delimiter' => 'default'],
+    ],
+    '03 default marker task item open' => [
+        'document' => $document($orderedList([$textItem('todo', ['taskChecked' => false])], ['style' => 'default'])),
+        'expected' => '#.  [ ] todo',
+        'taskChecked' => false,
+    ],
+    '04 default marker task item checked' => [
+        'document' => $document($orderedList([$textItem('done', ['taskChecked' => true])], ['style' => 'default'])),
+        'expected' => '#.  [x] done',
+        'taskChecked' => true,
+    ],
+    '05 default marker second paragraph continuation' => [
+        'document' => $document($orderedList([$listItem([$paragraph('alpha'), $paragraph('beta')])], ['style' => 'default'])),
+        'expected' => "#.  alpha\n\n    beta",
+    ],
+    '06 default marker loose list spacing' => [
+        'document' => $document($orderedList([$textItem('one'), $textItem('two')], ['style' => 'default', 'loose' => true])),
+        'expected' => "#.  one\n\n#.  two",
+    ],
+    '07 default marker nested bullet list' => [
+        'document' => $document($orderedList([$listItem([$text('alpha'), $bulletList([$textItem('beta')])])], ['style' => 'default'])),
+        'expected' => "#.  alpha\n    - beta",
+    ],
+    '08 default marker nested decimal list' => [
+        'document' => $document($orderedList([$listItem([$text('alpha'), $orderedList([$textItem('beta')])])], ['style' => 'default'])),
+        'expected' => "#.  alpha\n    1.  beta",
+    ],
+    '09 default marker nested blockquote' => [
+        'document' => $document($orderedList([$listItem([$text('alpha'), $blockquote([$paragraph('quote')])])], ['style' => 'default'])),
+        'expected' => "#.  alpha\n    > quote",
+    ],
+    '10 default marker code after text' => [
+        'document' => $document($orderedList([$listItem([$text('alpha'), $codeBlock('echo alpha')])], ['style' => 'default'])),
+        'expected' => "#.  alpha\n        echo alpha",
+    ],
+    '11 default marker starts code item' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha')])], ['style' => 'default'])),
+        'expected' => '#.     echo alpha',
+        'codeText' => 'echo alpha',
+    ],
+    '12 default marker starts multiline code item' => [
+        'document' => $document($orderedList([$listItem([$codeBlock("echo alpha\necho beta")])], ['style' => 'default'])),
+        'expected' => "#.     echo alpha\n       echo beta",
+        'codeText' => "echo alpha\necho beta",
+    ],
+    '13 default marker code item followed by paragraph' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha'), $paragraph('after')])], ['style' => 'default'])),
+        'expected' => "#.     echo alpha\n\n    after",
+    ],
+    '14 default paren marker starts code item' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha')])], ['style' => 'default', 'delimiter' => 'one_paren'])),
+        'expected' => '#)     echo alpha',
+        'codeText' => 'echo alpha',
+    ],
+    '15 adjacent default lists keep html separator' => [
+        'document' => $document(
+            $orderedList([$textItem('one')], ['style' => 'default']),
+            $orderedList([$textItem('two')], ['style' => 'default'])
+        ),
+        'expected' => "#.  one\n\n<!-- -->\n\n#.  two",
+    ],
+    '16 default period then paren lists stay distinct' => [
+        'document' => $document(
+            $orderedList([$textItem('one')], ['style' => 'default']),
+            $orderedList([$textItem('two')], ['style' => 'default', 'delimiter' => 'one_paren'])
+        ),
+        'expected' => "#.  one\n\n#)  two",
+    ],
+    '17 default marker fenced option keeps nested fence' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha')])], ['style' => 'default'])),
+        'options' => ['fencedCodeBlocks' => true],
+        'expected' => "#.\n    ```\n    echo alpha\n    ```",
+    ],
+    '18 default marker attributed code keeps nested fence' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha', ['classes' => ['php']])])], ['style' => 'default'])),
+        'expected' => "#.\n    ```php\n    echo alpha\n    ```",
+    ],
+    '19 default marker nested heading starts block' => [
+        'document' => $document($orderedList([$listItem([$heading('Heading')])], ['style' => 'default'])),
+        'expected' => "#.\n    # Heading",
+    ],
+    '20 default marker nested horizontal rule starts block' => [
+        'document' => $document($orderedList([$listItem([new AstNode('horizontal_rule')])], ['style' => 'default'])),
+        'expected' => "#.\n    * * *",
+    ],
+    '21 example marker simple list' => [
+        'document' => $document($orderedList([$textItem('alpha'), $textItem('beta')], ['style' => 'example'])),
+        'expected' => "(@) alpha\n(@) beta",
+        'listAttrs' => ['style' => 'example', 'delimiter' => 'two_parens'],
+    ],
+    '22 example marker list label fallback' => [
+        'document' => $document($orderedList([$textItem('alpha')], ['style' => 'example', 'exampleLabel' => 'review'])),
+        'expected' => '(@review) alpha',
+    ],
+    '23 example marker item labels' => [
+        'document' => $document($orderedList([
+            $textItem('alpha', ['exampleLabel' => 'first']),
+            $textItem('beta', ['exampleLabel' => 'second']),
+        ], ['style' => 'example'])),
+        'expected' => "(@first) alpha\n(@second) beta",
+    ],
+    '24 example marker second paragraph continuation' => [
+        'document' => $document($orderedList([$listItem([$paragraph('alpha'), $paragraph('beta')])], ['style' => 'example'])),
+        'expected' => "(@) alpha\n\n    beta",
+    ],
+    '25 example marker loose list spacing' => [
+        'document' => $document($orderedList([$textItem('one'), $textItem('two')], ['style' => 'example', 'loose' => true])),
+        'expected' => "(@) one\n\n(@) two",
+    ],
+    '26 example marker nested bullet list' => [
+        'document' => $document($orderedList([$listItem([$text('alpha'), $bulletList([$textItem('beta')])])], ['style' => 'example'])),
+        'expected' => "(@) alpha\n    - beta",
+    ],
+    '27 example marker nested default list' => [
+        'document' => $document($orderedList([$listItem([$text('alpha'), $orderedList([$textItem('beta')], ['style' => 'default'])])], ['style' => 'example'])),
+        'expected' => "(@) alpha\n    #.  beta",
+    ],
+    '28 example marker starts code item' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha')])], ['style' => 'example'])),
+        'expected' => '(@)     echo alpha',
+        'codeText' => 'echo alpha',
+    ],
+    '29 example labeled marker starts code item' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha')], ['exampleLabel' => 'review'])], ['style' => 'example'])),
+        'expected' => '(@review)     echo alpha',
+        'codeText' => 'echo alpha',
+    ],
+    '30 example marker code after text' => [
+        'document' => $document($orderedList([$listItem([$text('alpha'), $codeBlock('echo alpha')])], ['style' => 'example'])),
+        'expected' => "(@) alpha\n        echo alpha",
+    ],
+    '31 example marker task item checked' => [
+        'document' => $document($orderedList([$textItem('done', ['taskChecked' => true])], ['style' => 'example'])),
+        'expected' => '(@) [x] done',
+        'taskChecked' => true,
+    ],
+    '32 example marker nested blockquote' => [
+        'document' => $document($orderedList([$listItem([$text('alpha'), $blockquote([$paragraph('quote')])])], ['style' => 'example'])),
+        'expected' => "(@) alpha\n    > quote",
+    ],
+    '33 example marker nested div block' => [
+        'document' => $document($orderedList([$listItem([$text('alpha'), $div([$paragraph('body')], ['classes' => ['review']])])], ['style' => 'example'])),
+        'expected' => "(@) alpha\n    ::: {.review}\n    body\n    :::",
+    ],
+    '34 adjacent example lists keep html separator' => [
+        'document' => $document(
+            $orderedList([$textItem('one')], ['style' => 'example']),
+            $orderedList([$textItem('two')], ['style' => 'example'])
+        ),
+        'expected' => "(@) one\n\n<!-- -->\n\n(@) two",
+    ],
+    '35 decimal then example lists stay distinct' => [
+        'document' => $document(
+            $orderedList([$textItem('one')]),
+            $orderedList([$textItem('two')], ['style' => 'example'])
+        ),
+        'expected' => "1.  one\n\n(@) two",
+    ],
+    '36 bullet marker starts code item' => [
+        'document' => $document($bulletList([$listItem([$codeBlock('echo alpha')])])),
+        'expected' => '-     echo alpha',
+        'codeText' => 'echo alpha',
+    ],
+    '37 bullet marker starts multiline code item' => [
+        'document' => $document($bulletList([$listItem([$codeBlock("echo alpha\necho beta")])])),
+        'expected' => "-     echo alpha\n      echo beta",
+        'codeText' => "echo alpha\necho beta",
+    ],
+    '38 bullet marker starts code item with internal blank' => [
+        'document' => $document($bulletList([$listItem([$codeBlock("before\n\nafter")])])),
+        'expected' => "-     before\n      \n      after",
+        'codeText' => "before\n\nafter",
+    ],
+    '39 bullet marker code item followed by paragraph' => [
+        'document' => $document($bulletList([$listItem([$codeBlock('echo alpha'), $paragraph('after')])])),
+        'expected' => "-     echo alpha\n\n  after",
+    ],
+    '40 bullet marker code item followed by nested bullet' => [
+        'document' => $document($bulletList([$listItem([$codeBlock('echo alpha'), $bulletList([$textItem('next')])])])),
+        'expected' => "-     echo alpha\n  - next",
+    ],
+    '41 bullet marker attributed code keeps nested fence' => [
+        'document' => $document($bulletList([$listItem([$codeBlock('echo alpha', ['classes' => ['php']])])])),
+        'expected' => "-\n  ```php\n  echo alpha\n  ```",
+    ],
+    '42 decimal marker starts code item' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha')])])),
+        'expected' => '1.     echo alpha',
+        'codeText' => 'echo alpha',
+    ],
+    '43 decimal marker starts multiline code item' => [
+        'document' => $document($orderedList([$listItem([$codeBlock("echo alpha\necho beta")])])),
+        'expected' => "1.     echo alpha\n       echo beta",
+        'codeText' => "echo alpha\necho beta",
+    ],
+    '44 decimal start offset marker starts code item' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha')])], ['start' => 9])),
+        'expected' => '9.     echo alpha',
+        'codeText' => 'echo alpha',
+    ],
+    '45 wide decimal marker starts code item' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha')])], ['start' => 10])),
+        'expected' => '10.     echo alpha',
+        'codeText' => 'echo alpha',
+    ],
+    '46 lower alpha marker starts code item' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha')])], ['style' => 'lower_alpha'])),
+        'expected' => 'a.     echo alpha',
+        'codeText' => 'echo alpha',
+    ],
+    '47 lower roman marker starts code item' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha')])], ['style' => 'lower_roman', 'start' => 4])),
+        'expected' => 'iv.     echo alpha',
+        'codeText' => 'echo alpha',
+    ],
+    '48 bullet marker fenced option keeps nested fence' => [
+        'document' => $document($bulletList([$listItem([$codeBlock('echo alpha')])])),
+        'options' => ['fencedCodeBlocks' => true],
+        'expected' => "-\n  ```\n  echo alpha\n  ```",
+    ],
+    '49 decimal marker fenced option keeps nested fence' => [
+        'document' => $document($orderedList([$listItem([$codeBlock('echo alpha')])])),
+        'options' => ['fencedCodeBlocks' => true],
+        'expected' => "1.\n    ```\n    echo alpha\n    ```",
+    ],
+    '50 example labeled marker starts multiline code item' => [
+        'document' => $document($orderedList([$listItem([$codeBlock("echo alpha\necho beta")], ['exampleLabel' => 'review'])], ['style' => 'example'])),
+        'expected' => "(@review)     echo alpha\n              echo beta",
+        'codeText' => "echo alpha\necho beta",
+    ],
+];
+
+foreach ($pandocListStyleCases as $name => $case) {
+    $tests['maps upstream markdown writer pandoc list style code surge ' . $name] =
+        static function (TestRunner $t) use ($case, $findFirst): void {
+            $markdown = (new MarkdownWriter($case['options'] ?? []))->write($case['document']);
+
+            $t->same($case['expected'], $markdown);
+
+            if (isset($case['listAttrs']) || array_key_exists('taskChecked', $case) || isset($case['codeText'])) {
+                $roundTrip = (new MarkdownReader())->read($markdown);
+                $list = $roundTrip->children[0] ?? null;
+                $t->true($list instanceof AstNode, 'Expected a round-tripped list block');
+                if ($list instanceof AstNode && isset($case['listAttrs'])) {
+                    foreach ($case['listAttrs'] as $attr => $expected) {
+                        $t->same($expected, $list->attr($attr));
+                    }
+                }
+                if ($list instanceof AstNode && array_key_exists('taskChecked', $case)) {
+                    $item = $list->children[0] ?? null;
+                    $t->same($case['taskChecked'], $item instanceof AstNode ? $item->attr('taskChecked') : null);
+                }
+                if (isset($case['codeText'])) {
+                    $code = $findFirst($roundTrip, 'code_block');
+                    $t->true($code instanceof AstNode, 'Expected a round-tripped code block');
+                    if ($code instanceof AstNode) {
+                        $t->same($case['codeText'], $code->attr('text'));
+                    }
+                }
+            }
+        };
+}
+
 return $tests;
