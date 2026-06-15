@@ -281,6 +281,7 @@ final class OpenDocumentPackage
      *     packageScripts:array<string, mixed>,
      *     packageConfigurations:array<string, mixed>,
      *     packageFonts:array<string, mixed>,
+     *     comments:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     settings:array<string, mixed>,
@@ -422,12 +423,20 @@ final class OpenDocumentPackage
 
         $localHeaderOrder = $this->package->localHeaderOrderPreflight();
         $compressionMethods = $this->package->compressionMethodPreflight();
+        $comments = $this->package->commentPreflight();
         $objectPackageRootParts = self::embeddedObjectPackageRootParts($this->manifestEntries);
         $localOrderByName = [];
         foreach ($localHeaderOrder['entries'] as $entry) {
             $name = $entry['name'] ?? null;
             if (is_string($name) && $name !== '') {
                 $localOrderByName[$name] = $entry;
+            }
+        }
+        $commentEntriesByName = [];
+        foreach ($comments['entries'] ?? [] as $entry) {
+            $name = $entry['name'] ?? null;
+            if (is_string($name) && $name !== '') {
+                $commentEntriesByName[$name] = $entry;
             }
         }
 
@@ -477,6 +486,7 @@ final class OpenDocumentPackage
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
             $isUndeclared = !$entry->isDirectory() && !isset($declaredPackagePaths[$entry->name]);
             $localOrder = $localOrderByName[$entry->name] ?? null;
+            $commentEntry = $commentEntriesByName[$entry->name] ?? null;
             $embeddedObjectPackage = self::embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $rawNameProvenance = self::zipEntryRawNameProvenance($entry);
             if ($entry->isDirectory()) {
@@ -507,6 +517,11 @@ final class OpenDocumentPackage
                 'compressedByteLength' => $entry->compressedSize,
                 'crc32' => $entry->crc32Hex(),
                 'byteSha256' => is_array($manifestEntry) ? ($manifestEntry['byteSha256'] ?? null) : null,
+                'zipEntryComment' => $entry->comment,
+                'zipEntryCommentLength' => strlen($entry->rawComment),
+                'zipEntryCommentEncoding' => $entry->commentEncoding,
+                'zipEntryHasComment' => $entry->comment !== '',
+                'zipEntryCommentIssues' => is_array($commentEntry) ? ($commentEntry['issues'] ?? []) : [],
                 'isDirectory' => $entry->isDirectory(),
                 'declaredInManifest' => is_array($manifestEntry),
                 'manifestIndex' => is_array($manifestEntry) ? $manifestEntry['manifestIndex'] : null,
@@ -725,6 +740,11 @@ final class OpenDocumentPackage
             'unsupportedCompressionPartNames' => array_keys($unsupportedCompressionPartNames),
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
+            'comments' => $comments,
+            'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
+            'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
+            'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
+            'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
             'parts' => $parts,
         ];
     }

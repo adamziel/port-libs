@@ -3596,6 +3596,49 @@ XML;
         $t->same(0, $summary['undeclaredPackageEntryCount']);
         $t->same(1, count($summary['mediaParts']), 'settings.xml must remain outside media handoff');
     },
+    'surfaces compact ODT ZIP package comments as metadata-only provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'comment' => 'manifest review'],
+            ['name' => 'content.xml', 'data' => $contentXml, 'comment' => 'body review'],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0, 'comment' => 'media review'],
+        ], 'odt package review');
+
+        $summary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $inventory = $summary['packageInventory'];
+        $comments = $inventory['comments'];
+        $content = $inventory['parts']['content.xml'];
+        $hero = $inventory['parts']['Pictures/hero.png'];
+
+        $t->same($comments, $package->commentPreflight());
+        $t->same($comments, $summary['packageInventory']['comments']);
+        $t->same(true, $comments['hasPackageComment']);
+        $t->same(true, $comments['hasEntryComments']);
+        $t->same(true, $comments['hasComments']);
+        $t->same('odt package review', $comments['packageComment']);
+        $t->same(strlen('odt package review'), $comments['packageCommentLength']);
+        $t->same(3, $comments['entryCommentCount']);
+        $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $comments['commentedEntryNames']);
+        $t->same(true, $inventory['hasPackageComment']);
+        $t->same(true, $inventory['hasEntryComments']);
+        $t->same(3, $inventory['entryCommentCount']);
+        $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $inventory['commentedEntryNames']);
+
+        $t->same('body review', $content['zipEntryComment']);
+        $t->same(strlen('body review'), $content['zipEntryCommentLength']);
+        $t->same('utf-8', $content['zipEntryCommentEncoding']);
+        $t->same(true, $content['zipEntryHasComment']);
+        $t->same([], $content['zipEntryCommentIssues']);
+        $t->same('media review', $hero['zipEntryComment']);
+        $t->same(true, $hero['zipEntryHasComment']);
+        $t->same('package-bytes-exposable', $hero['byteExposurePolicy']);
+        $t->same(1, count($summary['mediaParts']));
+        $t->same('Pictures/hero.png', $summary['mediaParts'][0]['path']);
+        $t->same('odf-package-inventory-metadata-only', $inventory['byteExposurePolicy']);
+        $t->same(false, $inventory['canExposeBytes']);
+    },
     'renders mapped ODT content through the WordPress block writer' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();
         $blocks = (new WordPressBlockWriter())->write($document);

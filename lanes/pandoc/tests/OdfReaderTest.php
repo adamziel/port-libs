@@ -12411,6 +12411,48 @@ XML;
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $manifestWithDuplicateFullPath)));
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $manifestWithDuplicateDecodedPart)));
     },
+    'surfaces ODT ZIP package comments in rich package provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'comment' => 'manifest review'],
+            ['name' => 'content.xml', 'data' => $contentXml, 'comment' => 'body review'],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0, 'comment' => 'media review'],
+        ], 'odt package review');
+
+        $result = (new OdfReader())->readPackage($package);
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $comments = $provenance['comments'];
+        $content = $provenance['parts']['content.xml'];
+        $hero = $provenance['parts']['Pictures/hero.png'];
+
+        $t->same($comments, $package->commentPreflight());
+        $t->same($provenance, $documentProvenance);
+        $t->same(true, $comments['hasPackageComment']);
+        $t->same(true, $comments['hasEntryComments']);
+        $t->same(true, $comments['hasComments']);
+        $t->same('odt package review', $comments['packageComment']);
+        $t->same(3, $comments['entryCommentCount']);
+        $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $comments['commentedEntryNames']);
+        $t->same(true, $provenance['hasPackageComment']);
+        $t->same(true, $provenance['hasEntryComments']);
+        $t->same(3, $provenance['entryCommentCount']);
+        $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $provenance['commentedEntryNames']);
+
+        $t->same('body review', $content['zipEntryComment']);
+        $t->same(strlen('body review'), $content['zipEntryCommentLength']);
+        $t->same('utf-8', $content['zipEntryCommentEncoding']);
+        $t->same(true, $content['zipEntryHasComment']);
+        $t->same([], $content['zipEntryCommentIssues']);
+        $t->same('media review', $hero['zipEntryComment']);
+        $t->same(true, $hero['zipEntryHasComment']);
+        $t->same('package-bytes-exposable', $hero['byteExposurePolicy']);
+        $t->same(1, count($result['media']));
+        $t->same('Pictures/hero.png', $result['media'][0]['part']);
+        $t->same(0, $provenance['undeclaredEntryCount']);
+    },
     'rejects malformed ODT packages before conversion handoff' => static function (TestRunner $t) use ($buildOdtPackage, $buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml): void {
         $reader = new OdfReader();
 

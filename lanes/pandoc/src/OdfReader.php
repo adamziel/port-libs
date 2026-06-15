@@ -1101,6 +1101,7 @@ final class OdfReader
         $manifestRootAttributes = $this->manifestRootAttributeProvenance;
         $localHeaderOrder = $package->localHeaderOrderPreflight();
         $compressionMethods = $package->compressionMethodPreflight();
+        $comments = $package->commentPreflight();
         $manifestByPart = [];
         $undeclaredByPart = [];
         $mediaResourceSummary = $this->manifestMediaResourceRoleSummary($manifest);
@@ -1238,6 +1239,13 @@ final class OdfReader
         foreach ($localHeaderOrder['entries'] as $entry) {
             $localOrderByName[$entry['name']] = $entry;
         }
+        $commentEntriesByName = [];
+        foreach ($comments['entries'] ?? [] as $entry) {
+            $name = $entry['name'] ?? null;
+            if (is_string($name) && $name !== '') {
+                $commentEntriesByName[$name] = $entry;
+            }
+        }
 
         $parts = [];
         foreach ($package->entries() as $centralDirectoryIndex => $entry) {
@@ -1248,6 +1256,7 @@ final class OdfReader
                 $packageDirectoryCount++;
             }
             $localOrder = $localOrderByName[$entry->name] ?? null;
+            $commentEntry = $commentEntriesByName[$entry->name] ?? null;
             $embeddedObjectPackage = $this->embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared, $objectPackageRootParts);
             $rawNameProvenance = $this->zipEntryRawNameProvenance($entry);
@@ -1270,6 +1279,11 @@ final class OdfReader
                 'compressedByteLength' => $entry->compressedSize,
                 'crc32' => $entry->crc32Hex(),
                 'byteSha256' => is_array($manifestItem) ? ($manifestItem['byteSha256'] ?? null) : null,
+                'zipEntryComment' => $entry->comment,
+                'zipEntryCommentLength' => strlen($entry->rawComment),
+                'zipEntryCommentEncoding' => $entry->commentEncoding,
+                'zipEntryHasComment' => $entry->comment !== '',
+                'zipEntryCommentIssues' => is_array($commentEntry) ? ($commentEntry['issues'] ?? []) : [],
                 'isDirectory' => $entry->isDirectory(),
                 'declaredInManifest' => is_array($manifestItem),
                 'manifestIndex' => is_array($manifestItem) ? $manifestItem['manifestIndex'] : null,
@@ -1453,6 +1467,11 @@ final class OdfReader
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
+            'comments' => $comments,
+            'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
+            'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
+            'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
+            'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
             'embeddedObjectPackages' => $embeddedObjectPackages,
             'parts' => $parts,
         ];
