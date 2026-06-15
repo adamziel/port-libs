@@ -19,7 +19,6 @@ final class DocxOpenXmlReader
     private const NS_EP = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties';
     private const NS_CUSTOM_PROPS = 'http://schemas.openxmlformats.org/officeDocument/2006/custom-properties';
     private const NS_VT = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
-    private const NS_WNE = 'http://schemas.microsoft.com/office/word/2006/wordml';
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const NS_C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
