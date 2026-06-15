@@ -20151,6 +20151,11 @@ final class MarkdownReader
         }
 
         $runLength = $this->countDelimiterRun($text, $offset, $char);
+        $mixedClosingRun = $this->tryParseMixedClosingRunEmphasis($text, $offset, $char, $runLength);
+        if ($mixedClosingRun !== null) {
+            return $mixedClosingRun;
+        }
+
         $sizes = $runLength >= 3 ? [3, 1, 2] : ($runLength >= 2 ? [2, 1] : [1]);
         foreach ($sizes as $size) {
             if ($runLength < $size || !$this->canOpenInlineDelimiter($text, $offset, $char, $size)) {
@@ -20173,6 +20178,140 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseMixedClosingRunEmphasis(string $text, int $offset, string $char, int $runLength): ?array
+    {
+        if ($runLength === 2 && $this->canOpenInlineDelimiter($text, $offset, $char, 2)) {
+            return $this->tryParseStrongWithInnerEmphasisClosingRun($text, $offset, $char);
+        }
+
+        if ($runLength === 1 && $this->canOpenInlineDelimiter($text, $offset, $char, 1)) {
+            return $this->tryParseEmphasisWithInnerStrongClosingRun($text, $offset, $char);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseStrongWithInnerEmphasisClosingRun(string $text, int $offset, string $char): ?array
+    {
+        $close = $this->findMixedEmphasisClosingRun($text, $offset + 2, $char);
+        while ($close !== null) {
+            if (
+                $this->canCloseInlineDelimiter($text, $close, $char, 1)
+                && $this->canCloseInlineDelimiter($text, $close + 1, $char, 2)
+            ) {
+                $innerStart = $this->singleInnerDelimiterForMixedEmphasis($text, $offset + 2, $close, $char, 1);
+                if ($innerStart !== null) {
+                    $before = substr($text, $offset + 2, $innerStart - $offset - 2);
+                    $inner = substr($text, $innerStart + 1, $close - $innerStart - 1);
+                    if ($inner !== '') {
+                        return [
+                            'node' => new AstNode(
+                                'strong',
+                                [],
+                                [
+                                    ...$this->parseInlines($before, true, false),
+                                    new AstNode('emph', [], $this->parseInlines($inner, true, false)),
+                                ]
+                            ),
+                            'next' => $close + 3,
+                        ];
+                    }
+                }
+            }
+
+            $close = $this->findMixedEmphasisClosingRun($text, $close + 1, $char);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseEmphasisWithInnerStrongClosingRun(string $text, int $offset, string $char): ?array
+    {
+        $close = $this->findMixedEmphasisClosingRun($text, $offset + 1, $char);
+        while ($close !== null) {
+            if (
+                $this->canCloseInlineDelimiter($text, $close, $char, 2)
+                && $this->canCloseInlineDelimiter($text, $close + 2, $char, 1)
+            ) {
+                $innerStart = $this->singleInnerDelimiterForMixedEmphasis($text, $offset + 1, $close, $char, 2);
+                if ($innerStart !== null) {
+                    $before = substr($text, $offset + 1, $innerStart - $offset - 1);
+                    $inner = substr($text, $innerStart + 2, $close - $innerStart - 2);
+                    if ($inner !== '') {
+                        return [
+                            'node' => new AstNode(
+                                'emph',
+                                [],
+                                [
+                                    ...$this->parseInlines($before, true, false),
+                                    new AstNode('strong', [], $this->parseInlines($inner, true, false)),
+                                ]
+                            ),
+                            'next' => $close + 3,
+                        ];
+                    }
+                }
+            }
+
+            $close = $this->findMixedEmphasisClosingRun($text, $close + 1, $char);
+        }
+
+        return null;
+    }
+
+    private function findMixedEmphasisClosingRun(string $text, int $offset, string $char): ?int
+    {
+        $needle = str_repeat($char, 3);
+        $position = strpos($text, $needle, $offset);
+        while ($position !== false) {
+            if (!$this->isEscapedInlinePosition($text, $position)) {
+                return $position;
+            }
+
+            $position = strpos($text, $needle, $position + 1);
+        }
+
+        return null;
+    }
+
+    private function singleInnerDelimiterForMixedEmphasis(
+        string $text,
+        int $start,
+        int $end,
+        string $char,
+        int $size
+    ): ?int {
+        $positions = [];
+        $needle = str_repeat($char, $size);
+        $position = strpos($text, $needle, $start);
+        while ($position !== false && $position + $size <= $end) {
+            if (
+                !$this->isEscapedInlinePosition($text, $position)
+                && ($text[$position - 1] ?? '') !== $char
+                && ($text[$position + $size] ?? '') !== $char
+                && $this->canOpenInlineDelimiter($text, $position, $char, $size)
+            ) {
+                $positions[] = $position;
+                if (count($positions) > 1) {
+                    return null;
+                }
+            }
+
+            $position = strpos($text, $needle, $position + $size);
+        }
+
+        return $positions[0] ?? null;
     }
 
     private function countDelimiterRun(string $text, int $offset, string $char): int
