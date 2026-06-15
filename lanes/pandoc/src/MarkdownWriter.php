@@ -1160,6 +1160,7 @@ final class MarkdownWriter
         $lines = [];
         $start = (int) $node->attr('start', 1);
         $index = 0;
+        $listLoose = (bool) $node->attr('loose', false);
 
         foreach ($node->children as $item) {
             if ($item->type !== 'list_item') {
@@ -1178,6 +1179,10 @@ final class MarkdownWriter
             }
 
             $marker = $ordered ? $this->orderedListMarker($node, $start + $index) : $this->bulletListMarker();
+            $itemLoose = $listLoose || (bool) $item->attr('loose', false);
+            if ($itemLoose && $lines !== [] && end($lines) !== '') {
+                $lines[] = '';
+            }
             array_push($lines, ...$this->renderListItem($item, $marker, $indent));
             $index++;
         }

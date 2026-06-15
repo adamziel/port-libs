@@ -8,8 +8,8 @@
     "commit": "epub-metadata-link-zip-provenance-f4f676ae2c",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 3741,
-    "latestSlice": "epub-metadata-link-zip-provenance maps one EPUB3 package ingestion case after rebase onto current main f4f676ae2c. EpubReader now carries ZIP entry provenance for OPF metadata link targets through packageReference, metadata links, linked resources, and link target reports, including compressed byte length, compression method/support, CRC32, SHA-256, and null provenance for remote or missing links without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3721 -> 3722, phpFail remains 0, mapped upstream cases move 3740 -> 3741, mappedEpubMetadataLinkZipProvenanceCases moves 0 -> 1, and epubMetadataLinkZipProvenanceAssertions adds 22. Verification passed php -l for EpubReader.php and EpubReaderTest.php; focused EpubReaderTest.php passed 1 file, 4709 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88252 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+    "mapped": 3742,
+    "latestSlice": "pandoc-markdown-writer-loose-list-spacing maps one upstream writer.markdown loose-list fixture case after rebase onto current main 6a55215f18. MarkdownWriter now preserves loose list paragraph spacing for bullet and ordered list items while keeping tight lists unchanged, without invoking Pandoc, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3722 -> 3723, phpFail remains 0, mapped upstream manifest cases move 3741 -> 3742, mappedMarkdownWriterLooseListParagraphCases = 1, and markdownWriterLooseListParagraphAssertions = 5. Verification passed focused MarkdownReaderTest.php with 1 file, 6783 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88257 assertions, 0 failures.",
     "mappedOdfPackageFontFormatProvenanceCases": 6,
     "odfPackageFontFormatProvenanceAssertions": 56,
     "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
     "opcRawZipCentralDirectoryManifestAssertions": 37,
     "mappedZipCentralDirectorySignaturePolicyCases": 2,
     "zipCentralDirectorySignaturePolicyAssertions": 30,
-    "status": "EPUB metadata link ZIP provenance is verified after rebase onto current main f4f676ae2c; phpFail remains 0.",
-    "latestFocusedSource": "2026-06-15 EPUB metadata link ZIP provenance verified after rebase onto current main f4f676ae2c; focused EpubReaderTest.php passed 1 file, 4709 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88252 assertions, 0 failures.",
+    "status": "Pandoc Markdown writer loose list paragraph spacing is verified after rebase onto current main 6a55215f18; phpFail remains 0.",
+    "latestFocusedSource": "2026-06-15 MarkdownWriter loose list paragraph spacing verified after rebase onto current main 6a55215f18; focused MarkdownReaderTest.php passed 1 file, 6783 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88257 assertions, 0 failures.",
     "mappedPandocFormatReaderEvidenceBatchCases": 6,
     "pandocFormatReaderEvidenceBatchAssertions": 200,
     "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -570,7 +570,9 @@
     "mappedEpubPackageReaderRootfileReportCases": 1,
     "epubPackageReaderRootfileReportAssertions": 55,
     "mappedEpubMetadataLinkZipProvenanceCases": 1,
-    "epubMetadataLinkZipProvenanceAssertions": 22
+    "epubMetadataLinkZipProvenanceAssertions": 22,
+    "mappedMarkdownWriterLooseListParagraphCases": 1,
+    "markdownWriterLooseListParagraphAssertions": 5
   },
   "benchmarkDenominator": {
     "status": "Pandoc JSON/native single-wrapped target tuple sidecars are verified after rebase onto current main 9f2dd9a0fd; phpFail remains 0.",
@@ -1370,7 +1372,9 @@
     "mappedTypstPackageDependencyConflictPolicyCases": 1,
     "typstPackageDependencyConflictPolicyAssertions": 12,
     "mappedJsonNativeTaskListSidecarCases": 1,
-    "jsonNativeTaskListSidecarAssertions": 28
+    "jsonNativeTaskListSidecarAssertions": 28,
+    "mappedMarkdownWriterLooseListParagraphCases": 1,
+    "markdownWriterLooseListParagraphAssertions": 5
   },
   "nativeImplementation": {
     "language": "PHP",
@@ -2285,5 +2289,7 @@
   "mappedEpubCompactDateEventNamespaceCases": 1,
   "epubCompactDateEventNamespaceAssertions": 10,
   "mappedJsonNativeSingleWrappedStrPayloadCases": 1,
-  "jsonNativeSingleWrappedStrPayloadAssertions": 28
+  "jsonNativeSingleWrappedStrPayloadAssertions": 28,
+  "mappedMarkdownWriterLooseListParagraphCases": 1,
+  "markdownWriterLooseListParagraphAssertions": 5
 }

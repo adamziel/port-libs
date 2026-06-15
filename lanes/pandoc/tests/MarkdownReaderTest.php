@@ -9604,6 +9604,44 @@ MD;
         $t->same("+ review queue item\n  + nested review task\n+ [x] checked import task", (new MarkdownWriter(['bulletListMarker' => 'plus']))->write($document));
         $t->same("* review queue item\n  * nested review task\n* [x] checked import task", (new MarkdownWriter(['bulletListMarker' => 'star']))->write($document));
     },
+    'maps upstream markdown writer loose list paragraph spacing' => static function (TestRunner $t): void {
+        $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [
+            new AstNode('text', ['text' => $value]),
+        ]);
+        $item = static fn (string $value): AstNode => new AstNode('list_item', ['loose' => true], [
+            $paragraph($value),
+        ]);
+        $document = new AstNode('document', [], [
+            new AstNode('bullet_list', ['loose' => true], [
+                $item('asterisk 1'),
+                $item('asterisk 2'),
+                $item('asterisk 3'),
+            ]),
+            new AstNode('ordered_list', [
+                'loose' => true,
+                'start' => 1,
+                'style' => 'decimal',
+                'delimiter' => 'period',
+            ], [
+                $item('First'),
+                $item('Second'),
+                $item('Third'),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(implode("\n\n", [
+            "- asterisk 1\n\n- asterisk 2\n\n- asterisk 3",
+            "1.  First\n\n2.  Second\n\n3.  Third",
+        ]), $markdown);
+
+        $roundTrip = (new MarkdownReader())->read($markdown);
+        $t->true((bool) $roundTrip->children[0]->attr('loose'));
+        $t->true((bool) $roundTrip->children[1]->attr('loose'));
+        $t->same('paragraph', $roundTrip->children[0]->children[0]->children[0]->type);
+        $t->same('paragraph', $roundTrip->children[1]->children[2]->children[0]->type);
+    },
     'maps upstream markdown writer note and reference placement' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [
