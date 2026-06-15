@@ -1048,7 +1048,7 @@ final class PandocJsonReader
     private function readCaptionAttrs(mixed $caption, string $context): array
     {
         $content = $this->constructorContent($caption, 'Caption', "{$context} caption", false);
-        $tuple = $this->tuple($content, 2, "{$context} caption");
+        $tuple = $this->captionTupleContent($content, "{$context} caption");
         $attrs = $this->captionConstructorAttrs($caption);
 
         $shortCaption = $this->readShortCaption($tuple[0], $context);
@@ -1075,6 +1075,24 @@ final class PandocJsonReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function captionTupleContent(mixed $content, string $context): array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
+        return $this->tuple($content, 2, $context);
     }
 
     /**

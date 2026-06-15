@@ -9431,6 +9431,123 @@ return [
             }
         }
     },
+    'preserves single wrapped caption tuple constructors through json and native readers' => static function (TestRunner $t): void {
+        $shortCaption = ['t' => 'ShortCaption', 'c' => [[
+            ['t' => 'Str', 'c' => 'Wrapped'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'short'],
+        ]], 'reviewQueue' => 'wrapped-short-caption-source'];
+        $shortMaybe = ['t' => 'Just', 'c' => $shortCaption, 'reviewQueue' => 'wrapped-short-maybe-source'];
+        $tableLongBlock = ['t' => 'Plain', 'c' => [
+            ['t' => 'Str', 'c' => 'Wrapped'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'table'],
+        ], 'reviewQueue' => 'wrapped-table-long-source'];
+        $figureLongBlock = ['t' => 'Plain', 'c' => [
+            ['t' => 'Str', 'c' => 'Wrapped'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'figure'],
+        ], 'reviewQueue' => 'wrapped-figure-long-source'];
+        $tableCaption = ['t' => 'Caption', 'c' => [[$shortMaybe, [$tableLongBlock]]], 'reviewQueue' => 'wrapped-table-caption-source'];
+        $figureCaption = ['t' => 'Caption', 'c' => [[['t' => 'Nothing', 'reviewQueue' => 'wrapped-figure-short-source'], [$figureLongBlock]]], 'reviewQueue' => 'wrapped-figure-caption-source'];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['wrapped-caption-table', ['json-native'], []],
+                $tableCaption,
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [['t' => 'TableBody', 'c' => [
+                    ['', [], []],
+                    ['t' => 'RowHeadColumns', 'c' => 0],
+                    [],
+                    [],
+                ]]],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['wrapped-caption-figure', ['json-native'], []],
+                $figureCaption,
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Image', 'c' => [
+                            ['', [], []],
+                            [['t' => 'Str', 'c' => 'Figure']],
+                            ['media/wrapped-caption.png', 'Wrapped figure'],
+                        ]],
+                    ]],
+                ],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock, $figureBlock],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $table = $document->children[0];
+            $figure = $document->children[1];
+
+            $t->same($tableCaption, $table->attr('captionNative'), "{$source} table keeps wrapped caption native payload");
+            $t->same($figureCaption, $figure->attr('captionNative'), "{$source} figure keeps wrapped caption native payload");
+            $t->same('Wrapped short', $table->attr('shortCaption'), "{$source} table short caption text");
+            $t->same('Wrapped table', $table->attr('caption'), "{$source} table long caption text");
+            $t->same(null, $figure->attr('shortCaption'), "{$source} figure has no short caption");
+            $t->same('Wrapped figure', $figure->attr('caption'), "{$source} figure long caption text");
+
+            foreach ([
+                "{$source} json unchanged" => (new PandocJsonWriter())->toArray($document),
+                "{$source} native unchanged" => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $label => $encoded) {
+                $t->same($tableCaption, $encoded['blocks'][0]['c'][1], "{$label} preserves wrapped table caption tuple");
+                $t->same($figureCaption, $encoded['blocks'][1]['c'][1], "{$label} preserves wrapped figure caption tuple");
+            }
+
+            $editedTable = new AstNode('table', array_replace($table->attrs, [
+                'caption' => 'Edited table',
+                'captionBlocks' => [new AstNode('plain', [], [
+                    new AstNode('text', ['text' => 'Edited']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'table']),
+                ])],
+            ]), $table->children);
+            $editedFigure = new AstNode('figure', array_replace($figure->attrs, [
+                'shortCaption' => 'Edited figure',
+                'shortCaptionInlines' => [
+                    new AstNode('text', ['text' => 'Edited']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'figure']),
+                ],
+            ]), $figure->children);
+
+            foreach ([
+                "{$source} json edited" => (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [$editedTable, $editedFigure])),
+                "{$source} native edited" => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [$editedTable, $editedFigure])), true, 512, JSON_THROW_ON_ERROR),
+            ] as $label => $encoded) {
+                $editedTableCaption = $encoded['blocks'][0]['c'][1];
+                $editedFigureCaption = $encoded['blocks'][1]['c'][1];
+
+                $t->same('Caption', $editedTableCaption['t'], "{$label} edited table caption constructor");
+                $t->same(true, array_is_list($editedTableCaption['c']) && count($editedTableCaption['c']) === 1, "{$label} edited table keeps wrapped caption tuple");
+                $t->same(false, array_key_exists('reviewQueue', $editedTableCaption), "{$label} edited table drops stale caption sidecar");
+                $t->same('wrapped-short-maybe-source', $editedTableCaption['c'][0][0]['reviewQueue'], "{$label} edited table preserves short maybe sidecar");
+                $t->same('Wrapped', $editedTableCaption['c'][0][0]['c']['c'][0][0]['c'], "{$label} edited table preserves short caption text");
+                $t->same('Edited', $editedTableCaption['c'][0][1][0]['c'][0]['c'], "{$label} edited table regenerates long caption text");
+                $t->same('Caption', $editedFigureCaption['t'], "{$label} edited figure caption constructor");
+                $t->same(true, array_is_list($editedFigureCaption['c']) && count($editedFigureCaption['c']) === 1, "{$label} edited figure keeps wrapped caption tuple");
+                $t->same('Just', $editedFigureCaption['c'][0][0]['t'], "{$label} edited figure creates short maybe constructor");
+                $t->same('ShortCaption', $editedFigureCaption['c'][0][0]['c']['t'], "{$label} edited figure creates short caption constructor");
+                $t->same('Edited', $editedFigureCaption['c'][0][0]['c']['c'][0][0]['c'], "{$label} edited figure short caption text");
+            }
+        }
+    },
     'writes generated caption maybe constructors through pandoc json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
             new AstNode('table', [

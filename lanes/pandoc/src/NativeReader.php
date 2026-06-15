@@ -991,7 +991,7 @@ final class NativeReader
     private function captionAttrs(mixed $caption, string $context): array
     {
         $content = $this->constructorContent($caption, 'Caption', "Pandoc native JSON {$context} caption", false);
-        $tuple = $this->tuple($content, 2, "Pandoc native JSON {$context} caption");
+        $tuple = $this->captionTupleContent($content, "Pandoc native JSON {$context} caption");
         $attrs = $this->captionConstructorAttrs($caption);
 
         $shortCaption = $this->shortCaption($tuple[0], $context);
@@ -1018,6 +1018,24 @@ final class NativeReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function captionTupleContent(mixed $content, string $context): array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
+        return $this->tuple($content, 2, $context);
     }
 
     /**

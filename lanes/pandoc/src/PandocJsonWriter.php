@@ -907,6 +907,17 @@ final class PandocJsonWriter
         }
 
         $content = $native['c'] ?? null;
+        $isWrappedContent = false;
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            $isWrappedContent = true;
+            $content = $content[0];
+        }
         if (!is_array($content) || !array_is_list($content) || count($content) !== 2) {
             return null;
         }
@@ -922,7 +933,10 @@ final class PandocJsonWriter
 
         return [
             't' => 'Caption',
-            'c' => [
+            'c' => $isWrappedContent ? [[
+                $this->captionShortNative($content[0], $caption[0]),
+                $caption[1],
+            ]] : [
                 $this->captionShortNative($content[0], $caption[0]),
                 $caption[1],
             ],
