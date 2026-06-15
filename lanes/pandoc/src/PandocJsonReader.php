@@ -1969,9 +1969,7 @@ final class PandocJsonReader
 
     private function stringConstructorContent(mixed $content, string $context): string
     {
-        if (is_array($content) && array_is_list($content) && count($content) === 1) {
-            $content = $content[0];
-        }
+        $content = $this->singleWrappedScalarContent($content);
         if (!is_string($content)) {
             throw new \InvalidArgumentException("{$context} must be a string");
         }
@@ -2175,10 +2173,7 @@ final class PandocJsonReader
             throw new \InvalidArgumentException('Unsupported Pandoc table column width');
         }
 
-        $content = $this->constructorContent($value, 'ColWidth', 'table column width');
-        if (is_array($content) && array_is_list($content) && count($content) === 1) {
-            $content = $content[0];
-        }
+        $content = $this->singleWrappedScalarContent($this->constructorContent($value, 'ColWidth', 'table column width'));
         if (!is_int($content) && !is_float($content)) {
             throw new \InvalidArgumentException('ColWidth content must be numeric');
         }
@@ -2196,10 +2191,7 @@ final class PandocJsonReader
             return $value[0];
         }
 
-        $content = $this->constructorContent($value, $tag, $context);
-        if (is_array($content) && array_is_list($content) && count($content) === 1) {
-            $content = $content[0];
-        }
+        $content = $this->singleWrappedScalarContent($this->constructorContent($value, $tag, $context));
         if (!is_int($content)) {
             throw new \InvalidArgumentException("{$context} must contain an integer");
         }

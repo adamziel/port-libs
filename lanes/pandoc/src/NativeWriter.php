@@ -1819,11 +1819,9 @@ final class NativeWriter
 
     private function nativeStringContent(mixed $content): ?string
     {
+        $content = $this->singleWrappedScalarContent($content);
         if (is_string($content)) {
             return $content;
-        }
-        if (is_array($content) && array_is_list($content) && count($content) === 1 && is_string($content[0])) {
-            return $content[0];
         }
 
         return null;
@@ -2609,10 +2607,7 @@ final class NativeWriter
             return $native;
         }
 
-        $content = $native['c'] ?? null;
-        if (is_array($content) && array_is_list($content) && count($content) === 1) {
-            $content = $content[0];
-        }
+        $content = $this->singleWrappedScalarContent($native['c'] ?? null);
         if (!is_int($content) && !is_float($content)) {
             return null;
         }
@@ -2662,10 +2657,7 @@ final class NativeWriter
             return null;
         }
 
-        $content = $tagged['c'] ?? null;
-        if (is_array($content) && array_is_list($content) && count($content) === 1) {
-            $content = $content[0];
-        }
+        $content = $this->singleWrappedScalarContent($tagged['c'] ?? null);
 
         return is_int($content) && $content === $integer ? $tagged : null;
     }

@@ -1529,10 +1529,7 @@ final class NativeReader
             throw new \InvalidArgumentException('Unsupported Pandoc native JSON table column width');
         }
 
-        $content = $this->constructorContent($width, 'ColWidth', 'Pandoc native JSON table column width');
-        if (is_array($content) && array_is_list($content) && count($content) === 1) {
-            $content = $content[0];
-        }
+        $content = $this->singleWrappedScalarContent($this->constructorContent($width, 'ColWidth', 'Pandoc native JSON table column width'));
         if (!is_int($content) && !is_float($content)) {
             throw new \InvalidArgumentException('Pandoc native JSON ColWidth must be numeric');
         }
@@ -1550,10 +1547,7 @@ final class NativeReader
             return $value[0];
         }
 
-        $content = $this->constructorContent($value, $tag, $context);
-        if (is_array($content) && array_is_list($content) && count($content) === 1) {
-            $content = $content[0];
-        }
+        $content = $this->singleWrappedScalarContent($this->constructorContent($value, $tag, $context));
         if (!is_int($content)) {
             throw new \InvalidArgumentException("{$context} must contain an integer");
         }
@@ -2176,9 +2170,7 @@ final class NativeReader
 
     private function stringConstructorContent(mixed $content, string $context): string
     {
-        if (is_array($content) && array_is_list($content) && count($content) === 1) {
-            $content = $content[0];
-        }
+        $content = $this->singleWrappedScalarContent($content);
         if (!is_string($content)) {
             throw new \InvalidArgumentException("{$context} must be a string");
         }

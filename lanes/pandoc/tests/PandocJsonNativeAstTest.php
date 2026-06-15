@@ -15063,6 +15063,126 @@ return [
             }
         }
     },
+    'preserves nested scalar constructor payloads for text and table helpers' => static function (TestRunner $t): void {
+        $textInline = ['t' => 'Str', 'c' => [['Nested scalar']], 'reviewQueue' => 'nested-str-source'];
+        $columnWidth = ['t' => 'ColWidth', 'c' => [[0.5]], 'reviewQueue' => 'nested-width-source'];
+        $rowHeadColumns = ['t' => 'RowHeadColumns', 'c' => [[1]], 'reviewQueue' => 'nested-row-head-source'];
+        $rowSpan = ['t' => 'RowSpan', 'c' => [[2]], 'reviewQueue' => 'nested-rowspan-source'];
+        $colSpan = ['t' => 'ColSpan', 'c' => [[3]], 'reviewQueue' => 'nested-colspan-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [$textInline]],
+                ['t' => 'Table', 'c' => [
+                    ['nested-scalar-table', ['json-native'], []],
+                    ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                    [[['t' => 'AlignDefault'], $columnWidth]],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [
+                        ['t' => 'TableBody', 'c' => [
+                            ['', [], []],
+                            $rowHeadColumns,
+                            [],
+                            [
+                                ['t' => 'Row', 'c' => [
+                                    ['', [], []],
+                                    [
+                                        ['t' => 'Cell', 'c' => [
+                                            ['', [], []],
+                                            ['t' => 'AlignDefault'],
+                                            $rowSpan,
+                                            $colSpan,
+                                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Nested cell']]]],
+                                        ]],
+                                    ],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ]],
+            ],
+        ];
+        $withoutNativeWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+        $rebuiltDocument = static function (AstNode $document, bool $edited = false) use ($withoutNativeWrapper): AstNode {
+            $text = $document->children[0]->children[0];
+            $table = $document->children[1];
+            $body = $table->children[0];
+            $row = $body->children[0];
+            $cell = $row->children[0];
+
+            $textAttrs = $text->attrs;
+            $tableAttrs = $withoutNativeWrapper($table);
+            $bodyAttrs = $withoutNativeWrapper($body);
+            $cellAttrs = $withoutNativeWrapper($cell);
+            if ($edited) {
+                $textAttrs['text'] = 'EditedScalar';
+                $tableAttrs['widths'] = [0.25];
+                $bodyAttrs['rowHeadColumns'] = 2;
+                $cellAttrs['rowspan'] = 1;
+                $cellAttrs['colspan'] = 1;
+            }
+
+            return new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [new AstNode('text', $textAttrs)]),
+                new AstNode('table', $tableAttrs, [
+                    new AstNode('table_body', $bodyAttrs, [
+                        new AstNode('table_row', $withoutNativeWrapper($row), [
+                            new AstNode('table_cell', $cellAttrs, $cell->children),
+                        ]),
+                    ]),
+                ]),
+            ]);
+        };
+        $encodedCell = static function (array $packet): array {
+            return $packet['blocks'][1]['c'][4][0]['c'][3][0]['c'][1][0];
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $text = $document->children[0]->children[0];
+            $table = $document->children[1];
+            $body = $table->children[0];
+            $cell = $body->children[0]->children[0];
+
+            $t->same('Nested scalar', $text->attr('text'), "{$source} unwraps nested Str payload");
+            $t->same($textInline, $text->attr('native'), "{$source} records nested Str native");
+            $t->same([0.5], $table->attr('widths'), "{$source} unwraps nested ColWidth payload");
+            $t->same([1, 2, 3], [$body->attr('rowHeadColumns'), $cell->attr('rowspan'), $cell->attr('colspan')], "{$source} unwraps nested integer helper payloads");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuiltDocument($document)),
+                'native' => json_decode((new NativeWriter())->write($rebuiltDocument($document)), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $cellPayload = $encodedCell($encoded)['c'];
+
+                $t->same($textInline, $encoded['blocks'][0]['c'][0], "{$source} {$writer} preserves nested Str payload");
+                $t->same($columnWidth, $encoded['blocks'][1]['c'][2][0][1], "{$source} {$writer} preserves nested ColWidth payload");
+                $t->same($rowHeadColumns, $encoded['blocks'][1]['c'][4][0]['c'][1], "{$source} {$writer} preserves nested RowHeadColumns payload");
+                $t->same($rowSpan, $cellPayload[2], "{$source} {$writer} preserves nested RowSpan payload");
+                $t->same($colSpan, $cellPayload[3], "{$source} {$writer} preserves nested ColSpan payload");
+
+                $edited = $writer === 'json'
+                    ? (new PandocJsonWriter())->toArray($rebuiltDocument($document, true))
+                    : json_decode((new NativeWriter())->write($rebuiltDocument($document, true)), true, 512, JSON_THROW_ON_ERROR);
+                $editedCellPayload = $encodedCell($edited)['c'];
+
+                $t->same(['t' => 'Str', 'c' => 'EditedScalar'], $edited['blocks'][0]['c'][0], "{$source} {$writer} regenerates edited Str payload");
+                $t->same(['t' => 'ColWidth', 'c' => 0.25], $edited['blocks'][1]['c'][2][0][1], "{$source} {$writer} regenerates edited ColWidth payload");
+                $t->same(['t' => 'RowHeadColumns', 'c' => 2], $edited['blocks'][1]['c'][4][0]['c'][1], "{$source} {$writer} regenerates edited RowHeadColumns payload");
+                $t->same(['t' => 'RowSpan', 'c' => 1], $editedCellPayload[2], "{$source} {$writer} regenerates edited RowSpan payload");
+                $t->same(['t' => 'ColSpan', 'c' => 1], $editedCellPayload[3], "{$source} {$writer} regenerates edited ColSpan payload");
+            }
+        }
+    },
     'preserves single wrapped raw format constructors through json and native stacks' => static function (TestRunner $t): void {
         $blockFormat = ['t' => 'Format', 'c' => [['html']], 'reviewQueue' => 'raw-block-format-source'];
         $inlineFormat = ['t' => 'Format', 'c' => [['latex']], 'reviewQueue' => 'raw-inline-format-source'];
