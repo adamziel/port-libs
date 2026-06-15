@@ -19298,6 +19298,9 @@ final class MarkdownReader
         if ($destination === '') {
             return null;
         }
+        if (!$this->isValidBareLinkDestination($destination)) {
+            return null;
+        }
 
         $title = '';
         if ($titleSource !== null) {
@@ -19336,6 +19339,25 @@ final class MarkdownReader
         }
 
         return [$content, null];
+    }
+
+    private function isValidBareLinkDestination(string $destination): bool
+    {
+        $length = strlen($destination);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $destination[$offset];
+            $next = $destination[$offset + 1] ?? '';
+            if ($char === '\\' && $this->isMarkdownEscapablePunctuation($next)) {
+                $offset++;
+                continue;
+            }
+
+            if ($char === '<') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
