@@ -852,6 +852,72 @@ BIB;
         $t->contains('Call number: MS 42 Box 4', $markdown);
         $t->contains('Call number: Reading Room Shelf B/12', $blocks);
     },
+    'carries biblatex shorthand sort and label metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-labels,
+  author         = {Smith, Ada},
+  title          = {Legacy Label Manual},
+  date           = {2026},
+  shorthand      = {LLM},
+  shorthandintro = {cited as Legacy Label Manual},
+  sortshorthand  = {010 legacy label},
+  presort        = {aa},
+  sortkey        = {900-smith},
+  sortname       = {Archive Desk},
+  sorttitle      = {Label Manual Legacy},
+  sortyear       = {2025},
+  labelprefix    = {WP},
+  labelalpha     = {Smi26},
+  labeltitle     = {legacy label},
+  extraalpha     = {b}
+}
+
+@book{fallback-shorthand,
+  title     = {Fallback Shorthand Manual},
+  date      = {2025},
+  shorthand = {FSH}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $labels = $items['legacy-labels'];
+        $fallback = $items['fallback-shorthand'];
+
+        $t->same('LLM', $labels['citation-label']);
+        $t->same('LLM', $labels['shorthand']);
+        $t->same('cited as Legacy Label Manual', $labels['shorthand-intro']);
+        $t->same('010 legacy label', $labels['sort-shorthand']);
+        $t->same('010 legacy label', $labels['shorthand-list-sort-key']);
+        $t->same('aa', $labels['presort']);
+        $t->same('900-smith', $labels['sort-key']);
+        $t->same('Archive Desk', $labels['sort-name']);
+        $t->same('Label Manual Legacy', $labels['sort-title']);
+        $t->same('2025', $labels['sort-year']);
+        $t->same('WP', $labels['label-prefix']);
+        $t->same('Smi26', $labels['label-alpha']);
+        $t->same('legacy label', $labels['label-title']);
+        $t->same('b', $labels['extra-alpha']);
+        $t->same('LLM', $labels['rawBibtex']['fields']['shorthand']);
+        $t->same('010 legacy label', $labels['rawBibtex']['fields']['sortshorthand']);
+        $t->same('FSH', $fallback['citation-label']);
+        $t->same('FSH', $fallback['shorthand-list-sort-key']);
+        $t->same(
+            'Ada Smith. Legacy Label Manual. 2026. Citation label: LLM. Shorthand intro: cited as Legacy Label Manual. Sort shorthand: 010 legacy label. Presort: aa. Sort key: 900-smith. Label prefix: WP. Extra alpha: b.',
+            $processor->renderBibliographyText($labels)
+        );
+
+        $document = (new MarkdownReader())->read('Legacy label source @legacy-labels and [@fallback-shorthand] keep shorthand review metadata.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['legacy-labels', 'fallback-shorthand'], $handoff['citedKeys']);
+        $t->same('010 legacy label', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
+        $t->same('FSH', $handoff['bibliography']->children[1]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
+        $t->contains('Citation label: LLM', $blocks);
+        $t->contains('Fallback Shorthand Manual', $blocks);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

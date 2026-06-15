@@ -259,6 +259,19 @@ final class BibtexCslProcessor
         if (($item['supplement'] ?? '') !== '') {
             $parts[] = 'Supplement: ' . (string) $item['supplement'];
         }
+        foreach ([
+            'citation-label' => 'Citation label',
+            'shorthand-intro' => 'Shorthand intro',
+            'sort-shorthand' => 'Sort shorthand',
+            'presort' => 'Presort',
+            'sort-key' => 'Sort key',
+            'label-prefix' => 'Label prefix',
+            'extra-alpha' => 'Extra alpha',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $parts[] = $label . ': ' . (string) $item[$field];
+            }
+        }
         if (($item['rights'] ?? '') !== '') {
             $parts[] = 'Rights: ' . (string) $item['rights'];
         }
@@ -452,6 +465,23 @@ final class BibtexCslProcessor
         }
 
         $stringFields = [
+            'citation-label' => ['shorthand', 'label'],
+            'shorthand' => ['shorthand'],
+            'shorthand-intro' => ['shorthandintro', 'shorthand-intro'],
+            'sort-shorthand' => ['sortshorthand', 'sort-shorthand'],
+            'presort' => ['presort'],
+            'sort-key' => ['sortkey', 'sort-key'],
+            'sort-name' => ['sortname', 'sort-name'],
+            'sort-title' => ['sorttitle', 'sort-title'],
+            'sort-year' => ['sortyear', 'sort-year'],
+            'sort-initial' => ['sortinit', 'sort-initial', 'sortinitial', 'sort-initials'],
+            'sort-initial-hash' => ['sortinithash', 'sort-initial-hash'],
+            'label-prefix' => ['labelprefix', 'label-prefix'],
+            'label-alpha' => ['labelalpha', 'label-alpha'],
+            'label-title' => ['labeltitle', 'label-title'],
+            'extra-alpha' => ['extraalpha', 'extra-alpha'],
+            'extra-date' => ['extradate', 'extra-date'],
+            'extra-title' => ['extratitle', 'extra-title'],
             'short-title' => ['shorttitle'],
             'title-addon' => ['titleaddon'],
             'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
@@ -504,6 +534,14 @@ final class BibtexCslProcessor
                 continue;
             }
             $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
+        }
+
+        $shorthandListSortKey = $this->firstField($fields, ['sortshorthand', 'sort-shorthand']);
+        if ($shorthandListSortKey === null || $shorthandListSortKey === '') {
+            $shorthandListSortKey = $this->firstField($fields, ['shorthand']);
+        }
+        if ($shorthandListSortKey !== null && $shorthandListSortKey !== '') {
+            $item['shorthand-list-sort-key'] = $shorthandListSortKey;
         }
 
         $nameFields = [
