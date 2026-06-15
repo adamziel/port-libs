@@ -136,7 +136,8 @@ final class MarkdownReader
         if (($this->options['yamlMetadata'] ?? true) !== false) {
             [$lines, $yamlMetadata] = $this->extractYamlMetadataBlocks($lines);
         }
-        $this->nativeSpanInlineEnabled = ($this->options['nativeSpans'] ?? false) === true
+        $this->nativeSpanInlineEnabled = $previousNativeSpanInlineEnabled
+            || ($this->options['nativeSpans'] ?? false) === true
             || $this->metadataEnablesNativeSpans($yamlMetadata);
         [$lines, $titleBlock] = $this->extractTitleBlock($lines);
         [$lines, $abbreviations] = $this->extractAbbreviationDefinitions($lines);
@@ -443,19 +444,45 @@ final class MarkdownReader
 
     private function metadataExtensionValueEnablesNativeSpans(mixed $extension): bool
     {
+        return $this->metadataExtensionValueEnables($extension, 'native_spans');
+    }
+
+    private function metadataExtensionValueEnables(mixed $extension, string $name): bool
+    {
         if (is_string($extension)) {
-            return trim($extension) === 'native_spans';
+            return $this->metadataExtensionStringEnables($extension, $name);
         }
 
         if (is_array($extension)) {
             foreach ($extension as $value) {
-                if ($this->metadataExtensionValueEnablesNativeSpans($value)) {
+                if ($this->metadataExtensionValueEnables($value, $name)) {
                     return true;
                 }
             }
         }
 
         return false;
+    }
+
+    private function metadataExtensionStringEnables(string $extension, string $name): bool
+    {
+        $extension = trim($extension);
+        if ($extension === '') {
+            return false;
+        }
+
+        $enabled = false;
+        if (preg_match_all('/([+-]?)([A-Za-z][A-Za-z0-9_]*)/', $extension, $matches, PREG_SET_ORDER) !== false) {
+            foreach ($matches as $match) {
+                if (($match[2] ?? '') !== $name) {
+                    continue;
+                }
+
+                $enabled = ($match[1] ?? '') !== '-';
+            }
+        }
+
+        return $enabled;
     }
 
     /**
@@ -8772,7 +8799,7 @@ final class MarkdownReader
     private function tryReadDivBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<div(?:\s+[^>]*)?>/i', $line, $m, PREG_OFFSET_CAPTURE) !== 1) {
+        if (preg_match('~^ {0,3}<div(?=\s|>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?>~iu', $line, $m, PREG_OFFSET_CAPTURE) !== 1) {
             return null;
         }
 
@@ -8781,7 +8808,9 @@ final class MarkdownReader
         $openingIndex = $index;
         $cursor = $index;
         $count = count($lines);
-        $firstLineOffset = $m[0][1] + strlen($m[0][0]);
+        $openingTag = $m[0][0];
+        $attrs = $this->htmlElementPandocAttrsFromOpeningTag($openingTag, 'div');
+        $firstLineOffset = $m[0][1] + strlen($openingTag);
 
         while ($cursor < $count) {
             $segment = $cursor === $index ? substr($lines[$cursor], $firstLineOffset) : $lines[$cursor];
@@ -8814,7 +8843,7 @@ final class MarkdownReader
                     $closedOnOpeningLine = $cursor === $openingIndex;
                     $index = $cursor;
 
-                    return $this->buildDivBlock($content, $closedOnOpeningLine);
+                    return $this->buildDivBlock($content, $closedOnOpeningLine, $attrs);
                 }
 
                 $lineContent .= substr($segment, $offset, $nextClose['offset'] + $nextClose['length'] - $offset);
@@ -8828,7 +8857,7 @@ final class MarkdownReader
         if ($this->divBlockContentIsBlank($content)) {
             $index = max($openingIndex, $count - 1);
 
-            return new AstNode('div');
+            return new AstNode('div', $attrs);
         }
 
         return null;
@@ -8867,7 +8896,7 @@ final class MarkdownReader
     /**
      * @param list<string> $content
      */
-    private function buildDivBlock(array $content, bool $closedOnOpeningLine): AstNode
+    private function buildDivBlock(array $content, bool $closedOnOpeningLine, array $attrs = []): AstNode
     {
         while ($content !== [] && trim($content[0]) === '') {
             array_shift($content);
@@ -8884,14 +8913,14 @@ final class MarkdownReader
         ) {
             $text = trim($content[0]);
 
-            return new AstNode('div', [], [
+            return new AstNode('div', $attrs, [
                 new AstNode('plain', ['text' => $text], $this->parseInlines($text)),
             ]);
         }
 
         $inner = $this->read(implode("\n", $content));
 
-        return new AstNode('div', [], $inner->children);
+        return new AstNode('div', $attrs, $inner->children);
     }
 
     /**
@@ -12225,6 +12254,21 @@ final class MarkdownReader
         }
 
         return $attrs;
+    }
+
+    private function htmlElementPandocAttrsFromOpeningTag(string $openingTag, string $tagName): array
+    {
+        $body = XmlHtml5Dom::parseHtmlFragmentBody($openingTag . '</' . $tagName . '>');
+        if (!$body instanceof \DOMElement) {
+            return [];
+        }
+
+        $element = $this->firstChildElement($body, $tagName);
+        if (!$element instanceof \DOMElement) {
+            return [];
+        }
+
+        return $this->htmlElementPandocAttrs($element);
     }
 
     /**

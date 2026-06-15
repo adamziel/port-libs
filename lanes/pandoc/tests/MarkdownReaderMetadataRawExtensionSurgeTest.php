@@ -623,4 +623,328 @@ foreach ($nativeSpanCases as $case) {
         };
 }
 
+$nativeDivText = static function (AstNode $node) use (&$nativeDivText): string {
+    if ($node->type === 'text' || $node->type === 'code' || $node->type === 'math') {
+        return (string) $node->attr('text', '');
+    }
+    if ($node->type === 'linebreak' || $node->type === 'softbreak') {
+        return "\n";
+    }
+
+    $text = '';
+    foreach ($node->children as $child) {
+        $text .= $nativeDivText($child);
+    }
+
+    return $text;
+};
+
+$nativeDivSlug = static function (string $name): string {
+    return trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower($name)), '-');
+};
+
+$nativeDivMarkdown = static function (array $case) use ($nativeDivSlug): string {
+    $slug = $nativeDivSlug($case['name']);
+    $content = $case['content'] ?? ('Native **' . $slug . '** payload.');
+
+    return implode("\n", [
+        '---',
+        'extension: ' . ($case['extension'] ?? 'markdown+native_divs+native_spans'),
+        'review: {extension: native_divs, family: html, kind: block, name: "' . $case['name'] . '"}',
+        '...',
+        '',
+        '<div ' . $case['attrs'] . '>',
+        '',
+        $content,
+        '',
+        '</div>',
+    ]);
+};
+
+$nativeDivAssertAttrs = static function (
+    TestRunner $t,
+    AstNode $div,
+    array $case,
+    string $label = '',
+    bool $expectHtmlAttributes = true
+): void {
+    $t->same('div', $div->type, $label . 'node type');
+    $t->same($case['id'] ?? '', $div->attr('id', ''), $label . 'id');
+    $t->same($case['classes'] ?? [], $div->attr('classes', []), $label . 'classes');
+
+    $attributes = $div->attr('attributes', []);
+    foreach ($case['attributes'] ?? [] as $name => $value) {
+        $t->same($value, is_array($attributes) ? ($attributes[$name] ?? null) : null, $label . 'attribute ' . $name);
+    }
+
+    if (!$expectHtmlAttributes) {
+        return;
+    }
+
+    $htmlAttributes = $div->attr('htmlAttributes', []);
+    foreach ($case['htmlAttributes'] ?? [] as $name => $value) {
+        $t->same($value, is_array($htmlAttributes) ? ($htmlAttributes[$name] ?? null) : null, $label . 'HTML attribute ' . $name);
+    }
+};
+
+$nativeDivCases = [
+    [
+        'name' => 'id class data review',
+        'attrs' => 'id="div-alpha" class="review primary" data-review="alpha"',
+        'id' => 'div-alpha',
+        'classes' => ['review', 'primary'],
+        'attributes' => ['review' => 'alpha'],
+        'htmlAttributes' => ['id' => 'div-alpha', 'class' => 'review primary', 'data-review' => 'alpha'],
+    ],
+    [
+        'name' => 'lang dir title',
+        'attrs' => 'lang="en" dir="ltr" title="English packet"',
+        'attributes' => ['lang' => 'en', 'dir' => 'ltr', 'title' => 'English packet'],
+        'htmlAttributes' => ['lang' => 'en', 'dir' => 'ltr', 'title' => 'English packet'],
+    ],
+    [
+        'name' => 'role aria label',
+        'attrs' => 'role="note" aria-label="Review note"',
+        'attributes' => ['role' => 'note', 'aria-label' => 'Review note'],
+        'htmlAttributes' => ['role' => 'note', 'aria-label' => 'Review note'],
+    ],
+    [
+        'name' => 'translate data source',
+        'attrs' => 'translate="no" data-source="markdown-reader"',
+        'attributes' => ['translate' => 'no', 'source' => 'markdown-reader'],
+        'htmlAttributes' => ['translate' => 'no', 'data-source' => 'markdown-reader'],
+    ],
+    [
+        'name' => 'two classes',
+        'attrs' => 'class="callout source"',
+        'classes' => ['callout', 'source'],
+        'htmlAttributes' => ['class' => 'callout source'],
+    ],
+    [
+        'name' => 'id only',
+        'attrs' => 'id="native-div-id"',
+        'id' => 'native-div-id',
+        'htmlAttributes' => ['id' => 'native-div-id'],
+    ],
+    [
+        'name' => 'data lane case',
+        'attrs' => 'data-lane="pandoc" data-case="native-div"',
+        'attributes' => ['lane' => 'pandoc', 'case' => 'native-div'],
+        'htmlAttributes' => ['data-lane' => 'pandoc', 'data-case' => 'native-div'],
+    ],
+    [
+        'name' => 'aria describedby',
+        'attrs' => 'aria-describedby="note-a note-b" data-kind="aria"',
+        'attributes' => ['aria-describedby' => 'note-a note-b', 'kind' => 'aria'],
+        'htmlAttributes' => ['aria-describedby' => 'note-a note-b', 'data-kind' => 'aria'],
+    ],
+    [
+        'name' => 'language polish',
+        'attrs' => 'lang="pl" data-locale="pl-PL"',
+        'attributes' => ['lang' => 'pl', 'locale' => 'pl-PL'],
+        'htmlAttributes' => ['lang' => 'pl', 'data-locale' => 'pl-PL'],
+    ],
+    [
+        'name' => 'direction rtl',
+        'attrs' => 'dir="rtl" data-direction="source"',
+        'attributes' => ['dir' => 'rtl', 'direction' => 'source'],
+        'htmlAttributes' => ['dir' => 'rtl', 'data-direction' => 'source'],
+    ],
+    [
+        'name' => 'title quoted',
+        'attrs' => 'title="Quoted review title" data-title-token="packet"',
+        'attributes' => ['title' => 'Quoted review title', 'title-token' => 'packet'],
+        'htmlAttributes' => ['title' => 'Quoted review title', 'data-title-token' => 'packet'],
+    ],
+    [
+        'name' => 'role warning',
+        'attrs' => 'class="warning" role="region" data-severity="warning"',
+        'classes' => ['warning'],
+        'attributes' => ['role' => 'region', 'severity' => 'warning'],
+        'htmlAttributes' => ['class' => 'warning', 'role' => 'region', 'data-severity' => 'warning'],
+    ],
+    [
+        'name' => 'data index',
+        'attrs' => 'data-index="7" data-group="alpha"',
+        'attributes' => ['index' => '7', 'group' => 'alpha'],
+        'htmlAttributes' => ['data-index' => '7', 'data-group' => 'alpha'],
+    ],
+    [
+        'name' => 'data source path',
+        'attrs' => 'data-source-path="markdown/native-div" data-kind="source"',
+        'attributes' => ['source-path' => 'markdown/native-div', 'kind' => 'source'],
+        'htmlAttributes' => ['data-source-path' => 'markdown/native-div', 'data-kind' => 'source'],
+    ],
+    [
+        'name' => 'class normalization',
+        'attrs' => 'class="primary   secondary" data-kind="classes"',
+        'classes' => ['primary', 'secondary'],
+        'attributes' => ['kind' => 'classes'],
+        'htmlAttributes' => ['class' => 'primary secondary', 'data-kind' => 'classes'],
+    ],
+    [
+        'name' => 'anchor id',
+        'attrs' => 'id="anchor-review" data-anchor="true"',
+        'id' => 'anchor-review',
+        'attributes' => ['anchor' => 'true'],
+        'htmlAttributes' => ['id' => 'anchor-review', 'data-anchor' => 'true'],
+    ],
+    [
+        'name' => 'tip class data',
+        'attrs' => 'class="tip" data-alert="tip"',
+        'classes' => ['tip'],
+        'attributes' => ['alert' => 'tip'],
+        'htmlAttributes' => ['class' => 'tip', 'data-alert' => 'tip'],
+    ],
+    [
+        'name' => 'review packet',
+        'attrs' => 'id="packet-div" class="review-packet" data-format="markdown" data-extension="native_divs"',
+        'id' => 'packet-div',
+        'classes' => ['review-packet'],
+        'attributes' => ['format' => 'markdown', 'extension' => 'native_divs'],
+        'htmlAttributes' => ['id' => 'packet-div', 'class' => 'review-packet', 'data-format' => 'markdown', 'data-extension' => 'native_divs'],
+    ],
+    [
+        'name' => 'nested data attrs',
+        'attrs' => 'data-first="one" data-second="two" data-third="three"',
+        'attributes' => ['first' => 'one', 'second' => 'two', 'third' => 'three'],
+        'htmlAttributes' => ['data-first' => 'one', 'data-second' => 'two', 'data-third' => 'three'],
+    ],
+    [
+        'name' => 'aria live region',
+        'attrs' => 'role="status" aria-live="polite" data-kind="live"',
+        'attributes' => ['role' => 'status', 'aria-live' => 'polite', 'kind' => 'live'],
+        'htmlAttributes' => ['role' => 'status', 'aria-live' => 'polite', 'data-kind' => 'live'],
+    ],
+    [
+        'name' => 'hidden translated off',
+        'attrs' => 'translate="no" aria-hidden="false" data-token="literal"',
+        'attributes' => ['translate' => 'no', 'aria-hidden' => 'false', 'token' => 'literal'],
+        'htmlAttributes' => ['translate' => 'no', 'aria-hidden' => 'false', 'data-token' => 'literal'],
+    ],
+    [
+        'name' => 'regional language',
+        'attrs' => 'lang="en-US" data-region="us"',
+        'attributes' => ['lang' => 'en-US', 'region' => 'us'],
+        'htmlAttributes' => ['lang' => 'en-US', 'data-region' => 'us'],
+    ],
+    [
+        'name' => 'class data revision',
+        'attrs' => 'class="revision inserted" data-revision="42"',
+        'classes' => ['revision', 'inserted'],
+        'attributes' => ['revision' => '42'],
+        'htmlAttributes' => ['class' => 'revision inserted', 'data-revision' => '42'],
+    ],
+    [
+        'name' => 'review role document',
+        'attrs' => 'role="document" data-review-role="document"',
+        'attributes' => ['role' => 'document', 'review-role' => 'document'],
+        'htmlAttributes' => ['role' => 'document', 'data-review-role' => 'document'],
+    ],
+    [
+        'name' => 'heading wrapper',
+        'attrs' => 'id="heading-wrapper" class="section" data-level="2"',
+        'id' => 'heading-wrapper',
+        'classes' => ['section'],
+        'attributes' => ['level' => '2'],
+        'htmlAttributes' => ['id' => 'heading-wrapper', 'class' => 'section', 'data-level' => '2'],
+    ],
+    [
+        'name' => 'blockquote wrapper',
+        'attrs' => 'class="quote-wrapper" data-cite="https://example.test/source" data-kind="quote"',
+        'classes' => ['quote-wrapper'],
+        'attributes' => ['cite' => 'https://example.test/source', 'kind' => 'quote'],
+        'htmlAttributes' => ['class' => 'quote-wrapper', 'data-cite' => 'https://example.test/source', 'data-kind' => 'quote'],
+    ],
+    [
+        'name' => 'list wrapper',
+        'attrs' => 'class="list-wrapper" data-items="2"',
+        'classes' => ['list-wrapper'],
+        'attributes' => ['items' => '2'],
+        'htmlAttributes' => ['class' => 'list-wrapper', 'data-items' => '2'],
+    ],
+    [
+        'name' => 'table wrapper',
+        'attrs' => 'class="table-wrapper" data-columns="2"',
+        'classes' => ['table-wrapper'],
+        'attributes' => ['columns' => '2'],
+        'htmlAttributes' => ['class' => 'table-wrapper', 'data-columns' => '2'],
+    ],
+    [
+        'name' => 'image wrapper',
+        'attrs' => 'class="image-wrapper" data-media="image"',
+        'classes' => ['image-wrapper'],
+        'attributes' => ['media' => 'image'],
+        'htmlAttributes' => ['class' => 'image-wrapper', 'data-media' => 'image'],
+    ],
+    [
+        'name' => 'native span child',
+        'attrs' => 'class="span-wrapper" data-kind="span-child"',
+        'classes' => ['span-wrapper'],
+        'attributes' => ['kind' => 'span-child'],
+        'htmlAttributes' => ['class' => 'span-wrapper', 'data-kind' => 'span-child'],
+        'content' => 'Native <span data-inner="yes">span child</span> payload.',
+        'text' => 'Native span child payload.',
+    ],
+];
+
+foreach ($nativeDivCases as $case) {
+    $tests['maps upstream markdown native div extension ' . $case['name'] . ' with metadata'] =
+        static function (TestRunner $t) use ($case, $nativeDivMarkdown, $nativeDivAssertAttrs, $nativeDivText, $nativeDivSlug): void {
+            $document = (new MarkdownReader())->read($nativeDivMarkdown($case));
+            $meta = $document->attr('meta');
+            $div = $document->children[0] ?? new AstNode('missing');
+            $slug = $nativeDivSlug($case['name']);
+            $expectedText = $case['text'] ?? ('Native ' . $slug . ' payload.');
+            $markdown = (new MarkdownWriter())->write($document);
+            $blocks = (new WordPressBlockWriter())->write($document);
+
+            $t->same($case['extension'] ?? 'markdown+native_divs+native_spans', $meta['extension'] ?? null);
+            $t->same('native_divs', $meta['review']['extension'] ?? null);
+            $t->same($case['name'], $meta['review']['name'] ?? null);
+            $nativeDivAssertAttrs($t, $div, $case);
+            $t->same($expectedText, $nativeDivText($div));
+            $t->contains(':::', $markdown);
+
+            if (($case['id'] ?? '') !== '') {
+                $t->contains('#' . $case['id'], $markdown);
+            }
+            foreach ($case['classes'] ?? [] as $class) {
+                $t->contains('.' . $class, $markdown, $case['name'] . ' Markdown class ' . $class);
+            }
+            foreach ($case['attributes'] ?? [] as $name => $value) {
+                $t->contains($name . '="' . $value . '"', $markdown, $case['name'] . ' Markdown attribute ' . $name);
+            }
+            foreach ($case['htmlAttributes'] ?? [] as $name => $value) {
+                $t->contains($name . '="' . htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"', $blocks, $case['name'] . ' WordPress attribute ' . $name);
+            }
+        };
+
+    $tests['round trips upstream markdown native div extension ' . $case['name'] . ' through json and native'] =
+        static function (TestRunner $t) use ($case, $nativeDivMarkdown, $nativeDivAssertAttrs, $nativeDivText, $nativeDivSlug, $rawSurgeReviewValue): void {
+            $document = (new MarkdownReader())->read($nativeDivMarkdown($case));
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+            $slug = $nativeDivSlug($case['name']);
+            $expectedText = $case['text'] ?? ('Native ' . $slug . ' payload.');
+
+            $roundTrips = [
+                'json' => (new PandocJsonReader())->readPacket($jsonPacket),
+                'native' => (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR)),
+            ];
+
+            foreach ($roundTrips as $source => $roundTrip) {
+                $meta = $roundTrip->attr('meta');
+                $div = $roundTrip->children[0] ?? new AstNode('missing');
+                $markdown = (new MarkdownWriter())->write($roundTrip);
+
+                $t->same('native_divs', $rawSurgeReviewValue($meta, 'extension'), "{$source} metadata extension");
+                $t->same($case['name'], $rawSurgeReviewValue($meta, 'name'), "{$source} metadata name");
+                $nativeDivAssertAttrs($t, $div, $case, "{$source} ", false);
+                $t->same($expectedText, $nativeDivText($div), "{$source} text");
+                $t->contains(':::', $markdown, "{$source} Markdown div fence");
+            }
+        };
+}
+
 return $tests;
