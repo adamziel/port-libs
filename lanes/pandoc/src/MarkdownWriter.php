@@ -1323,7 +1323,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            foreach ($this->renderBlock($child, $indent + 2) as $nestedLine) {
+            foreach ($this->renderBlock($child, $continuationIndent) as $nestedLine) {
                 $lines[] = $nestedLine;
             }
         }

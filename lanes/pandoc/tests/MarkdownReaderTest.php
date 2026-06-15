@@ -8522,8 +8522,8 @@ MD;
         $t->same(['Plain', 'BulletList'], array_map(static fn (array $block): string => (string) ($block['t'] ?? ''), $jsonItem));
         $t->same(['Plain', 'BulletList'], array_map(static fn (array $block): string => (string) ($block['t'] ?? ''), $nativeItem));
         $t->same(['plain', 'bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $roundTripItem->children));
-        $t->contains("- [x]\n  Keep completed reviewer tasks\n  - [ ]\n    Attach media checklist follow-up", $roundTripMarkdown);
-        $t->contains("- [x] Keep completed reviewer tasks\n  - [ ] Attach media checklist follow-up", $sourceMarkdown);
+        $t->contains("- [x]\n      Keep completed reviewer tasks\n      - [ ]\n            Attach media checklist follow-up", $roundTripMarkdown);
+        $t->contains("- [x] Keep completed reviewer tasks\n      - [ ] Attach media checklist follow-up", $sourceMarkdown);
         $t->contains('<li><label><input type="checkbox" checked="" />Keep completed reviewer tasks</label><ul class="task-list"><li><label><input type="checkbox" />Attach media checklist follow-up</label></li></ul></li>', $blocks);
     },
     'maps upstream command task list items into ast attrs and checkbox html' => static function (TestRunner $t): void {
@@ -9520,13 +9520,13 @@ MD;
 
         $t->same(implode("\n", [
             'A.  Upper Alpha',
-            '  I.  Upper Roman.',
-            '    (6) Decimal start with 6',
-            '      c)  Lower alpha with paren',
+            '    I.  Upper Roman.',
+            '        (6) Decimal start with 6',
+            '            c)  Lower alpha with paren',
         ]), $writer->write($nested));
         $t->same("(2) begins with 2\n(3) and now 3", $writer->write($twoParens));
         $t->same("iv. roman checkpoint\nv.  publish handoff", $writer->write($roman));
-        $t->same("1.  Autonumber.\n2.  More.\n  1.  Nested.", $writer->write($reader->read(" #.  Autonumber.\n #.  More.\n     #.  Nested.")));
+        $t->same("1.  Autonumber.\n2.  More.\n    1.  Nested.", $writer->write($reader->read(" #.  Autonumber.\n #.  More.\n     #.  Nested.")));
     },
     'maps upstream markdown writer roman list marker overflow' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
@@ -11178,6 +11178,44 @@ MD;
         ]), $writer->write($listThenCode));
         $t->same("- foo\n  - bar\n- baz", $writer->write($tightSublist));
         $t->same('*f **d*** l', $writer->write($emphStrongSpacing));
+    },
+    'maps upstream markdown writer ordered nested continuation indentation' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $writer = new MarkdownWriter();
+        $document = new AstNode('document', [], [
+            new AstNode('ordered_list', [
+                'start' => 8,
+                'style' => 'upper_roman',
+                'delimiter' => 'period',
+            ], [
+                new AstNode('list_item', [], [
+                    $text('Source import'),
+                    new AstNode('bullet_list', [], [
+                        new AstNode('list_item', [], [$text('Nested review')]),
+                    ]),
+                ]),
+                new AstNode('list_item', [], [$text('Follow-up import')]),
+            ]),
+        ]);
+
+        $markdown = $writer->write($document);
+        $roundTrip = (new MarkdownReader())->read($markdown);
+        $list = $roundTrip->children[0];
+        $firstItem = $list->children[0];
+        $nested = $firstItem->children[1];
+
+        $t->same(implode("\n", [
+            'VIII. Source import',
+            '      - Nested review',
+            'IX. Follow-up import',
+        ]), $markdown);
+        $t->same('ordered_list', $list->type);
+        $t->same(8, $list->attr('start'));
+        $t->same('upper_roman', $list->attr('style'));
+        $t->same('Source import', $firstItem->children[0]->attr('text'));
+        $t->same('bullet_list', $nested->type);
+        $t->same('Nested review', $nested->children[0]->children[0]->attr('text'));
+        $t->same('Follow-up import', $list->children[1]->children[0]->attr('text'));
     },
     'maps upstream markdown reader more indented code at beginning of list items' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
