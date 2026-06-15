@@ -23,6 +23,7 @@ final class PandocJsonWriter
         'citationRecordsNative',
         'colSpanConstructor',
         'colSpanNative',
+        'columnSpecNatives',
         'columnWidthConstructors',
         'columnWidthNatives',
         'constructor',
@@ -1203,6 +1204,7 @@ final class PandocJsonWriter
         $alignments = $node->attr('alignments', []);
         $widths = $node->attr('widths', []);
         $alignmentNatives = $node->attr('alignmentNatives', []);
+        $columnSpecNatives = $node->attr('columnSpecNatives', []);
         $columnWidthNatives = $node->attr('columnWidthNatives', []);
         $columnCount = max(
             is_array($alignments) ? count($alignments) : 0,
@@ -1214,11 +1216,12 @@ final class PandocJsonWriter
             $alignment = is_array($alignments) ? (string) ($alignments[$index] ?? 'default') : 'default';
             $width = is_array($widths) ? ($widths[$index] ?? null) : null;
             $alignmentConstructor = $this->tableAlignmentConstructor($alignment);
-            $specs[] = [
+            $spec = [
                 $this->taggedNativeAt($alignmentNatives, $index, $alignmentConstructor) ?? $this->enum($alignmentConstructor),
                 $this->columnWidthNativeAt($columnWidthNatives, $index, $width)
                     ?? (is_int($width) || is_float($width) ? ['t' => 'ColWidth', 'c' => (float) $width] : ['t' => 'ColWidthDefault']),
             ];
+            $specs[] = $this->columnSpecNativeAt($columnSpecNatives, $index, $spec) ?? $spec;
         }
 
         return $specs;
@@ -2042,6 +2045,33 @@ final class PandocJsonWriter
         }
 
         return abs((float) $content - (float) $width) < 0.000000000001 ? $native : null;
+    }
+
+    /**
+     * @param array{0:array<string, mixed>, 1:array<string, mixed>} $generated
+     * @return list<mixed>|null
+     */
+    private function columnSpecNativeAt(mixed $natives, int $index, array $generated): ?array
+    {
+        if (!is_array($natives) || !array_is_list($natives) || !array_key_exists($index, $natives)) {
+            return null;
+        }
+
+        $native = $natives[$index];
+        if (!is_array($native) || !array_is_list($native)) {
+            return null;
+        }
+
+        if ($native === $generated) {
+            return $native;
+        }
+
+        return count($native) === 1
+            && is_array($native[0])
+            && array_is_list($native[0])
+            && $native[0] === $generated
+                ? $native
+                : null;
     }
 
     private function integerConstructorNative(mixed $native, string $constructor, int $integer): mixed

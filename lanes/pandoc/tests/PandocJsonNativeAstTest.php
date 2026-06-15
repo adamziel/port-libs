@@ -4146,6 +4146,75 @@ return [
             }
         }
     },
+    'accepts single wrapped table column spec tuple payloads through json and native readers' => static function (TestRunner $t): void {
+        $leftAlignment = ['t' => 'AlignLeft', 'reviewQueue' => 'single-colspec-align-source'];
+        $leftWidth = ['t' => 'ColWidth', 'c' => [0.25], 'reviewQueue' => 'single-colspec-width-source'];
+        $defaultAlignment = ['t' => 'AlignDefault', 'reviewQueue' => 'direct-colspec-align-source'];
+        $defaultWidth = ['t' => 'ColWidthDefault', 'reviewQueue' => 'direct-colspec-width-source'];
+        $wrappedSpec = [[$leftAlignment, $leftWidth]];
+        $directSpec = [$defaultAlignment, $defaultWidth];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['single-colspec-table', ['json-native'], [['data-source', 'column-spec']]],
+                ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                [$wrappedSpec, $directSpec],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'single-colspec-table-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $table = $document->children[0];
+            $attrs = $table->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+            $rebuilt = new AstNode('table', array_replace($attrs, [
+                'id' => 'rebuilt-single-colspec-table',
+            ]), $table->children);
+            $edited = new AstNode('table', array_replace($attrs, [
+                'widths' => [0.5, null],
+            ]), $table->children);
+
+            $t->same(['left', 'default'], $table->attr('alignments'), "{$source} column spec alignments");
+            $t->same([0.25, null], $table->attr('widths'), "{$source} column spec widths");
+            $t->same([$wrappedSpec, $directSpec], $table->attr('columnSpecNatives'), "{$source} records original column spec tuple payloads");
+            $t->same([$leftAlignment, $defaultAlignment], $table->attr('alignmentNatives'), "{$source} records unwrapped alignment sidecars");
+            $t->same([$leftWidth, $defaultWidth], $table->attr('columnWidthNatives'), "{$source} records unwrapped width sidecars");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [$rebuilt])),
+                'native' => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [$rebuilt])), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $colSpecs = $encoded['blocks'][0]['c'][2];
+
+                $t->same('rebuilt-single-colspec-table', $encoded['blocks'][0]['c'][0][0], "{$source} {$writer} rebuilds table attrs");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} {$writer} drops stale table wrapper sidecar");
+                $t->same($wrappedSpec, $colSpecs[0], "{$source} {$writer} preserves single wrapped column spec");
+                $t->same($directSpec, $colSpecs[1], "{$source} {$writer} preserves direct column spec");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [$edited])),
+                'native' => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [$edited])), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $editedSpec = $encoded['blocks'][0]['c'][2][0];
+
+                $t->same($leftAlignment, $editedSpec[0], "{$source} {$writer} preserves edited-column alignment sidecar");
+                $t->same(['t' => 'ColWidth', 'c' => 0.5], $editedSpec[1], "{$source} {$writer} regenerates edited column width");
+                $t->same(false, array_key_exists('reviewQueue', $editedSpec[1]), "{$source} {$writer} drops stale edited width sidecar");
+            }
+        }
+    },
     'records pandoc attr tuple provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $headerAttr = ['heading-id', ['level'], [['data-source', 'json-native']]];
         $codeAttr = ['code-id', ['php'], [['data-token', 'code']]];

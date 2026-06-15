@@ -1299,6 +1299,7 @@ final class PandocJsonReader
         $widths = [];
         $alignmentConstructors = [];
         $alignmentNatives = [];
+        $columnSpecNatives = [];
         $columnWidthConstructors = [];
         $columnWidthNatives = [];
         foreach ($this->listContent($colSpecs, 'Table column specs') as $colSpec) {
@@ -1309,6 +1310,7 @@ final class PandocJsonReader
             $widths[] = $this->readTableColumnWidth($tuple[1]);
             $alignmentConstructors[] = $alignmentConstructor;
             $alignmentNatives[] = $tuple[0];
+            $columnSpecNatives[] = $colSpec;
             $columnWidthConstructors[] = $columnWidthConstructor;
             $columnWidthNatives[] = $tuple[1];
         }
@@ -1322,6 +1324,7 @@ final class PandocJsonReader
             'widths' => $widths,
             'alignmentConstructors' => $alignmentConstructors,
             'alignmentNatives' => $alignmentNatives,
+            'columnSpecNatives' => $columnSpecNatives,
             'columnWidthConstructors' => $columnWidthConstructors,
             'columnWidthNatives' => $columnWidthNatives,
         ];
