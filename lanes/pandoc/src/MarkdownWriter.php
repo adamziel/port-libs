@@ -6242,7 +6242,7 @@ final class MarkdownWriter
     {
         $value = preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value;
 
-        return str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
+        return str_replace(['\\', '"', '{', '}'], ['\\\\', '\\"', '\\{', '\\}'], $value);
     }
 
     private function escapeLinkTitle(string $title): string
