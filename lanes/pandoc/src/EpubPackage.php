@@ -591,6 +591,7 @@ final class EpubPackage
             $this->spine,
             $ocfSidecars,
             $this->encryption,
+            $manifestFallbacks,
         );
         $readingOrderInventory = self::readingOrderInventoryReport($this->spine, $packageInventory);
         $manifestDependencyInventory = self::manifestDependencyInventoryReport(
@@ -7299,6 +7300,7 @@ final class EpubPackage
      * @param list<array<string, mixed>> $spine
      * @param array<string, mixed> $ocfSidecars
      * @param array<string, mixed> $encryption
+     * @param array<string, mixed> $manifestFallbacks
      *
      * @return array<string, mixed>
      */
@@ -7309,7 +7311,8 @@ final class EpubPackage
         array $manifestItems,
         array $spine,
         array $ocfSidecars,
-        array $encryption
+        array $encryption,
+        array $manifestFallbacks
     ): array {
         $manifestByPackagePath = [];
         $manifestDeclaredPartNames = [];
@@ -7371,6 +7374,7 @@ final class EpubPackage
             }
         }
 
+        $fallbackRolesByPackagePath = self::packageInventoryFallbackRoles($manifestFallbacks);
         $opfPackagePath = self::packageInventoryEntryName($opfPartName);
         $localOrderByName = [];
         foreach ($package->localNames() as $index => $name) {
@@ -7393,6 +7397,12 @@ final class EpubPackage
         $encryptedPartNames = [];
         $obfuscatedFontPartNames = [];
         $spinePartNames = [];
+        $manifestFallbackPartNames = [];
+        $manifestFallbackSourcePartNames = [];
+        $manifestFallbackStyleSourcePartNames = [];
+        $manifestFallbackMissingSourcePartNames = [];
+        $manifestFallbackTerminalPartNames = [];
+        $manifestFallbackStyleTerminalPartNames = [];
         $opfManifestDeclaredEntryCount = 0;
         $spineEntryCount = 0;
         $encryptedEntryCount = 0;
@@ -7459,6 +7469,7 @@ final class EpubPackage
             $isRootfile = $rootfileMatches !== [];
             $isEncryptionSidecar = $encryptionPackagePath !== null && $packagePath === $encryptionPackagePath;
             $isSidecar = $sidecarMatches !== [];
+            $fallbackRoles = $fallbackRolesByPackagePath[$packagePath] ?? self::emptyPackageInventoryFallbackRoles();
             $declaredPackageEntry = $isMimetype
                 || $isContainer
                 || $isRootfile
@@ -7533,6 +7544,27 @@ final class EpubPackage
                 $addRole('undeclared-package-entry');
                 $undeclaredPartNames[$partName] = true;
             }
+            foreach ($fallbackRoles['roles'] as $fallbackRole) {
+                $addRole($fallbackRole);
+            }
+            if ($fallbackRoles['roles'] !== []) {
+                $manifestFallbackPartNames[$partName] = true;
+            }
+            if ($fallbackRoles['sourceIds'] !== []) {
+                $manifestFallbackSourcePartNames[$partName] = true;
+            }
+            if ($fallbackRoles['styleSourceIds'] !== []) {
+                $manifestFallbackStyleSourcePartNames[$partName] = true;
+            }
+            if ($fallbackRoles['missingSourceIds'] !== []) {
+                $manifestFallbackMissingSourcePartNames[$partName] = true;
+            }
+            if ($fallbackRoles['terminalForIds'] !== []) {
+                $manifestFallbackTerminalPartNames[$partName] = true;
+            }
+            if ($fallbackRoles['styleTerminalForIds'] !== []) {
+                $manifestFallbackStyleTerminalPartNames[$partName] = true;
+            }
 
             $provenance = self::zipEntryProvenance($entry);
             if (($provenance['compressionSupported'] ?? false) !== true) {
@@ -7576,6 +7608,14 @@ final class EpubPackage
                 'properties' => $properties,
                 'resourceKind' => $resourceKind,
                 'roles' => $roles,
+                'manifestFallbackRoles' => $fallbackRoles['roles'],
+                'manifestFallbackSourceIds' => $fallbackRoles['sourceIds'],
+                'manifestFallbackChainForIds' => $fallbackRoles['chainForIds'],
+                'manifestFallbackTerminalForIds' => $fallbackRoles['terminalForIds'],
+                'manifestFallbackStyleSourceIds' => $fallbackRoles['styleSourceIds'],
+                'manifestFallbackMissingSourceIds' => $fallbackRoles['missingSourceIds'],
+                'manifestFallbackStyleChainForIds' => $fallbackRoles['styleChainForIds'],
+                'manifestFallbackStyleTerminalForIds' => $fallbackRoles['styleTerminalForIds'],
             ] + $provenance;
             $item['byteExposurePolicy'] = 'epub-package-entry-metadata-only';
             if ($encrypted) {
@@ -7670,10 +7710,108 @@ final class EpubPackage
             'encryptedPartNames' => array_keys($encryptedPartNames),
             'obfuscatedFontPartNames' => array_keys($obfuscatedFontPartNames),
             'unsupportedCompressionPartNames' => array_keys($unsupportedCompressionPartNames),
+            'manifestFallbackPartNames' => array_keys($manifestFallbackPartNames),
+            'manifestFallbackSourcePartNames' => array_keys($manifestFallbackSourcePartNames),
+            'manifestFallbackStyleSourcePartNames' => array_keys($manifestFallbackStyleSourcePartNames),
+            'manifestFallbackMissingSourcePartNames' => array_keys($manifestFallbackMissingSourcePartNames),
+            'manifestFallbackTerminalPartNames' => array_keys($manifestFallbackTerminalPartNames),
+            'manifestFallbackStyleTerminalPartNames' => array_keys($manifestFallbackStyleTerminalPartNames),
             'localPackagePaths' => $package->localNames(),
             'centralPackagePaths' => $package->names(),
             'byPackagePath' => $byPackagePath,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $manifestFallbacks
+     *
+     * @return array<string, array<string, list<string>>>
+     */
+    private static function packageInventoryFallbackRoles(array $manifestFallbacks): array
+    {
+        $byPackagePath = [];
+        $add = static function (mixed $partName, string $role, string $field, string $sourceId) use (&$byPackagePath): void {
+            $packagePath = self::packageInventoryEntryName($partName);
+            if ($packagePath === null) {
+                return;
+            }
+
+            if (!isset($byPackagePath[$packagePath])) {
+                $byPackagePath[$packagePath] = self::emptyPackageInventoryFallbackRoles();
+            }
+            if (!in_array($role, $byPackagePath[$packagePath]['roles'], true)) {
+                $byPackagePath[$packagePath]['roles'][] = $role;
+            }
+            if ($sourceId !== '' && !in_array($sourceId, $byPackagePath[$packagePath][$field], true)) {
+                $byPackagePath[$packagePath][$field][] = $sourceId;
+            }
+        };
+
+        foreach (is_array($manifestFallbacks['items'] ?? null) ? $manifestFallbacks['items'] : [] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $sourceId = is_string($item['id'] ?? null) ? $item['id'] : '';
+            if (($item['fallbackId'] ?? null) !== null) {
+                $add($item['partName'] ?? null, 'manifest-fallback-source', 'sourceIds', $sourceId);
+            }
+            if (($item['fallbackStyleId'] ?? null) !== null) {
+                $add($item['partName'] ?? null, 'manifest-fallback-style-source', 'styleSourceIds', $sourceId);
+            }
+            foreach (is_array($item['fallbackDiagnostics'] ?? null) ? $item['fallbackDiagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                if (($diagnostic['type'] ?? null) === 'missing-manifest-fallback-for-non-core-media-type') {
+                    $add($item['partName'] ?? null, 'manifest-fallback-missing-source', 'missingSourceIds', $sourceId);
+                }
+            }
+
+            $terminalId = is_string($item['fallbackTerminalId'] ?? null) ? $item['fallbackTerminalId'] : null;
+            foreach (is_array($item['fallbackChain'] ?? null) ? $item['fallbackChain'] : [] as $chainItem) {
+                if (!is_array($chainItem)) {
+                    continue;
+                }
+
+                $add($chainItem['partName'] ?? null, 'manifest-fallback-chain-item', 'chainForIds', $sourceId);
+                if ($terminalId !== null && ($chainItem['id'] ?? null) === $terminalId) {
+                    $add($chainItem['partName'] ?? null, 'manifest-fallback-terminal', 'terminalForIds', $sourceId);
+                }
+            }
+
+            $styleTerminalId = is_string($item['fallbackStyleTerminalId'] ?? null) ? $item['fallbackStyleTerminalId'] : null;
+            foreach (is_array($item['fallbackStyleChain'] ?? null) ? $item['fallbackStyleChain'] : [] as $chainItem) {
+                if (!is_array($chainItem)) {
+                    continue;
+                }
+
+                $add($chainItem['partName'] ?? null, 'manifest-fallback-style-chain-item', 'styleChainForIds', $sourceId);
+                if ($styleTerminalId !== null && ($chainItem['id'] ?? null) === $styleTerminalId) {
+                    $add($chainItem['partName'] ?? null, 'manifest-fallback-style-terminal', 'styleTerminalForIds', $sourceId);
+                }
+            }
+        }
+
+        return $byPackagePath;
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private static function emptyPackageInventoryFallbackRoles(): array
+    {
+        return [
+            'roles' => [],
+            'sourceIds' => [],
+            'chainForIds' => [],
+            'terminalForIds' => [],
+            'styleSourceIds' => [],
+            'missingSourceIds' => [],
+            'styleChainForIds' => [],
+            'styleTerminalForIds' => [],
         ];
     }
 

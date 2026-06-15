@@ -4144,6 +4144,88 @@ XML;
         $t->same(['missing-manifest-fallback-for-non-core-media-type'], array_column($summary['wordpressImport']['manifestFallbackDiagnostics'], 'type'));
     },
 
+    'preserves OPF manifest fallback roles in ZIP package inventory' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithFallbackInventory = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="custom-ok" href="widgets/custom-ok.bin" media-type="application/x-review-widget" fallback="ok-fallback" fallback-style="widget-style"/>
+    <item id="ok-fallback" href="text/ok-fallback.xhtml" media-type="application/xhtml+xml"/>
+    <item id="poster-heic" href="images/poster.heic" media-type="image/heic" fallback="cover"/>
+    <item id="orphan-widget" href="widgets/orphan.bin" media-type="application/x-review-widget"/>
+    <item id="widget-style" href="styles/widget.css" media-type="text/css"/>',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithFallbackInventory],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/widgets/custom-ok.bin', 'data' => 'CUSTOM-OK'],
+            ['name' => 'EPUB/text/ok-fallback.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Fallback review content.</p></body></html>'],
+            ['name' => 'EPUB/styles/widget.css', 'data' => 'body { color: #123456; }'],
+            ['name' => 'EPUB/images/poster.heic', 'data' => 'HEIC'],
+            ['name' => 'EPUB/widgets/orphan.bin', 'data' => 'ORPHAN'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $byPath = $inventory['byPackagePath'];
+
+        $t->same($inventory, $summary['wordpressImport']['packageInventory']);
+        $t->same([
+            '/EPUB/widgets/custom-ok.bin',
+            '/EPUB/text/ok-fallback.xhtml',
+            '/EPUB/styles/widget.css',
+            '/EPUB/images/poster.heic',
+            '/EPUB/widgets/orphan.bin',
+            '/EPUB/images/cover.png',
+        ], $inventory['manifestFallbackPartNames']);
+        $t->same(['/EPUB/widgets/custom-ok.bin', '/EPUB/images/poster.heic'], $inventory['manifestFallbackSourcePartNames']);
+        $t->same(['/EPUB/widgets/custom-ok.bin'], $inventory['manifestFallbackStyleSourcePartNames']);
+        $t->same(['/EPUB/widgets/orphan.bin'], $inventory['manifestFallbackMissingSourcePartNames']);
+        $t->same(['/EPUB/text/ok-fallback.xhtml', '/EPUB/images/cover.png'], $inventory['manifestFallbackTerminalPartNames']);
+        $t->same(['/EPUB/styles/widget.css'], $inventory['manifestFallbackStyleTerminalPartNames']);
+
+        $source = $byPath['EPUB/widgets/custom-ok.bin'];
+        $t->same(['manifest-fallback-source', 'manifest-fallback-style-source'], $source['manifestFallbackRoles']);
+        $t->same(['custom-ok'], $source['manifestFallbackSourceIds']);
+        $t->same(['custom-ok'], $source['manifestFallbackStyleSourceIds']);
+        $t->true(in_array('manifest-fallback-source', $source['roles'], true), 'fallback source role missing');
+        $t->true(in_array('manifest-fallback-style-source', $source['roles'], true), 'fallback-style source role missing');
+
+        $fallback = $byPath['EPUB/text/ok-fallback.xhtml'];
+        $t->same(['manifest-fallback-chain-item', 'manifest-fallback-terminal'], $fallback['manifestFallbackRoles']);
+        $t->same(['custom-ok'], $fallback['manifestFallbackChainForIds']);
+        $t->same(['custom-ok'], $fallback['manifestFallbackTerminalForIds']);
+        $t->true(in_array('manifest-fallback-terminal', $fallback['roles'], true), 'fallback terminal role missing');
+
+        $style = $byPath['EPUB/styles/widget.css'];
+        $t->same(['manifest-fallback-style-chain-item', 'manifest-fallback-style-terminal'], $style['manifestFallbackRoles']);
+        $t->same(['custom-ok'], $style['manifestFallbackStyleChainForIds']);
+        $t->same(['custom-ok'], $style['manifestFallbackStyleTerminalForIds']);
+
+        $poster = $byPath['EPUB/images/poster.heic'];
+        $t->same(['manifest-fallback-source'], $poster['manifestFallbackRoles']);
+        $t->same(['poster-heic'], $poster['manifestFallbackSourceIds']);
+
+        $orphan = $byPath['EPUB/widgets/orphan.bin'];
+        $t->same(['manifest-fallback-missing-source'], $orphan['manifestFallbackRoles']);
+        $t->same(['orphan-widget'], $orphan['manifestFallbackMissingSourceIds']);
+
+        $cover = $byPath['EPUB/images/cover.png'];
+        $t->same(['manifest-fallback-chain-item', 'manifest-fallback-terminal'], $cover['manifestFallbackRoles']);
+        $t->same(['poster-heic'], $cover['manifestFallbackTerminalForIds']);
+        $t->same(2, $inventory['roleCounts']['manifest-fallback-source']);
+        $t->same(1, $inventory['roleCounts']['manifest-fallback-style-source']);
+        $t->same(1, $inventory['roleCounts']['manifest-fallback-missing-source']);
+        $t->same(2, $inventory['roleCounts']['manifest-fallback-terminal']);
+        $t->same(1, $inventory['roleCounts']['manifest-fallback-style-terminal']);
+    },
+
     'reports OPF manifest fallback chains whose terminal package part is missing' => static function (TestRunner $t) use ($epubContainerXml): void {
         $opfWithMissingFallbackPart = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
