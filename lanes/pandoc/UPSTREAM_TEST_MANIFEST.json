@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3509,
-        "latestSlice": "pandoc-epub-page-list-collision-precedence maps one native EPUB3 page-list precedence case after rebase onto current main 1c37e35f12. EpubPackageReader keeps external and unsafe page-list hrefs out of normalized collision reading-order summaries while preserving href policy diagnostics, fragment-only page-list manifest diagnostics, local collision pageListTarget summaries, and unchanged toc entry shape without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, online services, live provider tests, or external validators. phpPass moves 3584 -> 3585, phpFail remains 0, mapped upstream cases move 3508 -> 3509, mappedEpubPageListCollisionPrecedenceCases = 1, and epubPageListCollisionPrecedenceAssertions = 20. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php passed 1 file, 877 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84136 assertions, 0 failures; jq empty; git diff --check; and conflict-marker scan.",
+        "mapped": 3518,
+        "latestSlice": "pandoc-opc-relationship-source-kind-matrix maps nine shared ZIP/OPC relationship source-kind cases after rebase onto current main e4f4a0a7e5. OpcRelationshipGraph now exposes relationshipSourceKind on relationship-part preflight rows and buckets sourceKindCounts plus partNamesBySourceKind in relationshipPartLoadSummary, covering package-root, package-part, content-types-item, invalid-source, missing-source, and relationship-part load decisions without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass remains 3586, phpFail remains 0, mapped upstream cases move 3509 -> 3518, mappedOpcRelationshipSourceKindMatrixCases = 9, and opcRelationshipSourceKindMatrixAssertions = 19. Verification passed php -l for OpcRelationshipGraph.php and OpenPackagingConventionsTest.php; focused OpenPackagingConventionsTest.php passed 1 file, 4345 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84173 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "EPUB3 page-list collision precedence diagnostics are verified after rebase onto current main 1c37e35f12; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-14 EPUB3 page-list collision precedence verified after rebase onto current main 1c37e35f12; focused EpubPackageReaderTest.php passed 1 file, 877 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84136 assertions, 0 failures.",
+        "status": "Shared ZIP/OPC relationship source-kind matrix is verified after rebase onto current main e4f4a0a7e5; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-15 Shared ZIP/OPC relationship source-kind matrix verified after rebase onto current main e4f4a0a7e5; focused OpenPackagingConventionsTest.php passed 1 file, 4345 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84173 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -445,7 +445,9 @@
         "mappedCsvTsvInputPrefixDiagnosticCases": 2,
         "csvTsvInputPrefixDiagnosticAssertions": 41,
         "mappedEpubPageListCollisionPrecedenceCases": 1,
-        "epubPageListCollisionPrecedenceAssertions": 20
+        "epubPageListCollisionPrecedenceAssertions": 20,
+        "mappedOpcRelationshipSourceKindMatrixCases": 9,
+        "opcRelationshipSourceKindMatrixAssertions": 19
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -2042,5 +2044,7 @@
     "mappedOdfCompactManifestAttributeCollisionCases": 1,
     "odfCompactManifestAttributeCollisionAssertions": 45,
     "mappedEpubPackageAuthoringAttributeCases": 1,
-    "epubPackageAuthoringAttributeAssertions": 22
+    "epubPackageAuthoringAttributeAssertions": 22,
+    "mappedOpcRelationshipSourceKindMatrixCases": 9,
+    "opcRelationshipSourceKindMatrixAssertions": 19
 }

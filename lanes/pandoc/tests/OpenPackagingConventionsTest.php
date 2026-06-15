@@ -12136,6 +12136,12 @@ XML;
 </Relationships>
 XML;
 
+        $contentTypesRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdContentTypesAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/document.xml"/>
+</Relationships>
+XML;
+
         $nestedRelationshipXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdNestedImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/nested.png"/>
@@ -12153,6 +12159,7 @@ XML;
         $package = ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
             ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => '_rels/[Content_Types].xml.rels', 'data' => $contentTypesRelationshipsXml],
             ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
             ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
             ['name' => 'word/media/document.xml', 'data' => '<review/>'],
@@ -12177,6 +12184,7 @@ XML;
 
         $t->same([
             '/_rels/.rels',
+            '/_rels/[Content_Types].xml.rels',
             '/word/_rels/document.xml.rels',
             '/word/_rels/media/document.xml.rels',
             '/word/_rels/comments.xml.rels',
@@ -12191,14 +12199,24 @@ XML;
         $t->same('loaded', $loads['/_rels/.rels']['loadAction']);
         $t->same('loaded', $loads['/_rels/.rels']['loadReason']);
         $t->same(3, $loads['/_rels/.rels']['relationshipCount']);
+        $t->same('package-root', $loads['/_rels/.rels']['relationshipSourceKind']);
         $t->same(true, $loads['/_rels/.rels']['valid']);
         $t->same([], $loads['/_rels/.rels']['issues']);
+
+        $t->same('/[Content_Types].xml', $loads['/_rels/[Content_Types].xml.rels']['relationshipSource']);
+        $t->same(true, $loads['/_rels/[Content_Types].xml.rels']['sourceExists']);
+        $t->same(false, $loads['/_rels/[Content_Types].xml.rels']['loaded']);
+        $t->same('skipped', $loads['/_rels/[Content_Types].xml.rels']['loadAction']);
+        $t->same('content-types-item-source', $loads['/_rels/[Content_Types].xml.rels']['loadReason']);
+        $t->same('content-types-item', $loads['/_rels/[Content_Types].xml.rels']['relationshipSourceKind']);
+        $t->same(['content-types-item-source'], $loads['/_rels/[Content_Types].xml.rels']['issues']);
 
         $t->same('/word/document.xml', $loads['/word/_rels/document.xml.rels']['relationshipSource']);
         $t->same(true, $loads['/word/_rels/document.xml.rels']['sourceExists']);
         $t->same(true, $loads['/word/_rels/document.xml.rels']['loaded']);
         $t->same('loaded', $loads['/word/_rels/document.xml.rels']['loadAction']);
         $t->same('loaded', $loads['/word/_rels/document.xml.rels']['loadReason']);
+        $t->same('package-part', $loads['/word/_rels/document.xml.rels']['relationshipSourceKind']);
         $t->same(1, $loads['/word/_rels/document.xml.rels']['relationshipCount']);
 
         $t->same(null, $loads['/word/_rels/media/document.xml.rels']['relationshipSource']);
@@ -12206,6 +12224,7 @@ XML;
         $t->same(false, $loads['/word/_rels/media/document.xml.rels']['loaded']);
         $t->same('skipped', $loads['/word/_rels/media/document.xml.rels']['loadAction']);
         $t->same('invalid-relationship-part-name', $loads['/word/_rels/media/document.xml.rels']['loadReason']);
+        $t->same('invalid-source', $loads['/word/_rels/media/document.xml.rels']['relationshipSourceKind']);
         $t->same(null, $loads['/word/_rels/media/document.xml.rels']['relationshipCount']);
         $t->same(false, $loads['/word/_rels/media/document.xml.rels']['valid']);
         $t->same(['invalid-relationship-part-name'], $loads['/word/_rels/media/document.xml.rels']['issues']);
@@ -12217,6 +12236,7 @@ XML;
         $t->same(false, $loads['/word/_rels/comments.xml.rels']['loaded']);
         $t->same('skipped', $loads['/word/_rels/comments.xml.rels']['loadAction']);
         $t->same('invalid-relationship-content-type', $loads['/word/_rels/comments.xml.rels']['loadReason']);
+        $t->same('package-part', $loads['/word/_rels/comments.xml.rels']['relationshipSourceKind']);
         $t->same(null, $loads['/word/_rels/comments.xml.rels']['relationshipCount']);
         $t->same(['invalid-relationship-content-type'], $loads['/word/_rels/comments.xml.rels']['issues']);
 
@@ -12225,6 +12245,7 @@ XML;
         $t->same(false, $loads['/word/_rels/targetmode.xml.rels']['loaded']);
         $t->same('skipped', $loads['/word/_rels/targetmode.xml.rels']['loadAction']);
         $t->same('malformed-relationship-xml', $loads['/word/_rels/targetmode.xml.rels']['loadReason']);
+        $t->same('package-part', $loads['/word/_rels/targetmode.xml.rels']['relationshipSourceKind']);
         $t->same(null, $loads['/word/_rels/targetmode.xml.rels']['relationshipCount']);
         $t->same(['malformed-relationship-xml', 'invalid-relationship-target-mode'], $loads['/word/_rels/targetmode.xml.rels']['issues']);
         $t->contains('Unsupported OPC relationship TargetMode: external', $loads['/word/_rels/targetmode.xml.rels']['parseError'] ?? '');
@@ -12234,6 +12255,7 @@ XML;
         $t->same(false, $loads['/word/_rels/malformed.xml.rels']['loaded']);
         $t->same('skipped', $loads['/word/_rels/malformed.xml.rels']['loadAction']);
         $t->same('malformed-relationship-xml', $loads['/word/_rels/malformed.xml.rels']['loadReason']);
+        $t->same('package-part', $loads['/word/_rels/malformed.xml.rels']['relationshipSourceKind']);
         $t->same(['malformed-relationship-xml'], $loads['/word/_rels/malformed.xml.rels']['issues']);
         $t->contains('OPC relationships XML', $loads['/word/_rels/malformed.xml.rels']['parseError'] ?? '');
 
@@ -12242,6 +12264,7 @@ XML;
         $t->same(false, $loads['/word/_rels/missing.xml.rels']['loaded']);
         $t->same('skipped', $loads['/word/_rels/missing.xml.rels']['loadAction']);
         $t->same('orphan-relationship-part', $loads['/word/_rels/missing.xml.rels']['loadReason']);
+        $t->same('missing-source', $loads['/word/_rels/missing.xml.rels']['relationshipSourceKind']);
         $t->same(['orphan-relationship-part'], $loads['/word/_rels/missing.xml.rels']['issues']);
 
         $t->same('/word/_rels/document.xml.rels', $loads['/word/_rels/_rels/document.xml.rels.rels']['relationshipSource']);
@@ -12250,21 +12273,23 @@ XML;
         $t->same(false, $loads['/word/_rels/_rels/document.xml.rels.rels']['loaded']);
         $t->same('skipped', $loads['/word/_rels/_rels/document.xml.rels.rels']['loadAction']);
         $t->same('relationship-part-source', $loads['/word/_rels/_rels/document.xml.rels.rels']['loadReason']);
+        $t->same('relationship-part', $loads['/word/_rels/_rels/document.xml.rels.rels']['relationshipSourceKind']);
         $t->same(['relationship-part-source'], $loads['/word/_rels/_rels/document.xml.rels.rels']['issues']);
 
         $summary = OpcRelationshipGraph::relationshipPartLoadSummary($package);
         $t->same(false, $summary['valid']);
-        $t->same(8, $summary['relationshipPartCount']);
+        $t->same(9, $summary['relationshipPartCount']);
         $t->same(2, $summary['loadedCount']);
-        $t->same(6, $summary['skippedCount']);
+        $t->same(7, $summary['skippedCount']);
         $t->same(2, $summary['validCount']);
-        $t->same(6, $summary['invalidCount']);
+        $t->same(7, $summary['invalidCount']);
         $t->same(4, $summary['relationshipCount']);
         $t->same([
             '/_rels/.rels',
             '/word/_rels/document.xml.rels',
         ], $summary['loadedPartNames']);
         $t->same([
+            '/_rels/[Content_Types].xml.rels',
             '/word/_rels/_rels/document.xml.rels.rels',
             '/word/_rels/comments.xml.rels',
             '/word/_rels/malformed.xml.rels',
@@ -12274,14 +12299,16 @@ XML;
         ], $summary['skippedPartNames']);
         $t->same(['/', '/word/document.xml'], $summary['loadedSources']);
         $t->same([
+            '/[Content_Types].xml',
             '/word/_rels/document.xml.rels',
             '/word/comments.xml',
             '/word/malformed.xml',
             '/word/missing.xml',
             '/word/targetmode.xml',
         ], $summary['skippedSources']);
-        $t->same(['loaded' => 2, 'skipped' => 6], $summary['loadActionCounts']);
+        $t->same(['loaded' => 2, 'skipped' => 7], $summary['loadActionCounts']);
         $t->same([
+            'content-types-item-source' => 1,
             'invalid-relationship-content-type' => 1,
             'invalid-relationship-part-name' => 1,
             'loaded' => 2,
@@ -12290,10 +12317,26 @@ XML;
             'relationship-part-source' => 1,
         ], $summary['loadReasonCounts']);
         $t->same([
+            'content-types-item' => 1,
+            'invalid-source' => 1,
+            'missing-source' => 1,
+            'package-part' => 4,
+            'package-root' => 1,
+            'relationship-part' => 1,
+        ], $summary['sourceKindCounts']);
+        $t->same(['/_rels/[Content_Types].xml.rels'], $summary['partNamesBySourceKind']['content-types-item']);
+        $t->same([
+            '/word/_rels/comments.xml.rels',
+            '/word/_rels/document.xml.rels',
+            '/word/_rels/malformed.xml.rels',
+            '/word/_rels/targetmode.xml.rels',
+        ], $summary['partNamesBySourceKind']['package-part']);
+        $t->same([
             '/word/_rels/malformed.xml.rels',
             '/word/_rels/targetmode.xml.rels',
         ], $summary['partNamesByLoadReason']['malformed-relationship-xml']);
         $t->same([
+            'content-types-item-source' => 1,
             'invalid-relationship-content-type' => 1,
             'invalid-relationship-part-name' => 1,
             'invalid-relationship-target-mode' => 1,
@@ -12301,10 +12344,12 @@ XML;
             'orphan-relationship-part' => 1,
             'relationship-part-source' => 1,
         ], $summary['issueCounts']);
+        $t->same(['/_rels/[Content_Types].xml.rels'], $summary['partNamesByIssue']['content-types-item-source']);
         $t->same([
             '/word/_rels/targetmode.xml.rels',
         ], $summary['partNamesByIssue']['invalid-relationship-target-mode']);
         $t->same([
+            'content-types-item-source',
             'invalid-relationship-content-type',
             'invalid-relationship-part-name',
             'invalid-relationship-target-mode',

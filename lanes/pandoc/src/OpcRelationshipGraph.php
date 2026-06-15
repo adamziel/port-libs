@@ -1449,7 +1449,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{partName:string, contentType:?string, contentTypeSource:string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:bool, contentTypeOverridePartNameEquivalentMatch:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, sourceExists:?bool, duplicateRelationshipPartNames:list<string>, loaded:bool, loadAction:string, loadReason:string, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string, relationshipXmlIssueRecords:list<array{relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>}>
+     * @return list<array{partName:string, contentType:?string, contentTypeSource:string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:bool, contentTypeOverridePartNameEquivalentMatch:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceKind:string, sourceExists:?bool, duplicateRelationshipPartNames:list<string>, loaded:bool, loadAction:string, loadReason:string, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string, relationshipXmlIssueRecords:list<array{relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>}>
      */
     public static function preflightRelationshipPartsInPackage(ZipPackage $package): array
     {
@@ -1518,6 +1518,11 @@ final class OpcRelationshipGraph
                 'contentTypeOverridePartNameEquivalentMatch' => $contentTypeResolution['overridePartNameEquivalentMatch'],
                 'relationshipSource' => $relationshipSource,
                 'relationshipSourceIsRelationshipPart' => $relationshipSourceIsRelationshipPart,
+                'relationshipSourceKind' => self::relationshipSourceKind(
+                    $relationshipSource,
+                    $relationshipSourceIsRelationshipPart,
+                    $sourceExists,
+                ),
                 'sourceExists' => $sourceExists,
                 'duplicateRelationshipPartNames' => [],
                 'loaded' => $loaded,
@@ -1586,7 +1591,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, relationshipPartCount:int, loadedCount:int, skippedCount:int, validCount:int, invalidCount:int, relationshipCount:int, relationshipXmlIssueRecordCount:int, loadedPartNames:list<string>, skippedPartNames:list<string>, loadedSources:list<string>, skippedSources:list<string>, loadActionCounts:array<string, int>, loadReasonCounts:array<string, int>, contentTypeSourceCounts:array<string, int>, partNamesByLoadReason:array<string, list<string>>, partNamesByContentTypeSource:array<string, list<string>>, issueCounts:array<string, int>, partNamesByIssue:array<string, list<string>>, relationshipXmlIssueRecords:list<array{partName:string, relationshipSource:?string, relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>, issues:list<string>}
+     * @return array{valid:bool, relationshipPartCount:int, loadedCount:int, skippedCount:int, validCount:int, invalidCount:int, relationshipCount:int, relationshipXmlIssueRecordCount:int, loadedPartNames:list<string>, skippedPartNames:list<string>, loadedSources:list<string>, skippedSources:list<string>, loadActionCounts:array<string, int>, loadReasonCounts:array<string, int>, contentTypeSourceCounts:array<string, int>, sourceKindCounts:array<string, int>, partNamesByLoadReason:array<string, list<string>>, partNamesByContentTypeSource:array<string, list<string>>, partNamesBySourceKind:array<string, list<string>>, issueCounts:array<string, int>, partNamesByIssue:array<string, list<string>>, relationshipXmlIssueRecords:list<array{partName:string, relationshipSource:?string, relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>, issues:list<string>}
      */
     public static function relationshipPartLoadSummary(ZipPackage $package): array
     {
@@ -1606,8 +1611,10 @@ final class OpcRelationshipGraph
             'loadActionCounts' => [],
             'loadReasonCounts' => [],
             'contentTypeSourceCounts' => [],
+            'sourceKindCounts' => [],
             'partNamesByLoadReason' => [],
             'partNamesByContentTypeSource' => [],
+            'partNamesBySourceKind' => [],
             'issueCounts' => [],
             'partNamesByIssue' => [],
             'relationshipXmlIssueRecords' => [],
@@ -1619,8 +1626,10 @@ final class OpcRelationshipGraph
             $summary['loadActionCounts'][$part['loadAction']] = ($summary['loadActionCounts'][$part['loadAction']] ?? 0) + 1;
             $summary['loadReasonCounts'][$part['loadReason']] = ($summary['loadReasonCounts'][$part['loadReason']] ?? 0) + 1;
             $summary['contentTypeSourceCounts'][$part['contentTypeSource']] = ($summary['contentTypeSourceCounts'][$part['contentTypeSource']] ?? 0) + 1;
+            $summary['sourceKindCounts'][$part['relationshipSourceKind']] = ($summary['sourceKindCounts'][$part['relationshipSourceKind']] ?? 0) + 1;
             $summary['partNamesByLoadReason'][$part['loadReason']][] = $part['partName'];
             $summary['partNamesByContentTypeSource'][$part['contentTypeSource']][] = $part['partName'];
+            $summary['partNamesBySourceKind'][$part['relationshipSourceKind']][] = $part['partName'];
 
             if ($part['loaded']) {
                 $summary['loadedCount']++;
@@ -1672,6 +1681,7 @@ final class OpcRelationshipGraph
         ksort($summary['loadActionCounts'], SORT_STRING);
         ksort($summary['loadReasonCounts'], SORT_STRING);
         ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+        ksort($summary['sourceKindCounts'], SORT_STRING);
         ksort($summary['partNamesByLoadReason'], SORT_STRING);
         foreach ($summary['partNamesByLoadReason'] as &$partNames) {
             sort($partNames, SORT_STRING);
@@ -1679,6 +1689,11 @@ final class OpcRelationshipGraph
         unset($partNames);
         ksort($summary['partNamesByContentTypeSource'], SORT_STRING);
         foreach ($summary['partNamesByContentTypeSource'] as &$partNames) {
+            sort($partNames, SORT_STRING);
+        }
+        unset($partNames);
+        ksort($summary['partNamesBySourceKind'], SORT_STRING);
+        foreach ($summary['partNamesBySourceKind'] as &$partNames) {
             sort($partNames, SORT_STRING);
         }
         unset($partNames);
@@ -8535,6 +8550,34 @@ final class OpcRelationshipGraph
         }
 
         return 'not-loaded';
+    }
+
+    private static function relationshipSourceKind(
+        ?string $relationshipSource,
+        ?bool $relationshipSourceIsRelationshipPart,
+        ?bool $sourceExists,
+    ): string {
+        if ($relationshipSource === null) {
+            return 'invalid-source';
+        }
+
+        if ($relationshipSource === '/') {
+            return 'package-root';
+        }
+
+        if ($relationshipSourceIsRelationshipPart === true) {
+            return 'relationship-part';
+        }
+
+        if (self::isContentTypesItemName($relationshipSource)) {
+            return 'content-types-item';
+        }
+
+        if ($sourceExists === false) {
+            return 'missing-source';
+        }
+
+        return 'package-part';
     }
 
     /**
