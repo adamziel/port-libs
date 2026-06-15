@@ -635,7 +635,7 @@ final class PandocJsonReader
 
     private function readInlineBlock(string $type, mixed $content, string $context): AstNode
     {
-        $children = $this->readInlines($this->listContent($content, $context));
+        $children = $this->readInlines($this->singleWrappedListContent($content, $context));
         if ($type === 'paragraph') {
             $figure = $this->legacySimpleFigureBlock($children);
             if ($figure instanceof AstNode) {

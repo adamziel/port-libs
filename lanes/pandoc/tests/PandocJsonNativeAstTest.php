@@ -1472,7 +1472,7 @@ return [
             }
         }
     },
-    'accepts single wrapped block tuple constructor payloads through json and native readers' => static function (TestRunner $t): void {
+    'accepts single wrapped plain paragraph and edited table block tuple payloads' => static function (TestRunner $t): void {
         $sourceBlocks = [
             ['t' => 'Header', 'c' => [[
                 2,
@@ -1756,6 +1756,147 @@ return [
                 $t->same('edited', $editedCode['c'][1], "{$source} {$writer} writer emits edited code text");
                 $t->same(false, array_key_exists('reviewQueue', $editedCode), "{$source} {$writer} writer drops stale edited code sidecar");
                 $t->same($sourceInlines[0], $encoded['blocks'][0]['c'][0], "{$source} {$writer} writer preserves neighboring tuple inline");
+            }
+        }
+    },
+    'accepts single wrapped block tuple constructor payloads through json and native readers' => static function (TestRunner $t): void {
+        $plainBlock = ['t' => 'Plain', 'c' => [[
+            ['t' => 'Str', 'c' => 'Plain'],
+        ]], 'reviewQueue' => 'plain-wrapper-source'];
+        $paragraphBlock = ['t' => 'Para', 'c' => [[
+            ['t' => 'Str', 'c' => 'Paragraph'],
+        ]], 'reviewQueue' => 'paragraph-wrapper-source'];
+        $headerBlock = ['t' => 'Header', 'c' => [[
+            2,
+            ['wrapped-heading', ['review'], [['data-source', 'header']]],
+            [['t' => 'Str', 'c' => 'Heading']],
+        ]], 'reviewQueue' => 'header-wrapper-source'];
+        $codeBlock = ['t' => 'CodeBlock', 'c' => [[
+            ['wrapped-code', ['php'], [['data-kind', 'cli']]],
+            'wp option get home',
+        ]], 'reviewQueue' => 'code-wrapper-source'];
+        $rawBlock = ['t' => 'RawBlock', 'c' => [[
+            ['t' => 'Format', 'c' => ['html'], 'reviewQueue' => 'format-wrapper-source'],
+            '<section>raw</section>',
+        ]], 'reviewQueue' => 'raw-wrapper-source'];
+        $divBlock = ['t' => 'Div', 'c' => [[
+            ['wrapped-div', ['container'], []],
+            [
+                ['t' => 'Para', 'c' => [[
+                    ['t' => 'Str', 'c' => 'Nested'],
+                ]], 'reviewQueue' => 'nested-paragraph-source'],
+            ],
+        ]], 'reviewQueue' => 'div-wrapper-source'];
+        $figureBlock = ['t' => 'Figure', 'c' => [[
+            ['wrapped-figure', ['media'], []],
+            ['t' => 'Caption', 'c' => [
+                ['t' => 'Just', 'c' => ['t' => 'ShortCaption', 'c' => [[
+                    ['t' => 'Str', 'c' => 'Short'],
+                ]]]],
+                [
+                    ['t' => 'Plain', 'c' => [[
+                        ['t' => 'Str', 'c' => 'Long'],
+                    ]]],
+                ],
+            ]],
+            [
+                ['t' => 'Para', 'c' => [[
+                    ['t' => 'Str', 'c' => 'Figure'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'body'],
+                ]]],
+            ],
+        ]], 'reviewQueue' => 'figure-wrapper-source'];
+        $tableBlock = ['t' => 'Table', 'c' => [[
+            ['wrapped-table', ['review'], []],
+            ['t' => 'Caption', 'c' => [
+                ['t' => 'Nothing'],
+                [
+                    ['t' => 'Plain', 'c' => [[
+                        ['t' => 'Str', 'c' => 'Table'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'caption'],
+                    ]]],
+                ],
+            ]],
+            [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+            ['t' => 'TableHead', 'c' => [['', [], []], []]],
+            [],
+            ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+        ]], 'reviewQueue' => 'table-wrapper-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                $plainBlock,
+                $paragraphBlock,
+                $headerBlock,
+                $codeBlock,
+                $rawBlock,
+                $divBlock,
+                $figureBlock,
+                $tableBlock,
+            ],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $blocks = $document->children;
+            $heading = $blocks[2];
+            $code = $blocks[3];
+            $raw = $blocks[4];
+            $div = $blocks[5];
+            $figure = $blocks[6];
+            $table = $blocks[7];
+
+            $t->same(['plain', 'paragraph', 'heading', 'code_block', 'raw_html', 'div', 'figure', 'table'], array_map(static fn (AstNode $node): string => $node->type, $blocks), "{$source} block tuple wrapper types");
+            $t->same($plainBlock, $blocks[0]->attr('native'), "{$source} plain native wrapper");
+            $t->same($paragraphBlock, $blocks[1]->attr('native'), "{$source} paragraph native wrapper");
+            $t->same($headerBlock, $heading->attr('native'), "{$source} heading native wrapper");
+            $t->same($codeBlock, $code->attr('native'), "{$source} code block native wrapper");
+            $t->same($rawBlock, $raw->attr('native'), "{$source} raw block native wrapper");
+            $t->same($divBlock, $div->attr('native'), "{$source} div native wrapper");
+            $t->same($figureBlock, $figure->attr('native'), "{$source} figure native wrapper");
+            $t->same($tableBlock, $table->attr('native'), "{$source} table native wrapper");
+            $t->same('wrapped-heading', $heading->attr('id'), "{$source} heading attr id");
+            $t->same('wp option get home', $code->attr('text'), "{$source} code text");
+            $t->same('html', $raw->attr('format'), "{$source} raw format");
+            $t->same('Nested', $div->children[0]->children[0]->attr('text'), "{$source} nested div paragraph text");
+            $t->same('Short', $figure->attr('shortCaption'), "{$source} figure short caption");
+            $t->same('Long', $figure->attr('caption'), "{$source} figure caption");
+            $t->same('Table caption', $table->attr('caption'), "{$source} table caption");
+
+            foreach ([
+                "{$source} json" => (new PandocJsonWriter())->toArray($document),
+                "{$source} native" => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($packet['blocks'], $encoded['blocks'], "{$writer} writer preserves unchanged single wrapped block tuples");
+            }
+
+            $editedHeading = new AstNode('heading', array_replace($heading->attrs, [
+                'id' => 'edited-heading',
+            ]), $heading->children);
+            $editedTable = new AstNode('table', array_replace($table->attrs, [
+                'id' => 'edited-table',
+            ]), $table->children);
+            $edited = new AstNode('document', $document->attrs, [$editedHeading, $editedTable]);
+
+            foreach ([
+                "{$source} json edited" => (new PandocJsonWriter())->toArray($edited),
+                "{$source} native edited" => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedHeading = $encoded['blocks'][0];
+                $encodedTable = $encoded['blocks'][1];
+
+                $t->same('Header', $encodedHeading['t'], "{$writer} writer regenerates edited heading constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedHeading), "{$writer} writer drops stale edited heading sidecar");
+                $t->same('edited-heading', $encodedHeading['c'][1][0], "{$writer} writer emits edited heading id");
+                $t->same('Table', $encodedTable['t'], "{$writer} writer regenerates edited table constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedTable), "{$writer} writer drops stale edited table sidecar");
+                $t->same('edited-table', $encodedTable['c'][0][0], "{$writer} writer emits edited table id");
+                $t->same(false, count($encodedTable['c']) === 1 && is_array($encodedTable['c'][0]) && array_is_list($encodedTable['c'][0]), "{$writer} writer canonicalizes edited table tuple wrapper");
             }
         }
     },
