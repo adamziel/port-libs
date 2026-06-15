@@ -2938,7 +2938,7 @@ final class MarkdownWriter
             return $id;
         }
 
-        return '{' . str_replace(['\\', '}'], ['\\\\', '\\}'], $id) . '}';
+        return '{' . str_replace(['\\', '}', ']'], ['\\\\', '\\}', '\\]'], $id) . '}';
     }
 
     private function citationSuffixMarkdown(AstNode $citation): string

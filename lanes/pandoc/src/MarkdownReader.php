@@ -17630,13 +17630,20 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('/\G@([A-Za-z0-9_:.#\/$%&+?<>~|-]*[A-Za-z0-9_#\/$%&+?<>~|-])/u', $text, $m, 0, $offset) !== 1) {
+        $braced = $this->parseBracedCitationIdentifier($text, $offset + 1);
+        if ($braced !== null) {
+            $next = $braced['next'];
+            $citationText = substr($text, $offset, $next - $offset);
+            $citationId = $braced['id'];
+        } elseif (preg_match('/\G@([A-Za-z0-9_:.#\/$%&+?<>~|-]*[A-Za-z0-9_#\/$%&+?<>~|-])/u', $text, $m, 0, $offset) === 1) {
+            $next = $offset + strlen($m[0]);
+            $citationText = $m[0];
+            $citationId = $m[1];
+        } else {
             return null;
         }
 
-        $next = $offset + strlen($m[0]);
-        $citationText = $m[0];
-        $attrs = ['id' => $m[1], 'text' => $citationText, 'mode' => 'author_in_text'];
+        $attrs = ['id' => $citationId, 'text' => $citationText, 'mode' => 'author_in_text'];
         $suffix = $this->tryParseBareCitationSuffix($text, $next);
         if ($suffix !== null) {
             $next = $suffix['next'];
@@ -17808,24 +17815,105 @@ final class MarkdownReader
      */
     private function findBracketedCitationToken(string $item): ?array
     {
-        $idPattern = '[A-Za-z0-9_](?:[A-Za-z0-9_]|[:.#\/$%&+?<>~|-](?=[A-Za-z0-9_]))*';
-        $pattern = '/(?<![A-Za-z0-9_@.\/-])(-?)@(?:\{([^}\r\n]+)\}|(' . $idPattern . '))/u';
-        if (preg_match($pattern, $item, $matches, PREG_OFFSET_CAPTURE) !== 1) {
-            return null;
+        $length = strlen($item);
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            if ($item[$cursor] !== '@') {
+                continue;
+            }
+
+            $start = $cursor;
+            $suppressAuthor = false;
+            if (($item[$cursor - 1] ?? '') === '-') {
+                $start = $cursor - 1;
+                $suppressAuthor = true;
+            }
+
+            $previous = $start === 0 ? '' : $item[$start - 1];
+            if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+                continue;
+            }
+
+            $braced = $this->parseBracedCitationIdentifier($item, $cursor + 1);
+            if ($braced !== null) {
+                return [
+                    'start' => $start,
+                    'length' => $braced['next'] - $start,
+                    'id' => $braced['id'],
+                    'suppressAuthor' => $suppressAuthor,
+                ];
+            }
+
+            $simple = $this->parseSimpleCitationIdentifier($item, $cursor + 1);
+            if ($simple !== null) {
+                return [
+                    'start' => $start,
+                    'length' => $simple['next'] - $start,
+                    'id' => $simple['id'],
+                    'suppressAuthor' => $suppressAuthor,
+                ];
+            }
         }
 
-        $raw = $matches[0][0];
-        $id = $matches[2][0] !== '' ? $matches[2][0] : $matches[3][0];
-        if ($id === '') {
+        return null;
+    }
+
+    /**
+     * @return array{id:string, next:int}|null
+     */
+    private function parseSimpleCitationIdentifier(string $text, int $offset): ?array
+    {
+        if (preg_match('/\G([A-Za-z0-9_](?:[A-Za-z0-9_]|[:.#\/$%&+?<>~|-](?=[A-Za-z0-9_]))*)/u', $text, $m, 0, $offset) !== 1) {
             return null;
         }
 
         return [
-            'start' => $matches[0][1],
-            'length' => strlen($raw),
-            'id' => $id,
-            'suppressAuthor' => $matches[1][0] === '-',
+            'id' => $m[1],
+            'next' => $offset + strlen($m[1]),
         ];
+    }
+
+    /**
+     * @return array{id:string, next:int}|null
+     */
+    private function parseBracedCitationIdentifier(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '{') {
+            return null;
+        }
+
+        $id = '';
+        $length = strlen($text);
+        for ($cursor = $offset + 1; $cursor < $length; $cursor++) {
+            $char = $text[$cursor];
+            if ($char === "\r" || $char === "\n") {
+                return null;
+            }
+
+            if ($char === '\\') {
+                if ($cursor + 1 >= $length) {
+                    return null;
+                }
+
+                $id .= $text[$cursor + 1];
+                $cursor++;
+                continue;
+            }
+
+            if ($char === '}') {
+                if ($id === '') {
+                    return null;
+                }
+
+                return [
+                    'id' => $id,
+                    'next' => $cursor + 1,
+                ];
+            }
+
+            $id .= $char;
+        }
+
+        return null;
     }
 
     private function normalizeBracketedCitationTail(string $tail): string
