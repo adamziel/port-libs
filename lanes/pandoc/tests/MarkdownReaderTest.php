@@ -7276,6 +7276,39 @@ return [
         $t->contains('<p><a href="http://foo.bar">http://foo.bar</a> {#i .j .z k=v}</p>', $blocks);
         $t->contains('<p>Reviewer source: <a href="https://example.test/review-token" id="review-token" class="source-link" data-source="batch-42" title="Review token">https://example.test/review-token</a>.</p>', $blocks);
     },
+    'maps commonmark absolute uri autolinks with non-http schemes' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            '<mailto:nobody@nowhere.net>',
+            '<urn:isbn:9780131103627>',
+            '<doi:10.1000/182>{#paper-id .identifier data-source=doi}',
+            '<nobody@nowhere.net>',
+        ]));
+        $mailto = $document->children[0]->children[0] ?? new AstNode('missing');
+        $urn = $document->children[1]->children[0] ?? new AstNode('missing');
+        $doi = $document->children[2]->children[0] ?? new AstNode('missing');
+        $email = $document->children[3]->children[0] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('link', $mailto->type);
+        $t->same('mailto:nobody@nowhere.net', $mailto->attr('url'));
+        $t->same(['uri'], $mailto->attr('classes'));
+        $t->same('mailto:nobody@nowhere.net', $mailto->children[0]->attr('text'));
+        $t->same('link', $urn->type);
+        $t->same('urn:isbn:9780131103627', $urn->attr('url'));
+        $t->same('urn:isbn:9780131103627', $urn->children[0]->attr('text'));
+        $t->same('link', $doi->type);
+        $t->same('doi:10.1000/182', $doi->attr('url'));
+        $t->same('paper-id', $doi->attr('id'));
+        $t->same(['identifier'], $doi->attr('classes'));
+        $t->same(['data-source' => 'doi'], $doi->attr('attributes'));
+        $t->same('link', $email->type);
+        $t->same('mailto:nobody@nowhere.net', $email->attr('url'));
+        $t->same(['email'], $email->attr('classes'));
+        $t->contains('<p><a href="mailto:nobody@nowhere.net">mailto:nobody@nowhere.net</a></p>', $blocks);
+        $t->contains('<p><a href="urn:isbn:9780131103627">urn:isbn:9780131103627</a></p>', $blocks);
+        $t->contains('<p><a href="doi:10.1000/182" id="paper-id" class="identifier" data-source="doi">doi:10.1000/182</a></p>', $blocks);
+        $t->contains('<p><a href="mailto:nobody@nowhere.net">nobody@nowhere.net</a></p>', $blocks);
+    },
     'maps upstream markdown reader bare uri autolink extension cases' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             'http://google.com is a search engine.',

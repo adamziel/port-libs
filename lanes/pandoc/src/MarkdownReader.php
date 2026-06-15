@@ -17602,7 +17602,7 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('/\G<((?:https?|ftp):\/\/[^<>\s]+)>/i', $text, $m, 0, $offset) === 1) {
+        if (preg_match('/\G<([A-Za-z][A-Za-z0-9.+-]{1,31}:[^<>\s]*)>/u', $text, $m, 0, $offset) === 1) {
             $url = $this->normalizeLinkDestination($m[1]);
             $next = $offset + strlen($m[0]);
             [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
