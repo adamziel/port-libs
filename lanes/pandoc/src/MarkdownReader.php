@@ -16129,6 +16129,19 @@ final class MarkdownReader
             $indent = $this->countIndentColumns($line);
             if ($indent >= $contentIndent) {
                 $stripped = rtrim($this->stripIndentColumns($line, $contentIndent));
+                if ($paragraph !== [] && $this->isListItemEqualsSetextHeadingUnderline($stripped)) {
+                    array_push($parts, ...$this->readListItemSetextHeadingBlocks($paragraph, $stripped));
+                    $paragraph = [];
+                    $cursor++;
+                    continue;
+                }
+
+                if ($paragraph !== [] && $this->isListItemEqualsSetextHeadingContinuationAt($lines, $cursor, $contentIndent)) {
+                    $paragraph[] = $stripped;
+                    $cursor++;
+                    continue;
+                }
+
                 if ($this->isListItemContinuationBlockStartAt($lines, $cursor, $contentIndent)) {
                     $this->flushListItemParagraph($paragraph, $parts);
                     $block = $this->readListItemContinuationBlock($lines, $cursor, $baseIndent, $contentIndent);
@@ -16315,6 +16328,33 @@ final class MarkdownReader
 
         return ($paragraph !== [] && $this->isDefinitionMarker($line))
             || ($paragraph === [] && $this->canStartListItemDefinitionBlock($line, $lines, $cursor + 1, $baseIndent, $contentIndent));
+    }
+
+    private function isListItemEqualsSetextHeadingUnderline(string $line): bool
+    {
+        return preg_match('/^ {0,3}=+[ \t]*$/', $this->expandTabsToSpaces($line)) === 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function isListItemEqualsSetextHeadingContinuationAt(array $lines, int $cursor, int $contentIndent): bool
+    {
+        $heading = $this->tryParseSetextMarkdownHeading(
+            $this->listItemContinuationProbeLines($lines, $cursor, $contentIndent),
+            0
+        );
+
+        return $heading !== null && $heading['level'] === 1;
+    }
+
+    /**
+     * @param list<string> $paragraph
+     * @return list<AstNode>
+     */
+    private function readListItemSetextHeadingBlocks(array $paragraph, string $underline): array
+    {
+        return $this->read(implode("\n", array_merge($paragraph, [$underline])))->children;
     }
 
     private function isListItemBlockStartLine(string $line): bool

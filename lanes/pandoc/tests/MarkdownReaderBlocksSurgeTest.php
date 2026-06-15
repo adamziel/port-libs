@@ -2003,4 +2003,75 @@ foreach ($markers as $label => $case) {
     };
 }
 
+foreach ($markers as $label => $case) {
+    $tests["maps commonmark block list setext heading surge {$label} opening equals underline"] =
+        static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+            $document = $read($case['marker'] . 'Review title' . "\n" . $case['indent'] . '===' . "\n" . $case['next']);
+            $item = $firstItem($t, $document, $case['list']);
+            $heading = $item->children[0] ?? new AstNode('missing');
+
+            $t->same(['heading'], $types($item));
+            $t->same('heading', $heading->type);
+            $t->same(1, $heading->attr('level'));
+            $t->same('Review title', $heading->attr('text'));
+            $t->same('review-title', $heading->attr('id'));
+        };
+
+    $tests["maps commonmark block list setext heading surge {$label} multiline equals underline"] =
+        static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+            $document = $read($case['marker'] . 'Review title' . "\n" . $case['indent'] . 'wrapped detail' . "\n" . $case['indent'] . '====' . "\n" . $case['next']);
+            $item = $firstItem($t, $document, $case['list']);
+            $heading = $item->children[0] ?? new AstNode('missing');
+
+            $t->same(['heading'], $types($item));
+            $t->same('heading', $heading->type);
+            $t->same(1, $heading->attr('level'));
+            $t->same('Review title wrapped detail', $heading->attr('text'));
+            $t->same('review-title-wrapped-detail', $heading->attr('id'));
+        };
+
+    $tests["maps commonmark block list setext heading surge {$label} attributed equals underline"] =
+        static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+            $document = $read($case['marker'] . 'Review title {#nested-setext .queue data-case="setext"}' . "\n" . $case['indent'] . '===' . "\n" . $case['next']);
+            $item = $firstItem($t, $document, $case['list']);
+            $heading = $item->children[0] ?? new AstNode('missing');
+
+            $t->same(['heading'], $types($item));
+            $t->same('heading', $heading->type);
+            $t->same(1, $heading->attr('level'));
+            $t->same('Review title', $heading->attr('text'));
+            $t->same('nested-setext', $heading->attr('id'));
+            $t->same(['queue'], $heading->attr('classes'));
+            $t->same(['data-case' => 'setext'], $heading->attr('attributes'));
+        };
+
+    $tests["maps commonmark block list setext heading surge {$label} loose equals continuation"] =
+        static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+            $document = $read($case['marker'] . 'lead' . "\n\n" . $case['indent'] . 'Review title' . "\n" . $case['indent'] . '===' . "\n" . $case['next']);
+            $list = $document->children[0] ?? new AstNode('missing');
+            $item = $firstItem($t, $document, $case['list']);
+            $paragraph = $item->children[0] ?? new AstNode('missing');
+            $heading = $item->children[1] ?? new AstNode('missing');
+
+            $t->same(true, (bool) $list->attr('loose'));
+            $t->same(['paragraph', 'heading'], $types($item));
+            $t->same('lead', $paragraph->attr('text'));
+            $t->same('Review title', $heading->attr('text'));
+            $t->same('review-title', $heading->attr('id'));
+        };
+
+    $tests["maps commonmark block list setext heading surge {$label} followed by paragraph"] =
+        static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+            $document = $read($case['marker'] . 'Review title' . "\n" . $case['indent'] . '===' . "\n" . $case['indent'] . 'after words' . "\n" . $case['next']);
+            $item = $firstItem($t, $document, $case['list']);
+            $heading = $item->children[0] ?? new AstNode('missing');
+            $text = $item->children[1] ?? new AstNode('missing');
+
+            $t->same(['heading', 'text'], $types($item));
+            $t->same('Review title', $heading->attr('text'));
+            $t->same('review-title', $heading->attr('id'));
+            $t->same('after words', $text->attr('text'));
+        };
+}
+
 return $tests;
