@@ -3391,6 +3391,90 @@ XML;
         $t->same('customXmlProps', $relationshipTypes[$customXmlPropsRel]['label']);
         $t->same(['customXml/itemProps1.xml'], $relationshipTypes[$customXmlPropsRel]['existingTargetParts']);
     },
+    'preserves docx custom xml item root metadata for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $customXmlPropsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/item1.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCustomXmlRoot" Type="' . $customXmlRel . '" Target="../customXml/item1.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/item1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<wpd:packet xmlns:wpd="https://example.test/wp/docx" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns="https://example.test/default" xml:lang="en" review="ready" dc:source="editorial">
+  <dc:title>Migration packet</dc:title>
+  <summary>Mapped summary block.</summary>
+</wpd:packet>
+XML;
+        $parts['customXml/_rels/item1.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rProps" Type="{$customXmlPropsRel}" Target="itemProps1.xml"/>
+</Relationships>
+XML;
+        $parts['customXml/itemProps1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem ds:itemID="{55555555-6666-7777-8888-999999999999}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"/>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $customXml = $docx['customXmlParts'];
+        $summary = $docx['packageProvenance']['summary'];
+        $item = $customXml['byRelationshipId']['rCustomXmlRoot'];
+        $properties = $item['propertiesParts']['byRelationshipId']['rProps'];
+        $textPreview = 'Migration packet Mapped summary block.';
+
+        $t->same(1, $customXml['count']);
+        $t->same(1, $customXml['existingCount']);
+        $t->same(0, $customXml['invalidXmlCount']);
+        $t->same(0, $customXml['issueCount']);
+        $t->same(['wpd:packet'], $customXml['rootNames']);
+        $t->same(['https://example.test/wp/docx' => 1], $customXml['rootNamespaceCounts']);
+        $t->same(1, $customXml['textPreviewCount']);
+        $t->same(3, $customXml['rootAttributeCount']);
+        $t->same(3, $customXml['rootNamespaceDeclarationCount']);
+
+        $t->same(['wpd:packet'], $summary['customXmlRootNames']);
+        $t->same(['https://example.test/wp/docx' => 1], $summary['customXmlRootNamespaceCounts']);
+        $t->same(1, $summary['customXmlTextPreviewCount']);
+        $t->same(3, $summary['customXmlRootAttributeCount']);
+        $t->same(3, $summary['customXmlRootNamespaceDeclarationCount']);
+
+        $t->same('wpd:packet', $item['rootName']);
+        $t->same('wpd', $item['rootPrefix']);
+        $t->same('packet', $item['rootLocalName']);
+        $t->same('https://example.test/wp/docx', $item['rootNamespace']);
+        $t->same(true, $item['validXml']);
+        $t->same($textPreview, $item['textPreview']);
+        $t->same(strlen($textPreview), $item['textLength']);
+        $t->same(3, $item['rootAttributeCount']);
+        $t->same(false, $item['rootAttributesTruncated']);
+        $t->same('ready', $item['rootAttributeMap']['review']['value']);
+        $t->same(null, $item['rootAttributeMap']['review']['namespace']);
+        $t->same('en', $item['rootAttributeMap']['xml:lang']['value']);
+        $t->same('http://www.w3.org/XML/1998/namespace', $item['rootAttributeMap']['xml:lang']['namespace']);
+        $t->same('editorial', $item['rootAttributeMap']['dc:source']['value']);
+        $t->same('http://purl.org/dc/elements/1.1/', $item['rootAttributeMap']['dc:source']['namespace']);
+        $t->same([
+            '' => 'https://example.test/default',
+            'dc' => 'http://purl.org/dc/elements/1.1/',
+            'wpd' => 'https://example.test/wp/docx',
+        ], $item['rootNamespaceDeclarationMap']);
+        $t->same(3, $item['rootNamespaceDeclarationCount']);
+        $t->same(false, $item['rootNamespaceDeclarationsTruncated']);
+        $t->same(1, $item['propertiesParts']['count']);
+        $t->same('{55555555-6666-7777-8888-999999999999}', $properties['itemId']);
+    },
     'summarizes docx custom xml properties schema refs and diagnostics for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';

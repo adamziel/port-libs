@@ -491,6 +491,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['customXmlIssueCodes'] = $customXmlParts['issueCodes'];
         $packageProvenance['summary']['customXmlPropertiesIssueCount'] = $customXmlParts['propertiesIssueCount'];
         $packageProvenance['summary']['customXmlPropertiesIssueCodes'] = $customXmlParts['propertiesIssueCodes'];
+        $packageProvenance['summary']['customXmlRootNames'] = $customXmlParts['rootNames'];
+        $packageProvenance['summary']['customXmlRootNamespaceCounts'] = $customXmlParts['rootNamespaceCounts'];
+        $packageProvenance['summary']['customXmlTextPreviewCount'] = $customXmlParts['textPreviewCount'];
+        $packageProvenance['summary']['customXmlRootAttributeCount'] = $customXmlParts['rootAttributeCount'];
+        $packageProvenance['summary']['customXmlRootNamespaceDeclarationCount'] = $customXmlParts['rootNamespaceDeclarationCount'];
         $packageProvenance['summary']['customXmlDuplicateStoreItemIdCount'] = $customXmlParts['duplicateStoreItemIdCount'];
         $packageProvenance['summary']['customXmlDuplicateStoreItemIds'] = $customXmlParts['duplicateStoreItemIds'];
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
@@ -4378,7 +4383,22 @@ final class DocxOpenXmlReader
         $propertiesIssueCodes = [];
         $schemaRefs = [];
         $schemaRefCounts = [];
+        $rootNames = [];
+        $rootNamespaceCounts = [];
+        $textPreviewCount = 0;
+        $rootAttributeCount = 0;
+        $rootNamespaceDeclarationCount = 0;
         foreach ($items as $item) {
+            $this->appendUniqueString($rootNames, is_string($item['rootName'] ?? null) ? $item['rootName'] : null);
+            $rootNamespace = is_string($item['rootNamespace'] ?? null) ? $item['rootNamespace'] : '';
+            if ($rootNamespace !== '') {
+                $rootNamespaceCounts[$rootNamespace] = ($rootNamespaceCounts[$rootNamespace] ?? 0) + 1;
+            }
+            if (($item['textPreview'] ?? null) !== null) {
+                ++$textPreviewCount;
+            }
+            $rootAttributeCount += (int) ($item['rootAttributeCount'] ?? 0);
+            $rootNamespaceDeclarationCount += (int) ($item['rootNamespaceDeclarationCount'] ?? 0);
             $propertiesParts = $item['propertiesParts'];
             $propertiesPartCount += (int) $propertiesParts['count'];
             $existingPropertiesPartCount += (int) $propertiesParts['existingCount'];
@@ -4411,6 +4431,7 @@ final class DocxOpenXmlReader
         }
         ksort($issueCodes);
         ksort($propertiesIssueCodes);
+        ksort($rootNamespaceCounts);
         ksort($schemaRefCounts);
         $duplicateSchemaRefs = [];
         foreach ($schemaRefCounts as $schemaRef => $count) {
@@ -4445,6 +4466,11 @@ final class DocxOpenXmlReader
             'duplicateStoreItemIdCount' => count($storeItemSummary['duplicateStoreItemIds']),
             'duplicateStoreItemIds' => $storeItemSummary['duplicateStoreItemIds'],
             'duplicateStoreItemIdReferences' => $storeItemSummary['duplicateStoreItemIdReferences'],
+            'rootNames' => $rootNames,
+            'rootNamespaceCounts' => $rootNamespaceCounts,
+            'textPreviewCount' => $textPreviewCount,
+            'rootAttributeCount' => $rootAttributeCount,
+            'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
             'issueCount' => $issueCount,
             'issueCodes' => array_keys($issueCodes),
             'propertiesIssueCount' => $propertiesIssueCount,
@@ -4583,10 +4609,10 @@ final class DocxOpenXmlReader
             $issues[] = 'missing-properties-relationship';
         }
 
-        $root = ['validXml' => null, 'xmlParseError' => null, 'rootNamespace' => null, 'rootLocalName' => null];
+        $metadata = $this->emptyCustomXmlItemMetadata();
         if ($exists && $targetPart !== null) {
-            $root = $this->xmlRootPreflight($parts[$targetPart], $targetPart);
-            if ($root['validXml'] === false) {
+            $metadata = $this->customXmlItemMetadata($parts[$targetPart], $targetPart);
+            if ($metadata['validXml'] === false) {
                 $issues[] = 'invalid-xml';
             }
         }
@@ -4615,10 +4641,22 @@ final class DocxOpenXmlReader
             'contentTypeSource' => $summary['contentTypeSource'],
             'defaultExtension' => $summary['defaultExtension'],
             'overridePartName' => $summary['overridePartName'],
-            'validXml' => $root['validXml'],
-            'xmlParseError' => $root['xmlParseError'],
-            'rootNamespace' => $root['rootNamespace'],
-            'rootLocalName' => $root['rootLocalName'],
+            'validXml' => $metadata['validXml'],
+            'xmlParseError' => $metadata['xmlParseError'],
+            'rootName' => $metadata['rootName'],
+            'rootPrefix' => $metadata['rootPrefix'],
+            'rootNamespace' => $metadata['rootNamespace'],
+            'rootLocalName' => $metadata['rootLocalName'],
+            'rootAttributes' => $metadata['rootAttributes'],
+            'rootAttributeMap' => $metadata['rootAttributeMap'],
+            'rootAttributeCount' => $metadata['rootAttributeCount'],
+            'rootAttributesTruncated' => $metadata['rootAttributesTruncated'],
+            'rootNamespaceDeclarations' => $metadata['rootNamespaceDeclarations'],
+            'rootNamespaceDeclarationMap' => $metadata['rootNamespaceDeclarationMap'],
+            'rootNamespaceDeclarationCount' => $metadata['rootNamespaceDeclarationCount'],
+            'rootNamespaceDeclarationsTruncated' => $metadata['rootNamespaceDeclarationsTruncated'],
+            'textPreview' => $metadata['textPreview'],
+            'textLength' => $metadata['textLength'],
             'relationshipsPart' => $partRelationshipsPart,
             'relationshipCount' => count($partRelationships),
             'propertiesParts' => $propertiesParts,
@@ -4805,28 +4843,175 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{validXml:bool, xmlParseError:?string, rootNamespace:?string, rootLocalName:?string}
+     * @return array{validXml:?bool, xmlParseError:?string, rootName:?string, rootPrefix:?string, rootNamespace:?string, rootLocalName:?string, rootAttributes:list<array{name:string, prefix:?string, namespace:?string, localName:string, value:string, valueLength:int, valueTruncated:bool}>, rootAttributeMap:array<string, array{name:string, prefix:?string, namespace:?string, localName:string, value:string, valueLength:int, valueTruncated:bool}>, rootAttributeCount:int, rootAttributesTruncated:bool, rootNamespaceDeclarations:list<array{name:string, prefix:string, uri:string}>, rootNamespaceDeclarationMap:array<string, string>, rootNamespaceDeclarationCount:int, rootNamespaceDeclarationsTruncated:bool, textPreview:?string, textLength:int}
      */
-    private function xmlRootPreflight(string $xml, string $partName): array
+    private function emptyCustomXmlItemMetadata(): array
     {
+        return [
+            'validXml' => null,
+            'xmlParseError' => null,
+            'rootName' => null,
+            'rootPrefix' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'rootAttributes' => [],
+            'rootAttributeMap' => [],
+            'rootAttributeCount' => 0,
+            'rootAttributesTruncated' => false,
+            'rootNamespaceDeclarations' => [],
+            'rootNamespaceDeclarationMap' => [],
+            'rootNamespaceDeclarationCount' => 0,
+            'rootNamespaceDeclarationsTruncated' => false,
+            'textPreview' => null,
+            'textLength' => 0,
+        ];
+    }
+
+    /**
+     * @return array{validXml:bool, xmlParseError:?string, rootName:?string, rootPrefix:?string, rootNamespace:?string, rootLocalName:?string, rootAttributes:list<array{name:string, prefix:?string, namespace:?string, localName:string, value:string, valueLength:int, valueTruncated:bool}>, rootAttributeMap:array<string, array{name:string, prefix:?string, namespace:?string, localName:string, value:string, valueLength:int, valueTruncated:bool}>, rootAttributeCount:int, rootAttributesTruncated:bool, rootNamespaceDeclarations:list<array{name:string, prefix:string, uri:string}>, rootNamespaceDeclarationMap:array<string, string>, rootNamespaceDeclarationCount:int, rootNamespaceDeclarationsTruncated:bool, textPreview:?string, textLength:int}
+     */
+    private function customXmlItemMetadata(string $xml, string $partName): array
+    {
+        $metadata = $this->emptyCustomXmlItemMetadata();
         $dom = $this->loadXmlForProvenance($xml, $partName);
         if (!$dom instanceof \DOMDocument) {
-            return [
-                'validXml' => false,
-                'xmlParseError' => $this->lastXmlPreflightError($xml, $partName),
-                'rootNamespace' => null,
-                'rootLocalName' => null,
-            ];
+            $metadata['validXml'] = false;
+            $metadata['xmlParseError'] = $this->lastXmlPreflightError($xml, $partName);
+
+            return $metadata;
         }
 
         $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            $metadata['validXml'] = false;
+            $metadata['xmlParseError'] = 'missing XML document element';
 
-        return [
-            'validXml' => $root instanceof \DOMElement,
-            'xmlParseError' => null,
-            'rootNamespace' => $root instanceof \DOMElement ? $root->namespaceURI : null,
-            'rootLocalName' => $root instanceof \DOMElement ? $root->localName : null,
-        ];
+            return $metadata;
+        }
+
+        $metadata['validXml'] = true;
+        $metadata['rootName'] = $this->qualifiedDomName($root);
+        $metadata['rootPrefix'] = $this->emptyStringToNull((string) $root->prefix);
+        $metadata['rootNamespace'] = $root->namespaceURI;
+        $metadata['rootLocalName'] = $root->localName;
+
+        $attributeLimit = 32;
+        $attributes = $root->attributes;
+        if (!$attributes instanceof \DOMNamedNodeMap) {
+            $attributes = [];
+        }
+        foreach ($attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $isNamespaceDeclaration = $attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/' || $attribute->name === 'xmlns';
+            if ($isNamespaceDeclaration) {
+                $prefix = $attribute->name === 'xmlns' ? '' : $attribute->localName;
+                if (array_key_exists($prefix, $metadata['rootNamespaceDeclarationMap'])) {
+                    continue;
+                }
+
+                ++$metadata['rootNamespaceDeclarationCount'];
+                if (count($metadata['rootNamespaceDeclarations']) >= $attributeLimit) {
+                    $metadata['rootNamespaceDeclarationsTruncated'] = true;
+                    continue;
+                }
+
+                $declaration = [
+                    'name' => $attribute->name,
+                    'prefix' => $prefix,
+                    'uri' => $attribute->value,
+                ];
+                $metadata['rootNamespaceDeclarations'][] = $declaration;
+                $metadata['rootNamespaceDeclarationMap'][$prefix] = $attribute->value;
+                continue;
+            }
+
+            ++$metadata['rootAttributeCount'];
+            if (count($metadata['rootAttributes']) >= $attributeLimit) {
+                $metadata['rootAttributesTruncated'] = true;
+                continue;
+            }
+
+            $attributeName = $this->qualifiedDomAttributeName($attribute);
+            $record = [
+                'name' => $attributeName,
+                'prefix' => $this->emptyStringToNull((string) $attribute->prefix),
+                'namespace' => $attribute->namespaceURI,
+                'localName' => $attribute->localName,
+                'value' => $this->boundedMetadataString($attribute->value),
+                'valueLength' => strlen($attribute->value),
+                'valueTruncated' => strlen($attribute->value) > 120,
+            ];
+            $metadata['rootAttributes'][] = $record;
+            $metadata['rootAttributeMap'][$attributeName] = $record;
+        }
+
+        $xpath = new \DOMXPath($dom);
+        $namespaceNodes = $xpath->query('namespace::*', $root);
+        if ($namespaceNodes instanceof \DOMNodeList) {
+            foreach ($namespaceNodes as $namespaceNode) {
+                $prefix = $namespaceNode->nodeName === 'xmlns' ? '' : $namespaceNode->localName;
+                $uri = (string) $namespaceNode->nodeValue;
+                if ($prefix === 'xml' && $uri === 'http://www.w3.org/XML/1998/namespace') {
+                    continue;
+                }
+                if (array_key_exists($prefix, $metadata['rootNamespaceDeclarationMap'])) {
+                    continue;
+                }
+
+                ++$metadata['rootNamespaceDeclarationCount'];
+                if (count($metadata['rootNamespaceDeclarations']) >= $attributeLimit) {
+                    $metadata['rootNamespaceDeclarationsTruncated'] = true;
+                    continue;
+                }
+
+                $declaration = [
+                    'name' => $namespaceNode->nodeName,
+                    'prefix' => $prefix,
+                    'uri' => $uri,
+                ];
+                $metadata['rootNamespaceDeclarations'][] = $declaration;
+                $metadata['rootNamespaceDeclarationMap'][$prefix] = $uri;
+            }
+        }
+
+        ksort($metadata['rootAttributeMap']);
+        ksort($metadata['rootNamespaceDeclarationMap']);
+
+        $text = trim(preg_replace('/\s+/u', ' ', $root->textContent) ?? $root->textContent);
+        $metadata['textPreview'] = $text === '' ? null : $this->boundedMetadataString($text);
+        $metadata['textLength'] = strlen($text);
+
+        return $metadata;
+    }
+
+    private function qualifiedDomName(\DOMElement $element): string
+    {
+        $prefix = $element->prefix;
+
+        return is_string($prefix) && $prefix !== '' ? $prefix . ':' . $element->localName : $element->localName;
+    }
+
+    private function qualifiedDomAttributeName(\DOMAttr $attribute): string
+    {
+        $prefix = $attribute->prefix;
+
+        return is_string($prefix) && $prefix !== '' ? $prefix . ':' . $attribute->localName : $attribute->localName;
+    }
+
+    private function boundedMetadataString(string $value): string
+    {
+        if (strlen($value) <= 120) {
+            return $value;
+        }
+
+        if (function_exists('mb_substr')) {
+            return mb_substr($value, 0, 120, 'UTF-8') . '...';
+        }
+
+        return substr($value, 0, 120) . '...';
     }
 
     /**
