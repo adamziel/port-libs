@@ -14533,6 +14533,9 @@ final class XmlHtmlDom
         if ($name === 'hgroup') {
             $summary += self::headingGroupSummary($node);
         }
+        if ($name === 'slot') {
+            $summary += self::slotElementSummary($node);
+        }
         if (self::isHtmlOutlineElementName($name)) {
             $summary += self::outlineSummary($node, $name);
         }
@@ -17585,6 +17588,122 @@ final class XmlHtmlDom
                 && preg_match('/^[a-z][.0-9_a-z-]*-[.0-9_a-z-]*$/', $name) === 1
                 && self::isHtmlReferenceToken($name),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function slotElementSummary(\DOMElement $slot): array
+    {
+        $nameRaw = self::attributeOrNull($slot, 'name');
+        $slotName = $nameRaw === null ? '' : trim($nameRaw);
+        $slotNameValid = $slotName === '' || self::isHtmlReferenceToken($slotName);
+        $assignedElements = $slotNameValid ? self::slotAssignedElementSummaries($slot, $slotName) : [];
+        $fallbackElementNames = self::slotFallbackElementNames($slot);
+        $fallbackText = self::normalizedText($slot);
+        $scope = $slot->parentNode instanceof \DOMElement ? $slot->parentNode : null;
+
+        return [
+            'slotElement' => 'slot',
+            'slotReviewPolicy' => 'flat-parent-slot-assignment-review',
+            'slotElementNameRaw' => $nameRaw,
+            'slotElementName' => $slotName,
+            'slotDefault' => $slotName === '',
+            'slotElementNameValid' => $slotNameValid,
+            'slotAssignmentScope' => $scope instanceof \DOMElement ? self::htmlElementName($scope) : null,
+            'slotAssignmentScopeId' => $scope instanceof \DOMElement ? self::attributeOrNull($scope, 'id') : null,
+            'slotAssignedElementCount' => count($assignedElements),
+            'slotAssignedElementNames' => array_values(array_map(
+                static fn (array $element): string => (string) $element['tag'],
+                $assignedElements
+            )),
+            'slotAssignedElementIds' => array_values(array_filter(
+                array_map(static fn (array $element): ?string => $element['id'] ?? null, $assignedElements),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'slotAssignedElements' => $assignedElements,
+            'slotHasAssignments' => $assignedElements !== [],
+            'slotFallbackText' => $fallbackText,
+            'slotFallbackTextLength' => strlen($fallbackText),
+            'slotFallbackElementNames' => $fallbackElementNames,
+            'slotFallbackElementCount' => count($fallbackElementNames),
+            'slotHasFallback' => $fallbackText !== '' || $fallbackElementNames !== [],
+            'slotFallbackActive' => $assignedElements === [] && ($fallbackText !== '' || $fallbackElementNames !== []),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function slotAssignedElementSummaries(\DOMElement $slot, string $slotName): array
+    {
+        $parent = $slot->parentNode;
+        if (!$parent instanceof \DOMElement) {
+            return [];
+        }
+
+        $assigned = [];
+        foreach ($parent->childNodes as $candidate) {
+            if (!$candidate instanceof \DOMElement || $candidate->isSameNode($slot)) {
+                continue;
+            }
+            if (self::htmlElementName($candidate) === 'slot') {
+                continue;
+            }
+
+            $candidateSlotRaw = self::attributeOrNull($candidate, 'slot');
+            if ($slotName === '') {
+                if ($candidateSlotRaw !== null && trim($candidateSlotRaw) !== '') {
+                    continue;
+                }
+            } else {
+                if ($candidateSlotRaw === null) {
+                    continue;
+                }
+                $candidateSlot = self::slotAttributeSummary($candidateSlotRaw);
+                if (!$candidateSlot['valid'] || $candidateSlot['name'] !== $slotName) {
+                    continue;
+                }
+            }
+
+            $assigned[] = self::slotAssignedElementSummary($candidate, $candidateSlotRaw);
+        }
+
+        return $assigned;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function slotAssignedElementSummary(\DOMElement $element, ?string $slotRaw): array
+    {
+        $slot = $slotRaw === null
+            ? ['name' => null, 'valid' => true]
+            : self::slotAttributeSummary($slotRaw);
+
+        return [
+            'tag' => self::htmlElementName($element),
+            'id' => self::attributeOrNull($element, 'id'),
+            'slotRaw' => $slotRaw,
+            'slotName' => $slot['name'],
+            'slotValid' => $slot['valid'],
+            'text' => self::normalizedText($element),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function slotFallbackElementNames(\DOMElement $slot): array
+    {
+        $names = [];
+        foreach ($slot->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $names[] = self::htmlElementName($child);
+            }
+        }
+
+        return $names;
     }
 
     private static function isHtmlReferenceToken(string $token): bool

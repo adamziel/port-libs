@@ -4104,6 +4104,83 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/custom-element-attributes-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html slot assignment and fallback review metadata' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="host"><slot name="headline"><strong>Fallback headline</strong></slot><slot name="actions"></slot><slot><em>Default fallback</em></slot><slot name="missing"><span>Missing fallback</span></slot><h2 id="title" slot="headline">Review <em>headline</em></h2><button id="save" slot="actions">Save</button><button id="cancel" slot="actions">Cancel</button><p id="default">Default body</p><p id="invalid-slot" slot="bad slot">Invalid</p></section>',
+            'slot assignment review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/slot-assignment-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $host = $summary[0];
+        $headline = $host['children'][0];
+        $actions = $host['children'][1];
+        $default = $host['children'][2];
+        $missing = $host['children'][3];
+        $title = $host['children'][4];
+        $invalid = $host['children'][8];
+
+        $t->same('host', $host['elementId']);
+        $t->same('slot', $headline['name']);
+        $t->same('slot', $headline['slotElement']);
+        $t->same('flat-parent-slot-assignment-review', $headline['slotReviewPolicy']);
+        $t->same('headline', $headline['slotElementNameRaw']);
+        $t->same('headline', $headline['slotElementName']);
+        $t->same(false, $headline['slotDefault']);
+        $t->same(true, $headline['slotElementNameValid']);
+        $t->same('section', $headline['slotAssignmentScope']);
+        $t->same('host', $headline['slotAssignmentScopeId']);
+        $t->same(1, $headline['slotAssignedElementCount']);
+        $t->same(['h2'], $headline['slotAssignedElementNames']);
+        $t->same(['title'], $headline['slotAssignedElementIds']);
+        $t->same([
+            'tag' => 'h2',
+            'id' => 'title',
+            'slotRaw' => 'headline',
+            'slotName' => 'headline',
+            'slotValid' => true,
+            'text' => 'Review headline',
+        ], $headline['slotAssignedElements'][0]);
+        $t->same('Fallback headline', $headline['slotFallbackText']);
+        $t->same(['strong'], $headline['slotFallbackElementNames']);
+        $t->same(true, $headline['slotHasFallback']);
+        $t->same(false, $headline['slotFallbackActive']);
+
+        $t->same('actions', $actions['slotElementName']);
+        $t->same(2, $actions['slotAssignedElementCount']);
+        $t->same(['button', 'button'], $actions['slotAssignedElementNames']);
+        $t->same(['save', 'cancel'], $actions['slotAssignedElementIds']);
+        $t->same(false, $actions['slotHasFallback']);
+
+        $t->same(null, $default['slotElementNameRaw']);
+        $t->same('', $default['slotElementName']);
+        $t->same(true, $default['slotDefault']);
+        $t->same(1, $default['slotAssignedElementCount']);
+        $t->same(['p'], $default['slotAssignedElementNames']);
+        $t->same(['default'], $default['slotAssignedElementIds']);
+        $t->same('Default body', $default['slotAssignedElements'][0]['text'] ?? null);
+        $t->same('Default fallback', $default['slotFallbackText']);
+        $t->same(false, $default['slotFallbackActive']);
+
+        $t->same('missing', $missing['slotElementName']);
+        $t->same(0, $missing['slotAssignedElementCount']);
+        $t->same('Missing fallback', $missing['slotFallbackText']);
+        $t->same(true, $missing['slotFallbackActive']);
+
+        $t->same('headline', $title['slotRaw']);
+        $t->same('headline', $title['slotName']);
+        $t->same(true, $title['slotValid']);
+        $t->same('bad slot', $invalid['slotRaw']);
+        $t->same(false, $invalid['slotValid']);
+
+        $t->same('<section id="host"><slot name="headline"><strong>Fallback headline</strong></slot><slot name="actions"></slot><slot><em>Default fallback</em></slot><slot name="missing"><span>Missing fallback</span></slot><h2 id="title" slot="headline">Review <em>headline</em></h2><button id="save" slot="actions">Save</button><button id="cancel" slot="actions">Cancel</button><p id="default">Default body</p><p id="invalid-slot" slot="bad slot">Invalid</p></section>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/slot-assignment-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html input hint attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="entry" autocapitalize="on"><input id="amount" inputmode="Decimal" enterkeyhint="Done" autocapitalize="characters">'
