@@ -4243,6 +4243,138 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports direct package OCF sidecar files for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-ocf-sidecars-' . str_replace('.', '', uniqid('', true));
+        $chapterXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable sidecar package.</p></body></html>';
+        $ocfManifestXml = sprintf(<<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.0">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/epub+zip"/>
+  <manifest:file-entry manifest:full-path="EPUB/chapter.xhtml" manifest:media-type="application/xhtml+xml" manifest:size="%d"/>
+  <manifest:file-entry manifest:full-path="EPUB/missing.xhtml" manifest:media-type="application/xhtml+xml" manifest:size="9"/>
+  <manifest:file-entry manifest:full-path="https://example.invalid/remote.bin" manifest:media-type="application/octet-stream"/>
+  <manifest:file-entry manifest:media-type="text/plain"/>
+</manifest:manifest>
+XML, strlen($chapterXhtml));
+        $rightsXml = '<rights xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><license>Review License</license></rights>';
+        $signaturesXml = '<signaturez xmlns="urn:oasis:names:tc:opendocument:xmlns:container"/>';
+
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'META-INF/manifest.xml', $ocfManifestXml);
+            $writePackageFile($root, 'META-INF/rights.xml', $rightsXml);
+            $writePackageFile($root, 'META-INF/signatures.xml', $signaturesXml);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:reader-ocf-sidecars</dc:identifier>
+    <dc:title>OCF Sidecar Package</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Chapter</a></li></ol></nav></body></html>');
+            $writePackageFile($root, 'EPUB/chapter.xhtml', $chapterXhtml);
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $sidecars = $epub['ocfSidecars'];
+            $manifest = $sidecars['itemsByKind']['manifest'];
+            $rights = $sidecars['itemsByKind']['rights'];
+            $signatures = $sidecars['itemsByKind']['signatures'];
+            $manifestItemsByPart = $manifest['itemsByPart'];
+            $chapter = $manifestItemsByPart['EPUB/chapter.xhtml'];
+            $missing = $manifestItemsByPart['EPUB/missing.xhtml'];
+            $external = $manifest['items'][3];
+            $missingFullPath = $manifest['items'][4];
+
+            $t->same($sidecars, $epub['ocfSidecars']);
+            $t->same($sidecars['items'], $epub['ocfSidecarItems']);
+            $t->same($sidecars['diagnostics'], $epub['ocfSidecarDiagnostics']);
+            $t->same(true, $sidecars['present']);
+            $t->same(3, $sidecars['sidecarCount']);
+            $t->same(['manifest', 'rights', 'signatures'], $sidecars['kinds']);
+            $t->same(false, $sidecars['metadataPresent']);
+            $t->same(true, $sidecars['manifestPresent']);
+            $t->same(true, $sidecars['rightsPresent']);
+            $t->same(true, $sidecars['signaturesPresent']);
+            $t->same(4, $sidecars['referenceCount']);
+            $t->same(2, $sidecars['localReferenceCount']);
+            $t->same(1, $sidecars['externalReferenceCount']);
+            $t->same(1, $sidecars['missingReferenceCount']);
+            $t->same(4, $sidecars['diagnosticCount']);
+            $t->same([
+                'ocf-manifest-missing-reference',
+                'ocf-manifest-external-reference',
+                'missing-ocf-manifest-full-path',
+                'unexpected-ocf-sidecar-root',
+            ], array_column($sidecars['diagnostics'], 'type'));
+
+            $t->same('META-INF/manifest.xml', $manifest['partName']);
+            $t->same('manifest', $manifest['rootName']);
+            $t->same('urn:oasis:names:tc:opendocument:xmlns:manifest:1.0', $manifest['rootNamespace']);
+            $t->same(true, $manifest['rootValid']);
+            $t->same('odf-manifest', $manifest['format']);
+            $t->same(true, $manifest['odfCompatible']);
+            $t->same('1.0', $manifest['version']);
+            $t->same(strlen($ocfManifestXml), $manifest['byteLength']);
+            $t->same(hash('sha256', $ocfManifestXml), $manifest['byteSha256']);
+            $t->same(5, $manifest['itemCount']);
+            $t->same(4, $manifest['declaredPartCount']);
+            $t->same(3, $manifest['missingItemCount']);
+            $t->same(0, $manifest['sizeMismatchCount']);
+            $t->same(4, $manifest['referenceCount']);
+            $t->same(2, $manifest['localReferenceCount']);
+            $t->same(1, $manifest['externalReferenceCount']);
+            $t->same(1, $manifest['missingReferenceCount']);
+            $t->same(3, count($manifest['diagnostics']));
+            $t->same([
+                'ocf-manifest-missing-reference',
+                'ocf-manifest-external-reference',
+                'missing-ocf-manifest-full-path',
+            ], array_column($manifest['diagnostics'], 'type'));
+
+            $t->same('EPUB/chapter.xhtml', $chapter['part']);
+            $t->same(true, $chapter['exists']);
+            $t->same(strlen($chapterXhtml), $chapter['byteLength']);
+            $t->same(hash('sha256', $chapterXhtml), $chapter['byteSha256']);
+            $t->same(true, $chapter['canExposeBytes']);
+            $t->same([], $chapter['diagnostics']);
+            $t->same(false, $missing['exists']);
+            $t->same('ocf-manifest-missing-reference', $missing['diagnostics'][0]['type']);
+            $t->same(true, $external['reference']['external']);
+            $t->same('https://example.invalid/remote.bin', $external['target']);
+            $t->same('ocf-manifest-external-reference', $external['diagnostics'][0]['type']);
+            $t->same(null, $missingFullPath['fullPath']);
+            $t->same('missing-ocf-manifest-full-path', $missingFullPath['diagnostics'][0]['type']);
+
+            $t->same('rights', $rights['rootName']);
+            $t->same(true, $rights['rootValid']);
+            $t->same([], $rights['diagnostics']);
+            $t->same(strlen($rightsXml), $rights['byteLength']);
+            $t->same(hash('sha256', $rightsXml), $rights['byteSha256']);
+            $t->same('signaturez', $signatures['rootName']);
+            $t->same(false, $signatures['rootValid']);
+            $t->same('unexpected-ocf-sidecar-root', $signatures['diagnostics'][0]['type']);
+            $t->same('signatures', $signatures['diagnostics'][0]['expectedRootName']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'rejects missing epub package directories before parsing' => static function (TestRunner $t): void {
         $t->throws(\RuntimeException::class, static function (): void {
             (new EpubPackageReader())->readDirectory(dirname(__DIR__) . '/fixtures/missing-epub-package');
