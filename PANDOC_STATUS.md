@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 2,047 | 1,096 |
+| Markdown / CommonMark / GFM | 2,097 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence validated after rebase: `PandocJsonReader` and `NativeReader` rehydrate raw HTML, TeX, and Markdown format-family variants such as `html+raw_html`, `latex-smart`, `pandoc`, `commonmark_x`, and `gfm+pipe_tables` into family-specific raw nodes across JSON/native round trips while preserving YAML metadata and Markdown writer output.
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` accepts spaced raw_attribute format specs such as `{ = html }` and `{ = latex }` for raw inline code spans and fenced raw blocks, preserving raw node format/text plus Markdown and WordPress handoff behavior.
 
-Current Pandoc counters: 5,748 PHP passes / 0 failures and 5,738 mapped upstream cases. Verification passed: `php -l` for `PandocJsonReader.php`, `NativeReader.php`, `MarkdownReaderMetadataRawExtensionSurgeTest.php`, `PandocJsonNativeAstTest.php`, and `NativeReaderTest.php`; focused `MarkdownReaderMetadataRawExtensionSurgeTest.php` plus `PandocJsonNativeAstTest.php` plus `NativeReaderTest.php` passed 3 files, 8216 assertions, 0 failures; full `lanes/pandoc/tests` passed 69 files, 101068 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 5,798 PHP passes / 0 failures and 5,788 mapped upstream cases. Verification passed: `php -l` for `MarkdownReader.php` and `MarkdownReaderRawAttributeSpacingExtensionSurgeTest.php`; dedicated `MarkdownReaderRawAttributeSpacingExtensionSurgeTest.php` passed 1 file, 582 assertions, 0 failures; focused `MarkdownReaderRawAttributeSpacingExtensionSurgeTest.php` plus `MarkdownReaderMetadataRawExtensionSurgeTest.php` plus `MarkdownReaderRawInlineSurgeTest.php` plus `MarkdownReaderTest.php` plus `MarkdownWriterBlocksSurgeTest.php` passed 5 files, 10165 assertions, 0 failures; full `lanes/pandoc/tests` passed 70 files, 101650 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.

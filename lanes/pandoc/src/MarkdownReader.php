@@ -16619,7 +16619,7 @@ final class MarkdownReader
     private function rawFormatAttributeSpec(string $source): ?string
     {
         $source = trim($source);
-        if (preg_match('/^\{=([A-Za-z][A-Za-z0-9_.+-]*)\}$/', $source, $m) !== 1) {
+        if (preg_match('/^\{\s*=\s*([A-Za-z][A-Za-z0-9_.+-]*)\s*\}$/', $source, $m) !== 1) {
             return null;
         }
 
