@@ -30194,6 +30194,62 @@ XML);
         $t->contains('<p>Literal spacing source [Ng  --  2026] keeps CSL separators visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Spacing Packet  /  Ng, Nia  2026</dd>', $blocks);
     },
+    'preserves explicit empty csl text value literals without macro fallback' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([[
+            'id' => 'empty-literal',
+            'type' => 'book',
+            'title' => 'Empty Literal Packet',
+            'author' => [
+                ['family' => 'Ishikawa', 'given' => 'Ira'],
+            ],
+            'issued' => ['date-parts' => [[2026]]],
+        ]]);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded CSL Empty Literal Review</title>
+    <id>https://example.test/styles/bounded-csl-empty-literal-review</id>
+    <updated>2026-06-15T12:18:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter="">
+        <names variable="author"/>
+        <text value="" prefix="{" suffix="}"/>
+        <text value=" "/>
+        <date variable="issued" date-parts="year"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter="">
+      <text variable="title"/>
+      <text value=""/>
+      <text value=" "/>
+      <names variable="author"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationRendering = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyRendering = $summary['bibliographyRendering'] ?? [];
+        $t->same('', $citationRendering[1]['value'] ?? null);
+        $t->same(false, array_key_exists('macro', $citationRendering[1] ?? []));
+        $t->same('', $bibliographyRendering[1]['value'] ?? null);
+        $t->same('[Ishikawa 2026]', $styled->renderCitationCluster([
+            $citation('empty-literal', '[@empty-literal]'),
+        ]));
+        $t->same('Empty Literal Packet Ishikawa, Ira', $styled->renderBibliographyEntry('empty-literal'));
+
+        $document = (new MarkdownReader())->read('Empty literal source [@empty-literal] should not resolve a blank macro.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Empty literal source [Ishikawa 2026] should not resolve a blank macro.</p>', $blocks);
+        $t->contains('<dt>Ishikawa 2026</dt><dd>Empty Literal Packet Ishikawa, Ira</dd>', $blocks);
+    },
     'normalizes bounded direct csl json camel orig aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
