@@ -46,7 +46,7 @@ final class MarkdownWriter
     private int $fancyOrderedMarkerEscapeSuppression = 0;
 
     /**
-     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool} $options
+     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -1622,7 +1622,14 @@ final class MarkdownWriter
 
     private function shouldRenderHtmlTable(AstNode $node, int $columnCount): bool
     {
-        return $columnCount > 0 && $this->tableRequestsHtmlFallback($node);
+        return $columnCount > 0
+            && (
+                $this->tableRequestsHtmlFallback($node)
+                || (
+                    (bool) ($this->options['htmlTableAutoFallback'] ?? false)
+                    && $this->tableRequiresHtmlFallback($node, $columnCount)
+                )
+            );
     }
 
     private function tableRequestsHtmlFallback(AstNode $node): bool
@@ -1635,6 +1642,208 @@ final class MarkdownWriter
         $htmlAttributes = $node->attr('htmlAttributes', []);
         if (is_array($htmlAttributes) && strtolower((string) ($htmlAttributes['data-pandoc-writer'] ?? '')) === 'html') {
             return true;
+        }
+
+        return false;
+    }
+
+    private function tableRequiresHtmlFallback(AstNode $node, int $columnCount): bool
+    {
+        if (
+            $this->tableHasHtmlOnlyAttributes($node)
+            || $this->captionHasSourceAttributes($node)
+            || $this->tableHasColumnSourceAttributes($node)
+        ) {
+            return true;
+        }
+
+        foreach ($node->children as $section) {
+            if (!in_array($section->type, ['table_head', 'table_body', 'table_foot'], true)) {
+                continue;
+            }
+
+            if ($this->nodeHasSourceAttributes($section)) {
+                return true;
+            }
+
+            if ($section->type === 'table_body' && TableGeometry::rowHeadColumns($section, $columnCount) > 0) {
+                return true;
+            }
+
+            foreach ($this->tableSectionRowsWithBodyHeads($section) as $row) {
+                if ($this->nodeHasSourceAttributes($row)) {
+                    return true;
+                }
+
+                foreach ($row->children as $cell) {
+                    if ($cell->type === 'table_cell' && $this->tableCellRequiresHtmlFallback($cell)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function tableHasHtmlOnlyAttributes(AstNode $node): bool
+    {
+        if ($this->stringMapAttrNonEmpty($node, 'htmlAttributes')) {
+            return true;
+        }
+
+        $attributes = $node->attr('attributes', []);
+        if (!is_array($attributes)) {
+            return false;
+        }
+
+        foreach ($attributes as $name => $value) {
+            if (!is_scalar($value) || trim((string) $value) === '') {
+                continue;
+            }
+
+            if (!$this->isMarkdownTableAttribute((string) $name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function captionHasSourceAttributes(AstNode $node): bool
+    {
+        $captionSource = $node->attr('captionSource', []);
+        if (!is_array($captionSource)) {
+            return false;
+        }
+
+        $sourceAttributes = $captionSource['sourceAttributes'] ?? [];
+
+        return is_array($sourceAttributes) && $this->sourceAttributeArrayNonEmpty($sourceAttributes);
+    }
+
+    private function tableHasColumnSourceAttributes(AstNode $node): bool
+    {
+        $columnSources = $node->attr('columnSources', []);
+        if (!is_array($columnSources)) {
+            return false;
+        }
+
+        foreach ($columnSources as $source) {
+            if (is_array($source) && $this->sourceAttributeArrayNonEmpty($source)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function tableCellRequiresHtmlFallback(AstNode $cell): bool
+    {
+        if ((int) $cell->attr('colspan', 1) > 1) {
+            return true;
+        }
+
+        $rowspan = $cell->attr('rowspan', 1);
+        if ((is_int($rowspan) || is_float($rowspan) || is_string($rowspan)) && (int) $rowspan !== 1) {
+            return true;
+        }
+
+        if ((bool) $cell->attr('header', false)) {
+            return true;
+        }
+
+        if (in_array((string) $cell->attr('align', ''), ['left', 'right', 'center'], true)) {
+            return true;
+        }
+
+        if (in_array((string) $cell->attr('valign', ''), ['baseline', 'top', 'middle', 'bottom'], true)) {
+            return true;
+        }
+
+        return $this->nodeHasSourceAttributes($cell);
+    }
+
+    private function nodeHasSourceAttributes(AstNode $node): bool
+    {
+        return $this->scalarAttrNonEmpty($node, 'id')
+            || $this->stringListAttrNonEmpty($node, 'classes')
+            || $this->stringMapAttrNonEmpty($node, 'attributes')
+            || $this->stringMapAttrNonEmpty($node, 'htmlAttributes');
+    }
+
+    private function scalarAttrNonEmpty(AstNode $node, string $name): bool
+    {
+        $value = $node->attr($name);
+
+        return is_scalar($value) && trim((string) $value) !== '';
+    }
+
+    private function stringListAttrNonEmpty(AstNode $node, string $name): bool
+    {
+        $values = $node->attr($name, []);
+        if (!is_array($values)) {
+            return false;
+        }
+
+        foreach ($values as $value) {
+            if (is_scalar($value) && trim((string) $value) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function stringMapAttrNonEmpty(AstNode $node, string $name): bool
+    {
+        $values = $node->attr($name, []);
+
+        return is_array($values) && $this->stringMapNonEmpty($values);
+    }
+
+    /**
+     * @param array<mixed, mixed> $source
+     */
+    private function sourceAttributeArrayNonEmpty(array $source): bool
+    {
+        if (
+            (isset($source['id']) && is_scalar($source['id']) && trim((string) $source['id']) !== '')
+            || $this->stringListNonEmpty($source['classes'] ?? [])
+            || $this->stringMapNonEmpty($source['attributes'] ?? [])
+            || $this->stringMapNonEmpty($source['htmlAttributes'] ?? [])
+        ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function stringListNonEmpty(mixed $values): bool
+    {
+        if (!is_array($values)) {
+            return false;
+        }
+
+        foreach ($values as $value) {
+            if (is_scalar($value) && trim((string) $value) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function stringMapNonEmpty(mixed $values): bool
+    {
+        if (!is_array($values)) {
+            return false;
+        }
+
+        foreach ($values as $key => $value) {
+            if (trim((string) $key) !== '' && is_scalar($value) && trim((string) $value) !== '') {
+                return true;
+            }
         }
 
         return false;

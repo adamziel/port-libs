@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 6,355 pass / 0 fail | [6,345 / 2,276 (278.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Run focused/full Markdown writer block/list/code validation while keeping phpFail at zero | pandoc-markdown-writer-list-style-code-surge |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 6,415 pass / 0 fail | [6,405 / 2,276 (281.4%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Markdown writer auto HTML table fallback validation passed after rebase onto current main | pandoc-markdown-writer-auto-html-table-surge |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -29,6 +29,14 @@ Input scope after skipping IPYNB:
 | Unsupported native PHP input tokens to implement | 28 |
 
 Focused test counts below are evidence counters, not a strict remaining-test burn-down. Percentages above 100% mean the local PHP tests are more granular than the upstream case counter available for that family; they do not claim upstream runner parity.
+
+### Markdown Writer Auto HTML Table Fallback Surge (2026-06-15)
+
+Bounded native PHP Markdown writer coverage advances by 60 upstream-mapped Markdown/CommonMark/GFM table/caption/span cases after rebase onto current main `125ba7381c`. `MarkdownWriter` adds opt-in `htmlTableAutoFallback` behavior for non-pipe-preservable table structures while preserving default pipe-table output and explicit `data-pandoc-writer` HTML fallback behavior.
+
+Validation passed after conflict resolution: `php -l` for `MarkdownWriter.php` and `MarkdownWriterTableAutoHtmlSurgeTest.php`; focused `MarkdownWriterTableAutoHtmlSurgeTest.php` (`1` file, `199` assertions, `0` failures); focused Markdown writer table group (`8` files, `10,069` assertions, `0` failures); full `lanes/pandoc/tests` (`76` files, `106,444` assertions, `0` failures); JSON validation; `git diff --check`; and exact conflict-marker scan. No Pandoc binary, cmark/commonmark runner, Cabal/Haskell runner, browser renderer, Node tooling, online service, live provider test, live-service provider test, or external validator is invoked.
+
+Markdown/CommonMark/GFM evidence is now 2,557 local mapped cases against the 1,096 accepted static upstream Markdown rows. The native PHP Markdown reader/writer remains partial pending broader metadata/raw/extension parity.
 
 ### Markdown Writer List Style/Code Surge (2026-06-15)
 
