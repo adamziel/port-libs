@@ -14699,6 +14699,9 @@ final class XmlHtmlDom
         if ($name === 'data') {
             $summary += self::dataElementSummary($node);
         }
+        if ($name === 'pre') {
+            $summary += self::preformattedSummary($node);
+        }
         if (in_array($name, ['ruby', 'rb', 'rt', 'rp', 'rtc'], true)) {
             $summary += self::rubySummary($node, $name);
         }
@@ -15913,6 +15916,83 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function preformattedSummary(\DOMElement $pre): array
+    {
+        $code = self::firstChildHtmlElement($pre, 'code');
+        $source = $code instanceof \DOMElement ? $code : $pre;
+        $text = $source->textContent;
+
+        return [
+            'preformatted' => 'pre',
+            'codeBlock' => $code instanceof \DOMElement ? 'pre-code' : 'pre',
+            'codeBlockSourceElement' => self::htmlElementName($source),
+            'codeText' => $text,
+            'codeTextLength' => strlen($text),
+            'codeTextSha256' => hash('sha256', $text),
+            'codeStartsWithNewline' => str_starts_with($text, "\n") || str_starts_with($text, "\r"),
+            'codeEndsWithNewline' => str_ends_with($text, "\n") || str_ends_with($text, "\r"),
+            'codeLineCount' => self::preformattedLineCount($text),
+        ] + self::codeLanguageSummary($source);
+    }
+
+    /**
+     * @return array{codeLanguage:?string, codeLanguageSource:string, codeLanguageToken:?string, codeClassTokens:list<string>}
+     */
+    private static function codeLanguageSummary(\DOMElement $element): array
+    {
+        $classRaw = self::attributeOrNull($element, 'class');
+        $classTokens = $classRaw === null ? [] : self::spaceSeparatedTokens($classRaw);
+        foreach ($classTokens as $token) {
+            if (preg_match('/^(?:language|lang)-(.+)$/i', $token, $matches) !== 1) {
+                continue;
+            }
+
+            $language = strtolower((string) $matches[1]);
+            if (!self::isSafeHtmlSemanticMetadataToken($language)) {
+                continue;
+            }
+
+            return [
+                'codeLanguage' => $language,
+                'codeLanguageSource' => 'class-token',
+                'codeLanguageToken' => $token,
+                'codeClassTokens' => $classTokens,
+            ];
+        }
+
+        $dataLanguage = self::attributeOrNull($element, 'data-language');
+        $language = $dataLanguage === null ? null : strtolower(trim($dataLanguage));
+        if ($language !== null && $language !== '' && self::isSafeHtmlSemanticMetadataToken($language)) {
+            return [
+                'codeLanguage' => $language,
+                'codeLanguageSource' => 'data-language',
+                'codeLanguageToken' => null,
+                'codeClassTokens' => $classTokens,
+            ];
+        }
+
+        return [
+            'codeLanguage' => null,
+            'codeLanguageSource' => 'missing',
+            'codeLanguageToken' => null,
+            'codeClassTokens' => $classTokens,
+        ];
+    }
+
+    private static function preformattedLineCount(string $text): int
+    {
+        $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+        $trimmed = rtrim($normalized, "\n");
+        if ($trimmed === '') {
+            return 0;
+        }
+
+        return substr_count($trimmed, "\n") + 1;
     }
 
     /**

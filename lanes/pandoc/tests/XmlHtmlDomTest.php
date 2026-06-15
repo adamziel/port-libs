@@ -4749,6 +4749,59 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/time-datetime-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html preformatted code block provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<pre id="snippet"><code class="language-php reviewer-snippet">echo &quot;Hi&quot;' . "\n" . 'return $value' . "\n" . '</code></pre>'
+                . '<pre data-language="mermaid">graph LR' . "\n" . 'A--&gt;B</pre>',
+            'preformatted code review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/preformatted-code-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $codeText = "echo \"Hi\"\nreturn \$value\n";
+        $mermaidText = "graph LR\nA-->B";
+        $pre = $summary[0];
+        $code = $pre['children'][0];
+        $plainPre = $summary[1];
+
+        $t->same('pre', $pre['name']);
+        $t->same('pre', $pre['preformatted']);
+        $t->same('pre-code', $pre['codeBlock']);
+        $t->same('code', $pre['codeBlockSourceElement']);
+        $t->same($codeText, $pre['codeText']);
+        $t->same(strlen($codeText), $pre['codeTextLength']);
+        $t->same(hash('sha256', $codeText), $pre['codeTextSha256']);
+        $t->same(false, $pre['codeStartsWithNewline']);
+        $t->same(true, $pre['codeEndsWithNewline']);
+        $t->same(2, $pre['codeLineCount']);
+        $t->same('php', $pre['codeLanguage']);
+        $t->same('class-token', $pre['codeLanguageSource']);
+        $t->same('language-php', $pre['codeLanguageToken']);
+        $t->same(['language-php', 'reviewer-snippet'], $pre['codeClassTokens']);
+
+        $t->same('code', $code['name']);
+        $t->same('code', $code['textSemantic']);
+        $t->same('echo "Hi" return $value', $code['semanticText']);
+
+        $t->same('pre', $plainPre['name']);
+        $t->same('pre', $plainPre['codeBlock']);
+        $t->same('pre', $plainPre['codeBlockSourceElement']);
+        $t->same($mermaidText, $plainPre['codeText']);
+        $t->same(2, $plainPre['codeLineCount']);
+        $t->same('mermaid', $plainPre['codeLanguage']);
+        $t->same('data-language', $plainPre['codeLanguageSource']);
+        $t->same(null, $plainPre['codeLanguageToken']);
+        $t->same([], $plainPre['codeClassTokens']);
+
+        $t->contains("<code class=\"language-php reviewer-snippet\">{$codeText}</code>", $html);
+        $t->contains('<pre data-language="mermaid">graph LR' . "\n" . 'A--&gt;B</pre>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/preformatted-code-review.html', $document->children[0]->attr('part'));
+    },
     'serializes entities comments and boolean attributes for HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             'Text&nbsp;<span title="A &quot;quote&quot; &amp; source">source &lt;em&gt;</span><!--review--><input checked>',
