@@ -1341,7 +1341,7 @@ final class MarkdownWriter
                 $hasFirstLine = true;
             }
 
-            if ($child->type === 'paragraph') {
+            if ($child->type === 'paragraph' || $child->type === 'plain') {
                 if (count($lines) === 1 && rtrim($lines[0]) === rtrim($prefix)) {
                     $lines = [];
                     $lines = $this->appendInlineListItemLines(
