@@ -1292,7 +1292,6 @@ final class MarkdownWriter
         $task = $item->attr('taskChecked', null);
         if (is_bool($task)) {
             $prefix .= $task ? '[x] ' : '[ ] ';
-            $continuationIndent += 4;
         }
 
         $inlineChildren = [];
