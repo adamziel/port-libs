@@ -19239,7 +19239,7 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($text[$cursor] === '"' || $text[$cursor] === "'") {
+            if ($parenDepth === 0 && ($text[$cursor] === '"' || $text[$cursor] === "'")) {
                 $quote = $text[$cursor];
                 continue;
             }
@@ -19270,6 +19270,13 @@ final class MarkdownReader
         $content = trim($content);
         if ($content === '') {
             return ['url' => '', 'title' => ''];
+        }
+
+        if ($this->looksLikeLinkTitleStart($content)) {
+            $title = $this->parseLinkTitle($content);
+            if ($title !== null) {
+                return ['url' => '', 'title' => $title];
+            }
         }
 
         if ($content[0] === '<') {
