@@ -549,6 +549,7 @@ final class EpubPackageReader
 
         $manifest = [];
         $manifestOccurrences = [];
+        $malformedManifestItems = [];
         $manifestIndex = 0;
         $manifestNodes = $xpath->query('./*[local-name()="manifest"]/*[local-name()="item"]', $packageElement);
         if ($manifestNodes instanceof \DOMNodeList) {
@@ -558,16 +559,40 @@ final class EpubPackageReader
                 }
                 $id = trim($node->getAttribute('id'));
                 $href = trim($node->getAttribute('href'));
-                if ($id === '' || $href === '') {
-                    continue;
-                }
                 $mediaTypeRaw = trim($node->getAttribute('media-type'));
                 $mediaTypeReport = $this->mediaTypeReport($mediaTypeRaw);
-                $external = $this->isExternalHref($href);
-                $path = $this->resolvePackageHref($opfDir, $href);
-                $suffix = $this->hrefSuffix($href);
+                $external = $href !== '' && $this->isExternalHref($href);
+                $path = $href === '' ? '' : $this->resolvePackageHref($opfDir, $href);
+                $suffix = $href === ''
+                    ? ['hasQuery' => false, 'query' => null, 'hasFragment' => false, 'fragment' => null]
+                    : $this->hrefSuffix($href);
                 $exists = !$external && $path !== '' && $this->packagePathExists($root, $path);
                 $diagnostics = $mediaTypeReport['mediaTypeDiagnostics'];
+                $missingRequiredAttributes = [];
+                if ($id === '') {
+                    $missingRequiredAttributes[] = 'id';
+                    $diagnostics[] = [
+                        'type' => 'missing-manifest-item-id',
+                        'message' => 'EPUB OPF manifest item is missing id',
+                    ];
+                }
+                if ($href === '') {
+                    $missingRequiredAttributes[] = 'href';
+                    $diagnostics[] = [
+                        'type' => 'missing-manifest-item-href',
+                        'id' => $id,
+                        'message' => 'EPUB OPF manifest item is missing href',
+                    ];
+                }
+                if ($mediaTypeRaw === '') {
+                    $missingRequiredAttributes[] = 'media-type';
+                    $diagnostics[] = [
+                        'type' => 'missing-manifest-item-media-type',
+                        'id' => $id,
+                        'href' => $href,
+                        'message' => 'EPUB OPF manifest item is missing media-type',
+                    ];
+                }
                 if ($external) {
                     $diagnostics[] = [
                         'type' => 'external-manifest-href-target',
@@ -637,15 +662,22 @@ final class EpubPackageReader
                     'fallback' => trim($node->getAttribute('fallback')),
                     'fallbackStyle' => trim($node->getAttribute('fallback-style')),
                     'mediaOverlay' => trim($node->getAttribute('media-overlay')),
+                    'requiredAttributesPresent' => $missingRequiredAttributes === [],
+                    'missingRequiredAttributes' => $missingRequiredAttributes,
                     'diagnostics' => $diagnostics,
                 ];
-                $manifestOccurrences[$id][] = $item;
-                $manifest[$id] = $item;
+                if ($missingRequiredAttributes !== []) {
+                    $malformedManifestItems[] = $item;
+                }
+                if ($id !== '') {
+                    $manifestOccurrences[$id][] = $item;
+                    $manifest[$id] = $item;
+                }
                 ++$manifestIndex;
             }
         }
         $metadataLinks = $this->metadataLinksWithManifestContext($metadataLinks, $manifest);
-        $manifestReport = $this->manifestReport($manifest, $manifestOccurrences);
+        $manifestReport = $this->manifestReport($manifest, $manifestOccurrences, $malformedManifestItems);
         $bindings = $this->readBindings($root, $manifest, $packageElement);
         $bindingsByMediaType = $this->bindingsByMediaType($bindings);
 
@@ -3272,7 +3304,7 @@ final class EpubPackageReader
      * @param array<string, list<array<string, mixed>>> $manifestOccurrences
      * @return array<string, mixed>
      */
-    private function manifestReport(array $manifest, array $manifestOccurrences): array
+    private function manifestReport(array $manifest, array $manifestOccurrences, array $malformedManifestItems): array
     {
         $externalItems = [];
         $missingItems = [];
@@ -3284,6 +3316,9 @@ final class EpubPackageReader
         $mediaTypeBaseCounts = [];
         $mediaTypeDiagnostics = [];
         $diagnostics = [];
+        $missingRequiredAttributeItems = [];
+        $missingRequiredAttributeNames = [];
+        $missingRequiredAttributeCount = 0;
 
         foreach ($manifest as $item) {
             $mediaTypeItem = $this->manifestMediaTypeItemReport($item);
@@ -3307,7 +3342,11 @@ final class EpubPackageReader
             if (($item['external'] ?? false) === true) {
                 $externalItems[] = $item;
             }
-            if (($item['external'] ?? false) !== true && ($item['exists'] ?? true) !== true) {
+            if (
+                ($item['external'] ?? false) !== true
+                && (string) ($item['path'] ?? '') !== ''
+                && ($item['exists'] ?? true) !== true
+            ) {
                 $missingItems[] = $item;
             }
             if (($item['hrefHasQuery'] ?? false) === true || ($item['hrefHasFragment'] ?? false) === true) {
@@ -3330,6 +3369,48 @@ final class EpubPackageReader
                     'href' => (string) ($item['href'] ?? ''),
                     'path' => (string) ($item['path'] ?? ''),
                 ] + $diagnostic;
+            }
+        }
+        foreach ($malformedManifestItems as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $missingAttributes = is_array($item['missingRequiredAttributes'] ?? null)
+                ? array_values(array_filter(
+                    $item['missingRequiredAttributes'],
+                    static fn (mixed $attribute): bool => is_string($attribute) && $attribute !== ''
+                ))
+                : [];
+            if ($missingAttributes === []) {
+                continue;
+            }
+
+            foreach ($missingAttributes as $attribute) {
+                $missingRequiredAttributeNames[$attribute] ??= $attribute;
+            }
+            $missingRequiredAttributeCount += count($missingAttributes);
+            $missingRequiredAttributeItems[] = [
+                'index' => (int) ($item['index'] ?? 0),
+                'id' => (string) ($item['id'] ?? ''),
+                'href' => (string) ($item['href'] ?? ''),
+                'path' => (string) ($item['path'] ?? ''),
+                'missingAttributes' => $missingAttributes,
+                'diagnostics' => is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [],
+            ];
+
+            if (($item['id'] ?? '') === '') {
+                foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
+                    if (!is_array($diagnostic)) {
+                        continue;
+                    }
+                    $diagnostics[] = [
+                        'index' => (int) ($item['index'] ?? 0),
+                        'id' => '',
+                        'href' => (string) ($item['href'] ?? ''),
+                        'path' => (string) ($item['path'] ?? ''),
+                    ] + $diagnostic;
+                }
             }
         }
         ksort($mediaTypeBaseCounts, SORT_STRING);
@@ -3368,6 +3449,7 @@ final class EpubPackageReader
 
         $referenceReport = $this->manifestItemReferenceReport($manifest);
         $diagnostics = array_merge($diagnostics, $duplicateIdDiagnostics, $referenceReport['manifestItemReferenceDiagnostics']);
+        $diagnostics = $this->manifestDiagnosticsInSourceOrder($diagnostics);
 
         return [
             'itemCount' => count($manifest),
@@ -3375,6 +3457,12 @@ final class EpubPackageReader
             'externalItems' => $externalItems,
             'missingItemCount' => count($missingItems),
             'missingItems' => $missingItems,
+            'malformedItemCount' => count($missingRequiredAttributeItems),
+            'malformedItems' => $missingRequiredAttributeItems,
+            'missingRequiredAttributeItemCount' => count($missingRequiredAttributeItems),
+            'missingRequiredAttributeCount' => $missingRequiredAttributeCount,
+            'missingRequiredAttributeNames' => array_values($missingRequiredAttributeNames),
+            'missingRequiredAttributeItems' => $missingRequiredAttributeItems,
             'duplicateManifestIdCount' => count($duplicateIdItems),
             'duplicateManifestItemCount' => array_sum(array_map(
                 static fn (array $item): int => (int) $item['itemCount'],
@@ -3405,6 +3493,43 @@ final class EpubPackageReader
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ] + $referenceReport;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private function manifestDiagnosticsInSourceOrder(array $diagnostics): array
+    {
+        $ordered = [];
+        foreach ($diagnostics as $ordinal => $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+            $diagnostic['_manifestDiagnosticOrdinal'] = $ordinal;
+            $ordered[] = $diagnostic;
+        }
+
+        usort(
+            $ordered,
+            static function (array $left, array $right): int {
+                $leftIndex = (int) ($left['index'] ?? $left['sourceIndex'] ?? 0);
+                $rightIndex = (int) ($right['index'] ?? $right['sourceIndex'] ?? 0);
+                if ($leftIndex !== $rightIndex) {
+                    return $leftIndex <=> $rightIndex;
+                }
+
+                return (int) ($left['_manifestDiagnosticOrdinal'] ?? 0)
+                    <=> (int) ($right['_manifestDiagnosticOrdinal'] ?? 0);
+            }
+        );
+
+        foreach ($ordered as &$diagnostic) {
+            unset($diagnostic['_manifestDiagnosticOrdinal']);
+        }
+        unset($diagnostic);
+
+        return $ordered;
     }
 
     /**

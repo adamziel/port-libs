@@ -3534,6 +3534,90 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports direct package malformed manifest item attributes without dropping readable spine' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-malformed-manifest-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-malformed-manifest-review</dc:identifier>
+    <dc:title>Malformed Manifest Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item href="assets/no-id.bin" media-type="application/octet-stream" data-review="missing-id"/>
+    <item id="missing-href" media-type="text/css" data-review="missing-href"/>
+    <item id="missing-type" href="assets/no-type.bin" data-review="missing-type"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/assets/no-id.bin', 'NO-ID');
+            $writePackageFile($root, 'EPUB/assets/no-type.bin', 'NO-TYPE');
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable chapter survives malformed manifest rows.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $manifest = $epub['manifestById'];
+            $report = $epub['manifestReport'];
+
+            $t->same(1, count($document->children));
+            $t->same('Readable chapter survives malformed manifest rows.', $document->children[0]->attr('text'));
+            $t->same(3, count($epub['manifest']));
+            $t->same(false, isset($manifest['']));
+
+            $t->same('', $manifest['missing-href']['href']);
+            $t->same('', $manifest['missing-href']['path']);
+            $t->same(false, $manifest['missing-href']['exists']);
+            $t->same(false, $manifest['missing-href']['requiredAttributesPresent']);
+            $t->same(['href'], $manifest['missing-href']['missingRequiredAttributes']);
+            $t->same(['missing-manifest-item-href'], array_column($manifest['missing-href']['diagnostics'], 'type'));
+
+            $t->same('assets/no-type.bin', $manifest['missing-type']['href']);
+            $t->same('EPUB/assets/no-type.bin', $manifest['missing-type']['path']);
+            $t->same(true, $manifest['missing-type']['exists']);
+            $t->same(false, $manifest['missing-type']['requiredAttributesPresent']);
+            $t->same(['media-type'], $manifest['missing-type']['missingRequiredAttributes']);
+            $t->same(['invalid-manifest-media-type', 'missing-manifest-item-media-type'], array_column($manifest['missing-type']['diagnostics'], 'type'));
+
+            $t->same(3, $report['itemCount']);
+            $t->same(0, $report['missingItemCount']);
+            $t->same(3, $report['malformedItemCount']);
+            $t->same(3, $report['missingRequiredAttributeItemCount']);
+            $t->same(3, $report['missingRequiredAttributeCount']);
+            $t->same(['id', 'href', 'media-type'], $report['missingRequiredAttributeNames']);
+            $t->same([0, 1, 2], array_column($report['missingRequiredAttributeItems'], 'index'));
+            $t->same([['id'], ['href'], ['media-type']], array_column($report['missingRequiredAttributeItems'], 'missingAttributes'));
+            $t->same('', $report['malformedItems'][0]['id']);
+            $t->same('assets/no-id.bin', $report['malformedItems'][0]['href']);
+            $t->same('EPUB/assets/no-id.bin', $report['malformedItems'][0]['path']);
+            $t->same('missing-href', $report['malformedItems'][1]['id']);
+            $t->same('missing-type', $report['malformedItems'][2]['id']);
+            $t->same(1, $report['invalidMediaTypeCount']);
+            $t->same(1, $report['mediaTypeDiagnosticCount']);
+            $t->same(4, $report['diagnosticCount']);
+            $t->same([
+                'missing-manifest-item-id',
+                'missing-manifest-item-href',
+                'invalid-manifest-media-type',
+                'missing-manifest-item-media-type',
+            ], array_column($report['diagnostics'], 'type'));
+            $t->same([0, 1, 2, 2], array_column($report['diagnostics'], 'index'));
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'normalizes direct package manifest media types while preserving parameter diagnostics' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-reader-media-type-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
