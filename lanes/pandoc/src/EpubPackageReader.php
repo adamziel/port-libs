@@ -661,11 +661,11 @@ final class EpubPackageReader
                 }
                 $idref = trim($node->getAttribute('idref'));
                 $id = $this->nullableAttribute($node, 'id');
-                $linearRaw = $this->nullableAttribute($node, 'linear');
                 $properties = $this->tokens($node->getAttribute('properties'));
                 $spineItemProperties = $this->spineItemPropertyReport($properties);
                 $item = $manifest[$idref] ?? null;
-                $linear = $linearRaw === null || strtolower($linearRaw) !== 'no';
+                $linearReport = $this->spineItemLinearReport($node);
+                $linear = (bool) $linearReport['linear'];
                 $mediaType = is_array($item) ? (string) ($item['rawMediaType'] ?? $item['mediaType'] ?? '') : '';
                 $mediaTypeBase = is_array($item)
                     ? (string) ($item['mediaTypeBase'] ?? $this->mediaTypeReport((string) ($item['mediaType'] ?? ''))['mediaTypeBase'])
@@ -673,7 +673,7 @@ final class EpubPackageReader
                 $external = is_array($item) && ($item['external'] ?? false) === true;
                 $exists = is_array($item) && ($item['exists'] ?? false) === true;
                 $readable = $linear && $mediaTypeBase === 'application/xhtml+xml' && !$external && $exists;
-                $diagnostics = [];
+                $diagnostics = $linearReport['diagnostics'];
                 if (!is_array($item)) {
                     $diagnostics[] = [
                         'type' => 'missing-spine-manifest-item',
@@ -734,7 +734,11 @@ final class EpubPackageReader
                     'mediaType' => $mediaType,
                     'mediaTypeBase' => $mediaTypeBase,
                     'linear' => $linear,
-                    'linearRaw' => $linearRaw,
+                    'linearRaw' => $linearReport['raw'],
+                    'linearSpecified' => $linearReport['specified'],
+                    'linearValue' => $linearReport['value'],
+                    'linearValid' => $linearReport['valid'],
+                    'linearDiagnostics' => $linearReport['diagnostics'],
                     'contentId' => $contentId,
                     'contentPath' => $contentPath,
                     'contentMediaType' => $contentMediaType,
@@ -2051,6 +2055,10 @@ final class EpubPackageReader
                 'mediaType' => (string) ($item['mediaType'] ?? ''),
                 'linear' => (bool) ($item['linear'] ?? true),
                 'linearRaw' => is_string($item['linearRaw'] ?? null) ? $item['linearRaw'] : null,
+                'linearSpecified' => (bool) ($item['linearSpecified'] ?? false),
+                'linearValue' => is_string($item['linearValue'] ?? null) ? $item['linearValue'] : null,
+                'linearValid' => (bool) ($item['linearValid'] ?? true),
+                'linearDiagnostics' => is_array($item['linearDiagnostics'] ?? null) ? array_values($item['linearDiagnostics']) : [],
                 'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
                 'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
                 'attributes' => $attributes,
@@ -3001,6 +3009,37 @@ final class EpubPackageReader
     }
 
     /**
+     * @return array{linear:bool, raw:?string, specified:bool, value:?string, valid:bool, diagnostics:list<array<string, mixed>>}
+     */
+    private function spineItemLinearReport(\DOMElement $itemrefElement): array
+    {
+        $specified = $itemrefElement->hasAttribute('linear');
+        $raw = $specified ? trim($itemrefElement->getAttribute('linear')) : null;
+        $value = $raw === null ? null : strtolower($raw);
+        $valid = !$specified || $value === 'yes' || $value === 'no';
+        $diagnostics = [];
+
+        if (!$valid) {
+            $diagnostics[] = [
+                'type' => 'invalid-spine-linear-value',
+                'attribute' => 'linear',
+                'value' => $raw,
+                'normalizedValue' => $value,
+                'message' => 'EPUB OPF spine itemref linear must be yes or no; direct directory ingestion treats invalid values as linear for reading-order review',
+            ];
+        }
+
+        return [
+            'linear' => $value !== 'no',
+            'raw' => $raw,
+            'specified' => $specified,
+            'value' => $value,
+            'valid' => $valid,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function metadataLinkMediaTypeFields(string $declaredMediaType, int $linkIndex, string $id): array
@@ -3698,6 +3737,8 @@ final class EpubPackageReader
         $externalItems = [];
         $missingPackagePartItems = [];
         $missingManifestItems = [];
+        $invalidLinearItems = [];
+        $linearDiagnostics = [];
         $spineMetadataDiagnostics = is_array($spineMetadata['diagnostics'] ?? null)
             ? array_values($spineMetadata['diagnostics'])
             : [];
@@ -3744,6 +3785,15 @@ final class EpubPackageReader
             }
             if (($item['idref'] ?? '') !== '') {
                 $idrefItems[(string) $item['idref']][] = $item;
+            }
+            if (($item['linearValid'] ?? true) !== true) {
+                $invalidLinearItems[] = $item;
+            }
+            foreach (is_array($item['linearDiagnostics'] ?? null) ? $item['linearDiagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+                $linearDiagnostics[] = ['index' => $index, 'idref' => (string) ($item['idref'] ?? '')] + $diagnostic;
             }
 
             foreach (is_array($item['spineItemDiagnostics'] ?? null) ? $item['spineItemDiagnostics'] : [] as $diagnostic) {
@@ -3823,6 +3873,10 @@ final class EpubPackageReader
             'missingManifestItems' => $missingManifestItems,
             'missingPackagePartItemCount' => count($missingPackagePartItems),
             'missingPackagePartItems' => $missingPackagePartItems,
+            'invalidLinearItemCount' => count($invalidLinearItems),
+            'invalidLinearItems' => $invalidLinearItems,
+            'linearDiagnosticCount' => count($linearDiagnostics),
+            'linearDiagnostics' => $linearDiagnostics,
             'duplicateIdrefCount' => count($duplicateIdrefItems),
             'duplicateIdrefItemCount' => array_sum(array_map(
                 static fn (array $item): int => (int) $item['itemCount'],

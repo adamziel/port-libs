@@ -4066,6 +4066,113 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports direct package spine linear value diagnostics for reader handoff' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-spine-linear-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-spine-linear-review</dc:identifier>
+    <dc:title>Spine Linear Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="appendix" href="appendix.xhtml" media-type="application/xhtml+xml"/>
+    <item id="colophon" href="colophon.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref id="chapter-spine" idref="chapter" linear="sometimes"/>
+    <itemref id="appendix-spine" idref="appendix" linear="NO"/>
+    <itemref id="colophon-spine" idref="colophon"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+        <li><a href="appendix.xhtml">Appendix</a></li>
+        <li><a href="colophon.xhtml">Colophon</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Chapter body.</p></body></html>');
+            $writePackageFile($root, 'EPUB/appendix.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Appendix body.</p></body></html>');
+            $writePackageFile($root, 'EPUB/colophon.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Colophon body.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $spine = $epub['spine'];
+            $spineReport = $epub['spineReport'];
+            $spineAuthoring = $epub['spineAuthoring'];
+
+            $t->same(3, $spineReport['itemCount']);
+            $t->same(2, $spineReport['linearItemCount']);
+            $t->same(1, $spineReport['nonlinearItemCount']);
+            $t->same(2, $spineReport['readableItemCount']);
+            $t->same(1, $spineReport['invalidLinearItemCount']);
+            $t->same(1, $spineReport['linearDiagnosticCount']);
+            $t->same(1, $spineReport['diagnosticCount']);
+            $t->same(['invalid-spine-linear-value'], array_column($spineReport['diagnostics'], 'type'));
+            $t->same('chapter', $spineReport['linearDiagnostics'][0]['idref']);
+            $t->same('sometimes', $spineReport['invalidLinearItems'][0]['linearRaw']);
+
+            $t->same('chapter', $spine[0]['idref']);
+            $t->same('sometimes', $spine[0]['linearRaw']);
+            $t->same(true, $spine[0]['linearSpecified']);
+            $t->same('sometimes', $spine[0]['linearValue']);
+            $t->same(false, $spine[0]['linearValid']);
+            $t->same(true, $spine[0]['linear']);
+            $t->same(true, $spine[0]['readable']);
+            $t->same('invalid-spine-linear-value', $spine[0]['linearDiagnostics'][0]['type']);
+            $t->same('sometimes', $spine[0]['linearDiagnostics'][0]['value']);
+
+            $t->same('appendix', $spine[1]['idref']);
+            $t->same('NO', $spine[1]['linearRaw']);
+            $t->same(true, $spine[1]['linearSpecified']);
+            $t->same('no', $spine[1]['linearValue']);
+            $t->same(true, $spine[1]['linearValid']);
+            $t->same(false, $spine[1]['linear']);
+            $t->same(false, $spine[1]['readable']);
+            $t->same([], $spine[1]['linearDiagnostics']);
+
+            $t->same('colophon', $spine[2]['idref']);
+            $t->same(null, $spine[2]['linearRaw']);
+            $t->same(false, $spine[2]['linearSpecified']);
+            $t->same(null, $spine[2]['linearValue']);
+            $t->same(true, $spine[2]['linearValid']);
+            $t->same(true, $spine[2]['linear']);
+            $t->same(true, $spine[2]['readable']);
+
+            $t->same('sometimes', $spineAuthoring['items'][0]['linearRaw']);
+            $t->same(false, $spineAuthoring['items'][0]['linearValid']);
+            $t->same('sometimes', $spineAuthoring['items'][0]['linearValue']);
+            $t->same('NO', $spineAuthoring['items'][1]['linearRaw']);
+            $t->same(false, $spineAuthoring['items'][1]['linear']);
+            $t->same(null, $spineAuthoring['items'][2]['linearRaw']);
+            $t->same(false, $spineAuthoring['items'][2]['linearSpecified']);
+
+            $t->same(2, count($document->children));
+            $t->contains('Chapter body.', $document->children[0]->attr('text'));
+            $t->contains('Colophon body.', $document->children[1]->attr('text'));
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports direct package OPF bindings and readable handler handoff' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-direct-bindings-' . str_replace('.', '', uniqid('', true));
         $handlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Bound widget fallback stays readable.</p></body></html>';
