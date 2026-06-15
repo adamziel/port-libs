@@ -15483,11 +15483,15 @@ final class MarkdownReader
         }
 
         $previous = $this->lastNonBlankBlockQuoteContentLine($content);
-        if ($previous === null || !$this->canLineContinueBlockQuoteParagraphLazily($previous)) {
+        if ($previous === null) {
             return false;
         }
 
-        return $this->canLineContinueBlockQuoteParagraphLazily($line);
+        if ($this->canLineContinueBlockQuoteParagraphLazily($previous)) {
+            return $this->canLineContinueBlockQuoteParagraphLazily($line);
+        }
+
+        return $this->canLineContinueBlockQuoteListItemParagraphLazily($previous, $line);
     }
 
     /**
@@ -15524,6 +15528,30 @@ final class MarkdownReader
         $marker = $this->matchListMarker($expanded);
 
         return $marker === null || $marker['indent'] > 3;
+    }
+
+    private function canLineContinueBlockQuoteListItemParagraphLazily(string $previous, string $line): bool
+    {
+        if (!$this->canLineContinueBlockQuoteParagraphLazily($line)) {
+            return false;
+        }
+
+        $marker = $this->matchListMarker($previous);
+        if ($marker === null || $marker['padding'] >= 5) {
+            return false;
+        }
+
+        $text = trim($marker['text']);
+        if ($text === '') {
+            return false;
+        }
+
+        $task = $this->stripTaskListMarker($text);
+        if ($task !== null) {
+            $text = trim($task['text']);
+        }
+
+        return $text === '' || !$this->isListItemBlockStartLine($text);
     }
 
     private function stripBlockQuoteMarker(string $line): string

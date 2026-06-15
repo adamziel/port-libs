@@ -5,11 +5,11 @@
   "upstream": {
     "name": "jgm/pandoc",
     "url": "https://github.com/jgm/pandoc",
-    "commit": "pandoc-markdown-reference-definition-surge-a52748332f",
+    "commit": "pandoc-markdown-reader-blockquote-list-lazy-surge-70f9d33d4c",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 5205,
-    "latestSlice": "pandoc-markdown-reference-definition-surge maps 60 upstream Markdown/CommonMark reference-definition cases after rebase onto current main a52748332f. MarkdownReader parses escaped closing brackets and nested bracket labels in reference definitions, collects multiline link titles across same-line and following-line forms, and preserves link/image handoff output while preserving current main emphasis delimiter, table/caption/span, inline/link/escape, list-item block continuation, native-span, table-caption, raw-inline, bare-autolink, block/list/code, and writer table HTML fallback coverage. No Pandoc, cmark, Node tooling, browser renderer, external validator, online service, live provider, or live-service-provider tests are invoked. phpPass moves 5155 -> 5215, phpFail remains 0, mapped upstream manifest cases move 5145 -> 5205, mappedMarkdownReferenceDefinitionSurgeCases = 60, and markdownReferenceDefinitionSurgeAssertions = 250. Verification passed php -l for MarkdownReader.php and MarkdownReaderReferenceSurgeTest.php; focused MarkdownReaderReferenceSurgeTest.php passed 1 file, 250 assertions, 0 failures; focused MarkdownReaderTest.php plus MarkdownReaderInlineLinkEntitySurgeTest.php plus MarkdownReaderEntitySurgeTest.php plus MarkdownReaderReferenceSurgeTest.php passed 4 files, 7539 assertions, 0 failures; full lanes/pandoc/tests passed 65 files, 96938 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and exact conflict-marker scan.",
+    "mapped": 5265,
+    "latestSlice": "pandoc-markdown-reader-blockquote-list-lazy-surge maps 60 upstream CommonMark/GFM blockquote/list lazy continuation cases after rebase onto current main 70f9d33d4c. MarkdownReader now keeps unmarked lazy paragraph continuation lines inside quoted list items for bullet, task, decimal/default/example, parenthesized, alpha, and roman markers while preserving block-start guards for headings, code fences, raw HTML, tables, definitions, and thematic breaks. It preserves current main Markdown reference-definition, emphasis delimiter, table/caption/span, inline/link/escape, list-item block continuation, native-span, table-caption, raw-inline, bare-autolink, block/list/code, and writer table HTML fallback coverage. No Pandoc, cmark, Cabal/Haskell runner, Node tooling, browser renderer, external validator, online service, live provider, or live-service provider is invoked. phpPass moves 5215 -> 5275, phpFail remains 0, mapped upstream cases move 5205 -> 5265, mappedMarkdownReaderBlockQuoteListSurgeCases = 60, and markdownReaderBlockQuoteListSurgeAssertions = 510. Verification passed php -l for MarkdownReader.php and MarkdownReaderBlockQuoteSurgeTest.php; dedicated MarkdownReaderBlockQuoteSurgeTest.php passed 1 file, 510 assertions, 0 failures; focused MarkdownReaderBlockQuoteSurgeTest.php plus MarkdownReaderBlocksSurgeTest.php plus MarkdownReaderTest.php passed 3 files, 9479 assertions, 0 failures; full lanes/pandoc/tests passed 66 files, 97448 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and exact conflict-marker scan.",
     "mappedMarkdownReaderBlockListSurgeCases": 110,
     "markdownReaderBlockListSurgeAssertions": 7692,
     "mappedOdfPackageFontFormatProvenanceCases": 6,
@@ -60,8 +60,8 @@
     "opcRawZipCentralDirectoryManifestAssertions": 37,
     "mappedZipCentralDirectorySignaturePolicyCases": 2,
     "zipCentralDirectorySignaturePolicyAssertions": 30,
-    "status": "Markdown reference-definition surge is verified after rebase onto current main a52748332f; phpFail remains 0.",
-    "latestFocusedSource": "2026-06-15 Markdown reference-definition surge verified after rebase onto current main a52748332f; php -l clean for MarkdownReader.php and MarkdownReaderReferenceSurgeTest.php; focused MarkdownReaderReferenceSurgeTest.php passed 1 file, 250 assertions, 0 failures; focused MarkdownReaderTest.php plus MarkdownReaderInlineLinkEntitySurgeTest.php plus MarkdownReaderEntitySurgeTest.php plus MarkdownReaderReferenceSurgeTest.php passed 4 files, 7539 assertions, 0 failures.",
+    "status": "Markdown reader blockquote/list lazy continuation surge is verified after rebase onto current main 70f9d33d4c; phpFail remains 0.",
+    "latestFocusedSource": "2026-06-15 Markdown reader blockquote/list lazy continuation surge verified after rebase onto current main 70f9d33d4c; php -l clean for MarkdownReader.php and MarkdownReaderBlockQuoteSurgeTest.php; dedicated MarkdownReaderBlockQuoteSurgeTest.php passed 1 file, 510 assertions, 0 failures; focused MarkdownReaderBlockQuoteSurgeTest.php plus MarkdownReaderBlocksSurgeTest.php plus MarkdownReaderTest.php passed 3 files, 9479 assertions, 0 failures.",
     "mappedPandocFormatReaderEvidenceBatchCases": 6,
     "pandocFormatReaderEvidenceBatchAssertions": 200,
     "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -674,7 +674,9 @@
     "mappedMarkdownReaderEmphasisDelimiterSurgeCases": 84,
     "markdownReaderEmphasisDelimiterSurgeAssertions": 169,
     "mappedMarkdownReferenceDefinitionSurgeCases": 60,
-    "markdownReferenceDefinitionSurgeAssertions": 250
+    "markdownReferenceDefinitionSurgeAssertions": 250,
+    "mappedMarkdownReaderBlockQuoteListSurgeCases": 60,
+    "markdownReaderBlockQuoteListSurgeAssertions": 510
   },
   "benchmarkDenominator": {
     "status": "Pandoc JSON/native single-wrapped target tuple sidecars are verified after rebase onto current main 9f2dd9a0fd; phpFail remains 0.",
