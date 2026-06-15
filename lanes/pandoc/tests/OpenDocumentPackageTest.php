@@ -1242,6 +1242,67 @@ XML;
         $t->same($decodedName, $mediaByPath['Pictures/caf%C3%A9.png']['packagePath']);
         $t->same(hash('sha256', $legacyBytes), $mediaByPath['Pictures/caf%C3%A9.png']['byteSha256']);
     },
+    'preserves compact ODT ZIP timestamp provenance in package review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $timestampedBytes = 'TIMESTAMPEDPNG';
+        $modifiedAt = 1780479017;
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/timestamped.png" manifest:size="' . strlen($timestampedBytes) . '"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [[
+                'name' => 'Pictures/timestamped.png',
+                'data' => $timestampedBytes,
+                'compressionMethod' => 0,
+                'modifiedAt' => $modifiedAt,
+            ]],
+        ))->summarize();
+        $review = $summary['manifestReview'];
+        $inventory = $summary['packageInventory'];
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $media) {
+            $mediaByPath[$media['path']] = $media;
+        }
+        $reviewByPath = [];
+        foreach ($review['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+
+        $media = $mediaByPath['Pictures/timestamped.png'];
+        $part = $inventory['parts']['Pictures/timestamped.png'];
+        $reviewItem = $reviewByPath['Pictures/timestamped.png'];
+
+        $t->same($modifiedAt, $media['zipModifiedAt']);
+        $t->same('extended-timestamp', $media['zipTimestampSource']);
+        $t->same(true, $media['zipHasDosTimestamp']);
+        $t->same(true, $media['zipIsDosTimestampValid']);
+        $t->same($modifiedAt, $media['zipExtendedModifiedAt']);
+        $t->same($modifiedAt, $media['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $media['zipLocalTimestampSource']);
+        $t->same([], $media['zipTimestampIssues']);
+
+        $t->same(1, $review['zipTimestampEntryCount']);
+        $t->same(['extended-timestamp' => 1], $review['zipTimestampSourceCounts']);
+        $t->same(0, $review['zipInvalidDosTimestampEntryCount']);
+        $t->same('Pictures/timestamped.png', $review['zipTimestampItems'][0]['path']);
+        $t->same($modifiedAt, $reviewItem['zipModifiedAt']);
+        $t->same('extended-timestamp', $reviewItem['zipTimestampSource']);
+        $t->same($modifiedAt, $reviewItem['zipLocalModifiedAt']);
+
+        $t->same(1, $inventory['zipTimestampEntryCount']);
+        $t->same(1, $inventory['zipDosTimestampEntryCount']);
+        $t->same(1, $inventory['zipExtendedTimestampEntryCount']);
+        $t->same(0, $inventory['zipInvalidDosTimestampEntryCount']);
+        $t->same($modifiedAt, $part['zipModifiedAt']);
+        $t->same('extended-timestamp', $part['zipTimestampSource']);
+        $t->same($modifiedAt, $part['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $part['zipLocalTimestampSource']);
+        $t->same([], $part['zipTimestampIssues']);
+    },
     'resolves compact ODT manifest path suffixes while preserving query and fragment provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sourceBytes = 'SOURCEPNG';
         $manifest = str_replace(

@@ -332,6 +332,18 @@ final class OpenDocumentPackage
                     'crc32' => $entry['crc32'],
                     'storedCrc32' => $entry['storedCrc32'],
                     'byteSha256' => $entry['byteSha256'],
+                    'zipModifiedAt' => $entry['zipModifiedAt'],
+                    'zipTimestampSource' => $entry['zipTimestampSource'],
+                    'zipModifiedDosTime' => $entry['zipModifiedDosTime'],
+                    'zipModifiedDosDate' => $entry['zipModifiedDosDate'],
+                    'zipHasDosTimestamp' => $entry['zipHasDosTimestamp'],
+                    'zipIsDosTimestampValid' => $entry['zipIsDosTimestampValid'],
+                    'zipDosModifiedAt' => $entry['zipDosModifiedAt'],
+                    'zipExtendedModifiedAt' => $entry['zipExtendedModifiedAt'],
+                    'zipNtfsModifiedAt' => $entry['zipNtfsModifiedAt'],
+                    'zipLocalModifiedAt' => $entry['zipLocalModifiedAt'],
+                    'zipLocalTimestampSource' => $entry['zipLocalTimestampSource'],
+                    'zipTimestampIssues' => $entry['zipTimestampIssues'],
                     'declaredSize' => $entry['size'],
                     'declaredSizeMismatch' => $entry['declaredSizeMismatch'],
                     'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
@@ -424,6 +436,8 @@ final class OpenDocumentPackage
         $localHeaderOrder = $this->package->localHeaderOrderPreflight();
         $compressionMethods = $this->package->compressionMethodPreflight();
         $comments = $this->package->commentPreflight();
+        $modificationTimes = $this->package->modificationTimePreflight();
+        $modificationTimeByName = self::zipModificationTimeEntriesByName($modificationTimes);
         $objectPackageRootParts = self::embeddedObjectPackageRootParts($this->manifestEntries);
         $localOrderByName = [];
         foreach ($localHeaderOrder['entries'] as $entry) {
@@ -489,6 +503,7 @@ final class OpenDocumentPackage
             $commentEntry = $commentEntriesByName[$entry->name] ?? null;
             $embeddedObjectPackage = self::embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $rawNameProvenance = self::zipEntryRawNameProvenance($entry);
+            $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
             if ($entry->isDirectory()) {
                 ++$packageDirectoryCount;
             }
@@ -575,7 +590,7 @@ final class OpenDocumentPackage
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance;
+            ] + $rawNameProvenance + $timestampProvenance;
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -745,6 +760,13 @@ final class OpenDocumentPackage
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
             'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
+            'modificationTimes' => $modificationTimes,
+            'zipTimestampEntryCount' => $modificationTimes['timestampEntryCount'],
+            'zipDosTimestampEntryCount' => $modificationTimes['dosTimestampEntryCount'],
+            'zipExtendedTimestampEntryCount' => $modificationTimes['extendedTimestampEntryCount'],
+            'zipNtfsTimestampEntryCount' => $modificationTimes['ntfsTimestampEntryCount'],
+            'zipInvalidDosTimestampEntryCount' => $modificationTimes['invalidDosTimestampEntryCount'],
+            'zipInvalidDosTimestampEntries' => $modificationTimes['invalidDosTimestampEntries'],
             'parts' => $parts,
         ];
     }
@@ -767,6 +789,49 @@ final class OpenDocumentPackage
             'hasRawNameProvenance' => !$rawNameMatchesDecodedName
                 || $usesLegacyNameEncoding
                 || $usesUnicodePathExtraField,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $modificationTimes
+     * @return array<string, array<string, mixed>>
+     */
+    private static function zipModificationTimeEntriesByName(array $modificationTimes): array
+    {
+        $entriesByName = [];
+        foreach (is_array($modificationTimes['entries'] ?? null) ? $modificationTimes['entries'] : [] as $entry) {
+            $name = $entry['name'] ?? null;
+            if (is_string($name) && $name !== '') {
+                $entriesByName[$name] = $entry;
+            }
+        }
+
+        return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed>|null $timestamp
+     * @return array<string, mixed>
+     */
+    private static function zipTimestampProvenance(?array $timestamp): array
+    {
+        return [
+            'zipModifiedAt' => $timestamp['modifiedAt'] ?? null,
+            'zipTimestampSource' => $timestamp['timestampSource'] ?? null,
+            'zipModifiedDosTime' => $timestamp['modifiedDosTime'] ?? null,
+            'zipModifiedDosDate' => $timestamp['modifiedDosDate'] ?? null,
+            'zipHasDosTimestamp' => ($timestamp['hasDosTimestamp'] ?? false) === true,
+            'zipIsDosTimestampValid' => ($timestamp['isDosTimestampValid'] ?? true) === true,
+            'zipDosModifiedAt' => $timestamp['dosModifiedAt'] ?? null,
+            'zipExtendedModifiedAt' => $timestamp['extendedModifiedAt'] ?? null,
+            'zipNtfsModifiedAt' => $timestamp['ntfsModifiedAt'] ?? null,
+            'zipCentralModifiedAt' => $timestamp['centralModifiedAt'] ?? null,
+            'zipCentralTimestampSource' => $timestamp['centralTimestampSource'] ?? null,
+            'zipLocalExtendedModifiedAt' => $timestamp['localExtendedModifiedAt'] ?? null,
+            'zipLocalNtfsModifiedAt' => $timestamp['localNtfsModifiedAt'] ?? null,
+            'zipLocalModifiedAt' => $timestamp['localModifiedAt'] ?? null,
+            'zipLocalTimestampSource' => $timestamp['localTimestampSource'] ?? null,
+            'zipTimestampIssues' => is_array($timestamp['issues'] ?? null) ? $timestamp['issues'] : [],
         ];
     }
 
@@ -1061,6 +1126,7 @@ final class OpenDocumentPackage
     private static function withPackageEntryMetadata(array $entries, ZipPackage $package): array
     {
         $hydrated = [];
+        $modificationTimeByName = self::zipModificationTimeEntriesByName($package->modificationTimePreflight());
         $objectPackageRootParts = self::embeddedObjectPackageRootParts($entries);
         foreach ($entries as $entry) {
             $isRoot = $entry['path'] === '/';
@@ -1078,6 +1144,9 @@ final class OpenDocumentPackage
             $zipEntry = (!$isRoot && is_string($packagePath) && $package->has($packagePath))
                 ? $package->entry($packagePath)
                 : null;
+            $timestampProvenance = $zipEntry instanceof ZipPackageEntry
+                ? self::zipTimestampProvenance($modificationTimeByName[$zipEntry->name] ?? null)
+                : self::zipTimestampProvenance(null);
             $exists = $isRoot || $isDirectory || $zipEntry instanceof ZipPackageEntry;
             $encrypted = is_array($entry['encryption']);
             $missingMediaType = ($entry['missingMediaType'] ?? false) === true;
@@ -1172,7 +1241,7 @@ final class OpenDocumentPackage
                     $hasSupportedCompression
                 ),
                 'diagnostics' => $diagnostics,
-            ]);
+            ], $timestampProvenance);
         }
 
         return $hydrated;
@@ -3324,6 +3393,11 @@ final class OpenDocumentPackage
             'manifestCustomAttributeItems' => [],
             'uriEncodedPackageReferenceCount' => 0,
             'uriEncodedPackageReferenceItems' => [],
+            'zipTimestampEntryCount' => 0,
+            'zipTimestampSourceCounts' => [],
+            'zipTimestampItems' => [],
+            'zipInvalidDosTimestampEntryCount' => 0,
+            'zipInvalidDosTimestampItems' => [],
             'embeddedObjectPackagePartCount' => 0,
             'embeddedObjectRootCount' => 0,
             'embeddedObjectContainedPartCount' => 0,
@@ -3402,6 +3476,18 @@ final class OpenDocumentPackage
             if (($entry['uriEncodedPackageReference'] ?? false) === true) {
                 ++$summary['uriEncodedPackageReferenceCount'];
                 $summary['uriEncodedPackageReferenceItems'][] = $item;
+            }
+            if (is_int($entry['zipModifiedAt'] ?? null) || is_string($entry['zipTimestampSource'] ?? null)) {
+                ++$summary['zipTimestampEntryCount'];
+                $summary['zipTimestampItems'][] = $item;
+                $source = (string) ($entry['zipTimestampSource'] ?? '');
+                if ($source !== '') {
+                    $summary['zipTimestampSourceCounts'][$source] = ($summary['zipTimestampSourceCounts'][$source] ?? 0) + 1;
+                }
+            }
+            if (($entry['zipIsDosTimestampValid'] ?? true) !== true) {
+                ++$summary['zipInvalidDosTimestampEntryCount'];
+                $summary['zipInvalidDosTimestampItems'][] = $item;
             }
             if (($entry['embeddedObjectPackagePart'] ?? false) === true) {
                 ++$summary['embeddedObjectPackagePartCount'];
@@ -3502,6 +3588,7 @@ final class OpenDocumentPackage
         ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
         ksort($summary['manifestMediaFamilyByteLengths'], SORT_STRING);
         ksort($summary['manifestMediaFamilyCompressedByteLengths'], SORT_STRING);
+        ksort($summary['zipTimestampSourceCounts'], SORT_STRING);
         ksort($summary['diagnosticCodeCounts'], SORT_STRING);
 
         return $summary;
@@ -3921,6 +4008,22 @@ final class OpenDocumentPackage
             'crc32' => $entry['crc32'] ?? null,
             'storedCrc32' => $entry['storedCrc32'] ?? null,
             'byteSha256' => $entry['byteSha256'] ?? null,
+            'zipModifiedAt' => $entry['zipModifiedAt'] ?? null,
+            'zipTimestampSource' => $entry['zipTimestampSource'] ?? null,
+            'zipModifiedDosTime' => $entry['zipModifiedDosTime'] ?? null,
+            'zipModifiedDosDate' => $entry['zipModifiedDosDate'] ?? null,
+            'zipHasDosTimestamp' => ($entry['zipHasDosTimestamp'] ?? false) === true,
+            'zipIsDosTimestampValid' => ($entry['zipIsDosTimestampValid'] ?? true) === true,
+            'zipDosModifiedAt' => $entry['zipDosModifiedAt'] ?? null,
+            'zipExtendedModifiedAt' => $entry['zipExtendedModifiedAt'] ?? null,
+            'zipNtfsModifiedAt' => $entry['zipNtfsModifiedAt'] ?? null,
+            'zipCentralModifiedAt' => $entry['zipCentralModifiedAt'] ?? null,
+            'zipCentralTimestampSource' => $entry['zipCentralTimestampSource'] ?? null,
+            'zipLocalExtendedModifiedAt' => $entry['zipLocalExtendedModifiedAt'] ?? null,
+            'zipLocalNtfsModifiedAt' => $entry['zipLocalNtfsModifiedAt'] ?? null,
+            'zipLocalModifiedAt' => $entry['zipLocalModifiedAt'] ?? null,
+            'zipLocalTimestampSource' => $entry['zipLocalTimestampSource'] ?? null,
+            'zipTimestampIssues' => $entry['zipTimestampIssues'] ?? [],
             'declaredSize' => $entry['declaredSize'] ?? null,
             'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
             'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
@@ -3964,6 +4067,11 @@ final class OpenDocumentPackage
             'objectReplacementPackagePart' => ($entry['objectReplacementPackagePart'] ?? false) === true,
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'rdfMetadataPart' => ($entry['rdfMetadataPart'] ?? false) === true,
+            'zipModifiedAt' => $entry['zipModifiedAt'] ?? null,
+            'zipTimestampSource' => $entry['zipTimestampSource'] ?? null,
+            'zipLocalModifiedAt' => $entry['zipLocalModifiedAt'] ?? null,
+            'zipLocalTimestampSource' => $entry['zipLocalTimestampSource'] ?? null,
+            'zipTimestampIssues' => $entry['zipTimestampIssues'] ?? [],
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
             'diagnostics' => $entry['diagnostics'] ?? [],
