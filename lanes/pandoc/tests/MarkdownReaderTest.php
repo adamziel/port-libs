@@ -9746,7 +9746,7 @@ MD;
         ]), $writer->write($nested));
         $t->same("(2) begins with 2\n(3) and now 3", $writer->write($twoParens));
         $t->same("iv. roman checkpoint\nv.  publish handoff", $writer->write($roman));
-        $t->same("1.  Autonumber.\n2.  More.\n    1.  Nested.", $writer->write($reader->read(" #.  Autonumber.\n #.  More.\n     #.  Nested.")));
+        $t->same("#.  Autonumber.\n#.  More.\n    #.  Nested.", $writer->write($reader->read(" #.  Autonumber.\n #.  More.\n     #.  Nested.")));
     },
     'maps upstream markdown writer roman list marker overflow' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [

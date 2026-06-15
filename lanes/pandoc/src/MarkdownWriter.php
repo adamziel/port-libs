@@ -1203,12 +1203,15 @@ final class MarkdownWriter
 
     private function orderedListMarker(AstNode $node, int $number, ?AstNode $item = null): string
     {
-        $style = (string) $node->attr('style', 'decimal');
-        $delimiter = (string) $node->attr('delimiter', 'period');
-        if ($style === 'example') {
-            $marker = '(@' . $this->numberedExampleLabel($item) . ')';
+        $style = $this->orderedListMarkerStyle($node);
+        $delimiter = $this->orderedListMarkerDelimiter($node);
 
-            return $marker . ' ';
+        if ($style === 'example') {
+            return $this->padOrderedListMarker('(@' . $this->numberedExampleLabel($item) . ')');
+        }
+
+        if ($style === 'default') {
+            return $this->padOrderedListMarker('#' . ($delimiter === 'one_paren' ? ')' : '.'));
         }
 
         $label = match ($style) {
@@ -1225,6 +1228,11 @@ final class MarkdownWriter
             default => $label . '.',
         };
 
+        return $this->padOrderedListMarker($marker);
+    }
+
+    private function padOrderedListMarker(string $marker): string
+    {
         if (strlen($marker) < 3) {
             $marker .= str_repeat(' ', 3 - strlen($marker));
         }
@@ -4168,20 +4176,52 @@ final class MarkdownWriter
         return $previous->type === 'ordered_list'
             && $current->type === 'ordered_list'
             && $this->orderedListMarkerStyle($previous) === $this->orderedListMarkerStyle($current)
-            && $this->orderedListMarkerDelimiter($previous) === $this->orderedListMarkerDelimiter($current);
+            && $this->orderedListSeparatorDelimiter($previous) === $this->orderedListSeparatorDelimiter($current);
+    }
+
+    private function orderedListSeparatorDelimiter(AstNode $node): string
+    {
+        $delimiter = $this->orderedListMarkerDelimiter($node);
+
+        return $delimiter === 'default' ? 'period' : $delimiter;
     }
 
     private function orderedListMarkerStyle(AstNode $node): string
     {
-        $style = (string) $node->attr('style', 'decimal');
+        $style = $this->normalizeOrderedListEnum((string) $node->attr('style', 'decimal'));
 
-        return $style === '' || $style === 'default' ? 'decimal' : $style;
+        return match ($style) {
+            'defaultstyle', 'default' => 'default',
+            'decimal' => 'decimal',
+            'example' => 'example',
+            'lowerroman', 'lower_roman' => 'lower_roman',
+            'upperroman', 'upper_roman' => 'upper_roman',
+            'loweralpha', 'lower_alpha' => 'lower_alpha',
+            'upperalpha', 'upper_alpha' => 'upper_alpha',
+            default => 'decimal',
+        };
     }
 
     private function orderedListMarkerDelimiter(AstNode $node): string
     {
-        $delimiter = (string) $node->attr('delimiter', 'period');
+        $delimiter = $this->normalizeOrderedListEnum((string) $node->attr('delimiter', 'period'));
 
-        return $delimiter === '' || $delimiter === 'default' ? 'period' : $delimiter;
+        return match ($delimiter) {
+            'defaultdelim', 'default' => 'default',
+            'oneparen', 'one_paren' => 'one_paren',
+            'twoparens', 'two_parens' => 'two_parens',
+            'period' => 'period',
+            default => 'period',
+        };
+    }
+
+    private function normalizeOrderedListEnum(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        return strtolower(str_replace(['-', ' '], '_', $value));
     }
 }
