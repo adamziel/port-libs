@@ -19153,7 +19153,8 @@ final class MarkdownReader
     private function isRawHtmlInlineTagSource(string $html): bool
     {
         if (preg_match('~^</([A-Za-z][A-Za-z0-9-]*)[ \t]*>$~', $html, $closing) === 1) {
-            return $this->isKnownRawHtmlInlineTagName($closing[1]);
+            return $this->isKnownRawHtmlInlineTagName($closing[1])
+                || str_contains($closing[1], '-');
         }
 
         if (
@@ -19166,7 +19167,8 @@ final class MarkdownReader
             return false;
         }
 
-        return $this->isKnownRawHtmlInlineTagName($opening[1]);
+        return $this->isKnownRawHtmlInlineTagName($opening[1])
+            || str_contains($opening[1], '-');
     }
 
     private function isKnownRawHtmlInlineTagName(string $name): bool
