@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 1,927 | 1,096 |
+| Markdown / CommonMark / GFM | 1,981 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,4 +26,4 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` parses list-item line-block starts and continuations as nested Markdown subdocuments across bullet and ordered marker families.\nCurrent Pandoc counters: 5,568 PHP passes / 0 failures and 5,558 mapped upstream cases. Verification passed: `php -l` for `MarkdownWriter.php` and `MarkdownWriterOrderedListSurgeTest.php`; focused `MarkdownWriterOrderedListSurgeTest.php` passed 1 file, 279 assertions, 0 failures; focused `MarkdownReaderTest.php` plus `MarkdownWriterBlocksSurgeTest.php` plus `MarkdownWriterOrderedListSurgeTest.php` passed 3 files, 7418 assertions, 0 failures; full `lanes/pandoc/tests` passed 69 files, 99268 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.\n
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` accepts empty table caption markers with indented block captions for pipe, simple, and grid tables, preserving `captionBlocks` through geometry and WordPress `figcaption` handoff.\nCurrent Pandoc counters: 5,682 PHP passes / 0 failures and 5,672 mapped upstream cases. Verification passed: `php -l` for `MarkdownReader.php` and `MarkdownReaderTableFigureCaptionCompletionSurgeTest.php`; focused Markdown reader/table/figure/caption suite passed 7 files, 13782 assertions, 0 failures; full `lanes/pandoc/tests` passed 70 files, 100335 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.\n

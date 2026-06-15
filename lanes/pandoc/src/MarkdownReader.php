@@ -14589,6 +14589,7 @@ final class MarkdownReader
         $captionLine = $captionCursor < $count ? $this->matchTableCaptionLine($lines[$captionCursor]) : null;
         if ($captionLine !== null) {
             $caption = [trim($captionLine['text'])];
+            $blockCaptionLines = [];
             $next = $captionCursor + 1;
             while (
                 $next < $count
@@ -14598,10 +14599,20 @@ final class MarkdownReader
                 && !$this->isSimpleTableBoundary($lines[$next])
             ) {
                 $caption[] = trim($lines[$next]);
+                $blockCaptionLines[] = rtrim($this->stripIndentColumns($lines[$next], 2));
                 $next++;
             }
 
-            return [$this->buildTableCaptionRecord(implode("\n", $caption), 'after-table', $captionLine['marker']), $next];
+            $blockCaption = trim($captionLine['text']) === '' && $blockCaptionLines !== [];
+            return [
+                $this->buildTableCaptionRecord(
+                    implode("\n", $blockCaption ? $blockCaptionLines : $caption),
+                    'after-table',
+                    $captionLine['marker'],
+                    $blockCaption
+                ),
+                $next,
+            ];
         }
 
         return [$this->emptyTableCaptionRecord(), $cursor];
@@ -14648,6 +14659,7 @@ final class MarkdownReader
         }
 
         $caption = [trim($captionLine['text'])];
+        $blockCaptionLines = [];
         $cursor = $index + 1;
         $count = count($lines);
         while (
@@ -14658,6 +14670,7 @@ final class MarkdownReader
             && !$this->isSimpleTableBoundary($lines[$cursor])
         ) {
             $caption[] = trim($lines[$cursor]);
+            $blockCaptionLines[] = rtrim($this->stripIndentColumns($lines[$cursor], 2));
             $cursor++;
         }
 
@@ -14669,8 +14682,14 @@ final class MarkdownReader
             return null;
         }
 
+        $blockCaption = trim($captionLine['text']) === '' && $blockCaptionLines !== [];
         return [
-            'caption' => $this->buildTableCaptionRecord(implode("\n", $caption), 'before-table', $captionLine['marker']),
+            'caption' => $this->buildTableCaptionRecord(
+                implode("\n", $blockCaption ? $blockCaptionLines : $caption),
+                'before-table',
+                $captionLine['marker'],
+                $blockCaption
+            ),
             'tableStart' => $cursor,
         ];
     }
@@ -14701,13 +14720,22 @@ final class MarkdownReader
     /**
      * @return array<string, mixed>
      */
-    private function buildTableCaptionRecord(string $source, string $position, string $marker): array
+    private function buildTableCaptionRecord(string $source, string $position, string $marker, bool $blockCaption = false): array
     {
-        [$caption, $tableAttrs] = $this->splitTableCaptionAttributes(trim($source));
-        [$shortCaption, $longCaption] = $this->splitTableShortCaption($caption);
+        [$caption, $tableAttrs] = $this->splitTableCaptionAttributes($blockCaption ? rtrim($source) : trim($source));
+        if ($blockCaption) {
+            $shortCaption = null;
+            $longCaption = rtrim($caption);
+        } else {
+            [$shortCaption, $longCaption] = $this->splitTableShortCaption($caption);
+        }
 
+        $captionBlocks = $blockCaption ? $this->readMarkdownTableCaptionBlocks($longCaption) : [];
+        $captionText = $captionBlocks === []
+            ? $longCaption
+            : $this->plainTextFromBlockNodes($captionBlocks);
         $record = [
-            'caption' => $longCaption,
+            'caption' => $captionText,
             'captionSource' => [
                 'element' => 'markdown-table-caption',
                 'position' => $position,
@@ -14717,7 +14745,12 @@ final class MarkdownReader
             ],
         ];
         if ($longCaption !== '') {
-            $record['captionInlines'] = $this->parseInlines($longCaption);
+            $record['captionInlines'] = $captionBlocks === []
+                ? $this->parseInlines($longCaption)
+                : $this->parseInlines($captionText);
+        }
+        if ($captionBlocks !== []) {
+            $record['captionBlocks'] = $captionBlocks;
         }
         if ($shortCaption !== null && $shortCaption !== '') {
             $record['shortCaption'] = $this->plainTextFromInlines($this->parseInlines($shortCaption));
@@ -14725,6 +14758,59 @@ final class MarkdownReader
         }
 
         return array_replace($record, $tableAttrs);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function readMarkdownTableCaptionBlocks(string $source): array
+    {
+        $source = rtrim($source);
+        if (trim($source) === '') {
+            return [];
+        }
+
+        return $this->read($source)->children;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function plainTextFromBlockNodes(array $blocks): string
+    {
+        $parts = [];
+        foreach ($blocks as $block) {
+            if (!$block instanceof AstNode) {
+                continue;
+            }
+
+            $parts[] = $this->plainTextFromBlockNode($block);
+        }
+
+        return trim(preg_replace('/\s+/', ' ', implode(' ', array_filter($parts, static fn (string $part): bool => $part !== ''))) ?? '');
+    }
+
+    private function plainTextFromBlockNode(AstNode $block): string
+    {
+        if (in_array($block->type, ['paragraph', 'plain', 'heading'], true)) {
+            $text = $this->plainTextFromInlines($block->children);
+
+            return $text === '' ? (string) $block->attr('text', '') : $text;
+        }
+
+        if ($block->type === 'code_block') {
+            return (string) $block->attr('text', '');
+        }
+
+        if (in_array($block->type, ['list_item', 'line'], true)) {
+            return $this->plainTextFromInlines($block->children);
+        }
+
+        if (in_array($block->type, ['raw_html', 'raw_markdown'], true)) {
+            return (string) $block->attr('html', $block->attr('text', ''));
+        }
+
+        return $this->plainTextFromBlockNodes($block->children);
     }
 
     /**
@@ -14836,7 +14922,7 @@ final class MarkdownReader
             }
         }
 
-        foreach (['shortCaption', 'shortCaptionInlines', 'captionSource', 'id', 'classes', 'attributes', 'htmlAttributes'] as $name) {
+        foreach (['shortCaption', 'shortCaptionInlines', 'shortCaptionBlocks', 'captionSource', 'captionBlocks', 'id', 'classes', 'attributes', 'htmlAttributes'] as $name) {
             if (array_key_exists($name, $caption)) {
                 $attrs[$name] = $caption[$name];
             }
