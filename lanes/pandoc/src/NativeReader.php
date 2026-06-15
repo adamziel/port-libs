@@ -2092,9 +2092,10 @@ final class NativeReader
 
         $attrs = [];
         if (array_is_list($attr) && count($attr) >= 3) {
+            $attrNative = $attr;
             $attr = array_slice($attr, 0, 3);
             $attrs['attrConstructor'] = 'Attr';
-            $attrs['attrNative'] = $this->isTaggedConstructor($native, 'Attr') ? $native : $attr;
+            $attrs['attrNative'] = $this->isTaggedConstructor($native, 'Attr') ? $native : $attrNative;
             if (!is_string($attr[0])) {
                 throw new \InvalidArgumentException('Pandoc native JSON Attr identifier must be a string');
             }

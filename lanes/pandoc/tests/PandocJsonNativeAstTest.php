@@ -3729,6 +3729,87 @@ return [
         $t->same($regeneratedAttr, $editedJson['blocks'][0]['c'][1]);
         $t->same($regeneratedAttr, $editedNative['blocks'][0]['c'][1]);
     },
+    'preserves untagged attr tuple sidecars through json and native writers' => static function (TestRunner $t): void {
+        $headingAttr = [
+            'sidecar-heading',
+            ['review'],
+            [['data-source', 'json-native']],
+            'heading-attr-sidecar',
+        ];
+        $linkAttr = [
+            'sidecar-link',
+            ['source-link'],
+            [['data-link', 'source']],
+            ['sourceOrdinal' => 17],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Header', 'c' => [
+                    2,
+                    $headingAttr,
+                    [['t' => 'Str', 'c' => 'Heading']],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Link', 'c' => [
+                        $linkAttr,
+                        [['t' => 'Str', 'c' => 'source']],
+                        ['https://example.test/source', 'Source'],
+                    ]],
+                ]],
+            ],
+        ];
+        $withoutWrapperNative = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $heading = $document->children[0];
+            $link = $document->children[1]->children[0];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('heading', $withoutWrapperNative($heading), $heading->children),
+                new AstNode('paragraph', [], [
+                    new AstNode('link', $withoutWrapperNative($link), $link->children),
+                ]),
+            ]);
+
+            $t->same($headingAttr, $heading->attr('attrNative'), "{$source} heading keeps full attr tuple sidecar");
+            $t->same($linkAttr, $link->attr('attrNative'), "{$source} link keeps full attr tuple sidecar");
+            $t->same('sidecar-heading', $heading->attr('id'), "{$source} heading id");
+            $t->same(['review'], $heading->attr('classes'), "{$source} heading classes");
+            $t->same(['data-link' => 'source'], $link->attr('attributes'), "{$source} link attributes");
+
+            foreach ([
+                "{$source} json" => (new PandocJsonWriter())->toArray($rebuilt),
+                "{$source} native" => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($headingAttr, $encoded['blocks'][0]['c'][1], "{$writer} preserves heading attr sidecar");
+                $t->same($linkAttr, $encoded['blocks'][1]['c'][0]['c'][0], "{$writer} preserves link attr sidecar");
+            }
+
+            $editedHeading = new AstNode('heading', array_replace($withoutWrapperNative($heading), [
+                'id' => 'edited-heading',
+            ]), $heading->children);
+
+            foreach ([
+                "{$source} edited json" => (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [$editedHeading])),
+                "{$source} edited native" => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [$editedHeading])), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $editedAttr = $encoded['blocks'][0]['c'][1];
+
+                $t->same(['edited-heading', ['review'], [['data-source', 'json-native']]], $editedAttr, "{$writer} regenerates edited attr tuple");
+                $t->same(false, array_key_exists(3, $editedAttr), "{$writer} drops stale attr sidecar after edit");
+            }
+        }
+    },
     'records pandoc target tuple provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $linkAttr = ['source-link', ['review-link'], [['data-origin', 'json']]];
         $imageAttr = ['cover-image', ['review-image'], [['data-origin', 'asset']]];
@@ -4555,8 +4636,8 @@ return [
             'json' => (new PandocJsonWriter())->toArray($rebuilt),
             'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
         ] as $writer => $encoded) {
-            $t->same(array_slice($codeAttr, 0, 3), $code->attr('attrNative'), "{$writer} source code Attr tuple");
-            $t->same(array_slice($spanAttr, 0, 3), $span->attr('attrNative'), "{$writer} source span Attr tuple");
+            $t->same($codeAttr, $code->attr('attrNative'), "{$writer} source code Attr tuple");
+            $t->same($spanAttr, $span->attr('attrNative'), "{$writer} source span Attr tuple");
             $t->same($codeInline, $encoded['blocks'][0]['c'][0], "{$writer} writer preserves native-reader-only code inline payload");
             $t->same($spanInline, $encoded['blocks'][0]['c'][2], "{$writer} writer preserves native-reader-only span inline payload");
         }
@@ -4571,7 +4652,7 @@ return [
 
         $t->same('Code', $editedInline['t']);
         $t->same('echo 2;', $editedInline['c'][1]);
-        $t->same(['native-code', ['php'], [['data-source', 'native-reader']]], $editedInline['c'][0]);
+        $t->same($codeAttr, $editedInline['c'][0]);
         $t->same(false, array_key_exists('reviewQueue', $editedInline), 'edited native-reader-only inline payload drops stale wrapper sidecar');
     },
     'preserves native block attr sidecar payloads when rebuilding wrappers' => static function (TestRunner $t): void {
@@ -4645,9 +4726,9 @@ return [
             'json' => (new PandocJsonWriter())->toArray($rebuilt),
             'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
         ] as $writer => $encoded) {
-            $t->same(array_slice($headingAttr, 0, 3), $heading->attr('attrNative'), "{$writer} source heading Attr tuple");
-            $t->same(array_slice($codeBlockAttr, 0, 3), $code->attr('attrNative'), "{$writer} source code block Attr tuple");
-            $t->same(array_slice($divAttr, 0, 3), $div->attr('attrNative'), "{$writer} source div Attr tuple");
+            $t->same($headingAttr, $heading->attr('attrNative'), "{$writer} source heading Attr tuple");
+            $t->same($codeBlockAttr, $code->attr('attrNative'), "{$writer} source code block Attr tuple");
+            $t->same($divAttr, $div->attr('attrNative'), "{$writer} source div Attr tuple");
             $t->same($headingBlock, $encoded['blocks'][0], "{$writer} writer preserves native heading block payload");
             $t->same($codeBlock, $encoded['blocks'][1], "{$writer} writer preserves native code block payload");
             $t->same($divBlock, $encoded['blocks'][2], "{$writer} writer preserves native div block payload");
@@ -4676,13 +4757,13 @@ return [
             'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
         ] as $writer => $encoded) {
             $t->same('Edited', $encoded['blocks'][0]['c'][2][0]['c'], "{$writer} writer regenerates edited heading text");
-            $t->same(array_slice($headingAttr, 0, 3), $encoded['blocks'][0]['c'][1], "{$writer} writer drops stale heading Attr sidecar");
+            $t->same($headingAttr, $encoded['blocks'][0]['c'][1], "{$writer} writer preserves unchanged heading Attr sidecar");
             $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$writer} writer drops stale heading wrapper sidecar");
             $t->same("echo 2;\n", $encoded['blocks'][1]['c'][1], "{$writer} writer regenerates edited code block text");
-            $t->same(array_slice($codeBlockAttr, 0, 3), $encoded['blocks'][1]['c'][0], "{$writer} writer drops stale code block Attr sidecar");
+            $t->same($codeBlockAttr, $encoded['blocks'][1]['c'][0], "{$writer} writer preserves unchanged code block Attr sidecar");
             $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][1]), "{$writer} writer drops stale code block wrapper sidecar");
             $t->same('Edited', $encoded['blocks'][2]['c'][1][0]['c'][0]['c'], "{$writer} writer regenerates edited div child text");
-            $t->same(array_slice($divAttr, 0, 3), $encoded['blocks'][2]['c'][0], "{$writer} writer drops stale div Attr sidecar");
+            $t->same($divAttr, $encoded['blocks'][2]['c'][0], "{$writer} writer preserves unchanged div Attr sidecar");
             $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][2]), "{$writer} writer drops stale div wrapper sidecar");
         }
     },

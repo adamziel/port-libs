@@ -2350,7 +2350,7 @@ final class PandocJsonWriter
     private function reusableAttrNative(AstNode $node): ?array
     {
         $native = $node->attr('attrNative');
-        $tuple = $this->validAttrTuple($native);
+        $tuple = is_array($native) && array_is_list($native) ? $this->validAttrTuplePrefix($native) : null;
         if ($tuple !== null) {
             return $this->normalizedAttrTuple($tuple) === $this->normalizedAttrTuple($this->generatedAttrTuple($node))
                 ? $native

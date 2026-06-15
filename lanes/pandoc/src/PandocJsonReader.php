@@ -1755,7 +1755,11 @@ final class PandocJsonReader
         $native = $value;
         $content = $this->constructorContent($value, 'Attr', 'Attr', false);
         $content = $this->attrTupleContent($content);
-        $tuple = $this->tuplePrefix($content, 3, 'Attr');
+        $attrTuple = $this->listContent($content, 'Attr');
+        if (count($attrTuple) < 3) {
+            throw new \InvalidArgumentException('Attr must have at least 3 entries');
+        }
+        $tuple = array_slice($attrTuple, 0, 3);
         if (!is_string($tuple[0])) {
             throw new \InvalidArgumentException('Attr identifier must be a string');
         }
@@ -1779,7 +1783,7 @@ final class PandocJsonReader
 
         $attrs = [
             'attrConstructor' => 'Attr',
-            'attrNative' => $this->isTaggedConstructor($native, 'Attr') ? $native : $tuple,
+            'attrNative' => $this->isTaggedConstructor($native, 'Attr') ? $native : $attrTuple,
         ];
         if ($tuple[0] !== '') {
             $attrs['id'] = $tuple[0];
