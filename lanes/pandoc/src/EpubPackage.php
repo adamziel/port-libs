@@ -98,6 +98,10 @@ final class EpubPackage
         'xml:base' => true,
         'xml:lang' => true,
     ];
+    private const OCF_ROOTFILE_STRUCTURAL_ATTRIBUTES = [
+        'full-path' => true,
+        'media-type' => true,
+    ];
     private const OPF_METADATA_STRUCTURAL_ATTRIBUTES = [
         'dir' => true,
         'id' => true,
@@ -578,6 +582,7 @@ final class EpubPackage
         );
         $auxiliaryNavigation = self::auxiliaryNavigationReport($this->navigationSections);
         $spineMetadata = $this->spineMetadata();
+        $rootfileAuthoring = self::rootfileAuthoringReport($this->rootfiles, $this->opfPartName);
         $packageAuthoring = self::packageAuthoringReport($this->metadata);
         $metadataAuthoring = is_array($this->metadata['metadataAuthoring'] ?? null)
             ? $this->metadata['metadataAuthoring']
@@ -628,6 +633,7 @@ final class EpubPackage
             'readingOrderInventory' => $readingOrderInventory,
             'manifestDependencyInventory' => $manifestDependencyInventory,
             'rootfiles' => $this->rootfiles,
+            'rootfileAuthoring' => $rootfileAuthoring,
             'renditions' => $this->renditions,
             'containerLinks' => $this->containerLinks,
             'containerLinksByRel' => $containerLinkReport['linksByRel'],
@@ -756,6 +762,9 @@ final class EpubPackage
                 'metadataCollectionMembership' => $collectionMembership,
                 'metadataCollectionMembershipDiagnostics' => $collectionMembership['diagnostics'],
                 'readingOrderParts' => $assetSummary['readingOrderParts'],
+                'containerRootfiles' => $this->rootfiles,
+                'rootfileAuthoring' => $rootfileAuthoring,
+                'rootfileAuthoringItems' => $rootfileAuthoring['items'],
                 'renditions' => $this->renditions,
                 'renditionDiagnostics' => $this->renditions['diagnostics'],
                 'spineMetadata' => $spineMetadata,
@@ -1508,6 +1517,23 @@ final class EpubPackage
                 'fullPathQuery' => is_string($rootfile['fullPathQuery'] ?? null) ? $rootfile['fullPathQuery'] : null,
                 'fullPathHasFragment' => $hasFragment,
                 'fullPathFragment' => is_string($rootfile['fullPathFragment'] ?? null) ? $rootfile['fullPathFragment'] : null,
+                'attributes' => is_array($rootfile['attributes'] ?? null) ? $rootfile['attributes'] : [],
+                'attributeCount' => is_int($rootfile['attributeCount'] ?? null)
+                    ? $rootfile['attributeCount']
+                    : count(is_array($rootfile['attributes'] ?? null) ? $rootfile['attributes'] : []),
+                'customAttributes' => is_array($rootfile['customAttributes'] ?? null)
+                    ? $rootfile['customAttributes']
+                    : self::rootfileCustomAttributes(is_array($rootfile['attributes'] ?? null) ? $rootfile['attributes'] : []),
+                'customAttributeCount' => is_int($rootfile['customAttributeCount'] ?? null)
+                    ? $rootfile['customAttributeCount']
+                    : count(is_array($rootfile['customAttributes'] ?? null)
+                        ? $rootfile['customAttributes']
+                        : self::rootfileCustomAttributes(is_array($rootfile['attributes'] ?? null) ? $rootfile['attributes'] : [])),
+                'hasCustomAttributes' => (bool) ($rootfile['hasCustomAttributes'] ?? (
+                    (is_array($rootfile['customAttributes'] ?? null)
+                        ? $rootfile['customAttributes']
+                        : self::rootfileCustomAttributes(is_array($rootfile['attributes'] ?? null) ? $rootfile['attributes'] : [])) !== []
+                )),
                 'exists' => $exists,
                 'selected' => $selected,
                 'byteLength' => $provenance['byteLength'],
@@ -2931,6 +2957,8 @@ final class EpubPackage
             $target = $partName . $targetSuffix;
             $hrefSuffix = self::packageHrefSuffixReport($target);
             $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $attributes = self::elementAttributes($rootfile);
+            $customAttributes = self::rootfileCustomAttributes($attributes);
             $rootfiles[] = [
                 'fullPath' => $fullPath,
                 'target' => $target,
@@ -2948,6 +2976,11 @@ final class EpubPackage
                 'fullPathQuery' => $hrefSuffix['query'],
                 'fullPathHasFragment' => $hrefSuffix['hasFragment'],
                 'fullPathFragment' => $hrefSuffix['fragment'],
+                'attributes' => $attributes,
+                'attributeCount' => count($attributes),
+                'customAttributes' => $customAttributes,
+                'customAttributeCount' => count($customAttributes),
+                'hasCustomAttributes' => $customAttributes !== [],
             ];
         }
 
@@ -3196,6 +3229,23 @@ final class EpubPackage
             'fullPathQuery' => is_string($rootfile['fullPathQuery'] ?? null) ? $rootfile['fullPathQuery'] : null,
             'fullPathHasFragment' => ($rootfile['fullPathHasFragment'] ?? false) === true,
             'fullPathFragment' => is_string($rootfile['fullPathFragment'] ?? null) ? $rootfile['fullPathFragment'] : null,
+            'attributes' => is_array($rootfile['attributes'] ?? null) ? $rootfile['attributes'] : [],
+            'attributeCount' => is_int($rootfile['attributeCount'] ?? null)
+                ? $rootfile['attributeCount']
+                : count(is_array($rootfile['attributes'] ?? null) ? $rootfile['attributes'] : []),
+            'customAttributes' => is_array($rootfile['customAttributes'] ?? null)
+                ? $rootfile['customAttributes']
+                : self::rootfileCustomAttributes(is_array($rootfile['attributes'] ?? null) ? $rootfile['attributes'] : []),
+            'customAttributeCount' => is_int($rootfile['customAttributeCount'] ?? null)
+                ? $rootfile['customAttributeCount']
+                : count(is_array($rootfile['customAttributes'] ?? null)
+                    ? $rootfile['customAttributes']
+                    : self::rootfileCustomAttributes(is_array($rootfile['attributes'] ?? null) ? $rootfile['attributes'] : [])),
+            'hasCustomAttributes' => (bool) ($rootfile['hasCustomAttributes'] ?? (
+                (is_array($rootfile['customAttributes'] ?? null)
+                    ? $rootfile['customAttributes']
+                    : self::rootfileCustomAttributes(is_array($rootfile['attributes'] ?? null) ? $rootfile['attributes'] : [])) !== []
+            )),
             'exists' => $exists,
             'selected' => $selected,
         ] + self::zipEntryProvenance($entry);
@@ -7018,6 +7068,109 @@ final class EpubPackage
         }
 
         return $custom;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
+    private static function rootfileCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OCF_ROOTFILE_STRUCTURAL_ATTRIBUTES[$name]) || $name === 'xmlns' || str_starts_with($name, 'xmlns:')) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rootfiles
+     *
+     * @return array<string, mixed>
+     */
+    private static function rootfileAuthoringReport(array $rootfiles, string $selectedPartName): array
+    {
+        $items = [];
+        $itemsByIndex = [];
+        $itemsByPartName = [];
+        $customAttributeItems = [];
+        $customAttributeNames = [];
+        $attributeCount = 0;
+        $customAttributeCount = 0;
+        $selectedIndex = null;
+
+        foreach ($rootfiles as $index => $rootfile) {
+            $attributes = is_array($rootfile['attributes'] ?? null) ? $rootfile['attributes'] : [];
+            $customAttributes = is_array($rootfile['customAttributes'] ?? null)
+                ? $rootfile['customAttributes']
+                : self::rootfileCustomAttributes($attributes);
+            $partName = is_string($rootfile['partName'] ?? null) ? $rootfile['partName'] : '';
+            $selected = $selectedIndex === null && $partName === $selectedPartName;
+            if ($selected) {
+                $selectedIndex = $index;
+            }
+
+            $item = [
+                'index' => $index,
+                'fullPath' => is_string($rootfile['fullPath'] ?? null) ? $rootfile['fullPath'] : '',
+                'target' => is_string($rootfile['target'] ?? null) ? $rootfile['target'] : null,
+                'partName' => $partName,
+                'mediaType' => is_string($rootfile['mediaType'] ?? null) ? $rootfile['mediaType'] : '',
+                'mediaTypeBase' => is_string($rootfile['mediaTypeBase'] ?? null)
+                    ? $rootfile['mediaTypeBase']
+                    : self::mediaTypeBase((string) ($rootfile['mediaType'] ?? '')),
+                'selected' => $selected,
+                'attributes' => $attributes,
+                'attributeCount' => count($attributes),
+                'customAttributes' => $customAttributes,
+                'customAttributeCount' => count($customAttributes),
+                'hasCustomAttributes' => $customAttributes !== [],
+            ];
+
+            $items[] = $item;
+            $itemsByIndex[$index] = $item;
+            if ($partName !== '' && !isset($itemsByPartName[$partName])) {
+                $itemsByPartName[$partName] = $item;
+            }
+            if ($customAttributes !== []) {
+                $customAttributeItems[] = $item;
+            }
+            $attributeCount += count($attributes);
+            $customAttributeCount += count($customAttributes);
+            foreach ($customAttributes as $name => $_value) {
+                if (is_string($name) && $name !== '') {
+                    $customAttributeNames[$name] = true;
+                }
+            }
+        }
+
+        ksort($itemsByPartName, SORT_STRING);
+        ksort($customAttributeNames, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'selectedIndex' => $selectedIndex,
+            'selectedPartName' => $selectedPartName,
+            'alternateItemCount' => max(0, count($items) - 1),
+            'attributeCount' => $attributeCount,
+            'customAttributeCount' => $customAttributeCount,
+            'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeNames' => array_keys($customAttributeNames),
+            'items' => $items,
+            'itemsByIndex' => $itemsByIndex,
+            'itemsByPartName' => $itemsByPartName,
+            'customAttributeItems' => $customAttributeItems,
+        ];
     }
 
     /**

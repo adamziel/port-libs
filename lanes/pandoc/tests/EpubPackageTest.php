@@ -7816,4 +7816,107 @@ XML;
         $t->same($authoring, $summary['wordpressImport']['packageAuthoring']);
         $t->same($package, $summary['wordpressImport']['metadataDetails']['package']);
     },
+    'preserves compact OCF rootfile authoring attributes for package review handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $containerWithAuthoring = str_replace(
+            '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">',
+            '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:review="https://example.invalid/epub-review" version="1.0">',
+            $epubContainerXml
+        );
+        $containerWithAuthoring = str_replace(
+            '<rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>',
+            '<rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml" xml:lang="en" data-review-state="selected" review:profile="primary"/>',
+            $containerWithAuthoring
+        );
+        $containerWithAuthoring = str_replace(
+            '</rootfiles>',
+            '    <rootfile full-path="EPUB/fixed/package.opf" media-type="application/oebps-package+xml; profile=&quot;fixed&quot;" data-review-state="alternate" review:profile="fixed-layout"/>' . "\n"
+            . '  </rootfiles>',
+            $containerWithAuthoring
+        );
+        $alternateOpf = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="fixed-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="fixed-id">urn:uuid:fixed-layout</dc:identifier>
+    <dc:title>Fixed Layout Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="fixed-chapter" href="text/fixed.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="fixed-chapter"/>
+  </spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $containerWithAuthoring],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/fixed/package.opf', 'data' => $alternateOpf],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $rootfiles = $epub->rootfiles();
+        $summary = $epub->summary();
+        $authoring = $summary['rootfileAuthoring'];
+        $validation = $summary['validation']['rootfiles'];
+        $renditions = $summary['renditions'];
+
+        $t->same(2, count($rootfiles));
+        $t->same('EPUB/package.opf', $rootfiles[0]['fullPath']);
+        $t->same([
+            'data-review-state' => 'selected',
+            'full-path' => 'EPUB/package.opf',
+            'media-type' => 'application/oebps-package+xml',
+            'review:profile' => 'primary',
+            'xml:lang' => 'en',
+        ], $rootfiles[0]['attributes']);
+        $t->same(5, $rootfiles[0]['attributeCount']);
+        $t->same([
+            'data-review-state' => 'selected',
+            'review:profile' => 'primary',
+            'xml:lang' => 'en',
+        ], $rootfiles[0]['customAttributes']);
+        $t->same(3, $rootfiles[0]['customAttributeCount']);
+        $t->same(true, $rootfiles[0]['hasCustomAttributes']);
+
+        $t->same('EPUB/fixed/package.opf', $rootfiles[1]['fullPath']);
+        $t->same('application/oebps-package+xml; profile="fixed"', $rootfiles[1]['mediaType']);
+        $t->same(['profile' => 'fixed'], $rootfiles[1]['mediaTypeParameterMap']);
+        $t->same([
+            'data-review-state' => 'alternate',
+            'full-path' => 'EPUB/fixed/package.opf',
+            'media-type' => 'application/oebps-package+xml; profile="fixed"',
+            'review:profile' => 'fixed-layout',
+        ], $rootfiles[1]['attributes']);
+        $t->same([
+            'data-review-state' => 'alternate',
+            'review:profile' => 'fixed-layout',
+        ], $rootfiles[1]['customAttributes']);
+
+        $t->same(true, $authoring['present']);
+        $t->same(2, $authoring['itemCount']);
+        $t->same(0, $authoring['selectedIndex']);
+        $t->same('/EPUB/package.opf', $authoring['selectedPartName']);
+        $t->same(1, $authoring['alternateItemCount']);
+        $t->same(9, $authoring['attributeCount']);
+        $t->same(5, $authoring['customAttributeCount']);
+        $t->same(2, $authoring['customAttributeItemCount']);
+        $t->same(['data-review-state', 'review:profile', 'xml:lang'], $authoring['customAttributeNames']);
+        $t->same($rootfiles[0]['customAttributes'], $authoring['itemsByIndex'][0]['customAttributes']);
+        $t->same($rootfiles[1]['customAttributes'], $authoring['itemsByPartName']['/EPUB/fixed/package.opf']['customAttributes']);
+
+        $t->same($rootfiles[0]['attributes'], $validation['items'][0]['attributes']);
+        $t->same($rootfiles[1]['customAttributes'], $validation['alternateRootfiles'][0]['customAttributes']);
+        $t->same($rootfiles[0]['attributes'], $renditions['items'][0]['attributes']);
+        $t->same($rootfiles[1]['customAttributes'], $renditions['items'][1]['customAttributes']);
+        $t->same($authoring, $summary['wordpressImport']['rootfileAuthoring']);
+        $t->same($authoring['items'], $summary['wordpressImport']['rootfileAuthoringItems']);
+        $t->same($rootfiles, $summary['wordpressImport']['containerRootfiles']);
+    },
 ];
