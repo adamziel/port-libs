@@ -463,8 +463,8 @@ XML);
     <meta property="dcterms:modified">2026-06-15T01:57:47Z</meta>
     <meta refines="#subtitle" property="title-type">subtitle</meta>
     <meta refines="#subject" property="authority">BISAC Subject Headings</meta>
-    <link id="subject-record" rel="record" refines="#subject" href="meta/subject.json" media-type="application/json"/>
-    <link id="remote-rights" rel="license" refines="#rights" href="https://example.invalid/license" media-type="text/html"/>
+    <link id="subject-record" rel="record" refines="#subject" href="meta/subject.json" media-type="application/json" title="Subject authority record" hreflang="en-GB" xml:lang="en" dir="ltr" data-review="metadata-link"/>
+    <link id="remote-rights" rel="license" refines="#rights" href="https://example.invalid/license" media-type="text/html" title="Remote license" hreflang="en" lang="en-US" dir="rtl" data-remote="no-fetch"/>
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
@@ -547,10 +547,35 @@ XML);
             $t->same(2, $report['linkCount']);
             $t->same(1, $report['localLinkCount']);
             $t->same(1, $report['externalLinkCount']);
+            $t->same(2, $report['linkTitleCount']);
+            $t->same(2, $report['linkHreflangCount']);
+            $t->same(2, $report['linkLanguageTaggedCount']);
+            $t->same(2, $report['linkDirectionTaggedCount']);
+            $t->same(2, $report['linkCustomAttributeCount']);
             $t->same('EPUB/meta/subject.json', $report['localLinks'][0]['path']);
+            $t->same('Subject authority record', $report['localLinks'][0]['title']);
+            $t->same('en-GB', $report['localLinks'][0]['hreflang']);
+            $t->same('en', $report['localLinks'][0]['language']);
+            $t->same('xml:lang', $report['localLinks'][0]['languageSource']);
+            $t->same('ltr', $report['localLinks'][0]['direction']);
+            $t->same(['data-review' => 'metadata-link'], $report['localLinks'][0]['customAttributes']);
             $t->same('https://example.invalid/license', $report['externalLinks'][0]['path']);
+            $t->same('Remote license', $report['externalLinks'][0]['title']);
+            $t->same('en', $report['externalLinks'][0]['hreflang']);
+            $t->same('en-US', $report['externalLinks'][0]['language']);
+            $t->same('lang', $report['externalLinks'][0]['languageSource']);
+            $t->same('rtl', $report['externalLinks'][0]['direction']);
+            $t->same(['data-remote' => 'no-fetch'], $report['externalLinks'][0]['customAttributes']);
+            $t->same([$report['localLinks'][0], $report['externalLinks'][0]], $report['titledLinks']);
+            $t->same([$report['localLinks'][0], $report['externalLinks'][0]], $report['hreflangLinks']);
+            $t->same([$report['localLinks'][0], $report['externalLinks'][0]], $report['languageTaggedLinks']);
+            $t->same([$report['localLinks'][0], $report['externalLinks'][0]], $report['directionTaggedLinks']);
             $t->same($report['kindCounts'], $report['summary']['kindCounts']);
             $t->same(2, $report['summary']['refinementPropertyCount']);
+            $t->same(2, $report['summary']['linkTitleCount']);
+            $t->same(2, $report['summary']['linkHreflangCount']);
+            $t->same(2, $report['summary']['linkLanguageTaggedCount']);
+            $t->same(2, $report['summary']['linkDirectionTaggedCount']);
         } finally {
             $removeDirectory($root);
         }

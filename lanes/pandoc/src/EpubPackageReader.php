@@ -34,6 +34,19 @@ final class EpubPackageReader
         'properties' => true,
         'xml:lang' => true,
     ];
+    private const OPF_METADATA_LINK_STRUCTURAL_ATTRIBUTES = [
+        'dir' => true,
+        'href' => true,
+        'hreflang' => true,
+        'id' => true,
+        'lang' => true,
+        'media-type' => true,
+        'properties' => true,
+        'refines' => true,
+        'rel' => true,
+        'title' => true,
+        'xml:lang' => true,
+    ];
     private const OPF_SPINE_ITEMREF_STRUCTURAL_ATTRIBUTES = [
         'dir' => true,
         'id' => true,
@@ -766,6 +779,14 @@ final class EpubPackageReader
         $href = trim($linkElement->getAttribute('href'));
         $rel = $this->tokens($linkElement->getAttribute('rel'));
         $suffix = $this->hrefSuffix($href);
+        $attributes = $this->elementAttributes($linkElement);
+        $customAttributes = $this->customAttributes($attributes, self::OPF_METADATA_LINK_STRUCTURAL_ATTRIBUTES);
+        $language = $this->nullableAttribute($linkElement, 'xml:lang');
+        $languageSource = $language === null ? null : 'xml:lang';
+        if ($language === null) {
+            $language = $this->nullableAttribute($linkElement, 'lang');
+            $languageSource = $language === null ? null : 'lang';
+        }
         $external = $href !== '' && $this->isExternalHref($href);
         $path = '';
         $target = '';
@@ -827,6 +848,14 @@ final class EpubPackageReader
             'mediaType' => trim($linkElement->getAttribute('media-type')),
             'properties' => $this->tokens($linkElement->getAttribute('properties')),
             'refines' => trim($linkElement->getAttribute('refines')),
+            'title' => $this->nullableAttribute($linkElement, 'title'),
+            'hreflang' => $this->nullableAttribute($linkElement, 'hreflang'),
+            'language' => $language,
+            'languageSource' => $languageSource,
+            'direction' => $this->nullableAttribute($linkElement, 'dir'),
+            'attributes' => $attributes,
+            'customAttributes' => $customAttributes,
+            'customAttributeCount' => count($customAttributes),
             'external' => $external,
             'exists' => $exists,
             'hrefHasQuery' => (bool) ($suffix['hasQuery'] ?? false),
@@ -1561,6 +1590,11 @@ final class EpubPackageReader
             'linkTargets' => $linkReport['targets'],
             'linkDiagnosticCount' => $linkReport['diagnosticCount'],
             'linkDiagnostics' => $linkReport['diagnostics'],
+            'linkTitleCount' => $linkReport['titleCount'],
+            'linkHreflangCount' => $linkReport['hreflangCount'],
+            'linkLanguageTaggedCount' => $linkReport['languageTaggedCount'],
+            'linkDirectionTaggedCount' => $linkReport['directionTaggedCount'],
+            'linkCustomAttributeCount' => $linkReport['customAttributeCount'],
             'linkReport' => $linkReport,
             'items' => $items,
             'itemsById' => $itemsById,
@@ -1575,6 +1609,11 @@ final class EpubPackageReader
             'externalLinks' => $linkReport['externalLinks'],
             'missingLinks' => $linkReport['missingLinks'],
             'linksByRel' => $linkReport['linksByRel'],
+            'titledLinks' => $linkReport['titledLinks'],
+            'hreflangLinks' => $linkReport['hreflangLinks'],
+            'languageTaggedLinks' => $linkReport['languageTaggedLinks'],
+            'directionTaggedLinks' => $linkReport['directionTaggedLinks'],
+            'customAttributeLinks' => $linkReport['customAttributeLinks'],
         ];
 
         foreach ([
@@ -1608,6 +1647,11 @@ final class EpubPackageReader
             'externalLinkCount' => $report['externalLinkCount'],
             'missingLinkCount' => $report['missingLinkCount'],
             'linkDiagnosticCount' => $report['linkDiagnosticCount'],
+            'linkTitleCount' => $report['linkTitleCount'],
+            'linkHreflangCount' => $report['linkHreflangCount'],
+            'linkLanguageTaggedCount' => $report['linkLanguageTaggedCount'],
+            'linkDirectionTaggedCount' => $report['linkDirectionTaggedCount'],
+            'linkCustomAttributeCount' => $report['linkCustomAttributeCount'],
         ];
 
         return $report;
@@ -1626,6 +1670,11 @@ final class EpubPackageReader
         $linksByRel = [];
         $targets = [];
         $diagnostics = [];
+        $titledLinks = [];
+        $hreflangLinks = [];
+        $languageTaggedLinks = [];
+        $directionTaggedLinks = [];
+        $customAttributeLinks = [];
 
         foreach ($links as $linkIndex => $link) {
             if (($link['external'] ?? false) === true) {
@@ -1643,6 +1692,21 @@ final class EpubPackageReader
                 : (is_string($link['path'] ?? null) ? $link['path'] : '');
             if ($target !== '') {
                 $targets[] = $target;
+            }
+            if (is_string($link['title'] ?? null) && $link['title'] !== '') {
+                $titledLinks[] = $link;
+            }
+            if (is_string($link['hreflang'] ?? null) && $link['hreflang'] !== '') {
+                $hreflangLinks[] = $link;
+            }
+            if (is_string($link['language'] ?? null) && $link['language'] !== '') {
+                $languageTaggedLinks[] = $link;
+            }
+            if (is_string($link['direction'] ?? null) && $link['direction'] !== '') {
+                $directionTaggedLinks[] = $link;
+            }
+            if (($link['customAttributeCount'] ?? 0) > 0) {
+                $customAttributeLinks[] = $link;
             }
 
             foreach (is_array($link['rel'] ?? null) ? $link['rel'] : [] as $rel) {
@@ -1680,6 +1744,16 @@ final class EpubPackageReader
             'localLinks' => $localLinks,
             'externalLinks' => $externalLinks,
             'missingLinks' => $missingLinks,
+            'titleCount' => count($titledLinks),
+            'hreflangCount' => count($hreflangLinks),
+            'languageTaggedCount' => count($languageTaggedLinks),
+            'directionTaggedCount' => count($directionTaggedLinks),
+            'customAttributeCount' => count($customAttributeLinks),
+            'titledLinks' => $titledLinks,
+            'hreflangLinks' => $hreflangLinks,
+            'languageTaggedLinks' => $languageTaggedLinks,
+            'directionTaggedLinks' => $directionTaggedLinks,
+            'customAttributeLinks' => $customAttributeLinks,
             'relTokens' => array_keys($relCounts),
             'relCounts' => $relCounts,
             'linksByRel' => $linksByRel,
