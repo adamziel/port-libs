@@ -1050,9 +1050,14 @@ foreach ($tableCaptionSurgeCases as $case) {
         $t->same($case['rowLabel'], $table->children[1]->children[0]->children[0]->attr('text'));
         $t->same((string) $case['number'], $table->children[1]->children[0]->children[1]->attr('text'));
         $t->contains(
-            ': [' . $case['shortCaption'] . '] ' . $case['caption']
-                . ' {#' . $case['id'] . ' .surge .' . $case['caseClass']
-                . ' ' . $case['attributeSource'] . '}',
+            '<table id="' . $case['id'] . '" class="surge ' . $case['caseClass']
+                . '" ' . $case['htmlAttributeFragment'] . '>',
+            $markdown
+        );
+        $t->contains(
+            '<caption data-pandoc-short-caption="' . $case['shortCaption'] . '">Review <em>caption</em> '
+                . str_pad((string) $case['number'], 3, '0', STR_PAD_LEFT)
+                . '</caption>',
             $markdown
         );
         $t->contains(

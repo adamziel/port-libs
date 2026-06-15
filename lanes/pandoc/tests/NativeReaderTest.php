@@ -1228,7 +1228,8 @@ return [
         $t->same(true, is_array($shortCaptionInlines));
         $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $shortCaptionInlines));
         $t->same($nativeTable, $roundTrip['blocks'][0]);
-        $t->contains(': [Short **queue**] Long *caption* [reviewer](https://example.test/review "Review") {#native-table .native-review data-source="batch-52"}', $markdown);
+        $t->contains('<table id="native-table" class="native-review" data-source="batch-52">', $markdown);
+        $t->contains('<caption data-pandoc-short-caption="Short queue"><p>Long <em>caption</em> <a href="https://example.test/review" title="Review">reviewer</a></p></caption>', $markdown);
         $t->contains('\caption[Short \textbf{queue}]{Long \emph{caption} \href{https://example.test/review}{reviewer}}\label{native-table}', $latex);
         $t->contains('<table id="native-table" class="native-review" data-source="batch-52">', $blocks);
         $t->contains('<figcaption class="wp-element-caption"><p>Long <em>caption</em> <a href="https://example.test/review" title="Review">reviewer</a></p></figcaption>', $blocks);
