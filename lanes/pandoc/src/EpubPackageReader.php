@@ -1993,6 +1993,15 @@ final class EpubPackageReader
         $directionItems = [];
         $baseItems = [];
         $customAttributeItems = [];
+        $propertyItems = [];
+        $propertiesByItemId = [];
+        $fallbackItems = [];
+        $fallbackStyleItems = [];
+        $mediaOverlayItems = [];
+        $hrefSuffixItems = [];
+        $mediaTypeParameterItems = [];
+        $diagnosticItems = [];
+        $diagnostics = [];
 
         foreach ($manifest as $item) {
             $attributes = is_array($item['attributes'] ?? null) ? $item['attributes'] : [];
@@ -2005,6 +2014,29 @@ final class EpubPackageReader
                     ? $attributes['xml:base']
                     : null);
             $baseResolution = self::manifestItemBaseResolution($base);
+            $properties = is_array($item['properties'] ?? null) ? array_values(array_filter(
+                $item['properties'],
+                static fn (mixed $property): bool => is_string($property) && $property !== ''
+            )) : [];
+            $fallback = is_string($item['fallback'] ?? null) && $item['fallback'] !== ''
+                ? $item['fallback']
+                : null;
+            $fallbackStyle = is_string($item['fallbackStyle'] ?? null) && $item['fallbackStyle'] !== ''
+                ? $item['fallbackStyle']
+                : null;
+            $mediaOverlay = is_string($item['mediaOverlay'] ?? null) && $item['mediaOverlay'] !== ''
+                ? $item['mediaOverlay']
+                : null;
+            $mediaTypeParameters = is_array($item['mediaTypeParameters'] ?? null)
+                ? array_values($item['mediaTypeParameters'])
+                : [];
+            $mediaTypeParameterNames = is_array($item['mediaTypeParameterNames'] ?? null)
+                ? array_values($item['mediaTypeParameterNames'])
+                : [];
+            $diagnosticEntries = is_array($item['diagnostics'] ?? null) ? array_values(array_filter(
+                $item['diagnostics'],
+                static fn (mixed $diagnostic): bool => is_array($diagnostic)
+            )) : [];
             $summary = [
                 'index' => (int) ($item['index'] ?? count($items)),
                 'id' => (string) ($item['id'] ?? ''),
@@ -2012,6 +2044,19 @@ final class EpubPackageReader
                 'target' => (string) ($item['target'] ?? ''),
                 'path' => (string) ($item['path'] ?? ''),
                 'mediaType' => (string) ($item['mediaType'] ?? ''),
+                'properties' => $properties,
+                'propertyCount' => count($properties),
+                'fallback' => $fallback,
+                'fallbackStyle' => $fallbackStyle,
+                'mediaOverlay' => $mediaOverlay,
+                'hrefHasQuery' => (bool) ($item['hrefHasQuery'] ?? false),
+                'hrefQuery' => is_string($item['hrefQuery'] ?? null) ? $item['hrefQuery'] : null,
+                'hrefHasFragment' => (bool) ($item['hrefHasFragment'] ?? false),
+                'hrefFragment' => is_string($item['hrefFragment'] ?? null) ? $item['hrefFragment'] : null,
+                'mediaTypeHasParameters' => (bool) ($item['mediaTypeHasParameters'] ?? false),
+                'mediaTypeParameterCount' => (int) ($item['mediaTypeParameterCount'] ?? count($mediaTypeParameters)),
+                'mediaTypeParameters' => $mediaTypeParameters,
+                'mediaTypeParameterNames' => $mediaTypeParameterNames,
                 'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
                 'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
                 'base' => $base,
@@ -2022,11 +2067,45 @@ final class EpubPackageReader
                 'customAttributes' => $customAttributes,
                 'customAttributeCount' => count($customAttributes),
                 'hasBase' => $base !== null,
+                'diagnosticCount' => count($diagnosticEntries),
+                'diagnostics' => $diagnosticEntries,
             ];
 
             $items[] = $summary;
             if ($summary['id'] !== '') {
                 $itemsById[$summary['id']] = $summary;
+            }
+            if ($properties !== []) {
+                $propertyItems[] = $summary;
+                if ($summary['id'] !== '') {
+                    $propertiesByItemId[$summary['id']] = $properties;
+                }
+            }
+            if ($fallback !== null) {
+                $fallbackItems[] = $summary;
+            }
+            if ($fallbackStyle !== null) {
+                $fallbackStyleItems[] = $summary;
+            }
+            if ($mediaOverlay !== null) {
+                $mediaOverlayItems[] = $summary;
+            }
+            if ($summary['hrefHasQuery'] || $summary['hrefHasFragment']) {
+                $hrefSuffixItems[] = $summary;
+            }
+            if ($summary['mediaTypeParameterCount'] > 0) {
+                $mediaTypeParameterItems[] = $summary;
+            }
+            if ($diagnosticEntries !== []) {
+                $diagnosticItems[] = $summary;
+                foreach ($diagnosticEntries as $diagnostic) {
+                    $diagnostics[] = [
+                        'index' => $summary['index'],
+                        'id' => $summary['id'],
+                        'href' => $summary['href'],
+                        'path' => $summary['path'],
+                    ] + $diagnostic;
+                }
             }
             if ($summary['language'] !== null) {
                 $languageItems[] = $summary;
@@ -2043,12 +2122,26 @@ final class EpubPackageReader
         }
 
         ksort($itemsById, SORT_STRING);
+        ksort($propertiesByItemId, SORT_STRING);
 
         return [
             'present' => $items !== [],
             'itemCount' => count($items),
             'items' => $items,
             'itemsById' => $itemsById,
+            'propertyItemCount' => count($propertyItems),
+            'propertyItems' => $propertyItems,
+            'propertiesByItemId' => $propertiesByItemId,
+            'fallbackItemCount' => count($fallbackItems),
+            'fallbackItems' => $fallbackItems,
+            'fallbackStyleItemCount' => count($fallbackStyleItems),
+            'fallbackStyleItems' => $fallbackStyleItems,
+            'mediaOverlayItemCount' => count($mediaOverlayItems),
+            'mediaOverlayItems' => $mediaOverlayItems,
+            'hrefSuffixItemCount' => count($hrefSuffixItems),
+            'hrefSuffixItems' => $hrefSuffixItems,
+            'mediaTypeParameterItemCount' => count($mediaTypeParameterItems),
+            'mediaTypeParameterItems' => $mediaTypeParameterItems,
             'languageItemCount' => count($languageItems),
             'languageItems' => $languageItems,
             'directionItemCount' => count($directionItems),
@@ -2057,6 +2150,10 @@ final class EpubPackageReader
             'baseItems' => $baseItems,
             'customAttributeItemCount' => count($customAttributeItems),
             'customAttributeItems' => $customAttributeItems,
+            'diagnosticItemCount' => count($diagnosticItems),
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticItems' => $diagnosticItems,
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -2079,15 +2176,30 @@ final class EpubPackageReader
     private function spineAuthoringReport(array $spine): array
     {
         $items = [];
+        $itemsByIndex = [];
         $languageItems = [];
         $directionItems = [];
         $customAttributeItems = [];
+        $propertyItems = [];
+        $propertiesByIndex = [];
+        $explicitLinearItems = [];
+        $nonLinearItems = [];
+        $diagnosticItems = [];
+        $diagnostics = [];
 
         foreach ($spine as $item) {
             $attributes = is_array($item['attributes'] ?? null) ? $item['attributes'] : [];
             $customAttributes = is_array($item['customAttributes'] ?? null)
                 ? $item['customAttributes']
                 : $this->customAttributes($attributes, self::OPF_SPINE_ITEMREF_STRUCTURAL_ATTRIBUTES);
+            $properties = is_array($item['properties'] ?? null) ? array_values(array_filter(
+                $item['properties'],
+                static fn (mixed $property): bool => is_string($property) && $property !== ''
+            )) : [];
+            $diagnosticEntries = is_array($item['diagnostics'] ?? null) ? array_values(array_filter(
+                $item['diagnostics'],
+                static fn (mixed $diagnostic): bool => is_array($diagnostic)
+            )) : [];
             $summary = [
                 'index' => (int) ($item['index'] ?? count($items)),
                 'id' => is_string($item['id'] ?? null) ? $item['id'] : null,
@@ -2102,15 +2214,39 @@ final class EpubPackageReader
                 'linearValue' => is_string($item['linearValue'] ?? null) ? $item['linearValue'] : null,
                 'linearValid' => (bool) ($item['linearValid'] ?? true),
                 'linearDiagnostics' => is_array($item['linearDiagnostics'] ?? null) ? array_values($item['linearDiagnostics']) : [],
+                'properties' => $properties,
+                'propertyCount' => count($properties),
                 'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
                 'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
                 'attributes' => $attributes,
                 'attributeCount' => count($attributes),
                 'customAttributes' => $customAttributes,
                 'customAttributeCount' => count($customAttributes),
+                'diagnosticCount' => count($diagnosticEntries),
+                'diagnostics' => $diagnosticEntries,
             ];
 
             $items[] = $summary;
+            $itemsByIndex[$summary['index']] = $summary;
+            if ($properties !== []) {
+                $propertyItems[] = $summary;
+                $propertiesByIndex[$summary['index']] = $properties;
+            }
+            if ($summary['linearRaw'] !== null) {
+                $explicitLinearItems[] = $summary;
+            }
+            if ($summary['linear'] === false) {
+                $nonLinearItems[] = $summary;
+            }
+            if ($diagnosticEntries !== []) {
+                $diagnosticItems[] = $summary;
+                foreach ($diagnosticEntries as $diagnostic) {
+                    $diagnostics[] = [
+                        'index' => $summary['index'],
+                        'idref' => $summary['idref'],
+                    ] + $diagnostic;
+                }
+            }
             if ($summary['language'] !== null) {
                 $languageItems[] = $summary;
             }
@@ -2126,12 +2262,24 @@ final class EpubPackageReader
             'present' => $items !== [],
             'itemCount' => count($items),
             'items' => $items,
+            'itemsByIndex' => array_values($itemsByIndex),
+            'propertyItemCount' => count($propertyItems),
+            'propertyItems' => $propertyItems,
+            'propertiesByIndex' => $propertiesByIndex,
+            'explicitLinearItemCount' => count($explicitLinearItems),
+            'explicitLinearItems' => $explicitLinearItems,
+            'nonLinearItemCount' => count($nonLinearItems),
+            'nonLinearItems' => $nonLinearItems,
             'languageItemCount' => count($languageItems),
             'languageItems' => $languageItems,
             'directionItemCount' => count($directionItems),
             'directionItems' => $directionItems,
             'customAttributeItemCount' => count($customAttributeItems),
             'customAttributeItems' => $customAttributeItems,
+            'diagnosticItemCount' => count($diagnosticItems),
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticItems' => $diagnosticItems,
+            'diagnostics' => $diagnostics,
         ];
     }
 

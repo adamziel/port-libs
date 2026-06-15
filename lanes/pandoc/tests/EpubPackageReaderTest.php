@@ -4059,6 +4059,101 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports direct manifest and spine authoring review details' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-authoring-details-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-authoring-details</dc:identifier>
+    <dc:title>Reader Authoring Details</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav scripted" xml:lang="en" dir="ltr" data-review="nav"/>
+    <item id="chapter" href="chapter.xhtml?rev=1#intro" media-type="application/xhtml+xml; charset=utf-8" properties="scripted remote-resources" fallback="fallback-html" fallback-style="style" media-overlay="mo" data-stage="chapter"/>
+    <item id="fallback-html" href="fallback.xhtml" media-type="application/xhtml+xml"/>
+    <item id="style" href="style.css" media-type="text/css"/>
+    <item id="mo" href="overlay.smil" media-type="application/smil+xml"/>
+    <item id="remote" href="https://example.invalid/remote.xhtml" media-type="application/xhtml+xml" properties="remote-resources"/>
+  </manifest>
+  <spine page-progression-direction="rtl">
+    <itemref id="intro-ref" idref="chapter" linear="yes" properties="page-spread-right rendition:layout-pre-paginated" xml:lang="en" dir="rtl" data-spine="intro"/>
+    <itemref idref="missing" linear="no" properties="page-spread-left"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable chapter.</p></body></html>');
+            $writePackageFile($root, 'EPUB/fallback.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Fallback chapter.</p></body></html>');
+            $writePackageFile($root, 'EPUB/style.css', 'body { color: #111; }');
+            $writePackageFile($root, 'EPUB/overlay.smil', '<smil xmlns="http://www.w3.org/ns/SMIL"><body/></smil>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $manifestAuthoring = $epub['manifestAuthoring'];
+            $spineAuthoring = $epub['spineAuthoring'];
+
+            $chapterAuthoring = $manifestAuthoring['itemsById']['chapter'];
+            $t->same(6, $manifestAuthoring['itemCount']);
+            $t->same(3, $manifestAuthoring['propertyItemCount']);
+            $t->same(['scripted', 'remote-resources'], $manifestAuthoring['propertiesByItemId']['chapter']);
+            $t->same(1, $manifestAuthoring['fallbackItemCount']);
+            $t->same('chapter', $manifestAuthoring['fallbackItems'][0]['id']);
+            $t->same('fallback-html', $chapterAuthoring['fallback']);
+            $t->same(1, $manifestAuthoring['fallbackStyleItemCount']);
+            $t->same('style', $chapterAuthoring['fallbackStyle']);
+            $t->same(1, $manifestAuthoring['mediaOverlayItemCount']);
+            $t->same('mo', $manifestAuthoring['mediaOverlayItems'][0]['mediaOverlay']);
+            $t->same(1, $manifestAuthoring['hrefSuffixItemCount']);
+            $t->same(true, $chapterAuthoring['hrefHasQuery']);
+            $t->same('rev=1', $chapterAuthoring['hrefQuery']);
+            $t->same(true, $chapterAuthoring['hrefHasFragment']);
+            $t->same('intro', $chapterAuthoring['hrefFragment']);
+            $t->same(1, $manifestAuthoring['mediaTypeParameterItemCount']);
+            $t->same(true, $chapterAuthoring['mediaTypeHasParameters']);
+            $t->same(1, $chapterAuthoring['mediaTypeParameterCount']);
+            $t->same(['charset'], $chapterAuthoring['mediaTypeParameterNames']);
+            $t->same(['manifest-href-query-component', 'manifest-href-fragment-component'], array_column($chapterAuthoring['diagnostics'], 'type'));
+            $t->same(2, $manifestAuthoring['diagnosticItemCount']);
+            $t->same(3, $manifestAuthoring['diagnosticCount']);
+            $t->same(['chapter', 'remote'], array_column($manifestAuthoring['diagnosticItems'], 'id'));
+            $t->same(['manifest-href-query-component', 'manifest-href-fragment-component', 'external-manifest-href-target'], array_column($manifestAuthoring['diagnostics'], 'type'));
+
+            $t->same(2, $spineAuthoring['itemCount']);
+            $t->same(2, $spineAuthoring['propertyItemCount']);
+            $t->same(['page-spread-right', 'rendition:layout-pre-paginated'], $spineAuthoring['propertiesByIndex'][0]);
+            $t->same(2, $spineAuthoring['explicitLinearItemCount']);
+            $t->same(['yes', 'no'], array_column($spineAuthoring['explicitLinearItems'], 'linearRaw'));
+            $t->same(1, $spineAuthoring['nonLinearItemCount']);
+            $t->same('missing', $spineAuthoring['nonLinearItems'][0]['idref']);
+            $t->same(1, $spineAuthoring['diagnosticItemCount']);
+            $t->same(1, $spineAuthoring['diagnosticCount']);
+            $t->same('missing-spine-manifest-item', $spineAuthoring['items'][1]['diagnostics'][0]['type']);
+            $t->same('missing-spine-manifest-item', $spineAuthoring['diagnostics'][0]['type']);
+            $t->same('intro', $spineAuthoring['itemsByIndex'][0]['customAttributes']['data-spine']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'preserves direct manifest media type parameters while resolving readable package content' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-reader-media-types-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
