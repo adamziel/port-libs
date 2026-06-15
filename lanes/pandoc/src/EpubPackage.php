@@ -4129,7 +4129,7 @@ final class EpubPackage
                     'text' => $value,
                     'id' => self::emptyToNull($child->getAttribute('id')),
                     'scheme' => self::metadataElementScheme($child),
-                    'event' => self::emptyToNull($child->getAttribute('event')),
+                    'event' => self::metadataElementEvent($child),
                     'language' => self::metadataElementLanguage($child),
                     'direction' => self::metadataElementDirection($child),
                     'refinements' => [],
@@ -7009,6 +7009,15 @@ final class EpubPackage
         }
 
         return self::emptyToNull($element->getAttribute('scheme'));
+    }
+
+    private static function metadataElementEvent(\DOMElement $element): ?string
+    {
+        if ($element->hasAttributeNS(self::OPF_NAMESPACE, 'event')) {
+            return self::emptyToNull($element->getAttributeNS(self::OPF_NAMESPACE, 'event'));
+        }
+
+        return self::emptyToNull($element->getAttribute('event'));
     }
 
     private static function metadataElementLanguage(\DOMElement $element): ?string

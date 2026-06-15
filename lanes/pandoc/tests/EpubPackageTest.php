@@ -1561,6 +1561,51 @@ XML;
         $t->same($metadata['dateSummary'], $summary['wordpressImport']['metadataDetails']['dateSummary']);
     },
 
+    'preserves namespaced OPF date event attributes for compact package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithDateNamespace = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf"',
+            '<package xmlns="http://www.idpf.org/2007/opf" xmlns:opf="http://www.idpf.org/2007/opf"',
+            $epub3OpfXml
+        );
+        $opfWithDateNamespace = str_replace(
+            '<dc:language>en-US</dc:language>',
+            '<dc:language>en-US</dc:language>
+    <dc:date id="created" opf:scheme="W3CDTF" opf:event="creation">2026-06-02</dc:date>',
+            $opfWithDateNamespace
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithDateNamespace],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $date = $metadata['dateDetails'][0];
+
+        $t->same('created', $date['id']);
+        $t->same('2026-06-02', $date['text']);
+        $t->same('W3CDTF', $date['scheme']);
+        $t->same('creation', $date['event']);
+        $t->same('attribute', $date['eventSource']);
+        $t->same('2026-06-02', $metadata['datesByEvent']['creation'][0]['text']);
+        $t->same([
+            'present' => true,
+            'count' => 1,
+            'eventCount' => 1,
+            'events' => ['creation'],
+        ], $metadata['dateSummary']);
+        $t->same($metadata['dateDetails'], $summary['wordpressImport']['metadataDetails']['dateDetails']);
+        $t->same($metadata['datesByEvent'], $summary['wordpressImport']['metadataDetails']['datesByEvent']);
+        $t->same($metadata['dateSummary'], $summary['wordpressImport']['metadataDetails']['dateSummary']);
+    },
+
     'summarizes OPF language declarations for compact package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithLanguageMetadata = str_replace(
             '<dc:language>en-US</dc:language>',
