@@ -39,6 +39,11 @@ final class OdfReader
     private const MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES = [
         'version' => true,
     ];
+    private const PREFERRED_VIEW_MODE_VALUES = [
+        'edit' => true,
+        'presentation-slide-show' => true,
+        'read-only' => true,
+    ];
 
     /** @var array<string, array<string, mixed>> */
     private array $trackedChanges = [];
@@ -1079,6 +1084,7 @@ final class OdfReader
         $manifestByPart = [];
         $undeclaredByPart = [];
         $mediaResourceSummary = $this->manifestMediaResourceRoleSummary($manifest);
+        $preferredViewModeSummary = self::manifestPreferredViewModeSummary($manifest);
         $packageDirectoryCount = 0;
         $manifestPartReferenceSuffixItems = [];
         $manifestPartReferenceQueryCount = 0;
@@ -1387,6 +1393,7 @@ final class OdfReader
             'undeclaredEntryCount' => count($undeclaredEntries),
             'packageDirectoryCount' => $packageDirectoryCount,
             'mediaResources' => $mediaResourceSummary,
+            'preferredViewModes' => $preferredViewModeSummary,
             'roleCounts' => $roleCounts,
             'undeclaredRoleCounts' => $undeclaredRoleCounts,
             'packagePartByteExposurePolicyCounts' => $packagePartByteExposurePolicyCounts,
@@ -1680,7 +1687,7 @@ final class OdfReader
             'missingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['missingDeclaredContainedPartCount'], $items)),
             'encryptedDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['encryptedDeclaredContainedPartCount'], $items)),
             'undeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['undeclaredContainedPartCount'], $items)),
-            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => ($item['issues'] ?? []) !== [])),
             'issueCodes' => array_keys($issueCodes),
             'rootParts' => $rootParts,
             'objectTypes' => $objectTypes,
@@ -13274,6 +13281,130 @@ final class OdfReader
             'issueCodeCounts' => $issueCodeCounts,
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private static function manifestPreferredViewModeSummary(array $manifest): array
+    {
+        $items = [];
+        $nonRootItems = [];
+        $invalidTokenItems = [];
+        $modeCounts = [];
+        $issueCodeCounts = [];
+        $rootMode = null;
+        $definedModeCount = 0;
+        $namespacedTokenCount = 0;
+
+        foreach ($manifest as $item) {
+            $mode = trim((string) ($item['preferredViewMode'] ?? ''));
+            if ($mode === '') {
+                continue;
+            }
+
+            $fullPath = (string) ($item['fullPath'] ?? '');
+            $isRootEntry = $fullPath === '/';
+            $classification = self::preferredViewModeClassification($mode);
+            $issues = [];
+            if (!$isRootEntry) {
+                $issues[] = 'odf-preferred-view-mode-non-root-entry';
+            }
+            if (!$classification['validToken']) {
+                $issues[] = 'odf-preferred-view-mode-invalid-token';
+            }
+
+            $review = self::withoutEmpty([
+                'manifestIndex' => $item['manifestIndex'] ?? null,
+                'fullPath' => $fullPath,
+                'part' => $item['part'] ?? null,
+                'mediaType' => $item['mediaType'] ?? null,
+                'preferredViewMode' => $mode,
+                'applicableToRootEntry' => $isRootEntry,
+                'validToken' => $classification['validToken'],
+                'definedMode' => $classification['definedMode'],
+                'namespacedToken' => $classification['namespacedToken'],
+                'modeFamily' => $classification['modeFamily'],
+                'issues' => $issues,
+            ]);
+            $items[] = $review;
+            $modeCounts[$mode] = ($modeCounts[$mode] ?? 0) + 1;
+
+            if ($isRootEntry) {
+                $rootMode = $mode;
+            } else {
+                $nonRootItems[] = $review;
+            }
+            if ($classification['definedMode']) {
+                ++$definedModeCount;
+            }
+            if ($classification['namespacedToken']) {
+                ++$namespacedTokenCount;
+            }
+            if (!$classification['validToken']) {
+                $invalidTokenItems[] = $review;
+            }
+            foreach ($issues as $issue) {
+                $issueCodeCounts[$issue] = ($issueCodeCounts[$issue] ?? 0) + 1;
+            }
+        }
+
+        ksort($modeCounts, SORT_STRING);
+        ksort($issueCodeCounts, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'itemCount' => count($items),
+            'rootMode' => $rootMode,
+            'definedModeCount' => $definedModeCount,
+            'namespacedTokenCount' => $namespacedTokenCount,
+            'invalidTokenCount' => count($invalidTokenItems),
+            'nonRootEntryCount' => count($nonRootItems),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => ($item['issues'] ?? []) !== [])),
+            'issueCodes' => array_keys($issueCodeCounts),
+            'issueCodeCounts' => $issueCodeCounts,
+            'modeCounts' => $modeCounts,
+            'nonRootItems' => $nonRootItems,
+            'invalidTokenItems' => $invalidTokenItems,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array{validToken:bool, definedMode:bool, namespacedToken:bool, modeFamily:string}
+     */
+    private static function preferredViewModeClassification(string $mode): array
+    {
+        if (isset(self::PREFERRED_VIEW_MODE_VALUES[$mode])) {
+            return [
+                'validToken' => true,
+                'definedMode' => true,
+                'namespacedToken' => false,
+                'modeFamily' => 'defined',
+            ];
+        }
+
+        if (self::isNamespacedToken($mode)) {
+            return [
+                'validToken' => true,
+                'definedMode' => false,
+                'namespacedToken' => true,
+                'modeFamily' => 'namespaced-token',
+            ];
+        }
+
+        return [
+            'validToken' => false,
+            'definedMode' => false,
+            'namespacedToken' => false,
+            'modeFamily' => 'invalid-token',
+        ];
+    }
+
+    private static function isNamespacedToken(string $value): bool
+    {
+        return preg_match('/^[A-Za-z_][A-Za-z0-9._-]*:[A-Za-z_][A-Za-z0-9._-]*$/', $value) === 1;
     }
 
     /**

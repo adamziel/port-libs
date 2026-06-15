@@ -11071,6 +11071,88 @@ XML;
         $t->same(false, $result['media'][1]['exists']);
         $t->same(null, $result['media'][1]['byteLength']);
     },
+    'summarizes ODT manifest preferred view mode applicability and token diagnostics' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifestWithPreferredViewModes = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:preferred-view-mode="edit"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml" manifest:preferred-view-mode="read-only"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml" manifest:preferred-view-mode="presentation-slide-show"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml" manifest:preferred-view-mode="wp:review"/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:preferred-view-mode="thumbnail"/>
+  <manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png" manifest:preferred-view-mode="EDIT"/>
+  <manifest:file-entry manifest:full-path="Object%20Chart/" manifest:media-type="application/vnd.oasis.opendocument.chart" manifest:preferred-view-mode="view"/>
+  <manifest:file-entry manifest:full-path="Object%20Chart/content.xml" manifest:media-type="text/xml" manifest:preferred-view-mode="wp:object"/>
+</manifest:manifest>
+XML;
+
+        $package = $buildOdtPackage(null, $manifestWithPreferredViewModes);
+        $result = (new OdfReader())->readPackage($package);
+        $summary = $result['importReport']['manifest']['packageProvenance']['preferredViewModes'];
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize()['manifestReview']['preferredViewModes'];
+
+        $t->same($summary, $result['document']->attr('manifest')['packageProvenance']['preferredViewModes']);
+        $t->same(8, $summary['count']);
+        $t->same('edit', $summary['rootMode']);
+        $t->same(3, $summary['definedModeCount']);
+        $t->same(2, $summary['namespacedTokenCount']);
+        $t->same(3, $summary['invalidTokenCount']);
+        $t->same(7, $summary['nonRootEntryCount']);
+        $t->same(7, $summary['issueCount']);
+        $t->same([
+            'odf-preferred-view-mode-invalid-token' => 3,
+            'odf-preferred-view-mode-non-root-entry' => 7,
+        ], $summary['issueCodeCounts']);
+        $t->same([
+            'EDIT' => 1,
+            'edit' => 1,
+            'presentation-slide-show' => 1,
+            'read-only' => 1,
+            'thumbnail' => 1,
+            'view' => 1,
+            'wp:object' => 1,
+            'wp:review' => 1,
+        ], $summary['modeCounts']);
+        $t->same([
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Pictures/missing.png',
+            'Object%20Chart/',
+            'Object%20Chart/content.xml',
+        ], array_column($summary['nonRootItems'], 'fullPath'));
+        $t->same([
+            'Pictures/hero.png',
+            'Pictures/missing.png',
+            'Object%20Chart/',
+        ], array_column($summary['invalidTokenItems'], 'fullPath'));
+
+        $itemsByPath = [];
+        foreach ($summary['items'] as $item) {
+            $itemsByPath[$item['fullPath']] = $item;
+        }
+        $t->same(true, $itemsByPath['/']['applicableToRootEntry']);
+        $t->same(true, $itemsByPath['/']['validToken']);
+        $t->same('defined', $itemsByPath['/']['modeFamily']);
+        $t->same([], $itemsByPath['/']['issues'] ?? []);
+        $t->same(true, $itemsByPath['meta.xml']['namespacedToken']);
+        $t->same('namespaced-token', $itemsByPath['meta.xml']['modeFamily']);
+        $t->same(['odf-preferred-view-mode-non-root-entry'], $itemsByPath['meta.xml']['issues']);
+        $t->same(false, $itemsByPath['Pictures/hero.png']['validToken']);
+        $t->same('invalid-token', $itemsByPath['Pictures/hero.png']['modeFamily']);
+        $t->same([
+            'odf-preferred-view-mode-non-root-entry',
+            'odf-preferred-view-mode-invalid-token',
+        ], $itemsByPath['Pictures/hero.png']['issues']);
+        $t->same('Object Chart/', $itemsByPath['Object%20Chart/']['part']);
+        $t->same('Object Chart/content.xml', $itemsByPath['Object%20Chart/content.xml']['part']);
+
+        $t->same($summary['count'], $compactSummary['count']);
+        $t->same($summary['issueCodeCounts'], $compactSummary['issueCodeCounts']);
+        $t->same($summary['modeCounts'], $compactSummary['modeCounts']);
+        $t->same('Object Chart/', $compactSummary['items'][6]['packagePath']);
+        $t->same('Object Chart/content.xml', $compactSummary['items'][7]['packagePath']);
+    },
     'preserves ODT manifest custom file-entry attributes in package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifestWithCustomAttributes = <<<'XML'
 <manifest:manifest

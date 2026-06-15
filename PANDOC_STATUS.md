@@ -1,10 +1,10 @@
 # Pandoc Status
 
-Updated: 2026-06-14 UTC
+Updated: 2026-06-15 UTC
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 
-ODF/ODT is marked ship-ready: 55 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
+ODF/ODT is marked ship-ready: 73 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
 
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 55 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest ODF/ODT evidence: `OpenDocumentPackage` preserves compact manifest custom attribute collision provenance, including repeated custom attribute names across entries, namespace rebinding, structural-name shadowing, decoded path conflict rejection, stable ordering, and `OdfReader` package provenance parity.
+Latest ODF/ODT evidence: `OdfReader` and `OpenDocumentPackage` summarize manifest `preferred-view-mode` review metadata, including root applicability, defined OASIS modes, vendor namespaced tokens, invalid unqualified tokens, non-root diagnostics, and rich/compact package provenance parity.
 
-Current Pandoc counters: 3,578 PHP passes / 0 failures and 3,502 mapped upstream cases. Verification passed `php -l lanes/pandoc/tests/OpenDocumentPackageTest.php`, focused `OpenDocumentPackageTest.php` (`1` file, `1,409` assertions, `0` failures), focused ODF/ODT gate (`5` files, `6,478` assertions, `0` failures), full `lanes/pandoc/tests` (`46` files, `83,957` assertions, `0` failures), `jq empty`, and `git diff --check`.
+Current Pandoc counters: 3,620 PHP passes / 0 failures and 3,628 mapped upstream cases. Verification passed `php -l` for `OdfReader.php`, `OpenDocumentPackage.php`, and `OdfReaderTest.php`; focused ODF/ODT gate (`5` files, `6,550` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `84,891` assertions, `0` failures); `jq empty`; and `git diff --check`.
