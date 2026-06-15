@@ -3724,6 +3724,10 @@ final class EpubPackageReader
             return [$this->definitionListNode($element, $baseDir)];
         }
 
+        if ($name === 'table') {
+            return [$this->tableNode($element, $baseDir)];
+        }
+
         if ($name === 'blockquote') {
             return [new AstNode('blockquote', [], $this->blockNodesFromChildren($element, $baseDir))];
         }
@@ -3837,6 +3841,207 @@ final class EpubPackageReader
         ], $items);
     }
 
+    private function tableNode(\DOMElement $element, string $baseDir): AstNode
+    {
+        $caption = $this->firstDirectChild($element, 'caption');
+        $captionInlines = $caption instanceof \DOMElement ? $this->inlineNodesFromChildren($caption, $baseDir) : [];
+        $captionText = $captionInlines === [] ? '' : $this->plainInlineText($captionInlines);
+        $children = [];
+
+        $headRows = $this->tableSectionRows($element, 'thead', $baseDir);
+        if ($headRows !== []) {
+            $head = $this->firstDirectChild($element, 'thead');
+            $children[] = new AstNode('table_head', [
+                'htmlAttributes' => $head instanceof \DOMElement ? $this->htmlAttributes($head) : [],
+            ], $headRows);
+        }
+
+        $bodySections = [];
+        $directRows = $this->tableRowsFromParent($element, $baseDir);
+        if ($directRows !== []) {
+            $bodySections[] = new AstNode('table_body', [], $directRows);
+        }
+
+        foreach ($this->directChildElements($element, 'tbody') as $bodyElement) {
+            $rows = $this->tableRowsFromParent($bodyElement, $baseDir);
+            if ($rows === []) {
+                continue;
+            }
+
+            $bodySections[] = new AstNode('table_body', [
+                'htmlAttributes' => $this->htmlAttributes($bodyElement),
+            ], $rows);
+        }
+        array_push($children, ...$bodySections);
+
+        $footRows = $this->tableSectionRows($element, 'tfoot', $baseDir);
+        if ($footRows !== []) {
+            $foot = $this->firstDirectChild($element, 'tfoot');
+            $children[] = new AstNode('table_foot', [
+                'htmlAttributes' => $foot instanceof \DOMElement ? $this->htmlAttributes($foot) : [],
+            ], $footRows);
+        }
+
+        if ($children === []) {
+            $children[] = new AstNode('table_body');
+        }
+
+        $attrs = [
+            'caption' => $captionText,
+            'captionInlines' => $captionInlines,
+            'htmlAttributes' => $this->htmlAttributes($element),
+            'sourceFormat' => 'epub-xhtml',
+        ];
+
+        if ($caption instanceof \DOMElement) {
+            $attrs['captionSource'] = [
+                'source' => 'epub-xhtml-caption',
+                'captionSide' => $this->tableCaptionSide($caption),
+                'sourceAttributes' => [
+                    'htmlAttributes' => $this->htmlAttributes($caption),
+                    'classes' => $this->classList($caption),
+                ],
+            ];
+        }
+
+        return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $children), [
+            'idPrefix' => trim($element->getAttribute('id')) === '' ? 'epub-table' : trim($element->getAttribute('id')),
+        ]);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableSectionRows(\DOMElement $table, string $sectionName, string $baseDir): array
+    {
+        $rows = [];
+        foreach ($this->directChildElements($table, $sectionName) as $section) {
+            array_push($rows, ...$this->tableRowsFromParent($section, $baseDir));
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableRowsFromParent(\DOMElement $parent, string $baseDir): array
+    {
+        $rows = [];
+        foreach ($this->directChildElements($parent, 'tr') as $rowElement) {
+            $cells = [];
+            foreach ($rowElement->childNodes as $cellElement) {
+                if (!$cellElement instanceof \DOMElement || ($cellElement->localName !== 'td' && $cellElement->localName !== 'th')) {
+                    continue;
+                }
+
+                $cells[] = $this->tableCellNode($cellElement, $baseDir);
+            }
+
+            if ($cells === []) {
+                continue;
+            }
+
+            $rows[] = new AstNode('table_row', [
+                'htmlAttributes' => $this->htmlAttributes($rowElement),
+            ], $cells);
+        }
+
+        return $rows;
+    }
+
+    private function tableCellNode(\DOMElement $cellElement, string $baseDir): AstNode
+    {
+        $blocks = $this->tableCellBlocksFromElement($cellElement, $baseDir);
+        $attrs = [
+            'text' => $this->plainBlockText($blocks),
+            'header' => $cellElement->localName === 'th',
+            'htmlAttributes' => $this->htmlAttributes($cellElement),
+            'colspan' => $this->tableSpanAttribute($cellElement, 'colspan'),
+            'rowspan' => $this->tableSpanAttribute($cellElement, 'rowspan'),
+        ];
+
+        $align = strtolower(trim($cellElement->getAttribute('align')));
+        if (in_array($align, ['left', 'right', 'center'], true)) {
+            $attrs['align'] = $align;
+        }
+
+        $valign = strtolower(trim($cellElement->getAttribute('valign')));
+        if (in_array($valign, ['baseline', 'top', 'middle', 'bottom'], true)) {
+            $attrs['valign'] = $valign;
+        }
+
+        return new AstNode('table_cell', $attrs, $blocks);
+    }
+
+    private function tableSpanAttribute(\DOMElement $element, string $attribute): int
+    {
+        $value = trim($element->getAttribute($attribute));
+        if ($value === '') {
+            return 1;
+        }
+
+        if (preg_match('/^\d+$/', $value) !== 1) {
+            return 1;
+        }
+
+        $span = (int) $value;
+        if ($attribute === 'rowspan' && $span === 0) {
+            return 0;
+        }
+
+        return max(1, min(1000, $span));
+    }
+
+    private function tableCaptionSide(\DOMElement $caption): string
+    {
+        $style = strtolower($caption->getAttribute('style'));
+        if (preg_match('/(?:^|;)\s*caption-side\s*:\s*(top|bottom)\b/', $style, $match) === 1) {
+            return $match[1];
+        }
+
+        return 'top';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableCellBlocksFromElement(\DOMElement $element, string $baseDir): array
+    {
+        $blocks = [];
+        $inlines = [];
+
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isBlockContentElement($child)) {
+                $this->flushInlinePlain($inlines, $blocks);
+                array_push($blocks, ...$this->blockNodesFromElement($child, $baseDir));
+                continue;
+            }
+
+            array_push($inlines, ...$this->inlineNodesFromNode($child, $baseDir));
+        }
+
+        $this->flushInlinePlain($inlines, $blocks);
+
+        return $blocks;
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param list<AstNode> $blocks
+     */
+    private function flushInlinePlain(array &$inlines, array &$blocks): void
+    {
+        if ($inlines === []) {
+            return;
+        }
+
+        $blocks[] = new AstNode('plain', [
+            'text' => $this->plainInlineText($inlines),
+        ], $inlines);
+        $inlines = [];
+    }
+
     /**
      * @return list<AstNode>
      */
@@ -3871,6 +4076,7 @@ final class EpubPackageReader
             || $name === 'blockquote'
             || $name === 'pre'
             || $name === 'figure'
+            || $name === 'table'
             || $name === 'section'
             || $name === 'article'
             || $name === 'main'
@@ -4041,6 +4247,24 @@ final class EpubPackageReader
         }
 
         return $this->normalizedText($text);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function plainBlockText(array $blocks): string
+    {
+        $parts = [];
+        foreach ($blocks as $block) {
+            if ($block->type === 'code_block') {
+                $parts[] = (string) $block->attr('text', '');
+                continue;
+            }
+
+            $parts[] = $this->plainInlineText($block->children);
+        }
+
+        return $this->normalizedText(implode("\n", array_filter($parts, static fn (string $part): bool => $part !== '')));
     }
 
     /**
@@ -4407,6 +4631,21 @@ final class EpubPackageReader
         }
 
         return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function directChildElements(\DOMNode $node, string $localName): array
+    {
+        $elements = [];
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->localName === $localName) {
+                $elements[] = $child;
+            }
+        }
+
+        return $elements;
     }
 
     private function directChildElementCount(\DOMNode $node, string $localName): int

@@ -2124,6 +2124,106 @@ XML);
         $t->contains('<dl id="review-glossary" class="migration-terms"><dt>Review status</dt><dd>Ready for <strong>direct XHTML</strong> handoff.</dd>', $blocks);
         $t->contains('<dt>Resource note</dt><dd><p>Keep package-local links like <a href="EPUB/chapter1.xhtml#opening-note">opening note</a> reviewable.</p><ul><li>Preserve nested checks.</li></ul></dd></dl>', $blocks);
     },
+    'maps epub xhtml tables into shared ast and wordpress blocks' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-xhtml-table-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-table-review</dc:identifier>
+    <dc:title>Table Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <table id="migration-matrix" class="review" border="1" data-review="epub-table">
+      <caption id="matrix-caption">Migration <strong>matrix</strong></caption>
+      <thead>
+        <tr><th scope="col">Source</th><th scope="col">Status</th><th scope="col">Notes</th></tr>
+      </thead>
+      <tbody id="matrix-body">
+        <tr>
+          <th scope="row">Posts</th>
+          <td align="center">Ready</td>
+          <td rowspan="2"><p>Uses <code>wp_insert_post</code>.</p><ul><li>Check media.</li></ul></td>
+        </tr>
+        <tr><th scope="row">Pages</th><td>Queued</td></tr>
+        <tr><td colspan="3">Footer preflight</td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="2">Total</td><td>2 items</td></tr></tfoot>
+    </table>
+  </body>
+</html>
+XML);
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $blocks = (new WordPressBlockWriter())->write($document);
+            $table = $document->children[0];
+            $head = $table->children[0];
+            $body = $table->children[1];
+            $foot = $table->children[2];
+            $headerRow = $head->children[0];
+            $postsRow = $body->children[0];
+            $notesCell = $postsRow->children[2];
+            $footerRow = $foot->children[0];
+
+            $t->same(1, count($document->children));
+            $t->same('table', $table->type);
+            $t->same('Migration matrix', $table->attr('caption'));
+            $t->same('migration-matrix', $table->attr('htmlAttributes')['id']);
+            $t->same('review', $table->attr('htmlAttributes')['class']);
+            $t->same('epub-xhtml', $table->attr('sourceFormat'));
+            $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $table->attr('captionInlines')));
+            $t->same('matrix-caption', $table->attr('captionSource')['sourceAttributes']['htmlAttributes']['id']);
+            $t->same(['table_head', 'table_body', 'table_foot'], array_map(static fn (AstNode $node): string => $node->type, $table->children));
+            $t->same(3, $table->attr('tableGeometry')['columnCount']);
+            $t->same('Migration matrix', $table->attr('tableGeometry')['caption']);
+
+            $t->same(1, count($head->children));
+            $t->same(3, count($headerRow->children));
+            $t->same(true, $headerRow->children[0]->attr('header'));
+            $t->same('Source', $headerRow->children[0]->attr('text'));
+            $t->same('col', $headerRow->children[0]->attr('htmlAttributes')['scope']);
+            $t->same('matrix-body', $body->attr('htmlAttributes')['id']);
+            $t->same(3, count($body->children));
+            $t->same(true, $postsRow->children[0]->attr('header'));
+            $t->same('row', $postsRow->children[0]->attr('htmlAttributes')['scope']);
+            $t->same('center', $postsRow->children[1]->attr('align'));
+            $t->same(2, $notesCell->attr('rowspan'));
+            $t->same(['paragraph', 'bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $notesCell->children));
+            $t->same('wp_insert_post', $notesCell->children[0]->children[1]->attr('text'));
+            $t->same(3, $body->children[2]->children[0]->attr('colspan'));
+            $t->same(2, $footerRow->children[0]->attr('colspan'));
+
+            $t->contains('<figcaption id="matrix-caption" class="wp-element-caption">Migration <strong>matrix</strong></figcaption>', $blocks);
+            $t->contains('<table id="migration-matrix" class="review" data-review="epub-table" border="1"', $blocks);
+            $t->contains('<th scope="col">Source</th>', $blocks);
+            $t->contains('<th scope="row">Posts</th>', $blocks);
+            $t->contains('<td style="text-align:center">Ready</td>', $blocks);
+            $t->contains('<td rowspan="2"><p>Uses <code>wp_insert_post</code>.</p><ul><li>Check media.</li></ul></td>', $blocks);
+            $t->contains('<tr><td colspan="3">Footer preflight</td></tr>', $blocks);
+            $t->contains('<tfoot><tr><td colspan="2">Total</td><td>2 items</td></tr></tfoot>', $blocks);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports direct package manifest suffixes and skipped spine entries' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-reader-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);

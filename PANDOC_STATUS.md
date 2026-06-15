@@ -4,7 +4,7 @@ Updated: 2026-06-15 UTC
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 
-ODF/ODT is marked ship-ready: 73 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
+ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
 
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
@@ -16,7 +16,7 @@ ODF/ODT is marked ship-ready: 73 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Wiki / roff / text markup readers | 0 | 20 |
 | HTML / XML / JATS / BITS DOM | 29 | 54 |
 | DOCX / OpenXML | 95 | 256 |
-| EPUB / EPUB3 | 10 | 15 |
+| EPUB / EPUB3 | 11 | 15 |
 | CSV / TSV | 2 | 4 |
 | CSL / BibTeX / BibLaTeX / csljson / RIS / EndNote XML | 79 | 227 |
 | LaTeX / TeX / math | 21 | 36 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 73 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest ODF/ODT evidence: `OdfReader` and `OpenDocumentPackage` summarize manifest `preferred-view-mode` review metadata, including root applicability, defined OASIS modes, vendor namespaced tokens, invalid unqualified tokens, non-root diagnostics, and rich/compact package provenance parity.
+Latest EPUB3 evidence: `EpubPackageReader` maps direct package XHTML tables into shared table AST nodes and WordPress table blocks, including captions, table head/body/foot sections, header and data cells, spans, scope, alignment, source HTML attributes, nested inline/list cell content, and `TableGeometry` review packets.
 
-Current Pandoc counters: 3,620 PHP passes / 0 failures and 3,628 mapped upstream cases. Verification passed `php -l` for `OdfReader.php`, `OpenDocumentPackage.php`, and `OdfReaderTest.php`; focused ODF/ODT gate (`5` files, `6,550` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `84,891` assertions, `0` failures); `jq empty`; and `git diff --check`.
+Current Pandoc counters: 3,622 PHP passes / 0 failures and 3,634 mapped upstream cases. Verification passed `php -l` for `EpubPackageReader.php` and `EpubPackageReaderTest.php`; focused `EpubPackageReaderTest.php` (`1` file, `946` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `84,990` assertions, `0` failures); `jq empty`; and `git diff --check`.
