@@ -7126,6 +7126,18 @@ final class PdfEngineHandoff
 
             return $normalizeIssues($issues);
         };
+        $optionIssues = static function (array $entries) use ($normalizeIssues): array {
+            $issues = [];
+            foreach ($entries as $entry) {
+                if (!is_array($entry) || !is_string($entry['issue'] ?? null) || $entry['issue'] === '') {
+                    continue;
+                }
+
+                $issues[] = $entry['issue'];
+            }
+
+            return $normalizeIssues($issues);
+        };
 
         $cases = [];
         $matrixIssues = [];
@@ -7194,6 +7206,75 @@ final class PdfEngineHandoff
             ], $listIssues($shadowEntries));
         }
 
+        $fontPaths = is_array($provenance['fontPaths'] ?? null) ? $provenance['fontPaths'] : [];
+        $fontPathPolicy = is_array($provenance['fontPathPolicy'] ?? null) ? $provenance['fontPathPolicy'] : [];
+        $fontPathIssues = array_merge(
+            $listIssues($fontPaths),
+            is_array($fontPathPolicy['issues'] ?? null) ? $fontPathPolicy['issues'] : []
+        );
+        $fontPathCount = is_int($fontPathPolicy['fontPathCount'] ?? null)
+            ? $fontPathPolicy['fontPathCount']
+            : (is_int($summary['fontPathCount'] ?? null) ? $summary['fontPathCount'] : count($fontPaths));
+        if ($fontPathCount > 0 || $fontPathIssues !== []) {
+            $appendCase('font-path-policy', ($fontPathPolicy['reviewStatus'] ?? 'ok') === 'ok' && $fontPathIssues === [] ? 'ok' : 'review', $fontPathCount, [
+                'safeFontPathCount' => is_int($fontPathPolicy['safeFontPathCount'] ?? null) ? $fontPathPolicy['safeFontPathCount'] : count(array_filter($fontPaths, static fn (mixed $entry): bool => is_array($entry) && ($entry['safe'] ?? false) === true)),
+                'unsafeFontPathCount' => is_int($fontPathPolicy['unsafeFontPathCount'] ?? null) ? $fontPathPolicy['unsafeFontPathCount'] : count(array_filter($fontPaths, static fn (mixed $entry): bool => !is_array($entry) || ($entry['safe'] ?? false) !== true)),
+                'absoluteFontPathCount' => is_int($fontPathPolicy['absoluteFontPathCount'] ?? null) ? $fontPathPolicy['absoluteFontPathCount'] : 0,
+                'uriFontPathCount' => is_int($fontPathPolicy['uriFontPathCount'] ?? null) ? $fontPathPolicy['uriFontPathCount'] : 0,
+            ], $fontPathIssues);
+        }
+
+        $inputVariables = is_array($provenance['inputVariables'] ?? null) ? $provenance['inputVariables'] : [];
+        $inputVariableOverrides = is_array($provenance['inputVariableOverrides'] ?? null) ? $provenance['inputVariableOverrides'] : [];
+        $inputBoundaryOverrides = array_values(array_filter(
+            is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+            static fn (mixed $entry): bool => is_array($entry) && is_string($entry['option'] ?? null) && str_starts_with($entry['option'], 'input:')
+        ));
+        $inputIssues = array_merge(
+            $listIssues($inputVariables),
+            $optionIssues($inputVariableOverrides),
+            $optionIssues($inputBoundaryOverrides)
+        );
+        $inputNames = [];
+        $unsafeInputVariableCount = 0;
+        foreach ($inputVariables as $inputVariable) {
+            if (!is_array($inputVariable)) {
+                ++$unsafeInputVariableCount;
+                continue;
+            }
+            if (($inputVariable['safe'] ?? false) !== true) {
+                ++$unsafeInputVariableCount;
+            }
+            if (is_string($inputVariable['name'] ?? null) && $inputVariable['name'] !== '') {
+                $inputNames[] = $inputVariable['name'];
+            }
+        }
+        $inputNames = array_values(array_unique($inputNames));
+        sort($inputNames);
+        $overriddenInputNames = [];
+        foreach ($inputVariableOverrides as $override) {
+            if (is_array($override) && is_string($override['name'] ?? null) && $override['name'] !== '') {
+                $overriddenInputNames[] = $override['name'];
+            }
+        }
+        foreach ($inputBoundaryOverrides as $override) {
+            $option = is_array($override) && is_string($override['option'] ?? null) ? $override['option'] : '';
+            if (str_starts_with($option, 'input:') && substr($option, strlen('input:')) !== '') {
+                $overriddenInputNames[] = substr($option, strlen('input:'));
+            }
+        }
+        $overriddenInputNames = array_values(array_unique($overriddenInputNames));
+        sort($overriddenInputNames);
+        if ($inputVariables !== [] || $inputVariableOverrides !== [] || $inputIssues !== []) {
+            $appendCase('input-variables', $unsafeInputVariableCount === 0 && $inputVariableOverrides === [] && $inputIssues === [] ? 'ok' : 'review', count($inputVariables), [
+                'inputVariableCount' => count($inputVariables),
+                'unsafeInputVariableCount' => $unsafeInputVariableCount,
+                'overrideCount' => count($inputVariableOverrides),
+                'inputNames' => $inputNames,
+                'overriddenInputNames' => $overriddenInputNames,
+            ], $inputIssues);
+        }
+
         $featureGates = is_array($provenance['featureGates'] ?? null) ? $provenance['featureGates'] : [];
         $featureGateEnvironment = is_array($provenance['featureGateEnvironment'] ?? null) ? $provenance['featureGateEnvironment'] : [];
         $featureGateIssues = array_merge($entryIssues($featureGates), $entryIssues($featureGateEnvironment));
@@ -7208,6 +7289,22 @@ final class PdfEngineHandoff
                     static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
                 )),
             ], $featureGateIssues);
+        }
+
+        $systemFonts = is_array($provenance['systemFonts'] ?? null) ? $provenance['systemFonts'] : [];
+        $embeddedFonts = is_array($provenance['embeddedFonts'] ?? null) ? $provenance['embeddedFonts'] : [];
+        $fontAccessIssues = array_merge($entryIssues($systemFonts), $entryIssues($embeddedFonts));
+        $fontAccessControlCount = is_int($summary['fontAccessControlCount'] ?? null)
+            ? $summary['fontAccessControlCount']
+            : (int) (($systemFonts['systemFontAccess'] ?? null) === 'disabled') + (int) (($embeddedFonts['embeddedFontAccess'] ?? null) === 'disabled');
+        if ($fontAccessControlCount > 0 || $fontAccessIssues !== []) {
+            $appendCase('font-access-controls', $fontAccessIssues === [] ? 'ok' : 'review', $fontAccessControlCount, [
+                'systemFontAccessDisabled' => ($systemFonts['systemFontAccess'] ?? null) === 'disabled',
+                'systemFontAccessFlagCount' => is_int($systemFonts['flagCount'] ?? null) ? $systemFonts['flagCount'] : 0,
+                'embeddedFontAccessDisabled' => ($embeddedFonts['embeddedFontAccess'] ?? null) === 'disabled',
+                'embeddedFontAccessFlagCount' => is_int($embeddedFonts['flagCount'] ?? null) ? $embeddedFonts['flagCount'] : 0,
+                'fontPathCount' => is_int($systemFonts['fontPathCount'] ?? null) ? $systemFonts['fontPathCount'] : $fontPathCount,
+            ], $fontAccessIssues);
         }
 
         $certificatePolicy = is_array($provenance['certificatePolicy'] ?? null) ? $provenance['certificatePolicy'] : [];
@@ -7276,6 +7373,86 @@ final class PdfEngineHandoff
                 'pdfStandardCount' => is_int($pdfStandardPolicy['standardCount'] ?? null) ? $pdfStandardPolicy['standardCount'] : 0,
                 'pdfVersionCount' => is_int($pdfStandardPolicy['pdfVersionCount'] ?? null) ? $pdfStandardPolicy['pdfVersionCount'] : 0,
             ], $pdfExportIssues);
+        }
+
+        $executionPolicy = is_array($provenance['executionPolicy'] ?? null) ? $provenance['executionPolicy'] : [];
+        if ($executionPolicy !== []) {
+            $jobs = is_array($executionPolicy['jobs'] ?? null) ? $executionPolicy['jobs'] : [];
+            $executionIssues = is_array($executionPolicy['issues'] ?? null) ? $executionPolicy['issues'] : [];
+            $appendCase('execution-policy', ($executionPolicy['reviewStatus'] ?? 'ok') === 'ok' && $executionIssues === [] ? 'ok' : 'review', $jobs === [] ? 0 : 1, [
+                'mode' => is_string($jobs['mode'] ?? null) ? $jobs['mode'] : null,
+                'jobCount' => is_int($jobs['jobCount'] ?? null) ? $jobs['jobCount'] : null,
+                'raw' => is_string($jobs['raw'] ?? null) ? $jobs['raw'] : null,
+            ], $executionIssues);
+        }
+
+        $dependencyOutput = is_array($provenance['dependencyOutput'] ?? null) ? $provenance['dependencyOutput'] : [];
+        $timingsOutput = is_array($provenance['timingsOutput'] ?? null) ? $provenance['timingsOutput'] : [];
+        if ($dependencyOutput !== [] || $timingsOutput !== []) {
+            $sidecarIssues = array_merge($entryIssues($dependencyOutput), $entryIssues($timingsOutput));
+            $dependencyOutputFile = is_array($dependencyOutput['file'] ?? null) ? $dependencyOutput['file'] : [];
+            $dependencyOutputFormat = is_array($dependencyOutput['format'] ?? null) ? $dependencyOutput['format'] : [];
+            $sidecarCount = is_int($summary['sidecarOutputCount'] ?? null)
+                ? $summary['sidecarOutputCount']
+                : (int) ($dependencyOutputFile !== []) + (int) ($timingsOutput !== []);
+            $appendCase('sidecar-outputs', $sidecarIssues === [] ? 'ok' : 'review', $sidecarCount, [
+                'dependencyOutputPresent' => $dependencyOutputFile !== [],
+                'dependencyOutputPath' => is_string($dependencyOutputFile['path'] ?? null) ? $dependencyOutputFile['path'] : null,
+                'dependencyFormat' => is_string($dependencyOutputFormat['format'] ?? null) ? $dependencyOutputFormat['format'] : null,
+                'timingsOutputPresent' => $timingsOutput !== [],
+                'timingsOutputPath' => is_string($timingsOutput['path'] ?? null) ? $timingsOutput['path'] : null,
+            ], $sidecarIssues);
+        }
+
+        $diagnosticOutput = is_array($provenance['diagnosticOutput'] ?? null) ? $provenance['diagnosticOutput'] : [];
+        if ($diagnosticOutput !== []) {
+            $diagnosticFormat = is_array($diagnosticOutput['format'] ?? null) ? $diagnosticOutput['format'] : [];
+            $diagnosticColor = is_array($diagnosticOutput['color'] ?? null) ? $diagnosticOutput['color'] : [];
+            $diagnosticIssues = is_array($diagnosticOutput['issues'] ?? null) ? $diagnosticOutput['issues'] : [];
+            $appendCase('diagnostic-output', $diagnosticIssues === [] ? 'ok' : 'review', (int) ($diagnosticFormat !== []) + (int) ($diagnosticColor !== []), [
+                'format' => is_string($diagnosticFormat['format'] ?? null) ? $diagnosticFormat['format'] : null,
+                'machineReadable' => ($diagnosticFormat['machineReadable'] ?? false) === true,
+                'color' => is_string($diagnosticColor['color'] ?? null) ? $diagnosticColor['color'] : null,
+                'ansiColor' => is_string($diagnosticColor['ansiColor'] ?? null) ? $diagnosticColor['ansiColor'] : null,
+            ], $diagnosticIssues);
+        }
+
+        $creationTimestamp = is_array($provenance['creationTimestamp'] ?? null) ? $provenance['creationTimestamp'] : [];
+        $creationTimestampEnvironment = is_array($provenance['creationTimestampEnvironment'] ?? null) ? $provenance['creationTimestampEnvironment'] : [];
+        if ($creationTimestamp !== [] || $creationTimestampEnvironment !== []) {
+            $creationTimestampIssues = array_merge($entryIssues($creationTimestamp), $entryIssues($creationTimestampEnvironment));
+            $appendCase('creation-timestamp', $creationTimestampIssues === [] ? 'ok' : 'review', (int) ($creationTimestamp !== []) + (int) ($creationTimestampEnvironment !== []), [
+                'timestamp' => is_int($creationTimestamp['timestamp'] ?? null) ? $creationTimestamp['timestamp'] : null,
+                'iso8601' => is_string($creationTimestamp['iso8601'] ?? null) ? $creationTimestamp['iso8601'] : null,
+                'deterministic' => ($creationTimestamp['deterministic'] ?? false) === true,
+                'environmentShadowed' => is_string($creationTimestampEnvironment['shadowedBy'] ?? null),
+            ], $creationTimestampIssues);
+        }
+
+        $openOutput = is_array($provenance['openOutput'] ?? null) ? $provenance['openOutput'] : [];
+        if ($openOutput !== []) {
+            $openOutputIssues = is_array($openOutput['issues'] ?? null) ? $openOutput['issues'] : [];
+            $openOutputViewers = is_array($openOutput['viewers'] ?? null) ? $openOutput['viewers'] : [];
+            $defaultViewerCount = 0;
+            $specificViewerCount = 0;
+            foreach ($openOutputViewers as $viewer) {
+                if (!is_array($viewer)) {
+                    continue;
+                }
+                if (($viewer['mode'] ?? null) === 'default-viewer') {
+                    ++$defaultViewerCount;
+                } elseif (($viewer['mode'] ?? null) === 'specific-viewer') {
+                    ++$specificViewerCount;
+                }
+            }
+            $viewer = is_array($openOutput['viewer'] ?? null) ? $openOutput['viewer'] : [];
+            $appendCase('open-output', $openOutputIssues === [] ? 'ok' : 'review', is_int($openOutput['flagCount'] ?? null) ? $openOutput['flagCount'] : 0, [
+                'enabled' => ($openOutput['enabled'] ?? false) === true,
+                'viewerCount' => count($openOutputViewers),
+                'defaultViewerCount' => $defaultViewerCount,
+                'specificViewerCount' => $specificViewerCount,
+                'viewer' => is_string($viewer['viewer'] ?? null) ? $viewer['viewer'] : null,
+            ], $openOutputIssues);
         }
 
         if ($readBoundaryPolicy !== []) {

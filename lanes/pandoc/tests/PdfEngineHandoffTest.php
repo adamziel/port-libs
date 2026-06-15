@@ -5988,9 +5988,14 @@ return [
             'source' => $source,
             'engineOptions' => [
                 '--root=workspace',
+                '--font-path=fonts',
+                '--font-path=/srv/typst-fonts',
                 '--cert=certs/cli-ca.pem',
                 '--package-path=/srv/typst-packages',
                 '--package-cache=https://cache.example.invalid/typst',
+                '--input=audience=reviewer',
+                '--input=audience=auditor',
+                '--creation-timestamp=1700000000',
                 '--features=html',
                 '--features=packages,a11y',
                 '--format=svg',
@@ -5998,7 +6003,15 @@ return [
                 '--pages=1-3,2',
                 '--ppi=300',
                 '--pdf-standard=pdf/ua-1',
+                '--jobs=auto',
+                '--deps-format=make',
                 '--deps=build/matrix.d',
+                '--timings=build/matrix-timings.json',
+                '--diagnostic-format=json',
+                '--color=never',
+                '--open=xdg-open',
+                '--ignore-system-fonts',
+                '--ignore-embedded-fonts',
             ],
             'engineEnvironment' => [
                 'TYPST_ROOT' => '/outside/workspace',
@@ -6013,6 +6026,7 @@ return [
             'build/matrix.pdf: workspace/matrix.typ workspace/assets/chart.svg @preview/cetz:0.3.2 @preview/cetz:0.3.3 @typst/tablex:0.0.8',
             '',
         ]);
+        $timingsBytes = '{"traceEvents":[{"name":"compile","args":{"file":"workspace/matrix.typ"}}]}';
         $stderr = implode("\n", [
             'warning: package import crosses review root',
             '  ' . "\u{250C}\u{2500}" . ' shared/packages/remote.typ:4:1',
@@ -6024,6 +6038,7 @@ return [
             'stderr' => $stderr,
             'files' => [
                 'build/matrix.d' => $depfile,
+                'build/matrix-timings.json' => $timingsBytes,
                 'build/matrix.pdf' => $pdfBytes,
                 'workspace/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
             ],
@@ -6032,6 +6047,7 @@ return [
             'stderr' => $stderr,
             'files' => [
                 'build/matrix.d' => $depfile,
+                'build/matrix-timings.json' => $timingsBytes,
                 'build/matrix.pdf' => $pdfBytes,
                 'workspace/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
             ],
@@ -6039,15 +6055,23 @@ return [
 
         $t->same([
             'environment-shadows',
+            'font-path-policy',
+            'input-variables',
             'feature-gates',
+            'font-access-controls',
             'certificate-paths',
             'package-storage',
             'output-format',
             'pdf-export-controls',
+            'execution-policy',
+            'sidecar-outputs',
+            'diagnostic-output',
+            'creation-timestamp',
+            'open-output',
         ], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
         $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
-        $t->same(6, $plan['typstBoundaryMatrix']['caseCount']);
-        $t->contains('typst-boundary-matrix-cases:6', implode(',', $plan['diagnostics']));
+        $t->same(14, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->contains('typst-boundary-matrix-cases:14', implode(',', $plan['diagnostics']));
 
         $matrix = $result['typstBoundaryMatrix'];
         $cases = [];
@@ -6058,25 +6082,45 @@ return [
         $t->same(true, $result['ok']);
         $t->same([
             'environment-shadows',
+            'font-path-policy',
+            'input-variables',
             'feature-gates',
+            'font-access-controls',
             'certificate-paths',
             'package-storage',
             'output-format',
             'pdf-export-controls',
+            'execution-policy',
+            'sidecar-outputs',
+            'diagnostic-output',
+            'creation-timestamp',
+            'open-output',
             'root-read-boundary',
             'dependency-output-policy',
             'package-dependencies',
             'warning-provenance',
         ], array_column($matrix['cases'], 'case'));
         $t->same('review', $matrix['reviewStatus']);
-        $t->same(10, $matrix['caseCount']);
-        $t->same(8, $matrix['reviewCaseCount']);
+        $t->same(18, $matrix['caseCount']);
+        $t->same(11, $matrix['reviewCaseCount']);
         $t->same(5, $cases['environment-shadows']['details']['shadowedCount']);
+        $t->same(2, $cases['font-path-policy']['observed']);
+        $t->same(1, $cases['font-path-policy']['details']['unsafeFontPathCount']);
+        $t->same(2, $cases['input-variables']['observed']);
+        $t->same(['audience'], $cases['input-variables']['details']['overriddenInputNames']);
         $t->same(3, $cases['feature-gates']['observed']);
+        $t->same(2, $cases['font-access-controls']['observed']);
+        $t->same(true, $cases['font-access-controls']['details']['systemFontAccessDisabled']);
         $t->same(2, $cases['certificate-paths']['observed']);
         $t->same(4, $cases['package-storage']['observed']);
         $t->same(['pdf', 'svg'], $cases['output-format']['details']['distinctFormats']);
         $t->same(true, $cases['pdf-export-controls']['details']['pageSelectionPresent']);
+        $t->same('auto', $cases['execution-policy']['details']['mode']);
+        $t->same(2, $cases['sidecar-outputs']['observed']);
+        $t->same(true, $cases['sidecar-outputs']['details']['timingsOutputPresent']);
+        $t->same('json', $cases['diagnostic-output']['details']['format']);
+        $t->same(true, $cases['creation-timestamp']['details']['deterministic']);
+        $t->same(1, $cases['open-output']['observed']);
         $t->same(2, $cases['root-read-boundary']['details']['insideRootCount']);
         $t->same(true, $cases['dependency-output-policy']['details']['declaredOutputPresent']);
         $t->same(3, $cases['package-dependencies']['observed']);
@@ -6084,8 +6128,11 @@ return [
         $t->same(1, $cases['warning-provenance']['details']['outsideRootCount']);
         $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
         $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
-        $t->contains('typst-boundary-matrix-cases:10', implode(',', $result['diagnostics']));
+        $t->contains('typst-boundary-matrix-cases:18', implode(',', $result['diagnostics']));
         $t->contains('environment-shadows:root-environment-shadowed', implode(',', $matrix['issues']));
+        $t->contains('font-path-policy:font-path-external-boundary', implode(',', $matrix['issues']));
+        $t->contains('input-variables:input-variable-boundary-overridden:audience', implode(',', $matrix['issues']));
+        $t->contains('open-output:open-output-side-effect-boundary', implode(',', $matrix['issues']));
         $t->contains('package-dependencies:package-version-conflict:preview/cetz', implode(',', $matrix['issues']));
         $t->contains('warning-provenance:warning-source-outside-root', implode(',', $matrix['issues']));
     },
