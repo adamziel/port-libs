@@ -51,7 +51,7 @@ final class MarkdownWriter
     private int $plainTextTriggerEscapeSuppression = 0;
 
     /**
-     * @param array{format?: string, extensions?: mixed, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool, autoHtmlTables?: bool} $options
+     * @param array{format?: string, extensions?: mixed, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool, autoHtmlTables?: bool, tableStyle?: string, markdownTableFormat?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -1799,10 +1799,12 @@ final class MarkdownWriter
             $tableHeadRows[] = new AstNode('table_row', ['header' => true], array_fill(0, $columnCount, new AstNode('table_cell')));
         }
 
-        $expandedHeadRows = $this->expandTableRows($tableHeadRows, $columnCount);
+        $tableFormat = $this->markdownTableFormat($node);
+        $escapeTablePipes = $tableFormat === 'pipe';
+        $expandedHeadRows = $this->expandTableRows($tableHeadRows, $columnCount, $escapeTablePipes);
         $expandedBodyRows = [];
         foreach ($bodyGroups as $group) {
-            $expandedGroupRows = $this->expandTableRows([...$group['headRows'], ...$group['bodyRows']], $columnCount);
+            $expandedGroupRows = $this->expandTableRows([...$group['headRows'], ...$group['bodyRows']], $columnCount, $escapeTablePipes);
             $expandedHeadRows = [
                 ...$expandedHeadRows,
                 ...array_slice($expandedGroupRows, 0, count($group['headRows'])),
@@ -1814,7 +1816,7 @@ final class MarkdownWriter
         }
         $expandedBodyRows = [
             ...$expandedBodyRows,
-            ...$this->expandTableRows($footRows, $columnCount),
+            ...$this->expandTableRows($footRows, $columnCount, $escapeTablePipes),
         ];
         $renderedRows = [...$expandedHeadRows, ...$expandedBodyRows];
         $widths = $this->tableColumnWidths($renderedRows, $this->tableColumnWidthHints($node, $columnCount), $columnCount);
@@ -1822,6 +1824,38 @@ final class MarkdownWriter
         $prefix = str_repeat(' ', $indent);
         $captionLine = $this->renderTableCaptionLine($node, $prefix);
         $captionSide = $this->tableCaptionSide($node);
+
+        if ($tableFormat === 'simple') {
+            return $this->renderSimpleTable($expandedHeadRows, $expandedBodyRows, $widths, $alignments, $prefix, $captionLine, $captionSide);
+        }
+
+        if ($tableFormat === 'grid') {
+            $gridHeadRows = $this->expandTableRowsAsLineCells($tableHeadRows, $columnCount);
+            $gridBodyRows = [];
+            foreach ($bodyGroups as $group) {
+                $expandedGroupRows = $this->expandTableRowsAsLineCells([...$group['headRows'], ...$group['bodyRows']], $columnCount);
+                $gridHeadRows = [
+                    ...$gridHeadRows,
+                    ...array_slice($expandedGroupRows, 0, count($group['headRows'])),
+                ];
+                $gridBodyRows = [
+                    ...$gridBodyRows,
+                    ...array_slice($expandedGroupRows, count($group['headRows'])),
+                ];
+            }
+            $gridBodyRows = [
+                ...$gridBodyRows,
+                ...$this->expandTableRowsAsLineCells($footRows, $columnCount),
+            ];
+            $gridWidths = $this->tableGridColumnWidths(
+                [...$gridHeadRows, ...$gridBodyRows],
+                $this->tableColumnWidthHints($node, $columnCount),
+                $columnCount
+            );
+
+            return $this->renderGridTable($gridHeadRows, $gridBodyRows, $gridWidths, $alignments, $prefix, $captionLine, $captionSide);
+        }
+
         $lines = [];
 
         if ($captionLine !== '' && $captionSide === 'top') {
@@ -1843,6 +1877,25 @@ final class MarkdownWriter
         }
 
         return $lines;
+    }
+
+    private function markdownTableFormat(AstNode $node): string
+    {
+        $format = $node->attr(
+            'markdownTableFormat',
+            $this->options['markdownTableFormat'] ?? $this->options['tableStyle'] ?? ''
+        );
+        if (!is_scalar($format)) {
+            return 'pipe';
+        }
+
+        $format = strtolower(trim(str_replace('_', '-', (string) $format)));
+
+        return match ($format) {
+            'simple', 'simple-table', 'simple-tables' => 'simple',
+            'grid', 'grid-table', 'grid-tables' => 'grid',
+            default => 'pipe',
+        };
     }
 
     private function shouldRenderHtmlTable(AstNode $node, int $columnCount): bool
@@ -3138,13 +3191,13 @@ final class MarkdownWriter
      * @param list<AstNode> $rows
      * @return list<list<string>>
      */
-    private function expandTableRows(array $rows, int $columnCount): array
+    private function expandTableRows(array $rows, int $columnCount, bool $escapePipes = true): array
     {
         $expandedRows = [];
         foreach (TableGeometry::layoutRows($rows, $columnCount) as $layoutRow) {
             $cells = array_fill(0, $columnCount, '');
             foreach ($layoutRow['cells'] as $layoutCell) {
-                $cells[$layoutCell['column']] = $this->renderTableCell($layoutCell['node']);
+                $cells[$layoutCell['column']] = $this->renderTableCell($layoutCell['node'], $escapePipes);
             }
 
             $expandedRows[] = $cells;
@@ -3153,10 +3206,29 @@ final class MarkdownWriter
         return $expandedRows;
     }
 
-    private function renderTableCell(AstNode $cell): string
+    /**
+     * @param list<AstNode> $rows
+     * @return list<list<list<string>>>
+     */
+    private function expandTableRowsAsLineCells(array $rows, int $columnCount): array
+    {
+        $expandedRows = [];
+        foreach (TableGeometry::layoutRows($rows, $columnCount) as $layoutRow) {
+            $cells = array_fill(0, $columnCount, ['']);
+            foreach ($layoutRow['cells'] as $layoutCell) {
+                $cells[$layoutCell['column']] = $this->renderTableCellLines($layoutCell['node']);
+            }
+
+            $expandedRows[] = $cells;
+        }
+
+        return $expandedRows;
+    }
+
+    private function renderTableCell(AstNode $cell, bool $escapePipes = true): string
     {
         if ($cell->children === []) {
-            return $this->normalizeTableCellMarkdown($this->escapeText((string) $cell->attr('text', '')));
+            return $this->normalizeTableCellMarkdown($this->escapeText((string) $cell->attr('text', '')), $escapePipes);
         }
 
         $hasOnlyInlines = true;
@@ -3169,12 +3241,44 @@ final class MarkdownWriter
 
         $markdown = $hasOnlyInlines ? $this->renderInlines($cell->children) : $this->renderBlockCollection($cell->children);
 
-        return $this->normalizeTableCellMarkdown($markdown);
+        return $this->normalizeTableCellMarkdown($markdown, $escapePipes);
     }
 
-    private function normalizeTableCellMarkdown(string $markdown): string
+    /**
+     * @return list<string>
+     */
+    private function renderTableCellLines(AstNode $cell): array
     {
-        $markdown = $this->escapeTableCellPipes($markdown);
+        if ($cell->children === []) {
+            $markdown = $this->escapeText((string) $cell->attr('text', ''));
+        } else {
+            $hasOnlyInlines = true;
+            foreach ($cell->children as $child) {
+                if (!$this->isInlineNode($child)) {
+                    $hasOnlyInlines = false;
+                    break;
+                }
+            }
+
+            $markdown = $hasOnlyInlines ? $this->renderInlines($cell->children) : $this->renderBlockCollection($cell->children);
+        }
+
+        $markdown = str_replace('\\|', '|', $markdown);
+        $markdown = str_replace(["\\\r\n", "\\\n", "\\\r"], "\n", $markdown);
+        $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
+        $markdown = str_replace("\xC2\xA0", ' ', $markdown);
+        $lines = explode("\n", trim($markdown));
+
+        return $lines === [] ? [''] : array_map(static fn (string $line): string => rtrim($line), $lines);
+    }
+
+    private function normalizeTableCellMarkdown(string $markdown, bool $escapePipes = true): string
+    {
+        if ($escapePipes) {
+            $markdown = $this->escapeTableCellPipes($markdown);
+        } else {
+            $markdown = str_replace('\\|', '|', $markdown);
+        }
         $markdown = str_replace("\\\r\n", "<br />", $markdown);
         $markdown = str_replace("\\\n", "<br />", $markdown);
         $markdown = str_replace("\\\r", "<br />", $markdown);
@@ -3251,6 +3355,183 @@ final class MarkdownWriter
         }
 
         return '|' . implode('|', $parts) . '|';
+    }
+
+    /**
+     * @param list<list<string>> $headRows
+     * @param list<list<string>> $bodyRows
+     * @param list<int> $widths
+     * @param list<string> $alignments
+     * @return list<string>
+     */
+    private function renderSimpleTable(
+        array $headRows,
+        array $bodyRows,
+        array $widths,
+        array $alignments,
+        string $prefix,
+        string $captionLine,
+        string $captionSide
+    ): array {
+        $lines = [];
+
+        if ($captionLine !== '' && $captionSide === 'top') {
+            $lines[] = $captionLine;
+            $lines[] = '';
+        }
+
+        foreach ($headRows as $row) {
+            $lines[] = $prefix . $this->renderSimpleTableRow($row, $widths, $alignments);
+        }
+        $lines[] = $prefix . $this->renderSimpleTableDelimiter($widths);
+        foreach ($bodyRows as $row) {
+            $lines[] = $prefix . $this->renderSimpleTableRow($row, $widths, $alignments);
+        }
+
+        if ($captionLine !== '' && $captionSide !== 'top') {
+            $lines[] = '';
+            $lines[] = $captionLine;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param list<string> $cells
+     * @param list<int> $widths
+     * @param list<string> $alignments
+     */
+    private function renderSimpleTableRow(array $cells, array $widths, array $alignments): string
+    {
+        $parts = [];
+        foreach ($cells as $index => $cell) {
+            $parts[] = $this->padTableCell($cell, $widths[$index], $alignments[$index]);
+        }
+
+        return rtrim(implode('  ', $parts));
+    }
+
+    /**
+     * @param list<int> $widths
+     */
+    private function renderSimpleTableDelimiter(array $widths): string
+    {
+        return implode('  ', array_map(
+            static fn (int $width): string => str_repeat('-', max(3, $width)),
+            $widths
+        ));
+    }
+
+    /**
+     * @param list<list<list<string>>> $rows
+     * @param mixed $relativeWidths
+     * @return list<int>
+     */
+    private function tableGridColumnWidths(array $rows, mixed $relativeWidths, int $columnCount): array
+    {
+        $widths = array_fill(0, $columnCount, 3);
+        foreach ($rows as $row) {
+            foreach ($row as $index => $cellLines) {
+                foreach ($cellLines as $line) {
+                    $widths[$index] = max($widths[$index], UnicodeText::displayWidth($line));
+                }
+            }
+        }
+
+        if (is_array($relativeWidths)) {
+            foreach (array_values($relativeWidths) as $index => $width) {
+                if ($index < $columnCount && is_numeric($width) && (float) $width > 0.0) {
+                    $widths[$index] = max($widths[$index], (int) ceil((float) $width * 40));
+                }
+            }
+        }
+
+        return $widths;
+    }
+
+    /**
+     * @param list<list<list<string>>> $headRows
+     * @param list<list<list<string>>> $bodyRows
+     * @param list<int> $widths
+     * @param list<string> $alignments
+     * @return list<string>
+     */
+    private function renderGridTable(
+        array $headRows,
+        array $bodyRows,
+        array $widths,
+        array $alignments,
+        string $prefix,
+        string $captionLine,
+        string $captionSide
+    ): array {
+        $lines = [];
+
+        if ($captionLine !== '' && $captionSide === 'top') {
+            $lines[] = $captionLine;
+            $lines[] = '';
+        }
+
+        $lines[] = $prefix . $this->renderGridTableBorder($widths, '-');
+        foreach ($headRows as $row) {
+            foreach ($this->renderGridTableRow($row, $widths, $alignments) as $line) {
+                $lines[] = $prefix . $line;
+            }
+        }
+        $lines[] = $prefix . $this->renderGridTableBorder($widths, '=');
+        if ($bodyRows === []) {
+            $lines[] = $prefix . $this->renderGridTableBorder($widths, '-');
+        }
+        foreach ($bodyRows as $row) {
+            foreach ($this->renderGridTableRow($row, $widths, $alignments) as $line) {
+                $lines[] = $prefix . $line;
+            }
+            $lines[] = $prefix . $this->renderGridTableBorder($widths, '-');
+        }
+
+        if ($captionLine !== '' && $captionSide !== 'top') {
+            $lines[] = '';
+            $lines[] = $captionLine;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param list<int> $widths
+     */
+    private function renderGridTableBorder(array $widths, string $char): string
+    {
+        return '+' . implode('+', array_map(
+            static fn (int $width): string => str_repeat($char, max(3, $width) + 2),
+            $widths
+        )) . '+';
+    }
+
+    /**
+     * @param list<list<string>> $row
+     * @param list<int> $widths
+     * @param list<string> $alignments
+     * @return list<string>
+     */
+    private function renderGridTableRow(array $row, array $widths, array $alignments): array
+    {
+        $height = 1;
+        foreach ($row as $cellLines) {
+            $height = max($height, count($cellLines));
+        }
+
+        $lines = [];
+        for ($lineIndex = 0; $lineIndex < $height; $lineIndex++) {
+            $parts = [];
+            foreach ($row as $column => $cellLines) {
+                $line = $cellLines[$lineIndex] ?? '';
+                $parts[] = ' ' . $this->padTableCell($line, $widths[$column], $alignments[$column]) . ' ';
+            }
+            $lines[] = '|' . implode('|', $parts) . '|';
+        }
+
+        return $lines;
     }
 
     private function padTableCell(string $cell, int $width, string $alignment): string
