@@ -8507,7 +8507,6 @@ XML;
         $t->same($authoring['items'], $summary['wordpressImport']['rootfileAuthoringItems']);
         $t->same($rootfiles, $summary['wordpressImport']['containerRootfiles']);
     },
-
     'summarizes repeated OPF spine idrefs in reading order inventory handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithRepeatedSpineIdref = str_replace(
             '<spine>
@@ -8675,5 +8674,129 @@ XML;
         $t->same($report['items'], $summary['wordpressImport']['containerRootfileSelectionItems']);
         $t->same($report['buckets'], $summary['wordpressImport']['containerRootfileSelectionBuckets']);
         $t->same($report['diagnostics'], $summary['wordpressImport']['containerRootfileSelectionDiagnostics']);
+    },
+
+    'summarizes undeclared EPUB ZIP package entries for review handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $note = 'private reviewer note';
+        $cover = 'PNG-COVER';
+        $audio = 'ENCRYPTED-AUDIO';
+        $packed = 'PACKED-PRIVATE-BYTES';
+        $opfXml = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:undeclared-package-entry-report</dc:identifier>
+    <dc:title>Undeclared Package Entries</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $navXml = '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Chapter</a></li></ol></nav></body></html>';
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="EPUB/private/locked.mp3"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml, 'method' => 8],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml, 'method' => 8],
+            ['name' => 'EPUB/package.opf', 'data' => $opfXml, 'method' => 8],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml, 'method' => 8],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter</h1></body></html>', 'method' => 8],
+            ['name' => 'EPUB/private/', 'data' => '', 'method' => 0],
+            ['name' => 'EPUB/private/notes.txt', 'data' => $note, 'method' => 0],
+            ['name' => 'EPUB/private/cover.png', 'data' => $cover, 'method' => 8],
+            ['name' => 'EPUB/private/locked.mp3', 'data' => $audio, 'method' => 8],
+            ['name' => 'EPUB/private/packed.bin', 'data' => $packed, 'method' => 12],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $report = $inventory['undeclaredEntryReport'];
+        $byPath = $report['itemsByPackagePath'];
+        $coverRow = $byPath['EPUB/private/cover.png'];
+        $audioRow = $byPath['EPUB/private/locked.mp3'];
+        $packedRow = $byPath['EPUB/private/packed.bin'];
+
+        $t->same($report, $summary['wordpressImport']['packageInventory']['undeclaredEntryReport']);
+        $t->same($report, $summary['wordpressImport']['packageInventoryUndeclaredEntryReport']);
+        $t->same($report['items'], $inventory['undeclaredPackageEntries']);
+        $t->same($report['items'], $summary['wordpressImport']['packageInventoryUndeclaredPackageEntries']);
+        $t->same($report['itemsByPackagePath'], $inventory['undeclaredPackageEntriesByPackagePath']);
+        $t->same($report['diagnostics'], $inventory['undeclaredPackageEntryDiagnostics']);
+        $t->same($report['diagnostics'], $summary['wordpressImport']['packageInventoryUndeclaredPackageEntryDiagnostics']);
+        $t->same(5, $report['itemCount']);
+        $t->same(4, $report['fileEntryCount']);
+        $t->same(1, $report['directoryEntryCount']);
+        $t->same(3, $report['exposableEntryCount']);
+        $t->same(2, $report['blockedEntryCount']);
+        $t->same(1, $report['encryptedEntryCount']);
+        $t->same(1, $report['unsupportedCompressionMethodCount']);
+        $t->same(2, $report['attachmentCandidateCount']);
+        $t->same([
+            'encrypted-resource' => 1,
+            'undeclared-package-entry' => 5,
+            'zip-directory' => 1,
+        ], $report['roleCounts']);
+        $t->same([
+            'application/octet-stream' => 1,
+            'audio/mpeg' => 1,
+            'image/png' => 1,
+            'text/plain' => 1,
+        ], $report['inferredMediaTypeCounts']);
+        $t->same([
+            'asset' => 2,
+            'audio' => 1,
+            'directory' => 1,
+            'image' => 1,
+        ], $report['inferredResourceKindCounts']);
+        $t->same([
+            'encrypted-resource-bytes-blocked' => 1,
+            'epub-package-entry-metadata-only' => 3,
+            'unsupported-compression-metadata-only' => 1,
+        ], $report['byteExposurePolicyCounts']);
+        $t->same([
+            '/EPUB/private/',
+            '/EPUB/private/notes.txt',
+            '/EPUB/private/cover.png',
+            '/EPUB/private/locked.mp3',
+            '/EPUB/private/packed.bin',
+        ], $report['partNames']);
+        $t->same(['/EPUB/private/cover.png', '/EPUB/private/locked.mp3'], $report['attachmentCandidatePartNames']);
+        $t->same(['/EPUB/private/locked.mp3'], $report['encryptedPartNames']);
+        $t->same(['/EPUB/private/packed.bin'], $report['unsupportedCompressionPartNames']);
+        $t->same(7, $report['diagnosticCount']);
+        $t->same([
+            'undeclared-epub-package-entry',
+            'undeclared-epub-package-entry-encrypted',
+            'undeclared-epub-package-entry-unsupported-compression',
+        ], $report['diagnosticTypes']);
+
+        $t->same('image/png', $coverRow['inferredMediaType']);
+        $t->same('extension', $coverRow['inferredMediaTypeSource']);
+        $t->same('image', $coverRow['inferredResourceKind']);
+        $t->same(true, $coverRow['attachmentCandidate']);
+        $t->same(true, $coverRow['canExposeBytes']);
+        $t->same('epub-package-entry-metadata-only', $coverRow['byteExposurePolicy']);
+        $t->same('audio/mpeg', $audioRow['inferredMediaType']);
+        $t->same('audio', $audioRow['inferredResourceKind']);
+        $t->same(false, $audioRow['canExposeBytes']);
+        $t->same(true, $audioRow['encrypted']);
+        $t->same('encrypted-resource-bytes-blocked', $audioRow['byteExposurePolicy']);
+        $t->same('undeclared-epub-package-entry-encrypted', $audioRow['diagnostics'][1]['type']);
+        $t->same('application/octet-stream', $packedRow['inferredMediaType']);
+        $t->same('fallback', $packedRow['inferredMediaTypeSource']);
+        $t->same(false, $packedRow['compressionSupported']);
+        $t->same('unsupported', $packedRow['compressionMethodName']);
+        $t->same('unsupported-compression-metadata-only', $packedRow['byteExposurePolicy']);
+        $t->same('undeclared-epub-package-entry-unsupported-compression', $packedRow['diagnostics'][1]['type']);
     },
 ];

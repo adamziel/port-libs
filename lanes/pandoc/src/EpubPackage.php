@@ -737,6 +737,9 @@ final class EpubPackage
                 'packageInventoryDiagnostics' => $packageInventory['diagnostics'],
                 'packageInventoryLocalHeaderOrder' => $packageInventory['localHeaderOrder'],
                 'packageInventoryLocalHeaderOrderDiagnostics' => $packageInventory['localHeaderOrderDiagnostics'],
+                'packageInventoryUndeclaredEntryReport' => $packageInventory['undeclaredEntryReport'],
+                'packageInventoryUndeclaredPackageEntries' => $packageInventory['undeclaredPackageEntries'],
+                'packageInventoryUndeclaredPackageEntryDiagnostics' => $packageInventory['undeclaredPackageEntryDiagnostics'],
                 'readingOrderInventory' => $readingOrderInventory,
                 'manifestDependencyInventory' => $manifestDependencyInventory,
                 'manifestDependencyEdges' => $manifestDependencyInventory['edges'],
@@ -8757,6 +8760,7 @@ final class EpubPackage
             $byPackagePath[$packagePath] = $item;
         }
 
+        $undeclaredEntryReport = self::packageInventoryUndeclaredEntryReport($entries);
         $directorySummaries = self::packageInventoryDirectorySummaries($entries);
         $extensionSummaries = self::packageInventoryExtensionSummaries($entries);
         $localHeaderOrder = $package->localHeaderOrderPreflight();
@@ -8830,6 +8834,10 @@ final class EpubPackage
             'missingOpfManifestDeclaredDiagnosticCount' => count($missingManifestDeclaredDiagnostics),
             'missingOpfManifestDeclaredDiagnostics' => $missingManifestDeclaredDiagnostics,
             'undeclaredPartNames' => array_keys($undeclaredPartNames),
+            'undeclaredEntryReport' => $undeclaredEntryReport,
+            'undeclaredPackageEntries' => $undeclaredEntryReport['items'],
+            'undeclaredPackageEntriesByPackagePath' => $undeclaredEntryReport['itemsByPackagePath'],
+            'undeclaredPackageEntryDiagnostics' => $undeclaredEntryReport['diagnostics'],
             'spinePartNames' => array_keys($spinePartNames),
             'encryptedPartNames' => array_keys($encryptedPartNames),
             'obfuscatedFontPartNames' => array_keys($obfuscatedFontPartNames),
@@ -8889,6 +8897,284 @@ final class EpubPackage
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageInventoryUndeclaredEntryReport(array $entries): array
+    {
+        $items = [];
+        $itemsByPackagePath = [];
+        $roleCounts = [];
+        $inferredMediaTypeCounts = [];
+        $inferredResourceKindCounts = [];
+        $byteExposurePolicyCounts = [];
+        $packagePaths = [];
+        $partNames = [];
+        $attachmentCandidatePartNames = [];
+        $directoryEntryPartNames = [];
+        $encryptedPartNames = [];
+        $unsupportedCompressionPartNames = [];
+        $exposableEntryCount = 0;
+        $blockedEntryCount = 0;
+        $directoryEntryCount = 0;
+        $encryptedEntryCount = 0;
+        $unsupportedCompressionMethodCount = 0;
+        $totalByteLength = 0;
+        $totalCompressedByteLength = 0;
+        $diagnostics = [];
+
+        foreach ($entries as $entry) {
+            if (($entry['undeclared'] ?? false) !== true) {
+                continue;
+            }
+
+            $packagePath = is_string($entry['packagePath'] ?? null) ? $entry['packagePath'] : '';
+            if ($packagePath === '') {
+                continue;
+            }
+
+            $partName = is_string($entry['partName'] ?? null) ? $entry['partName'] : self::packageInventoryPartName($packagePath);
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            $byteLength = (int) ($entry['byteLength'] ?? 0);
+            $compressedByteLength = (int) ($entry['compressedByteLength'] ?? 0);
+            $canExposeBytes = ($entry['canExposeBytes'] ?? false) === true;
+            $encrypted = ($entry['encrypted'] ?? false) === true;
+            $unsupportedCompression = ($entry['compressionSupported'] ?? true) !== true;
+            $byteExposurePolicy = is_string($entry['byteExposurePolicy'] ?? null) && $entry['byteExposurePolicy'] !== ''
+                ? $entry['byteExposurePolicy']
+                : ($canExposeBytes ? 'epub-package-entry-metadata-only' : 'metadata-only');
+            $inferredMediaType = $isDirectory ? null : self::packageInventoryMediaTypeFromPath($packagePath);
+            $inferredResourceKind = $isDirectory
+                ? 'directory'
+                : self::packageInventoryResourceKind($inferredMediaType, $packagePath, []);
+            $attachmentCandidate = in_array($inferredResourceKind, ['audio', 'cover-image', 'font', 'image', 'svg', 'video'], true);
+            $itemDiagnostics = [[
+                'type' => 'undeclared-epub-package-entry',
+                'packagePath' => $packagePath,
+                'partName' => $partName,
+                'message' => 'EPUB ZIP entry is not declared by the OPF manifest or OCF package roots and requires compact package review',
+            ]];
+            if ($unsupportedCompression) {
+                $itemDiagnostics[] = [
+                    'type' => 'undeclared-epub-package-entry-unsupported-compression',
+                    'packagePath' => $packagePath,
+                    'partName' => $partName,
+                    'compressionMethod' => $entry['compressionMethod'] ?? null,
+                    'compressionMethodName' => $entry['compressionMethodName'] ?? null,
+                    'message' => 'Undeclared EPUB ZIP entry uses a compression method whose bytes are not exposed by the native reader',
+                ];
+            }
+            if ($encrypted) {
+                $itemDiagnostics[] = [
+                    'type' => 'undeclared-epub-package-entry-encrypted',
+                    'packagePath' => $packagePath,
+                    'partName' => $partName,
+                    'message' => 'Undeclared EPUB ZIP entry is referenced by OCF encryption metadata and remains metadata-only',
+                ];
+            }
+
+            $item = [
+                'index' => is_int($entry['index'] ?? null) ? $entry['index'] : count($items),
+                'localOrder' => $entry['localOrder'] ?? null,
+                'packagePath' => $packagePath,
+                'partName' => $partName,
+                'directory' => is_string($entry['directory'] ?? null) ? $entry['directory'] : '/',
+                'directoryDepth' => is_int($entry['directoryDepth'] ?? null) ? $entry['directoryDepth'] : 0,
+                'baseName' => is_string($entry['baseName'] ?? null) ? $entry['baseName'] : basename($packagePath),
+                'extension' => is_string($entry['extension'] ?? null) ? $entry['extension'] : null,
+                'isDirectory' => $isDirectory,
+                'byteLength' => $byteLength,
+                'compressedByteLength' => $compressedByteLength,
+                'compressionMethod' => $entry['compressionMethod'] ?? null,
+                'compressionMethodName' => is_string($entry['compressionMethodName'] ?? null) ? $entry['compressionMethodName'] : null,
+                'compressionSupported' => !$unsupportedCompression,
+                'crc32' => is_string($entry['crc32'] ?? null) ? $entry['crc32'] : null,
+                'canExposeBytes' => $canExposeBytes,
+                'byteExposurePolicy' => $byteExposurePolicy,
+                'encrypted' => $encrypted,
+                'obfuscatedFont' => ($entry['obfuscatedFont'] ?? false) === true,
+                'inferredMediaType' => $inferredMediaType,
+                'inferredMediaTypeSource' => $inferredMediaType === null
+                    ? null
+                    : (self::packageInventoryKnownExtension($packagePath) ? 'extension' : 'fallback'),
+                'inferredResourceKind' => $inferredResourceKind,
+                'attachmentCandidate' => $attachmentCandidate,
+                'roles' => is_array($entry['roles'] ?? null) ? array_values($entry['roles']) : [],
+                'diagnosticCount' => count($itemDiagnostics),
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            $items[] = $item;
+            $itemsByPackagePath[$packagePath] = $item;
+            $packagePaths[] = $packagePath;
+            $partNames[] = $partName;
+            $totalByteLength += $byteLength;
+            $totalCompressedByteLength += $compressedByteLength;
+
+            if ($isDirectory) {
+                ++$directoryEntryCount;
+                $directoryEntryPartNames[] = $partName;
+            }
+            if ($canExposeBytes) {
+                ++$exposableEntryCount;
+            } else {
+                ++$blockedEntryCount;
+            }
+            if ($encrypted) {
+                ++$encryptedEntryCount;
+                $encryptedPartNames[] = $partName;
+            }
+            if ($unsupportedCompression) {
+                ++$unsupportedCompressionMethodCount;
+                $unsupportedCompressionPartNames[] = $partName;
+            }
+            if ($attachmentCandidate) {
+                $attachmentCandidatePartNames[] = $partName;
+            }
+
+            foreach ($item['roles'] as $role) {
+                if (!is_string($role) || $role === '') {
+                    continue;
+                }
+
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+            }
+            if ($inferredMediaType !== null) {
+                $inferredMediaTypeCounts[$inferredMediaType] = ($inferredMediaTypeCounts[$inferredMediaType] ?? 0) + 1;
+            }
+            $inferredResourceKindCounts[$inferredResourceKind] = ($inferredResourceKindCounts[$inferredResourceKind] ?? 0) + 1;
+            $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+            array_push($diagnostics, ...$itemDiagnostics);
+        }
+
+        ksort($roleCounts, SORT_STRING);
+        ksort($inferredMediaTypeCounts, SORT_STRING);
+        ksort($inferredResourceKindCounts, SORT_STRING);
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'fileEntryCount' => count($items) - $directoryEntryCount,
+            'directoryEntryCount' => $directoryEntryCount,
+            'exposableEntryCount' => $exposableEntryCount,
+            'blockedEntryCount' => $blockedEntryCount,
+            'encryptedEntryCount' => $encryptedEntryCount,
+            'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'attachmentCandidateCount' => count($attachmentCandidatePartNames),
+            'totalByteLength' => $totalByteLength,
+            'totalCompressedByteLength' => $totalCompressedByteLength,
+            'roleCounts' => $roleCounts,
+            'inferredMediaTypeCounts' => $inferredMediaTypeCounts,
+            'inferredResourceKindCounts' => $inferredResourceKindCounts,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'packagePaths' => $packagePaths,
+            'partNames' => $partNames,
+            'directoryEntryPartNames' => $directoryEntryPartNames,
+            'attachmentCandidatePartNames' => $attachmentCandidatePartNames,
+            'encryptedPartNames' => $encryptedPartNames,
+            'unsupportedCompressionPartNames' => $unsupportedCompressionPartNames,
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticTypes' => self::compactDiagnosticTypes($diagnostics),
+            'diagnostics' => $diagnostics,
+            'itemsByPackagePath' => $itemsByPackagePath,
+            'items' => $items,
+        ];
+    }
+
+    private static function packageInventoryMediaTypeFromPath(string $packagePath): string
+    {
+        if (str_ends_with(strtolower($packagePath), '.gz')) {
+            $packagePath = substr($packagePath, 0, -3);
+        }
+
+        return match (strtolower(pathinfo($packagePath, PATHINFO_EXTENSION))) {
+            'apng' => 'image/apng',
+            'avif' => 'image/avif',
+            'gif' => 'image/gif',
+            'jpeg', 'jpg', 'jpe' => 'image/jpeg',
+            'png' => 'image/png',
+            'svg', 'svgz' => 'image/svg+xml',
+            'webp' => 'image/webp',
+            'bmp' => 'image/bmp',
+            'ico' => 'image/x-icon',
+            'tif', 'tiff' => 'image/tiff',
+            'css' => 'text/css',
+            'js', 'mjs' => 'text/javascript',
+            'json', 'map', 'webmanifest' => 'application/json',
+            'html', 'htm', 'xhtml' => self::XHTML_MEDIA_TYPE,
+            'xml' => 'application/xml',
+            'mp3' => 'audio/mpeg',
+            'm4a' => 'audio/mp4',
+            'ogg', 'oga' => 'audio/ogg',
+            'wav' => 'audio/wav',
+            'flac' => 'audio/flac',
+            'mp4', 'm4v' => 'video/mp4',
+            'webm' => 'video/webm',
+            'ogv' => 'video/ogg',
+            'woff' => 'font/woff',
+            'woff2' => 'font/woff2',
+            'ttf' => 'font/ttf',
+            'otf' => 'font/otf',
+            'pdf' => 'application/pdf',
+            'txt', 'text' => 'text/plain',
+            default => 'application/octet-stream',
+        };
+    }
+
+    private static function packageInventoryKnownExtension(string $packagePath): bool
+    {
+        if (str_ends_with(strtolower($packagePath), '.gz')) {
+            $packagePath = substr($packagePath, 0, -3);
+        }
+
+        return in_array(strtolower(pathinfo($packagePath, PATHINFO_EXTENSION)), [
+            'apng',
+            'avif',
+            'gif',
+            'jpeg',
+            'jpg',
+            'jpe',
+            'png',
+            'svg',
+            'svgz',
+            'webp',
+            'bmp',
+            'ico',
+            'tif',
+            'tiff',
+            'css',
+            'js',
+            'mjs',
+            'json',
+            'map',
+            'webmanifest',
+            'html',
+            'htm',
+            'xhtml',
+            'xml',
+            'mp3',
+            'm4a',
+            'ogg',
+            'oga',
+            'wav',
+            'flac',
+            'mp4',
+            'm4v',
+            'webm',
+            'ogv',
+            'woff',
+            'woff2',
+            'ttf',
+            'otf',
+            'pdf',
+            'txt',
+            'text',
+        ], true);
     }
 
     /**
