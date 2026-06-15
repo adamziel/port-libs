@@ -21299,21 +21299,42 @@ final class XmlHtmlDom
      */
     private static function fieldsetSummary(\DOMElement $fieldset): array
     {
-        $legend = self::firstChildHtmlElement($fieldset, 'legend');
+        $legends = self::childHtmlElements($fieldset, 'legend');
+        $legend = $legends[0] ?? null;
         $controls = self::fieldsetControlSummaries($fieldset, $legend);
+        $nestedFieldsets = self::nestedFieldsetSummaries($fieldset);
+        $issues = self::fieldsetReviewIssues($legends, $nestedFieldsets);
 
         return [
             'formGroup' => 'fieldset',
+            'fieldsetReviewPolicy' => 'fieldset-legend-disabled-control-review',
             'disabled' => $fieldset->hasAttribute('disabled'),
             'legendText' => $legend instanceof \DOMElement ? self::normalizedText($legend) : null,
-            'legendCount' => count(self::childHtmlElements($fieldset, 'legend')),
+            'legendTexts' => self::fieldsetLegendTexts($legends),
+            'legendCount' => count($legends),
             'controlCount' => count($controls),
             'legendControlCount' => count(array_filter(
                 $controls,
                 static fn (array $control): bool => (bool) ($control['inFirstLegend'] ?? false)
             )),
+            'enabledControlCount' => self::fieldsetEffectiveControlCount($controls, false),
+            'disabledControlCount' => self::fieldsetEffectiveControlCount($controls, true),
             'controls' => $controls,
             'controlNames' => self::fieldsetControlNames($controls),
+            'enabledControlNames' => self::fieldsetControlNames($controls, false),
+            'disabledControlNames' => self::fieldsetControlNames($controls, true),
+            'nestedFieldsetCount' => count($nestedFieldsets),
+            'nestedDisabledFieldsetCount' => count(array_filter(
+                $nestedFieldsets,
+                static fn (array $nested): bool => (bool) ($nested['disabled'] ?? false)
+            )),
+            'nestedFieldsets' => $nestedFieldsets,
+            'fieldsetIssueCount' => count($issues),
+            'fieldsetIssues' => $issues,
+            'fieldsetIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
         ];
     }
 
@@ -21330,7 +21351,78 @@ final class XmlHtmlDom
             'legendText' => self::normalizedText($legend),
             'fieldsetDisabled' => $fieldset instanceof \DOMElement ? $fieldset->hasAttribute('disabled') : null,
             'firstLegend' => $firstLegend instanceof \DOMElement && $legend->isSameNode($firstLegend),
+            'fieldsetLegendIndex' => $fieldset instanceof \DOMElement ? self::fieldsetLegendIndex($fieldset, $legend) : null,
+            'fieldsetLegendCount' => $fieldset instanceof \DOMElement ? count(self::childHtmlElements($fieldset, 'legend')) : null,
         ];
+    }
+
+    /**
+     * @param list<\DOMElement> $legends
+     * @return list<string>
+     */
+    private static function fieldsetLegendTexts(array $legends): array
+    {
+        return array_values(array_filter(
+            array_map(static fn (\DOMElement $legend): string => self::normalizedText($legend), $legends),
+            static fn (string $text): bool => $text !== ''
+        ));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function nestedFieldsetSummaries(\DOMElement $fieldset): array
+    {
+        $nested = [];
+        foreach (self::descendantHtmlElements($fieldset, 'fieldset') as $nestedFieldset) {
+            $legends = self::childHtmlElements($nestedFieldset, 'legend');
+            $legend = $legends[0] ?? null;
+            $controls = self::fieldsetControlSummaries($nestedFieldset, $legend);
+            $nested[] = [
+                'id' => self::attributeOrNull($nestedFieldset, 'id'),
+                'disabled' => $nestedFieldset->hasAttribute('disabled'),
+                'legendText' => $legend instanceof \DOMElement ? self::normalizedText($legend) : null,
+                'legendCount' => count($legends),
+                'controlCount' => count($controls),
+                'enabledControlCount' => self::fieldsetEffectiveControlCount($controls, false),
+                'disabledControlCount' => self::fieldsetEffectiveControlCount($controls, true),
+                'controlNames' => self::fieldsetControlNames($controls),
+            ];
+        }
+
+        return $nested;
+    }
+
+    /**
+     * @param list<\DOMElement> $legends
+     * @param list<array<string, mixed>> $nestedFieldsets
+     * @return list<array<string, mixed>>
+     */
+    private static function fieldsetReviewIssues(array $legends, array $nestedFieldsets): array
+    {
+        $issues = [];
+        $legendCount = count($legends);
+        if ($legendCount === 0) {
+            $issues[] = ['code' => 'missing-fieldset-legend'];
+        } elseif ($legendCount > 1) {
+            $issues[] = [
+                'code' => 'multiple-fieldset-legends',
+                'legendCount' => $legendCount,
+                'legendTexts' => self::fieldsetLegendTexts($legends),
+            ];
+        }
+        if ($nestedFieldsets !== []) {
+            $issues[] = [
+                'code' => 'nested-fieldset-review',
+                'nestedFieldsetCount' => count($nestedFieldsets),
+                'nestedFieldsetIds' => array_values(array_filter(
+                    array_map(static fn (array $nested): ?string => $nested['id'] ?? null, $nestedFieldsets),
+                    static fn (?string $id): bool => $id !== null && $id !== ''
+                )),
+            ];
+        }
+
+        return $issues;
     }
 
     /**
@@ -21374,10 +21466,21 @@ final class XmlHtmlDom
      * @param list<array<string, mixed>> $controls
      * @return list<string>
      */
-    private static function fieldsetControlNames(array $controls): array
+    private static function fieldsetEffectiveControlCount(array $controls, bool $effectiveDisabled): int
+    {
+        return count(array_filter(
+            $controls,
+            static fn (array $control): bool => (bool) ($control['effectiveDisabled'] ?? false) === $effectiveDisabled
+        ));
+    }
+
+    private static function fieldsetControlNames(array $controls, ?bool $effectiveDisabled = null): array
     {
         $names = [];
         foreach ($controls as $control) {
+            if ($effectiveDisabled !== null && (bool) ($control['effectiveDisabled'] ?? false) !== $effectiveDisabled) {
+                continue;
+            }
             $name = $control['controlName'] ?? null;
             if (is_string($name) && $name !== '' && !in_array($name, $names, true)) {
                 $names[] = $name;
@@ -21385,6 +21488,17 @@ final class XmlHtmlDom
         }
 
         return $names;
+    }
+
+    private static function fieldsetLegendIndex(\DOMElement $fieldset, \DOMElement $legend): ?int
+    {
+        foreach (self::childHtmlElements($fieldset, 'legend') as $index => $candidate) {
+            if ($candidate->isSameNode($legend)) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     private static function parentHtmlElement(\DOMElement $element, string $name): ?\DOMElement

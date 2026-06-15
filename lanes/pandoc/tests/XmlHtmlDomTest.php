@@ -5686,6 +5686,82 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(true, $submitButton['effectiveDisabled']);
         $t->same('<form id="import-form"><label for="format">Format</label><input id="format" list="format-options" name="format" placeholder="Choose format" required><datalist id="format-options"><option label="Word" value="docx"></option><option value="epub">EPUB</option><option>ODT</option></datalist><fieldset disabled><legend>Batch <button id="legend-action">Keep enabled</button></legend><label>Confirm <input checked id="confirm" name="confirm" type="checkbox"></label><select id="state" name="state" required><option value="draft">Draft</option></select><textarea id="notes" name="notes" placeholder="Reviewer note">Ready</textarea><button id="submit" name="save" type="submit" value="1">Save</button></fieldset></form>', $html);
     },
+    'summarizes html fieldset legend diagnostics and disabled control buckets for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="fieldsets"><fieldset id="outer" disabled><legend>Outer <button id="legend-action" name="legend-action">Go</button></legend><input id="title" name="title"><legend>Second <input id="second" name="second"></legend><fieldset id="inner"><legend>Inner</legend><textarea id="inner-note" name="inner-note">N</textarea></fieldset><button id="save" name="save">Save</button></fieldset><fieldset id="missing"><input id="missing-control" name="missing-control"></fieldset></form>',
+            'fieldset legend diagnostics review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/fieldset-legend-diagnostics-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $form = $summary[0];
+        $outer = $form['children'][0];
+        $firstLegend = $outer['children'][0];
+        $secondLegend = $outer['children'][2];
+        $secondLegendInput = $secondLegend['children'][1];
+        $inner = $outer['children'][3];
+        $innerTextarea = $inner['children'][1];
+        $missing = $form['children'][1];
+
+        $t->same('fieldset-legend-disabled-control-review', $outer['fieldsetReviewPolicy']);
+        $t->same(true, $outer['disabled']);
+        $t->same('Outer Go', $outer['legendText']);
+        $t->same(['Outer Go', 'Second'], $outer['legendTexts']);
+        $t->same(2, $outer['legendCount']);
+        $t->same(5, $outer['controlCount']);
+        $t->same(1, $outer['legendControlCount']);
+        $t->same(1, $outer['enabledControlCount']);
+        $t->same(4, $outer['disabledControlCount']);
+        $t->same(['legend-action', 'title', 'second', 'inner-note', 'save'], $outer['controlNames']);
+        $t->same(['legend-action'], $outer['enabledControlNames']);
+        $t->same(['title', 'second', 'inner-note', 'save'], $outer['disabledControlNames']);
+        $t->same(1, $outer['nestedFieldsetCount']);
+        $t->same(0, $outer['nestedDisabledFieldsetCount']);
+        $t->same([
+            [
+                'id' => 'inner',
+                'disabled' => false,
+                'legendText' => 'Inner',
+                'legendCount' => 1,
+                'controlCount' => 1,
+                'enabledControlCount' => 0,
+                'disabledControlCount' => 1,
+                'controlNames' => ['inner-note'],
+            ],
+        ], $outer['nestedFieldsets']);
+        $t->same(['multiple-fieldset-legends', 'nested-fieldset-review'], $outer['fieldsetIssueCodes']);
+        $t->same(2, $outer['fieldsetIssueCount']);
+        $t->same('multiple-fieldset-legends', $outer['fieldsetIssues'][0]['code']);
+        $t->same(2, $outer['fieldsetIssues'][0]['legendCount']);
+        $t->same(['Outer Go', 'Second'], $outer['fieldsetIssues'][0]['legendTexts']);
+        $t->same('nested-fieldset-review', $outer['fieldsetIssues'][1]['code']);
+        $t->same(['inner'], $outer['fieldsetIssues'][1]['nestedFieldsetIds']);
+
+        $t->same('legend', $firstLegend['formGroupPart']);
+        $t->same(true, $firstLegend['firstLegend']);
+        $t->same(0, $firstLegend['fieldsetLegendIndex']);
+        $t->same(2, $firstLegend['fieldsetLegendCount']);
+        $t->same(false, $firstLegend['children'][1]['effectiveDisabled']);
+        $t->same(false, $secondLegend['firstLegend']);
+        $t->same(1, $secondLegend['fieldsetLegendIndex']);
+        $t->same(true, $secondLegendInput['effectiveDisabled']);
+        $t->same(true, $innerTextarea['effectiveDisabled']);
+
+        $t->same('missing-fieldset-legend', $missing['fieldsetIssueCodes'][0]);
+        $t->same(0, $missing['legendCount']);
+        $t->same(1, $missing['enabledControlCount']);
+        $t->same(0, $missing['disabledControlCount']);
+        $t->same(['missing-control'], $missing['enabledControlNames']);
+        $t->same([], $missing['nestedFieldsets']);
+
+        $t->same('<form id="fieldsets"><fieldset disabled id="outer"><legend>Outer <button id="legend-action" name="legend-action">Go</button></legend><input id="title" name="title"><legend>Second <input id="second" name="second"></legend><fieldset id="inner"><legend>Inner</legend><textarea id="inner-note" name="inner-note">N</textarea></fieldset><button id="save" name="save">Save</button></fieldset><fieldset id="missing"><input id="missing-control" name="missing-control"></fieldset></form>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/fieldset-legend-diagnostics-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html progress and meter state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<label for="upload-progress">Upload</label><progress id="upload-progress" value="3" max="4">75%</progress><progress id="pending">Pending</progress><label>Quality <meter id="quality" value="0.82" min="0" max="1" low="0.4" high="0.9" optimum="0.95">82%</meter></label><meter id="clamped" value="12" min="2" max="10">Too high</meter>',
