@@ -5,11 +5,11 @@
   "upstream": {
     "name": "jgm/pandoc",
     "url": "https://github.com/jgm/pandoc",
-    "commit": "pandoc-epub-compact-rootfile-authoring-e7c99319a1",
+    "commit": "pandoc-epub-repeated-spine-idref-inventory-445e193d3",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 3732,
-    "latestSlice": "pandoc-epub-compact-rootfile-authoring maps one EPUB3 compact rootfile-authoring package-ingestion case after rebase onto current main e7c99319a1. EpubPackage preserves OCF container rootfile attributes for selected and alternate renditions, including raw full-path/media-type structural attributes, custom data/review/xml attributes, rootfileAuthoring summaries, rendition propagation, validation rows, and WordPress import review fields without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3707 -> 3708, phpFail remains 0, mapped upstream manifest cases move 3731 -> 3732, mappedEpubCompactRootfileAuthoringCases = 1, and epubCompactRootfileAuthoringAssertions = 30. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 3156 assertions, 0 failures; epub3 package preflight self-test passed; full lanes/pandoc/tests passed 46 files, 87819 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+    "mapped": 3733,
+    "latestSlice": "pandoc-epub-repeated-spine-idref-inventory maps one EPUB3 package reading-order inventory case after rebase onto current main 445e193d3. EpubPackage reports repeated OPF spine idref groups in readingOrderInventory and wordpressImport review fields while preserving existing duplicate-spine validation diagnostics, without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3709 -> 3710, phpFail remains 0, mapped upstream manifest cases move 3732 -> 3733, mappedEpubRepeatedSpineIdrefInventoryCases moves 0 -> 1, and epubRepeatedSpineIdrefInventoryAssertions moves 0 -> 34. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 3190 assertions, 0 failures; EPUB preflight self-test passed; full lanes/pandoc/tests passed 46 files, 87892 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
     "mappedOdfPackageFontFormatProvenanceCases": 6,
     "odfPackageFontFormatProvenanceAssertions": 56,
     "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
     "opcRawZipCentralDirectoryManifestAssertions": 37,
     "mappedZipCentralDirectorySignaturePolicyCases": 2,
     "zipCentralDirectorySignaturePolicyAssertions": 30,
-    "status": "EPUB compact rootfile authoring is verified after rebase onto current main e7c99319a1; phpFail remains 0.",
-    "latestFocusedSource": "2026-06-15 EPUB compact rootfile authoring verified after rebase onto current main e7c99319a1; focused EpubPackageTest.php passed 1 file, 3156 assertions, 0 failures; epub3 package preflight self-test passed; full lanes/pandoc/tests passed 46 files, 87819 assertions, 0 failures.",
+    "status": "EPUB repeated spine idref inventory handoff is verified after rebase onto current main 445e193d3; phpFail remains 0.",
+    "latestFocusedSource": "2026-06-15 EPUB repeated spine idref inventory handoff verified after rebase onto current main 445e193d3; focused EpubPackageTest.php passed 1 file, 3190 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 87892 assertions, 0 failures.",
     "mappedPandocFormatReaderEvidenceBatchCases": 6,
     "pandocFormatReaderEvidenceBatchAssertions": 200,
     "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -560,7 +560,9 @@
     "mappedEpubMissingManifestInventoryCases": 1,
     "epubMissingManifestInventoryAssertions": 35,
     "mappedEpubCompactRootfileAuthoringCases": 1,
-    "epubCompactRootfileAuthoringAssertions": 30
+    "epubCompactRootfileAuthoringAssertions": 30,
+    "mappedEpubRepeatedSpineIdrefInventoryCases": 1,
+    "epubRepeatedSpineIdrefInventoryAssertions": 34
   },
   "benchmarkDenominator": {
     "status": "Pandoc JSON/native single-wrapped target tuple sidecars are verified after rebase onto current main 9f2dd9a0fd; phpFail remains 0.",
@@ -1571,12 +1573,12 @@
     "mappedZipCreatorVersionHostMatrixCases": 5,
     "zipCreatorVersionHostMatrixAssertions": 36
   },
-  "wordpressScenario": "EPUB package handoff exposes compact OCF container rootfile authoring attributes and WordPress import propagation for selected and alternate renditions.",
-  "nextTask": "Continue bounded Pandoc JSON/native AST constructor completeness while keeping phpFail at zero.",
-  "status": "EPUB compact rootfile authoring is verified after rebase onto current main e7c99319a1; phpFail remains 0.",
-  "mapping": "Adds one bounded native PHP EPUB compact rootfile authoring mapping on top of current main counters.",
-  "audit": "updated 2026-06-15: pandoc-epub-compact-rootfile-authoring maps one EPUB3 compact rootfile-authoring package-ingestion case after rebase onto current main e7c99319a1. EpubPackage preserves OCF container rootfile attributes for selected and alternate renditions, including raw full-path/media-type structural attributes, custom data/review/xml attributes, rootfileAuthoring summaries, rendition propagation, validation rows, and WordPress import review fields without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3707 -> 3708, phpFail remains 0, mapped upstream manifest cases move 3731 -> 3732, mappedEpubCompactRootfileAuthoringCases = 1, and epubCompactRootfileAuthoringAssertions = 30. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 3156 assertions, 0 failures; epub3 package preflight self-test passed; full lanes/pandoc/tests passed 46 files, 87819 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
-  "latestSlice": "pandoc-epub-compact-rootfile-authoring maps one EPUB3 compact rootfile-authoring package-ingestion case after rebase onto current main e7c99319a1. EpubPackage preserves OCF container rootfile attributes for selected and alternate renditions, including raw full-path/media-type structural attributes, custom data/review/xml attributes, rootfileAuthoring summaries, rendition propagation, validation rows, and WordPress import review fields without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3707 -> 3708, phpFail remains 0, mapped upstream manifest cases move 3731 -> 3732, mappedEpubCompactRootfileAuthoringCases = 1, and epubCompactRootfileAuthoringAssertions = 30. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 3156 assertions, 0 failures; epub3 package preflight self-test passed; full lanes/pandoc/tests passed 46 files, 87819 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+  "wordpressScenario": "EPUB repeated spine idrefs remain preserved reading-order inventory review data.",
+  "nextTask": "Continue bounded Pandoc EPUB package review coverage while keeping phpFail at zero.",
+  "status": "EPUB repeated spine idref inventory handoff is verified after rebase onto current main 445e193d3; phpFail remains 0.",
+  "mapping": "Adds one bounded native PHP EPUB reading-order inventory mapping for repeated OPF spine idrefs on top of current Pandoc lane counters.",
+  "audit": "updated 2026-06-15: pandoc-epub-repeated-spine-idref-inventory maps one EPUB3 package reading-order inventory case after rebase onto current main 445e193d3. EpubPackage reports repeated OPF spine idref groups in readingOrderInventory and wordpressImport review fields while preserving existing duplicate-spine validation diagnostics, without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3709 -> 3710, phpFail remains 0, mapped upstream manifest cases move 3732 -> 3733, mappedEpubRepeatedSpineIdrefInventoryCases moves 0 -> 1, and epubRepeatedSpineIdrefInventoryAssertions moves 0 -> 34. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 3190 assertions, 0 failures; EPUB preflight self-test passed; full lanes/pandoc/tests passed 46 files, 87892 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+  "latestSlice": "pandoc-epub-repeated-spine-idref-inventory maps one EPUB3 package reading-order inventory case after rebase onto current main 445e193d3. EpubPackage reports repeated OPF spine idref groups in readingOrderInventory and wordpressImport review fields while preserving existing duplicate-spine validation diagnostics, without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3709 -> 3710, phpFail remains 0, mapped upstream manifest cases move 3732 -> 3733, mappedEpubRepeatedSpineIdrefInventoryCases moves 0 -> 1, and epubRepeatedSpineIdrefInventoryAssertions moves 0 -> 34. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 3190 assertions, 0 failures; EPUB preflight self-test passed; full lanes/pandoc/tests passed 46 files, 87892 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
   "mappedXmlHtmlDomOutputForReferenceCases": 1,
   "xmlHtmlDomOutputForReferenceAssertions": 41,
   "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
@@ -1744,7 +1746,7 @@
   "xmlHtmlDomSharedQueryAssertions": 17,
   "mappedPdfJavaScriptActionSafetyCases": 1,
   "pdfJavaScriptActionSafetyAssertions": 12,
-  "latestFocusedSource": "2026-06-15 EPUB compact rootfile authoring verified after rebase onto current main e7c99319a1; focused EpubPackageTest.php passed 1 file, 3156 assertions, 0 failures; epub3 package preflight self-test passed; full lanes/pandoc/tests passed 46 files, 87819 assertions, 0 failures.",
+  "latestFocusedSource": "2026-06-15 EPUB repeated spine idref inventory handoff verified after rebase onto current main 445e193d3; focused EpubPackageTest.php passed 1 file, 3190 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 87892 assertions, 0 failures.",
   "mappedDocxOpenXmlSettingsFontTableCases": 1,
   "docxOpenXmlSettingsFontTableAssertions": 39,
   "mappedEpubXhtmlOutputControlCases": 1,
@@ -2269,5 +2271,7 @@
   "mappedEpubMissingManifestInventoryCases": 1,
   "epubMissingManifestInventoryAssertions": 35,
   "mappedEpubCompactRootfileAuthoringCases": 1,
-  "epubCompactRootfileAuthoringAssertions": 30
+  "epubCompactRootfileAuthoringAssertions": 30,
+  "mappedEpubRepeatedSpineIdrefInventoryCases": 1,
+  "epubRepeatedSpineIdrefInventoryAssertions": 34
 }

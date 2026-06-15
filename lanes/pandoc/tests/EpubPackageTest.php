@@ -7919,4 +7919,71 @@ XML;
         $t->same($authoring['items'], $summary['wordpressImport']['rootfileAuthoringItems']);
         $t->same($rootfiles, $summary['wordpressImport']['containerRootfiles']);
     },
+
+    'summarizes repeated OPF spine idrefs in reading order inventory handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithRepeatedSpineIdref = str_replace(
+            '<spine>
+    <itemref idref="chapter1"/>
+    <itemref idref="chapter2" linear="no" properties="page-spread-right"/>
+  </spine>',
+            '<spine>
+    <itemref id="chapter1-primary" idref="chapter1"/>
+    <itemref id="chapter2-spine" idref="chapter2" linear="no" properties="page-spread-right"/>
+    <itemref id="chapter1-review-copy" idref="chapter1" linear="no"/>
+  </spine>',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithRepeatedSpineIdref],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $summary = $epub->summary();
+        $validation = $epub->validationReport();
+        $report = $summary['readingOrderInventory'];
+        $repeat = $report['repeatedIdrefItems'][0];
+        $chapterRows = $report['itemsByIdref']['chapter1'];
+
+        $t->same(false, $validation['valid']);
+        $t->same(false, $validation['spine']['valid']);
+        $t->same(['duplicate-spine-itemref-idref'], array_column($validation['diagnostics'], 'type'));
+        $t->same(['duplicate-spine-itemref-idref'], array_column($validation['spine']['diagnostics'], 'type'));
+        $t->same('chapter1', $validation['spine']['diagnostics'][0]['idref']);
+        $t->same([0, 2], $validation['spine']['diagnostics'][0]['indexes']);
+        $t->same(3, $report['itemCount']);
+        $t->same(1, $report['linearItemCount']);
+        $t->same(2, $report['nonLinearItemCount']);
+        $t->same(1, $report['repeatedIdrefCount']);
+        $t->same(2, $report['repeatedIdrefItemCount']);
+        $t->same(['chapter1'], $report['repeatedIdrefs']);
+        $t->same('chapter1', $repeat['idref']);
+        $t->same(2, $repeat['occurrenceCount']);
+        $t->same([0, 2], $repeat['indexes']);
+        $t->same(0, $repeat['firstIndex']);
+        $t->same(2, $repeat['lastIndex']);
+        $t->same(['chapter1-primary', 'chapter1-review-copy'], $repeat['spineIds']);
+        $t->same(['/EPUB/text/chapter1.xhtml'], $repeat['partNames']);
+        $t->same(['EPUB/text/chapter1.xhtml'], $repeat['packagePaths']);
+        $t->same(1, $repeat['linearCount']);
+        $t->same(1, $repeat['nonLinearCount']);
+        $t->same(1, $report['diagnosticCount']);
+        $t->same(['repeated-spine-idref'], $report['diagnosticTypes']);
+        $t->same('repeated-spine-idref', $report['repeatedIdrefDiagnostics'][0]['type']);
+        $t->same('chapter1', $report['repeatedIdrefDiagnostics'][0]['idref']);
+        $t->same([0, 2], $report['repeatedIdrefDiagnostics'][0]['indexes']);
+        $t->same(2, count($chapterRows));
+        $t->same([0, 2], array_column($chapterRows, 'index'));
+        $t->same(['spine-content-bytes-exposable', 'spine-content-bytes-exposable'], array_column($chapterRows, 'byteExposurePolicy'));
+        $t->same($report['repeatedIdrefs'], $summary['wordpressImport']['readingOrderRepeatedIdrefs']);
+        $t->same($report['repeatedIdrefItems'], $summary['wordpressImport']['readingOrderRepeatedIdrefItems']);
+        $t->same($report['repeatedIdrefDiagnostics'], $summary['wordpressImport']['readingOrderRepeatedIdrefDiagnostics']);
+        $t->same($report, $summary['wordpressImport']['readingOrderInventory']);
+    },
 ];

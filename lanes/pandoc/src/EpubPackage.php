@@ -768,6 +768,9 @@ final class EpubPackage
                 'renditions' => $this->renditions,
                 'renditionDiagnostics' => $this->renditions['diagnostics'],
                 'spineMetadata' => $spineMetadata,
+                'readingOrderRepeatedIdrefs' => $readingOrderInventory['repeatedIdrefs'],
+                'readingOrderRepeatedIdrefItems' => $readingOrderInventory['repeatedIdrefItems'],
+                'readingOrderRepeatedIdrefDiagnostics' => $readingOrderInventory['repeatedIdrefDiagnostics'],
                 'pageProgressionDirection' => $spineMetadata['pageProgressionDirection'],
                 'readingProgression' => $spineMetadata['readingProgression'],
                 'spinePackageDiagnostics' => $spineMetadata['diagnostics'],
@@ -8338,6 +8341,72 @@ final class EpubPackage
             }
         }
 
+        $repeatedIdrefItems = [];
+        $repeatedIdrefDiagnostics = [];
+        $repeatedIdrefItemCount = 0;
+        foreach ($itemsByIdref as $idref => $idrefItems) {
+            if (count($idrefItems) < 2) {
+                continue;
+            }
+
+            $indexes = array_map(
+                static fn (array $item): int => (int) ($item['index'] ?? 0),
+                $idrefItems
+            );
+            $spineIds = array_values(array_filter(
+                array_map(
+                    static fn (array $item): ?string => is_string($item['id'] ?? null) ? $item['id'] : null,
+                    $idrefItems
+                ),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            ));
+            $partNames = array_values(array_unique(array_filter(
+                array_map(
+                    static fn (array $item): ?string => is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                    $idrefItems
+                ),
+                static fn (?string $partName): bool => $partName !== null && $partName !== ''
+            )));
+            $packagePathsForIdref = array_values(array_unique(array_filter(
+                array_map(
+                    static fn (array $item): ?string => is_string($item['packagePath'] ?? null) ? $item['packagePath'] : null,
+                    $idrefItems
+                ),
+                static fn (?string $packagePath): bool => $packagePath !== null && $packagePath !== ''
+            )));
+            $linearOccurrenceCount = count(array_filter(
+                $idrefItems,
+                static fn (array $item): bool => ($item['linear'] ?? true) !== false
+            ));
+            $occurrenceCount = count($idrefItems);
+            $repeatedIdrefItemCount += $occurrenceCount;
+
+            $repeatedItem = [
+                'idref' => $idref,
+                'occurrenceCount' => $occurrenceCount,
+                'indexes' => $indexes,
+                'firstIndex' => $indexes[0],
+                'lastIndex' => $indexes[count($indexes) - 1],
+                'spineIds' => $spineIds,
+                'partNames' => $partNames,
+                'packagePaths' => $packagePathsForIdref,
+                'linearCount' => $linearOccurrenceCount,
+                'nonLinearCount' => $occurrenceCount - $linearOccurrenceCount,
+            ];
+            $repeatedIdrefItems[] = $repeatedItem;
+
+            $repeatedDiagnostic = [
+                'type' => 'repeated-spine-idref',
+                'idref' => $idref,
+                'occurrenceCount' => $occurrenceCount,
+                'indexes' => $indexes,
+                'partNames' => $partNames,
+                'message' => 'EPUB spine repeats an idref; compact package ingestion preserves each reading-order occurrence for review',
+            ];
+            $repeatedIdrefDiagnostics[] = $repeatedDiagnostic;
+            $diagnostics[] = $repeatedDiagnostic;
+        }
+
         ksort($byteExposurePolicyCounts, SORT_STRING);
         ksort($compressionMethodCounts, SORT_STRING);
 
@@ -8366,6 +8435,11 @@ final class EpubPackage
             'unsupportedCompressionCompressedByteLength' => $unsupportedCompressionCompressedByteLength,
             'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'compressionMethodCounts' => $compressionMethodCounts,
+            'repeatedIdrefCount' => count($repeatedIdrefItems),
+            'repeatedIdrefItemCount' => $repeatedIdrefItemCount,
+            'repeatedIdrefs' => array_column($repeatedIdrefItems, 'idref'),
+            'repeatedIdrefItems' => $repeatedIdrefItems,
+            'repeatedIdrefDiagnostics' => $repeatedIdrefDiagnostics,
             'partNames' => $partNames,
             'packagePaths' => $packagePaths,
             'missingPartNames' => $missingPartNames,
