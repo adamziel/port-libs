@@ -1132,16 +1132,19 @@ final class EpubPackageReader
             }
         }
 
+        $id = trim($linkElement->getAttribute('id'));
+        $mediaTypeRaw = trim($linkElement->getAttribute('media-type'));
+
         return [
             'index' => $index,
-            'id' => trim($linkElement->getAttribute('id')),
+            'id' => $id,
             'rel' => $rel,
             'href' => $href,
             'target' => $target,
             'path' => $path,
             'partName' => $external ? null : ($path === '' ? null : $path),
             'fragment' => is_string($suffix['fragment'] ?? null) ? $suffix['fragment'] : '',
-            'mediaType' => trim($linkElement->getAttribute('media-type')),
+            'mediaType' => $mediaTypeRaw,
             'properties' => $this->tokens($linkElement->getAttribute('properties')),
             'refines' => trim($linkElement->getAttribute('refines')),
             'title' => $this->nullableAttribute($linkElement, 'title'),
@@ -1162,7 +1165,7 @@ final class EpubPackageReader
             'manifestMediaType' => null,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
-        ];
+        ] + $this->metadataLinkMediaTypeFields($mediaTypeRaw, $index, $id);
     }
 
     /**
@@ -1890,6 +1893,7 @@ final class EpubPackageReader
             static fn (array $property): bool => is_string($property['refines'] ?? null) && $property['refines'] !== ''
         ));
         $linkReport = $this->metadataLinkReport($links);
+        $linkMediaTypes = $this->metadataLinkMediaTypeReport($links);
 
         $report = [
             'present' => $items !== [] || $properties !== [] || $links !== [],
@@ -1925,6 +1929,13 @@ final class EpubPackageReader
             'linkDirectionTaggedCount' => $linkReport['directionTaggedCount'],
             'linkCustomAttributeCount' => $linkReport['customAttributeCount'],
             'linkReport' => $linkReport,
+            'linkMediaTypes' => $linkMediaTypes,
+            'linkMediaTypeItems' => $linkMediaTypes['items'],
+            'linkMediaTypeParameterItems' => $linkMediaTypes['parameterItems'],
+            'linkMediaTypeParameterNames' => $linkMediaTypes['parameterNames'],
+            'linkMediaTypeBaseCounts' => $linkMediaTypes['baseMediaTypeCounts'],
+            'linkMediaTypeDiagnosticCount' => $linkMediaTypes['diagnosticCount'],
+            'linkMediaTypeDiagnostics' => $linkMediaTypes['diagnostics'],
             'items' => $items,
             'itemsById' => $itemsById,
             'itemsByKind' => $itemsByKind,
@@ -1981,6 +1992,8 @@ final class EpubPackageReader
             'linkLanguageTaggedCount' => $report['linkLanguageTaggedCount'],
             'linkDirectionTaggedCount' => $report['linkDirectionTaggedCount'],
             'linkCustomAttributeCount' => $report['linkCustomAttributeCount'],
+            'linkMediaTypeParameterCount' => $linkMediaTypes['parameterCount'],
+            'linkMediaTypeDiagnosticCount' => $linkMediaTypes['diagnosticCount'],
         ];
 
         return $report;
@@ -2088,6 +2101,193 @@ final class EpubPackageReader
             'linksByRel' => $linksByRel,
             'targets' => $targets,
             'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metadataLinkMediaTypeFields(string $declaredMediaType, int $linkIndex, string $id): array
+    {
+        $declaredMediaType = trim($declaredMediaType);
+        if ($declaredMediaType === '') {
+            return [
+                'declaredMediaType' => null,
+                'effectiveMediaType' => null,
+                'mediaTypeSource' => null,
+                'normalizedMediaType' => null,
+                'baseMediaType' => null,
+                'mediaTypeBase' => null,
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterMap' => [],
+                'mediaTypeParameterNames' => [],
+                'mediaTypeSyntaxValid' => null,
+                'mediaTypeDiagnostics' => [],
+            ];
+        }
+
+        $report = $this->mediaTypeReport($declaredMediaType);
+        $diagnostics = [];
+        foreach ($report['mediaTypeDiagnostics'] as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $diagnostics[] = $this->metadataLinkMediaTypeDiagnostic(
+                $diagnostic,
+                $linkIndex,
+                $id === '' ? null : $id
+            );
+        }
+
+        return [
+            'declaredMediaType' => $declaredMediaType,
+            'effectiveMediaType' => $declaredMediaType,
+            'mediaTypeSource' => 'link',
+            'normalizedMediaType' => $report['normalizedMediaType'],
+            'baseMediaType' => $report['mediaTypeBase'],
+            'mediaTypeBase' => $report['mediaTypeBase'],
+            'mediaTypeHasParameters' => $report['mediaTypeHasParameters'],
+            'mediaTypeParameterCount' => $report['mediaTypeParameterCount'],
+            'mediaTypeParameters' => $report['mediaTypeParameters'],
+            'mediaTypeParameterMap' => $report['mediaTypeParameterMap'],
+            'mediaTypeParameterNames' => array_column($report['mediaTypeParameters'], 'name'),
+            'mediaTypeSyntaxValid' => $diagnostics === [],
+            'mediaTypeDiagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     * @return array<string, mixed>
+     */
+    private function metadataLinkMediaTypeDiagnostic(array $diagnostic, int $linkIndex, ?string $id): array
+    {
+        $type = (string) ($diagnostic['type'] ?? 'metadata-link-media-type-diagnostic');
+        $mappedType = match ($type) {
+            'invalid-manifest-media-type' => 'invalid-metadata-link-media-type',
+            'invalid-manifest-media-type-parameter' => 'invalid-metadata-link-media-type-parameter',
+            'invalid-manifest-media-type-parameter-name' => 'invalid-metadata-link-media-type-parameter-name',
+            'duplicate-manifest-media-type-parameter' => 'duplicate-metadata-link-media-type-parameter',
+            default => $type,
+        };
+        $message = match ($mappedType) {
+            'invalid-metadata-link-media-type' => 'EPUB OPF metadata link media-type must be a MIME type in type/subtype form',
+            'invalid-metadata-link-media-type-parameter' => 'EPUB OPF metadata link media-type parameters must use name=value syntax',
+            'invalid-metadata-link-media-type-parameter-name' => 'EPUB OPF metadata link media-type parameter names must be MIME tokens',
+            'duplicate-metadata-link-media-type-parameter' => 'EPUB OPF metadata link media-type parameter repeats a name; later value is retained for package review',
+            default => is_string($diagnostic['message'] ?? null) ? $diagnostic['message'] : 'EPUB OPF metadata link media-type diagnostic',
+        };
+
+        $mapped = [
+            'type' => $mappedType,
+            'linkIndex' => $linkIndex,
+            'id' => $id,
+        ] + $diagnostic;
+        $mapped['message'] = $message;
+
+        return $mapped;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @return array<string, mixed>
+     */
+    private function metadataLinkMediaTypeReport(array $links): array
+    {
+        $items = [];
+        $parameterItems = [];
+        $parameterNames = [];
+        $baseMediaTypeCounts = [];
+        $diagnostics = [];
+        $declaredCount = 0;
+        $parameterCount = 0;
+
+        foreach ($links as $linkIndex => $link) {
+            $effectiveMediaType = is_string($link['effectiveMediaType'] ?? null)
+                ? $link['effectiveMediaType']
+                : null;
+            if ($effectiveMediaType === null || $effectiveMediaType === '') {
+                continue;
+            }
+
+            ++$declaredCount;
+            $baseMediaType = is_string($link['baseMediaType'] ?? null)
+                ? $link['baseMediaType']
+                : (is_string($link['mediaTypeBase'] ?? null) ? $link['mediaTypeBase'] : null);
+            if ($baseMediaType !== null && $baseMediaType !== '') {
+                $baseMediaTypeCounts[$baseMediaType] = ($baseMediaTypeCounts[$baseMediaType] ?? 0) + 1;
+            }
+
+            $parameters = is_array($link['mediaTypeParameters'] ?? null)
+                ? array_values($link['mediaTypeParameters'])
+                : [];
+            $currentParameterNames = is_array($link['mediaTypeParameterNames'] ?? null)
+                ? array_values(array_filter(
+                    $link['mediaTypeParameterNames'],
+                    static fn (mixed $name): bool => is_string($name) && $name !== '',
+                ))
+                : array_values(array_filter(
+                    array_map(
+                        static fn (array $parameter): ?string => is_string($parameter['name'] ?? null) ? $parameter['name'] : null,
+                        $parameters,
+                    ),
+                    static fn (?string $name): bool => $name !== null && $name !== '',
+                ));
+            array_push($parameterNames, ...$currentParameterNames);
+            $parameterCount += count($parameters);
+
+            $itemDiagnostics = is_array($link['mediaTypeDiagnostics'] ?? null)
+                ? array_values(array_filter(
+                    $link['mediaTypeDiagnostics'],
+                    static fn (mixed $diagnostic): bool => is_array($diagnostic),
+                ))
+                : [];
+            array_push($diagnostics, ...$itemDiagnostics);
+
+            $item = [
+                'index' => is_int($link['index'] ?? null) ? $link['index'] : $linkIndex,
+                'id' => is_string($link['id'] ?? null) && $link['id'] !== '' ? $link['id'] : null,
+                'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                'path' => is_string($link['path'] ?? null) ? $link['path'] : null,
+                'fragment' => is_string($link['fragment'] ?? null) ? $link['fragment'] : null,
+                'external' => ($link['external'] ?? false) === true,
+                'declaredMediaType' => is_string($link['declaredMediaType'] ?? null) ? $link['declaredMediaType'] : null,
+                'effectiveMediaType' => $effectiveMediaType,
+                'mediaTypeSource' => is_string($link['mediaTypeSource'] ?? null) ? $link['mediaTypeSource'] : null,
+                'normalizedMediaType' => is_string($link['normalizedMediaType'] ?? null) ? $link['normalizedMediaType'] : null,
+                'baseMediaType' => $baseMediaType,
+                'parameterCount' => count($parameters),
+                'parameterNames' => $currentParameterNames,
+                'parameterMap' => is_array($link['mediaTypeParameterMap'] ?? null) ? $link['mediaTypeParameterMap'] : [],
+                'syntaxValid' => is_bool($link['mediaTypeSyntaxValid'] ?? null) ? $link['mediaTypeSyntaxValid'] : null,
+                'diagnostics' => $itemDiagnostics,
+            ];
+            $items[] = $item;
+            if ($parameters !== []) {
+                $parameterItems[] = $item;
+            }
+        }
+
+        $parameterNames = array_values(array_unique($parameterNames));
+        sort($parameterNames);
+        ksort($baseMediaTypeCounts, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'linkCount' => count($links),
+            'itemCount' => count($items),
+            'declaredCount' => $declaredCount,
+            'parameterLinkCount' => count($parameterItems),
+            'parameterCount' => $parameterCount,
+            'parameterNames' => $parameterNames,
+            'baseMediaTypeCounts' => $baseMediaTypeCounts,
+            'diagnosticCount' => count($diagnostics),
+            'items' => $items,
+            'parameterItems' => $parameterItems,
             'diagnostics' => $diagnostics,
         ];
     }

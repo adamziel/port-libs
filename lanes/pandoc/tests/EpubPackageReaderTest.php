@@ -684,6 +684,107 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports epub metadata link media type parameters for direct reader review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-metadata-link-media-types-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:reader-metadata-link-media-type-review</dc:identifier>
+    <dc:title>Metadata Link Media Type Review</dc:title>
+    <dc:language>en</dc:language>
+    <link id="review-record" rel="record alternate" refines="#bookid" href="meta/review.json#packet" media-type='application/ld+json; profile="schema;wp"; charset=UTF-8' properties="preview"/>
+    <link id="remote-a11y" rel="accessibility" href="https://example.invalid/a11y.html" media-type="text/html; charset=utf-8; charset=windows-1252"/>
+    <link id="broken-record" rel="record" href="meta/broken.review" media-type="applicationreview; broken"/>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable metadata link package.</p></body></html>');
+            $writePackageFile($root, 'EPUB/meta/review.json', '{"review":true}');
+            $writePackageFile($root, 'EPUB/meta/broken.review', 'BROKEN');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $meta = $document->attr('meta');
+            $epub = $document->attr('epub');
+            $links = $epub['metadataLinks'];
+            $report = $epub['metadataReport'];
+            $linkMediaTypes = $report['linkMediaTypes'];
+
+            $t->same('Metadata Link Media Type Review', $meta['title']);
+            $t->same(3, count($links));
+            $t->same('application/ld+json; profile="schema;wp"; charset=UTF-8', $links[0]['mediaType']);
+            $t->same('application/ld+json', $links[0]['baseMediaType']);
+            $t->same('application/ld+json', $links[0]['mediaTypeBase']);
+            $t->same('application/ld+json; profile=schema;wp; charset=utf-8', $links[0]['normalizedMediaType']);
+            $t->same(['profile' => 'schema;wp', 'charset' => 'UTF-8'], $links[0]['mediaTypeParameterMap']);
+            $t->same(['profile', 'charset'], $links[0]['mediaTypeParameterNames']);
+            $t->same(true, $links[0]['mediaTypeSyntaxValid']);
+            $t->same('EPUB/meta/review.json', $links[0]['path']);
+            $t->same('packet', $links[0]['fragment']);
+            $t->same(true, $links[1]['external']);
+            $t->same(['charset' => 'windows-1252'], $links[1]['mediaTypeParameterMap']);
+            $t->same(false, $links[1]['mediaTypeSyntaxValid']);
+            $t->same('duplicate-metadata-link-media-type-parameter', $links[1]['mediaTypeDiagnostics'][0]['type']);
+            $t->same(false, $links[2]['mediaTypeSyntaxValid']);
+            $t->same([
+                'invalid-metadata-link-media-type',
+                'invalid-metadata-link-media-type-parameter',
+            ], array_column($links[2]['mediaTypeDiagnostics'], 'type'));
+
+            $t->same(true, $linkMediaTypes['present']);
+            $t->same(3, $linkMediaTypes['linkCount']);
+            $t->same(3, $linkMediaTypes['itemCount']);
+            $t->same(3, $linkMediaTypes['declaredCount']);
+            $t->same(2, $linkMediaTypes['parameterLinkCount']);
+            $t->same(4, $linkMediaTypes['parameterCount']);
+            $t->same(['charset', 'profile'], $linkMediaTypes['parameterNames']);
+            $t->same([
+                'application/ld+json' => 1,
+                'applicationreview' => 1,
+                'text/html' => 1,
+            ], $linkMediaTypes['baseMediaTypeCounts']);
+            $t->same(['review-record', 'remote-a11y'], array_column($linkMediaTypes['parameterItems'], 'id'));
+            $t->same(3, $linkMediaTypes['diagnosticCount']);
+            $t->same([
+                'duplicate-metadata-link-media-type-parameter',
+                'invalid-metadata-link-media-type',
+                'invalid-metadata-link-media-type-parameter',
+            ], array_column($linkMediaTypes['diagnostics'], 'type'));
+            $t->same($linkMediaTypes, $report['linkMediaTypes']);
+            $t->same($linkMediaTypes['parameterItems'], $report['linkMediaTypeParameterItems']);
+            $t->same($linkMediaTypes['diagnostics'], $report['linkMediaTypeDiagnostics']);
+            $t->same(4, $report['summary']['linkMediaTypeParameterCount']);
+            $t->same(3, $report['summary']['linkMediaTypeDiagnosticCount']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports epub opf package identity and identifier diagnostics for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-reader-identity-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
