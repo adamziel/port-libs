@@ -623,4 +623,311 @@ foreach ($nativeSpanCases as $case) {
         };
 }
 
+$nativeDivFirst = static function (AstNode $document): AstNode {
+    foreach ($document->children as $block) {
+        if ($block->type === 'div') {
+            return $block;
+        }
+    }
+
+    return new AstNode('missing');
+};
+
+$nativeDivCases = [
+    [
+        'name' => 'id class data source',
+        'attrs' => 'id="html-div-alpha" class="import primary" data-source="batch-1"',
+        'text' => 'HTML native div alpha.',
+        'id' => 'html-div-alpha',
+        'classes' => ['import', 'primary'],
+        'attributes' => ['source' => 'batch-1'],
+        'htmlAttributes' => ['id' => 'html-div-alpha', 'class' => 'import primary', 'data-source' => 'batch-1'],
+        'markdownAttrs' => '{#html-div-alpha .import .primary source="batch-1"}',
+    ],
+    [
+        'name' => 'compressed classes data format',
+        'attrs' => 'class="review   packet" data-format="html"',
+        'text' => 'Compressed class packet.',
+        'classes' => ['review', 'packet'],
+        'attributes' => ['format' => 'html'],
+        'htmlAttributes' => ['class' => 'review packet', 'data-format' => 'html'],
+        'markdownAttrs' => '{.review .packet format="html"}',
+    ],
+    [
+        'name' => 'role aria label',
+        'attrs' => 'role="note" aria-label="Review note"',
+        'text' => 'Role and aria packet.',
+        'attributes' => ['role' => 'note', 'aria-label' => 'Review note'],
+        'htmlAttributes' => ['role' => 'note', 'aria-label' => 'Review note'],
+        'markdownAttrs' => '{role="note" aria-label="Review note"}',
+    ],
+    [
+        'name' => 'language title',
+        'attrs' => 'lang="pl" title="Zrodlo review"',
+        'text' => 'Language title packet.',
+        'attributes' => ['lang' => 'pl', 'title' => 'Zrodlo review'],
+        'htmlAttributes' => ['lang' => 'pl', 'title' => 'Zrodlo review'],
+        'markdownAttrs' => '{lang="pl" title="Zrodlo review"}',
+    ],
+    [
+        'name' => 'direction translate',
+        'attrs' => 'dir="rtl" translate="no"',
+        'text' => 'Direction packet.',
+        'attributes' => ['dir' => 'rtl', 'translate' => 'no'],
+        'htmlAttributes' => ['dir' => 'rtl', 'translate' => 'no'],
+        'markdownAttrs' => '{dir="rtl" translate="no"}',
+    ],
+    [
+        'name' => 'data source path',
+        'attrs' => 'data-source-path="reader/html" data-kind="source-path"',
+        'text' => 'Source path packet.',
+        'attributes' => ['source-path' => 'reader/html', 'kind' => 'source-path'],
+        'htmlAttributes' => ['data-source-path' => 'reader/html', 'data-kind' => 'source-path'],
+        'markdownAttrs' => '{source-path="reader/html" kind="source-path"}',
+    ],
+    [
+        'name' => 'cite resource data',
+        'attrs' => 'cite="https://example.test/review" resource="urn:review:2" data-kind="resource"',
+        'text' => 'Citation resource packet.',
+        'attributes' => ['cite' => 'https://example.test/review', 'resource' => 'urn:review:2', 'kind' => 'resource'],
+        'htmlAttributes' => ['cite' => 'https://example.test/review', 'resource' => 'urn:review:2', 'data-kind' => 'resource'],
+        'wordpressAttributes' => ['data-kind' => 'resource'],
+        'markdownAttrs' => '{cite="https://example.test/review" resource="urn:review:2" kind="resource"}',
+    ],
+    [
+        'name' => 'style filtered alignment',
+        'attrs' => 'style="color: red; text-align:center; border: 0"',
+        'text' => 'Style filter packet.',
+        'attributes' => ['style' => 'color: red; border: 0'],
+        'htmlAttributes' => ['style' => 'color: red; border: 0'],
+        'wordpressAttributes' => [],
+        'markdownAttrs' => '{style="color: red; border: 0"}',
+    ],
+    [
+        'name' => 'data count rank',
+        'attrs' => 'data-count="7" data-rank="02"',
+        'text' => 'Count rank packet.',
+        'attributes' => ['count' => '7', 'rank' => '02'],
+        'htmlAttributes' => ['data-count' => '7', 'data-rank' => '02'],
+        'markdownAttrs' => '{count="7" rank="02"}',
+    ],
+    [
+        'name' => 'aria describedby',
+        'attrs' => 'aria-describedby="note-a note-b" data-kind="aria"',
+        'text' => 'Describedby packet.',
+        'attributes' => ['aria-describedby' => 'note-a note-b', 'kind' => 'aria'],
+        'htmlAttributes' => ['aria-describedby' => 'note-a note-b', 'data-kind' => 'aria'],
+        'markdownAttrs' => '{aria-describedby="note-a note-b" kind="aria"}',
+    ],
+    [
+        'name' => 'id only',
+        'attrs' => 'id="only-id"',
+        'text' => 'Identifier only packet.',
+        'id' => 'only-id',
+        'htmlAttributes' => ['id' => 'only-id'],
+        'markdownAttrs' => '{#only-id}',
+    ],
+    [
+        'name' => 'class only',
+        'attrs' => 'class="content-card"',
+        'text' => 'Class only packet.',
+        'classes' => ['content-card'],
+        'htmlAttributes' => ['class' => 'content-card'],
+        'markdownAttrs' => '{.content-card}',
+    ],
+    [
+        'name' => 'title quote',
+        'attrs' => 'title="Reviewer &quot;quote&quot;" data-kind="quote"',
+        'text' => 'Quoted title packet.',
+        'attributes' => ['title' => 'Reviewer "quote"', 'kind' => 'quote'],
+        'htmlAttributes' => ['title' => 'Reviewer "quote"', 'data-kind' => 'quote'],
+        'markdownAttrs' => '{title="Reviewer \"quote\"" kind="quote"}',
+        'markdownContains' => 'title="Reviewer \"quote\""',
+    ],
+    [
+        'name' => 'data ampersand',
+        'attrs' => 'data-note="A &amp; B" data-kind="amp"',
+        'text' => 'Ampersand packet.',
+        'attributes' => ['note' => 'A & B', 'kind' => 'amp'],
+        'htmlAttributes' => ['data-note' => 'A & B', 'data-kind' => 'amp'],
+        'markdownAttrs' => '{note="A & B" kind="amp"}',
+    ],
+    [
+        'name' => 'xml language',
+        'attrs' => 'xml:lang="fr" data-kind="xml-lang"',
+        'text' => 'XML language packet.',
+        'attributes' => ['xml:lang' => 'fr', 'kind' => 'xml-lang'],
+        'htmlAttributes' => ['xml:lang' => 'fr', 'data-kind' => 'xml-lang'],
+        'markdownAttrs' => '{xml:lang="fr" kind="xml-lang"}',
+    ],
+    [
+        'name' => 'custom property',
+        'attrs' => 'property="schema:name" data-kind="property"',
+        'text' => 'Property packet.',
+        'attributes' => ['property' => 'schema:name', 'kind' => 'property'],
+        'htmlAttributes' => ['property' => 'schema:name', 'data-kind' => 'property'],
+        'wordpressAttributes' => ['data-kind' => 'property'],
+        'markdownAttrs' => '{property="schema:name" kind="property"}',
+    ],
+    [
+        'name' => 'about datatype',
+        'attrs' => 'about="#thing" datatype="Text" data-kind="rdf"',
+        'text' => 'RDF packet.',
+        'attributes' => ['about' => '#thing', 'datatype' => 'Text', 'kind' => 'rdf'],
+        'htmlAttributes' => ['about' => '#thing', 'datatype' => 'Text', 'data-kind' => 'rdf'],
+        'wordpressAttributes' => ['data-kind' => 'rdf'],
+        'markdownAttrs' => '{about="#thing" datatype="Text" kind="rdf"}',
+    ],
+    [
+        'name' => 'data lane case',
+        'attrs' => 'data-lane="pandoc" data-case="native-div"',
+        'text' => 'Lane case packet.',
+        'attributes' => ['lane' => 'pandoc', 'case' => 'native-div'],
+        'htmlAttributes' => ['data-lane' => 'pandoc', 'data-case' => 'native-div'],
+        'markdownAttrs' => '{lane="pandoc" case="native-div"}',
+    ],
+    [
+        'name' => 'id class title',
+        'attrs' => 'id="review-card" class="card highlight" title="Review card"',
+        'text' => 'Card packet.',
+        'id' => 'review-card',
+        'classes' => ['card', 'highlight'],
+        'attributes' => ['title' => 'Review card'],
+        'htmlAttributes' => ['id' => 'review-card', 'class' => 'card highlight', 'title' => 'Review card'],
+        'markdownAttrs' => '{#review-card .card .highlight title="Review card"}',
+    ],
+    [
+        'name' => 'data depth parent',
+        'attrs' => 'data-depth="2" data-parent="root"',
+        'text' => 'Depth parent packet.',
+        'attributes' => ['depth' => '2', 'parent' => 'root'],
+        'htmlAttributes' => ['data-depth' => '2', 'data-parent' => 'root'],
+        'markdownAttrs' => '{depth="2" parent="root"}',
+    ],
+    [
+        'name' => 'aria live atomic',
+        'attrs' => 'aria-live="polite" aria-atomic="true"',
+        'text' => 'Live region packet.',
+        'attributes' => ['aria-live' => 'polite', 'aria-atomic' => 'true'],
+        'htmlAttributes' => ['aria-live' => 'polite', 'aria-atomic' => 'true'],
+        'markdownAttrs' => '{aria-live="polite" aria-atomic="true"}',
+    ],
+    [
+        'name' => 'data column row',
+        'attrs' => 'data-row="4" data-column="status"',
+        'text' => 'Grid provenance packet.',
+        'attributes' => ['row' => '4', 'column' => 'status'],
+        'htmlAttributes' => ['data-row' => '4', 'data-column' => 'status'],
+        'markdownAttrs' => '{row="4" column="status"}',
+    ],
+    [
+        'name' => 'class language data',
+        'attrs' => 'class="locale review" lang="en-US" data-reviewer="editor"',
+        'text' => 'Locale reviewer packet.',
+        'classes' => ['locale', 'review'],
+        'attributes' => ['lang' => 'en-US', 'reviewer' => 'editor'],
+        'htmlAttributes' => ['class' => 'locale review', 'lang' => 'en-US', 'data-reviewer' => 'editor'],
+        'markdownAttrs' => '{.locale .review lang="en-US" reviewer="editor"}',
+    ],
+    [
+        'name' => 'data start end',
+        'attrs' => 'data-start="intro" data-end="summary"',
+        'text' => 'Boundary packet.',
+        'attributes' => ['start' => 'intro', 'end' => 'summary'],
+        'htmlAttributes' => ['data-start' => 'intro', 'data-end' => 'summary'],
+        'markdownAttrs' => '{start="intro" end="summary"}',
+    ],
+    [
+        'name' => 'id data status',
+        'attrs' => 'id="status-packet" data-status="ready" data-owner="docs"',
+        'text' => 'Status owner packet.',
+        'id' => 'status-packet',
+        'attributes' => ['status' => 'ready', 'owner' => 'docs'],
+        'htmlAttributes' => ['id' => 'status-packet', 'data-status' => 'ready', 'data-owner' => 'docs'],
+        'markdownAttrs' => '{#status-packet status="ready" owner="docs"}',
+    ],
+];
+
+foreach ($nativeDivCases as $case) {
+    $tests['maps upstream markdown html native div extension ' . $case['name'] . ' with metadata'] =
+        static function (TestRunner $t) use ($case, $nativeDivFirst): void {
+            $document = (new MarkdownReader())->read(implode("\n", [
+                '---',
+                'title: Native div **Packet**',
+                'review: {extension: native_divs, family: html, kind: block, name: "' . $case['name'] . '"}',
+                '...',
+                '',
+                '<div ' . $case['attrs'] . '>',
+                $case['text'],
+                '</div>',
+            ]));
+
+            $meta = $document->attr('meta');
+            $div = $nativeDivFirst($document);
+            $paragraph = $div->children[0] ?? new AstNode('missing');
+            $attributes = $div->attr('attributes', []);
+            $htmlAttributes = $div->attr('htmlAttributes', []);
+            $markdown = (new MarkdownWriter())->write($document);
+            $blocks = (new WordPressBlockWriter())->write($document);
+
+            $t->same('native_divs', $meta['review']['extension'] ?? null);
+            $t->same('html', $meta['review']['family'] ?? null);
+            $t->same('block', $meta['review']['kind'] ?? null);
+            $t->same($case['name'], $meta['review']['name'] ?? null);
+            $t->same('div', $div->type);
+            $t->same($case['id'] ?? '', $div->attr('id', ''));
+            $t->same($case['classes'] ?? [], $div->attr('classes', []));
+            $t->same('paragraph', $paragraph->type);
+            $t->same($case['text'], $paragraph->attr('text'));
+            foreach ($case['attributes'] ?? [] as $name => $value) {
+                $t->same($value, $attributes[$name] ?? null, $case['name'] . ' attribute ' . $name);
+            }
+            foreach ($case['htmlAttributes'] ?? [] as $name => $value) {
+                $t->same($value, $htmlAttributes[$name] ?? null, $case['name'] . ' HTML attribute ' . $name);
+            }
+
+            $t->contains('::: ' . $case['markdownAttrs'], $markdown);
+            $t->contains($case['markdownContains'] ?? $case['markdownAttrs'], $markdown);
+            foreach ($case['wordpressAttributes'] ?? $case['htmlAttributes'] ?? [] as $name => $value) {
+                $t->contains($name . '="' . htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"', $blocks, $case['name'] . ' WordPress attribute ' . $name);
+            }
+            $t->contains('<p>' . htmlspecialchars($case['text'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>', $blocks);
+        };
+
+    $tests['round trips upstream markdown html native div extension ' . $case['name'] . ' through json native and markdown writers'] =
+        static function (TestRunner $t) use ($case, $nativeDivFirst): void {
+            $document = (new MarkdownReader())->read(implode("\n", [
+                '<div ' . $case['attrs'] . '>',
+                $case['text'],
+                '</div>',
+            ]));
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+            $markdownRoundTrip = (new MarkdownReader())->read((new MarkdownWriter())->write($document));
+
+            $roundTrips = [
+                'json' => (new PandocJsonReader())->readPacket($jsonPacket),
+                'native' => (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR)),
+                'markdown' => $markdownRoundTrip,
+            ];
+
+            foreach ($roundTrips as $source => $roundTrip) {
+                $div = $nativeDivFirst($roundTrip);
+                $paragraph = $div->children[0] ?? new AstNode('missing');
+                $attributes = $div->attr('attributes', []);
+                $markdown = (new MarkdownWriter())->write($roundTrip);
+
+                $t->same('div', $div->type, "{$source} div node");
+                $t->same($case['id'] ?? '', $div->attr('id', ''), "{$source} div id");
+                $t->same($case['classes'] ?? [], $div->attr('classes', []), "{$source} div classes");
+                foreach ($case['attributes'] ?? [] as $name => $value) {
+                    $t->same($value, $attributes[$name] ?? null, "{$source} {$case['name']} attribute {$name}");
+                }
+                $t->same('paragraph', $paragraph->type, "{$source} paragraph node");
+                $t->same($case['text'], $paragraph->attr('text'), "{$source} paragraph text");
+                $t->contains('::: ' . $case['markdownAttrs'], $markdown, "{$source} Markdown div attributes");
+            }
+        };
+}
+
 return $tests;
