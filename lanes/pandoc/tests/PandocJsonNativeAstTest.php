@@ -12284,6 +12284,205 @@ return [
             }
         }
     },
+    'accepts single wrapped block and table helper constructor tuples from json and native ast' => static function (TestRunner $t): void {
+        $headerBlock = ['t' => 'Header', 'c' => [[
+            2,
+            ['wrapped-heading', ['json-native'], [['data-kind', 'wrapped-block']]],
+            [
+                ['t' => 'Str', 'c' => 'Wrapped'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'heading'],
+            ],
+        ]], 'reviewQueue' => 'header-wrapper'];
+        $codeBlock = ['t' => 'CodeBlock', 'c' => [[
+            ['wrapped-code', ['php'], [['data-kind', 'wrapped-block']]],
+            "echo 'wrapped';\n",
+        ]], 'reviewQueue' => 'code-wrapper'];
+        $rawBlock = ['t' => 'RawBlock', 'c' => [[
+            ['t' => 'Format', 'c' => 'html'],
+            '<aside>wrapped raw</aside>',
+        ]], 'reviewQueue' => 'raw-wrapper'];
+        $divBlock = ['t' => 'Div', 'c' => [[
+            ['wrapped-div', ['review'], [['data-kind', 'wrapped-block']]],
+            [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Wrapped'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'div'],
+                ]],
+            ],
+        ]], 'reviewQueue' => 'div-wrapper'];
+        $orderedBlock = ['t' => 'OrderedList', 'c' => [[
+            [5, ['t' => 'UpperRoman'], ['t' => 'TwoParens']],
+            [[
+                ['t' => 'Plain', 'c' => [
+                    ['t' => 'Str', 'c' => 'Wrapped'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'ordered'],
+                ]],
+            ]],
+        ]], 'reviewQueue' => 'ordered-wrapper'];
+        $definitionTerm = [
+            ['t' => 'Str', 'c' => 'Wrapped'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'term'],
+        ];
+        $definitionBlocks = [
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Wrapped'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'definition'],
+            ]],
+        ];
+        $definitionBlock = ['t' => 'DefinitionList', 'c' => [
+            [[$definitionTerm, [$definitionBlocks]]],
+        ], 'reviewQueue' => 'definition-wrapper'];
+        $figureBlock = ['t' => 'Figure', 'c' => [[
+            ['wrapped-figure', ['review'], [['data-kind', 'wrapped-block']]],
+            ['t' => 'Caption', 'c' => [
+                ['t' => 'Nothing'],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Wrapped'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'figure'],
+                    ]],
+                ],
+            ]],
+            [
+                ['t' => 'Plain', 'c' => [
+                    ['t' => 'Str', 'c' => 'Figure'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'body'],
+                ]],
+            ],
+        ]], 'reviewQueue' => 'figure-wrapper'];
+
+        $cell = ['t' => 'Cell', 'c' => [[
+            ['wrapped-cell', ['body'], [['data-kind', 'wrapped-cell']]],
+            ['t' => 'AlignRight', 'reviewQueue' => 'cell-align'],
+            ['t' => 'RowSpan', 'c' => [2], 'reviewQueue' => 'cell-rowspan'],
+            ['t' => 'ColSpan', 'c' => [3], 'reviewQueue' => 'cell-colspan'],
+            [
+                ['t' => 'Plain', 'c' => [
+                    ['t' => 'Str', 'c' => 'Wrapped'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'cell'],
+                ]],
+            ],
+        ]], 'reviewQueue' => 'cell-wrapper'];
+        $row = ['t' => 'Row', 'c' => [[
+            ['wrapped-row', ['body'], [['data-kind', 'wrapped-row']]],
+            [$cell],
+        ]], 'reviewQueue' => 'row-wrapper'];
+        $head = ['t' => 'TableHead', 'c' => [[
+            ['wrapped-head', ['header'], [['data-kind', 'wrapped-head']]],
+            [$row],
+        ]], 'reviewQueue' => 'head-wrapper'];
+        $body = ['t' => 'TableBody', 'c' => [[
+            ['wrapped-body', ['body'], [['data-kind', 'wrapped-body']]],
+            ['t' => 'RowHeadColumns', 'c' => [1], 'reviewQueue' => 'row-head-wrapper'],
+            [],
+            [$row],
+        ]], 'reviewQueue' => 'body-wrapper'];
+        $foot = ['t' => 'TableFoot', 'c' => [[
+            ['wrapped-foot', ['footer'], [['data-kind', 'wrapped-foot']]],
+            [],
+        ]], 'reviewQueue' => 'foot-wrapper'];
+        $tableBlock = ['t' => 'Table', 'c' => [[
+            ['wrapped-table', ['review'], [['data-kind', 'wrapped-table']]],
+            ['t' => 'Caption', 'c' => [
+                ['t' => 'Nothing'],
+                [],
+            ]],
+            [
+                [
+                    [
+                        ['t' => 'AlignRight', 'reviewQueue' => 'col-align'],
+                        ['t' => 'ColWidth', 'c' => [0.25], 'reviewQueue' => 'col-width'],
+                    ],
+                ],
+            ],
+            $head,
+            [$body],
+            $foot,
+        ]], 'reviewQueue' => 'table-wrapper'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                $headerBlock,
+                $codeBlock,
+                $rawBlock,
+                $divBlock,
+                $orderedBlock,
+                $definitionBlock,
+                $figureBlock,
+                $tableBlock,
+            ],
+        ];
+        $withoutNativeWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $children = $document->children;
+            $table = $children[7];
+            $tableHead = $table->children[0];
+            $tableBody = $table->children[1];
+            $tableFoot = $table->children[2];
+            $tableCell = $tableHead->children[0]->children[0];
+
+            $t->same(['heading', 'code_block', 'raw_html', 'div', 'ordered_list', 'definition_list', 'figure', 'table'], array_map(static fn (AstNode $node): string => $node->type, $children), "{$source} wrapped block tuple types");
+            $t->same('Wrapped heading', $children[0]->attr('text'), "{$source} wrapped heading text");
+            $t->same(['php'], $children[1]->attr('classes'), "{$source} wrapped code attr classes");
+            $t->same('<aside>wrapped raw</aside>', $children[2]->attr('html'), "{$source} wrapped raw block html");
+            $t->same('wrapped-div', $children[3]->attr('id'), "{$source} wrapped div id");
+            $t->same([5, 'upper_roman', 'two_parens'], [$children[4]->attr('start'), $children[4]->attr('style'), $children[4]->attr('delimiter')], "{$source} wrapped ordered list attributes");
+            $t->same('Wrapped term', $children[5]->children[0]->children[0]->attr('text'), "{$source} wrapped definition item tuple");
+            $t->same('Wrapped figure', $children[6]->attr('caption'), "{$source} wrapped figure caption");
+            $t->same('wrapped-table', $table->attr('id'), "{$source} wrapped table id");
+            $t->same('wrapped-head', $tableHead->attr('id'), "{$source} wrapped table head id");
+            $t->same('wrapped-body', $tableBody->attr('id'), "{$source} wrapped table body id");
+            $t->same('wrapped-foot', $tableFoot->attr('id'), "{$source} wrapped table foot id");
+            $t->same([1, 2, 3], [$tableBody->attr('rowHeadColumns'), $tableCell->attr('rowspan'), $tableCell->attr('colspan')], "{$source} wrapped table integer helpers");
+            $t->same([['right'], [0.25]], [$table->attr('alignments'), $table->attr('widths')], "{$source} wrapped table column spec");
+            $t->same('Wrapped cell', $tableCell->attr('text'), "{$source} wrapped table cell text");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($packet['blocks'], $encoded['blocks'], "{$source} {$writer} preserves wrapped block tuple payloads");
+            }
+
+            $rebuiltTableDocument = new AstNode('document', $document->attrs, [
+                new AstNode('table', $withoutNativeWrapper($table), $table->children),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuiltTableDocument),
+                'native' => json_decode((new NativeWriter())->write($rebuiltTableDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $rebuiltTable = $encoded['blocks'][0];
+
+                $t->same('Table', $rebuiltTable['t'], "{$source} {$writer} rebuilt table constructor");
+                $t->same($head, $rebuiltTable['c'][3], "{$source} {$writer} preserves wrapped table head helper tuple");
+                $t->same($body, $rebuiltTable['c'][4][0], "{$source} {$writer} preserves wrapped table body helper tuple");
+                $t->same($foot, $rebuiltTable['c'][5], "{$source} {$writer} preserves wrapped table foot helper tuple");
+                $t->same($row, $rebuiltTable['c'][3]['c'][0][1][0], "{$source} {$writer} preserves wrapped row helper tuple");
+                $t->same($cell, $rebuiltTable['c'][3]['c'][0][1][0]['c'][0][1][0], "{$source} {$writer} preserves wrapped cell helper tuple");
+            }
+        }
+    },
     'preserves task list checkbox sidecars through json and native list items' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

@@ -831,7 +831,7 @@ final class PandocJsonReader
     {
         $items = [];
         foreach ($this->listContent($content, 'DefinitionList') as $item) {
-            $tuple = $this->tuple($item, 2, 'DefinitionList item');
+            $tuple = $this->singleWrappedTuple($item, 2, 'DefinitionList item');
             $definitions = [];
             foreach ($this->listContent($tuple[1], 'DefinitionList definitions') as $definition) {
                 $definitions[] = new AstNode(
@@ -1243,7 +1243,7 @@ final class PandocJsonReader
         $columnWidthConstructors = [];
         $columnWidthNatives = [];
         foreach ($this->listContent($colSpecs, 'Table column specs') as $colSpec) {
-            $tuple = $this->tuple($colSpec, 2, 'Table column spec');
+            $tuple = $this->singleWrappedTuple($colSpec, 2, 'Table column spec');
             $alignmentConstructor = $this->enumTag($tuple[0], 'table alignment');
             $columnWidthConstructor = $this->tableColumnWidthConstructor($tuple[1]);
             $alignments[] = $this->tableAlignmentFromConstructor($alignmentConstructor);

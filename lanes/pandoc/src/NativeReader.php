@@ -926,7 +926,7 @@ final class NativeReader
     {
         $items = [];
         foreach ($this->listContent($content, 'Pandoc native JSON DefinitionList items') as $item) {
-            $tuple = $this->tuple($item, 2, 'Pandoc native JSON DefinitionList item');
+            $tuple = $this->singleWrappedTuple($item, 2, 'Pandoc native JSON DefinitionList item');
             $definitions = [];
             foreach ($this->listContent($tuple[1], 'Pandoc native JSON DefinitionList definitions') as $definition) {
                 $definitions[] = new AstNode(
@@ -1186,7 +1186,7 @@ final class NativeReader
         $columnWidthConstructors = [];
         $columnWidthNatives = [];
         foreach ($this->listContent($colSpecs, 'Pandoc native JSON Table column specs') as $colSpec) {
-            $tuple = $this->tuple($colSpec, 2, 'Pandoc native JSON Table column spec');
+            $tuple = $this->singleWrappedTuple($colSpec, 2, 'Pandoc native JSON Table column spec');
             $alignmentConstructor = $this->constructorTag($tuple[0], 'Pandoc native JSON table alignment');
             $columnWidthConstructor = $this->tableColumnWidthConstructor($tuple[1]);
             $alignments[] = $this->tableAlignmentFromConstructor($alignmentConstructor);

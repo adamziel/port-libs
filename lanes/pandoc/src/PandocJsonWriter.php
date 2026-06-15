@@ -1652,7 +1652,7 @@ final class PandocJsonWriter
             return !array_key_exists('c', $native);
         }
         if ($tag === 'Figure' || $tag === 'Table') {
-            $content = $native['c'] ?? null;
+            $content = $this->nativeBlockTupleContent($native['c'] ?? null);
 
             return is_array($content)
                 && array_is_list($content)
@@ -1670,6 +1670,22 @@ final class PandocJsonWriter
             'LineBlock',
             'Div',
         ], true);
+    }
+
+    private function nativeBlockTupleContent(mixed $content): mixed
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+            && count($content[0]) > 1
+        ) {
+            return $content[0];
+        }
+
+        return $content;
     }
 
     private function hasNonCurrentNativeBlockPayload(mixed $value): bool
