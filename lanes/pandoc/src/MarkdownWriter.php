@@ -3476,6 +3476,7 @@ final class MarkdownWriter
         $escaped = '';
         $length = strlen($text);
         $lineStart = true;
+        $leadingSpaces = 0;
         $definitionLineStart = $escapeDefinitionMarker;
 
         for ($i = 0; $i < $length; $i++) {
@@ -3485,7 +3486,14 @@ final class MarkdownWriter
             if ($char === "\n") {
                 $escaped .= "\n";
                 $lineStart = true;
+                $leadingSpaces = 0;
                 $definitionLineStart = true;
+                continue;
+            }
+
+            if ($lineStart && $char === ' ' && $leadingSpaces < 3) {
+                $escaped .= ' ';
+                $leadingSpaces++;
                 continue;
             }
 
@@ -3511,14 +3519,14 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->startsWithParenthesizedOrderedListMarker($tail)) {
+            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->startsWithParenthesizedOrderedListMarker($tail, $leadingSpaces > 0)) {
                 $escaped .= '\\(';
                 $lineStart = false;
                 $definitionLineStart = false;
                 continue;
             }
 
-            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->matchFancyOrderedListMarker($tail, $match)) {
+            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->matchFancyOrderedListMarker($tail, $match, $leadingSpaces > 0)) {
                 $escaped .= $match[1] . '\\' . $match[2];
                 $i += strlen($match[1]);
                 $lineStart = false;
@@ -3663,18 +3671,21 @@ final class MarkdownWriter
     /**
      * @param array<int, string> $match
      */
-    private function matchFancyOrderedListMarker(string $text, array &$match): bool
+    private function matchFancyOrderedListMarker(string $text, array &$match, bool $allowIndentedSingleSpace = false): bool
     {
         if (preg_match('/^([A-Za-z]+)([.)])(?=[ \t]|$)/', $text, $match) !== 1) {
             return false;
         }
 
         $spacesAfterMarker = strspn($text, " \t", strlen($match[1]) + 1);
+        if ($allowIndentedSingleSpace && strlen($match[1]) === 1 && $spacesAfterMarker >= 1) {
+            return true;
+        }
 
         return $this->isFancyOrderedListMarkerToken($match[1], $match[2], $spacesAfterMarker);
     }
 
-    private function startsWithParenthesizedOrderedListMarker(string $text): bool
+    private function startsWithParenthesizedOrderedListMarker(string $text, bool $allowIndentedSingleSpace = false): bool
     {
         if (preg_match('/^\(@[A-Za-z0-9_-]*\)(?=[ \t]|$)/', $text) === 1) {
             return true;
@@ -3689,6 +3700,10 @@ final class MarkdownWriter
         }
 
         if (ctype_digit($match[1])) {
+            return true;
+        }
+
+        if ($allowIndentedSingleSpace && strlen($match[1]) === 1 && strlen($match[2]) >= 1) {
             return true;
         }
 
