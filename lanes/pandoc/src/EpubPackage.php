@@ -743,6 +743,10 @@ final class EpubPackage
                 'packageInventoryUndeclaredPackageEntryDiagnostics' => $packageInventory['undeclaredPackageEntryDiagnostics'],
                 'packageInventoryDuplicateManifestIdItems' => $packageInventory['duplicateManifestIdItems'],
                 'packageInventoryDuplicateManifestIdPartNames' => $packageInventory['duplicateManifestIdPartNames'],
+                'packageInventoryOpfManifestPartDeclarations' => $packageInventory['opfManifestPartDeclarations'],
+                'packageInventoryOpfManifestPartDeclarationsByPartName' => $packageInventory['opfManifestPartDeclarationsByPartName'],
+                'packageInventoryOpfManifestDuplicatePartDeclarations' => $packageInventory['opfManifestDuplicatePartDeclarationItems'],
+                'packageInventoryOpfManifestDuplicatePartDeclarationDiagnostics' => $packageInventory['opfManifestDuplicatePartDeclarationDiagnostics'],
                 'readingOrderInventory' => $readingOrderInventory,
                 'manifestDependencyInventory' => $manifestDependencyInventory,
                 'manifestDependencyEdges' => $manifestDependencyInventory['edges'],
@@ -8866,6 +8870,10 @@ final class EpubPackage
         $undeclaredEntryReport = self::packageInventoryUndeclaredEntryReport($entries);
         $directorySummaries = self::packageInventoryDirectorySummaries($entries);
         $extensionSummaries = self::packageInventoryExtensionSummaries($entries);
+        $manifestPartDeclarations = self::packageInventoryManifestPartDeclarationReport(
+            $manifestByPackagePath,
+            $byPackagePath,
+        );
         $localHeaderOrder = $package->localHeaderOrderPreflight();
         $localHeaderOrderDiagnostics = self::packageInventoryLocalHeaderOrderDiagnostics($localHeaderOrder);
         $centralDirectoryOrderMismatchedPartNames = array_values(array_map(
@@ -8938,6 +8946,17 @@ final class EpubPackage
             'missingOpfManifestDeclaredItemsByPartName' => $missingManifestDeclaredItemsByPartName,
             'missingOpfManifestDeclaredDiagnosticCount' => count($missingManifestDeclaredDiagnostics),
             'missingOpfManifestDeclaredDiagnostics' => $missingManifestDeclaredDiagnostics,
+            'opfManifestPartDeclarationCount' => $manifestPartDeclarations['partCount'],
+            'opfManifestPartDeclarationItemCount' => $manifestPartDeclarations['declarationCount'],
+            'opfManifestPartDeclarations' => $manifestPartDeclarations['items'],
+            'opfManifestPartDeclarationsByPartName' => $manifestPartDeclarations['itemsByPartName'],
+            'opfManifestPartDeclarationsByPackagePath' => $manifestPartDeclarations['itemsByPackagePath'],
+            'opfManifestDuplicatePartDeclarationCount' => $manifestPartDeclarations['duplicatePartCount'],
+            'opfManifestDuplicatePartDeclarationItemCount' => $manifestPartDeclarations['duplicateDeclarationCount'],
+            'opfManifestDuplicatePartDeclarationPartNames' => $manifestPartDeclarations['duplicatePartNames'],
+            'opfManifestDuplicatePartDeclarationItems' => $manifestPartDeclarations['duplicateItems'],
+            'opfManifestDuplicatePartDeclarationDiagnosticCount' => $manifestPartDeclarations['diagnosticCount'],
+            'opfManifestDuplicatePartDeclarationDiagnostics' => $manifestPartDeclarations['diagnostics'],
             'duplicateManifestIdPartNames' => array_keys($duplicateManifestIdPartNames),
             'duplicateManifestIdPackagePaths' => array_keys($duplicateManifestIdPackagePaths),
             'duplicateManifestIdItems' => $duplicateManifestIdItems,
@@ -8975,6 +8994,161 @@ final class EpubPackage
             'localHeaderOrderDiagnostics' => $localHeaderOrderDiagnostics,
             'byPackagePath' => $byPackagePath,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $manifestByPackagePath
+     * @param array<string, array<string, mixed>> $inventoryByPackagePath
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageInventoryManifestPartDeclarationReport(
+        array $manifestByPackagePath,
+        array $inventoryByPackagePath
+    ): array {
+        $items = [];
+        $itemsByPartName = [];
+        $itemsByPackagePath = [];
+        $duplicateItems = [];
+        $duplicatePartNames = [];
+        $diagnostics = [];
+        $declarationCount = 0;
+        $duplicateDeclarationCount = 0;
+
+        $uniqueStrings = static function (array $values): array {
+            return array_values(array_unique(array_values(array_filter(
+                $values,
+                static fn (mixed $value): bool => is_string($value) && $value !== '',
+            ))));
+        };
+
+        ksort($manifestByPackagePath, SORT_STRING);
+        foreach ($manifestByPackagePath as $packagePath => $matches) {
+            if (!is_string($packagePath) || $packagePath === '') {
+                continue;
+            }
+
+            $declarations = [];
+            foreach ($matches as $match) {
+                if (!is_array($match)) {
+                    continue;
+                }
+
+                $mediaType = is_string($match['mediaType'] ?? null) ? $match['mediaType'] : '';
+                $properties = is_array($match['properties'] ?? null) ? array_values($match['properties']) : [];
+                $declarations[] = [
+                    'index' => is_int($match['index'] ?? null) ? (int) $match['index'] : count($declarations),
+                    'id' => is_string($match['id'] ?? null) ? $match['id'] : '',
+                    'href' => is_string($match['href'] ?? null) ? $match['href'] : '',
+                    'target' => is_string($match['target'] ?? null) ? $match['target'] : '',
+                    'partName' => self::packageInventoryPartName($packagePath),
+                    'packagePath' => $packagePath,
+                    'mediaType' => $mediaType,
+                    'mediaTypeBase' => $mediaType === '' ? null : self::mediaTypeBase($mediaType),
+                    'properties' => $properties,
+                    'resourceKind' => self::packageInventoryResourceKind($mediaType, $packagePath, $properties),
+                    'exists' => ($match['exists'] ?? false) === true,
+                ];
+            }
+
+            if ($declarations === []) {
+                continue;
+            }
+
+            usort(
+                $declarations,
+                static fn (array $left, array $right): int => ($left['index'] <=> $right['index']),
+            );
+
+            $partName = self::packageInventoryPartName($packagePath);
+            $inventoryItem = isset($inventoryByPackagePath[$packagePath]) && is_array($inventoryByPackagePath[$packagePath])
+                ? $inventoryByPackagePath[$packagePath]
+                : null;
+            $ids = $uniqueStrings(array_column($declarations, 'id'));
+            $hrefs = $uniqueStrings(array_column($declarations, 'href'));
+            $targets = $uniqueStrings(array_column($declarations, 'target'));
+            $indexes = array_map(static fn (array $item): int => (int) $item['index'], $declarations);
+            $mediaTypes = $uniqueStrings(array_column($declarations, 'mediaType'));
+            $mediaTypeBases = $uniqueStrings(array_column($declarations, 'mediaTypeBase'));
+            $resourceKinds = $uniqueStrings(array_column($declarations, 'resourceKind'));
+            $duplicate = count($declarations) > 1;
+            $itemDiagnostics = [];
+
+            if ($duplicate) {
+                $diagnostic = [
+                    'type' => 'duplicate-opf-manifest-package-part-declaration',
+                    'partName' => $partName,
+                    'packagePath' => $packagePath,
+                    'ids' => $ids,
+                    'hrefs' => $hrefs,
+                    'indexes' => $indexes,
+                    'message' => 'EPUB OPF manifest maps multiple item declarations to the same package part; compact inventory keeps the grouped declarations for review',
+                ];
+                $itemDiagnostics[] = $diagnostic;
+                $diagnostics[] = $diagnostic;
+                $duplicatePartNames[] = $partName;
+                $duplicateDeclarationCount += count($declarations);
+            }
+
+            $selected = $declarations[0];
+            $item = [
+                'partName' => $partName,
+                'packagePath' => $packagePath,
+                'declarationCount' => count($declarations),
+                'duplicateDeclaration' => $duplicate,
+                'indexes' => $indexes,
+                'ids' => $ids,
+                'hrefs' => $hrefs,
+                'targets' => $targets,
+                'mediaTypes' => $mediaTypes,
+                'mediaTypeBases' => $mediaTypeBases,
+                'resourceKinds' => $resourceKinds,
+                'selectedIndex' => $selected['index'],
+                'selectedId' => $selected['id'],
+                'selectedHref' => $selected['href'],
+                'selectedTarget' => $selected['target'],
+                'selectedMediaType' => $selected['mediaType'],
+                'selectedResourceKind' => $selected['resourceKind'],
+                'exists' => is_array($inventoryItem),
+                'byteLength' => is_array($inventoryItem) && is_int($inventoryItem['byteLength'] ?? null) ? $inventoryItem['byteLength'] : null,
+                'compressedByteLength' => is_array($inventoryItem) && is_int($inventoryItem['compressedByteLength'] ?? null) ? $inventoryItem['compressedByteLength'] : null,
+                'compressionMethod' => is_array($inventoryItem) && is_int($inventoryItem['compressionMethod'] ?? null) ? $inventoryItem['compressionMethod'] : null,
+                'compressionMethodName' => is_array($inventoryItem) && is_string($inventoryItem['compressionMethodName'] ?? null) ? $inventoryItem['compressionMethodName'] : null,
+                'canExposeBytes' => is_array($inventoryItem) && ($inventoryItem['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => is_array($inventoryItem) && is_string($inventoryItem['byteExposurePolicy'] ?? null)
+                    ? $inventoryItem['byteExposurePolicy']
+                    : 'missing-opf-manifest-package-part-metadata-only',
+                'roles' => is_array($inventoryItem) && is_array($inventoryItem['roles'] ?? null) ? array_values($inventoryItem['roles']) : [],
+                'declarations' => $declarations,
+                'diagnosticCount' => count($itemDiagnostics),
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            $declarationCount += count($declarations);
+            $items[] = $item;
+            $itemsByPartName[$partName] = $item;
+            $itemsByPackagePath[$packagePath] = $item;
+            if ($duplicate) {
+                $duplicateItems[] = $item;
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'partCount' => count($items),
+            'declarationCount' => $declarationCount,
+            'duplicatePartCount' => count($duplicateItems),
+            'duplicateDeclarationCount' => $duplicateDeclarationCount,
+            'partNames' => array_column($items, 'partName'),
+            'duplicatePartNames' => $duplicatePartNames,
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticTypes' => self::compactDiagnosticTypes($diagnostics),
+            'diagnostics' => $diagnostics,
+            'itemsByPartName' => $itemsByPartName,
+            'itemsByPackagePath' => $itemsByPackagePath,
+            'duplicateItems' => $duplicateItems,
+            'items' => $items,
         ];
     }
 

@@ -7283,6 +7283,70 @@ XML;
         $t->same([1, 2], $items[1]['manifestItemIndexes']);
     },
 
+    'summarizes duplicate OPF manifest package part declarations in inventory handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithDuplicatePartDeclaration = str_replace(
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter1-review" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            $epub3OpfXml
+        );
+        $chapter1 = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>';
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithDuplicatePartDeclaration],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => $chapter1],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $report = $inventory['opfManifestPartDeclarationsByPartName']['/EPUB/text/chapter1.xhtml'];
+        $duplicate = $inventory['opfManifestDuplicatePartDeclarationItems'][0];
+        $entry = $inventory['byPackagePath']['EPUB/text/chapter1.xhtml'];
+
+        $t->same(false, $validation['valid']);
+        $t->same(['duplicate-manifest-part-target'], array_column($validation['diagnostics'], 'type'));
+        $t->same(1, $validation['manifest']['duplicatePartCount']);
+        $t->same(['/EPUB/text/chapter1.xhtml'], array_column($validation['manifest']['duplicatePartItems'], 'partName'));
+        $t->same(5, $inventory['opfManifestPartDeclarationCount']);
+        $t->same(6, $inventory['opfManifestPartDeclarationItemCount']);
+        $t->same(1, $inventory['opfManifestDuplicatePartDeclarationCount']);
+        $t->same(2, $inventory['opfManifestDuplicatePartDeclarationItemCount']);
+        $t->same(['/EPUB/text/chapter1.xhtml'], $inventory['opfManifestDuplicatePartDeclarationPartNames']);
+        $t->same('duplicate-opf-manifest-package-part-declaration', $inventory['opfManifestDuplicatePartDeclarationDiagnostics'][0]['type']);
+        $t->same($report, $duplicate);
+        $t->same('/EPUB/text/chapter1.xhtml', $report['partName']);
+        $t->same('EPUB/text/chapter1.xhtml', $report['packagePath']);
+        $t->same(2, $report['declarationCount']);
+        $t->same(true, $report['duplicateDeclaration']);
+        $t->same([3, 4], $report['indexes']);
+        $t->same(['chapter1', 'chapter1-review'], $report['ids']);
+        $t->same(['text/chapter1.xhtml'], $report['hrefs']);
+        $t->same(['application/xhtml+xml'], $report['mediaTypes']);
+        $t->same(['application/xhtml+xml'], $report['mediaTypeBases']);
+        $t->same(['xhtml'], $report['resourceKinds']);
+        $t->same(3, $report['selectedIndex']);
+        $t->same('chapter1', $report['selectedId']);
+        $t->same('chapter1-review', $report['declarations'][1]['id']);
+        $t->same(true, $report['exists']);
+        $t->same(strlen($chapter1), $report['byteLength']);
+        $t->same('epub-package-entry-metadata-only', $report['byteExposurePolicy']);
+        $t->same(1, $report['diagnosticCount']);
+        $t->same('duplicate-opf-manifest-package-part-declaration', $report['diagnostics'][0]['type']);
+        $t->same(['chapter1', 'chapter1-review'], $entry['manifestIds']);
+        $t->same(2, $entry['manifestItemCount']);
+        $t->same($inventory['opfManifestPartDeclarations'], $summary['wordpressImport']['packageInventoryOpfManifestPartDeclarations']);
+        $t->same($inventory['opfManifestPartDeclarationsByPartName'], $summary['wordpressImport']['packageInventoryOpfManifestPartDeclarationsByPartName']);
+        $t->same($inventory['opfManifestDuplicatePartDeclarationItems'], $summary['wordpressImport']['packageInventoryOpfManifestDuplicatePartDeclarations']);
+        $t->same($inventory['opfManifestDuplicatePartDeclarationDiagnostics'], $summary['wordpressImport']['packageInventoryOpfManifestDuplicatePartDeclarationDiagnostics']);
+    },
+
     'reports OPF manifest href targets missing from the package' => static function (TestRunner $t) use ($epubContainerXml): void {
         $missingPartOpf = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
