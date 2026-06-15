@@ -8714,6 +8714,90 @@ XML;
         $t->same($ocf, $result['importReport']['ocf']);
         $t->same($ocf, $result['document']->attr('ocf'));
     },
+    'preserves supplemental OCF META-INF sidecar provenance as metadata-only review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $displayOptionsXml = <<<'XML'
+<display_options>
+  <platform name="*">
+    <option name="specified-fonts">true</option>
+    <option name="interactive">false</option>
+  </platform>
+</display_options>
+XML;
+        $bookmarks = "calibre-bookmarks\n/OEBPS/text/chapter1.xhtml#intro\n";
+        $brokenXml = '<display_options>';
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            null,
+            [
+                ['name' => 'META-INF/com.apple.ibooks.display-options.xml', 'data' => $displayOptionsXml],
+                ['name' => 'META-INF/calibre_bookmarks.txt', 'data' => $bookmarks, 'compressionMethod' => 0],
+                ['name' => 'META-INF/broken-display-options.xml', 'data' => $brokenXml],
+            ],
+        ));
+
+        $ocf = $result['ocf'];
+        $supplemental = $ocf['supplemental'];
+
+        $t->same(true, $ocf['present']);
+        $t->same(3, $ocf['sidecarCount']);
+        $t->same(0, $ocf['referenceCount']);
+        $t->same(['invalid-supplemental-ocf-sidecar-xml'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $ocf['diagnostics']));
+
+        $t->same(true, $supplemental['present']);
+        $t->same(3, $supplemental['sidecarCount']);
+        $t->same(3, $supplemental['itemCount']);
+        $t->same(2, $supplemental['xmlSidecarCount']);
+        $t->same(1, $supplemental['invalidXmlSidecarCount']);
+        $t->same(2, $supplemental['vendorSidecarCount']);
+        $t->same(['ibooks', 'calibre'], $supplemental['vendors']);
+        $t->same(strlen($displayOptionsXml) + strlen($bookmarks) + strlen($brokenXml), $supplemental['totalByteLength']);
+
+        $displayOptions = $supplemental['itemsByPart']['/META-INF/com.apple.ibooks.display-options.xml'];
+        $t->same(0, $displayOptions['index']);
+        $t->same('com.apple.ibooks.display-options.xml', $displayOptions['fileName']);
+        $t->same('ibooks-display-options', $displayOptions['kind']);
+        $t->same('ibooks', $displayOptions['vendor']);
+        $t->same('application/xml', $displayOptions['mediaType']);
+        $t->same(strlen($displayOptionsXml), $displayOptions['byteLength']);
+        $t->same(hash('sha256', $displayOptionsXml), $displayOptions['byteSha256']);
+        $t->same(false, $displayOptions['canExposeBytes']);
+        $t->same(false, $displayOptions['canExposeAsDocumentMedia']);
+        $t->same(true, $displayOptions['metadataOnly']);
+        $t->same(true, $displayOptions['xmlSidecar']);
+        $t->same(true, $displayOptions['xmlValid']);
+        $t->same('display_options', $displayOptions['rootName']);
+        $t->same(null, $displayOptions['rootNamespace']);
+        $t->same([], $displayOptions['rootAttributes']);
+        $t->same(1, $displayOptions['childElementCount']);
+        $t->same([], $displayOptions['diagnostics']);
+
+        $calibre = $supplemental['itemsByPart']['/META-INF/calibre_bookmarks.txt'];
+        $t->same('calibre-bookmarks', $calibre['kind']);
+        $t->same('calibre', $calibre['vendor']);
+        $t->same('text/plain', $calibre['mediaType']);
+        $t->same(false, $calibre['xmlSidecar']);
+        $t->same(null, $calibre['xmlValid']);
+        $t->same(hash('sha256', $bookmarks), $calibre['byteSha256']);
+        $t->same(false, $calibre['canExposeAsDocumentMedia']);
+
+        $broken = $supplemental['itemsByPart']['/META-INF/broken-display-options.xml'];
+        $t->same('supplemental-meta-inf-sidecar', $broken['kind']);
+        $t->same(true, $broken['xmlSidecar']);
+        $t->same(false, $broken['xmlValid']);
+        $t->same(null, $broken['rootName']);
+        $t->same('invalid-supplemental-ocf-sidecar-xml', $broken['diagnostics'][0]['type']);
+        $t->same(1, $supplemental['diagnosticCount']);
+        $t->same('/META-INF/broken-display-options.xml', $supplemental['diagnostics'][0]['part']);
+
+        $assetUnmanifestedParts = array_map(
+            static fn (array $item): ?string => $item['part'] ?? null,
+            $result['importReport']['assets']['unmanifestedItems']
+        );
+        $t->same(false, in_array('/META-INF/com.apple.ibooks.display-options.xml', $assetUnmanifestedParts, true));
+        $t->same($supplemental, $result['importReport']['ocf']['supplemental']);
+        $t->same($ocf, $result['document']->attr('ocf'));
+    },
     'parses EPUB3 SMIL media overlays for spine audio review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $smilXml): void {
         $opfWithOverlay = str_replace(
             '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',

@@ -5855,22 +5855,26 @@ final class EpubReader
         $metadata = $this->readOcfMetadata($package);
         $rights = $this->readOcfRights($package);
         $signatures = $this->readOcfSignatures($package);
+        $supplemental = $this->readOcfSupplementalSidecars($package);
         $diagnostics = array_merge(
             is_array($manifest['diagnostics'] ?? null) ? $manifest['diagnostics'] : [],
             is_array($metadata['diagnostics'] ?? null) ? $metadata['diagnostics'] : [],
             is_array($rights['diagnostics'] ?? null) ? $rights['diagnostics'] : [],
-            is_array($signatures['diagnostics'] ?? null) ? $signatures['diagnostics'] : []
+            is_array($signatures['diagnostics'] ?? null) ? $signatures['diagnostics'] : [],
+            is_array($supplemental['diagnostics'] ?? null) ? $supplemental['diagnostics'] : []
         );
 
         return [
             'present' => ($manifest['present'] ?? false) === true
                 || ($metadata['present'] ?? false) === true
                 || ($rights['present'] ?? false) === true
-                || ($signatures['present'] ?? false) === true,
+                || ($signatures['present'] ?? false) === true
+                || ($supplemental['present'] ?? false) === true,
             'sidecarCount' => (($manifest['present'] ?? false) === true ? 1 : 0)
                 + (($metadata['present'] ?? false) === true ? 1 : 0)
                 + (($rights['present'] ?? false) === true ? 1 : 0)
-                + (($signatures['present'] ?? false) === true ? 1 : 0),
+                + (($signatures['present'] ?? false) === true ? 1 : 0)
+                + (int) ($supplemental['sidecarCount'] ?? 0),
             'referenceCount' => (int) ($manifest['referenceCount'] ?? 0) + (int) ($metadata['referenceCount'] ?? 0) + (int) ($rights['referenceCount'] ?? 0) + (int) ($signatures['referenceCount'] ?? 0),
             'localReferenceCount' => (int) ($manifest['localReferenceCount'] ?? 0) + (int) ($metadata['localReferenceCount'] ?? 0) + (int) ($rights['localReferenceCount'] ?? 0) + (int) ($signatures['localReferenceCount'] ?? 0),
             'externalReferenceCount' => (int) ($manifest['externalReferenceCount'] ?? 0) + (int) ($metadata['externalReferenceCount'] ?? 0) + (int) ($rights['externalReferenceCount'] ?? 0) + (int) ($signatures['externalReferenceCount'] ?? 0),
@@ -5879,6 +5883,7 @@ final class EpubReader
             'metadata' => $metadata,
             'rights' => $rights,
             'signatures' => $signatures,
+            'supplemental' => $supplemental,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -6465,6 +6470,222 @@ final class EpubReader
         $report['valid'] = $report['valid'] && $report['diagnostics'] === [];
 
         return $report;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readOcfSupplementalSidecars(ZipPackage $package): array
+    {
+        $items = [];
+        $itemsByPart = [];
+        $diagnostics = [];
+        $totalByteLength = 0;
+        $totalCompressedByteLength = 0;
+        $knownParts = [
+            '/META-INF/container.xml' => true,
+            '/META-INF/encryption.xml' => true,
+            '/META-INF/manifest.xml' => true,
+            '/META-INF/metadata.xml' => true,
+            '/META-INF/rights.xml' => true,
+            '/META-INF/signatures.xml' => true,
+        ];
+
+        foreach ($package->entries() as $entry) {
+            if ($entry->isDirectory()) {
+                continue;
+            }
+
+            $part = OpcPackagePath::canonicalPartName($entry->name);
+            if (!str_starts_with($part, '/META-INF/') || isset($knownParts[$part])) {
+                continue;
+            }
+
+            $relative = substr($part, strlen('/META-INF/'));
+            if ($relative === '' || str_contains($relative, '/')) {
+                continue;
+            }
+
+            $item = $this->readOcfSupplementalSidecar($package, $entry, $part, count($items));
+            foreach ($item['diagnostics'] as $diagnostic) {
+                $diagnostics[] = [
+                    'index' => $item['index'],
+                    'part' => $part,
+                ] + $diagnostic;
+            }
+
+            $items[] = $item;
+            $itemsByPart[$part] = $item;
+            $totalByteLength += (int) ($item['byteLength'] ?? 0);
+            $totalCompressedByteLength += (int) ($item['compressedByteLength'] ?? 0);
+        }
+
+        $xmlItems = array_values(array_filter(
+            $items,
+            static fn (array $item): bool => ($item['xmlSidecar'] ?? false) === true,
+        ));
+        $invalidXmlItems = array_values(array_filter(
+            $xmlItems,
+            static fn (array $item): bool => ($item['xmlValid'] ?? true) === false,
+        ));
+        $vendorItems = array_values(array_filter(
+            $items,
+            static fn (array $item): bool => is_string($item['vendor'] ?? null) && $item['vendor'] !== '',
+        ));
+        $vendors = [];
+        foreach ($vendorItems as $item) {
+            $vendor = (string) ($item['vendor'] ?? '');
+            if ($vendor !== '') {
+                $vendors[$vendor] = $vendor;
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'sidecarCount' => count($items),
+            'itemCount' => count($items),
+            'xmlSidecarCount' => count($xmlItems),
+            'invalidXmlSidecarCount' => count($invalidXmlItems),
+            'vendorSidecarCount' => count($vendorItems),
+            'vendors' => array_values($vendors),
+            'totalByteLength' => $totalByteLength,
+            'totalCompressedByteLength' => $totalCompressedByteLength,
+            'items' => $items,
+            'itemsByPart' => $itemsByPart,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readOcfSupplementalSidecar(
+        ZipPackage $package,
+        ZipPackageEntry $entry,
+        string $part,
+        int $index
+    ): array {
+        $provenance = self::zipEntryProvenance($entry);
+        $extension = strtolower((string) pathinfo($part, PATHINFO_EXTENSION));
+        $mediaType = self::ocfSupplementalMediaType($part);
+        $classification = self::ocfSupplementalSidecarClassification($part);
+        $diagnostics = [];
+        $bytes = null;
+        $byteSha256 = null;
+
+        if (($provenance['canExposeBytes'] ?? false) === true) {
+            try {
+                $bytes = $package->read($part);
+                $byteSha256 = hash('sha256', $bytes);
+            } catch (\Throwable $exception) {
+                $diagnostics[] = [
+                    'type' => 'supplemental-ocf-sidecar-bytes-unavailable',
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        } else {
+            $diagnostics[] = [
+                'type' => 'unsupported-supplemental-ocf-sidecar-compression',
+                'compressionMethod' => $provenance['compressionMethod'],
+                'compressionMethodName' => $provenance['compressionMethodName'],
+                'message' => 'EPUB supplemental OCF sidecar uses unsupported ZIP compression and remains metadata-only',
+            ];
+        }
+
+        $xmlSidecar = $extension === 'xml';
+        $xmlValid = null;
+        $rootName = null;
+        $rootNamespace = null;
+        $rootLanguage = null;
+        $rootAttributes = [];
+        $childElementCount = 0;
+
+        if ($xmlSidecar && $bytes !== null) {
+            try {
+                $dom = self::loadXml($bytes, 'EPUB supplemental OCF sidecar XML');
+                $root = $dom->documentElement;
+                $xmlValid = $root instanceof \DOMElement;
+                if ($root instanceof \DOMElement) {
+                    $rootName = $root->localName;
+                    $rootNamespace = $root->namespaceURI;
+                    $rootLanguage = self::xmlLang($root);
+                    $rootAttributes = self::elementAttributes($root);
+                    $childElementCount = count(self::childElements($root));
+                }
+            } catch (\Throwable $exception) {
+                $xmlValid = false;
+                $diagnostics[] = [
+                    'type' => 'invalid-supplemental-ocf-sidecar-xml',
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'index' => $index,
+            'part' => $part,
+            'packagePath' => ltrim($part, '/'),
+            'fileName' => basename($part),
+            'kind' => $classification['kind'],
+            'vendor' => $classification['vendor'],
+            'mediaType' => $mediaType,
+            'byteLength' => $provenance['byteLength'],
+            'compressedByteLength' => $provenance['compressedByteLength'],
+            'compressionMethod' => $provenance['compressionMethod'],
+            'compressionMethodName' => $provenance['compressionMethodName'],
+            'compressionSupported' => $provenance['compressionSupported'],
+            'crc32' => $provenance['crc32'],
+            'byteSha256' => $byteSha256,
+            'canExposeBytes' => false,
+            'canExposeAsDocumentMedia' => false,
+            'metadataOnly' => true,
+            'xmlSidecar' => $xmlSidecar,
+            'xmlValid' => $xmlValid,
+            'rootName' => $rootName,
+            'rootNamespace' => $rootNamespace,
+            'rootLanguage' => $rootLanguage,
+            'rootAttributes' => $rootAttributes,
+            'childElementCount' => $childElementCount,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{kind:string, vendor:?string}
+     */
+    private static function ocfSupplementalSidecarClassification(string $part): array
+    {
+        return match (strtolower(basename($part))) {
+            'com.apple.ibooks.display-options.xml' => [
+                'kind' => 'ibooks-display-options',
+                'vendor' => 'ibooks',
+            ],
+            'calibre_bookmarks.txt' => [
+                'kind' => 'calibre-bookmarks',
+                'vendor' => 'calibre',
+            ],
+            default => [
+                'kind' => 'supplemental-meta-inf-sidecar',
+                'vendor' => null,
+            ],
+        };
+    }
+
+    private static function ocfSupplementalMediaType(string $part): ?string
+    {
+        $mediaType = self::mediaTypeFromPart($part);
+        if ($mediaType !== null) {
+            return $mediaType;
+        }
+
+        return match (strtolower((string) pathinfo($part, PATHINFO_EXTENSION))) {
+            'json' => 'application/json',
+            'opf' => self::OPF_MEDIA_TYPE,
+            'txt' => 'text/plain',
+            'xml' => 'application/xml',
+            default => null,
+        };
     }
 
     /**
