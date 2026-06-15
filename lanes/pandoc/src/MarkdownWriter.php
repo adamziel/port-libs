@@ -3540,7 +3540,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($i === 0 && $char === '@' && isset($text[$i + 1]) && preg_match('/[A-Za-z0-9_{]/', $text[$i + 1]) === 1) {
+            if ($char === '@' && $this->startsWithCitationMarker($text, $i)) {
                 $escaped .= '\\@';
                 $lineStart = false;
                 $definitionLineStart = false;
@@ -3676,7 +3676,11 @@ final class MarkdownWriter
 
     private function startsWithParenthesizedOrderedListMarker(string $text): bool
     {
-        if (preg_match('/^\(@[A-Za-z0-9_-]*\)(?=[ \t]|$)/', $text) === 1) {
+        if (preg_match('/^\(@\)(?=[ \t]|$)/', $text) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^\(@[A-Za-z0-9_-]+\)(?=[ \t])/', $text) === 1) {
             return true;
         }
 
@@ -3712,6 +3716,27 @@ final class MarkdownWriter
     private function startsWithDefinitionMarker(string $text): bool
     {
         return preg_match('/^[:~](?:[ \t]|$)/', $text) === 1;
+    }
+
+    private function startsWithCitationMarker(string $text, int $offset): bool
+    {
+        if (!isset($text[$offset + 1]) || preg_match('/[A-Za-z0-9_{]/', $text[$offset + 1]) !== 1) {
+            return false;
+        }
+
+        if ($offset === 0) {
+            return true;
+        }
+
+        if ($text[$offset - 1] === '(') {
+            if (preg_match('/^\(@[A-Za-z0-9_-]+\)(?=[ \t])/', substr($text, $offset - 1)) === 1) {
+                return false;
+            }
+
+            return $offset === 1 || $text[$offset - 2] === "\n" || $text[$offset - 2] === "\r";
+        }
+
+        return preg_match('/[ \t\r\n\[;,:]/', $text[$offset - 1]) === 1;
     }
 
     private function isIntrawordUnderscore(string $text, int $offset): bool
@@ -3928,10 +3953,15 @@ final class MarkdownWriter
 
         $attrs = $this->linkAttrTuple($node);
         $classes = $attrs['classes'];
+        $isEmailAutolink = $this->isMailtoUrl($url);
         if (
             $attrs['id'] !== ''
             || $attrs['attributes'] !== []
-            || ($classes !== [] && $classes !== ['uri'] && $classes !== ['email'])
+            || (
+                $isEmailAutolink
+                    ? ($classes !== [] && $classes !== ['email'])
+                    : ($classes !== [] && $classes !== ['uri'])
+            )
         ) {
             return false;
         }
@@ -3947,6 +3977,11 @@ final class MarkdownWriter
         }
 
         return $this->canRenderAutolinkText($suffix)
+            && (
+                $isEmailAutolink
+                    ? $this->isValidEmailAutolinkText($suffix)
+                    : $this->isValidUriAutolinkText($url)
+            )
             && ($label === $suffix || $this->escapeUri($label) === $suffix);
     }
 
@@ -3954,7 +3989,12 @@ final class MarkdownWriter
     {
         $url = (string) $node->attr('url', '');
 
-        return str_starts_with($url, 'mailto:') ? substr($url, 7) : $url;
+        return $this->isMailtoUrl($url) ? substr($url, 7) : $url;
+    }
+
+    private function isMailtoUrl(string $url): bool
+    {
+        return str_starts_with(strtolower($url), 'mailto:');
     }
 
     private function canRenderAutolinkText(string $text): bool
@@ -3969,12 +4009,33 @@ final class MarkdownWriter
             return false;
         }
 
-        $url = strtolower((string) $node->attr('url', ''));
-        if (str_starts_with($url, 'mailto:')) {
-            return filter_var($text, FILTER_VALIDATE_EMAIL) !== false;
+        $url = (string) $node->attr('url', '');
+        if ($this->isMailtoUrl($url)) {
+            return $this->isValidEmailAutolinkText($text);
         }
 
-        return preg_match('/\A[A-Za-z][A-Za-z0-9+.-]*:[^\s<>]*\z/u', $text) === 1;
+        return $this->isValidUriAutolinkText($url);
+    }
+
+    private function isValidUriAutolinkText(string $text): bool
+    {
+        if (preg_match('/\A([A-Za-z][A-Za-z0-9+.-]*):/', $text, $match) !== 1) {
+            return false;
+        }
+
+        $schemeLength = strlen($match[1]);
+
+        return $schemeLength >= 2 && $schemeLength <= 32;
+    }
+
+    private function isValidEmailAutolinkText(string $text): bool
+    {
+        return preg_match(
+            '/\A[A-Za-z0-9.!#$%&\'*+\/=?^_`{|}~-]+@'
+                . '[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?'
+                . '(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+\z/',
+            $text
+        ) === 1;
     }
 
     /**
@@ -4160,15 +4221,15 @@ final class MarkdownWriter
     {
         $parts = [];
         if ($attrs['id'] !== '') {
-            $parts[] = '#' . $this->escapeAttributeToken($attrs['id']);
+            $parts[] = '#' . $this->escapeAttributeIdentifierToken($attrs['id']);
         }
         foreach ($attrs['classes'] as $class) {
-            $parts[] = '.' . $this->escapeAttributeToken($class);
+            $parts[] = '.' . $this->escapeAttributeIdentifierToken($class);
         }
         foreach ($attrs['attributes'] as $name => $value) {
-            $parts[] = $this->escapeAttributeToken((string) $name)
+            $parts[] = $this->escapeAttributeIdentifierToken((string) $name)
                 . '="'
-                . $this->escapeAttributeToken($value)
+                . $this->escapeAttributeValue($value)
                 . '"';
         }
 
@@ -4188,8 +4249,21 @@ final class MarkdownWriter
         return json_encode($normalized, JSON_THROW_ON_ERROR);
     }
 
-    private function escapeAttributeToken(string $value): string
+    private function escapeAttributeIdentifierToken(string $value): string
     {
+        $value = trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value);
+
+        return preg_replace_callback(
+            '/[\\\\`"\'\s{}\[\]()=]/u',
+            static fn (array $match): string => '\\' . $match[0],
+            $value
+        ) ?? $value;
+    }
+
+    private function escapeAttributeValue(string $value): string
+    {
+        $value = preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value;
+
         return str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
     }
 
