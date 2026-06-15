@@ -403,7 +403,7 @@ final class BibtexCslProcessor
     {
         $item = [
             'id' => $key,
-            'type' => $this->cslType($type),
+            'type' => $this->cslTypeForEntry($type, $fields),
             'rawBibtex' => [
                 'type' => $type,
                 'fields' => $fields,
@@ -621,11 +621,27 @@ final class BibtexCslProcessor
             'legislation', 'legal' => 'legislation',
             'jurisdiction' => 'legal_case',
             'unpublished' => 'manuscript',
+            'talk',
+            'lecture',
+            'presentation' => 'speech',
             'inproceedings', 'conference', 'proceedings' => 'paper-conference',
             'phdthesis', 'mastersthesis', 'thesis' => 'thesis',
             'online', 'electronic', 'www' => 'webpage',
             default => 'article',
         };
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private function cslTypeForEntry(string $type, array $fields): string
+    {
+        $type = strtolower($type);
+        if ($type === 'unpublished' && ($this->firstField($fields, ['eventtitle', 'event-title', 'event']) ?? '') !== '') {
+            return 'speech';
+        }
+
+        return $this->cslType($type);
     }
 
     /**

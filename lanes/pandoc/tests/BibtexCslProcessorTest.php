@@ -241,6 +241,119 @@ BIB;
         $t->same('11-13', $item['page']);
         $t->same('Sam Speaker. Conference Packet. Proceedings of Migration Review. 2026. 11-13.', $bibliography);
     },
+    'maps biblatex speech entry aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@talk{legacy-talk,
+  author          = {Ng, Nia},
+  title           = {Legacy Talk Packet},
+  eventtitle      = {Migration Review Summit},
+  eventtitleaddon = {plenary queue},
+  eventtype       = {talk},
+  eventdate       = {2026-06-15},
+  venue           = {Remote Hall},
+  date            = {2026}
+}
+
+@lecture{legacy-lecture,
+  author     = {Roe, Pat},
+  title      = {Legacy Lecture Packet},
+  eventtitle = {Archive Review School},
+  eventtype  = {lecture},
+  eventdate  = {2025-11-03},
+  venue      = {Seminar Room},
+  date       = {2025}
+}
+
+@presentation{legacy-presentation,
+  author      = {Diaz, Dana},
+  title       = {Legacy Presentation Packet},
+  event-title = {Package Handoff Forum},
+  event-type  = {presentation},
+  event-date  = {2024-04-02},
+  event-place = {Review Stage},
+  date        = {2024}
+}
+
+@unpublished{legacy-evented-draft,
+  author     = {Smith, Ada},
+  title      = {Evented Draft Packet},
+  eventtitle = {Source Review Forum},
+  eventdate  = {2023-01-09},
+  venue      = {Archive Room},
+  year       = {2023}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $talk = $items['legacy-talk'];
+        $lecture = $items['legacy-lecture'];
+        $presentation = $items['legacy-presentation'];
+        $draft = $items['legacy-evented-draft'];
+
+        $t->same('speech', $talk['type']);
+        $t->same('speech', $lecture['type']);
+        $t->same('speech', $presentation['type']);
+        $t->same('speech', $draft['type']);
+        $t->same('Migration Review Summit', $talk['event']);
+        $t->same('plenary queue', $talk['event-title-addon']);
+        $t->same('talk', $talk['event-type']);
+        $t->same([2026, 6, 15], $talk['event-date']['date-parts'][0]);
+        $t->same('Remote Hall', $talk['event-place']);
+        $t->same('Remote Hall', $talk['rawBibtex']['fields']['venue']);
+        $t->same('Archive Review School', $lecture['event']);
+        $t->same('lecture', $lecture['event-type']);
+        $t->same('Package Handoff Forum', $presentation['event']);
+        $t->same('presentation', $presentation['event-type']);
+        $t->same('Review Stage', $presentation['event-place']);
+        $t->same('Evented Draft Packet', $draft['title']);
+        $t->same('Source Review Forum', $draft['event']);
+        $t->same('Archive Room', $draft['event-place']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Legacy BibLaTeX Speech Alias Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-speech-alias-review</id>
+    <updated>2026-06-15T04:20:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="event"/>
+        <date variable="event-date"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="event-place"/>
+      <text variable="event-type"/>
+      <date variable="event-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Speech Alias Review', $summary['title'] ?? null);
+        $t->same('event', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+        $t->same('[Legacy Talk Packet | Migration Review Summit | 2026; Evented Draft Packet | Source Review Forum | 2023]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-talk', 'text' => '[@legacy-talk]']),
+            new AstNode('citation', ['id' => 'legacy-evented-draft', 'text' => '[@legacy-evented-draft]']),
+        ]));
+        $t->same('Legacy Presentation Packet :: Review Stage :: presentation :: 2024-04-02', $styled->renderBibliographyEntry('legacy-presentation'));
+
+        $document = (new MarkdownReader())->read('Legacy speech aliases [@legacy-talk; @legacy-lecture; @legacy-presentation; @legacy-evented-draft] stay reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->contains('<p>Legacy speech aliases [Legacy Talk Packet | Migration Review Summit | 2026; Legacy Lecture Packet | Archive Review School | 2025; Legacy Presentation Packet | Package Handoff Forum | 2024; Evented Draft Packet | Source Review Forum | 2023] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Legacy Talk Packet :: Remote Hall :: talk :: 2026-06-15</dd>', $blocks);
+        $t->contains('<dt>Smith 2023</dt><dd>Evented Draft Packet :: Archive Room :: 2023-01-09</dd>', $blocks);
+    },
     'carries secondary csl contributor names in legacy biblatex handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @collection{secondary-credits,
