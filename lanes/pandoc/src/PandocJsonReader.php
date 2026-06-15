@@ -678,7 +678,7 @@ final class PandocJsonReader
 
     private function readHeaderBlock(mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 3, 'Header');
+        $tuple = $this->singleWrappedTuple($content, 3, 'Header');
         if (!is_int($tuple[0])) {
             throw new \InvalidArgumentException('Header level must be an integer');
         }
@@ -694,7 +694,7 @@ final class PandocJsonReader
 
     private function readCodeBlock(mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'CodeBlock');
+        $tuple = $this->singleWrappedTuple($content, 2, 'CodeBlock');
         if (!is_string($tuple[1])) {
             throw new \InvalidArgumentException('CodeBlock text must be a string');
         }
@@ -729,7 +729,7 @@ final class PandocJsonReader
 
     private function readOrderedList(mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'OrderedList');
+        $tuple = $this->singleWrappedTuple($content, 2, 'OrderedList');
         $listAttributesNative = $tuple[0];
         $listAttributesContent = $this->constructorContent($listAttributesNative, 'ListAttributes', 'OrderedList attributes', false);
         if (
@@ -872,14 +872,14 @@ final class PandocJsonReader
 
     private function readDivBlock(mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Div');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Div');
 
         return new AstNode('div', $this->readAttrTuple($tuple[0]), $this->readBlocks($this->listContent($tuple[1], 'Div blocks')));
     }
 
     private function readFigureBlock(mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 3, 'Figure');
+        $tuple = $this->singleWrappedTuple($content, 3, 'Figure');
         $attrs = array_merge(
             $this->readAttrTuple($tuple[0]),
             $this->readCaptionAttrs($tuple[1], 'Figure')
@@ -908,7 +908,7 @@ final class PandocJsonReader
 
     private function readTableBlock(mixed $content): AstNode
     {
-        $tuple = $this->listContent($content, 'Table');
+        $tuple = $this->singleWrappedTupleContent($content, 'Table');
         if (count($tuple) === 5) {
             return $this->readLegacyTableBlock($tuple);
         }

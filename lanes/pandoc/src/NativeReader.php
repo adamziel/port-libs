@@ -581,7 +581,7 @@ final class NativeReader
      */
     private function figureBlock(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 3, 'Pandoc native JSON Figure content');
+        $tuple = $this->singleWrappedTuple($content, 3, 'Pandoc native JSON Figure content');
         $attrs = array_replace(
             $attrs,
             $this->attrsFromTuple($tuple[0]),
@@ -614,7 +614,7 @@ final class NativeReader
      */
     private function tableBlock(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->listContent($content, 'Pandoc native JSON Table content');
+        $tuple = $this->singleWrappedTupleContent($content, 'Pandoc native JSON Table content');
         if (count($tuple) === 5) {
             return $this->legacyTableBlock($attrs, $tuple);
         }
@@ -782,7 +782,7 @@ final class NativeReader
      */
     private function headerBlock(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 3, 'Pandoc native JSON Header content');
+        $tuple = $this->singleWrappedTuple($content, 3, 'Pandoc native JSON Header content');
         if (!is_int($tuple[0])) {
             throw new \InvalidArgumentException('Pandoc native JSON Header level must be an integer');
         }
@@ -801,7 +801,7 @@ final class NativeReader
      */
     private function codeBlock(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Pandoc native JSON CodeBlock content');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Pandoc native JSON CodeBlock content');
         if (!is_string($tuple[1])) {
             throw new \InvalidArgumentException('Pandoc native JSON CodeBlock text must be a string');
         }
@@ -816,7 +816,7 @@ final class NativeReader
      */
     private function orderedList(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Pandoc native JSON OrderedList content');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Pandoc native JSON OrderedList content');
         $listAttributesNative = $tuple[0];
         $listAttributesContent = $this->constructorContent($listAttributesNative, 'ListAttributes', 'Pandoc native JSON OrderedList attributes', false);
         if (
@@ -975,7 +975,7 @@ final class NativeReader
      */
     private function divBlock(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Pandoc native JSON Div content');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Pandoc native JSON Div content');
 
         return new AstNode(
             'div',
@@ -989,7 +989,7 @@ final class NativeReader
      */
     private function rawBlock(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Pandoc native JSON RawBlock content');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Pandoc native JSON RawBlock content');
         if (!is_string($tuple[1])) {
             throw new \InvalidArgumentException('Pandoc native JSON RawBlock content must contain format and text strings');
         }
