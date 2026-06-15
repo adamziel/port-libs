@@ -14063,6 +14063,50 @@ HTML;
         $t->contains("1987\u{2013}1999.", $captionInlines[5]->attr('text'));
         $t->contains('<figcaption class="wp-element-caption"><strong>Migration</strong> <a href="https://example.test/audit" title="Audit">audit</a> uses <code>batch</code> 1987–1999.</figcaption>', $blocks);
     },
+    'maps upstream markdown leading table captions before pipe and simple tables' => static function (TestRunner $t): void {
+        $pipeDocument = (new MarkdownReader())->read(implode("\n", [
+            'Table: **Migration** [audit](https://example.test/audit "Audit")',
+            '  for `wp_posts` imports',
+            '',
+            '| Source | Count |',
+            '|:-------|------:|',
+            '| post   | 42    |',
+        ]));
+        $simpleDocument = (new MarkdownReader())->read(implode("\n", [
+            ': Simple leading caption.',
+            '',
+            '    Right Left',
+            '  ------- ------',
+            '       12 12',
+        ]));
+        $pipeTable = $pipeDocument->children[0];
+        $pipeCaptionInlines = $pipeTable->attr('captionInlines');
+        $simpleTable = $simpleDocument->children[0];
+        $pipeBlocks = (new WordPressBlockWriter())->write($pipeDocument);
+        $simpleBlocks = (new WordPressBlockWriter())->write($simpleDocument);
+
+        $t->same(1, count($pipeDocument->children));
+        $t->same('table', $pipeTable->type);
+        $t->same('**Migration** [audit](https://example.test/audit "Audit")' . "\n" . 'for `wp_posts` imports', $pipeTable->attr('caption'));
+        $t->same(['left', 'right'], $pipeTable->attr('alignments'));
+        $t->same('Source', $pipeTable->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('42', $pipeTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same(true, is_array($pipeCaptionInlines));
+        $t->same('strong', $pipeCaptionInlines[0]->type);
+        $t->same('Migration', $pipeCaptionInlines[0]->children[0]->attr('text'));
+        $t->same('link', $pipeCaptionInlines[2]->type);
+        $t->same('https://example.test/audit', $pipeCaptionInlines[2]->attr('url'));
+        $t->same('Audit', $pipeCaptionInlines[2]->attr('title'));
+        $t->same('code', $pipeCaptionInlines[5]->type);
+        $t->same('wp_posts', $pipeCaptionInlines[5]->attr('text'));
+        $t->same(1, count($simpleDocument->children));
+        $t->same('table', $simpleTable->type);
+        $t->same('Simple leading caption.', $simpleTable->attr('caption'));
+        $t->same('Right', $simpleTable->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('12', $simpleTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->contains('<figcaption class="wp-element-caption"><strong>Migration</strong> <a href="https://example.test/audit" title="Audit">audit</a>' . "\n" . 'for <code>wp_posts</code> imports</figcaption>', $pipeBlocks);
+        $t->contains('<figcaption class="wp-element-caption">Simple leading caption.</figcaption>', $simpleBlocks);
+    },
     'maps upstream command short caption latex table shape' => static function (TestRunner $t): void {
         $latex = <<<'LATEX'
 \begin{table}

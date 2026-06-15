@@ -284,6 +284,11 @@ final class MarkdownReader
                 $blocks[] = $rawTexBlock;
                 continue;
             }
+            $tableWithLeadingCaption = $paragraph === [] && $listStack === [] ? $this->tryReadTableWithLeadingCaption($lines, $index) : null;
+            if ($tableWithLeadingCaption !== null) {
+                $blocks[] = $tableWithLeadingCaption;
+                continue;
+            }
             $gridTable = $this->tryReadGridTable($lines, $index);
             if ($gridTable !== null) {
                 $this->flushParagraph($paragraph, $blocks);
@@ -14380,8 +14385,9 @@ final class MarkdownReader
             $captionCursor++;
         }
 
-        if ($captionCursor < $count && preg_match('/^ {0,3}:\s*(.*)$/', $lines[$captionCursor], $m) === 1) {
-            $caption = [trim($m[1])];
+        $captionLine = $captionCursor < $count ? $this->matchTableCaptionLine($lines[$captionCursor]) : null;
+        if ($captionLine !== null) {
+            $caption = [trim($captionLine)];
             $next = $captionCursor + 1;
             while (
                 $next < $count
@@ -14398,6 +14404,101 @@ final class MarkdownReader
         }
 
         return ['', $cursor];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadTableWithLeadingCaption(array $lines, int &$index): ?AstNode
+    {
+        $caption = $this->readLeadingTableCaption($lines, $index);
+        if ($caption === null) {
+            return null;
+        }
+
+        $tableIndex = $caption['tableStart'];
+        $table = $this->tryReadGridTable($lines, $tableIndex);
+        if ($table === null) {
+            $tableIndex = $caption['tableStart'];
+            $table = $this->tryReadSimpleTable($lines, $tableIndex);
+        }
+        if ($table === null) {
+            $tableIndex = $caption['tableStart'];
+            $table = $this->tryReadPipeTable($lines, $tableIndex);
+        }
+        if ($table === null) {
+            return null;
+        }
+
+        $index = $tableIndex;
+
+        return $this->tableWithCaption($table, $caption['caption']);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{caption:string, tableStart:int}|null
+     */
+    private function readLeadingTableCaption(array $lines, int $index): ?array
+    {
+        $captionLine = $this->matchTableCaptionLine($lines[$index] ?? '');
+        if ($captionLine === null) {
+            return null;
+        }
+
+        $caption = [trim($captionLine)];
+        $cursor = $index + 1;
+        $count = count($lines);
+        while (
+            $cursor < $count
+            && trim($lines[$cursor]) !== ''
+            && $this->countIndentColumns($lines[$cursor]) >= 2
+            && $this->parseSimpleTableDelimiter($lines[$cursor]) === null
+            && !$this->isSimpleTableBoundary($lines[$cursor])
+        ) {
+            $caption[] = trim($lines[$cursor]);
+            $cursor++;
+        }
+
+        while ($cursor < $count && trim($lines[$cursor]) === '') {
+            $cursor++;
+        }
+
+        if ($cursor >= $count) {
+            return null;
+        }
+
+        return [
+            'caption' => implode("\n", $caption),
+            'tableStart' => $cursor,
+        ];
+    }
+
+    private function matchTableCaptionLine(string $line): ?string
+    {
+        if (preg_match('/^ {0,3}(?:Table:|:)\s*(.*)$/iu', $line, $m) !== 1) {
+            return null;
+        }
+
+        return $m[1];
+    }
+
+    private function tableWithCaption(AstNode $table, string $caption): AstNode
+    {
+        if ($table->type !== 'table') {
+            return $table;
+        }
+
+        $attrs = array_replace($table->attrs, [
+            'caption' => $caption,
+        ]);
+        if ($caption !== '') {
+            $attrs['captionInlines'] = $this->parseInlines($caption);
+        } else {
+            unset($attrs['captionInlines']);
+        }
+
+        return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $table->children));
     }
 
     /**
