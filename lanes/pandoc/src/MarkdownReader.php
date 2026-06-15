@@ -16334,7 +16334,11 @@ final class MarkdownReader
                     continue;
                 }
 
-                if ($paragraph !== [] && $this->isListItemSetextHeadingContinuationAt($lines, $cursor, $contentIndent)) {
+                if (
+                    $paragraph !== []
+                    && !$this->isListItemSetextHeadingUnderline($stripped)
+                    && $this->isListItemSetextHeadingContinuationAt($lines, $cursor, $contentIndent)
+                ) {
                     $paragraph[] = $stripped;
                     $cursor++;
                     continue;
