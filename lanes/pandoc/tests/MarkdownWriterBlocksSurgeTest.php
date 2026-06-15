@@ -445,4 +445,232 @@ foreach ($roundTripCases as $label => $case) {
         };
 }
 
+$infoCases = [
+    'php info string' => [
+        $document([$codeBlock('echo alpha', ['info' => 'php'])]),
+        "``` php\necho alpha\n```",
+    ],
+    'python info string' => [
+        $document([$codeBlock('print("alpha")', ['info' => 'python'])]),
+        "``` python\nprint(\"alpha\")\n```",
+    ],
+    'language with start attribute' => [
+        $document([$codeBlock('echo alpha', ['info' => 'php startFrom=7'])]),
+        "``` php startFrom=7\necho alpha\n```",
+    ],
+    'language with number lines flag' => [
+        $document([$codeBlock('echo alpha', ['info' => 'php numberLines'])]),
+        "``` php numberLines\necho alpha\n```",
+    ],
+    'raw brace attribute info' => [
+        $document([$codeBlock('echo alpha', ['info' => '{.php .numberLines startFrom="4"}'])]),
+        "``` {.php .numberLines startFrom=\"4\"}\necho alpha\n```",
+    ],
+    'tab and newline info normalization' => [
+        $document([$codeBlock('echo alpha', ['info' => " php\tstartFrom=4\nnumberLines "])]),
+        "``` php startFrom=4 numberLines\necho alpha\n```",
+    ],
+    'carriage return info normalization' => [
+        $document([$codeBlock('echo alpha', ['info' => "php\r\ncaption=review"])]),
+        "``` php caption=review\necho alpha\n```",
+    ],
+    'trimmed info string' => [
+        $document([$codeBlock('echo alpha', ['info' => '   bash   '])]),
+        "``` bash\necho alpha\n```",
+    ],
+    'backtick info switches to tilde fence' => [
+        $document([$codeBlock('echo alpha', ['info' => 'lang`token'])]),
+        "~~~ lang`token\necho alpha\n~~~",
+    ],
+    'double backtick info switches to tilde fence' => [
+        $document([$codeBlock('echo alpha', ['info' => 'lang``token'])]),
+        "~~~ lang``token\necho alpha\n~~~",
+    ],
+    'tilde fence option honors info' => [
+        $document([$codeBlock('echo alpha', ['info' => 'php'])]),
+        "~~~ php\necho alpha\n~~~",
+        ['fencedCodeBlockStyle' => 'tilde'],
+    ],
+    'tilde fence option lengthens payload run' => [
+        $document([$codeBlock("~~~\nbody", ['info' => 'text'])]),
+        "~~~~ text\n~~~\nbody\n~~~~",
+        ['fencedCodeBlockStyle' => 'tilde'],
+    ],
+    'backtick fence lengthens payload run' => [
+        $document([$codeBlock("```\nbody", ['info' => 'text'])]),
+        "```` text\n```\nbody\n````",
+    ],
+    'backtick info with tilde payload lengthens tilde fence' => [
+        $document([$codeBlock("~~~\nbody", ['info' => 'lang`token'])]),
+        "~~~~ lang`token\n~~~\nbody\n~~~~",
+    ],
+    'punctuated c plus plus info' => [
+        $document([$codeBlock('int main() {}', ['info' => 'c++#snippet'])]),
+        "``` c++#snippet\nint main() {}\n```",
+    ],
+    'double quoted info attribute' => [
+        $document([$codeBlock('echo alpha', ['info' => 'php caption="Demo"'])]),
+        "``` php caption=\"Demo\"\necho alpha\n```",
+    ],
+    'single quoted info attribute' => [
+        $document([$codeBlock('echo alpha', ['info' => "bash title='Demo'"])]),
+        "``` bash title='Demo'\necho alpha\n```",
+    ],
+    'integer info value' => [
+        $document([$codeBlock('echo alpha', ['info' => 42])]),
+        "``` 42\necho alpha\n```",
+    ],
+    'zero info value' => [
+        $document([$codeBlock('echo alpha', ['info' => 0])]),
+        "``` 0\necho alpha\n```",
+    ],
+    'float info value' => [
+        $document([$codeBlock('echo alpha', ['info' => 3.5])]),
+        "``` 3.5\necho alpha\n```",
+    ],
+    'true info value' => [
+        $document([$codeBlock('echo alpha', ['info' => true])]),
+        "``` 1\necho alpha\n```",
+    ],
+    'false info value stays indented' => [
+        $document([$codeBlock('echo alpha', ['info' => false])]),
+        '    echo alpha',
+    ],
+    'null info value stays indented' => [
+        $document([$codeBlock('echo alpha', ['info' => null])]),
+        '    echo alpha',
+    ],
+    'array info value stays indented' => [
+        $document([$codeBlock('echo alpha', ['info' => ['php']])]),
+        '    echo alpha',
+    ],
+    'empty info string stays indented' => [
+        $document([$codeBlock('echo alpha', ['info' => ''])]),
+        '    echo alpha',
+    ],
+    'blank info string stays indented' => [
+        $document([$codeBlock('echo alpha', ['info' => " \t\n "])]),
+        '    echo alpha',
+    ],
+    'empty code block with info remains fenced' => [
+        $document([$codeBlock('', ['info' => 'text'])]),
+        "``` text\n\n```",
+    ],
+    'blank line payload with info remains fenced' => [
+        $document([$codeBlock("alpha\n\nbeta", ['info' => 'text'])]),
+        "``` text\nalpha\n\nbeta\n```",
+    ],
+    'trailing spaces payload with info remains fenced' => [
+        $document([$codeBlock('alpha  ', ['info' => 'text'])]),
+        "``` text\nalpha  \n```",
+    ],
+    'blockquote info code block' => [
+        $document([$blockquote([$codeBlock('echo quote', ['info' => 'php'])])]),
+        "> ``` php\n> echo quote\n> ```",
+    ],
+    'class shorthand overrides legacy info' => [
+        $document([$codeBlock('echo alpha', ['info' => 'legacy php', 'classes' => ['php']])]),
+        "```php\necho alpha\n```",
+    ],
+    'tilde class shorthand overrides legacy info' => [
+        $document([$codeBlock('echo alpha', ['info' => 'legacy bash', 'classes' => ['bash']])]),
+        "~~~bash\necho alpha\n~~~",
+        ['fencedCodeBlockStyle' => 'tilde'],
+    ],
+    'id and class tuple overrides legacy info' => [
+        $document([$codeBlock('echo alpha', [
+            'info' => 'legacy php',
+            'id' => 'src',
+            'classes' => ['php'],
+        ])]),
+        "```{#src .php}\necho alpha\n```",
+    ],
+    'multi class tuple overrides legacy info' => [
+        $document([$codeBlock('echo alpha', [
+            'info' => 'legacy php',
+            'classes' => ['php', 'numberLines'],
+        ])]),
+        "```{.php .numberLines}\necho alpha\n```",
+    ],
+    'key value tuple overrides legacy info' => [
+        $document([$codeBlock('echo alpha', [
+            'info' => 'legacy php',
+            'classes' => ['php'],
+            'attributes' => ['data-kind' => 'fixture'],
+        ])]),
+        "```{.php data-kind=\"fixture\"}\necho alpha\n```",
+    ],
+    'id only tuple overrides legacy info' => [
+        $document([$codeBlock('echo alpha', [
+            'info' => 'legacy php',
+            'id' => 'src',
+        ])]),
+        "```{#src}\necho alpha\n```",
+    ],
+    'raw attribute extension info' => [
+        $document([$codeBlock('echo alpha', ['info' => 'markdown+raw_attribute'])]),
+        "``` markdown+raw_attribute\necho alpha\n```",
+    ],
+    'html raw tex info' => [
+        $document([$codeBlock('<span>alpha</span>', ['info' => 'html+raw_tex'])]),
+        "``` html+raw_tex\n<span>alpha</span>\n```",
+    ],
+    'commonmark extension info' => [
+        $document([$codeBlock('echo alpha', ['info' => 'commonmark_x'])]),
+        "``` commonmark_x\necho alpha\n```",
+    ],
+    'gfm task list info' => [
+        $document([$codeBlock('- [x] done', ['info' => 'gfm task_lists'])]),
+        "``` gfm task_lists\n- [x] done\n```",
+    ],
+    'raw attribute tuple info string' => [
+        $document([$codeBlock('echo alpha', ['info' => '{.numberLines startFrom="10"}'])]),
+        "``` {.numberLines startFrom=\"10\"}\necho alpha\n```",
+    ],
+    'command argument info string' => [
+        $document([$codeBlock('wp post list', ['info' => 'bash --login --noprofile'])]),
+        "``` bash --login --noprofile\nwp post list\n```",
+    ],
+    'mermaid info whitespace collapse' => [
+        $document([$codeBlock('graph TD; A-->B;', ['info' => 'mermaid   diagram'])]),
+        "``` mermaid diagram\ngraph TD; A-->B;\n```",
+    ],
+    'graphviz dot info' => [
+        $document([$codeBlock('digraph { a -> b }', ['info' => 'graphviz dot'])]),
+        "``` graphviz dot\ndigraph { a -> b }\n```",
+    ],
+    'json lines info' => [
+        $document([$codeBlock('{"a":1}', ['info' => 'json lines'])]),
+        "``` json lines\n{\"a\":1}\n```",
+    ],
+    'yaml metadata info' => [
+        $document([$codeBlock('title: Alpha', ['info' => 'yaml metadata'])]),
+        "``` yaml metadata\ntitle: Alpha\n```",
+    ],
+    'haskell literate info' => [
+        $document([$codeBlock('main = pure ()', ['info' => 'haskell literate'])]),
+        "``` haskell literate\nmain = pure ()\n```",
+    ],
+    'ipynb cell info' => [
+        $document([$codeBlock('display(value)', ['info' => 'ipynb cell=code'])]),
+        "``` ipynb cell=code\ndisplay(value)\n```",
+    ],
+    'custom slash info' => [
+        $document([$codeBlock('payload', ['info' => 'custom/raw'])]),
+        "``` custom/raw\npayload\n```",
+    ],
+    'latex lhs info' => [
+        $document([$codeBlock('\\begin{code}', ['info' => 'latex+lhs'])]),
+        "``` latex+lhs\n\\begin{code}\n```",
+    ],
+];
+
+foreach ($infoCases as $label => $case) {
+    $tests['maps upstream markdown writer code info metadata surge ' . $label] =
+        static function (TestRunner $t) use ($case): void {
+            [$doc, $expected, $options] = [$case[0], $case[1], $case[2] ?? []];
+            $t->same($expected, (new MarkdownWriter($options))->write($doc));
+        };
+}
+
 return $tests;

@@ -1181,7 +1181,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            $marker = $ordered ? $this->orderedListMarker($node, $start + $index) : $this->bulletListMarker();
+            $marker = $ordered ? $this->orderedListMarker($node, $start + $index, $item) : $this->bulletListMarker();
             $itemLoose = $listLoose || (bool) $item->attr('loose', false);
             if ($itemLoose && $lines !== [] && end($lines) !== '') {
                 $lines[] = '';
@@ -1201,10 +1201,16 @@ final class MarkdownWriter
         return $this->renderDivBlock(new AstNode('div', $item->attrs, $item->children), $indent);
     }
 
-    private function orderedListMarker(AstNode $node, int $number): string
+    private function orderedListMarker(AstNode $node, int $number, ?AstNode $item = null): string
     {
         $style = (string) $node->attr('style', 'decimal');
         $delimiter = (string) $node->attr('delimiter', 'period');
+        if ($style === 'example') {
+            $marker = '(@' . $this->numberedExampleLabel($item) . ')';
+
+            return $marker . ' ';
+        }
+
         $label = match ($style) {
             'lower_alpha' => $this->alphaListLabel(max(1, $number), false),
             'upper_alpha' => $this->alphaListLabel(max(1, $number), true),
@@ -1224,6 +1230,22 @@ final class MarkdownWriter
         }
 
         return $marker . ' ';
+    }
+
+    private function numberedExampleLabel(?AstNode $item): string
+    {
+        if (!$item instanceof AstNode) {
+            return '';
+        }
+
+        foreach (['exampleLabel', 'label'] as $name) {
+            $label = trim((string) $item->attr($name, ''));
+            if (preg_match('/\A[A-Za-z0-9_-]+\z/', $label) === 1) {
+                return $label;
+            }
+        }
+
+        return '';
     }
 
     private function bulletListMarker(): string
@@ -2517,6 +2539,11 @@ final class MarkdownWriter
             return $this->renderFencedCodeBlock($node, $attrs, $indent);
         }
 
+        $info = $this->codeBlockInfo($node);
+        if ($info !== '') {
+            return $this->renderFencedCodeBlock($node, ' ' . $info, $indent);
+        }
+
         $lines = [];
         $prefix = str_repeat(' ', $indent + 4);
         foreach (explode("\n", (string) $node->attr('text', '')) as $line) {
@@ -2546,6 +2573,16 @@ final class MarkdownWriter
         return preg_match('/\A[A-Za-z0-9][A-Za-z0-9_+.#-]*\z/u', $class) === 1;
     }
 
+    private function codeBlockInfo(AstNode $node): string
+    {
+        $info = $node->attr('info', '');
+        if (!is_scalar($info)) {
+            return '';
+        }
+
+        return trim(preg_replace('/[ \t\r\n]+/', ' ', (string) $info) ?? (string) $info);
+    }
+
     /**
      * @return list<string>
      */
@@ -2554,6 +2591,9 @@ final class MarkdownWriter
         $prefix = str_repeat(' ', $indent);
         $text = (string) $node->attr('text', '');
         $fenceChar = (string) ($this->options['fencedCodeBlockStyle'] ?? 'backtick') === 'tilde' ? '~' : '`';
+        if ($fenceChar === '`' && str_contains($attrs, '`')) {
+            $fenceChar = '~';
+        }
         $longestRun = $fenceChar === '~' ? $this->longestTildeRun($text) : $this->longestBacktickRun($text);
         $fence = str_repeat($fenceChar, max(3, $longestRun + 1));
 
