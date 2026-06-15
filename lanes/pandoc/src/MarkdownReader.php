@@ -7915,10 +7915,10 @@ final class MarkdownReader
             $headingLines[] = trim($line);
             $markerIndex = $cursor + 1;
             if ($markerIndex < $count) {
-                $marker = $this->expandTabsToSpaces($lines[$markerIndex]);
-                if (preg_match('/^ {0,3}(=+|-+)[ \t]*$/', $marker, $m) === 1) {
+                $level = $this->setextHeadingMarkerLevel($lines[$markerIndex]);
+                if ($level !== null) {
                     $heading = $this->buildMarkdownHeading(
-                        $m[1][0] === '=' ? 1 : 2,
+                        $level,
                         implode(' ', $headingLines)
                     );
                     $heading['endIndex'] = $markerIndex;
@@ -7931,6 +7931,16 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function setextHeadingMarkerLevel(string $line): ?int
+    {
+        $marker = $this->expandTabsToSpaces($line);
+        if (preg_match('/^ {0,3}(=+|-+)[ \t]*$/', $marker, $m) !== 1) {
+            return null;
+        }
+
+        return $m[1][0] === '=' ? 1 : 2;
     }
 
     private function canBeSetextHeadingContentLine(string $line): bool
@@ -14139,6 +14149,10 @@ final class MarkdownReader
         if (!isset($lines[$index + 1])) {
             return null;
         }
+        $marker = $this->matchListMarker($lines[$index], $index);
+        if ($marker !== null && $marker['indent'] <= 3) {
+            return null;
+        }
 
         $multilineTable = $this->tryReadMultilineSimpleTableWithHeader($lines, $index);
         if ($multilineTable !== null) {
@@ -16121,7 +16135,11 @@ final class MarkdownReader
                     $continuesDefinitionList = $paragraph !== []
                         && $this->isDefinitionMarker($stripped)
                         && !$this->isListItemBlockStartLine($stripped);
-                    if ($paragraph !== [] && $continuesDefinitionList) {
+                    $continuesSetextHeading = $paragraph !== []
+                        && $this->canContinueListItemSetextHeading($paragraph, $stripped);
+                    $continuesSimpleTable = $paragraph !== []
+                        && $this->canContinueListItemSimpleTable($paragraph, $stripped);
+                    if ($paragraph !== [] && ($continuesDefinitionList || $continuesSetextHeading || $continuesSimpleTable)) {
                         $seedLines = $paragraph;
                         $paragraph = [];
                     } else {
@@ -16181,6 +16199,8 @@ final class MarkdownReader
         int $contentIndent
     ): bool {
         return $this->isListItemBlockStartLine($text)
+            || $this->canStartListItemSetextHeadingBlock($text, $lines, $cursor, $baseIndent, $contentIndent)
+            || $this->canStartListItemSimpleTableBlock($text, $lines, $cursor, $baseIndent, $contentIndent)
             || $this->canStartListItemDefinitionBlock($text, $lines, $cursor, $baseIndent, $contentIndent);
     }
 
@@ -16196,6 +16216,16 @@ final class MarkdownReader
         int $baseIndent,
         int $contentIndent
     ): bool {
+        if (
+            $paragraph !== []
+            && (
+                $this->canContinueListItemSetextHeading($paragraph, $line)
+                || $this->canContinueListItemSimpleTable($paragraph, $line)
+            )
+        ) {
+            return true;
+        }
+
         if ($this->isListItemBlockStartLine($line)
             || $this->isListItemContinuationSimpleTableStartAt($lines, $cursor, $contentIndent)
             || $this->isListItemContinuationDefinitionListStartAt($lines, $cursor, $contentIndent)
@@ -16260,6 +16290,76 @@ final class MarkdownReader
         return $stripped !== null
             && $this->isDefinitionMarker($stripped)
             && !$this->isListItemBlockStartLine($stripped);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function canStartListItemSetextHeadingBlock(
+        string $text,
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent
+    ): bool {
+        if (!$this->canBeSetextHeadingContentLine($text)) {
+            return false;
+        }
+
+        $stripped = isset($lines[$cursor])
+            ? $this->stripListItemContentLine($lines[$cursor], $cursor, $baseIndent, $contentIndent)
+            : null;
+
+        return $stripped !== null && $this->setextHeadingMarkerLevel($stripped) === 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function canStartListItemSimpleTableBlock(
+        string $text,
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent
+    ): bool {
+        if (trim($text) === '' || $this->parseSimpleTableDelimiter($text) !== null) {
+            return false;
+        }
+
+        $stripped = isset($lines[$cursor])
+            ? $this->stripListItemContentLine($lines[$cursor], $cursor, $baseIndent, $contentIndent)
+            : null;
+
+        return $stripped !== null && $this->parseSimpleTableDelimiter($stripped) !== null;
+    }
+
+    /**
+     * @param list<string> $paragraph
+     */
+    private function canContinueListItemSetextHeading(array $paragraph, string $line): bool
+    {
+        if ($paragraph === [] || $this->setextHeadingMarkerLevel($line) !== 1) {
+            return false;
+        }
+
+        $heading = $this->tryParseSetextMarkdownHeading(array_merge($paragraph, [$line]), 0);
+
+        return $heading !== null && $heading['endIndex'] === count($paragraph);
+    }
+
+    /**
+     * @param list<string> $paragraph
+     */
+    private function canContinueListItemSimpleTable(array $paragraph, string $line): bool
+    {
+        if (count($paragraph) !== 1 || $this->parseSimpleTableDelimiter($line) === null) {
+            return false;
+        }
+
+        $headerLine = $paragraph[0];
+
+        return trim($headerLine) !== '' && $this->parseSimpleTableDelimiter($headerLine) === null;
     }
 
     /**
