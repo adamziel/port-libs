@@ -1308,6 +1308,101 @@ XML;
         $t->same('word/media/relationship-source.png', $relationshipSource['relationships']['rRelationshipSourceImage']['targetPart']);
         $t->same('word/media/invalid-source.png', $invalid['relationships']['rInvalidSourceImage']['targetPart']);
     },
+    'summarizes docx relationship source digests for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $sourceDigestXml = str_repeat('A', 20000);
+        $sourceSmallXml = '<source-small/>';
+        $parts['word/source-digest.xml'] = $sourceDigestXml;
+        $parts['word/source-small.xml'] = $sourceSmallXml;
+        $parts['word/media/source-digest.png'] = 'source digest image bytes';
+        $parts['word/media/source-small.png'] = 'source small image bytes';
+        $parts['word/media/relationship-source-digest.png'] = 'relationship source digest image bytes';
+        $parts['word/media/missing-source-digest.png'] = 'missing source digest image bytes';
+        $parts['word/_rels/source-digest.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSourceDigestImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-digest.png?digest=1#image"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source-small.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSourceSmallImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-small.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/_rels/document.xml.rels.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRelationshipSourceDigestImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/relationship-source-digest.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-digest-source.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingSourceDigestImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-source-digest.png"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $sourcesByRelationshipsPart = [];
+        foreach ($summary['relationshipSources'] as $source) {
+            $sourcesByRelationshipsPart[$source['relationshipsPart']] = $source;
+        }
+
+        $documentSource = $sourcesByRelationshipsPart['word/_rels/document.xml.rels'];
+        $digestSource = $sourcesByRelationshipsPart['word/_rels/source-digest.xml.rels'];
+        $smallSource = $sourcesByRelationshipsPart['word/_rels/source-small.xml.rels'];
+        $relationshipSource = $sourcesByRelationshipsPart['word/_rels/_rels/document.xml.rels.rels'];
+        $missingSource = $sourcesByRelationshipsPart['word/_rels/missing-digest-source.xml.rels'];
+        $rootSource = $sourcesByRelationshipsPart['_rels/.rels'];
+        $largestSource = $summary['largestRelationshipSourcePart'];
+
+        $t->same(6, $summary['relationshipSourceCount']);
+        $t->same(4, $summary['relationshipSourceExistingPartCount']);
+        $t->same(4, $summary['relationshipSourceExistingPartDigestCount']);
+        $t->same(
+            strlen($parts['word/document.xml']) + strlen($parts['word/_rels/document.xml.rels']) + strlen($sourceDigestXml) + strlen($sourceSmallXml),
+            $summary['relationshipSourceExistingPartByteLength']
+        );
+        $t->same('word/source-digest.xml', $largestSource['sourcePart']);
+        $t->same('word/_rels/source-digest.xml.rels', $largestSource['relationshipsPart']);
+        $t->same(20000, $largestSource['sourceBytes']);
+        $t->same(sprintf('%08x', crc32($sourceDigestXml)), $largestSource['sourceCrc32']);
+        $t->same(hash('sha256', $sourceDigestXml), $largestSource['sourceSha256']);
+        $t->same('application/xml', $largestSource['sourceContentTypeBase']);
+        $t->same('default', $largestSource['sourceContentTypeSource']);
+        $t->same(['package-part'], $largestSource['sourceRoles']);
+        $t->same(4, count($summary['largestRelationshipSourceParts']));
+        $t->true(in_array('word/_rels/document.xml.rels', array_column($summary['largestRelationshipSourceParts'], 'sourcePart'), true), 'relationship-part source digest row missing');
+
+        $t->same('package-root', $rootSource['relationshipSourceKind']);
+        $t->same('/', $rootSource['sourcePart']);
+        $t->same(null, $rootSource['sourceSha256']);
+        $t->same(null, $rootSource['sourceCrc32']);
+        $t->same('package-part', $documentSource['relationshipSourceKind']);
+        $t->same(strlen($parts['word/document.xml']), $documentSource['sourceBytes']);
+        $t->same(hash('sha256', $parts['word/document.xml']), $documentSource['sourceSha256']);
+        $t->same(sprintf('%08x', crc32($parts['word/document.xml'])), $documentSource['sourceCrc32']);
+        $t->same('word', $digestSource['sourceDirectory']);
+        $t->same('source-digest.xml', $digestSource['sourceBaseName']);
+        $t->same('xml', $digestSource['sourcePartExtension']);
+        $t->same(hash('sha256', $sourceDigestXml), $digestSource['sourceSha256']);
+        $t->same(sprintf('%08x', crc32($sourceSmallXml)), $smallSource['sourceCrc32']);
+        $t->same('relationship-part', $relationshipSource['relationshipSourceKind']);
+        $t->same('word/_rels/document.xml.rels', $relationshipSource['sourcePart']);
+        $t->same(hash('sha256', $parts['word/_rels/document.xml.rels']), $relationshipSource['sourceSha256']);
+        $t->true(in_array('office-document-relationships', $relationshipSource['sourceRoles'], true), 'relationship source role missing from digest row');
+        $t->same('missing-source', $missingSource['relationshipSourceKind']);
+        $t->same(false, $missingSource['sourceExists']);
+        $t->same(null, $missingSource['sourceBytes']);
+        $t->same(null, $missingSource['sourceSha256']);
+        $t->same(null, $missingSource['sourceCrc32']);
+        $t->same('rSourceDigestImage', $package['relationshipParts']['word/_rels/source-digest.xml.rels']['relationships']['rSourceDigestImage']['id']);
+        $t->same('digest=1', $package['relationshipParts']['word/_rels/source-digest.xml.rels']['relationships']['rSourceDigestImage']['targetQuery']);
+        $t->same('image', $package['relationshipParts']['word/_rels/source-digest.xml.rels']['relationships']['rSourceDigestImage']['targetFragment']);
+    },
     'summarizes docx relationships by type for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

@@ -5574,6 +5574,8 @@ final class DocxOpenXmlReader
         $relationshipSourceMissingCount = 0;
         $relationshipSourceInvalidCount = 0;
         $relationshipSourceExistingPartByteLength = 0;
+        $relationshipSourceExistingPartDigestCount = 0;
+        $relationshipSourceExistingParts = [];
         $relationshipPartsWithDuplicateRelationshipIds = [];
         $relationshipPartsWithInvalidRecords = [];
         $relationshipPartsWithExplicitInternalTargetMode = [];
@@ -5605,6 +5607,8 @@ final class DocxOpenXmlReader
 
         foreach ($relationshipParts as $relationshipsPart => $relationshipPart) {
             ++$relationshipSourceCount;
+            $sourcePart = is_string($relationshipPart['sourcePart'] ?? null) ? $relationshipPart['sourcePart'] : '';
+            $sourceExists = (bool) ($relationshipPart['sourceExists'] ?? false);
             $relationshipSourceKind = is_string($relationshipPart['relationshipSourceKind'] ?? null)
                 ? $relationshipPart['relationshipSourceKind']
                 : 'invalid-source';
@@ -5645,28 +5649,61 @@ final class DocxOpenXmlReader
                     ($relationshipSourceContentTypeSourceCounts[$sourceContentTypeSource] ?? 0) + 1;
             }
 
-            foreach (($relationshipPart['sourceRoles'] ?? []) as $role) {
+            $sourceRoles = array_values(array_map('strval', $relationshipPart['sourceRoles'] ?? []));
+            foreach ($sourceRoles as $role) {
                 $role = (string) $role;
                 $relationshipSourceRoleCounts[$role] = ($relationshipSourceRoleCounts[$role] ?? 0) + 1;
             }
 
-            if (is_int($relationshipPart['sourceBytes'] ?? null)) {
-                $relationshipSourceExistingPartByteLength += (int) $relationshipPart['sourceBytes'];
+            $sourceBytes = is_int($relationshipPart['sourceBytes'] ?? null) ? (int) $relationshipPart['sourceBytes'] : null;
+            $sourceCrc32 = is_string($relationshipPart['sourceCrc32'] ?? null) ? $relationshipPart['sourceCrc32'] : null;
+            $sourceSha256 = is_string($relationshipPart['sourceSha256'] ?? null) ? $relationshipPart['sourceSha256'] : null;
+            $sourceContentType = is_string($relationshipPart['sourceContentType'] ?? null) ? $relationshipPart['sourceContentType'] : null;
+            if ($sourceBytes !== null) {
+                $relationshipSourceExistingPartByteLength += $sourceBytes;
+            }
+
+            if ($sourceExists && $sourcePart !== '' && $sourcePart !== '/' && $sourceBytes !== null) {
+                if ($sourceCrc32 !== null || $sourceSha256 !== null) {
+                    ++$relationshipSourceExistingPartDigestCount;
+                }
+
+                $relationshipSourceExistingParts[] = [
+                    'relationshipsPart' => (string) $relationshipsPart,
+                    'sourcePart' => $sourcePart,
+                    'relationshipSourceKind' => $relationshipSourceKind,
+                    'sourceDirectory' => $sourceDirectory,
+                    'sourceBaseName' => is_string($relationshipPart['sourceBaseName'] ?? null) ? $relationshipPart['sourceBaseName'] : null,
+                    'sourcePartExtension' => is_string($relationshipPart['sourcePartExtension'] ?? null) ? $relationshipPart['sourcePartExtension'] : null,
+                    'sourceContentType' => $sourceContentType,
+                    'sourceContentTypeBase' => $sourceContentTypeBase === '' ? null : $sourceContentTypeBase,
+                    'sourceContentTypeSource' => $sourceContentTypeSource === '' ? null : $sourceContentTypeSource,
+                    'sourceBytes' => $sourceBytes,
+                    'sourceCrc32' => $sourceCrc32,
+                    'sourceSha256' => $sourceSha256,
+                    'sourceRoles' => $sourceRoles,
+                    'relationshipCount' => (int) ($relationshipPart['relationshipCount'] ?? 0),
+                    'relationshipRecordCount' => (int) ($relationshipPart['relationshipRecordCount'] ?? 0),
+                ];
             }
 
             $relationshipSources[] = [
                 'relationshipsPart' => (string) $relationshipsPart,
-                'sourcePart' => is_string($relationshipPart['sourcePart'] ?? null) ? $relationshipPart['sourcePart'] : '',
+                'sourcePart' => $sourcePart,
                 'relationshipSourceKind' => $relationshipSourceKind,
-                'sourceExists' => (bool) ($relationshipPart['sourceExists'] ?? false),
+                'sourceExists' => $sourceExists,
                 'relationshipCount' => (int) ($relationshipPart['relationshipCount'] ?? 0),
                 'relationshipRecordCount' => (int) ($relationshipPart['relationshipRecordCount'] ?? 0),
                 'sourceDirectory' => $sourceDirectory,
-                'sourceContentType' => is_string($relationshipPart['sourceContentType'] ?? null) ? $relationshipPart['sourceContentType'] : null,
+                'sourceBaseName' => is_string($relationshipPart['sourceBaseName'] ?? null) ? $relationshipPart['sourceBaseName'] : null,
+                'sourcePartExtension' => is_string($relationshipPart['sourcePartExtension'] ?? null) ? $relationshipPart['sourcePartExtension'] : null,
+                'sourceContentType' => $sourceContentType,
                 'sourceContentTypeBase' => $sourceContentTypeBase === '' ? null : $sourceContentTypeBase,
                 'sourceContentTypeSource' => $sourceContentTypeSource === '' ? null : $sourceContentTypeSource,
-                'sourceBytes' => is_int($relationshipPart['sourceBytes'] ?? null) ? $relationshipPart['sourceBytes'] : null,
-                'sourceRoles' => array_values(array_map('strval', $relationshipPart['sourceRoles'] ?? [])),
+                'sourceBytes' => $sourceBytes,
+                'sourceCrc32' => $sourceCrc32,
+                'sourceSha256' => $sourceSha256,
+                'sourceRoles' => $sourceRoles,
             ];
 
             if (($relationshipPart['sourceExists'] ?? true) === false) {
@@ -5817,6 +5854,12 @@ final class DocxOpenXmlReader
         ksort($relationshipSourceContentTypeSourceCounts);
         ksort($relationshipSourceRoleCounts);
         ksort($relationshipPartsBySourceKind);
+        usort(
+            $relationshipSourceExistingParts,
+            static fn (array $left, array $right): int => ((int) $right['sourceBytes'] <=> (int) $left['sourceBytes'])
+                ?: strcmp((string) $left['sourcePart'], (string) $right['sourcePart']),
+        );
+        $largestRelationshipSourceParts = array_slice($relationshipSourceExistingParts, 0, 5);
         foreach ($relationshipPartsBySourceKind as &$sourceRelationshipParts) {
             sort($sourceRelationshipParts, SORT_STRING);
         }
@@ -5858,6 +5901,8 @@ final class DocxOpenXmlReader
             'relationshipSourceMissingCount' => $relationshipSourceMissingCount,
             'relationshipSourceInvalidCount' => $relationshipSourceInvalidCount,
             'relationshipSourceExistingPartByteLength' => $relationshipSourceExistingPartByteLength,
+            'relationshipSourceExistingPartCount' => count($relationshipSourceExistingParts),
+            'relationshipSourceExistingPartDigestCount' => $relationshipSourceExistingPartDigestCount,
             'relationshipSourceKindCounts' => $relationshipSourceKindCounts,
             'relationshipSourceDirectoryCounts' => $relationshipSourceDirectoryCounts,
             'relationshipSourceContentTypeCounts' => $relationshipSourceContentTypeCounts,
@@ -5865,6 +5910,8 @@ final class DocxOpenXmlReader
             'relationshipSourceRoleCounts' => $relationshipSourceRoleCounts,
             'relationshipPartsBySourceKind' => $relationshipPartsBySourceKind,
             'relationshipSources' => $relationshipSources,
+            'largestRelationshipSourcePart' => $largestRelationshipSourceParts[0] ?? null,
+            'largestRelationshipSourceParts' => $largestRelationshipSourceParts,
             'missingContentTypePartCount' => count($partsWithoutContentType),
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'relationshipPartMissingSourceCount' => $relationshipPartMissingSourceCount,
