@@ -8696,13 +8696,130 @@ final class MarkdownReader
                     $inner = $this->read(implode("\n", $content))->children;
                 }
 
-                return new AstNode('div', $opening['attrs'], $inner);
+                return $this->buildFencedDivNode($opening['attrs'], $inner);
             }
 
             $content[] = $lines[$cursor];
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param list<AstNode> $children
+     */
+    private function buildFencedDivNode(array $attrs, array $children): AstNode
+    {
+        $figure = $this->tryBuildFencedDivFigure($attrs, $children);
+
+        return $figure ?? new AstNode('div', $attrs, $children);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param list<AstNode> $children
+     */
+    private function tryBuildFencedDivFigure(array $attrs, array $children): ?AstNode
+    {
+        $classes = $attrs['classes'] ?? [];
+        if (!is_array($classes) || !in_array('figure', $classes, true) || count($children) !== 2) {
+            return null;
+        }
+
+        $imageIndex = null;
+        $captionIndex = null;
+        $image = null;
+        $captionInlines = [];
+        foreach ($children as $index => $child) {
+            $candidateImage = $this->fencedDivFigureImage($child);
+            if ($candidateImage instanceof AstNode) {
+                if ($image !== null) {
+                    return null;
+                }
+
+                $image = $candidateImage;
+                $imageIndex = $index;
+                continue;
+            }
+
+            $candidateCaption = $this->fencedDivFigureCaptionInlines($child);
+            if ($candidateCaption !== null) {
+                if ($captionIndex !== null) {
+                    return null;
+                }
+
+                $captionInlines = $candidateCaption;
+                $captionIndex = $index;
+                continue;
+            }
+
+            return null;
+        }
+
+        if (!$image instanceof AstNode || $captionIndex === null || $imageIndex === null || $captionInlines === []) {
+            return null;
+        }
+
+        $caption = trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($captionInlines)) ?? '');
+        if ($caption === '') {
+            return null;
+        }
+
+        $attrs['caption'] = $caption;
+        $attrs['captionInlines'] = $captionInlines;
+        $attrs['renderCaptionInlines'] = true;
+        $attrs['captionSource'] = [
+            'element' => 'markdown-fenced-div-figure',
+            'class' => 'figure',
+            'position' => $captionIndex < $imageIndex ? 'before-image' : 'after-image',
+        ];
+
+        return new AstNode('figure', $attrs, [$image]);
+    }
+
+    private function fencedDivFigureImage(AstNode $block): ?AstNode
+    {
+        if ($block->type === 'image') {
+            return $block;
+        }
+
+        if ($block->type === 'figure') {
+            foreach ($block->children as $child) {
+                $image = $this->fencedDivFigureImage($child);
+                if ($image instanceof AstNode) {
+                    return $image;
+                }
+            }
+
+            return null;
+        }
+
+        if (!in_array($block->type, ['paragraph', 'plain'], true) || count($block->children) !== 1) {
+            return null;
+        }
+
+        $child = $block->children[0];
+
+        return $child instanceof AstNode && $child->type === 'image' ? $child : null;
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function fencedDivFigureCaptionInlines(AstNode $block): ?array
+    {
+        if (!in_array($block->type, ['paragraph', 'plain', 'heading'], true) || $block->children === []) {
+            return null;
+        }
+
+        foreach ($block->children as $child) {
+            if ($child instanceof AstNode && $child->type === 'image') {
+                return null;
+            }
+        }
+
+        return $block->children;
     }
 
     /**
