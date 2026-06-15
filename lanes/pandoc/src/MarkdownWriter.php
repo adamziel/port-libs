@@ -1280,10 +1280,24 @@ final class MarkdownWriter
             $this->plainTextTriggerEscapeSuppression--;
         }
         $markerPrefix = str_repeat(' ', $indent) . ':   ';
+        $detachedMarker = str_repeat(' ', $indent) . ':';
         $continuationPrefix = str_repeat(' ', $indent + 4);
 
         if ($body === '') {
             return [rtrim($markerPrefix)];
+        }
+
+        if ($this->definitionBodyNeedsDetachedMarker($definition)) {
+            $lines = [$detachedMarker, ''];
+            foreach (explode("\n", $body) as $line) {
+                $lines[] = $line === '' ? '' : $continuationPrefix . $line;
+            }
+
+            if ((bool) $definition->attr('loose', false)) {
+                $lines[] = '';
+            }
+
+            return $lines;
         }
 
         $bodyLines = explode("\n", $body);
@@ -1299,6 +1313,15 @@ final class MarkdownWriter
         }
 
         return $lines;
+    }
+
+    private function definitionBodyNeedsDetachedMarker(AstNode $definition): bool
+    {
+        foreach ($definition->children as $child) {
+            return in_array($child->type, ['code_block', 'heading', 'line_block', 'table'], true);
+        }
+
+        return false;
     }
 
     /**

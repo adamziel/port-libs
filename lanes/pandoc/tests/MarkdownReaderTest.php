@@ -11650,7 +11650,9 @@ MD;
 
         $t->same(implode("\n", [
             'Source packet',
-            ':   ## Review entry',
+            ':',
+            '',
+            '    ## Review entry',
             '',
             '    Definition note[^1] with [audit link].',
             '',

@@ -1613,4 +1613,368 @@ foreach ($outerListFamilies as $outerName => $outer) {
     }
 }
 
+$definitionTerm = static fn (array $children): AstNode => new AstNode('definition_term', [], $children);
+$definition = static fn (array $children, array $attrs = []): AstNode => new AstNode('definition', $attrs, $children);
+$definitionItem = static fn (AstNode $term, array $definitions): AstNode => new AstNode(
+    'definition_item',
+    [],
+    array_merge([$term], $definitions)
+);
+$definitionList = static fn (array $items): AstNode => new AstNode('definition_list', [], $items);
+$definitionDocument = static function (array $definitionChildren, string $termText = 'Term') use (
+    $definition,
+    $definitionItem,
+    $definitionList,
+    $definitionTerm,
+    $document,
+    $text
+): AstNode {
+    return $document($definitionList([
+        $definitionItem($definitionTerm([$text($termText)]), [
+            $definition($definitionChildren),
+        ]),
+    ]));
+};
+$definitionExpected = static function (string $body, string $termText = 'Term'): string {
+    $lines = [$termText, ':', ''];
+    foreach (explode("\n", $body) as $line) {
+        $lines[] = $line === '' ? '' : '    ' . $line;
+    }
+
+    return implode("\n", $lines);
+};
+$firstDefinitionChildren = static function (AstNode $document): array {
+    $definition = $document->children[0]->children[0]->children[1] ?? null;
+
+    return $definition instanceof AstNode ? $definition->children : [];
+};
+$line = static fn (string $value = ''): AstNode => $value === ''
+    ? new AstNode('line')
+    : new AstNode('line', [], [$text($value)]);
+$lineBlock = static fn (array $lines): AstNode => new AstNode('line_block', [], $lines);
+$definitionHeading = static fn (string $value, int $level = 1, array $attrs = []): AstNode => new AstNode(
+    'heading',
+    array_replace(['level' => $level], $attrs),
+    [$text($value)]
+);
+$textCell = static fn (string $value): AstNode => new AstNode('table_cell', ['text' => $value], [$text($value)]);
+$row = static fn (array $cells): AstNode => new AstNode('table_row', [], $cells);
+$table = static function (array $headers, array $values, array $alignments = []) use ($row, $textCell): AstNode {
+    return new AstNode('table', ['alignments' => $alignments], [
+        new AstNode('table_head', [], [
+            $row(array_map($textCell, $headers)),
+        ]),
+        new AstNode('table_body', [], [
+            $row(array_map($textCell, $values)),
+        ]),
+    ]);
+};
+$documentBody = static fn (AstNode $block): AstNode => new AstNode('document', [], [$block]);
+
+$definitionCodeCases = [
+    '01 plain code starts definition body' => [
+        'children' => [$codeBlock('echo alpha')],
+        'body' => '    echo alpha',
+        'types' => ['code_block'],
+        'codeText' => 'echo alpha',
+    ],
+    '02 multiline code starts definition body' => [
+        'children' => [$codeBlock("echo alpha\necho beta")],
+        'body' => "    echo alpha\n    echo beta",
+        'types' => ['code_block'],
+        'codeText' => "echo alpha\necho beta",
+    ],
+    '03 code with internal blank starts definition body' => [
+        'children' => [$codeBlock("before\n\nafter")],
+        'body' => "    before\n    \n    after",
+        'types' => ['code_block'],
+        'codeText' => "before\n\nafter",
+    ],
+    '04 code preserves bullet-looking text' => [
+        'children' => [$codeBlock("- not a list\n+ still code")],
+        'body' => "    - not a list\n    + still code",
+        'types' => ['code_block'],
+        'codeText' => "- not a list\n+ still code",
+    ],
+    '05 code preserves ordered-looking text' => [
+        'children' => [$codeBlock("1. not ordered\n#. not default")],
+        'body' => "    1. not ordered\n    #. not default",
+        'types' => ['code_block'],
+        'codeText' => "1. not ordered\n#. not default",
+    ],
+    '06 code preserves heading-looking text' => [
+        'children' => [$codeBlock("# not heading\n## still code")],
+        'body' => "    # not heading\n    ## still code",
+        'types' => ['code_block'],
+        'codeText' => "# not heading\n## still code",
+    ],
+    '07 code preserves blockquote-looking text' => [
+        'children' => [$codeBlock("> quoted literally")],
+        'body' => '    > quoted literally',
+        'types' => ['code_block'],
+        'codeText' => '> quoted literally',
+    ],
+    '08 code preserves leading spaces' => [
+        'children' => [$codeBlock('  literal indent')],
+        'body' => '      literal indent',
+        'types' => ['code_block'],
+        'codeText' => '  literal indent',
+    ],
+    '09 code preserves backtick fence text' => [
+        'children' => [$codeBlock("alpha\n```\nbeta")],
+        'body' => "    alpha\n    ```\n    beta",
+        'types' => ['code_block'],
+        'codeText' => "alpha\n```\nbeta",
+    ],
+    '10 code preserves dollar and backslash text' => [
+        'children' => [$codeBlock('echo $value \\ $other;')],
+        'body' => '    echo $value \ $other;',
+        'types' => ['code_block'],
+        'codeText' => 'echo $value \\ $other;',
+    ],
+    '11 fenced option starts plain code body' => [
+        'children' => [$codeBlock('echo fenced')],
+        'body' => "```\necho fenced\n```",
+        'types' => ['code_block'],
+        'codeText' => 'echo fenced',
+        'options' => ['fencedCodeBlocks' => true],
+    ],
+    '12 fenced option grows backtick code body' => [
+        'children' => [$codeBlock('contains ``` fence')],
+        'body' => "````\ncontains ``` fence\n````",
+        'types' => ['code_block'],
+        'codeText' => 'contains ``` fence',
+        'options' => ['fencedCodeBlocks' => true],
+    ],
+    '13 language class starts fenced code body' => [
+        'children' => [$codeBlock('echo php', ['classes' => ['php']])],
+        'body' => "```php\necho php\n```",
+        'types' => ['code_block'],
+        'codeText' => 'echo php',
+        'classes' => ['php'],
+    ],
+    '14 id and language start fenced code body' => [
+        'children' => [$codeBlock('echo id', ['id' => 'snippet', 'classes' => ['php']])],
+        'body' => "```{#snippet .php}\necho id\n```",
+        'types' => ['code_block'],
+        'codeText' => 'echo id',
+        'classes' => ['php'],
+    ],
+    '15 multi class and attribute start fenced code body' => [
+        'children' => [$codeBlock('echo attrs', ['classes' => ['php', 'numberLines'], 'attributes' => ['data-kind' => 'fixture']])],
+        'body' => "```{.php .numberLines data-kind=\"fixture\"}\necho attrs\n```",
+        'types' => ['code_block'],
+        'codeText' => 'echo attrs',
+        'classes' => ['php', 'numberLines'],
+    ],
+    '16 info string starts fenced code body' => [
+        'children' => [$codeBlock('echo info', ['info' => 'php startFrom=7'])],
+        'body' => "``` php startFrom=7\necho info\n```",
+        'types' => ['code_block'],
+        'codeText' => 'echo info',
+    ],
+    '17 braced info string starts fenced code body' => [
+        'children' => [$codeBlock('echo info', ['info' => '{.php .numberLines startFrom="4"}'])],
+        'body' => "``` {.php .numberLines startFrom=\"4\"}\necho info\n```",
+        'types' => ['code_block'],
+        'codeText' => 'echo info',
+    ],
+    '18 fenced option applies to attributed code body' => [
+        'children' => [$codeBlock('echo fenced php', ['classes' => ['php']])],
+        'body' => "```php\necho fenced php\n```",
+        'types' => ['code_block'],
+        'codeText' => 'echo fenced php',
+        'classes' => ['php'],
+        'options' => ['fencedCodeBlocks' => true],
+    ],
+    '19 code body followed by paragraph keeps both blocks' => [
+        'children' => [$codeBlock('echo alpha'), $paragraph('after')],
+        'body' => "    echo alpha\n\nafter",
+        'types' => ['code_block', 'paragraph'],
+        'codeText' => 'echo alpha',
+    ],
+    '20 code body followed by heading keeps both blocks' => [
+        'children' => [$codeBlock('echo alpha'), $definitionHeading('After', 2)],
+        'body' => "    echo alpha\n\n## After",
+        'types' => ['code_block', 'heading'],
+        'codeText' => 'echo alpha',
+    ],
+];
+
+foreach ($definitionCodeCases as $name => $case) {
+    $tests['maps upstream markdown writer definition body leading code surge ' . $name] =
+        static function (TestRunner $t) use ($case, $definitionDocument, $definitionExpected, $firstDefinitionChildren): void {
+            $markdown = (new MarkdownWriter($case['options'] ?? []))->write($definitionDocument($case['children']));
+            $t->same($definitionExpected($case['body']), $markdown);
+
+            $roundTrip = (new MarkdownReader())->read($markdown);
+            $children = $firstDefinitionChildren($roundTrip);
+            $t->same($case['types'], array_map(static fn (AstNode $node): string => $node->type, $children));
+
+            $code = $children[0] ?? null;
+            $t->true($code instanceof AstNode && $code->type === 'code_block', 'Expected leading definition code block');
+            if ($code instanceof AstNode) {
+                $t->same($case['codeText'], $code->attr('text'));
+                if (isset($case['classes'])) {
+                    $t->same($case['classes'], $code->attr('classes'));
+                }
+            }
+        };
+}
+
+$definitionHeadingCases = [];
+for ($level = 1; $level <= 6; $level++) {
+    $definitionHeadingCases['0' . $level . ' heading level ' . $level . ' starts definition body'] = [
+        'children' => [$definitionHeading('Definition heading ' . $level, $level)],
+        'body' => str_repeat('#', $level) . ' Definition heading ' . $level,
+        'level' => $level,
+        'text' => 'Definition heading ' . $level,
+    ];
+}
+$definitionHeadingCases += [
+    '07 heading attributes start definition body' => [
+        'children' => [$definitionHeading('Attributed heading', 3, ['id' => 'def-head', 'classes' => ['review'], 'attributes' => ['data-kind' => 'definition']])],
+        'body' => '### Attributed heading {#def-head .review data-kind="definition"}',
+        'level' => 3,
+        'text' => 'Attributed heading',
+    ],
+    '08 heading after code stays heading' => [
+        'children' => [$definitionHeading('First heading', 2), $paragraph('after heading')],
+        'body' => "## First heading\n\nafter heading",
+        'level' => 2,
+        'text' => 'First heading',
+        'types' => ['heading', 'paragraph'],
+    ],
+    '09 heading with ordered-marker text is escaped' => [
+        'children' => [$definitionHeading('1. literal marker', 2)],
+        'body' => '## 1\. literal marker',
+        'level' => 2,
+        'text' => '1\. literal marker',
+    ],
+    '10 heading with hash text is escaped' => [
+        'children' => [$definitionHeading('# literal hash', 2)],
+        'body' => '## \# literal hash',
+        'level' => 2,
+        'text' => '\# literal hash',
+    ],
+];
+
+foreach ($definitionHeadingCases as $name => $case) {
+    $tests['maps upstream markdown writer definition body leading heading surge ' . $name] =
+        static function (TestRunner $t) use ($case, $definitionDocument, $definitionExpected, $firstDefinitionChildren): void {
+            $markdown = (new MarkdownWriter())->write($definitionDocument($case['children']));
+            $t->same($definitionExpected($case['body']), $markdown);
+
+            $roundTrip = (new MarkdownReader())->read($markdown);
+            $children = $firstDefinitionChildren($roundTrip);
+            $t->same($case['types'] ?? ['heading'], array_map(static fn (AstNode $node): string => $node->type, $children));
+
+            $heading = $children[0] ?? null;
+            $t->true($heading instanceof AstNode && $heading->type === 'heading', 'Expected leading definition heading');
+            if ($heading instanceof AstNode) {
+                $t->same($case['level'], $heading->attr('level'));
+                $t->same($case['text'], $heading->attr('text'));
+            }
+        };
+}
+
+$definitionLineBlockCases = [
+    '01 one line block starts definition body' => [
+        'children' => [$lineBlock([$line('alpha')])],
+        'body' => '| alpha',
+        'lines' => ['alpha'],
+    ],
+    '02 empty line is preserved in leading line block' => [
+        'children' => [$lineBlock([$line('alpha'), $line(), $line('beta')])],
+        'body' => "| alpha\n|\n| beta",
+        'lines' => ['alpha', '', 'beta'],
+    ],
+    '03 three line verse starts definition body' => [
+        'children' => [$lineBlock([$line('roses'), $line('violets'), $line('review')])],
+        'body' => "| roses\n| violets\n| review",
+        'lines' => ['roses', 'violets', 'review'],
+    ],
+    '04 list-looking line remains line block text' => [
+        'children' => [$lineBlock([$line('- not list'), $line('1. not ordered')])],
+        'body' => "| \\- not list\n| 1\\. not ordered",
+        'lines' => ['\\- not list', '1\\. not ordered'],
+    ],
+    '05 heading-looking line remains line block text' => [
+        'children' => [$lineBlock([$line('# not heading')])],
+        'body' => '| \# not heading',
+        'lines' => ['\\# not heading'],
+    ],
+    '06 line block followed by paragraph keeps both blocks' => [
+        'children' => [$lineBlock([$line('alpha')]), $paragraph('after')],
+        'body' => "| alpha\n\nafter",
+        'lines' => ['alpha'],
+        'types' => ['line_block', 'paragraph'],
+    ],
+    '07 line block followed by code keeps both blocks' => [
+        'children' => [$lineBlock([$line('alpha')]), $codeBlock('echo after')],
+        'body' => "| alpha\n\n    echo after",
+        'lines' => ['alpha'],
+        'types' => ['line_block', 'code_block'],
+    ],
+    '08 soft line text keeps definition marker escaped' => [
+        'children' => [$lineBlock([$line(': not definition'), $line('~ not alternate')])],
+        'body' => "| \\: not definition\n| \\~ not alternate",
+        'lines' => ['\\: not definition', '\\~ not alternate'],
+    ],
+    '09 unicode line block starts definition body' => [
+        'children' => [$lineBlock([$line('naive cafe'), $line('resume review')])],
+        'body' => "| naive cafe\n| resume review",
+        'lines' => ['naive cafe', 'resume review'],
+    ],
+    '10 trailing empty line survives leading line block' => [
+        'children' => [$lineBlock([$line('alpha'), $line()])],
+        'body' => "| alpha\n|",
+        'lines' => ['alpha', ''],
+    ],
+];
+
+foreach ($definitionLineBlockCases as $name => $case) {
+    $tests['maps upstream markdown writer definition body leading line block surge ' . $name] =
+        static function (TestRunner $t) use ($case, $definitionDocument, $definitionExpected, $firstDefinitionChildren): void {
+            $markdown = (new MarkdownWriter())->write($definitionDocument($case['children']));
+            $t->same($definitionExpected($case['body']), $markdown);
+
+            $roundTrip = (new MarkdownReader())->read($markdown);
+            $children = $firstDefinitionChildren($roundTrip);
+            $t->same($case['types'] ?? ['line_block'], array_map(static fn (AstNode $node): string => $node->type, $children));
+
+            $lineBlock = $children[0] ?? null;
+            $t->true($lineBlock instanceof AstNode && $lineBlock->type === 'line_block', 'Expected leading definition line block');
+            if ($lineBlock instanceof AstNode) {
+                $t->same($case['lines'], array_map(static fn (AstNode $line): string => (string) $line->attr('text', ''), $lineBlock->children));
+            }
+        };
+}
+
+$definitionTableCases = [
+    '01 two column default table starts definition body' => $table(['Metric', 'Value'], ['Probe', '12'], ['left', 'right']),
+    '02 one column left table starts definition body' => $table(['Name'], ['Alpha'], ['left']),
+    '03 one column right table starts definition body' => $table(['Count'], ['7'], ['right']),
+    '04 one column center table starts definition body' => $table(['State'], ['Ready'], ['center']),
+    '05 one column default alignment table starts definition body' => $table(['Field'], ['Value'], ['default']),
+    '06 wide text table starts definition body' => $table(['Column', 'Description'], ['alpha', 'definition table'], ['left', 'left']),
+    '07 escaped pipe table starts definition body' => $table(['Metric', 'Value'], ['Pipe', 'A | B'], ['left', 'left']),
+    '08 escaped marker table starts definition body' => $table(['Marker'], ['1. literal'], ['left']),
+    '09 hash text table starts definition body' => $table(['Heading'], ['# literal'], ['left']),
+    '10 three column table starts definition body' => $table(['A', 'B', 'C'], ['1', '2', '3'], ['left', 'center', 'right']),
+];
+
+foreach ($definitionTableCases as $name => $tableNode) {
+    $tests['maps upstream markdown writer definition body leading table surge ' . $name] =
+        static function (TestRunner $t) use ($tableNode, $definitionDocument, $definitionExpected, $firstDefinitionChildren, $documentBody): void {
+            $body = (new MarkdownWriter())->write($documentBody($tableNode));
+            $markdown = (new MarkdownWriter())->write($definitionDocument([$tableNode]));
+            $t->same($definitionExpected($body), $markdown);
+
+            $roundTrip = (new MarkdownReader())->read($markdown);
+            $children = $firstDefinitionChildren($roundTrip);
+            $t->same(['table'], array_map(static fn (AstNode $node): string => $node->type, $children));
+        };
+}
+
 return $tests;
