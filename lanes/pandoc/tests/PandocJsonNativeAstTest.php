@@ -12755,6 +12755,117 @@ return [
             }
         }
     },
+    'preserves tagged citation record constructors through json and native ast' => static function (TestRunner $t): void {
+        $sourceInlines = [
+            ['t' => 'Str', 'c' => '[see'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@smith1899;'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@doe1901]'],
+        ];
+        $firstRecordPayload = [
+            'citationId' => 'smith1899',
+            'citationPrefix' => [['t' => 'Str', 'c' => 'see']],
+            'citationSuffix' => [['t' => 'Str', 'c' => 'p. 4']],
+            'citationMode' => ['t' => 'NormalCitation'],
+            'citationNoteNum' => 0,
+            'citationHash' => 1899,
+        ];
+        $secondRecordPayload = [
+            'citationId' => 'doe1901',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'AuthorInText'],
+            'citationNoteNum' => 0,
+            'citationHash' => 1901,
+        ];
+        $firstRecord = [
+            't' => 'Citation',
+            'c' => $firstRecordPayload,
+            'reviewQueue' => 'first-tagged-citation-source',
+        ];
+        $secondRecord = [
+            't' => 'Citation',
+            'c' => [$secondRecordPayload],
+            'reviewQueue' => 'second-tagged-citation-source',
+        ];
+        $recordsNative = [[$firstRecord, $secondRecord]];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Cite', 'c' => [
+                        $recordsNative,
+                        $sourceInlines,
+                    ]],
+                ]],
+            ],
+        ];
+        $stripWrapperAttrs = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $cluster = $document->children[0]->children[0];
+            $firstCitation = $cluster->children[0];
+            $secondCitation = $cluster->children[1];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('citation_group', $stripWrapperAttrs($cluster), $cluster->children),
+                ]),
+            ]);
+            $editedFirstCitation = new AstNode('citation', array_replace($firstCitation->attrs, [
+                'citationHash' => 1999,
+            ]), $firstCitation->children);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('citation_group', $stripWrapperAttrs($cluster), [
+                        $editedFirstCitation,
+                        $secondCitation,
+                    ]),
+                ]),
+            ]);
+
+            $t->same('citation_group', $cluster->type, "{$source} tagged citation records become a citation group");
+            $t->same($recordsNative, $cluster->attr('citationRecordsNative'), "{$source} keeps wrapped tagged citation record list");
+            $t->same('Citation', $firstCitation->attr('citationConstructor'), "{$source} first citation constructor");
+            $t->same($firstRecord, $firstCitation->attr('citationNative'), "{$source} first tagged citation native payload");
+            $t->same('smith1899', $firstCitation->attr('id'), "{$source} first citation id");
+            $t->same('see', $firstCitation->attr('prefix')[0]->attr('text'), "{$source} first citation prefix");
+            $t->same('p. 4', $firstCitation->attr('suffix')[0]->attr('text'), "{$source} first citation suffix");
+            $t->same('author_in_text', $secondCitation->attr('mode'), "{$source} second citation mode");
+            $t->same($secondRecord, $secondCitation->attr('citationNative'), "{$source} second tagged citation native payload");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedCite = $encoded['blocks'][0]['c'][0];
+
+                $t->same('Cite', $encodedCite['t'], "{$source} {$writer} writer emits Cite constructor");
+                $t->same($recordsNative, $encodedCite['c'][0], "{$source} {$writer} writer preserves tagged citation record wrappers");
+                $t->same($sourceInlines, $encodedCite['c'][1], "{$source} {$writer} writer preserves citation source inlines");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedRecords = $encoded['blocks'][0]['c'][0]['c'][0];
+
+                $t->same(1999, $encodedRecords[0]['citationHash'], "{$source} {$writer} edited citation regenerates plain record");
+                $t->same(false, array_key_exists('t', $encodedRecords[0]), "{$source} {$writer} edited citation drops stale Citation wrapper");
+                $t->same($secondRecord, $encodedRecords[1], "{$source} {$writer} writer preserves unchanged tagged citation wrapper");
+            }
+        }
+    },
     'preserves cite source inline constructors when regenerating citation wrappers' => static function (TestRunner $t): void {
         $sourceInlines = [
             ['t' => 'Str', 'c' => '[see'],

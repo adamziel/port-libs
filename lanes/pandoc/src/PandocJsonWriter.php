@@ -2142,6 +2142,22 @@ final class PandocJsonWriter
             return null;
         }
 
+        $tagged = $this->taggedNative($native, 'Citation');
+        if ($tagged !== null) {
+            $payload = $this->citationNativeRecordPayload($tagged['c'] ?? null);
+            if ($payload === null) {
+                return null;
+            }
+
+            foreach (['citationId', 'citationPrefix', 'citationSuffix', 'citationMode', 'citationNoteNum', 'citationHash'] as $key) {
+                if (!array_key_exists($key, $payload) || $payload[$key] !== $record[$key]) {
+                    return null;
+                }
+            }
+
+            return $tagged;
+        }
+
         foreach (['citationId', 'citationPrefix', 'citationSuffix', 'citationMode', 'citationNoteNum', 'citationHash'] as $key) {
             if (!array_key_exists($key, $native) || $native[$key] !== $record[$key]) {
                 return null;
@@ -2149,6 +2165,24 @@ final class PandocJsonWriter
         }
 
         return $native;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function citationNativeRecordPayload(mixed $content): ?array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && !array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
+        return is_array($content) && !array_is_list($content) ? $content : null;
     }
 
     /**

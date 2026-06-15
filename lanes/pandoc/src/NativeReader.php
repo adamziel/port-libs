@@ -1702,9 +1702,8 @@ final class NativeReader
 
     private function citationRecord(mixed $record): AstNode
     {
-        if (!is_array($record) || array_is_list($record)) {
-            throw new \InvalidArgumentException('Pandoc native JSON Cite citation record must be an object');
-        }
+        $native = $record;
+        $record = $this->citationRecordPayload($record);
 
         $id = $record['citationId'] ?? null;
         if (!is_string($id) || trim($id) === '') {
@@ -1745,10 +1744,41 @@ final class NativeReader
 
         return new AstNode('citation', array_replace([
             'citationConstructor' => 'Citation',
-            'citationNative' => $record,
+            'citationNative' => $native,
         ], $attrs), [
             new AstNode('text', ['text' => $attrs['text']]),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function citationRecordPayload(mixed $record): array
+    {
+        if (!is_array($record) || array_is_list($record)) {
+            throw new \InvalidArgumentException('Pandoc native JSON Cite citation record must be an object');
+        }
+
+        if (!$this->isTaggedConstructor($record, 'Citation')) {
+            return $record;
+        }
+
+        $content = $record['c'] ?? null;
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && !array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
+        if (!is_array($content) || ($content !== [] && array_is_list($content))) {
+            throw new \InvalidArgumentException('Pandoc native JSON Citation constructor content must be an object');
+        }
+
+        return $content;
     }
 
     private function withConstructorPayload(AstNode $node, string $constructor, mixed $native): AstNode
