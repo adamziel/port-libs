@@ -8259,6 +8259,33 @@ return [
         $t->same(['haskell'], $code->attr('classes'));
         $t->same(" let x = y\nin y +\ny +\ny", $code->attr('text'));
     },
+    'maps upstream fenced code attributes with quoted values' => static function (TestRunner $t): void {
+        $markdown = <<<'MD'
+```{#review-snippet .php .numberLines data-caption="Review packet" title='A "quoted" packet' onclick="drop()"}
+echo esc_html($title);
+```
+MD;
+        $document = (new MarkdownReader())->read($markdown);
+        $code = $document->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('code_block', $code->type);
+        $t->same('review-snippet', $code->attr('id'));
+        $t->same(['php', 'numberLines'], $code->attr('classes'));
+        $t->same([
+            'data-caption' => 'Review packet',
+            'title' => 'A "quoted" packet',
+            'onclick' => 'drop()',
+        ], $code->attr('attributes'));
+        $t->same('echo esc_html($title);', $code->attr('text'));
+        $t->same(implode("\n", [
+            '```{#review-snippet .php .numberLines data-caption="Review packet" title="A \"quoted\" packet" onclick="drop()"}',
+            'echo esc_html($title);',
+            '```',
+        ]), (new MarkdownWriter())->write($document));
+        $t->contains('<pre class="wp-block-code php numberLines" id="review-snippet" data-caption="Review packet" title="A &quot;quoted&quot; packet"><code class="language-php">echo esc_html($title);</code></pre>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe code block event attributes should not survive WordPress handoff');
+    },
     'maps upstream markdown literate haskell bird tracks when enabled' => static function (TestRunner $t): void {
         $default = (new MarkdownReader())->read("> a");
         $document = (new MarkdownReader(['literateHaskell' => true]))->read("> a\n> b\n\n< c\n\n<div>\nsource note\n</div>");
