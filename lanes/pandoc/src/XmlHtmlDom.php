@@ -14542,6 +14542,9 @@ final class XmlHtmlDom
         if ($name === 'address') {
             $summary += self::addressSummary($node);
         }
+        if ($name === 'slot') {
+            $summary += self::slotElementSummary($node);
+        }
         if (in_array($name, ['caption', 'col', 'td', 'th'], true)) {
             $summary += self::tableElementSummary($node, $name);
         }
@@ -14936,6 +14939,80 @@ final class XmlHtmlDom
             'contactEmailHrefs' => array_values(array_filter(
                 array_map(static fn (array $link): ?string => $link['href'], $links),
                 static fn (?string $href): bool => $href !== null && str_starts_with(strtolower($href), 'mailto:')
+            )),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function slotElementSummary(\DOMElement $slot): array
+    {
+        $nameRaw = self::attributeOrNull($slot, 'name');
+        $name = $nameRaw === null ? '' : trim($nameRaw);
+        $defaultSlot = $name === '';
+        $nameValid = $defaultSlot || self::isHtmlReferenceToken($name);
+        $fallbackText = self::normalizedText($slot);
+        $topLevelElementNames = [];
+        foreach ($slot->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $topLevelElementNames[] = self::htmlElementName($child);
+            }
+        }
+
+        $descendantElementNames = [];
+        foreach ($slot->getElementsByTagName('*') as $descendant) {
+            if ($descendant instanceof \DOMElement) {
+                $descendantElementNames[] = self::htmlElementName($descendant);
+            }
+        }
+
+        $fallbackControls = [];
+        foreach (['button', 'input', 'output', 'select', 'textarea'] as $controlName) {
+            foreach (self::descendantHtmlElements($slot, $controlName) as $control) {
+                $fallbackControls[] = [
+                    'control' => $controlName,
+                    'id' => self::attributeOrNull($control, 'id'),
+                    'controlName' => self::attributeOrNull($control, 'name'),
+                    'text' => self::normalizedText($control),
+                    'value' => self::attributeOrNull($control, 'value'),
+                ];
+            }
+        }
+
+        $issues = [];
+        if (!$nameValid) {
+            $issues[] = [
+                'code' => 'invalid-slot-name',
+                'slotNameRaw' => $nameRaw,
+            ];
+        }
+
+        return [
+            'slotElement' => 'slot',
+            'slotNameRaw' => $nameRaw,
+            'slotName' => $defaultSlot ? 'default' : $name,
+            'slotDefault' => $defaultSlot,
+            'slotNameValid' => $nameValid,
+            'slotFallbackReviewPolicy' => 'slot-fallback-content-review',
+            'slotFallbackText' => $fallbackText,
+            'slotFallbackTextLength' => strlen($fallbackText),
+            'slotFallbackTextSha256' => hash('sha256', $fallbackText),
+            'slotFallbackTopLevelElementNames' => $topLevelElementNames,
+            'slotFallbackTopLevelElementCount' => count($topLevelElementNames),
+            'slotFallbackDescendantElementNames' => $descendantElementNames,
+            'slotFallbackDescendantElementCount' => count($descendantElementNames),
+            'slotFallbackLinkHrefs' => self::inertHtmlFragmentAttributeValues($slot, ['a', 'area'], 'href'),
+            'slotFallbackImageSources' => self::inertHtmlFragmentAttributeValues($slot, ['img'], 'src'),
+            'slotFallbackControls' => $fallbackControls,
+            'slotFallbackControlNames' => array_values(array_filter(
+                array_map(static fn (array $control): ?string => $control['controlName'], $fallbackControls),
+                static fn (?string $name): bool => $name !== null && $name !== ''
+            )),
+            'slotIssues' => $issues,
+            'slotIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
             )),
         ];
     }

@@ -4104,6 +4104,67 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/custom-element-attributes-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html slot fallback content for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="host"><slot name="title"><h2>Fallback title</h2></slot>'
+                . '<slot><p><a href="/fallback">Read fallback</a><img src="fallback.png" alt="Fallback"><input name="q" value="term"></p></slot>'
+                . '<slot name="bad slot"><button name="bad">Bad</button></slot></section>',
+            'slot fallback review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', ['source' => 'xml-html5-dom'], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/slot-fallback-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $host = $summary[0];
+        $title = $host['children'][0];
+        $default = $host['children'][1];
+        $invalid = $host['children'][2];
+
+        $t->same('slot', $title['name']);
+        $t->same('slot', $title['slotElement']);
+        $t->same('title', $title['slotNameRaw']);
+        $t->same('title', $title['slotName']);
+        $t->same(false, $title['slotDefault']);
+        $t->same(true, $title['slotNameValid']);
+        $t->same('slot-fallback-content-review', $title['slotFallbackReviewPolicy']);
+        $t->same('Fallback title', $title['slotFallbackText']);
+        $t->same(strlen('Fallback title'), $title['slotFallbackTextLength']);
+        $t->same(hash('sha256', 'Fallback title'), $title['slotFallbackTextSha256']);
+        $t->same(['h2'], $title['slotFallbackTopLevelElementNames']);
+        $t->same(['h2'], $title['slotFallbackDescendantElementNames']);
+        $t->same([], $title['slotFallbackLinkHrefs']);
+        $t->same([], $title['slotFallbackImageSources']);
+        $t->same([], $title['slotIssues']);
+
+        $t->same(null, $default['slotNameRaw']);
+        $t->same('default', $default['slotName']);
+        $t->same(true, $default['slotDefault']);
+        $t->same(true, $default['slotNameValid']);
+        $t->same('Read fallback', $default['slotFallbackText']);
+        $t->same(['p'], $default['slotFallbackTopLevelElementNames']);
+        $t->same(['p', 'a', 'img', 'input'], $default['slotFallbackDescendantElementNames']);
+        $t->same(4, $default['slotFallbackDescendantElementCount']);
+        $t->same(['/fallback'], $default['slotFallbackLinkHrefs']);
+        $t->same(['fallback.png'], $default['slotFallbackImageSources']);
+        $t->same(['q'], $default['slotFallbackControlNames']);
+        $t->same('input', $default['slotFallbackControls'][0]['control']);
+        $t->same('q', $default['slotFallbackControls'][0]['controlName']);
+        $t->same('term', $default['slotFallbackControls'][0]['value']);
+
+        $t->same('bad slot', $invalid['slotNameRaw']);
+        $t->same('bad slot', $invalid['slotName']);
+        $t->same(false, $invalid['slotNameValid']);
+        $t->same(['invalid-slot-name'], $invalid['slotIssueCodes']);
+        $t->same('invalid-slot-name', $invalid['slotIssues'][0]['code'] ?? null);
+        $t->same(['button'], $invalid['slotFallbackTopLevelElementNames']);
+        $t->same(['bad'], $invalid['slotFallbackControlNames']);
+        $t->same('<section id="host"><slot name="title"><h2>Fallback title</h2></slot><slot><p><a href="/fallback">Read fallback</a><img alt="Fallback" src="fallback.png"><input name="q" value="term"></p></slot><slot name="bad slot"><button name="bad">Bad</button></slot></section>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/slot-fallback-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html input hint attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="entry" autocapitalize="on"><input id="amount" inputmode="Decimal" enterkeyhint="Done" autocapitalize="characters">'
