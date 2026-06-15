@@ -4434,6 +4434,84 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports direct package spine binding fallback summary' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-direct-spine-binding-fallbacks-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-spine-binding-fallback-summary</dc:identifier>
+    <dc:title>Spine Binding Fallback Summary</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="widget" href="widgets/review-widget.bin" media-type="application/x-review-widget"/>
+    <item id="widget-handler" href="text/widget-handler.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="bad-widget" href="widgets/bad-widget.bin" media-type="application/x-bad-widget"/>
+    <item id="style-handler" href="styles/handler.css" media-type="text/css"/>
+  </manifest>
+  <spine>
+    <itemref id="bound-widget" idref="widget"/>
+    <itemref idref="chapter"/>
+    <itemref idref="bad-widget"/>
+  </spine>
+  <bindings>
+    <mediaType media-type="application/x-review-widget" handler="widget-handler"/>
+    <mediaType media-type="application/x-bad-widget" handler="style-handler"/>
+  </bindings>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/widgets/review-widget.bin', 'CUSTOM-WIDGET-BYTES');
+            $writePackageFile($root, 'EPUB/widgets/bad-widget.bin', 'BAD-WIDGET-BYTES');
+            $writePackageFile($root, 'EPUB/text/widget-handler.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable fallback.</p></body></html>');
+            $writePackageFile($root, 'EPUB/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Direct chapter.</p></body></html>');
+            $writePackageFile($root, 'EPUB/styles/handler.css', 'body { color: #111; }');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $spineReport = $epub['spineReport'];
+            $fallback = $spineReport['fallbackContentItems'][0];
+            $diagnostic = $spineReport['fallbackDiagnostics'][0];
+
+            $t->same(3, $spineReport['itemCount']);
+            $t->same(2, $spineReport['readableItemCount']);
+            $t->same(1, $spineReport['skippedItemCount']);
+            $t->same(1, $spineReport['fallbackContentCount']);
+            $t->same(1, $spineReport['bindingFallbackContentCount']);
+            $t->same($fallback, $spineReport['bindingFallbackContentItems'][0]);
+            $t->same(0, $fallback['index']);
+            $t->same('widget', $fallback['idref']);
+            $t->same('bound-widget', $fallback['spineItemId']);
+            $t->same('EPUB/widgets/review-widget.bin', $fallback['spinePath']);
+            $t->same('application/x-review-widget', $fallback['spineMediaType']);
+            $t->same('widget-handler', $fallback['contentId']);
+            $t->same('EPUB/text/widget-handler.xhtml', $fallback['contentPath']);
+            $t->same('application/xhtml+xml', $fallback['contentMediaType']);
+            $t->same('binding-handler', $fallback['source']);
+            $t->same('application/x-review-widget', $fallback['bindingMediaType']);
+            $t->same('binding-handler', $fallback['fallbackChain'][0]['source']);
+            $t->same(1, $spineReport['fallbackDiagnosticCount']);
+            $t->same(1, $spineReport['diagnosticCount']);
+            $t->same($diagnostic, $spineReport['diagnostics'][0]);
+            $t->same(2, $diagnostic['index']);
+            $t->same('bad-widget', $diagnostic['idref']);
+            $t->same('non-xhtml-binding-handler', $diagnostic['type']);
+            $t->same('style-handler', $diagnostic['handlerId']);
+            $t->same('text/css', $diagnostic['handlerMediaType']);
+            $t->same(2, count($document->children));
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports direct package OCF sidecar files for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-reader-ocf-sidecars-' . str_replace('.', '', uniqid('', true));
         $chapterXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable sidecar package.</p></body></html>';

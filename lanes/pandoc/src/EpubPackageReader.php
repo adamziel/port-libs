@@ -3864,6 +3864,9 @@ final class EpubPackageReader
         $missingManifestItems = [];
         $invalidLinearItems = [];
         $linearDiagnostics = [];
+        $fallbackContentItems = [];
+        $bindingFallbackContentItems = [];
+        $fallbackDiagnostics = [];
         $spineMetadataDiagnostics = is_array($spineMetadata['diagnostics'] ?? null)
             ? array_values($spineMetadata['diagnostics'])
             : [];
@@ -3921,6 +3924,46 @@ final class EpubPackageReader
                 $linearDiagnostics[] = ['index' => $index, 'idref' => (string) ($item['idref'] ?? '')] + $diagnostic;
             }
 
+            $fallbackChain = is_array($item['fallbackChain'] ?? null)
+                ? array_values(array_filter($item['fallbackChain'], 'is_array'))
+                : [];
+            if (($item['contentIsFallback'] ?? false) === true) {
+                $firstFallback = is_array($fallbackChain[0] ?? null) ? $fallbackChain[0] : [];
+                $source = is_string($firstFallback['source'] ?? null) ? $firstFallback['source'] : '';
+                $bindingMediaType = is_string($firstFallback['bindingMediaType'] ?? null)
+                    ? $firstFallback['bindingMediaType']
+                    : null;
+                $fallbackItem = [
+                    'index' => (int) ($item['index'] ?? $index),
+                    'idref' => (string) ($item['idref'] ?? ''),
+                    'spineItemId' => is_string($item['id'] ?? null) ? $item['id'] : null,
+                    'spineHref' => (string) ($item['href'] ?? ''),
+                    'spineTarget' => (string) ($item['target'] ?? ''),
+                    'spinePath' => (string) ($item['path'] ?? ''),
+                    'spineMediaType' => (string) ($item['mediaType'] ?? ''),
+                    'contentId' => (string) ($item['contentId'] ?? ''),
+                    'contentPath' => (string) ($item['contentPath'] ?? ''),
+                    'contentMediaType' => (string) ($item['contentMediaType'] ?? ''),
+                    'source' => $source,
+                    'bindingMediaType' => $bindingMediaType,
+                    'fallbackChain' => $fallbackChain,
+                ];
+                $fallbackContentItems[] = $fallbackItem;
+                if ($source === 'binding-handler') {
+                    $bindingFallbackContentItems[] = $fallbackItem;
+                }
+            }
+            foreach (is_array($item['fallbackDiagnostics'] ?? null) ? $item['fallbackDiagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+                $fallbackDiagnostics[] = [
+                    'index' => (int) ($item['index'] ?? $index),
+                    'idref' => (string) ($item['idref'] ?? ''),
+                    'mediaType' => (string) ($item['mediaTypeBase'] ?? $item['mediaType'] ?? ''),
+                ] + $diagnostic;
+            }
+
             foreach (is_array($item['spineItemDiagnostics'] ?? null) ? $item['spineItemDiagnostics'] : [] as $diagnostic) {
                 if (!is_array($diagnostic)) {
                     continue;
@@ -3972,6 +4015,7 @@ final class EpubPackageReader
         }
 
         $diagnostics = array_merge($diagnostics, $duplicateIdrefDiagnostics);
+        $diagnostics = array_merge($diagnostics, $fallbackDiagnostics);
 
         return [
             'itemCount' => count($spine),
@@ -3984,6 +4028,12 @@ final class EpubPackageReader
             'pageSpreadRightCount' => $pageSpreadCounts['right'],
             'pageSpreadCenterCount' => $pageSpreadCounts['center'],
             'pageSpreadItems' => $pageSpreadItems,
+            'fallbackContentCount' => count($fallbackContentItems),
+            'fallbackContentItems' => $fallbackContentItems,
+            'bindingFallbackContentCount' => count($bindingFallbackContentItems),
+            'bindingFallbackContentItems' => $bindingFallbackContentItems,
+            'fallbackDiagnosticCount' => count($fallbackDiagnostics),
+            'fallbackDiagnostics' => $fallbackDiagnostics,
             'spineMetadata' => $spineMetadata,
             'pageProgressionDirection' => (string) ($spineMetadata['pageProgressionDirection'] ?? 'default'),
             'pageProgressionDirectionRaw' => $spineMetadata['pageProgressionDirectionRaw'] ?? null,
