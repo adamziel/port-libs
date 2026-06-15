@@ -17965,6 +17965,8 @@ final class EpubReader
             }
         }
 
+        $semanticNotes = self::xhtmlSemanticNoteReport($semanticItems);
+
         return [
             'present' => $items !== [],
             'assetCount' => count($items),
@@ -18057,6 +18059,12 @@ final class EpubReader
             'semanticTypes' => self::xhtmlSemanticTypes($semanticItems),
             'semanticItems' => $semanticItems,
             'semanticItemsByType' => self::xhtmlSemanticItemsByType($semanticItems),
+            'semanticNoteCount' => $semanticNotes['noteCount'],
+            'semanticNoterefCount' => $semanticNotes['noterefCount'],
+            'semanticMatchedNoterefCount' => $semanticNotes['matchedNoterefCount'],
+            'semanticUnmatchedNoterefCount' => $semanticNotes['unmatchedNoterefCount'],
+            'semanticNoteDiagnostics' => $semanticNotes['diagnostics'],
+            'semanticNotes' => $semanticNotes,
             'semanticDiagnostics' => $semanticDiagnostics,
             'viewportAssetCount' => $viewportAssetCount,
             'viewportCount' => $viewportCount,
@@ -18072,6 +18080,214 @@ final class EpubReader
             'encryptedReferences' => $encryptedReferences,
             'cfiReferences' => $cfiReferences,
             'mediaFragmentReferences' => $mediaFragmentReferences,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $semanticItems
+     *
+     * @return array<string, mixed>
+     */
+    private static function xhtmlSemanticNoteReport(array $semanticItems): array
+    {
+        $notes = [];
+        $notesByTarget = [];
+        $notesByType = [];
+        $noterefs = [];
+        $diagnostics = [];
+        $noteTypes = ['footnote' => true, 'endnote' => true];
+
+        foreach ($semanticItems as $semantic) {
+            $types = is_array($semantic['types'] ?? null) ? array_values($semantic['types']) : [];
+            $noteType = null;
+            foreach ($types as $type) {
+                if (is_string($type) && isset($noteTypes[$type])) {
+                    $noteType = $type;
+                    break;
+                }
+            }
+            if ($noteType === null) {
+                continue;
+            }
+
+            $id = is_string($semantic['id'] ?? null) && $semantic['id'] !== '' ? $semantic['id'] : null;
+            $sourcePart = is_string($semantic['sourcePart'] ?? null) && $semantic['sourcePart'] !== ''
+                ? $semantic['sourcePart']
+                : null;
+            $target = $id !== null && $sourcePart !== null ? $sourcePart . '#' . $id : null;
+            $note = [
+                'index' => count($notes),
+                'sourceIndex' => is_int($semantic['index'] ?? null) ? $semantic['index'] : null,
+                'type' => $noteType,
+                'types' => $types,
+                'id' => $id,
+                'sourcePart' => $sourcePart,
+                'target' => $target,
+                'addressable' => $target !== null,
+                'element' => is_string($semantic['element'] ?? null) ? $semantic['element'] : null,
+                'text' => is_string($semantic['text'] ?? null) ? $semantic['text'] : '',
+                'language' => is_string($semantic['language'] ?? null) ? $semantic['language'] : null,
+                'direction' => is_string($semantic['direction'] ?? null) ? $semantic['direction'] : null,
+                'attributes' => is_array($semantic['attributes'] ?? null) ? $semantic['attributes'] : [],
+            ];
+
+            if ($target === null) {
+                $diagnostics[] = [
+                    'type' => 'unaddressable-semantic-note',
+                    'noteType' => $noteType,
+                    'id' => $id,
+                    'sourcePart' => $sourcePart,
+                    'message' => 'EPUB XHTML semantic note is missing an id or source part and cannot be matched from a noteref',
+                ];
+            } else {
+                $notesByTarget[$target][] = $note;
+            }
+
+            $notes[] = $note;
+            $notesByType[$noteType][] = $note;
+        }
+
+        foreach ($semanticItems as $semantic) {
+            $types = is_array($semantic['types'] ?? null) ? array_values($semantic['types']) : [];
+            if (!in_array('noteref', $types, true)) {
+                continue;
+            }
+
+            $targetPart = is_string($semantic['part'] ?? null) && $semantic['part'] !== ''
+                ? $semantic['part']
+                : null;
+            $fragment = is_string($semantic['fragment'] ?? null) && $semantic['fragment'] !== ''
+                ? $semantic['fragment']
+                : null;
+            $target = is_string($semantic['target'] ?? null) && $semantic['target'] !== ''
+                ? $semantic['target']
+                : null;
+            $targetKey = $targetPart !== null && $fragment !== null ? $targetPart . '#' . $fragment : null;
+            $matches = $targetKey !== null && isset($notesByTarget[$targetKey]) ? $notesByTarget[$targetKey] : [];
+            $matched = $matches !== [];
+            $noterefDiagnostics = [];
+
+            if (!$matched) {
+                if (($semantic['external'] ?? false) === true) {
+                    $noterefDiagnostics[] = [
+                        'type' => 'external-noteref-note-target',
+                        'target' => $target,
+                        'message' => 'EPUB XHTML noteref points outside the package and was not fetched for note matching',
+                    ];
+                } elseif ($targetKey === null) {
+                    $noterefDiagnostics[] = [
+                        'type' => 'missing-noteref-note-target',
+                        'target' => $target,
+                        'message' => 'EPUB XHTML noteref does not identify a package-local note target',
+                    ];
+                } elseif (($semantic['fragmentExists'] ?? null) === false || ($semantic['exists'] ?? null) === false) {
+                    $noterefDiagnostics[] = [
+                        'type' => 'missing-noteref-note-target',
+                        'target' => $targetKey,
+                        'message' => 'EPUB XHTML noteref target does not resolve to an element in the content document',
+                    ];
+                } else {
+                    $noterefDiagnostics[] = [
+                        'type' => 'noteref-target-not-semantic-note',
+                        'target' => $targetKey,
+                        'message' => 'EPUB XHTML noteref target exists but is not marked as a footnote or endnote',
+                    ];
+                }
+            }
+
+            $firstMatch = $matches[0] ?? null;
+            $noteref = [
+                'index' => count($noterefs),
+                'sourceIndex' => is_int($semantic['index'] ?? null) ? $semantic['index'] : null,
+                'id' => is_string($semantic['id'] ?? null) ? $semantic['id'] : null,
+                'sourcePart' => is_string($semantic['sourcePart'] ?? null) ? $semantic['sourcePart'] : null,
+                'href' => is_string($semantic['href'] ?? null) ? $semantic['href'] : null,
+                'target' => $target,
+                'targetPart' => $targetPart,
+                'fragment' => $fragment,
+                'fragmentExists' => is_bool($semantic['fragmentExists'] ?? null) ? $semantic['fragmentExists'] : null,
+                'external' => ($semantic['external'] ?? false) === true,
+                'exists' => is_bool($semantic['exists'] ?? null) ? $semantic['exists'] : null,
+                'text' => is_string($semantic['text'] ?? null) ? $semantic['text'] : '',
+                'matched' => $matched,
+                'matchCount' => count($matches),
+                'noteType' => is_array($firstMatch) ? $firstMatch['type'] : null,
+                'noteId' => is_array($firstMatch) ? $firstMatch['id'] : null,
+                'notePart' => is_array($firstMatch) ? $firstMatch['sourcePart'] : null,
+                'noteTarget' => is_array($firstMatch) ? $firstMatch['target'] : null,
+                'noteText' => is_array($firstMatch) ? $firstMatch['text'] : null,
+                'noteElement' => is_array($firstMatch) ? $firstMatch['element'] : null,
+                'diagnostics' => $noterefDiagnostics,
+            ];
+
+            if ($noterefDiagnostics !== []) {
+                foreach ($noterefDiagnostics as $diagnostic) {
+                    $diagnostics[] = [
+                        'noterefIndex' => $noteref['index'],
+                        'id' => $noteref['id'],
+                    ] + $diagnostic;
+                }
+            }
+
+            $noterefs[] = $noteref;
+        }
+
+        $addressableNotes = array_values(array_filter(
+            $notes,
+            static fn (array $note): bool => ($note['addressable'] ?? false) === true,
+        ));
+        $matchedNoterefs = array_values(array_filter(
+            $noterefs,
+            static fn (array $noteref): bool => ($noteref['matched'] ?? false) === true,
+        ));
+        $unmatchedNoterefs = array_values(array_filter(
+            $noterefs,
+            static fn (array $noteref): bool => ($noteref['matched'] ?? false) !== true,
+        ));
+        $missingTargetNoterefs = array_values(array_filter(
+            $noterefs,
+            static fn (array $noteref): bool => in_array(
+                'missing-noteref-note-target',
+                array_map(static fn (array $diagnostic): string => (string) ($diagnostic['type'] ?? ''), $noteref['diagnostics']),
+                true
+            ),
+        ));
+        $nonNoteTargetNoterefs = array_values(array_filter(
+            $noterefs,
+            static fn (array $noteref): bool => in_array(
+                'noteref-target-not-semantic-note',
+                array_map(static fn (array $diagnostic): string => (string) ($diagnostic['type'] ?? ''), $noteref['diagnostics']),
+                true
+            ),
+        ));
+        $externalNoterefs = array_values(array_filter(
+            $noterefs,
+            static fn (array $noteref): bool => ($noteref['external'] ?? false) === true,
+        ));
+
+        ksort($notesByTarget, SORT_STRING);
+        ksort($notesByType, SORT_STRING);
+
+        return [
+            'present' => $notes !== [] || $noterefs !== [],
+            'noteCount' => count($notes),
+            'footnoteCount' => count($notesByType['footnote'] ?? []),
+            'endnoteCount' => count($notesByType['endnote'] ?? []),
+            'addressableNoteCount' => count($addressableNotes),
+            'noterefCount' => count($noterefs),
+            'matchedNoterefCount' => count($matchedNoterefs),
+            'unmatchedNoterefCount' => count($unmatchedNoterefs),
+            'missingTargetNoterefCount' => count($missingTargetNoterefs),
+            'nonNoteTargetNoterefCount' => count($nonNoteTargetNoterefs),
+            'externalNoterefCount' => count($externalNoterefs),
+            'diagnosticCount' => count($diagnostics),
+            'notes' => $notes,
+            'notesByTarget' => $notesByTarget,
+            'notesByType' => $notesByType,
+            'noterefs' => $noterefs,
+            'matchedNoterefs' => $matchedNoterefs,
+            'unmatchedNoterefs' => $unmatchedNoterefs,
             'diagnostics' => $diagnostics,
         ];
     }
