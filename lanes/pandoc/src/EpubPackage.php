@@ -737,6 +737,8 @@ final class EpubPackage
                 'packageInventory' => $packageInventory,
                 'packageInventoryMissingOpfManifestDeclaredItems' => $packageInventory['missingOpfManifestDeclaredItems'],
                 'packageInventoryMissingOpfManifestDeclaredDiagnostics' => $packageInventory['missingOpfManifestDeclaredDiagnostics'],
+                'packageInventoryDuplicateOpfManifestPackagePathItems' => $packageInventory['duplicateOpfManifestPackagePathItems'],
+                'packageInventoryDuplicateOpfManifestPackagePathDiagnostics' => $packageInventory['duplicateOpfManifestPackagePathDiagnostics'],
                 'packageInventoryDiagnostics' => $packageInventory['diagnostics'],
                 'packageInventoryLocalHeaderOrder' => $packageInventory['localHeaderOrder'],
                 'packageInventoryLocalHeaderOrderDiagnostics' => $packageInventory['localHeaderOrderDiagnostics'],
@@ -8545,10 +8547,16 @@ final class EpubPackage
             }
 
             $partName = self::packageInventoryPartName($packagePath);
+            $entry = $package->has($packagePath) ? $package->entry($packagePath) : null;
+            $mediaTypes = array_values(array_unique(array_map(
+                static fn (array $item): string => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : '',
+                $items
+            )));
             $duplicate = [
                 'packagePath' => $packagePath,
                 'partName' => $partName,
                 'itemCount' => count($items),
+                'manifestItemCount' => count($items),
                 'indexes' => array_map(
                     static fn (array $item): int => (int) ($item['index'] ?? 0),
                     $items
@@ -8565,9 +8573,10 @@ final class EpubPackage
                     static fn (array $item): string => is_string($item['target'] ?? null) ? $item['target'] : '',
                     $items
                 ),
-                'mediaTypes' => array_values(array_unique(array_map(
-                    static fn (array $item): string => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : '',
-                    $items
+                'mediaTypes' => $mediaTypes,
+                'mediaTypeBases' => array_values(array_unique(array_map(
+                    static fn (string $mediaType): string => self::mediaTypeBase($mediaType),
+                    $mediaTypes
                 ))),
             ];
             $diagnostic = [
@@ -8578,6 +8587,17 @@ final class EpubPackage
                 'hrefs' => $duplicate['hrefs'],
                 'message' => 'EPUB OPF manifest maps multiple item ids to the same ZIP package part; compact inventory preserves the collision for review',
             ];
+            $duplicate += [
+                'exists' => $entry instanceof ZipPackageEntry,
+                'byteExposurePolicy' => $entry instanceof ZipPackageEntry
+                    ? 'epub-package-entry-metadata-only'
+                    : 'missing-opf-manifest-package-part-metadata-only',
+                'diagnosticCount' => 1,
+                'diagnostics' => [$diagnostic],
+            ] + self::zipEntryProvenance($entry);
+            if (($duplicate['compressionSupported'] ?? null) === false) {
+                $duplicate['byteExposurePolicy'] = 'unsupported-compression-metadata-only';
+            }
             $duplicateManifestPackagePartItems[] = $duplicate;
             $duplicateManifestPackagePartDiagnostics[] = $diagnostic;
             $duplicateManifestPackagePartNames[$partName] = true;
@@ -8818,6 +8838,7 @@ final class EpubPackage
             }
             if ($duplicateManifestPackagePart) {
                 $addRole('duplicate-opf-manifest-package-part');
+                $addRole('duplicate-opf-manifest-package-path');
             }
             if ($resourceKind !== null) {
                 $addRole('resource-kind-' . $resourceKind);
@@ -8915,6 +8936,7 @@ final class EpubPackage
                 'duplicateManifestIdSelected' => $duplicateManifestIdSelected,
                 'duplicateManifestIdOrdinalsById' => $duplicateManifestIdOrdinalsById,
                 'duplicateManifestPackagePart' => $duplicateManifestPackagePart,
+                'duplicateOpfManifestPackagePath' => $duplicateManifestPackagePart,
                 'duplicateManifestPackagePartIds' => is_array($duplicateManifestPackagePartItem) ? $duplicateManifestPackagePartItem['ids'] : [],
                 'duplicateManifestPackagePartHrefs' => is_array($duplicateManifestPackagePartItem) ? $duplicateManifestPackagePartItem['hrefs'] : [],
                 'duplicateManifestPackagePartIndexes' => is_array($duplicateManifestPackagePartItem) ? $duplicateManifestPackagePartItem['indexes'] : [],
@@ -9021,6 +9043,40 @@ final class EpubPackage
         ksort($missingManifestDeclaredRoleCounts, SORT_STRING);
         ksort($missingManifestDeclaredResourceKindCounts, SORT_STRING);
         ksort($missingManifestDeclaredByteExposurePolicyCounts, SORT_STRING);
+        $duplicateOpfManifestPackagePathItems = [];
+        $duplicateOpfManifestPackagePathItemsByPartName = [];
+        $duplicateOpfManifestPackagePathExistingPartNames = [];
+        $duplicateOpfManifestPackagePathDiagnostics = [];
+        foreach ($duplicateManifestPackagePartItems as $item) {
+            $aliasDiagnostics = [];
+            foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $aliasDiagnostic = $diagnostic;
+                if (($aliasDiagnostic['type'] ?? null) === 'duplicate-opf-manifest-package-part') {
+                    $aliasDiagnostic['type'] = 'duplicate-opf-manifest-package-path';
+                    $aliasDiagnostic['message'] = 'EPUB OPF manifest maps multiple item ids to the same ZIP package path; compact inventory exposes the shared package part for import review';
+                }
+                $aliasDiagnostics[] = $aliasDiagnostic;
+                $duplicateOpfManifestPackagePathDiagnostics[] = $aliasDiagnostic;
+            }
+
+            $aliasItem = $item;
+            $aliasItem['manifestItemCount'] = (int) ($item['manifestItemCount'] ?? $item['itemCount'] ?? 0);
+            $aliasItem['diagnosticCount'] = count($aliasDiagnostics);
+            $aliasItem['diagnostics'] = $aliasDiagnostics;
+            $duplicateOpfManifestPackagePathItems[] = $aliasItem;
+
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            if ($partName !== null) {
+                $duplicateOpfManifestPackagePathItemsByPartName[$partName][] = $aliasItem;
+                if (($item['exists'] ?? false) === true) {
+                    $duplicateOpfManifestPackagePathExistingPartNames[$partName] = true;
+                }
+            }
+        }
 
         return [
             'entryCount' => count($entries),
@@ -9034,6 +9090,8 @@ final class EpubPackage
             'duplicateManifestIdMissingItemCount' => count($missingDuplicateManifestIdItems),
             'duplicateManifestPackagePartCount' => count($duplicateManifestPackagePartItems),
             'duplicateManifestPackageItemCount' => $duplicateManifestPackageItemCount,
+            'duplicateOpfManifestPackagePathCount' => count($duplicateOpfManifestPackagePathItems),
+            'duplicateOpfManifestPackagePathPartCount' => count($duplicateManifestPackagePartNames),
             'undeclaredEntryCount' => count($undeclaredPartNames),
             'spineEntryCount' => $spineEntryCount,
             'encryptedEntryCount' => $encryptedEntryCount,
@@ -9096,6 +9154,12 @@ final class EpubPackage
             'duplicateManifestPackagePartItems' => $duplicateManifestPackagePartItems,
             'duplicateManifestPackagePartDiagnosticCount' => count($duplicateManifestPackagePartDiagnostics),
             'duplicateManifestPackagePartDiagnostics' => $duplicateManifestPackagePartDiagnostics,
+            'duplicateOpfManifestPackagePathPartNames' => array_keys($duplicateManifestPackagePartNames),
+            'duplicateOpfManifestPackagePathExistingPartNames' => array_keys($duplicateOpfManifestPackagePathExistingPartNames),
+            'duplicateOpfManifestPackagePathItems' => $duplicateOpfManifestPackagePathItems,
+            'duplicateOpfManifestPackagePathItemsByPartName' => $duplicateOpfManifestPackagePathItemsByPartName,
+            'duplicateOpfManifestPackagePathDiagnosticCount' => count($duplicateOpfManifestPackagePathDiagnostics),
+            'duplicateOpfManifestPackagePathDiagnostics' => $duplicateOpfManifestPackagePathDiagnostics,
             'undeclaredPartNames' => array_keys($undeclaredPartNames),
             'undeclaredEntryReport' => $undeclaredEntryReport,
             'undeclaredPackageEntries' => $undeclaredEntryReport['items'],

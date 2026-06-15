@@ -7628,6 +7628,7 @@ XML;
         $t->same(2, $inventory['duplicateManifestPackagePartDiagnosticCount']);
         $t->same(['duplicate-opf-manifest-package-part', 'duplicate-opf-manifest-package-part'], array_column($inventory['duplicateManifestPackagePartDiagnostics'], 'type'));
         $t->same(2, $inventory['roleCounts']['duplicate-opf-manifest-package-part']);
+        $t->same(2, $inventory['roleCounts']['duplicate-opf-manifest-package-path']);
         $t->same(3, $inventory['opfManifestDeclaredEntryCount']);
         $t->same(3, $inventory['opfManifestDeclaredPartCount']);
 
@@ -7650,7 +7651,8 @@ XML;
         $t->same(['chapter', 'chapter-review'], $chapter['duplicateManifestPackagePartIds']);
         $t->same(['text/chapter.xhtml', 'text/chapter.xhtml#review'], $chapter['duplicateManifestPackagePartHrefs']);
         $t->same([1, 2], $chapter['duplicateManifestPackagePartIndexes']);
-        $t->same(['opf-manifest-declared', 'duplicate-opf-manifest-package-part', 'resource-kind-xhtml', 'spine-reading-order'], $chapter['roles']);
+        $t->same(true, $chapter['duplicateOpfManifestPackagePath']);
+        $t->same(['opf-manifest-declared', 'duplicate-opf-manifest-package-part', 'duplicate-opf-manifest-package-path', 'resource-kind-xhtml', 'spine-reading-order'], $chapter['roles']);
 
         $t->same(2, $cover['manifestItemCount']);
         $t->same(['cover', 'cover-review'], $cover['manifestIds']);
@@ -7658,7 +7660,8 @@ XML;
         $t->same(['cover', 'cover-review'], $cover['duplicateManifestPackagePartIds']);
         $t->same(['images/cover.png', 'images/cover.png?role=review'], $cover['duplicateManifestPackagePartHrefs']);
         $t->same([3, 4], $cover['duplicateManifestPackagePartIndexes']);
-        $t->same(['opf-manifest-declared', 'duplicate-opf-manifest-package-part', 'resource-kind-cover-image'], $cover['roles']);
+        $t->same(true, $cover['duplicateOpfManifestPackagePath']);
+        $t->same(['opf-manifest-declared', 'duplicate-opf-manifest-package-part', 'duplicate-opf-manifest-package-path', 'resource-kind-cover-image'], $cover['roles']);
 
         $t->same(false, $validation['valid']);
         $t->same($validation, $summary['wordpressImport']['packageValidation']);
@@ -7668,6 +7671,95 @@ XML;
         $t->same(['/EPUB/text/chapter.xhtml', '/EPUB/images/cover.png'], array_column($validation['manifest']['duplicatePartItems'], 'partName'));
         $t->same(['chapter', 'chapter-review'], $validation['manifest']['duplicatePartItems'][0]['ids']);
         $t->same(['images/cover.png', 'images/cover.png?role=review'], $validation['manifest']['duplicatePartItems'][1]['hrefs']);
+    },
+
+    'reports duplicate OPF manifest package paths in inventory review handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfWithDuplicateInventoryPaths = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:duplicate-inventory-paths</dc:identifier>
+    <dc:title>Duplicate inventory paths</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-15T11:45:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter-review" href="chapter.xhtml#review-note" media-type="application/xhtml+xml"/>
+    <item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="cover-print" href="images/cover.png?rendition=print" media-type="image/png"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="chapter.xhtml">Inventory review</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+        $chapterXml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Readable</h1></body></html>';
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithDuplicateInventoryPaths],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => $chapterXml],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $duplicates = $inventory['duplicateOpfManifestPackagePathItems'];
+        $byPartName = $inventory['duplicateOpfManifestPackagePathItemsByPartName'];
+        $chapter = $byPartName['/EPUB/chapter.xhtml'][0];
+        $cover = $byPartName['/EPUB/images/cover.png'][0];
+        $chapterEntry = $inventory['byPackagePath']['EPUB/chapter.xhtml'];
+
+        $t->same(2, $inventory['duplicateOpfManifestPackagePathCount']);
+        $t->same(2, $inventory['duplicateOpfManifestPackagePathPartCount']);
+        $t->same(['/EPUB/chapter.xhtml', '/EPUB/images/cover.png'], $inventory['duplicateOpfManifestPackagePathPartNames']);
+        $t->same(['/EPUB/chapter.xhtml'], $inventory['duplicateOpfManifestPackagePathExistingPartNames']);
+        $t->same(2, $inventory['duplicateOpfManifestPackagePathDiagnosticCount']);
+        $t->same(['duplicate-opf-manifest-package-path', 'duplicate-opf-manifest-package-path'], array_column($inventory['duplicateOpfManifestPackagePathDiagnostics'], 'type'));
+        $t->same($duplicates, $summary['wordpressImport']['packageInventoryDuplicateOpfManifestPackagePathItems']);
+        $t->same($inventory['duplicateOpfManifestPackagePathDiagnostics'], $summary['wordpressImport']['packageInventoryDuplicateOpfManifestPackagePathDiagnostics']);
+
+        $t->same('EPUB/chapter.xhtml', $chapter['packagePath']);
+        $t->same('/EPUB/chapter.xhtml', $chapter['partName']);
+        $t->same(2, $chapter['manifestItemCount']);
+        $t->same(['chapter', 'chapter-review'], $chapter['ids']);
+        $t->same([1, 2], $chapter['indexes']);
+        $t->same(['chapter.xhtml', 'chapter.xhtml#review-note'], $chapter['hrefs']);
+        $t->same(['/EPUB/chapter.xhtml', '/EPUB/chapter.xhtml#review-note'], $chapter['targets']);
+        $t->same(['application/xhtml+xml'], $chapter['mediaTypes']);
+        $t->same(['application/xhtml+xml'], $chapter['mediaTypeBases']);
+        $t->same(true, $chapter['exists']);
+        $t->same(strlen($chapterXml), $chapter['byteLength']);
+        $t->same(hash('crc32b', $chapterXml), $chapter['crc32']);
+        $t->same(true, $chapter['canExposeBytes']);
+        $t->same('epub-package-entry-metadata-only', $chapter['byteExposurePolicy']);
+        $t->same('duplicate-opf-manifest-package-path', $chapter['diagnostics'][0]['type']);
+
+        $t->same(true, $chapterEntry['duplicateOpfManifestPackagePath']);
+        $t->same(2, $chapterEntry['manifestItemCount']);
+        $t->same(['chapter', 'chapter-review'], $chapterEntry['manifestIds']);
+        $t->true(in_array('duplicate-opf-manifest-package-path', $chapterEntry['roles'], true), 'duplicate package path role missing');
+        $t->same(1, $inventory['roleCounts']['duplicate-opf-manifest-package-path']);
+
+        $t->same('EPUB/images/cover.png', $cover['packagePath']);
+        $t->same('/EPUB/images/cover.png', $cover['partName']);
+        $t->same(['cover', 'cover-print'], $cover['ids']);
+        $t->same([3, 4], $cover['indexes']);
+        $t->same(['images/cover.png', 'images/cover.png?rendition=print'], $cover['hrefs']);
+        $t->same(false, $cover['exists']);
+        $t->same(null, $cover['byteLength']);
+        $t->same(false, $cover['canExposeBytes']);
+        $t->same('missing-opf-manifest-package-part-metadata-only', $cover['byteExposurePolicy']);
+        $t->same(false, isset($inventory['byPackagePath']['EPUB/images/cover.png']));
     },
 
     'reports EPUB OCF ZIP package inventory roles without exposing payload bytes' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
