@@ -243,6 +243,13 @@ final class BibtexCslProcessor
             $parts[] = (string) $item['publisher'];
         }
 
+        if (($item['issue-title'] ?? '') !== '') {
+            $parts[] = 'Issue title: ' . (string) $item['issue-title'];
+        }
+        if (($item['issue-title-addon'] ?? '') !== '') {
+            $parts[] = 'Issue title addendum: ' . (string) $item['issue-title-addon'];
+        }
+
         $year = $this->issuedYear($item);
         if ($year !== '') {
             $parts[] = $year;
@@ -428,6 +435,11 @@ final class BibtexCslProcessor
             $item['container-title'] = $containerTitle;
         }
 
+        $issueTitle = $this->composedTitle($fields, ['issuetitle', 'issue-title', 'issuetitletext', 'issue-title-text'], ['issuesubtitle', 'issue-subtitle']);
+        if ($issueTitle !== null && $issueTitle !== '') {
+            $item['issue-title'] = $issueTitle;
+        }
+
         $originalTitle = $this->composedTitle($fields, ['origtitle', 'original-title'], ['origsubtitle', 'original-subtitle']);
         if ($originalTitle !== null && $originalTitle !== '') {
             $item['original-title'] = $originalTitle;
@@ -463,6 +475,7 @@ final class BibtexCslProcessor
             'volume' => ['volume'],
             'number-of-volumes' => ['volumes'],
             'issue' => ['number', 'issue'],
+            'issue-title-addon' => ['issuetitleaddon', 'issue-title-addon', 'issuetitle-addon'],
             'page' => ['pages', 'page'],
             'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
             'chapter-number' => ['chapter'],

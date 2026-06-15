@@ -852,6 +852,94 @@ BIB;
         $t->contains('Call number: MS 42 Box 4', $markdown);
         $t->contains('Call number: Reading Room Shelf B/12', $blocks);
     },
+    'carries biblatex issue title aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-issue-title,
+  author          = {Doe, Jane},
+  title           = {Source Packet Study},
+  journaltitle    = {Journal of Imports},
+  issuetitle      = {Migration Special Issue},
+  issuesubtitle   = {Import Desk Reports},
+  issuetitleaddon = {Editorial packet supplement},
+  date            = {2026},
+  pages           = {30--35}
+}
+
+@article{legacy-issue-text,
+  author            = {Roe, Pat},
+  title             = {Issue Text Packet},
+  journal           = {Migration Notes},
+  issue-title-text  = {Hyphen Issue Text},
+  issue-subtitle    = {Source Reports},
+  issue-title-addon = {queue note},
+  year              = {2025},
+  pages             = {7--9}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $special = $items['legacy-issue-title'];
+        $hyphen = $items['legacy-issue-text'];
+
+        $t->same('article-journal', $special['type']);
+        $t->same('Migration Special Issue: Import Desk Reports', $special['issue-title']);
+        $t->same('Editorial packet supplement', $special['issue-title-addon']);
+        $t->same('Hyphen Issue Text: Source Reports', $hyphen['issue-title']);
+        $t->same('queue note', $hyphen['issue-title-addon']);
+        $t->same('Hyphen Issue Text', $hyphen['rawBibtex']['fields']['issue-title-text']);
+        $t->same(
+            'Jane Doe. Source Packet Study. Journal of Imports. Issue title: Migration Special Issue: Import Desk Reports. Issue title addendum: Editorial packet supplement. 2026. 30-35.',
+            $processor->renderBibliographyText($special)
+        );
+
+        $document = (new MarkdownReader())->read('Special issue @legacy-issue-title and archive issue [@legacy-issue-text] keep issue metadata visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $t->same(['legacy-issue-title', 'legacy-issue-text'], $handoff['citedKeys']);
+        $t->same('Migration Special Issue: Import Desk Reports', $handoff['bibliography']->children[0]->attr('cslItem')['issue-title'] ?? null);
+        $t->same('queue note', $handoff['bibliography']->children[1]->attr('cslItem')['issue-title-addon'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Issue Title Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-issue-title-review</id>
+    <updated>2026-06-15T11:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="issue-title"/>
+        <text variable="issue-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Issue Title Review', $summary['title'] ?? null);
+        $t->same('[Doe | Migration Special Issue: Import Desk Reports | Editorial packet supplement; Roe | Hyphen Issue Text: Source Reports | queue note]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-issue-title', 'text' => '[@legacy-issue-title]']),
+            new AstNode('citation', ['id' => 'legacy-issue-text', 'text' => '[@legacy-issue-text]']),
+        ]));
+        $t->same('Source Packet Study :: Migration Special Issue: Import Desk Reports :: Editorial packet supplement', $styled->renderBibliographyEntry('legacy-issue-title'));
+        $t->same('Issue Text Packet :: Hyphen Issue Text: Source Reports :: queue note', $styled->renderBibliographyEntry('legacy-issue-text'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Special issue Doe (2026) and archive issue [Roe | Hyphen Issue Text: Source Reports | queue note] keep issue metadata visible.</p>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>Source Packet Study :: Migration Special Issue: Import Desk Reports :: Editorial packet supplement</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Issue Text Packet :: Hyphen Issue Text: Source Reports :: queue note</dd>', $blocks);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

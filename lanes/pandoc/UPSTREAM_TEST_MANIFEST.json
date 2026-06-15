@@ -8,8 +8,8 @@
     "commit": "pandoc-epub-css-page-rule-diagnostics-c90ed6d0f8",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 3744,
-    "latestSlice": "pandoc-epub-css-page-rule-diagnostics maps one EPUB3 package ingestion case after rebase onto current main c90ed6d0f8. EpubReader now aggregates invalid CSS @page selector diagnostics from stylesheet page-rule records into CSS item reports, top-level cssResourceReport diagnostics, review flags, and export policy while preserving per-rule page names, pseudo-classes, and margin-box provenance without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3724 -> 3725, phpFail remains 0, mapped upstream cases move 3743 -> 3744, mappedEpubCssPageRuleDiagnosticCases = 1, and epubCssPageRuleDiagnosticAssertions = 34. Verification passed php -l for EpubReader.php and EpubReaderTest.php; focused EpubReaderTest.php passed 1 file, 4764 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88348 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+    "mapped": 3745,
+    "latestSlice": "pandoc-bibtex-csl-issue-title maps one CSL/BibLaTeX legacy issue-title handoff case after rebase onto current main c90ed6d0f8. BibtexCslProcessor carries BibLaTeX issue title aliases into legacy CSL item extraction and default bibliography review text, including issuetitle/issuesubtitle, issue-title-text/issue-subtitle, and issue title addenda, without invoking Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3725 -> 3726, phpFail remains 0, mapped upstream cases move 3744 -> 3745, mappedBibtexCslProcessorIssueTitleCases = 1, and bibtexCslProcessorIssueTitleAssertions = 17. Verification passed php -l for BibtexCslProcessor.php and BibtexCslProcessorTest.php; focused BibtexCslProcessorTest.php passed 1 file, 275 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88365 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
     "mappedOdfPackageFontFormatProvenanceCases": 6,
     "odfPackageFontFormatProvenanceAssertions": 56,
     "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
     "opcRawZipCentralDirectoryManifestAssertions": 37,
     "mappedZipCentralDirectorySignaturePolicyCases": 2,
     "zipCentralDirectorySignaturePolicyAssertions": 30,
-    "status": "EPUB CSS page rule diagnostics are verified after rebase onto current main c90ed6d0f8; phpFail remains 0.",
-    "latestFocusedSource": "2026-06-15 EPUB CSS page rule diagnostics verified after rebase onto current main c90ed6d0f8; focused EpubReaderTest.php passed 1 file, 4764 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88348 assertions, 0 failures.",
+    "status": "BibTeX/CSL issue title legacy handoff is verified after rebase onto current main c90ed6d0f8; phpFail remains 0.",
+    "latestFocusedSource": "2026-06-15 legacy BibTeX/CSL issue title focused BibtexCslProcessorTest passed 1 file, 275 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88365 assertions, 0 failures.",
     "mappedPandocFormatReaderEvidenceBatchCases": 6,
     "pandocFormatReaderEvidenceBatchAssertions": 200,
     "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -574,7 +574,9 @@
     "mappedEpubLegacyCoverTargetPolicyCases": 1,
     "epubLegacyCoverTargetPolicyAssertions": 21,
     "mappedEpubContainerRootfileSelectionCases": 1,
-    "epubContainerRootfileSelectionAssertions": 41
+    "epubContainerRootfileSelectionAssertions": 41,
+    "mappedBibtexCslProcessorIssueTitleCases": 1,
+    "bibtexCslProcessorIssueTitleAssertions": 17
   },
   "benchmarkDenominator": {
     "status": "Pandoc JSON/native single-wrapped target tuple sidecars are verified after rebase onto current main 9f2dd9a0fd; phpFail remains 0.",
@@ -2291,5 +2293,7 @@
   "mappedJsonNativeSingleWrappedStrPayloadCases": 1,
   "jsonNativeSingleWrappedStrPayloadAssertions": 28,
   "mappedEpubCssPageRuleDiagnosticCases": 1,
-  "epubCssPageRuleDiagnosticAssertions": 34
+  "epubCssPageRuleDiagnosticAssertions": 34,
+  "mappedBibtexCslProcessorIssueTitleCases": 1,
+  "bibtexCslProcessorIssueTitleAssertions": 17
 }
