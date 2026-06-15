@@ -186,6 +186,7 @@ foreach (['inline', 'reference', 'shortcut'] as $syntax) {
                 'marker' => $marker,
                 'label' => ucfirst($syntax) . ' source ' . $caseId,
                 'caption' => 'Reader *figure* caption ' . $caseId,
+                'plainCaption' => 'Reader figure caption ' . $caseId,
                 'shortCaption' => 'Figure queue ' . $caseId,
                 'id' => 'fig-caption-completion-' . $caseId,
                 'caseClass' => 'case-' . $caseId,
@@ -206,7 +207,7 @@ foreach (['inline', 'reference', 'shortcut'] as $syntax) {
                     $t->same(1, count($document->children));
                     $t->same('figure', $figure->type);
                     $t->same('image', $image->type);
-                    $t->same($case['caption'], $figure->attr('caption'));
+                    $t->same($case['plainCaption'], $figure->attr('caption'));
                     $t->same($case['shortCaption'], $figure->attr('shortCaption'));
                     $t->same(true, $figure->attr('renderCaptionInlines'));
                     $t->same(true, $figure->attr('renderShortCaptionAttribute'));

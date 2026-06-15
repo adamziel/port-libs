@@ -15261,7 +15261,8 @@ final class MarkdownReader
     private function captionMarkerRegex(array $markerWords): string
     {
         $wordPattern = implode('|', $markerWords);
-        $labelPattern = '(?:[A-Z]?\d+(?:[.\-]\d+)*|[A-Z]|[IVXLCDM]+)';
+        $labelSegmentPattern = '[A-Z]?\d+[A-Z]?';
+        $labelPattern = '(?:' . $labelSegmentPattern . '(?:[.\-]' . $labelSegmentPattern . ')*|[A-Z]|[IVXLCDM]+)';
 
         return '/^ {0,3}((?:(?:' . $wordPattern . '):|(?:' . $wordPattern . ')[ \t]+' . $labelPattern . '[.:]|:))\s*(.*)$/iu';
     }
