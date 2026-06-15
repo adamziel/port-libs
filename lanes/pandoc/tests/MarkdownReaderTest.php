@@ -9921,6 +9921,41 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer titled url labels without autolink metadata loss' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Titled source: '),
+                new AstNode('link', [
+                    'url' => 'https://example.test/source?post=42',
+                    'title' => 'Source "review"',
+                ], [$text('https://example.test/source?post=42')]),
+                $text(' and titleless '),
+                new AstNode('link', [
+                    'url' => 'https://example.test/plain',
+                    'classes' => ['uri'],
+                ], [$text('https://example.test/plain')]),
+                $text('.'),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $referenceMarkdown = (new MarkdownWriter(['referenceLinks' => true]))->write($document);
+        $roundTrip = (new MarkdownReader())->read($markdown);
+        $titled = $roundTrip->children[0]->children[1] ?? new AstNode('missing');
+        $autolink = $roundTrip->children[0]->children[3] ?? new AstNode('missing');
+
+        $t->same('Titled source: [https://example.test/source?post=42](https://example.test/source?post=42 "Source \"review\"") and titleless <https://example.test/plain>.', $markdown);
+        $t->true(!str_contains($markdown, '<https://example.test/source?post=42>'), 'Titled URL-shaped links should not use title-dropping autolink syntax');
+        $t->same(implode("\n", [
+            'Titled source: [https://example.test/source?post=42] and titleless <https://example.test/plain>.',
+            '',
+            '  [https://example.test/source?post=42]: https://example.test/source?post=42 "Source \"review\""',
+        ]), $referenceMarkdown);
+        $t->same('https://example.test/source?post=42', $titled->attr('url'));
+        $t->same('Source "review"', $titled->attr('title'));
+        $t->same('https://example.test/plain', $autolink->attr('url'));
+    },
     'maps upstream markdown writer spaced link destinations with angle brackets' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $document = new AstNode('document', [], [

@@ -2652,7 +2652,7 @@ final class MarkdownWriter
     private function canRenderAutolink(AstNode $node): bool
     {
         $url = (string) $node->attr('url', '');
-        if (!$this->isUriLike($url)) {
+        if (!$this->isUriLike($url) || (string) $node->attr('title', '') !== '') {
             return false;
         }
 
