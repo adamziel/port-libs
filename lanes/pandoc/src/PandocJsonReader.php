@@ -1433,7 +1433,7 @@ final class PandocJsonReader
         [$tag, $content] = $this->tagged($value, 'inline');
 
         $node = match ($tag) {
-            'Str' => is_string($content) ? new AstNode('text', ['text' => $content]) : throw new \InvalidArgumentException('Str content must be a string'),
+            'Str' => new AstNode('text', ['text' => $this->stringConstructorContent($content, 'Str content')]),
             'Space' => new AstNode('space'),
             'SoftBreak' => new AstNode('softbreak'),
             'LineBreak' => new AstNode('linebreak'),
@@ -1877,6 +1877,18 @@ final class PandocJsonReader
         }
 
         return [$content, $value];
+    }
+
+    private function stringConstructorContent(mixed $content, string $context): string
+    {
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+        if (!is_string($content)) {
+            throw new \InvalidArgumentException("{$context} must be a string");
+        }
+
+        return $content;
     }
 
     /**

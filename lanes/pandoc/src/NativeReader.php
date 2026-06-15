@@ -1506,10 +1506,7 @@ final class NativeReader
             }
 
             if ($inline['t'] === 'Str') {
-                $content = $inline['c'] ?? '';
-                if (!is_string($content)) {
-                    throw new \InvalidArgumentException('Pandoc native JSON Str inline content must be a string');
-                }
+                $content = $this->stringConstructorContent($inline['c'] ?? '', 'Pandoc native JSON Str inline content');
                 $text .= $content;
                 $textNativeParts[] = $inline;
                 continue;
@@ -2049,6 +2046,18 @@ final class NativeReader
         }
 
         return [$content, $value];
+    }
+
+    private function stringConstructorContent(mixed $content, string $context): string
+    {
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+        if (!is_string($content)) {
+            throw new \InvalidArgumentException("{$context} must be a string");
+        }
+
+        return $content;
     }
 
     /**

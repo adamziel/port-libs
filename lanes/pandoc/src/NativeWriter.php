@@ -1766,7 +1766,7 @@ final class NativeWriter
         }
 
         if ($tag === 'Str') {
-            return is_string($native['c'] ?? null);
+            return $this->nativeStringContent($native['c'] ?? null) !== null;
         }
 
         $content = $this->nativeInlineTupleContent($tag, $native['c'] ?? null);
@@ -1810,6 +1810,18 @@ final class NativeWriter
         }
 
         return $content;
+    }
+
+    private function nativeStringContent(mixed $content): ?string
+    {
+        if (is_string($content)) {
+            return $content;
+        }
+        if (is_array($content) && array_is_list($content) && count($content) === 1 && is_string($content[0])) {
+            return $content[0];
+        }
+
+        return null;
     }
 
     private function isNativeInlineConstructorTag(string $tag): bool
@@ -2244,10 +2256,11 @@ final class NativeWriter
             }
 
             if ($part['t'] === 'Str') {
-                if (!is_string($part['c'] ?? null)) {
+                $content = $this->nativeStringContent($part['c'] ?? null);
+                if ($content === null) {
                     return null;
                 }
-                $text .= $part['c'];
+                $text .= $content;
                 $normalized[] = $part;
                 continue;
             }

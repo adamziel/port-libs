@@ -2948,6 +2948,66 @@ return [
             ['t' => 'Str', 'c' => 'Edited text'],
         ], $editedJson['blocks'][0]['c']);
     },
+    'accepts single wrapped str constructor text payloads' => static function (TestRunner $t): void {
+        $sourceInlines = [
+            ['t' => 'Str', 'c' => ['Alpha'], 'reviewQueue' => 'alpha-source'],
+            ['t' => 'Space', 'reviewQueue' => 'space-source'],
+            ['t' => 'Str', 'c' => ['Beta'], 'reviewQueue' => 'beta-source'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => $sourceInlines],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $textNodes = array_values(array_filter(
+                $paragraph->children,
+                static fn (AstNode $node): bool => $node->type === 'text'
+            ));
+
+            $t->same('Alpha Beta', $paragraph->attr('text'), "{$source} paragraph text");
+            $t->same($source === 'json' ? ['text', 'space', 'text'] : ['text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children), "{$source} text node shape");
+            $t->same($source === 'json' ? 'Alpha' : 'Alpha Beta', $textNodes[0]->attr('text'), "{$source} first wrapped Str text");
+            if ($source === 'json') {
+                $t->same($sourceInlines[0], $textNodes[0]->attr('native'), "{$source} first wrapped Str native payload");
+            } else {
+                $t->same(['Str', 'Space', 'Str'], $textNodes[0]->attr('nativeInlineConstructors'), "{$source} coalesced wrapped Str native constructors");
+                $t->same($sourceInlines, $textNodes[0]->attr('nativeInlineParts'), "{$source} coalesced wrapped Str native payloads");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($sourceInlines, $encoded['blocks'][0]['c'], "{$source} {$writer} preserves unchanged wrapped Str payloads");
+            }
+
+            $editedText = new AstNode('text', array_replace($textNodes[0]->attrs, ['text' => 'Edited']));
+            $editedChildren = $source === 'json'
+                ? [$editedText, $paragraph->children[1], $paragraph->children[2]]
+                : [$editedText];
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], $editedChildren),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same('Edited', $encoded['blocks'][0]['c'][0]['c'], "{$source} {$writer} canonicalizes edited wrapped Str");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]['c'][0]), "{$source} {$writer} drops stale edited Str sidecar");
+            }
+        }
+    },
     'preserves native soft and line break text parts through json and native writers' => static function (TestRunner $t): void {
         $nativeParts = [
             ['t' => 'Str', 'c' => 'Alpha', 'reviewQueue' => 'alpha-source'],
