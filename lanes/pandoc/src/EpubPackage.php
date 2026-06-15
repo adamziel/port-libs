@@ -576,6 +576,10 @@ final class EpubPackage
         $resourceProperties = $this->resourceProperties();
         $manifestResourceKinds = $this->manifestResourceKinds();
         $validationReport = $this->validationReport();
+        $containerRootfileSelection = self::containerRootfileSelectionReport(
+            $validationReport['rootfiles'],
+            $this->renditions,
+        );
         $ncxNavigationSelection = self::ncxNavigationSelectionReport(
             is_array($validationReport['ncx'] ?? null) ? $validationReport['ncx'] : [],
             is_array($validationReport['navigation'] ?? null) ? $validationReport['navigation'] : [],
@@ -683,6 +687,7 @@ final class EpubPackage
             'remoteResourcePolicy' => $remoteResourcePolicy,
             'linkHrefSuffixes' => $linkHrefSuffixes,
             'validation' => $validationReport,
+            'containerRootfileSelection' => $containerRootfileSelection,
             'ncxNavigationSelection' => $ncxNavigationSelection,
             'compactPackageReport' => $compactPackageReport,
             'wordpressImport' => [
@@ -768,6 +773,10 @@ final class EpubPackage
                 'rootfileAuthoringItems' => $rootfileAuthoring['items'],
                 'renditions' => $this->renditions,
                 'renditionDiagnostics' => $this->renditions['diagnostics'],
+                'containerRootfileSelection' => $containerRootfileSelection,
+                'containerRootfileSelectionItems' => $containerRootfileSelection['items'],
+                'containerRootfileSelectionBuckets' => $containerRootfileSelection['buckets'],
+                'containerRootfileSelectionDiagnostics' => $containerRootfileSelection['diagnostics'],
                 'spineMetadata' => $spineMetadata,
                 'readingOrderRepeatedIdrefs' => $readingOrderInventory['repeatedIdrefs'],
                 'readingOrderRepeatedIdrefItems' => $readingOrderInventory['repeatedIdrefItems'],
@@ -894,6 +903,193 @@ final class EpubPackage
                 'stylesheetParts' => $assetSummary['stylesheetParts'],
                 'imageParts' => $assetSummary['imageParts'],
             ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $rootfileReport
+     * @param array<string, mixed> $renditions
+     *
+     * @return array<string, mixed>
+     */
+    private static function containerRootfileSelectionReport(array $rootfileReport, array $renditions): array
+    {
+        $renditionsByIndex = [];
+        foreach (is_array($renditions['items'] ?? null) ? $renditions['items'] : [] as $rendition) {
+            if (!is_array($rendition) || !is_int($rendition['index'] ?? null)) {
+                continue;
+            }
+
+            $renditionsByIndex[$rendition['index']] = $rendition;
+        }
+
+        $diagnosticsByIndex = [];
+        $globalDiagnostics = [];
+        $appendDiagnostic = static function (array $diagnostic) use (&$diagnosticsByIndex, &$globalDiagnostics): void {
+            if (is_int($diagnostic['index'] ?? null)) {
+                $diagnosticsByIndex[$diagnostic['index']][] = $diagnostic;
+                return;
+            }
+
+            $globalDiagnostics[] = $diagnostic;
+        };
+
+        foreach (is_array($rootfileReport['diagnostics'] ?? null) ? $rootfileReport['diagnostics'] : [] as $diagnostic) {
+            if (is_array($diagnostic)) {
+                $appendDiagnostic($diagnostic);
+            }
+        }
+
+        foreach (is_array($rootfileReport['mediaTypeDiagnostics'] ?? null) ? $rootfileReport['mediaTypeDiagnostics'] : [] as $diagnostic) {
+            if (is_array($diagnostic)) {
+                $appendDiagnostic($diagnostic);
+            }
+        }
+
+        foreach (is_array($renditions['diagnostics'] ?? null) ? $renditions['diagnostics'] : [] as $diagnostic) {
+            if (is_array($diagnostic)) {
+                $appendDiagnostic($diagnostic);
+            }
+        }
+
+        $items = [];
+        $selectedItem = null;
+        $alternateParts = [];
+        $opfParts = [];
+        $nonOpfParts = [];
+        $missingParts = [];
+        $existingParts = [];
+        $suffixParts = [];
+        $parameterizedParts = [];
+        foreach (is_array($rootfileReport['items'] ?? null) ? $rootfileReport['items'] : [] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $index = is_int($item['index'] ?? null) ? $item['index'] : count($items);
+            $partName = (string) ($item['partName'] ?? '');
+            $mediaTypeBase = (string) ($item['mediaTypeBase'] ?? '');
+            $selected = ($item['selected'] ?? false) === true;
+            $exists = ($item['exists'] ?? false) === true;
+            $opf = $mediaTypeBase === self::OPF_MEDIA_TYPE;
+            $hasSuffix = ($item['fullPathHasQuery'] ?? false) === true || ($item['fullPathHasFragment'] ?? false) === true;
+            $parameters = is_array($item['mediaTypeParameters'] ?? null) ? $item['mediaTypeParameters'] : [];
+            $parameterNames = [];
+            foreach ($parameters as $parameter) {
+                if (is_array($parameter) && is_string($parameter['name'] ?? null) && $parameter['name'] !== '') {
+                    $parameterNames[] = $parameter['name'];
+                }
+            }
+
+            $diagnostics = $diagnosticsByIndex[$index] ?? [];
+            $diagnosticTypes = [];
+            foreach ($diagnostics as $diagnostic) {
+                if (is_string($diagnostic['type'] ?? null)) {
+                    $diagnosticTypes[$diagnostic['type']] = true;
+                }
+            }
+
+            $rendition = $renditionsByIndex[$index] ?? null;
+            $renditionMetadata = is_array($rendition) && is_array($rendition['metadata'] ?? null)
+                ? $rendition['metadata']
+                : [];
+            $role = $selected
+                ? 'selected-opf-rootfile'
+                : ($opf ? 'alternate-opf-rootfile' : 'non-opf-rootfile');
+            $reviewItem = [
+                'index' => $index,
+                'role' => $role,
+                'selected' => $selected,
+                'alternate' => !$selected,
+                'opfRootfile' => $opf,
+                'fullPath' => (string) ($item['fullPath'] ?? ''),
+                'target' => (string) ($item['target'] ?? $partName),
+                'partName' => $partName,
+                'mediaType' => (string) ($item['mediaType'] ?? ''),
+                'mediaTypeBase' => $mediaTypeBase,
+                'mediaTypeHasParameters' => $parameters !== [],
+                'mediaTypeParameterNames' => array_values(array_unique($parameterNames)),
+                'fullPathHasSuffix' => $hasSuffix,
+                'fullPathQuery' => is_string($item['fullPathQuery'] ?? null) ? $item['fullPathQuery'] : null,
+                'fullPathFragment' => is_string($item['fullPathFragment'] ?? null) ? $item['fullPathFragment'] : null,
+                'exists' => $exists,
+                'byteLength' => $item['byteLength'] ?? null,
+                'compressedByteLength' => $item['compressedByteLength'] ?? null,
+                'compressionMethod' => $item['compressionMethod'] ?? null,
+                'compressionMethodName' => $item['compressionMethodName'] ?? null,
+                'compressionSupported' => ($item['compressionSupported'] ?? false) === true,
+                'crc32' => $item['crc32'] ?? null,
+                'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => $exists
+                    ? ((($item['canExposeBytes'] ?? false) === true) ? 'package-bytes-available' : 'metadata-only')
+                    : 'missing-package-part',
+                'renditionTitle' => isset($renditionMetadata['title']) ? (string) $renditionMetadata['title'] : '',
+                'renditionIdentifier' => isset($renditionMetadata['identifier']) ? (string) $renditionMetadata['identifier'] : null,
+                'renditionLanguage' => isset($renditionMetadata['language']) ? (string) $renditionMetadata['language'] : null,
+                'manifestCount' => is_array($rendition) ? ($rendition['manifestCount'] ?? null) : null,
+                'spineCount' => is_array($rendition) ? ($rendition['spineCount'] ?? null) : null,
+                'diagnosticTypes' => array_keys($diagnosticTypes),
+                'diagnosticCount' => count($diagnostics),
+                'diagnostics' => $diagnostics,
+            ];
+
+            if ($selected) {
+                $selectedItem = $reviewItem;
+            } else {
+                $alternateParts[] = $partName;
+            }
+            if ($opf) {
+                $opfParts[] = $partName;
+            } else {
+                $nonOpfParts[] = $partName;
+            }
+            if ($exists) {
+                $existingParts[] = $partName;
+            } else {
+                $missingParts[] = $partName;
+            }
+            if ($hasSuffix) {
+                $suffixParts[] = $partName;
+            }
+            if ($parameters !== []) {
+                $parameterizedParts[] = $partName;
+            }
+
+            $items[] = $reviewItem;
+        }
+
+        $diagnostics = array_merge($globalDiagnostics, ...array_map(
+            static fn (array $item): array => $item['diagnostics'],
+            $items,
+        ));
+
+        return [
+            'selectedPart' => is_string($rootfileReport['selectedPart'] ?? null) ? $rootfileReport['selectedPart'] : null,
+            'selectedIndex' => $rootfileReport['selectedIndex'] ?? null,
+            'selectedItem' => $selectedItem,
+            'rootfileCount' => count($items),
+            'opfRootfileCount' => count($opfParts),
+            'alternateRootfileCount' => count($alternateParts),
+            'existingRootfileCount' => count($existingParts),
+            'missingRootfileCount' => count($missingParts),
+            'nonOpfRootfileCount' => count($nonOpfParts),
+            'fullPathSuffixCount' => count($suffixParts),
+            'mediaTypeParameterItemCount' => count($parameterizedParts),
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+            'diagnosticTypes' => array_values(array_unique(array_values(array_filter(
+                array_map(static fn (array $diagnostic): ?string => is_string($diagnostic['type'] ?? null) ? $diagnostic['type'] : null, $diagnostics)
+            )))),
+            'buckets' => [
+                'opfParts' => array_values($opfParts),
+                'alternateParts' => array_values($alternateParts),
+                'existingParts' => array_values($existingParts),
+                'missingParts' => array_values($missingParts),
+                'nonOpfParts' => array_values($nonOpfParts),
+                'fullPathSuffixParts' => array_values($suffixParts),
+                'mediaTypeParameterizedParts' => array_values($parameterizedParts),
+            ],
+            'items' => $items,
         ];
     }
 

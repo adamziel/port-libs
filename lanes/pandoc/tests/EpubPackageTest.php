@@ -8046,4 +8046,106 @@ XML;
         $t->same($report['repeatedIdrefDiagnostics'], $summary['wordpressImport']['readingOrderRepeatedIdrefDiagnostics']);
         $t->same($report, $summary['wordpressImport']['readingOrderInventory']);
     },
+
+    'summarizes container rootfile selection buckets for package review' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
+        $containerXml = <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type='application/oebps-package+xml; profile="primary"'/>
+    <rootfile full-path="EPUB/fixed.opf?rendition=fixed#package" media-type="application/oebps-package+xml;profile=fixed"/>
+    <rootfile full-path="EPUB/missing.opf" media-type="application/oebps-package+xml"/>
+    <rootfile full-path="EPUB/source.xml" media-type="application/xml"/>
+  </rootfiles>
+</container>
+XML;
+        $alternateOpfXml = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="fixed-id" xml:lang="ja">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="fixed-id">alt-id</dc:identifier>
+    <dc:title>Fixed Layout Rendition</dc:title>
+    <dc:language>ja</dc:language>
+    <meta property="dcterms:modified">2026-06-15T08:30:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="fixed-page" href="fixed.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="fixed-page"/>
+  </spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $containerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/fixed.opf', 'data' => $alternateOpfXml],
+            ['name' => 'EPUB/source.xml', 'data' => '<source>review</source>'],
+        ]));
+
+        $summary = $epub->summary();
+        $report = $summary['containerRootfileSelection'];
+        $itemsByPart = [];
+        foreach ($report['items'] as $item) {
+            $itemsByPart[$item['partName']] = $item;
+        }
+
+        $t->same('/EPUB/package.opf', $report['selectedPart']);
+        $t->same(0, $report['selectedIndex']);
+        $t->same(4, $report['rootfileCount']);
+        $t->same(3, $report['opfRootfileCount']);
+        $t->same(3, $report['alternateRootfileCount']);
+        $t->same(3, $report['existingRootfileCount']);
+        $t->same(1, $report['missingRootfileCount']);
+        $t->same(1, $report['nonOpfRootfileCount']);
+        $t->same(1, $report['fullPathSuffixCount']);
+        $t->same(2, $report['mediaTypeParameterItemCount']);
+        $t->same([
+            'rootfile-full-path-query-component',
+            'rootfile-full-path-fragment-component',
+            'missing-rootfile-package-part',
+            'missing-alternate-rendition-rootfile',
+            'non-opf-container-rootfile',
+        ], $report['diagnosticTypes']);
+
+        $t->same('/EPUB/package.opf', $report['selectedItem']['partName']);
+        $t->same('selected-opf-rootfile', $report['selectedItem']['role']);
+        $t->same('WordPress Migration Guide', $report['selectedItem']['renditionTitle']);
+        $t->same(['profile'], $report['selectedItem']['mediaTypeParameterNames']);
+        $t->same('package-bytes-available', $report['selectedItem']['byteExposurePolicy']);
+
+        $t->same(['/EPUB/package.opf', '/EPUB/fixed.opf', '/EPUB/missing.opf'], $report['buckets']['opfParts']);
+        $t->same(['/EPUB/fixed.opf', '/EPUB/missing.opf', '/EPUB/source.xml'], $report['buckets']['alternateParts']);
+        $t->same(['/EPUB/missing.opf'], $report['buckets']['missingParts']);
+        $t->same(['/EPUB/source.xml'], $report['buckets']['nonOpfParts']);
+        $t->same(['/EPUB/fixed.opf'], $report['buckets']['fullPathSuffixParts']);
+        $t->same(['/EPUB/package.opf', '/EPUB/fixed.opf'], $report['buckets']['mediaTypeParameterizedParts']);
+
+        $t->same('alternate-opf-rootfile', $itemsByPart['/EPUB/fixed.opf']['role']);
+        $t->same(true, $itemsByPart['/EPUB/fixed.opf']['fullPathHasSuffix']);
+        $t->same('rendition=fixed', $itemsByPart['/EPUB/fixed.opf']['fullPathQuery']);
+        $t->same('package', $itemsByPart['/EPUB/fixed.opf']['fullPathFragment']);
+        $t->same('Fixed Layout Rendition', $itemsByPart['/EPUB/fixed.opf']['renditionTitle']);
+        $t->same('alt-id', $itemsByPart['/EPUB/fixed.opf']['renditionIdentifier']);
+        $t->same('ja', $itemsByPart['/EPUB/fixed.opf']['renditionLanguage']);
+        $t->same(1, $itemsByPart['/EPUB/fixed.opf']['manifestCount']);
+        $t->same(1, $itemsByPart['/EPUB/fixed.opf']['spineCount']);
+
+        $t->same(false, $itemsByPart['/EPUB/missing.opf']['exists']);
+        $t->same('missing-package-part', $itemsByPart['/EPUB/missing.opf']['byteExposurePolicy']);
+        $t->same(['missing-rootfile-package-part', 'missing-alternate-rendition-rootfile'], $itemsByPart['/EPUB/missing.opf']['diagnosticTypes']);
+        $t->same('non-opf-rootfile', $itemsByPart['/EPUB/source.xml']['role']);
+        $t->same(false, $itemsByPart['/EPUB/source.xml']['opfRootfile']);
+        $t->same(['non-opf-container-rootfile'], $itemsByPart['/EPUB/source.xml']['diagnosticTypes']);
+
+        $t->same($report, $summary['wordpressImport']['containerRootfileSelection']);
+        $t->same($report['items'], $summary['wordpressImport']['containerRootfileSelectionItems']);
+        $t->same($report['buckets'], $summary['wordpressImport']['containerRootfileSelectionBuckets']);
+        $t->same($report['diagnostics'], $summary['wordpressImport']['containerRootfileSelectionDiagnostics']);
+    },
 ];
