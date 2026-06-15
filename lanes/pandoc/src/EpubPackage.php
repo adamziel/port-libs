@@ -623,6 +623,7 @@ final class EpubPackage
             $ocfSidecars,
             $this->navigation,
             $this->navigationSections,
+            $manifestDependencyInventory,
             $validationReport,
         );
 
@@ -911,6 +912,7 @@ final class EpubPackage
      * @param array<string, mixed> $ocfSidecars
      * @param array<string, mixed>|null $navigation
      * @param list<array<string, mixed>> $navigationSections
+     * @param array<string, mixed> $manifestDependencyInventory
      * @param array<string, mixed> $validationReport
      *
      * @return array<string, mixed>
@@ -930,6 +932,7 @@ final class EpubPackage
         array $ocfSidecars,
         ?array $navigation,
         array $navigationSections,
+        array $manifestDependencyInventory,
         array $validationReport
     ): array {
         $cases = [];
@@ -1122,6 +1125,52 @@ final class EpubPackage
             [
                 'fallbackCount' => (int) ($manifestFallbacks['fallbackCount'] ?? 0),
                 'fallbackStyleCount' => (int) ($manifestFallbacks['fallbackStyleCount'] ?? 0),
+            ],
+        );
+
+        $appendCase(
+            'manifest-dependencies',
+            'manifest',
+            'OPF manifest dependency inventory',
+            (int) ($manifestDependencyInventory['edgeCount'] ?? 0),
+            self::compactDiagnosticList($manifestDependencyInventory['diagnostics'] ?? []),
+            [
+                'relationCounts' => is_array($manifestDependencyInventory['relationCounts'] ?? null)
+                    ? $manifestDependencyInventory['relationCounts']
+                    : [],
+                'byteExposurePolicyCounts' => is_array($manifestDependencyInventory['byteExposurePolicyCounts'] ?? null)
+                    ? $manifestDependencyInventory['byteExposurePolicyCounts']
+                    : [],
+                'sourceIds' => is_array($manifestDependencyInventory['sourceIds'] ?? null)
+                    ? array_values($manifestDependencyInventory['sourceIds'])
+                    : [],
+                'targetIds' => is_array($manifestDependencyInventory['targetIds'] ?? null)
+                    ? array_values($manifestDependencyInventory['targetIds'])
+                    : [],
+                'targetPartNames' => is_array($manifestDependencyInventory['targetPartNames'] ?? null)
+                    ? array_values($manifestDependencyInventory['targetPartNames'])
+                    : [],
+                'missingManifestTargetIds' => is_array($manifestDependencyInventory['missingManifestTargetIds'] ?? null)
+                    ? array_values($manifestDependencyInventory['missingManifestTargetIds'])
+                    : [],
+                'unsupportedCompressionTargetPartNames' => is_array($manifestDependencyInventory['unsupportedCompressionTargetPartNames'] ?? null)
+                    ? array_values($manifestDependencyInventory['unsupportedCompressionTargetPartNames'])
+                    : [],
+                'fallbackEdgeCount' => (int) ($manifestDependencyInventory['fallbackEdgeCount'] ?? 0),
+                'fallbackStyleEdgeCount' => (int) ($manifestDependencyInventory['fallbackStyleEdgeCount'] ?? 0),
+                'mediaOverlayEdgeCount' => (int) ($manifestDependencyInventory['mediaOverlayEdgeCount'] ?? 0),
+                'missingManifestTargetCount' => (int) ($manifestDependencyInventory['missingManifestTargetCount'] ?? 0),
+                'missingPackagePartTargetCount' => (int) ($manifestDependencyInventory['missingPackagePartTargetCount'] ?? 0),
+                'externalTargetCount' => (int) ($manifestDependencyInventory['externalTargetCount'] ?? 0),
+                'encryptedTargetCount' => (int) ($manifestDependencyInventory['encryptedTargetCount'] ?? 0),
+                'obfuscatedFontTargetCount' => (int) ($manifestDependencyInventory['obfuscatedFontTargetCount'] ?? 0),
+                'unsupportedCompressionTargetCount' => (int) ($manifestDependencyInventory['unsupportedCompressionTargetCount'] ?? 0),
+                'exposableTargetCount' => (int) ($manifestDependencyInventory['exposableTargetCount'] ?? 0),
+                'blockedTargetCount' => (int) ($manifestDependencyInventory['blockedTargetCount'] ?? 0),
+                'totalByteLength' => (int) ($manifestDependencyInventory['totalByteLength'] ?? 0),
+                'totalCompressedByteLength' => (int) ($manifestDependencyInventory['totalCompressedByteLength'] ?? 0),
+                'exposableByteLength' => (int) ($manifestDependencyInventory['exposableByteLength'] ?? 0),
+                'blockedByteLength' => (int) ($manifestDependencyInventory['blockedByteLength'] ?? 0),
             ],
         );
 

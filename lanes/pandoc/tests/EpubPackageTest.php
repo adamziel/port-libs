@@ -4959,8 +4959,8 @@ XML;
         $report = $summary['compactPackageReport'];
         $casesById = $report['casesById'];
 
-        $t->same(13, $report['caseCount']);
-        $t->same(12, $report['presentCaseCount']);
+        $t->same(14, $report['caseCount']);
+        $t->same(13, $report['presentCaseCount']);
         $t->same(0, $report['diagnosticCaseCount']);
         $t->same(0, $report['diagnosticCount']);
         $t->same([], $report['diagnosticTypes']);
@@ -4974,6 +4974,7 @@ XML;
             'collections',
             'media-overlays',
             'manifest-fallbacks',
+            'manifest-dependencies',
             'manifest-resource-kinds',
             'manifest-resource-properties',
             'encrypted-resources',
@@ -4988,6 +4989,7 @@ XML;
             'collections',
             'media-overlays',
             'manifest-fallbacks',
+            'manifest-dependencies',
             'manifest-resource-kinds',
             'manifest-resource-properties',
             'encrypted-resources',
@@ -5003,6 +5005,7 @@ XML;
             'collections' => 1,
             'media-overlays' => 1,
             'manifest-fallbacks' => 1,
+            'manifest-dependencies' => 2,
             'manifest-resource-kinds' => 8,
             'manifest-resource-properties' => 2,
             'encrypted-resources' => 1,
@@ -5015,7 +5018,7 @@ XML;
             'guide' => 2,
             'collections' => 1,
             'media-overlays' => 1,
-            'manifest' => 11,
+            'manifest' => 13,
             'encryption' => 1,
         ], $report['domainCounts']);
 
@@ -5040,6 +5043,18 @@ XML;
         $t->same(['/EPUB/text/chapter1.xhtml#intro'], $casesById['media-overlays']['textTargets']);
         $t->same(['/EPUB/audio/chapter.mp3'], $casesById['media-overlays']['audioTargets']);
         $t->same(1, $casesById['manifest-fallbacks']['fallbackCount']);
+        $t->same(2, $casesById['manifest-dependencies']['itemCount']);
+        $t->same([
+            'fallback' => 1,
+            'media-overlay' => 1,
+        ], $casesById['manifest-dependencies']['relationCounts']);
+        $t->same([
+            'manifest-dependency-target-bytes-exposable' => 2,
+        ], $casesById['manifest-dependencies']['byteExposurePolicyCounts']);
+        $t->same(['chapter1', 'custom-widget'], $casesById['manifest-dependencies']['sourceIds']);
+        $t->same(['mo-chapter', 'chapter1'], $casesById['manifest-dependencies']['targetIds']);
+        $t->same(2, $casesById['manifest-dependencies']['exposableTargetCount']);
+        $t->same(0, $casesById['manifest-dependencies']['blockedTargetCount']);
         $t->same(7, $casesById['manifest-resource-kinds']['kindCount']);
         $t->same([
             'asset' => 1,
@@ -5102,7 +5117,7 @@ XML;
         $packageLinks = $report['casesById']['package-links'];
         $containerLinks = $report['casesById']['container-links'];
 
-        $t->same(13, $report['caseCount']);
+        $t->same(14, $report['caseCount']);
         $t->true(in_array('package-links', $report['presentCaseIds'], true));
         $t->true(in_array('container-links', $report['presentCaseIds'], true));
         $t->same(['package-links', 'container-links'], $report['diagnosticCaseIds']);
