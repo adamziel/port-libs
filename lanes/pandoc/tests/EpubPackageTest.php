@@ -6138,6 +6138,14 @@ XML;
         $summary = $epub->summary();
         $inventory = $summary['packageInventory'];
         $byPath = $inventory['byPackagePath'];
+        $byDirectory = [];
+        foreach ($inventory['directorySummaries'] as $directory) {
+            $byDirectory[$directory['directory']] = $directory;
+        }
+        $byExtension = [];
+        foreach ($inventory['extensionSummaries'] as $extension) {
+            $byExtension[$extension['extension'] ?? '(none)'] = $extension;
+        }
 
         $t->same($inventory, $summary['wordpressImport']['packageInventory']);
         $t->same(15, $inventory['entryCount']);
@@ -6189,6 +6197,44 @@ XML;
         $t->true(in_array('zip-directory', $byPath['EPUB/text/']['roles'], true), 'directory role missing');
         $t->true(in_array('undeclared-package-entry', $byPath['EPUB/text/']['roles'], true), 'directory undeclared role missing');
         $t->true(in_array('undeclared-package-entry', $byPath['EPUB/notes/source.txt']['roles'], true), 'undeclared note role missing');
+        $t->same('META-INF', $byPath['META-INF/container.xml']['directory']);
+        $t->same(1, $byPath['META-INF/container.xml']['directoryDepth']);
+        $t->same('container.xml', $byPath['META-INF/container.xml']['baseName']);
+        $t->same('xml', $byPath['META-INF/container.xml']['extension']);
+        $t->same('EPUB', $byPath['EPUB/text/']['directory']);
+        $t->same('text', $byPath['EPUB/text/']['baseName']);
+        $t->same(null, $byPath['EPUB/text/']['extension']);
+        $t->same('/', $byPath['mimetype']['directory']);
+        $t->same(null, $byPath['mimetype']['extension']);
+
+        $t->same(9, $inventory['directoryCount']);
+        $t->same(['/', 'EPUB', 'EPUB/audio', 'EPUB/fonts', 'EPUB/images', 'EPUB/notes', 'EPUB/styles', 'EPUB/text', 'META-INF'], $inventory['directories']);
+        $t->same(3, $byDirectory['EPUB']['entryCount']);
+        $t->same(1, $byDirectory['EPUB']['directoryEntryCount']);
+        $t->same(['EPUB/package.opf', 'EPUB/nav.xhtml', 'EPUB/text/'], $byDirectory['EPUB']['packagePaths']);
+        $t->same(1, $byDirectory['EPUB']['roleCounts']['opf-manifest-declared']);
+        $t->same(1, $byDirectory['EPUB']['roleCounts']['undeclared-package-entry']);
+        $t->same(1, $byDirectory['EPUB']['resourceKindCounts']['navigation']);
+        $t->same(4, $byDirectory['META-INF']['entryCount']);
+        $t->same(4, $byDirectory['META-INF']['roleCounts']['ocf-meta-inf']);
+        $t->same(2, $byDirectory['EPUB/text']['spineEntryCount']);
+        $t->same(2, $byDirectory['EPUB/text']['resourceKindCounts']['xhtml']);
+        $t->same($byPath['EPUB/text/chapter1.xhtml']['byteLength'] + $byPath['EPUB/text/chapter2.xhtml']['byteLength'], $byDirectory['EPUB/text']['byteLength']);
+        $t->same(1, $byDirectory['EPUB/fonts']['encryptedEntryCount']);
+        $t->same(1, $byDirectory['EPUB/fonts']['obfuscatedFontEntryCount']);
+        $t->same(9, $inventory['extensionCount']);
+        $t->same([null, 'css', 'mp3', 'opf', 'otf', 'png', 'txt', 'xhtml', 'xml'], $inventory['extensions']);
+        $t->same(2, $byExtension['(none)']['entryCount']);
+        $t->same(1, $byExtension['(none)']['directoryEntryCount']);
+        $t->same(['mimetype', 'EPUB/text/'], $byExtension['(none)']['packagePaths']);
+        $t->same(3, $byExtension['xhtml']['entryCount']);
+        $t->same(2, $byExtension['xhtml']['spineEntryCount']);
+        $t->same(['navigation' => 1, 'xhtml' => 2], $byExtension['xhtml']['resourceKindCounts']);
+        $t->same($byPath['EPUB/nav.xhtml']['byteLength'] + $byDirectory['EPUB/text']['byteLength'], $byExtension['xhtml']['byteLength']);
+        $t->same(4, $byExtension['xml']['entryCount']);
+        $t->same(['ocf-container' => 1, 'ocf-core' => 1, 'ocf-encryption-sidecar' => 1, 'ocf-meta-inf' => 4, 'ocf-rights-sidecar' => 1, 'ocf-sidecar' => 2, 'ocf-signatures-sidecar' => 1], $byExtension['xml']['roleCounts']);
+        $t->same(1, $byExtension['otf']['encryptedEntryCount']);
+        $t->same(1, $byExtension['otf']['obfuscatedFontEntryCount']);
 
         $font = $byPath['EPUB/fonts/source.otf'];
         $t->same('font', $font['resourceKind']);

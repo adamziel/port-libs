@@ -6988,6 +6988,7 @@ final class EpubPackage
         foreach ($package->entries() as $index => $entry) {
             $packagePath = $entry->name;
             $partName = self::packageInventoryPartName($packagePath);
+            $location = self::packageInventoryEntryLocation($packagePath);
             $manifestMatches = $manifestByPackagePath[$packagePath] ?? [];
             $rootfileMatches = $rootfilesByPackagePath[$packagePath] ?? [];
             $spineMatches = $spineByPackagePath[$packagePath] ?? [];
@@ -7123,6 +7124,10 @@ final class EpubPackage
                 'localOrder' => $localOrderByName[$packagePath] ?? null,
                 'packagePath' => $packagePath,
                 'partName' => $partName,
+                'directory' => $location['directory'],
+                'directoryDepth' => $location['directoryDepth'],
+                'baseName' => $location['baseName'],
+                'extension' => $location['extension'],
                 'isDirectory' => $entry->isDirectory(),
                 'declaredPackageEntry' => $declaredPackageEntry,
                 'undeclared' => $undeclared,
@@ -7174,6 +7179,9 @@ final class EpubPackage
             $byPackagePath[$packagePath] = $item;
         }
 
+        $directorySummaries = self::packageInventoryDirectorySummaries($entries);
+        $extensionSummaries = self::packageInventoryExtensionSummaries($entries);
+
         ksort($roleCounts, SORT_STRING);
         ksort($roleByteLengths, SORT_STRING);
         ksort($roleCompressedByteLengths, SORT_STRING);
@@ -7212,6 +7220,12 @@ final class EpubPackage
             'resourceKindCounts' => $resourceKindCounts,
             'resourceKindByteLengths' => $resourceKindByteLengths,
             'resourceKindCompressedByteLengths' => $resourceKindCompressedByteLengths,
+            'directoryCount' => count($directorySummaries),
+            'directorySummaries' => $directorySummaries,
+            'directories' => array_column($directorySummaries, 'directory'),
+            'extensionCount' => count($extensionSummaries),
+            'extensionSummaries' => $extensionSummaries,
+            'extensions' => array_column($extensionSummaries, 'extension'),
             'opfManifestDeclaredPartNames' => array_keys($manifestDeclaredPartNames),
             'missingOpfManifestDeclaredPartNames' => array_keys($missingManifestDeclaredPartNames),
             'undeclaredPartNames' => array_keys($undeclaredPartNames),
@@ -7520,6 +7534,185 @@ final class EpubPackage
         $name = ltrim(trim($partName), '/');
 
         return $name === '' ? null : $name;
+    }
+
+    /**
+     * @return array{directory:string, directoryDepth:int, baseName:string, extension:?string}
+     */
+    private static function packageInventoryEntryLocation(string $packagePath): array
+    {
+        $name = trim($packagePath, '/');
+        $name = rtrim($name, '/');
+
+        if ($name === '') {
+            return [
+                'directory' => '/',
+                'directoryDepth' => 0,
+                'baseName' => '',
+                'extension' => null,
+            ];
+        }
+
+        $slash = strrpos($name, '/');
+        $directory = $slash === false ? '/' : substr($name, 0, $slash);
+        $baseName = $slash === false ? $name : substr($name, $slash + 1);
+        $extension = null;
+        $dot = strrpos($baseName, '.');
+        if ($dot !== false && $dot < strlen($baseName) - 1) {
+            $extension = strtolower(substr($baseName, $dot + 1));
+        }
+
+        return [
+            'directory' => $directory,
+            'directoryDepth' => $directory === '/' ? 0 : count(explode('/', $directory)),
+            'baseName' => $baseName,
+            'extension' => $extension,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function packageInventoryDirectorySummaries(array $entries): array
+    {
+        $directories = [];
+        foreach ($entries as $entry) {
+            $directory = is_string($entry['directory'] ?? null) ? $entry['directory'] : '/';
+            if (!isset($directories[$directory])) {
+                $directories[$directory] = self::emptyPackageInventoryLocationSummary([
+                    'directory' => $directory,
+                    'directoryDepth' => is_int($entry['directoryDepth'] ?? null) ? $entry['directoryDepth'] : 0,
+                ]);
+            }
+
+            self::addPackageInventoryLocationSummaryEntry($directories[$directory], $entry);
+        }
+
+        return self::normalizePackageInventoryLocationSummaries($directories);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function packageInventoryExtensionSummaries(array $entries): array
+    {
+        $extensions = [];
+        foreach ($entries as $entry) {
+            $extension = is_string($entry['extension'] ?? null) ? $entry['extension'] : null;
+            $key = $extension ?? '';
+            if (!isset($extensions[$key])) {
+                $extensions[$key] = self::emptyPackageInventoryLocationSummary([
+                    'extension' => $extension,
+                ]);
+            }
+
+            self::addPackageInventoryLocationSummaryEntry($extensions[$key], $entry);
+        }
+
+        return self::normalizePackageInventoryLocationSummaries($extensions);
+    }
+
+    /**
+     * @param array<string, mixed> $identity
+     *
+     * @return array<string, mixed>
+     */
+    private static function emptyPackageInventoryLocationSummary(array $identity): array
+    {
+        return $identity + [
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'byteLength' => 0,
+            'compressedByteLength' => 0,
+            'opfManifestDeclaredEntryCount' => 0,
+            'undeclaredEntryCount' => 0,
+            'spineEntryCount' => 0,
+            'encryptedEntryCount' => 0,
+            'obfuscatedFontEntryCount' => 0,
+            'unsupportedCompressionMethodCount' => 0,
+            'exposableEntryCount' => 0,
+            'blockedEntryCount' => 0,
+            'roleCounts' => [],
+            'resourceKindCounts' => [],
+            'packagePaths' => [],
+            'partNames' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed> $entry
+     */
+    private static function addPackageInventoryLocationSummaryEntry(array &$summary, array $entry): void
+    {
+        ++$summary['entryCount'];
+        if (($entry['isDirectory'] ?? false) === true) {
+            ++$summary['directoryEntryCount'];
+        } else {
+            ++$summary['fileEntryCount'];
+        }
+
+        $summary['byteLength'] += (int) ($entry['byteLength'] ?? 0);
+        $summary['compressedByteLength'] += (int) ($entry['compressedByteLength'] ?? 0);
+        $summary['packagePaths'][] = (string) ($entry['packagePath'] ?? '');
+        $summary['partNames'][] = (string) ($entry['partName'] ?? '');
+
+        foreach ([
+            'declaredInOpfManifest' => 'opfManifestDeclaredEntryCount',
+            'undeclared' => 'undeclaredEntryCount',
+            'inSpine' => 'spineEntryCount',
+            'encrypted' => 'encryptedEntryCount',
+            'obfuscatedFont' => 'obfuscatedFontEntryCount',
+        ] as $entryField => $summaryField) {
+            if (($entry[$entryField] ?? false) === true) {
+                ++$summary[$summaryField];
+            }
+        }
+
+        if (($entry['compressionSupported'] ?? true) !== true) {
+            ++$summary['unsupportedCompressionMethodCount'];
+        }
+
+        if (($entry['canExposeBytes'] ?? false) === true) {
+            ++$summary['exposableEntryCount'];
+        } else {
+            ++$summary['blockedEntryCount'];
+        }
+
+        foreach (is_array($entry['roles'] ?? null) ? $entry['roles'] : [] as $role) {
+            if (!is_string($role) || $role === '') {
+                continue;
+            }
+
+            $summary['roleCounts'][$role] = ($summary['roleCounts'][$role] ?? 0) + 1;
+        }
+
+        $resourceKind = is_string($entry['resourceKind'] ?? null) ? $entry['resourceKind'] : null;
+        if ($resourceKind !== null && $resourceKind !== '') {
+            $summary['resourceKindCounts'][$resourceKind] = ($summary['resourceKindCounts'][$resourceKind] ?? 0) + 1;
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function normalizePackageInventoryLocationSummaries(array $summaries): array
+    {
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as $key => $summary) {
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['resourceKindCounts'], SORT_STRING);
+            $summaries[$key] = $summary;
+        }
+
+        return array_values($summaries);
     }
 
     private static function packageInventoryPartName(string $packagePath): string
