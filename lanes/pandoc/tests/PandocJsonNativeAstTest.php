@@ -12211,6 +12211,90 @@ return [
             }
         }
     },
+    'accepts single wrapped definition list item tuples through json and native readers' => static function (TestRunner $t): void {
+        $definitionTerm = [
+            ['t' => 'Str', 'c' => 'Wrapped'],
+            ['t' => 'Space'],
+            ['t' => 'Code', 'c' => [['term-code', ['native'], [['data-kind', 'term']]], 'term']],
+        ];
+        $definitionBlocks = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Wrapped'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'definition'],
+            ]],
+        ];
+        $definitions = [$definitionBlocks];
+        $definitionItem = [[$definitionTerm, $definitions]];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'DefinitionList', 'c' => [
+                    $definitionItem,
+                ], 'reviewQueue' => 'definition-list-wrapper-source'],
+            ],
+        ];
+        $withoutWrapperNative = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $definitionList = $document->children[0];
+            $item = $definitionList->children[0];
+            $term = $item->children[0];
+            $definition = $item->children[1];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('definition_list', $withoutWrapperNative($definitionList), [$item]),
+            ]);
+            $editedTerm = new AstNode('definition_term', array_replace($term->attrs, [
+                'text' => 'Edited term',
+            ]), [
+                new AstNode('text', ['text' => 'Edited']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'term']),
+            ]);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('definition_list', $withoutWrapperNative($definitionList), [
+                    new AstNode('definition_item', $item->attrs, [$editedTerm, $definition]),
+                ]),
+            ]);
+
+            $t->same('definition_list', $definitionList->type, "{$source} definition list type");
+            $t->same($definitionItem, $item->attr('definitionItemNative'), "{$source} records wrapped definition item payload");
+            $t->same($definitionTerm, $term->attr('definitionTermNative'), "{$source} records definition term payload");
+            $t->same($definitions, $item->attr('definitionDefinitionsNative'), "{$source} records definitions payload");
+            $t->same($definitionBlocks, $definition->attr('definitionNative'), "{$source} records definition block payload");
+            $t->same('Wrapped term', $term->attr('text'), "{$source} normalizes wrapped definition term text");
+            $t->same('Wrapped definition', $definition->children[0]->attr('text'), "{$source} normalizes wrapped definition text");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($definitionItem, $encoded['blocks'][0]['c'][0], "{$source} {$writer} writer preserves wrapped definition item tuple");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} {$writer} writer regenerates definition list wrapper");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedItem = $encoded['blocks'][0]['c'][0];
+
+                $t->same(2, count($encodedItem), "{$source} {$writer} edited item drops stale tuple wrapper");
+                $t->same('Edited', $encodedItem[0][0]['c'], "{$source} {$writer} edited term is regenerated");
+            }
+        }
+    },
     'preserves ordered list style and delimiter helper variants through regenerated writers' => static function (TestRunner $t): void {
         $styles = [
             ['constructor' => 'DefaultStyle', 'value' => 'default'],

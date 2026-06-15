@@ -1305,7 +1305,7 @@ final class NativeWriter
 
     /**
      * @param list<AstNode> $items
-     * @return list<array{0:list<array<string, mixed>>, 1:list<list<array<string, mixed>>>>>
+     * @return list<list<mixed>>
      */
     private function definitionItems(array $items): array
     {
@@ -1333,10 +1333,28 @@ final class NativeWriter
             }
 
             $definitions = $this->reusableNestedBlockListPayload($item->attr('definitionDefinitionsNative'), $definitions) ?? $definitions;
-            $encoded[] = [$termNative ?? $encodedTerm, $definitions];
+            $payload = [$termNative ?? $encodedTerm, $definitions];
+            $encoded[] = $this->reusableDefinitionItemPayload($item->attr('definitionItemNative'), $payload) ?? $payload;
         }
 
         return $encoded;
+    }
+
+    /**
+     * @param list<mixed> $payload
+     * @return list<mixed>|null
+     */
+    private function reusableDefinitionItemPayload(mixed $native, array $payload): ?array
+    {
+        if (!is_array($native) || !array_is_list($native)) {
+            return null;
+        }
+
+        if ($native === $payload) {
+            return $native;
+        }
+
+        return $this->singleWrappedReusableListPayload($native, $payload);
     }
 
     /**
