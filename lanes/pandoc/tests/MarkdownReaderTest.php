@@ -7581,6 +7581,32 @@ return [
         $t->contains('<h1 id="header">Header</h1>', $setextBlocks);
         $t->contains('<a href="#header">header</a>', $setextBlocks);
     },
+    'maps upstream markdown reader atx closing fence before attributes' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            '# Closing attribute fence # {#closing .review data-source="fixture"}',
+            '[Closing attribute fence]',
+            '# C# reference {#csharp}',
+            '[C# reference]',
+        ]));
+        $heading = $document->children[0];
+        $link = $document->children[1]->children[0];
+        $csharpHeading = $document->children[2];
+        $csharpLink = $document->children[3]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('heading', $heading->type);
+        $t->same('Closing attribute fence', $heading->attr('text'));
+        $t->same('closing', $heading->attr('id'));
+        $t->same(['review'], $heading->attr('classes'));
+        $t->same(['data-source' => 'fixture'], $heading->attr('attributes'));
+        $t->same('#closing', $link->attr('url'));
+        $t->same('Closing attribute fence', $link->children[0]->attr('text'));
+        $t->same('C# reference', $csharpHeading->attr('text'));
+        $t->same('csharp', $csharpHeading->attr('id'));
+        $t->same('#csharp', $csharpLink->attr('url'));
+        $t->contains('<h1 id="closing" class="review" data-source="fixture">Closing attribute fence</h1>', $blocks);
+        $t->contains('<h1 id="csharp">C# reference</h1>', $blocks);
+    },
     'maps markdown headings into nested section divs when requested' => static function (TestRunner $t): void {
         $document = (new MarkdownReader(['sectionDivs' => true]))->read(implode("\n\n", [
             'Preamble before sections.',

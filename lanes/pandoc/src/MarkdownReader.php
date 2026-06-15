@@ -7834,7 +7834,7 @@ final class MarkdownReader
 
         $text = $this->stripClosingAtxHeadingFence(trim($m[2]));
 
-        return $this->buildMarkdownHeading(strlen($m[1]), $text);
+        return $this->buildMarkdownHeading(strlen($m[1]), $text, true);
     }
 
     /**
@@ -7873,7 +7873,7 @@ final class MarkdownReader
     /**
      * @return array{level:int, text:string, id?:string, classes:list<string>, attributes:array<string, string>}
      */
-    private function buildMarkdownHeading(int $level, string $text): array
+    private function buildMarkdownHeading(int $level, string $text, bool $stripClosingAtxFence = false): array
     {
         $id = null;
         $classes = [];
@@ -7882,6 +7882,9 @@ final class MarkdownReader
         if (preg_match('/^(.*?)[ \t]*\{([^{}]+)\}[ \t]*$/', $text, $attrs) === 1) {
             $text = rtrim($attrs[1]);
             [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($attrs[2]);
+            if ($stripClosingAtxFence) {
+                $text = $this->stripClosingAtxHeadingFence($text);
+            }
         }
 
         $heading = [
