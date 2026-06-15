@@ -7631,6 +7631,15 @@ final class MarkdownReader
 
     private function lowercaseReferenceLabel(string $label): string
     {
+        return $this->caseFoldReferenceLabel($label);
+    }
+
+    private function caseFoldReferenceLabel(string $label): string
+    {
+        if (defined('MB_CASE_FOLD') && function_exists('mb_convert_case')) {
+            return mb_convert_case($label, MB_CASE_FOLD, 'UTF-8');
+        }
+
         if (function_exists('mb_strtolower')) {
             return mb_strtolower($label, 'UTF-8');
         }
