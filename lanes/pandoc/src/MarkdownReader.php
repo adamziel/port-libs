@@ -29,6 +29,9 @@ final class MarkdownReader
     /** @var array<string, array{arity:int, template:string}> */
     private array $rawTexMacros = [];
 
+    /** @var array<string, bool>|null */
+    private ?array $markdownExtensionProfile = null;
+
     /** @var array<string, mixed> */
     private array $yamlMetadataAnchors = [];
 
@@ -84,10 +87,176 @@ final class MarkdownReader
     private bool $nativeSpanInlineEnabled = false;
 
     /**
-     * @param array{literateHaskell?: bool, yamlMetadata?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool, sectionDivs?: bool, nativeSpans?: bool} $options
+     * @param array{format?: string, extensions?: list<string>|array<string, bool>, literateHaskell?: bool, yamlMetadata?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool, sectionDivs?: bool, nativeSpans?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
+    }
+
+    private function markdownExtensionEnabled(string $extension): bool
+    {
+        $extension = $this->normalizeMarkdownExtensionName($extension);
+        $profile = $this->markdownExtensionProfile();
+
+        return $profile[$extension] ?? true;
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function markdownExtensionProfile(): array
+    {
+        if ($this->markdownExtensionProfile !== null) {
+            return $this->markdownExtensionProfile;
+        }
+
+        $profile = $this->defaultMarkdownExtensionProfile($this->markdownFormatBase());
+        foreach ($this->markdownFormatExtensionOverrides() as $extension => $enabled) {
+            $profile[$extension] = $enabled;
+        }
+
+        $configuredExtensions = $this->options['extensions'] ?? [];
+        if (is_array($configuredExtensions)) {
+            foreach ($configuredExtensions as $key => $value) {
+                if (is_int($key)) {
+                    if (is_string($value) && $value !== '') {
+                        $enabled = $value[0] !== '-';
+                        $profile[$this->normalizeMarkdownExtensionName(ltrim($value, '+-'))] = $enabled;
+                    }
+                    continue;
+                }
+
+                $profile[$this->normalizeMarkdownExtensionName((string) $key)] = (bool) $value;
+            }
+        }
+
+        return $this->markdownExtensionProfile = $profile;
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function defaultMarkdownExtensionProfile(?string $format): array
+    {
+        $all = [
+            'abbreviations' => true,
+            'bare_uri_autolinks' => true,
+            'bracketed_spans' => true,
+            'citations' => true,
+            'emoji' => true,
+            'footnotes' => true,
+            'inline_attributes' => true,
+            'mark' => true,
+            'numbered_examples' => true,
+            'raw_attribute' => true,
+            'raw_html' => true,
+            'raw_tex' => true,
+            'smart' => true,
+            'strikeout' => true,
+            'subscript' => true,
+            'superscript' => true,
+            'tex_math_double_backslash' => true,
+            'tex_math_dollars' => true,
+            'tex_math_single_backslash' => true,
+            'wikilinks' => true,
+        ];
+
+        return match ($format) {
+            null, 'markdown', 'pandoc', 'commonmark_x' => $all,
+            'markdown_strict', 'commonmark' => array_replace(
+                array_fill_keys(array_keys($all), false),
+                ['raw_html' => true]
+            ),
+            'gfm', 'markdown_github' => array_replace(
+                array_fill_keys(array_keys($all), false),
+                [
+                    'bare_uri_autolinks' => true,
+                    'emoji' => true,
+                    'raw_html' => true,
+                    'strikeout' => true,
+                ]
+            ),
+            'markdown_phpextra' => array_replace(
+                array_fill_keys(array_keys($all), false),
+                [
+                    'abbreviations' => true,
+                    'bracketed_spans' => true,
+                    'footnotes' => true,
+                    'inline_attributes' => true,
+                    'raw_html' => true,
+                ]
+            ),
+            'markdown_mmd' => array_replace(
+                array_fill_keys(array_keys($all), false),
+                [
+                    'bracketed_spans' => true,
+                    'citations' => true,
+                    'footnotes' => true,
+                    'inline_attributes' => true,
+                    'raw_html' => true,
+                    'tex_math_dollars' => true,
+                    'tex_math_single_backslash' => true,
+                ]
+            ),
+            default => $all,
+        };
+    }
+
+    private function markdownFormatBase(): ?string
+    {
+        $format = $this->options['format'] ?? null;
+        if (!is_string($format) || trim($format) === '') {
+            return null;
+        }
+
+        if (preg_match('/^([A-Za-z0-9_]+)/', strtolower(trim($format)), $m) !== 1) {
+            return null;
+        }
+
+        return match ($m[1]) {
+            'commonmark', 'commonmark_x', 'gfm', 'markdown', 'markdown_github',
+            'markdown_mmd', 'markdown_phpextra', 'markdown_strict', 'pandoc' => $m[1],
+            default => null,
+        };
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function markdownFormatExtensionOverrides(): array
+    {
+        $format = $this->options['format'] ?? null;
+        if (!is_string($format) || trim($format) === '') {
+            return [];
+        }
+
+        $overrides = [];
+        if (preg_match_all('/([+-])([A-Za-z0-9_]+)/', strtolower($format), $matches, PREG_SET_ORDER) !== false) {
+            foreach ($matches as $match) {
+                $overrides[$this->normalizeMarkdownExtensionName($match[2])] = $match[1] === '+';
+            }
+        }
+
+        return $overrides;
+    }
+
+    private function normalizeMarkdownExtensionName(string $extension): string
+    {
+        return match (str_replace('-', '_', strtolower(trim($extension)))) {
+            'autolink_bare_uris', 'bare_autolinks', 'gfm_auto_identifiers', 'gfm_autolinks' => 'bare_uri_autolinks',
+            'bracketed_span' => 'bracketed_spans',
+            'citation' => 'citations',
+            'emoji_shortcode', 'emoji_shortcodes' => 'emoji',
+            'inline_attribute', 'link_attributes', 'markdown_attribute' => 'inline_attributes',
+            'raw_attributes' => 'raw_attribute',
+            'subscripts' => 'subscript',
+            'superscripts' => 'superscript',
+            'tex_math', 'tex_math_single_backslashes' => 'tex_math_single_backslash',
+            'tex_math_double_backslashes' => 'tex_math_double_backslash',
+            'tex_math_dollar' => 'tex_math_dollars',
+            'wiki_links' => 'wikilinks',
+            default => str_replace('-', '_', strtolower(trim($extension))),
+        };
     }
 
     public function readBytes(string $bytes, ?string $encoding = null, ?string $normalizationForm = null): AstNode
@@ -140,10 +309,15 @@ final class MarkdownReader
         $this->nativeSpanInlineEnabled = ($this->options['nativeSpans'] ?? false) === true
             || $this->metadataEnablesNativeSpans($yamlMetadata);
         [$lines, $titleBlock] = $this->extractTitleBlock($lines);
-        [$lines, $abbreviations] = $this->extractAbbreviationDefinitions($lines);
+        $abbreviations = [];
+        if ($this->markdownExtensionEnabled('abbreviations')) {
+            [$lines, $abbreviations] = $this->extractAbbreviationDefinitions($lines);
+        }
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
-        [$exampleReferences, $exampleNumbersByLine] = $this->collectNumberedExampleReferences($lines);
+        [$exampleReferences, $exampleNumbersByLine] = $this->markdownExtensionEnabled('numbered_examples')
+            ? $this->collectNumberedExampleReferences($lines)
+            : [[], []];
         [$markdownHeadingIds, $implicitHeadingReferences] = $this->collectMarkdownHeadingReferences($lines);
         $this->referenceLinks = array_replace($previousReferenceLinks, $implicitHeadingReferences, $references);
         $this->footnoteDefinitions = array_replace($previousFootnoteDefinitions, $footnotes);
@@ -7553,7 +7727,7 @@ final class MarkdownReader
             }
 
             $expanded = $this->expandTabsToSpaces($line);
-            $footnote = $this->tryParseFootnoteDefinitionStart($expanded);
+            $footnote = $this->markdownExtensionEnabled('footnotes') ? $this->tryParseFootnoteDefinitionStart($expanded) : null;
             if ($footnote !== null) {
                 [$body, $nextIndex] = $this->collectFootnoteDefinitionBody($lines, $index, $footnote['content']);
                 $footnotes[$this->normalizeReferenceLabel($footnote['label'])] = implode("\n", $body);
@@ -7561,7 +7735,7 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($this->isAbbreviationDefinitionLine($expanded)) {
+            if ($this->markdownExtensionEnabled('abbreviations') && $this->isAbbreviationDefinitionLine($expanded)) {
                 continue;
             }
 
@@ -18187,7 +18361,9 @@ final class MarkdownReader
                         $code = substr($code, 1, -1);
                     }
                     $next = $end + $tickCount;
-                    $rawAttribute = $this->tryParseRawInlineAttributeSpec($text, $next);
+                    $rawAttribute = $this->markdownExtensionEnabled('raw_attribute')
+                        ? $this->tryParseRawInlineAttributeSpec($text, $next)
+                        : null;
                     if ($rawAttribute !== null) {
                         $this->flushText($buffer, $nodes);
                         $nodes[] = new AstNode('raw_inline', [
@@ -18199,7 +18375,9 @@ final class MarkdownReader
                     }
 
                     $attrs = ['text' => $code];
-                    $attribute = $this->tryParseInlineAttributeSpec($text, $next);
+                    $attribute = $this->markdownExtensionEnabled('inline_attributes')
+                        ? $this->tryParseInlineAttributeSpec($text, $next)
+                        : null;
                     $literalAttribute = null;
                     if ($attribute !== null) {
                         $attrs = array_replace($attrs, $attribute['attrs']);
@@ -18220,7 +18398,9 @@ final class MarkdownReader
                 }
             }
 
-            $inlineNote = $this->resolveFootnoteReferences ? $this->tryParseInlineNote($text, $offset) : null;
+            $inlineNote = ($this->resolveFootnoteReferences && $this->markdownExtensionEnabled('footnotes'))
+                ? $this->tryParseInlineNote($text, $offset)
+                : null;
             if ($inlineNote !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $inlineNote['node'];
@@ -18230,7 +18410,9 @@ final class MarkdownReader
 
             $math = $this->tryParseMath($text, $offset);
             if ($math !== null) {
-                $attribute = $this->tryParseInlineAttributeSpec($text, $math['next']);
+                $attribute = $this->markdownExtensionEnabled('inline_attributes')
+                    ? $this->tryParseInlineAttributeSpec($text, $math['next'])
+                    : null;
                 if ($attribute !== null) {
                     $math['node'] = new AstNode(
                         'math',
@@ -18244,7 +18426,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $rawTex = $this->tryParseRawTexInline($text, $offset);
+            $rawTex = $this->markdownExtensionEnabled('raw_tex') ? $this->tryParseRawTexInline($text, $offset) : null;
             if ($rawTex !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $rawTex['node'];
@@ -18252,7 +18434,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $strikeout = $this->tryParseStrikeout($text, $offset);
+            $strikeout = $this->markdownExtensionEnabled('strikeout') ? $this->tryParseStrikeout($text, $offset) : null;
             if ($strikeout !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $strikeout['node'];
@@ -18260,7 +18442,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $mark = $this->tryParseMark($text, $offset);
+            $mark = $this->markdownExtensionEnabled('mark') ? $this->tryParseMark($text, $offset) : null;
             if ($mark !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $mark['node'];
@@ -18268,7 +18450,9 @@ final class MarkdownReader
                 continue;
             }
 
-            $script = $this->tryParseScript($text, $offset);
+            $script = ($this->markdownExtensionEnabled('superscript') || $this->markdownExtensionEnabled('subscript'))
+                ? $this->tryParseScript($text, $offset)
+                : null;
             if ($script !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $script['node'];
@@ -18276,7 +18460,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $quote = $this->tryParseSmartQuote($text, $offset);
+            $quote = $this->markdownExtensionEnabled('smart') ? $this->tryParseSmartQuote($text, $offset) : null;
             if ($quote !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $quote['node'];
@@ -18292,7 +18476,9 @@ final class MarkdownReader
                 continue;
             }
 
-            $footnoteReference = $this->resolveFootnoteReferences ? $this->tryParseFootnoteReference($text, $offset) : null;
+            $footnoteReference = ($this->resolveFootnoteReferences && $this->markdownExtensionEnabled('footnotes'))
+                ? $this->tryParseFootnoteReference($text, $offset)
+                : null;
             if ($footnoteReference !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $footnoteReference['node'];
@@ -18300,7 +18486,9 @@ final class MarkdownReader
                 continue;
             }
 
-            $citation = $allowLinks ? $this->tryParseCitation($text, $offset, $allowBareCitations) : null;
+            $citation = ($allowLinks && $this->markdownExtensionEnabled('citations'))
+                ? $this->tryParseCitation($text, $offset, $allowBareCitations)
+                : null;
             if ($citation !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $citation['node'];
@@ -18324,7 +18512,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $span = $this->tryParseBracketedSpan($text, $offset);
+            $span = $this->markdownExtensionEnabled('bracketed_spans') ? $this->tryParseBracketedSpan($text, $offset) : null;
             if ($span !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $span['node'];
@@ -18332,7 +18520,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $emoji = $this->tryParseEmojiAlias($text, $offset);
+            $emoji = $this->markdownExtensionEnabled('emoji') ? $this->tryParseEmojiAlias($text, $offset) : null;
             if ($emoji !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $emoji['node'];
@@ -18348,7 +18536,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $wikiLink = $allowLinks ? $this->tryParseWikiLink($text, $offset) : null;
+            $wikiLink = ($allowLinks && $this->markdownExtensionEnabled('wikilinks')) ? $this->tryParseWikiLink($text, $offset) : null;
             if ($wikiLink !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $wikiLink['node'];
@@ -18375,7 +18563,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $rawHtmlInline = $allowLinks ? $this->tryParseRawHtmlInline($text, $offset) : null;
+            $rawHtmlInline = ($allowLinks && $this->markdownExtensionEnabled('raw_html')) ? $this->tryParseRawHtmlInline($text, $offset) : null;
             if ($rawHtmlInline !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $rawHtmlInline['node'];
@@ -18383,7 +18571,9 @@ final class MarkdownReader
                 continue;
             }
 
-            $bareUriAutolink = $allowLinks ? $this->tryParseBareUriAutolink($text, $offset) : null;
+            $bareUriAutolink = ($allowLinks && $this->markdownExtensionEnabled('bare_uri_autolinks'))
+                ? $this->tryParseBareUriAutolink($text, $offset)
+                : null;
             if ($bareUriAutolink !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $bareUriAutolink['node'];
@@ -18391,7 +18581,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $abbreviation = $this->tryParseAbbreviation($text, $offset);
+            $abbreviation = $this->markdownExtensionEnabled('abbreviations') ? $this->tryParseAbbreviation($text, $offset) : null;
             if ($abbreviation !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $abbreviation['node'];
@@ -18399,14 +18589,14 @@ final class MarkdownReader
                 continue;
             }
 
-            $exampleReference = $this->tryParseNumberedExampleReference($text, $offset);
+            $exampleReference = $this->markdownExtensionEnabled('numbered_examples') ? $this->tryParseNumberedExampleReference($text, $offset) : null;
             if ($exampleReference !== null) {
                 $buffer .= $exampleReference['text'];
                 $offset = $exampleReference['next'];
                 continue;
             }
 
-            $replacement = $this->tryReadSmartTextReplacement($text, $offset);
+            $replacement = $this->markdownExtensionEnabled('smart') ? $this->tryReadSmartTextReplacement($text, $offset) : null;
             if ($replacement !== null) {
                 $buffer .= $replacement['text'];
                 $offset = $replacement['next'];
@@ -19061,7 +19251,9 @@ final class MarkdownReader
         int $offset
     ): array {
         $attrs = [];
-        $attribute = $this->tryParseInlineAttributeSpec($source, $offset);
+        $attribute = $this->markdownExtensionEnabled('inline_attributes')
+            ? $this->tryParseInlineAttributeSpec($source, $offset)
+            : null;
         if ($attribute !== null) {
             $attrs = $attribute['attrs'];
             $offset = $attribute['next'];
@@ -19353,7 +19545,9 @@ final class MarkdownReader
             $attrs['title'] = $title;
         }
 
-        $attribute = $this->tryParseInlineAttributeSpec($source, $offset);
+        $attribute = $this->markdownExtensionEnabled('inline_attributes')
+            ? $this->tryParseInlineAttributeSpec($source, $offset)
+            : null;
         if ($attribute !== null) {
             $attrs = array_replace($attrs, $attribute['attrs']);
             $offset = $attribute['next'];
@@ -19682,7 +19876,9 @@ final class MarkdownReader
      */
     private function readTrailingAutolinkAttributes(string $text, int $offset, array $attrs): array
     {
-        $attribute = $this->tryParseInlineAttributeSpec($text, $offset);
+        $attribute = $this->markdownExtensionEnabled('inline_attributes')
+            ? $this->tryParseInlineAttributeSpec($text, $offset)
+            : null;
         if ($attribute !== null) {
             $merged = array_replace($attrs, $attribute['attrs']);
             if (isset($attrs['classes']) && !array_key_exists('classes', $attribute['attrs'])) {
@@ -20631,19 +20827,28 @@ final class MarkdownReader
      */
     private function tryParseMath(string $text, int $offset): ?array
     {
-        if (($this->options['texMathDoubleBackslash'] ?? false) === true) {
+        if (
+            ($this->options['texMathDoubleBackslash'] ?? false) === true
+            && $this->markdownExtensionEnabled('tex_math_double_backslash')
+        ) {
             $doubleBackslashMath = $this->tryParseDoubleBackslashMath($text, $offset);
             if ($doubleBackslashMath !== null) {
                 return $doubleBackslashMath;
             }
         }
 
-        $singleBackslashMath = $this->tryParseSingleBackslashMath($text, $offset);
-        if ($singleBackslashMath !== null) {
-            return $singleBackslashMath;
+        if ($this->markdownExtensionEnabled('tex_math_single_backslash')) {
+            $singleBackslashMath = $this->tryParseSingleBackslashMath($text, $offset);
+            if ($singleBackslashMath !== null) {
+                return $singleBackslashMath;
+            }
         }
 
-        if (($text[$offset] ?? '') !== '$' || $this->isEscapedInlinePosition($text, $offset)) {
+        if (
+            !$this->markdownExtensionEnabled('tex_math_dollars')
+            || ($text[$offset] ?? '') !== '$'
+            || $this->isEscapedInlinePosition($text, $offset)
+        ) {
             return null;
         }
 
@@ -21290,6 +21495,13 @@ final class MarkdownReader
     {
         $delimiter = $text[$offset] ?? '';
         if ($delimiter !== '^' && $delimiter !== '~') {
+            return null;
+        }
+
+        if (
+            ($delimiter === '^' && !$this->markdownExtensionEnabled('superscript'))
+            || ($delimiter === '~' && !$this->markdownExtensionEnabled('subscript'))
+        ) {
             return null;
         }
 
