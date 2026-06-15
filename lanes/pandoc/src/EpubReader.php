@@ -106,6 +106,12 @@ final class EpubReader
         'full-path' => true,
         'media-type' => true,
     ];
+    private const OPF_METADATA_STRUCTURAL_ATTRIBUTES = [
+        'id' => true,
+        'xml:lang' => true,
+        'xml:base' => true,
+        'dir' => true,
+    ];
 
     /**
      * @return array{
@@ -1212,8 +1218,13 @@ final class EpubReader
         ?string $inheritedDirection = null
     ): array
     {
-        $metadataLanguage = self::xmlLang($metadataElement) ?? $inheritedLanguage;
-        $metadataDirection = self::direction($metadataElement) ?? $inheritedDirection;
+        $metadataOwnLanguage = self::xmlLang($metadataElement);
+        $metadataOwnDirection = self::direction($metadataElement);
+        $metadataBase = self::xmlBase($metadataElement);
+        $metadataAttributes = self::opfElementAttributes($metadataElement);
+        $metadataCustomAttributes = self::metadataElementCustomAttributes($metadataAttributes);
+        $metadataLanguage = $metadataOwnLanguage ?? $inheritedLanguage;
+        $metadataDirection = $metadataOwnDirection ?? $inheritedDirection;
         $dc = [];
         $metaProperties = [];
         $metaNames = [];
@@ -1333,6 +1344,13 @@ final class EpubReader
             'languageDetails' => $languageDetails,
             'languagesByPrimarySubtag' => self::metadataLanguageDetailsByPrimarySubtag($languageDetails),
             'languageSummary' => self::metadataLanguageSummary($languageDetails),
+            'metadataAuthoring' => self::metadataAuthoringReport(
+                $metadataAttributes,
+                $metadataOwnLanguage,
+                $metadataOwnDirection,
+                $metadataBase,
+                $metadataCustomAttributes,
+            ),
             'identifier' => $uniqueIdentifierReport['value'],
             'uniqueIdentifier' => $uniqueIdentifierReport,
             'identifiers' => $identifiers,
@@ -5016,6 +5034,31 @@ final class EpubReader
     }
 
     /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
+    private static function metadataElementCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OPF_METADATA_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+            if ($name === 'xmlns' || str_starts_with($name, 'xmlns:')) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
      * @return array<string, string>
      */
     private static function manifestItemAttributes(\DOMElement $element): array
@@ -5157,6 +5200,55 @@ final class EpubReader
             'customConflictCount' => $customConflictCount,
             'hasConflicts' => $conflicts !== [],
             'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param array<string, string> $customAttributes
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataAuthoringReport(
+        array $attributes,
+        ?string $language,
+        ?string $direction,
+        ?string $base,
+        array $customAttributes
+    ): array {
+        $structuralAttributes = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (!isset(self::OPF_METADATA_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+
+            $structuralAttributes[$name] = $value;
+        }
+
+        return [
+            'present' => $attributes !== [],
+            'language' => $language,
+            'direction' => $direction,
+            'base' => $base,
+            'attributes' => $attributes,
+            'attributeCount' => count($attributes),
+            'structuralAttributes' => $structuralAttributes,
+            'structuralAttributeCount' => count($structuralAttributes),
+            'customAttributes' => $customAttributes,
+            'customAttributeCount' => count($customAttributes),
+            'hasCustomAttributes' => $customAttributes !== [],
+            'hasLanguage' => $language !== null,
+            'hasDirection' => $direction !== null,
+            'hasBase' => $base !== null,
+            'baseResolutionPolicy' => $base === null ? null : 'reported-not-applied-to-package-paths',
+            'baseResolution' => [
+                'metadataOnly' => $base !== null,
+                'appliesToPackagePaths' => false,
+                'policy' => $base === null ? null : 'reported-not-applied-to-package-paths',
+            ],
         ];
     }
 

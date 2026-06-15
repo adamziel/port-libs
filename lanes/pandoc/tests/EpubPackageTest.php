@@ -6700,6 +6700,55 @@ XML;
         $t->same($spineAuthoring['items'], $summary['wordpressImport']['spineAuthoringItems']);
     },
 
+    'preserves OPF metadata root authoring attributes for package review handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithMetadataAuthoring = str_replace(
+            '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">',
+            '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:review="https://example.invalid/epub-review" id="metadata-root" xml:lang="fr" dir="rtl" xml:base="metadata/" data-review="metadata" review:source="wp-import">',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMetadataAuthoring],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $authoring = $metadata['metadataAuthoring'];
+
+        $t->same(true, $authoring['present']);
+        $t->same('fr', $authoring['language']);
+        $t->same('rtl', $authoring['direction']);
+        $t->same('metadata/', $authoring['base']);
+        $t->same('metadata-root', $authoring['attributes']['id']);
+        $t->same('fr', $authoring['attributes']['xml:lang']);
+        $t->same('metadata/', $authoring['attributes']['xml:base']);
+        $t->same(6, $authoring['attributeCount']);
+        $t->same([
+            'dir' => 'rtl',
+            'id' => 'metadata-root',
+            'xml:base' => 'metadata/',
+            'xml:lang' => 'fr',
+        ], $authoring['structuralAttributes']);
+        $t->same(4, $authoring['structuralAttributeCount']);
+        $t->same(['data-review' => 'metadata', 'review:source' => 'wp-import'], $authoring['customAttributes']);
+        $t->same(2, $authoring['customAttributeCount']);
+        $t->same(true, $authoring['hasLanguage']);
+        $t->same(true, $authoring['hasDirection']);
+        $t->same(true, $authoring['hasBase']);
+        $t->same('reported-not-applied-to-package-paths', $authoring['baseResolutionPolicy']);
+        $t->same(false, $authoring['baseResolution']['appliesToPackagePaths']);
+        $t->same(true, $authoring['baseResolution']['metadataOnly']);
+        $t->same($authoring, $summary['metadataAuthoring']);
+        $t->same($authoring, $summary['wordpressImport']['metadataDetails']['metadataAuthoring']);
+    },
+
     'preserves OPF package authoring attributes for package review handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithPackageAuthoring = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',

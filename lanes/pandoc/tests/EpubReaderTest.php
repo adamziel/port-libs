@@ -473,6 +473,46 @@ return [
         $t->same($authoring, $result['document']->attr('metadata')['packageAuthoring']);
         $t->same($authoring, $result['document']->attr('package')['authoring']);
     },
+    'preserves OPF metadata root authoring attributes for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithMetadataAuthoring = str_replace(
+            '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">',
+            '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:review="https://example.invalid/epub-review" id="metadata-root" xml:lang="fr" dir="rtl" xml:base="metadata/" data-review="metadata" review:source="wp-import">',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithMetadataAuthoring));
+        $metadata = $result['metadata'];
+        $authoring = $metadata['metadataAuthoring'];
+
+        $t->same(true, $authoring['present']);
+        $t->same('fr', $authoring['language']);
+        $t->same('rtl', $authoring['direction']);
+        $t->same('metadata/', $authoring['base']);
+        $t->same('metadata-root', $authoring['attributes']['id']);
+        $t->same('fr', $authoring['attributes']['xml:lang']);
+        $t->same('metadata/', $authoring['attributes']['xml:base']);
+        $t->same(6, $authoring['attributeCount']);
+        $t->same([
+            'dir' => 'rtl',
+            'id' => 'metadata-root',
+            'xml:base' => 'metadata/',
+            'xml:lang' => 'fr',
+        ], $authoring['structuralAttributes']);
+        $t->same(4, $authoring['structuralAttributeCount']);
+        $t->same(['data-review' => 'metadata', 'review:source' => 'wp-import'], $authoring['customAttributes']);
+        $t->same(2, $authoring['customAttributeCount']);
+        $t->same(true, $authoring['hasCustomAttributes']);
+        $t->same(true, $authoring['hasLanguage']);
+        $t->same(true, $authoring['hasDirection']);
+        $t->same(true, $authoring['hasBase']);
+        $t->same('reported-not-applied-to-package-paths', $authoring['baseResolutionPolicy']);
+        $t->same(false, $authoring['baseResolution']['appliesToPackagePaths']);
+        $t->same(true, $authoring['baseResolution']['metadataOnly']);
+        $t->same('fr', $metadata['dc']['title'][0]['language']);
+        $t->same('rtl', $metadata['dc']['title'][0]['direction']);
+        $t->same($authoring, $result['importReport']['metadata']['metadataAuthoring']);
+        $t->same($authoring, $result['document']->attr('metadata')['metadataAuthoring']);
+    },
     'reports OPF package root authoring conflicts for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithPackageConflicts = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',

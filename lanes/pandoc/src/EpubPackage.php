@@ -98,6 +98,12 @@ final class EpubPackage
         'xml:base' => true,
         'xml:lang' => true,
     ];
+    private const OPF_METADATA_STRUCTURAL_ATTRIBUTES = [
+        'dir' => true,
+        'id' => true,
+        'xml:base' => true,
+        'xml:lang' => true,
+    ];
     private const OPF_MANIFEST_ITEM_STRUCTURAL_ATTRIBUTES = [
         'dir' => true,
         'fallback' => true,
@@ -562,6 +568,9 @@ final class EpubPackage
         $auxiliaryNavigation = self::auxiliaryNavigationReport($this->navigationSections);
         $spineMetadata = $this->spineMetadata();
         $packageAuthoring = self::packageAuthoringReport($this->metadata);
+        $metadataAuthoring = is_array($this->metadata['metadataAuthoring'] ?? null)
+            ? $this->metadata['metadataAuthoring']
+            : self::metadataAuthoringReport([], null, null, null, []);
         $manifestAuthoring = self::manifestItemAuthoringReport($this->manifestItems);
         $spineAuthoring = self::spineItemrefAuthoringReport($this->spine);
         $guideReport = $this->guideReport();
@@ -609,6 +618,7 @@ final class EpubPackage
             'ocfSidecarDiagnostics' => $ocfSidecars['diagnostics'],
             'metadata' => $this->metadata,
             'packageAuthoring' => $packageAuthoring,
+            'metadataAuthoring' => $metadataAuthoring,
             'metaPropertyVocabulary' => $metaPropertyVocabulary,
             'metadataRefinementTargets' => $metadataRefinementTargets,
             'packageLinks' => $this->packageLinks,
@@ -662,6 +672,7 @@ final class EpubPackage
                     'packageBase' => $this->metadata['packageBase'] ?? null,
                     'packageLanguage' => $this->metadata['packageLanguage'] ?? null,
                     'packageDirection' => $this->metadata['packageDirection'] ?? null,
+                    'metadataAuthoring' => $metadataAuthoring,
                     'titleDetails' => $this->metadata['titleDetails'] ?? [],
                     'titlesByType' => $this->metadata['titlesByType'] ?? [],
                     'mainTitle' => $this->metadata['mainTitle'] ?? null,
@@ -3775,6 +3786,15 @@ final class EpubPackage
         $packageDirection = self::metadataElementDirection($packageElement);
         $packageAttributes = self::elementAttributes($packageElement);
         $packageCustomAttributes = self::packageCustomAttributes($packageAttributes);
+        $metadataAttributes = self::elementAttributes($metadataElement);
+        $metadataCustomAttributes = self::metadataElementCustomAttributes($metadataAttributes);
+        $metadataAuthoring = self::metadataAuthoringReport(
+            $metadataAttributes,
+            self::metadataElementLanguage($metadataElement),
+            self::metadataElementDirection($metadataElement),
+            self::metadataElementBase($metadataElement),
+            $metadataCustomAttributes,
+        );
 
         foreach (self::childElements($metadataElement) as $child) {
             if ($child->namespaceURI === self::DC_NAMESPACE) {
@@ -3914,6 +3934,7 @@ final class EpubPackage
             'packageDirection' => $packageDirection,
             'packageAttributes' => $packageAttributes,
             'packageCustomAttributes' => $packageCustomAttributes,
+            'metadataAuthoring' => $metadataAuthoring,
             'version' => $packageVersion,
             'uniqueIdentifierId' => $uniqueIdentifierId,
             'uniqueIdentifier' => $uniqueIdentifier,
@@ -6546,6 +6567,28 @@ final class EpubPackage
      *
      * @return array<string, string>
      */
+    private static function metadataElementCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OPF_METADATA_STRUCTURAL_ATTRIBUTES[$name]) || $name === 'xmlns' || str_starts_with($name, 'xmlns:')) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
     private static function manifestItemCustomAttributes(array $attributes): array
     {
         $custom = [];
@@ -6624,6 +6667,55 @@ final class EpubPackage
             'hasLanguage' => is_string($package['language'] ?? null) && $package['language'] !== '',
             'hasDirection' => is_string($package['direction'] ?? null) && $package['direction'] !== '',
             'hasCustomAttributes' => $customAttributes !== [],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param array<string, string> $customAttributes
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataAuthoringReport(
+        array $attributes,
+        ?string $language,
+        ?string $direction,
+        ?string $base,
+        array $customAttributes
+    ): array {
+        $structuralAttributes = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (!isset(self::OPF_METADATA_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+
+            $structuralAttributes[$name] = $value;
+        }
+
+        return [
+            'present' => $attributes !== [],
+            'language' => $language,
+            'direction' => $direction,
+            'base' => $base,
+            'attributes' => $attributes,
+            'attributeCount' => count($attributes),
+            'structuralAttributes' => $structuralAttributes,
+            'structuralAttributeCount' => count($structuralAttributes),
+            'customAttributes' => $customAttributes,
+            'customAttributeCount' => count($customAttributes),
+            'hasCustomAttributes' => $customAttributes !== [],
+            'hasLanguage' => $language !== null,
+            'hasDirection' => $direction !== null,
+            'hasBase' => $base !== null,
+            'baseResolutionPolicy' => $base === null ? null : 'reported-not-applied-to-package-paths',
+            'baseResolution' => [
+                'metadataOnly' => $base !== null,
+                'appliesToPackagePaths' => false,
+                'policy' => $base === null ? null : 'reported-not-applied-to-package-paths',
+            ],
         ];
     }
 
