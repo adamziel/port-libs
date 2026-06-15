@@ -150,6 +150,7 @@ final class EpubPackage
         'id' => true,
         'title' => true,
         'type' => true,
+        'xml:base' => true,
         'xml:lang' => true,
     ];
     private const OPF_BINDING_MEDIA_TYPE_STRUCTURAL_ATTRIBUTES = [
@@ -733,6 +734,7 @@ final class EpubPackage
             'guide' => $this->guideReferences,
             'guideReport' => $guideReport,
             'guideAuthoring' => $guideAuthoring,
+            'guideReferenceAuthoring' => $guideAuthoring,
             'collections' => $this->collections,
             'collectionHierarchy' => $collectionHierarchy,
             'collectionAuthoring' => $collectionAuthoring,
@@ -901,6 +903,7 @@ final class EpubPackage
                 'guideReferenceDirectionItems' => $guideReport['directionItems'],
                 'guideReferenceCustomAttributeItems' => $guideReport['customAttributeItems'],
                 'guideReferenceCustomAttributeNames' => $guideReport['customAttributeNames'],
+                'guideReferenceAuthoringCustomAttributeItems' => $guideAuthoring['customAttributeItems'],
                 'collections' => $this->collections,
                 'collectionHierarchy' => $collectionHierarchy,
                 'collectionHierarchyItems' => $collectionHierarchy['items'],
@@ -8579,18 +8582,38 @@ final class EpubPackage
     {
         $items = [];
         $itemsByIndex = [];
+        $itemsById = [];
         $languageItems = [];
         $directionItems = [];
+        $baseItems = [];
         $customAttributeItems = [];
+        $customAttributeNames = [];
+        $attributeCount = 0;
+        $customAttributeCount = 0;
 
-        foreach ($references as $reference) {
-            $index = count($items);
+        foreach ($references as $index => $reference) {
             $attributes = is_array($reference['attributes'] ?? null) ? $reference['attributes'] : [];
             $customAttributes = is_array($reference['customAttributes'] ?? null)
                 ? $reference['customAttributes']
                 : self::guideReferenceCustomAttributes($attributes);
-            $summary = [
-                'index' => $index,
+            $structuralAttributes = [];
+            foreach ($attributes as $name => $value) {
+                if (!is_string($name) || !is_string($value)) {
+                    continue;
+                }
+                if (isset(self::OPF_GUIDE_REFERENCE_STRUCTURAL_ATTRIBUTES[$name])) {
+                    $structuralAttributes[$name] = $value;
+                }
+            }
+            $base = is_string($reference['base'] ?? null) && $reference['base'] !== ''
+                ? $reference['base']
+                : (is_string($attributes['xml:base'] ?? null) && $attributes['xml:base'] !== ''
+                    ? $attributes['xml:base']
+                    : null);
+
+            $item = [
+                'index' => (int) $index,
+                'id' => is_string($reference['id'] ?? null) ? $reference['id'] : null,
                 'type' => is_string($reference['type'] ?? null) ? $reference['type'] : null,
                 'title' => is_string($reference['title'] ?? null) ? $reference['title'] : null,
                 'href' => is_string($reference['href'] ?? null) ? $reference['href'] : null,
@@ -8599,35 +8622,74 @@ final class EpubPackage
                 'manifestId' => is_string($reference['manifestId'] ?? null) ? $reference['manifestId'] : null,
                 'language' => is_string($reference['language'] ?? null) ? $reference['language'] : null,
                 'direction' => is_string($reference['direction'] ?? null) ? $reference['direction'] : null,
+                'base' => $base,
                 'attributes' => $attributes,
                 'attributeCount' => count($attributes),
+                'structuralAttributes' => $structuralAttributes,
+                'structuralAttributeCount' => count($structuralAttributes),
                 'customAttributes' => $customAttributes,
                 'customAttributeCount' => count($customAttributes),
+                'hasLanguage' => is_string($reference['language'] ?? null) && $reference['language'] !== '',
+                'hasDirection' => is_string($reference['direction'] ?? null) && $reference['direction'] !== '',
+                'hasBase' => $base !== null,
+                'hasCustomAttributes' => $customAttributes !== [],
+                'baseResolutionPolicy' => $base !== null
+                    ? 'reported-not-applied-to-package-paths'
+                    : null,
+                'baseResolution' => [
+                    'metadataOnly' => $base !== null,
+                    'appliesToPackagePaths' => false,
+                    'policy' => $base !== null
+                        ? 'reported-not-applied-to-package-paths'
+                        : null,
+                ],
             ];
 
-            $items[] = $summary;
-            $itemsByIndex[$index] = $summary;
-            if ($summary['language'] !== null) {
-                $languageItems[] = $summary;
+            $items[] = $item;
+            $itemsByIndex[$index] = $item;
+            if ($item['id'] !== null && $item['id'] !== '') {
+                $itemsById[$item['id']] = $item;
             }
-            if ($summary['direction'] !== null) {
-                $directionItems[] = $summary;
+            if ($item['language'] !== null) {
+                $languageItems[] = $item;
+            }
+            if ($item['direction'] !== null) {
+                $directionItems[] = $item;
+            }
+            if ($item['base'] !== null) {
+                $baseItems[] = $item;
             }
             if ($customAttributes !== []) {
-                $customAttributeItems[] = $summary;
+                $customAttributeItems[] = $item;
+            }
+            $attributeCount += count($attributes);
+            $customAttributeCount += count($customAttributes);
+            foreach ($customAttributes as $name => $_value) {
+                if (is_string($name) && $name !== '') {
+                    $customAttributeNames[$name] = true;
+                }
             }
         }
+
+        ksort($itemsById, SORT_STRING);
+        ksort($customAttributeNames, SORT_STRING);
 
         return [
             'present' => $items !== [],
             'itemCount' => count($items),
             'items' => $items,
-            'itemsByIndex' => array_values($itemsByIndex),
+            'itemsByIndex' => $itemsByIndex,
+            'itemsById' => $itemsById,
             'languageItemCount' => count($languageItems),
             'languageItems' => $languageItems,
             'directionItemCount' => count($directionItems),
             'directionItems' => $directionItems,
+            'baseItemCount' => count($baseItems),
+            'baseItems' => $baseItems,
+            'attributeCount' => $attributeCount,
+            'customAttributeCount' => $customAttributeCount,
             'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeNames' => array_keys($customAttributeNames),
             'customAttributeItems' => $customAttributeItems,
         ];
     }
@@ -12906,6 +12968,7 @@ final class EpubPackage
         $manifestItem = null;
         $language = self::metadataElementLanguage($reference);
         $direction = self::metadataElementDirection($reference);
+        $base = self::metadataElementBase($reference);
         $attributes = self::elementAttributes($reference);
         $customAttributes = self::guideReferenceCustomAttributes($attributes);
         $hrefSuffix = [
@@ -12994,6 +13057,7 @@ final class EpubPackage
                 : [],
             'language' => $language,
             'direction' => $direction,
+            'base' => $base,
             'attributes' => $attributes,
             'customAttributes' => $customAttributes,
             'hrefHasQuery' => $hrefSuffix['hasQuery'],

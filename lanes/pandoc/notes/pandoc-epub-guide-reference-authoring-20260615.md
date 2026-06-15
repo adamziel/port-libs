@@ -4,16 +4,19 @@ Slice: `pandoc-epub-guide-reference-authoring`
 
 ## Scope
 
-Compact EPUB3 package ingestion now preserves OPF `<guide><reference>`
-authoring metadata for native package review.
+Compact EPUB3 package ingestion preserves OPF `<guide><reference>` authoring
+metadata for native package review.
 
-`EpubPackage` now carries each guide reference's:
+`EpubPackage` carries each guide reference's:
 
-- `xml:lang` and `dir` values;
-- sorted raw attributes;
+- `id`, `xml:lang`, `dir`, and metadata-only `xml:base` values;
+- sorted raw attributes and structural attribute summaries;
 - custom `data-*` and namespaced review attributes;
-- aggregate authoring and guide-report language/direction/custom buckets in the
-  package summary and WordPress import review packet.
+- aggregate authoring report rows in the package summary and WordPress import
+  review packet.
+
+`xml:base` is reported for authoring review only and is not applied to package
+path resolution.
 
 No Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderer, external
 validator, online service, live provider test, or live-service provider test is
@@ -21,17 +24,17 @@ used.
 
 ## Accounting
 
-- `phpPass`: `15325 -> 15326`
+- `phpPass`: `15359` (unchanged from current main)
 - `phpFail`: `0`
-- `UPSTREAM_TEST_MANIFEST.json` upstream mapped: `14996 -> 14997`
+- `UPSTREAM_TEST_MANIFEST.json` upstream mapped: `15014` (unchanged)
 - `mappedEpubGuideReferenceAuthoringCases`: `1`
-- `epubGuideReferenceAuthoringAssertions`: 29
+- `epubGuideReferenceAuthoringAssertions`: `36`
 
 ## Verification
 
 - `php -l lanes/pandoc/src/EpubPackage.php`
 - `php -l lanes/pandoc/tests/EpubPackageTest.php`
 - `php tools/run-tests.php lanes/pandoc/tests/EpubPackageTest.php`
-  - `1 test files, 3770 assertions, 0 failures`
+  - `1 test files, 4131 assertions, 0 failures`
 - `php tools/run-tests.php lanes/pandoc/tests`
-  - `181 test files, 165327 assertions, 0 failures`
+  - `181 test files, 166564 assertions, 0 failures`

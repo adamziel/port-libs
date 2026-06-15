@@ -2729,21 +2729,16 @@ XML;
         $t->same([], $summary['wordpressImport']['guideReferenceManifestMediaTypeDiagnostics']);
     },
 
-    'preserves OPF guide reference authoring attributes for package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
-        $opfWithGuideAuthoring = str_replace(
-            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
-            '<package xmlns="http://www.idpf.org/2007/opf" xmlns:review="https://example.invalid/epub-review" version="3.0" unique-identifier="bookid" xml:lang="en">',
-            $epub3OpfXml
-        );
+    'preserves OPF guide reference authoring attributes for package review handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithGuideAuthoring = str_replace(
             '</spine>',
             '</spine>
-  <guide>
-    <reference type="text" title="Debut de lecture" href="text/chapter1.xhtml#install" xml:lang="fr" dir="rtl" data-review="start" review:source="wp-import"/>
-    <reference type="cover" title="Cover thumbnail" href="images/cover.png" dir="ltr" data-review="cover"/>
-    <reference type="toc" title="Guide entry without href" data-review="toc"/>
+  <guide xmlns:review="https://example.invalid/epub-review">
+    <reference id="start-ref" type="text" title="Start reading" href="text/chapter1.xhtml#install" xml:lang="fr" dir="rtl" data-review="primary" review:source="wp-import"/>
+    <reference id="cover-ref" type="cover" title="Cover image" href="images/cover.png" xml:base="guide/" data-review="cover"/>
+    <reference type="glossary" title="Remote glossary" href="https://example.invalid/glossary.xhtml" dir="ltr"/>
   </guide>',
-            $opfWithGuideAuthoring
+            $epub3OpfXml
         );
 
         $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
@@ -2757,46 +2752,57 @@ XML;
             ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
         ]));
         $guide = $epub->guideReferences();
-        $report = $epub->guideReport();
         $summary = $epub->summary();
-        $authoring = $summary['guideAuthoring'];
+        $report = $summary['guideReferenceAuthoring'];
+        $start = $guide[0];
+        $cover = $guide[1];
+        $remote = $guide[2];
 
-        $t->same(3, count($guide));
-        $t->same('fr', $guide[0]['language']);
-        $t->same('rtl', $guide[0]['direction']);
-        $t->same('fr', $guide[0]['attributes']['xml:lang']);
-        $t->same('wp-import', $guide[0]['attributes']['review:source']);
-        $t->same(['data-review' => 'start', 'review:source' => 'wp-import'], $guide[0]['customAttributes']);
-        $t->same(null, $guide[1]['language']);
-        $t->same('ltr', $guide[1]['direction']);
-        $t->same(['data-review' => 'cover'], $guide[1]['customAttributes']);
-        $t->same(null, $guide[2]['href']);
-        $t->same(['data-review' => 'toc'], $guide[2]['customAttributes']);
+        $t->same($summary['guideAuthoring'], $report);
+        $t->same('start-ref', $start['id']);
+        $t->same('fr', $start['language']);
+        $t->same('rtl', $start['direction']);
+        $t->same(null, $start['base']);
+        $t->same('primary', $start['attributes']['data-review']);
+        $t->same('wp-import', $start['attributes']['review:source']);
+        $t->same(['data-review' => 'primary', 'review:source' => 'wp-import'], $start['customAttributes']);
+        $t->same([
+            'dir' => 'rtl',
+            'href' => 'text/chapter1.xhtml#install',
+            'id' => 'start-ref',
+            'title' => 'Start reading',
+            'type' => 'text',
+            'xml:lang' => 'fr',
+        ], $report['itemsById']['start-ref']['structuralAttributes']);
 
-        $t->same(true, $authoring['present']);
-        $t->same(3, $authoring['itemCount']);
-        $t->same(1, $authoring['languageItemCount']);
-        $t->same(2, $authoring['directionItemCount']);
-        $t->same(3, $authoring['customAttributeItemCount']);
-        $t->same([0], array_column($authoring['languageItems'], 'index'));
-        $t->same([0, 1], array_column($authoring['directionItems'], 'index'));
-        $t->same([0, 1, 2], array_column($authoring['customAttributeItems'], 'index'));
-        $t->same('wp-import', $authoring['itemsByIndex'][0]['customAttributes']['review:source']);
-        $t->same('toc', $authoring['itemsByIndex'][2]['customAttributes']['data-review']);
-        $t->same($authoring, $summary['wordpressImport']['guideReferenceAuthoring']);
-        $t->same($authoring['items'], $summary['wordpressImport']['guideReferenceAuthoringItems']);
+        $t->same('cover-ref', $cover['id']);
+        $t->same(null, $cover['language']);
+        $t->same(null, $cover['direction']);
+        $t->same('guide/', $cover['base']);
+        $t->same(['data-review' => 'cover'], $cover['customAttributes']);
+        $t->same('/EPUB/images/cover.png', $cover['partName']);
+        $t->same('cover', $cover['manifestId']);
+        $t->same('glossary', $remote['type']);
+        $t->same('ltr', $remote['direction']);
+        $t->same(true, $remote['external']);
+
+        $t->same(true, $report['present']);
+        $t->same(3, $report['itemCount']);
+        $t->same(18, $report['attributeCount']);
+        $t->same(3, $report['customAttributeCount']);
         $t->same(1, $report['languageItemCount']);
-        $t->same([0], array_column($report['languageItems'], 'index'));
-        $t->same('fr', $report['languageItems'][0]['language']);
         $t->same(2, $report['directionItemCount']);
-        $t->same([0, 1], array_column($report['directionItems'], 'index'));
-        $t->same(3, $report['customAttributeItemCount']);
+        $t->same(1, $report['baseItemCount']);
+        $t->same(2, $report['customAttributeItemCount']);
         $t->same(['data-review', 'review:source'], $report['customAttributeNames']);
-        $t->same([0, 1, 2], array_column($report['customAttributeItems'], 'index'));
-        $t->same($report['languageItems'], $summary['wordpressImport']['guideReferenceLanguageItems']);
-        $t->same($report['directionItems'], $summary['wordpressImport']['guideReferenceDirectionItems']);
-        $t->same($report['customAttributeItems'], $summary['wordpressImport']['guideReferenceCustomAttributeItems']);
-        $t->same($report['customAttributeNames'], $summary['wordpressImport']['guideReferenceCustomAttributeNames']);
+        $t->same(['start-ref'], array_column($report['languageItems'], 'id'));
+        $t->same(['start-ref', null], array_column($report['directionItems'], 'id'));
+        $t->same(['cover-ref'], array_column($report['baseItems'], 'id'));
+        $t->same('reported-not-applied-to-package-paths', $report['itemsById']['cover-ref']['baseResolutionPolicy']);
+        $t->same(false, $report['itemsById']['cover-ref']['baseResolution']['appliesToPackagePaths']);
+        $t->same($report, $summary['wordpressImport']['guideReferenceAuthoring']);
+        $t->same($report['items'], $summary['wordpressImport']['guideReferenceAuthoringItems']);
+        $t->same($report['customAttributeItems'], $summary['wordpressImport']['guideReferenceAuthoringCustomAttributeItems']);
     },
 
     'summarizes EPUB3 auxiliary navigation sections for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
