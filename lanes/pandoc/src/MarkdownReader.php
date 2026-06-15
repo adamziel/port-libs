@@ -7420,10 +7420,13 @@ final class MarkdownReader
                 [$targetSource, $nextIndex] = $this->collectReferenceDefinitionTarget($lines, $index, $reference['content']);
                 $target = $this->parseLinkDestinationAndTitle($targetSource);
                 if ($target !== null) {
-                    $references[$this->normalizeReferenceLabel($reference['label'])] = [
-                        'url' => $target['url'],
-                        'title' => $target['title'],
-                    ];
+                    $label = $this->normalizeReferenceLabel($reference['label']);
+                    if (!isset($references[$label])) {
+                        $references[$label] = [
+                            'url' => $target['url'],
+                            'title' => $target['title'],
+                        ];
+                    }
                     $index = $nextIndex - 1;
                     continue;
                 }

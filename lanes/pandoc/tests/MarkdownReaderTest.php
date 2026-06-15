@@ -7080,6 +7080,31 @@ return [
         $t->contains('<p>MapReduce is a paradigm popularized by <a href="http://google.com">Google</a> [@mapreduce] as its', $blocks);
         $t->contains('<p><a href="">foo2</a></p>', $blocks);
     },
+    'maps commonmark duplicate reference definition precedence' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '[bar][foo]',
+            '',
+            '[foo]: /url1',
+            '[foo]: /url2',
+            '',
+            '[caps][FOO]',
+            '',
+            '[FOO]: /url3 "later title"',
+        ]));
+        $first = $document->children[0]->children[0];
+        $caseFolded = $document->children[1]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('link', $first->type);
+        $t->same('/url1', $first->attr('url'));
+        $t->same('bar', $first->children[0]->attr('text'));
+        $t->same('link', $caseFolded->type);
+        $t->same('/url1', $caseFolded->attr('url'));
+        $t->same(null, $caseFolded->attr('title'));
+        $t->contains('<p><a href="/url1">bar</a></p>', $blocks);
+        $t->contains('<p><a href="/url1">caps</a></p>', $blocks);
+        $t->true(!str_contains($blocks, '/url2') && !str_contains($blocks, '/url3'), 'Later duplicate reference definitions should not override the first target');
+    },
     'maps upstream markdown reader citations and following note link boundaries' => static function (TestRunner $t): void {
         $simple = (new MarkdownReader())->read('@item1')->children[0]->children[0];
         $digit = (new MarkdownReader())->read('@1657:huyghens')->children[0]->children[0];
