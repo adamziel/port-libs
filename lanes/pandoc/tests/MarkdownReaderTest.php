@@ -13632,6 +13632,37 @@ HTML;
         $t->contains('<h2 id="parsed-after-pre-raw-block">Parsed after pre raw block</h2>', $blocks);
         $t->contains('<p>Tail <strong>paragraph</strong>.</p>', $blocks);
     },
+    'maps commonmark textarea raw html boundaries after paragraphs' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Lead paragraph before textarea.',
+            '<textarea data-source="commonmark-textarea">',
+            'Raw **markdown** stays raw.',
+            '',
+            '# Not a heading inside textarea',
+            '</textarea>',
+            'After **textarea** boundary.',
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Lead paragraph before textarea.', $document->children[0]->attr('text'));
+        $t->same('raw_html', $document->children[1]->type);
+        $t->same(
+            '<textarea data-source="commonmark-textarea">' . "\n"
+                . 'Raw **markdown** stays raw.' . "\n\n"
+                . '# Not a heading inside textarea' . "\n"
+                . '</textarea>',
+            $document->children[1]->attr('html')
+        );
+        $t->same('paragraph', $document->children[2]->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $document->children[2]->children));
+        $t->contains('<p>Lead paragraph before textarea.</p>', $blocks);
+        $t->contains('<!-- wp:html -->' . "\n" . '<textarea data-source="commonmark-textarea">' . "\n" . 'Raw **markdown** stays raw.', $blocks);
+        $t->contains('# Not a heading inside textarea' . "\n" . '</textarea>', $blocks);
+        $t->contains('<p>After <strong>textarea</strong> boundary.</p>', $blocks);
+        $t->true(!str_contains($blocks, '<h1 id="not-a-heading-inside-textarea">'), 'Textarea body should stay raw HTML instead of parsed Markdown');
+    },
     'maps commonmark source raw html blocks to blank-line boundaries' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '<source src="review.webm" type="video/webm">',

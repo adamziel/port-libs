@@ -8702,7 +8702,7 @@ final class MarkdownReader
             return $this->readRawHtmlUntilMarker($lines, $index, ']]>');
         }
 
-        if (preg_match('~^ {0,3}<(script|pre|style)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $line, $m) === 1) {
+        if (preg_match('~^ {0,3}<(script|pre|style|textarea)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
@@ -14857,7 +14857,7 @@ final class MarkdownReader
             return true;
         }
 
-        if (preg_match('~^ {0,3}<(script|pre|style)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $expanded) === 1) {
+        if (preg_match('~^ {0,3}<(script|pre|style|textarea)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $expanded) === 1) {
             return true;
         }
 

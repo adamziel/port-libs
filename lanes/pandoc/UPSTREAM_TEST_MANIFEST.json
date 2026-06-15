@@ -5,11 +5,11 @@
   "upstream": {
     "name": "jgm/pandoc",
     "url": "https://github.com/jgm/pandoc",
-    "commit": "pandoc-epub-direct-binding-handlers-0a9dc5bfe6",
+    "commit": "pandoc-commonmark-textarea-raw-boundary-0dc0735fc7",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 3752,
-    "latestSlice": "pandoc-epub-direct-binding-handlers maps one EPUB3 EpubPackageReader directory package ingestion case after rebase onto current main 0a9dc5bfe6. EpubPackageReader reports OPF bindings, media-type parameters, resolved XHTML handler byte provenance, missing handler diagnostics, and uses readable binding handlers as bounded spine content handoff without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3734 -> 3735, phpFail remains 0, mapped upstream manifest cases move 3751 -> 3752, mappedEpubDirectBindingHandlerCases = 1, and epubDirectBindingHandlerAssertions = 53. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php passed 1 file, 1480 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88735 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+    "mapped": 3753,
+    "latestSlice": "pandoc-commonmark-textarea-raw-boundary maps one CommonMark Markdown reader raw HTML boundary case after rebase onto current main 0dc0735fc7. MarkdownReader now treats textarea like script/pre/style for CommonMark type-1 raw HTML blocks so textarea can interrupt an active paragraph, keep Markdown-looking textarea body raw across blank lines, and resume parsing after </textarea> without invoking Pandoc, browsers, Node, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3735 -> 3736, phpFail remains 0, mapped upstream cases move 3752 -> 3753, mappedCommonMarkTextareaRawHtmlBoundaryCases = 1, and commonMarkTextareaRawHtmlBoundaryAssertions = 12. Verification passed php -l for MarkdownReader.php and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6790 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88747 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
     "mappedOdfPackageFontFormatProvenanceCases": 6,
     "odfPackageFontFormatProvenanceAssertions": 56,
     "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
     "opcRawZipCentralDirectoryManifestAssertions": 37,
     "mappedZipCentralDirectorySignaturePolicyCases": 2,
     "zipCentralDirectorySignaturePolicyAssertions": 30,
-    "status": "EPUB direct OPF binding handler package ingestion is verified after rebase onto current main 0a9dc5bfe6; phpFail remains 0.",
-    "latestFocusedSource": "2026-06-15 EPUB direct OPF binding handler package ingestion verified after rebase onto current main 0a9dc5bfe6; focused EpubPackageReaderTest.php passed 1 file, 1480 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88735 assertions, 0 failures.",
+    "status": "CommonMark textarea raw HTML boundary is verified after rebase onto current main 0dc0735fc7; phpFail remains 0.",
+    "latestFocusedSource": "2026-06-15 CommonMark textarea raw HTML boundary verified after rebase onto current main 0dc0735fc7; focused MarkdownReaderTest.php passed 1 file, 6790 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88747 assertions, 0 failures.",
     "mappedPandocFormatReaderEvidenceBatchCases": 6,
     "pandocFormatReaderEvidenceBatchAssertions": 200,
     "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -585,7 +585,9 @@
     "mappedJsonNativeSingleWrappedColumnSpecCases": 1,
     "jsonNativeSingleWrappedColumnSpecAssertions": 38,
     "mappedEpubGuideReferenceAuthoringCases": 1,
-    "epubGuideReferenceAuthoringAssertions": 23
+    "epubGuideReferenceAuthoringAssertions": 23,
+    "mappedCommonMarkTextareaRawHtmlBoundaryCases": 1,
+    "commonMarkTextareaRawHtmlBoundaryAssertions": 12
   },
   "benchmarkDenominator": {
     "status": "Pandoc JSON/native single-wrapped target tuple sidecars are verified after rebase onto current main 9f2dd9a0fd; phpFail remains 0.",
@@ -2314,7 +2316,9 @@
   "jsonNativeSingleWrappedColumnSpecAssertions": 38,
   "mappedEpubGuideReferenceAuthoringCases": 1,
   "epubGuideReferenceAuthoringAssertions": 23,
-  "workScenario": "EPUB3 direct package handoff preserves OPF binding handler reports and readable XHTML handler fallback content.",
+  "workScenario": "CommonMark textarea raw HTML blocks preserve reviewer-visible source as WordPress raw HTML after paragraph interruptions.",
   "mappedEpubDirectBindingHandlerCases": 1,
-  "epubDirectBindingHandlerAssertions": 53
+  "epubDirectBindingHandlerAssertions": 53,
+  "mappedCommonMarkTextareaRawHtmlBoundaryCases": 1,
+  "commonMarkTextareaRawHtmlBoundaryAssertions": 12
 }
