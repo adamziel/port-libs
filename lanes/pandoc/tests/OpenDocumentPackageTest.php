@@ -1729,6 +1729,8 @@ XML;
     ): void {
         $audioBytes = 'AUDIO-REVIEW';
         $videoBytes = 'VIDEO-REVIEW';
+        $genericImageBytes = 'GENERIC-PNG';
+        $genericAudioBytes = 'GENERIC-AUDIO';
         $scriptBytes = 'Sub Main' . "\n" . 'End Sub';
         $configurationBytes = '<config:config-item-set xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" config:name="Review"/>';
         $fontBytes = 'WOFF2-FONT';
@@ -1740,6 +1742,8 @@ XML;
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
             . '<manifest:file-entry manifest:media-type="audio/ogg" manifest:full-path="Media/narration.ogg" manifest:size="' . strlen($audioBytes) . '"/>'
             . '<manifest:file-entry manifest:media-type="video/mp4" manifest:full-path="Media/clip.mp4" manifest:size="' . strlen($videoBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Pictures/generic.png" manifest:size="' . strlen($genericImageBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Media/generic.ogg" manifest:size="' . strlen($genericAudioBytes) . '"/>'
             . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Review.xml" manifest:size="' . strlen($scriptBytes) . '"/>'
             . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/accelerator/current.xml" manifest:size="' . strlen($configurationBytes) . '"/>'
             . '<manifest:file-entry manifest:media-type="font/woff2" manifest:full-path="Fonts/ReviewSans.woff2" manifest:size="' . strlen($fontBytes) . '"/>'
@@ -1755,6 +1759,8 @@ XML;
             extraParts: [
                 ['name' => 'Media/narration.ogg', 'data' => $audioBytes, 'compressionMethod' => 0],
                 ['name' => 'Media/clip.mp4', 'data' => $videoBytes, 'compressionMethod' => 0],
+                ['name' => 'Pictures/generic.png', 'data' => $genericImageBytes, 'compressionMethod' => 0],
+                ['name' => 'Media/generic.ogg', 'data' => $genericAudioBytes, 'compressionMethod' => 0],
                 ['name' => 'Basic/Standard/Review.xml', 'data' => $scriptBytes, 'compressionMethod' => 0],
                 ['name' => 'Configurations2/accelerator/current.xml', 'data' => $configurationBytes, 'compressionMethod' => 0],
                 ['name' => 'Fonts/ReviewSans.woff2', 'data' => $fontBytes, 'compressionMethod' => 0],
@@ -1780,11 +1786,11 @@ XML;
         }
 
         $t->same([
-            'audio' => 1,
+            'audio' => 2,
             'binary' => 1,
             'configuration' => 1,
             'font' => 1,
-            'image' => 1,
+            'image' => 2,
             'object-replacement' => 1,
             'opendocument-object-package' => 1,
             'opendocument-text-package' => 1,
@@ -1793,12 +1799,14 @@ XML;
             'video' => 1,
             'xml' => 3,
         ], $review['manifestMediaFamilyCounts']);
-        $t->same(14, count($review['manifestMediaFamilyItems']));
+        $t->same(16, count($review['manifestMediaFamilyItems']));
         $t->same('opendocument-text-package', $familyByPath['/']);
         $t->same('xml', $familyByPath['content.xml']);
         $t->same('image', $familyByPath['Pictures/hero.png']);
         $t->same('audio', $familyByPath['Media/narration.ogg']);
         $t->same('video', $familyByPath['Media/clip.mp4']);
+        $t->same('image', $familyByPath['Pictures/generic.png']);
+        $t->same('audio', $familyByPath['Media/generic.ogg']);
         $t->same('script', $familyByPath['Basic/Standard/Review.xml']);
         $t->same('configuration', $familyByPath['Configurations2/accelerator/current.xml']);
         $t->same('font', $familyByPath['Fonts/ReviewSans.woff2']);
@@ -1807,7 +1815,8 @@ XML;
         $t->same('opendocument-object-package', $familyByPath['Object%20Chart/']);
         $t->same('binary', $familyByPath['Payloads/review.bin']);
 
-        $t->same(strlen($audioBytes), $review['manifestMediaFamilyByteLengths']['audio']);
+        $t->same(strlen($audioBytes) + strlen($genericAudioBytes), $review['manifestMediaFamilyByteLengths']['audio']);
+        $t->same(strlen('PNGDATA') + strlen($genericImageBytes), $review['manifestMediaFamilyByteLengths']['image']);
         $t->same(strlen($videoBytes), $review['manifestMediaFamilyByteLengths']['video']);
         $t->same(strlen($scriptBytes), $review['manifestMediaFamilyByteLengths']['script']);
         $t->same(strlen($configurationBytes), $review['manifestMediaFamilyByteLengths']['configuration']);
@@ -1819,6 +1828,8 @@ XML;
 
         $t->same('audio', $mediaByPath['Media/narration.ogg']['manifestMediaFamily']);
         $t->same('video', $mediaByPath['Media/clip.mp4']['manifestMediaFamily']);
+        $t->same('image', $mediaByPath['Pictures/generic.png']['manifestMediaFamily']);
+        $t->same('audio', $mediaByPath['Media/generic.ogg']['manifestMediaFamily']);
         $t->same('script', $reviewByPath['Basic/Standard/Review.xml']['manifestMediaFamily']);
         $t->same('configuration', $reviewByPath['Configurations2/accelerator/current.xml']['manifestMediaFamily']);
         $t->same('font', $reviewByPath['Fonts/ReviewSans.woff2']['manifestMediaFamily']);
@@ -1827,13 +1838,13 @@ XML;
         $t->same('opendocument-object-package', $reviewByPath['Object%20Chart/']['manifestMediaFamily']);
         $t->same('binary', $reviewByPath['Payloads/review.bin']['manifestMediaFamily']);
 
-        $t->same(13, $inventory['manifestDeclaredPartCount']);
+        $t->same(15, $inventory['manifestDeclaredPartCount']);
         $t->same([
-            'audio' => 1,
+            'audio' => 2,
             'binary' => 1,
             'configuration' => 1,
             'font' => 1,
-            'image' => 1,
+            'image' => 2,
             'object-replacement' => 1,
             'opendocument-object-package' => 1,
             'rdf' => 1,
@@ -1843,6 +1854,9 @@ XML;
         ], $inventory['manifestMediaFamilyCounts']);
         $t->same('audio', $inventory['parts']['Media/narration.ogg']['manifestMediaFamily']);
         $t->same('video', $inventory['parts']['Media/clip.mp4']['manifestMediaFamily']);
+        $t->same('image', $inventory['parts']['Pictures/generic.png']['manifestMediaFamily']);
+        $t->same('audio', $inventory['parts']['Media/generic.ogg']['manifestMediaFamily']);
+        $t->same(['manifest-declared', 'media-resource'], $inventory['parts']['Media/generic.ogg']['roles']);
         $t->same('script', $inventory['parts']['Basic/Standard/Review.xml']['manifestMediaFamily']);
         $t->same('configuration', $inventory['parts']['Configurations2/accelerator/current.xml']['manifestMediaFamily']);
         $t->same('font', $inventory['parts']['Fonts/ReviewSans.woff2']['manifestMediaFamily']);

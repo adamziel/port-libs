@@ -1025,6 +1025,9 @@ final class OpenDocumentPackage
         ) {
             return true;
         }
+        if ($mediaTypeBase === 'application/octet-stream' && self::mediaResourceFamilyFromPackagePart($packagePath) !== null) {
+            return true;
+        }
 
         return str_starts_with((string) ($entry['path'] ?? ''), 'Pictures/');
     }
@@ -1263,6 +1266,10 @@ final class OpenDocumentPackage
         $mediaResourceFamily = self::mediaResourceFamilyFromMediaTypeBase($mediaTypeBase);
         if ($mediaResourceFamily !== null) {
             return $mediaResourceFamily;
+        }
+        $packageMediaResourceFamily = self::mediaResourceFamilyFromPackagePart($packagePath);
+        if ($mediaTypeBase === 'application/octet-stream' && $packageMediaResourceFamily !== null) {
+            return $packageMediaResourceFamily;
         }
         if (self::isXmlMediaTypeBase($mediaTypeBase)) {
             return 'xml';
