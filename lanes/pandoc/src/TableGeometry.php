@@ -23,6 +23,11 @@ final class TableGeometry
                 continue;
             }
 
+            if ($section->type === 'table_row') {
+                $columnCount = max($columnCount, self::columnCountForRows([$section]));
+                continue;
+            }
+
             if ($section->type !== 'table_head' && $section->type !== 'table_foot') {
                 continue;
             }

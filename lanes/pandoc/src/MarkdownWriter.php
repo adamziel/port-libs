@@ -1622,6 +1622,7 @@ final class MarkdownWriter
 
         $head = null;
         $bodies = [];
+        $directBodyRows = [];
         $foot = null;
         foreach ($node->children as $child) {
             if ($child->type === 'table_head') {
@@ -1636,7 +1637,15 @@ final class MarkdownWriter
 
             if ($child->type === 'table_foot') {
                 $foot = $child;
+                continue;
             }
+
+            if ($child->type === 'table_row') {
+                $directBodyRows[] = $child;
+            }
+        }
+        if ($directBodyRows !== []) {
+            $bodies[] = new AstNode('table_body', [], $directBodyRows);
         }
 
         if ($head instanceof AstNode && $this->tableSectionRowsWithBodyHeads($head) !== []) {
