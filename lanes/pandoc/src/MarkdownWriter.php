@@ -2680,11 +2680,21 @@ final class MarkdownWriter
             $text .= $this->renderInline(
                 $node,
                 array_slice($nodes, $index + 1),
-                $index === 0 || ($previous instanceof AstNode && ($previous->type === 'softbreak' || $previous->type === 'linebreak'))
+                $index === 0 || $this->previousInlineRenderedLineBreak($previous)
             );
         }
 
         return $text;
+    }
+
+    private function previousInlineRenderedLineBreak(?AstNode $previous): bool
+    {
+        if ($previous === null) {
+            return false;
+        }
+
+        return $previous->type === 'linebreak'
+            || ($previous->type === 'softbreak' && $this->softBreakMarkdown() !== ' ');
     }
 
     /**
@@ -3403,7 +3413,7 @@ final class MarkdownWriter
     {
         $escaped = '';
         $length = strlen($text);
-        $lineStart = true;
+        $lineStart = $escapeDefinitionMarker;
         $definitionLineStart = $escapeDefinitionMarker;
 
         for ($i = 0; $i < $length; $i++) {
