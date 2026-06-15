@@ -9,6 +9,7 @@ final class MarkdownReader
     private const MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
     private const SUPPORTED_YAML_METADATA_VERSIONS = ['1.1', '1.2'];
     private const YAML_TAG_SUFFIX_PATTERN = '[A-Za-z0-9_.:\/\?#@!$&()*+;=%~-]+';
+    private const COMMONMARK_EMAIL_ADDRESS_PATTERN = '[\p{L}\p{N}.!#$%&\'*+/=?^_`{|}\~-]+@[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?(?:\.[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?)+';
 
     /** @var array<string, array{url:string, title:string}> */
     private array $referenceLinks = [];
@@ -18392,17 +18393,10 @@ final class MarkdownReader
             return $result;
         }
 
-        if (
-            preg_match(
-                '/\G<([^\s<>@]+@[^\s<>@]+\.[^\s<>@]+)>/u',
-                $text,
-                $m,
-                0,
-                $offset
-            ) === 1
-        ) {
-            $address = $this->decodeHtmlEntities($this->unescapeLinkComponent($m[1]));
-            $next = $offset + strlen($m[0]);
+        $email = $this->matchCommonMarkEmailAddress($text, $offset, true);
+        if ($email !== null) {
+            $address = $this->decodeHtmlEntities($this->unescapeLinkComponent($email['address']));
+            $next = $offset + $email['length'];
             [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
                 'url' => 'mailto:' . $address,
                 'classes' => ['email'],
@@ -18424,6 +18418,38 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @return array{address:string, length:int}|null
+     */
+    private function matchCommonMarkEmailAddress(string $text, int $offset, bool $angleDelimited): ?array
+    {
+        if ($angleDelimited) {
+            if (preg_match('~\G<([^\s<>@]+@[^\s<>@]+\.[^\s<>@]+)>~u', $text, $m, 0, $offset) !== 1) {
+                return null;
+            }
+
+            $address = $this->decodeHtmlEntities($this->unescapeLinkComponent($m[1]));
+            if (preg_match('~\A' . self::COMMONMARK_EMAIL_ADDRESS_PATTERN . '\z~u', $address) !== 1) {
+                return null;
+            }
+
+            return [
+                'address' => $m[1],
+                'length' => strlen($m[0]),
+            ];
+        }
+
+        $pattern = '~\G(' . self::COMMONMARK_EMAIL_ADDRESS_PATTERN . ')~u';
+        if (preg_match($pattern, $text, $m, 0, $offset) !== 1) {
+            return null;
+        }
+
+        return [
+            'address' => $m[1],
+            'length' => strlen($m[0]),
+        ];
     }
 
     /**
@@ -18738,6 +18764,10 @@ final class MarkdownReader
             return null;
         }
 
+        if ($this->isInsideAngleDelimitedAutolinkCandidate($text, $offset)) {
+            return null;
+        }
+
         $previous = $offset === 0 ? '' : $text[$offset - 1];
         if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
             return null;
@@ -18794,16 +18824,9 @@ final class MarkdownReader
             ];
         }
 
-        if (
-            preg_match(
-                '~\G[A-Za-z0-9.!#$%&\'*+/=?^_`{|}\~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+~u',
-                $text,
-                $m,
-                0,
-                $offset
-            ) === 1
-        ) {
-            $candidate = $this->trimBareUriAutolinkCandidate($m[0]);
+        $email = $this->matchCommonMarkEmailAddress($text, $offset, false);
+        if ($email !== null) {
+            $candidate = $this->trimBareUriAutolinkCandidate($email['address']);
             if ($candidate === '') {
                 return null;
             }
@@ -18824,6 +18847,36 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function isInsideAngleDelimitedAutolinkCandidate(string $text, int $offset): bool
+    {
+        $before = substr($text, 0, $offset);
+        $open = strrpos($before, '<');
+        if ($open === false) {
+            return false;
+        }
+
+        $prefix = substr($text, $open + 1, $offset - $open - 1);
+        if (preg_match('/[\s<>]/u', $prefix) === 1) {
+            return false;
+        }
+
+        $close = strpos($text, '>', $offset);
+        if ($close === false) {
+            return false;
+        }
+
+        $candidate = substr($text, $open + 1, $close - $open - 1);
+        $candidateLower = strtolower($candidate);
+
+        return $candidate !== ''
+            && preg_match('/[\s<>]/u', $candidate) !== 1
+            && (
+                str_contains($candidate, '@')
+                || str_contains($candidate, ':')
+                || str_starts_with($candidateLower, 'www.')
+            );
     }
 
     private function trimBareUriAutolinkCandidate(string $candidate): string
