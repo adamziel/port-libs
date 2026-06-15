@@ -23,6 +23,7 @@ final class DocxOpenXmlReader
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const NS_C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+    private const NS_V = 'urn:schemas-microsoft-com:vml';
     private const NS_O = 'urn:schemas-microsoft-com:office:office';
     private const NS_DS = 'http://schemas.openxmlformats.org/officeDocument/2006/customXml';
     private const NS_ACTIVEX = 'http://schemas.microsoft.com/office/2006/activeX';
@@ -50,6 +51,7 @@ final class DocxOpenXmlReader
     private const HEADER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
     private const FOOTER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     private const SUBDOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument';
+    private const IMAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
     private const CUSTOM_XML_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
     private const CUSTOM_XML_PROPS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
@@ -354,6 +356,13 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $documentBackgroundImages = $this->readDocumentBackgroundImages(
+            $parts,
+            $parts[$documentPart],
+            $documentPart,
+            $documentRelationships,
+            $contentTypes,
+        );
         $packageProvenance['alternativeFormats'] = $alternativeFormats;
         $packageProvenance['summary']['alternativeFormatCount'] = $alternativeFormats['count'];
         $packageProvenance['summary']['alternativeFormatRelationshipCount'] = $alternativeFormats['relationshipCount'];
@@ -383,6 +392,14 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['subdocumentUnsupportedCount'] = $subdocuments['unsupportedCount'];
         $packageProvenance['summary']['subdocumentIssueCount'] = $subdocuments['issueCount'];
         $packageProvenance['summary']['subdocumentIssueCodes'] = $subdocuments['issueCodes'];
+        $packageProvenance['documentBackgroundImages'] = $documentBackgroundImages;
+        $packageProvenance['summary']['documentBackgroundImageCount'] = $documentBackgroundImages['count'];
+        $packageProvenance['summary']['documentBackgroundImageRelationshipCount'] = $documentBackgroundImages['relationshipCount'];
+        $packageProvenance['summary']['documentBackgroundImageExistingCount'] = $documentBackgroundImages['existingCount'];
+        $packageProvenance['summary']['documentBackgroundImageMissingCount'] = $documentBackgroundImages['missingCount'];
+        $packageProvenance['summary']['documentBackgroundImageExternalCount'] = $documentBackgroundImages['externalCount'];
+        $packageProvenance['summary']['documentBackgroundImageIssueCount'] = $documentBackgroundImages['issueCount'];
+        $packageProvenance['summary']['documentBackgroundImageIssueCodes'] = $documentBackgroundImages['issueCodes'];
         $chartParts = $this->readChartParts(
             $parts,
             $parts[$documentPart],
@@ -592,6 +609,7 @@ final class DocxOpenXmlReader
                 'alternativeFormats' => $alternativeFormats,
                 'embeddedObjects' => $embeddedObjects,
                 'subdocuments' => $subdocuments,
+                'documentBackgroundImages' => $documentBackgroundImages,
                 'chartParts' => $chartParts,
                 'activeXControls' => $activeXControls,
                 'vbaProjects' => $vbaProjects,
@@ -2404,6 +2422,267 @@ final class DocxOpenXmlReader
     {
         return $relationshipType === self::OLE_OBJECT_REL
             || $relationshipType === self::EMBEDDED_PACKAGE_REL;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readDocumentBackgroundImages(
+        array $parts,
+        string $xml,
+        string $documentPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+
+        foreach ($this->documentBackgroundImageReferences($xml, $documentPart) as $reference) {
+            $relationshipId = $reference['relationshipId'];
+            $item = $this->documentBackgroundImageItem(
+                $parts,
+                $relationships[$relationshipId] ?? null,
+                $documentPart,
+                $relationshipsPart,
+                $contentTypes,
+                $reference,
+                count($items),
+            );
+            $items[] = $item;
+
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+            if (($item['relationshipType'] ?? null) === self::IMAGE_REL) {
+                $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            }
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['relationshipType'] ?? null) === self::IMAGE_REL && ($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL)),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-background-image', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === true)),
+            'unresolvedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
+            )),
+            'unexpectedRelationshipTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-relationship-type', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-background-image-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-background-image-content-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+            'byteExposurePolicy' => 'document-background-image-bytes-blocked',
+            'reviewPolicy' => 'document-background-image-metadata-only',
+        ];
+    }
+
+    /**
+     * @return list<array{relationshipId:string, relationshipAttribute:string, backgroundIndex:int, backgroundColor:?string, elementNamespace:?string, elementLocalName:string, elementId:?string, fillTitle:?string, fillType:?string, fillColor2:?string, fillOpacity:?string, fillRecolor:?string}>
+     */
+    private function documentBackgroundImageReferences(string $xml, string $partName): array
+    {
+        if ($xml === '') {
+            return [];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $xpath = $this->xpath($dom);
+        $references = [];
+        foreach ($this->elements($xpath, '/w:document/w:background') as $backgroundIndex => $background) {
+            $backgroundColor = $this->emptyStringToNull($background->getAttributeNS(self::NS_W, 'color'));
+            $stack = [$background];
+            while ($stack !== []) {
+                $element = array_shift($stack);
+                if (!$element instanceof \DOMElement) {
+                    continue;
+                }
+
+                foreach (['id', 'embed', 'link'] as $attribute) {
+                    $relationshipId = $this->emptyStringToNull($element->getAttributeNS(self::NS_R, $attribute));
+                    if ($relationshipId === null) {
+                        continue;
+                    }
+
+                    $references[] = [
+                        'relationshipId' => $relationshipId,
+                        'relationshipAttribute' => 'r:' . $attribute,
+                        'backgroundIndex' => $backgroundIndex,
+                        'backgroundColor' => $backgroundColor,
+                        'elementNamespace' => $element->namespaceURI,
+                        'elementLocalName' => $element->localName,
+                        'elementId' => $this->emptyStringToNull($element->getAttribute('id')),
+                        'fillTitle' => $this->emptyStringToNull($element->getAttributeNS(self::NS_O, 'title') ?: $element->getAttribute('title')),
+                        'fillType' => $this->emptyStringToNull($element->getAttribute('type')),
+                        'fillColor2' => $this->emptyStringToNull($element->getAttribute('color2')),
+                        'fillOpacity' => $this->emptyStringToNull($element->getAttribute('opacity')),
+                        'fillRecolor' => $this->emptyStringToNull($element->getAttribute('recolor')),
+                    ];
+                }
+
+                foreach ($element->childNodes as $child) {
+                    if ($child instanceof \DOMElement) {
+                        $stack[] = $child;
+                    }
+                }
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array{relationshipId:string, relationshipAttribute:string, backgroundIndex:int, backgroundColor:?string, elementNamespace:?string, elementLocalName:string, elementId:?string, fillTitle:?string, fillType:?string, fillColor2:?string, fillOpacity:?string, fillRecolor:?string} $reference
+     * @return array<string, mixed>
+     */
+    private function documentBackgroundImageItem(
+        array $parts,
+        ?array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        array $reference,
+        int $index,
+    ): array {
+        $relationshipId = $reference['relationshipId'];
+        $item = [
+            'index' => $index,
+            'relationshipId' => $relationshipId,
+            'relationshipAttribute' => $reference['relationshipAttribute'],
+            'backgroundIndex' => $reference['backgroundIndex'],
+            'backgroundColor' => $reference['backgroundColor'],
+            'elementNamespace' => $reference['elementNamespace'],
+            'elementLocalName' => $reference['elementLocalName'],
+            'elementId' => $reference['elementId'],
+            'fillTitle' => $reference['fillTitle'],
+            'fillType' => $reference['fillType'],
+            'fillColor2' => $reference['fillColor2'],
+            'fillOpacity' => $reference['fillOpacity'],
+            'fillRecolor' => $reference['fillRecolor'],
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'external' => false,
+            'partName' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'exists' => false,
+            'byteLength' => null,
+            'crc32' => null,
+            'sha256' => null,
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'relationshipsPart' => $relationshipsPart,
+            'byteExposurePolicy' => 'document-background-image-bytes-blocked',
+            'reviewPolicy' => 'document-background-image-metadata-only',
+            'valid' => false,
+            'issues' => [],
+            'relationship' => null,
+        ];
+
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+            return $item;
+        }
+
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'unknown-relationship';
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) $summary['exists'];
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['external'] = (bool) $summary['external'];
+        $item['partName'] = $targetPart;
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['exists'] = $exists;
+        $item['byteLength'] = $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null;
+        $item['crc32'] = $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+        $item['sha256'] = $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null;
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $summary['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $summary['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $summary['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $summary['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['relationship'] = $summary;
+
+        if ($relationship['type'] !== self::IMAGE_REL) {
+            $item['issues'][] = 'unexpected-relationship-type';
+            return $item;
+        }
+
+        if ($item['external'] === true) {
+            $item['issues'][] = 'external-background-image';
+            return $item;
+        }
+
+        if (!$exists) {
+            $item['issues'][] = 'missing-background-image';
+        }
+
+        $contentType = is_string($summary['contentType'] ?? null) ? $summary['contentType'] : '';
+        if (($summary['contentTypeSource'] ?? '') === 'missing') {
+            $item['issues'][] = 'missing-background-image-content-type';
+        } elseif ($contentType === '' || !$this->isImageContentType($contentType)) {
+            $item['issues'][] = 'unexpected-background-image-content-type';
+        }
+
+        $item['valid'] = $item['issues'] === [];
+
+        return $item;
     }
 
     /**
@@ -11690,6 +11969,7 @@ final class DocxOpenXmlReader
         $xpath->registerNamespace('a', self::NS_A);
         $xpath->registerNamespace('wp', self::NS_WP);
         $xpath->registerNamespace('c', self::NS_C);
+        $xpath->registerNamespace('v', self::NS_V);
         $xpath->registerNamespace('o', self::NS_O);
         $xpath->registerNamespace('ds', self::NS_DS);
 

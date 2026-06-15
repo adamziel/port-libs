@@ -6247,6 +6247,133 @@ XML;
         $t->true(in_array('subdocument', $package['parts']['word/subdocuments/internal.docx']['roles'], true), 'internal subdocument role missing');
         $t->true(in_array('subdocument', $package['parts']['word/subdocuments/unreferenced.docx']['roles'], true), 'unreferenced subdocument role missing');
     },
+    'summarizes docx document background image relationships for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $backgroundBytes = 'background image bytes';
+        $xmlBackgroundBytes = '<background-image/>';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="jpg" ContentType="image/jpeg; profile=docx-background"/>' . "\n" .
+            '  <Override PartName="/word/media/missing-background.png" ContentType="image/png"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rBackground" Type="' . $imageRel . '" Target="media/background.jpg?theme=light#page"/>' . "\n" .
+            '  <Relationship Id="rMissingBackground" Type="' . $imageRel . '" Target="media/missing-background.png"/>' . "\n" .
+            '  <Relationship Id="rExternalBackground" Type="' . $imageRel . '" Target="https://example.test/background.png?remote=1#cover" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rXmlBackground" Type="' . $imageRel . '" Target="media/background.xml"/>' . "\n" .
+            '  <Relationship Id="rWrongBackground" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/not-a-background" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  <w:body>',
+            '  <w:background w:color="FDF6E3">' . "\n" .
+            '    <v:background id="_x0000_s1025" o:bwmode="white">' . "\n" .
+            '      <v:fill r:id="rBackground" o:title="Review background" type="frame" color2="#fdf6e3"/>' . "\n" .
+            '      <v:fill r:id="rMissingBackground" o:title="Missing background" type="tile"/>' . "\n" .
+            '      <v:fill r:id="rExternalBackground" o:title="Remote background" type="frame"/>' . "\n" .
+            '      <v:fill r:id="rXmlBackground" o:title="XML background" type="frame"/>' . "\n" .
+            '      <v:fill r:id="rWrongBackground" o:title="Wrong type background" type="frame"/>' . "\n" .
+            '    </v:background>' . "\n" .
+            '  </w:background>' . "\n" .
+            '  <w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/media/background.jpg'] = $backgroundBytes;
+        $parts['word/media/background.xml'] = $xmlBackgroundBytes;
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $package = $docx['packageProvenance'];
+        $backgrounds = $docx['documentBackgroundImages'];
+        $summary = $package['summary'];
+        $background = $backgrounds['byRelationshipId']['rBackground'];
+        $missing = $backgrounds['byRelationshipId']['rMissingBackground'];
+        $external = $backgrounds['byRelationshipId']['rExternalBackground'];
+        $xml = $backgrounds['byRelationshipId']['rXmlBackground'];
+        $wrong = $backgrounds['byRelationshipId']['rWrongBackground'];
+        $relationshipType = $package['relationshipTypes'][$imageRel];
+
+        $t->same($backgrounds, $package['documentBackgroundImages']);
+        $t->same(5, $backgrounds['count']);
+        $t->same(4, $backgrounds['relationshipCount']);
+        $t->same(2, $backgrounds['existingCount']);
+        $t->same(1, $backgrounds['missingCount']);
+        $t->same(1, $backgrounds['externalCount']);
+        $t->same(1, $backgrounds['unexpectedRelationshipTypeCount']);
+        $t->same(1, $backgrounds['unexpectedContentTypeCount']);
+        $t->same(0, $backgrounds['missingContentTypeCount']);
+        $t->same(4, $backgrounds['issueCount']);
+        $t->same([
+            'external-background-image',
+            'missing-background-image',
+            'unexpected-background-image-content-type',
+            'unexpected-relationship-type',
+        ], $backgrounds['issueCodes']);
+        $t->same(['rBackground', 'rMissingBackground', 'rExternalBackground', 'rXmlBackground', 'rWrongBackground'], $backgrounds['relationshipIds']);
+        $t->same(['word/media/background.jpg', 'word/media/missing-background.png', 'word/media/background.xml'], $backgrounds['partNames']);
+        $t->same(['https://example.test/background.png?remote=1#cover'], $backgrounds['externalTargets']);
+        $t->same(['image/jpeg; profile=docx-background', 'image/png', 'application/xml'], $backgrounds['contentTypes']);
+        $t->same('document-background-image-bytes-blocked', $backgrounds['byteExposurePolicy']);
+        $t->same('document-background-image-metadata-only', $backgrounds['reviewPolicy']);
+
+        $t->same('rBackground', $background['relationshipId']);
+        $t->same('r:id', $background['relationshipAttribute']);
+        $t->same('FDF6E3', $background['backgroundColor']);
+        $t->same('fill', $background['elementLocalName']);
+        $t->same('Review background', $background['fillTitle']);
+        $t->same('frame', $background['fillType']);
+        $t->same('#fdf6e3', $background['fillColor2']);
+        $t->same('media/background.jpg?theme=light#page', $background['target']);
+        $t->same('word/media/background.jpg?theme=light#page', $background['resolvedTarget']);
+        $t->same('word/media/background.jpg', $background['targetPart']);
+        $t->same('theme=light', $background['targetQuery']);
+        $t->same('page', $background['targetFragment']);
+        $t->same('?theme=light#page', $background['targetReferenceSuffix']);
+        $t->same(strlen($backgroundBytes), $background['byteLength']);
+        $t->same(sprintf('%08x', crc32($backgroundBytes)), $background['crc32']);
+        $t->same(hash('sha256', $backgroundBytes), $background['sha256']);
+        $t->same('image/jpeg; profile=docx-background', $background['contentType']);
+        $t->same('image/jpeg', $background['contentTypeBase']);
+        $t->same(['profile' => 'docx-background'], $background['contentTypeParameterMap']);
+        $t->same('default', $background['contentTypeSource']);
+        $t->same([], $background['issues']);
+        $t->same(true, $background['valid']);
+
+        $t->same(['missing-background-image'], $missing['issues']);
+        $t->same(false, $missing['exists']);
+        $t->same('word/media/missing-background.png', $missing['targetPart']);
+        $t->same(['external-background-image'], $external['issues']);
+        $t->same(true, $external['external']);
+        $t->same('remote=1', $external['targetQuery']);
+        $t->same('cover', $external['targetFragment']);
+        $t->same(['unexpected-background-image-content-type'], $xml['issues']);
+        $t->same('application/xml', $xml['contentType']);
+        $t->same(strlen($xmlBackgroundBytes), $xml['byteLength']);
+        $t->same(['unexpected-relationship-type'], $wrong['issues']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', $wrong['relationshipType']);
+
+        $t->same(5, $summary['documentBackgroundImageCount']);
+        $t->same(4, $summary['documentBackgroundImageRelationshipCount']);
+        $t->same(2, $summary['documentBackgroundImageExistingCount']);
+        $t->same(1, $summary['documentBackgroundImageMissingCount']);
+        $t->same(1, $summary['documentBackgroundImageExternalCount']);
+        $t->same(4, $summary['documentBackgroundImageIssueCount']);
+        $t->same($backgrounds['issueCodes'], $summary['documentBackgroundImageIssueCodes']);
+        $t->same('image', $relationshipType['label']);
+        $t->same(5, $relationshipType['count']);
+        $t->same(4, $relationshipType['internalCount']);
+        $t->same(1, $relationshipType['externalCount']);
+        $t->same(['word/media/review.png', 'word/media/background.jpg', 'word/media/background.xml'], $relationshipType['existingTargetParts']);
+    },
     'summarizes docx chart package parts from drawing relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
