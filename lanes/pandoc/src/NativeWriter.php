@@ -979,7 +979,8 @@ final class NativeWriter
             $this->tableRows($section->children),
         ];
 
-        return $this->reusableTaggedTableHelperNative($section, $constructor, $payload) ?? $payload;
+        return $this->reusableTaggedTableHelperNative($section, $constructor, $payload)
+            ?? $this->taggedTableHelper($constructor, $payload);
     }
 
     /**
@@ -997,7 +998,8 @@ final class NativeWriter
             $this->tableRows($body->children),
         ];
 
-        return $this->reusableTaggedTableHelperNative($body, 'TableBody', $payload) ?? $payload;
+        return $this->reusableTaggedTableHelperNative($body, 'TableBody', $payload)
+            ?? $this->taggedTableHelper('TableBody', $payload);
     }
 
     /**
@@ -1016,7 +1018,8 @@ final class NativeWriter
                 $this->attrTuple($row),
                 $this->tableCells($row->children),
             ];
-            $encoded[] = $this->reusableTaggedTableHelperNative($row, 'Row', $payload) ?? $payload;
+            $encoded[] = $this->reusableTaggedTableHelperNative($row, 'Row', $payload)
+                ?? $this->taggedTableHelper('Row', $payload);
         }
 
         return $encoded;
@@ -1045,7 +1048,8 @@ final class NativeWriter
                     ?? ['t' => 'ColSpan', 'c' => max(1, (int) $cell->attr('colspan', 1))],
                 $this->reusableLegacyTableCellBlocksNative($cell, $blocks) ?? $blocks,
             ];
-            $encoded[] = $this->reusableTaggedTableHelperNative($cell, 'Cell', $payload) ?? $payload;
+            $encoded[] = $this->reusableTaggedTableHelperNative($cell, 'Cell', $payload)
+                ?? $this->taggedTableHelper('Cell', $payload);
         }
 
         return $encoded;
@@ -1145,6 +1149,18 @@ final class NativeWriter
             && count($content) === 1
             && $content[0] === $payload
         ) ? $native : null;
+    }
+
+    /**
+     * @param list<mixed> $payload
+     * @return array{t:string, c:list<mixed>}
+     */
+    private function taggedTableHelper(string $constructor, array $payload): array
+    {
+        return [
+            't' => $constructor,
+            'c' => $payload,
+        ];
     }
 
     /**

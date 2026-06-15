@@ -272,7 +272,8 @@ return [
         $t->contains('| 42  | Legacy, \\"quoted\\" title | true  |', $csvMarkdown);
         $t->contains('<tbody><tr><td>42</td><td>Legacy, &quot;quoted&quot; title</td><td>true</td></tr>', $csvWordpress);
         $t->true(!str_contains($csvWordpress, '<thead>'));
-        $t->same([], $csvJson['blocks'][0]['c'][3][1] ?? null);
+        $csvHead = $csvJson['blocks'][0]['c'][3]['c'] ?? $csvJson['blocks'][0]['c'][3];
+        $t->same([], $csvHead[1] ?? null);
 
         $t->same(false, $tsvPacket['headerRow'] ?? null);
         $t->same('tab', $tsvPacket['delimiter'] ?? null);

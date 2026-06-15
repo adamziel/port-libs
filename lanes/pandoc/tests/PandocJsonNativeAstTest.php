@@ -2189,6 +2189,8 @@ return [
             'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
         ];
 
+        $payload = static fn (array $value): array => $value['c'] ?? $value;
+
         foreach ($documents as $source => $document) {
             $table = $document->children[0];
             $tableAttrs = $table->attrs;
@@ -2223,8 +2225,14 @@ return [
                 'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
             ] as $writer => $encoded) {
                 $encodedTable = $encoded['blocks'][0];
-                $encodedHeaderBlocks = $encodedTable['c'][3][1][0][1][0][4];
-                $encodedBodyBlocks = $encodedTable['c'][4][0][3][0][1][0][4];
+                $encodedHead = $payload($encodedTable['c'][3]);
+                $encodedHeadRow = $payload($encodedHead[1][0]);
+                $encodedHeadCell = $payload($encodedHeadRow[1][0]);
+                $encodedBody = $payload($encodedTable['c'][4][0]);
+                $encodedBodyRow = $payload($encodedBody[3][0]);
+                $encodedBodyCell = $payload($encodedBodyRow[1][0]);
+                $encodedHeaderBlocks = $encodedHeadCell[4];
+                $encodedBodyBlocks = $encodedBodyCell[4];
 
                 $t->same(6, count($encodedTable['c']), "{$source} {$writer} writer emits current table constructor");
                 $t->same($headerCellBlocks, $encodedHeaderBlocks, "{$source} {$writer} writer preserves unchanged header cell blocks");
@@ -2235,7 +2243,10 @@ return [
                 'json' => (new PandocJsonWriter())->toArray($edited),
                 'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
             ] as $writer => $encoded) {
-                $editedBlocks = $encoded['blocks'][0]['c'][4][0][3][0][1][0][4];
+                $encodedBody = $payload($encoded['blocks'][0]['c'][4][0]);
+                $encodedRow = $payload($encodedBody[3][0]);
+                $encodedCell = $payload($encodedRow[1][0]);
+                $editedBlocks = $encodedCell[4];
 
                 $t->same('Plain', $editedBlocks[0]['t'], "{$source} {$writer} writer regenerates edited cell block");
                 $t->same('Edited', $editedBlocks[0]['c'][0]['c'], "{$source} {$writer} writer emits edited cell text");
@@ -5416,11 +5427,13 @@ return [
             $editedBodyPayload = $editedPacket['blocks'][0]['c'][4][0]['c'] ?? $editedPacket['blocks'][0]['c'][4][0];
             $editedRowPayload = $editedBodyPayload[3][0];
             $editedRowContent = $editedRowPayload['c'] ?? $editedRowPayload;
-            $editedCellPayload = $editedRowContent[1][0];
+            $editedCell = $editedRowContent[1][0];
+            $editedCellPayload = $editedCell['c'] ?? $editedCell;
 
             $t->same('Edited', $editedCellPayload[4][0]['c'][0]['c'], "{$source} edited cell regenerates content");
             $t->same(false, array_key_exists('reviewQueue', $editedRowPayload), "{$source} edited cell drops stale row wrapper sidecar");
-            $t->same(false, array_key_exists('reviewQueue', $editedCellPayload), "{$source} edited cell drops stale cell wrapper sidecar");
+            $t->same('Cell', $editedCell['t'] ?? null, "{$source} edited cell keeps current Cell constructor");
+            $t->same(false, array_key_exists('reviewQueue', $editedCell), "{$source} edited cell drops stale cell wrapper sidecar");
         }
     },
     'regenerates edited table cell attr and span helpers while preserving neighbor sidecars' => static function (TestRunner $t): void {
@@ -5779,7 +5792,7 @@ return [
                 $t->same($secondColumnAlign, $encodedTable['c'][2][1][0], "{$source} {$writer} writer preserves unchanged second column alignment sidecar");
                 $t->same($secondColumnWidth, $encodedTable['c'][2][1][1], "{$source} {$writer} writer preserves unchanged second column width sidecar");
                 $t->same($rowHeadColumns, $encodedBodyPayload[1], "{$source} {$writer} writer preserves unchanged row-head sidecar");
-                $t->same(false, array_key_exists('t', $encodedCells[0]), "{$source} {$writer} writer regenerates edited spanning cell boundary");
+                $t->same('Cell', $encodedCells[0]['t'] ?? null, "{$source} {$writer} writer regenerates current edited spanning cell constructor");
                 $t->same(false, array_key_exists('reviewQueue', $encodedCells[0]), "{$source} {$writer} writer drops stale edited spanning cell wrapper sidecar");
                 $t->same(false, array_key_exists('sourceOrdinal', $encodedCells[0]), "{$source} {$writer} writer drops stale edited spanning cell wrapper ordinal");
                 $t->same([
@@ -5921,11 +5934,13 @@ return [
                 'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
             ] as $writer => $encoded) {
                 $encodedTable = $encoded['blocks'][0];
-                $editedBodyPayload = $encodedTable['c'][4][0];
+                $editedBody = $encodedTable['c'][4][0];
+                $editedBodyPayload = $editedBody['c'] ?? $editedBody;
 
                 $t->same('edited-body-table', $encodedTable['c'][0][0], "{$source} {$writer} edited body keeps edited table attr");
                 $t->same(2, $editedBodyPayload[1]['c'], "{$source} {$writer} edited body regenerates row head columns");
-                $t->same(false, array_key_exists('reviewQueue', $editedBodyPayload), "{$source} {$writer} edited body drops stale body sidecar");
+                $t->same('TableBody', $editedBody['t'] ?? null, "{$source} {$writer} edited body keeps current TableBody constructor");
+                $t->same(false, array_key_exists('reviewQueue', $editedBody), "{$source} {$writer} edited body drops stale body sidecar");
                 $t->same($headNative, $encodedTable['c'][3], "{$source} {$writer} edited body preserves unchanged table head helper native payload");
                 $t->same($footNative, $encodedTable['c'][5], "{$source} {$writer} edited body preserves unchanged table foot helper native payload");
             }
@@ -7783,7 +7798,9 @@ return [
         $citationRecords = $paragraphInlines[12]['c'][0];
         $tableBlock = $jsonPacket['blocks'][4];
         $tableBody = $tableBlock['c'][4][0];
-        $tableCell = $tableBody[3][0][1][0];
+        $tableBodyPayload = $tableBody['c'] ?? $tableBody;
+        $tableRow = $tableBodyPayload[3][0]['c'] ?? $tableBodyPayload[3][0];
+        $tableCell = $tableRow[1][0]['c'] ?? $tableRow[1][0];
 
         $t->same($jsonPacket['meta'], $nativePacket['meta']);
         $t->same($jsonPacket['blocks'], $nativePacket['blocks']);
@@ -7825,7 +7842,8 @@ return [
         $t->same(['opml', '<outline/>'], $jsonPacket['blocks'][3]['c']);
         $t->same('AlignLeft', $tableBlock['c'][2][0][0]['t']);
         $t->same(['t' => 'ColWidth', 'c' => 0.25], $tableBlock['c'][2][0][1]);
-        $t->same(['t' => 'RowHeadColumns', 'c' => 1], $tableBody[1]);
+        $t->same('TableBody', $tableBody['t'] ?? null);
+        $t->same(['t' => 'RowHeadColumns', 'c' => 1], $tableBodyPayload[1]);
         $t->same(['t' => 'RowSpan', 'c' => 2], $tableCell[2]);
         $t->same(['t' => 'ColSpan', 'c' => 3], $tableCell[3]);
 
@@ -10238,9 +10256,13 @@ return [
         $t->same('Long', $encoded['blocks'][0]['c'][1][1][0]['c'][0]['c']);
         $t->same('ColWidth', $encoded['blocks'][0]['c'][2][0][1]['t']);
         $t->same(0.4, $encoded['blocks'][0]['c'][2][0][1]['c']);
-        $t->same(['t' => 'RowHeadColumns', 'c' => 1], $encoded['blocks'][0]['c'][4][0][1]);
-        $t->same(['t' => 'RowSpan', 'c' => 1], $encoded['blocks'][0]['c'][4][0][3][0][1][1][2]);
-        $t->same(['t' => 'ColSpan', 'c' => 1], $encoded['blocks'][0]['c'][4][0][3][0][1][1][3]);
+        $encodedBody = $encoded['blocks'][0]['c'][4][0]['c'] ?? $encoded['blocks'][0]['c'][4][0];
+        $encodedBodyRow = $encodedBody[3][0]['c'] ?? $encodedBody[3][0];
+        $encodedBodyCells = $encodedBodyRow[1];
+        $encodedSecondCell = $encodedBodyCells[1]['c'] ?? $encodedBodyCells[1];
+        $t->same(['t' => 'RowHeadColumns', 'c' => 1], $encodedBody[1]);
+        $t->same(['t' => 'RowSpan', 'c' => 1], $encodedSecondCell[2]);
+        $t->same(['t' => 'ColSpan', 'c' => 1], $encodedSecondCell[3]);
         $t->same('Short caption', $roundTrip->children[0]->attr('shortCaption'));
         $t->same('Long caption reviewer', $roundTrip->children[0]->attr('caption'));
         $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="Short caption">', $blocks);
@@ -10252,9 +10274,12 @@ return [
         $t->same('ShortCaption', $generated['blocks'][0]['c'][1]['c'][0]['c']['t']);
         $t->same('Fallback', $generated['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
         $t->same('Fallback', $generated['blocks'][0]['c'][1]['c'][1][0]['c'][0]['c']);
-        $t->same(['t' => 'RowHeadColumns', 'c' => 0], $generated['blocks'][0]['c'][4][0][1]);
-        $t->same(['t' => 'RowSpan', 'c' => 1], $generated['blocks'][0]['c'][4][0][3][0][1][0][2]);
-        $t->same(['t' => 'ColSpan', 'c' => 1], $generated['blocks'][0]['c'][4][0][3][0][1][0][3]);
+        $generatedBody = $generated['blocks'][0]['c'][4][0]['c'] ?? $generated['blocks'][0]['c'][4][0];
+        $generatedRow = $generatedBody[3][0]['c'] ?? $generatedBody[3][0];
+        $generatedCell = $generatedRow[1][0]['c'] ?? $generatedRow[1][0];
+        $t->same(['t' => 'RowHeadColumns', 'c' => 0], $generatedBody[1]);
+        $t->same(['t' => 'RowSpan', 'c' => 1], $generatedCell[2]);
+        $t->same(['t' => 'ColSpan', 'c' => 1], $generatedCell[3]);
         $t->same('Fallback short', $generatedRoundTrip->children[0]->attr('shortCaption'));
         $t->same('Fallback long', $generatedRoundTrip->children[0]->attr('caption'));
     },
@@ -10282,10 +10307,12 @@ return [
 
         $jsonPacket = (new PandocJsonWriter())->toArray($document);
         $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
-        $jsonBody = $jsonPacket['blocks'][0]['c'][4][0];
-        $nativeBody = $nativePacket['blocks'][0]['c'][4][0];
-        $jsonCells = $jsonBody[3][0][1];
-        $nativeCells = $nativeBody[3][0][1];
+        $jsonBody = $jsonPacket['blocks'][0]['c'][4][0]['c'] ?? $jsonPacket['blocks'][0]['c'][4][0];
+        $nativeBody = $nativePacket['blocks'][0]['c'][4][0]['c'] ?? $nativePacket['blocks'][0]['c'][4][0];
+        $jsonRow = $jsonBody[3][0]['c'] ?? $jsonBody[3][0];
+        $nativeRow = $nativeBody[3][0]['c'] ?? $nativeBody[3][0];
+        $jsonCells = array_map(static fn (array $cell): array => $cell['c'] ?? $cell, $jsonRow[1]);
+        $nativeCells = array_map(static fn (array $cell): array => $cell['c'] ?? $cell, $nativeRow[1]);
         $jsonRoundTrip = (new PandocJsonReader())->readPacket($jsonPacket)->children[0];
         $nativeRoundTrip = (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR))->children[0];
 
@@ -10419,7 +10446,7 @@ return [
                 $cells = $encodedCells($encoded);
                 $editedPayload = $cellPayload($cells[0]);
 
-                $t->same(false, array_key_exists('t', $cells[0]), "{$writer} writer regenerates edited cell boundary");
+                $t->same('Cell', $cells[0]['t'] ?? null, "{$writer} writer regenerates current edited cell constructor");
                 $t->same(false, array_key_exists('reviewQueue', $cells[0]), "{$writer} writer drops stale edited cell sidecar");
                 $t->same(['edited-cell', ['metric', 'review', 'edited'], [['data-source', 'json'], ['data-state', 'edited']]], $editedPayload[0], "{$writer} writer regenerates edited cell Attr tuple");
                 $t->same($firstCellAlignment, $editedPayload[1], "{$writer} writer preserves unchanged cell alignment sidecar");
@@ -10524,7 +10551,7 @@ return [
                 $bodyContent = $bodyPayload['c'] ?? $bodyPayload;
                 $cellPayload = $tableCellPayload($encoded);
 
-                $t->same(false, array_key_exists('t', $bodyPayload), "{$writer} writer rebuilds table body wrapper");
+                $t->same('TableBody', $bodyPayload['t'] ?? null, "{$writer} writer rebuilds current table body constructor");
                 $t->same($rowHeadColumns, $bodyContent[1], "{$writer} writer preserves single wrapped row head columns helper");
                 $t->same($alignment, $cellPayload[1], "{$writer} writer preserves cell alignment helper");
                 $t->same($rowSpan, $cellPayload[2], "{$writer} writer preserves single wrapped row span helper");
