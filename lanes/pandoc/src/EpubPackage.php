@@ -1381,6 +1381,60 @@ final class EpubPackage
             ],
         );
 
+        $spineReport = is_array($validationReport['spine'] ?? null)
+            ? $validationReport['spine']
+            : [];
+        $appendCase(
+            'spine-itemrefs',
+            'spine',
+            'OPF spine itemrefs',
+            (int) ($spineReport['itemCount'] ?? 0),
+            self::compactDiagnosticList($spineReport['diagnostics'] ?? []),
+            [
+                'linearCount' => (int) ($spineReport['linearCount'] ?? 0),
+                'nonLinearCount' => (int) ($spineReport['nonLinearCount'] ?? 0),
+                'missingManifestItemCount' => (int) ($spineReport['missingManifestItemCount'] ?? 0),
+                'missingPackagePartCount' => (int) ($spineReport['missingPackagePartCount'] ?? 0),
+                'nonContentDocumentCount' => (int) ($spineReport['nonContentDocumentCount'] ?? 0),
+                'duplicateIdrefCount' => (int) ($spineReport['duplicateIdrefCount'] ?? 0),
+                'missingRequiredAttributeCount' => (int) ($spineReport['missingRequiredAttributeCount'] ?? 0),
+                'pageSpreadCount' => (int) ($spineReport['pageSpreadCount'] ?? 0),
+                'pageSpreadLeftCount' => (int) ($spineReport['pageSpreadLeftCount'] ?? 0),
+                'pageSpreadRightCount' => (int) ($spineReport['pageSpreadRightCount'] ?? 0),
+                'pageSpreadCenterCount' => (int) ($spineReport['pageSpreadCenterCount'] ?? 0),
+                'missingManifestIdrefs' => is_array($spineReport['missingManifestItems'] ?? null)
+                    ? array_values(array_filter(
+                        array_column($spineReport['missingManifestItems'], 'idref'),
+                        static fn (mixed $idref): bool => is_string($idref) && $idref !== '',
+                    ))
+                    : [],
+                'missingPackagePartNames' => is_array($spineReport['missingPackagePartItems'] ?? null)
+                    ? array_values(array_filter(
+                        array_column($spineReport['missingPackagePartItems'], 'partName'),
+                        static fn (mixed $partName): bool => is_string($partName) && $partName !== '',
+                    ))
+                    : [],
+                'nonContentDocumentIdrefs' => is_array($spineReport['nonContentDocumentItems'] ?? null)
+                    ? array_values(array_filter(
+                        array_column($spineReport['nonContentDocumentItems'], 'idref'),
+                        static fn (mixed $idref): bool => is_string($idref) && $idref !== '',
+                    ))
+                    : [],
+                'duplicateIdrefs' => is_array($spineReport['duplicateIdrefItems'] ?? null)
+                    ? array_values(array_filter(
+                        array_column($spineReport['duplicateIdrefItems'], 'idref'),
+                        static fn (mixed $idref): bool => is_string($idref) && $idref !== '',
+                    ))
+                    : [],
+                'pageSpreadItems' => is_array($spineReport['pageSpreadItems'] ?? null)
+                    ? array_values($spineReport['pageSpreadItems'])
+                    : [],
+                'readingProgression' => is_array($spineReport['metadata'] ?? null) && is_string($spineReport['metadata']['readingProgression'] ?? null)
+                    ? $spineReport['metadata']['readingProgression']
+                    : null,
+            ],
+        );
+
         $appendCase(
             'guide-references',
             'guide',

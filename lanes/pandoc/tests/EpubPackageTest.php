@@ -5561,8 +5561,8 @@ XML;
         $report = $summary['compactPackageReport'];
         $casesById = $report['casesById'];
 
-        $t->same(16, $report['caseCount']);
-        $t->same(14, $report['presentCaseCount']);
+        $t->same(17, $report['caseCount']);
+        $t->same(15, $report['presentCaseCount']);
         $t->same(0, $report['diagnosticCaseCount']);
         $t->same(0, $report['diagnosticCount']);
         $t->same([], $report['diagnosticTypes']);
@@ -5573,6 +5573,7 @@ XML;
             'package-links',
             'container-links',
             'navigation-sections',
+            'spine-itemrefs',
             'guide-references',
             'collections',
             'media-type-bindings',
@@ -5590,6 +5591,7 @@ XML;
             'package-links',
             'container-links',
             'navigation-sections',
+            'spine-itemrefs',
             'guide-references',
             'collections',
             'media-overlays',
@@ -5607,6 +5609,7 @@ XML;
             'package-links' => 1,
             'container-links' => 1,
             'navigation-sections' => 2,
+            'spine-itemrefs' => 2,
             'guide-references' => 2,
             'collections' => 1,
             'media-type-bindings' => 0,
@@ -5622,6 +5625,7 @@ XML;
             'metadata' => 10,
             'ocf' => 3,
             'navigation' => 2,
+            'spine' => 2,
             'guide' => 2,
             'collections' => 1,
             'manifest' => 13,
@@ -5644,6 +5648,13 @@ XML;
         $t->same('nav', $casesById['navigation-sections']['navigationType']);
         $t->same(['toc', 'page-list'], $casesById['navigation-sections']['sectionTypes']);
         $t->same(3, $casesById['navigation-sections']['entryCount']);
+        $t->same(2, $casesById['spine-itemrefs']['itemCount']);
+        $t->same(1, $casesById['spine-itemrefs']['linearCount']);
+        $t->same(1, $casesById['spine-itemrefs']['nonLinearCount']);
+        $t->same(1, $casesById['spine-itemrefs']['pageSpreadCount']);
+        $t->same(1, $casesById['spine-itemrefs']['pageSpreadRightCount']);
+        $t->same('right', $casesById['spine-itemrefs']['pageSpreadItems'][0]['placement']);
+        $t->same(null, $casesById['spine-itemrefs']['readingProgression']);
         $t->same(['/EPUB/text/chapter1.xhtml#intro', '/EPUB/images/cover.png'], $casesById['guide-references']['targets']);
         $t->same(['Review packet collection'], $casesById['collections']['titles']);
         $t->same(['/EPUB/meta/collection.json'], $casesById['collections']['linkTargets']);
@@ -5724,7 +5735,7 @@ XML;
         $packageLinks = $report['casesById']['package-links'];
         $containerLinks = $report['casesById']['container-links'];
 
-        $t->same(16, $report['caseCount']);
+        $t->same(17, $report['caseCount']);
         $t->true(in_array('package-links', $report['presentCaseIds'], true));
         $t->true(in_array('container-links', $report['presentCaseIds'], true));
         $t->same(['package-links', 'container-links'], $report['diagnosticCaseIds']);
