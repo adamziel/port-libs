@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3672,
-        "latestSlice": "pandoc-json-native-text-separator-sidecars maps one JSON/native text separator constructor sidecar case after rebase onto current main a3f9dd3a86. PandocJsonWriter and NativeWriter preserve SoftBreak and LineBreak nullary nativeInlineParts on shared AST text nodes while rejecting stale separator helper payloads, without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3633 -> 3634, phpFail remains 0, mapped upstream cases move 3671 -> 3672, mappedJsonNativeConstructorCompletenessCases moves 29 -> 30, jsonNativeConstructorCompletenessAssertions moves 438 -> 450, mappedJsonNativeTextSeparatorSidecarCases = 1, and jsonNativeTextSeparatorSidecarAssertions = 12. Verification passed php -l for PandocJsonWriter.php, NativeWriter.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php passed 1 file, 4155 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85512 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+        "mapped": 3673,
+        "latestSlice": "pandoc-odf-script-package-media-type-mismatch maps one ODF/ODT OpenDocument package-ingestion case after rebase onto current main afae1595a6. OpenDocumentPackage packageScripts now reports mediaTypeValid, invalidMediaTypeCount, and odf-script-invalid-media-type issue buckets for mismatched known script sidecar extensions while keeping script bytes blocked from document media exposure without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3635 -> 3636, phpFail remains 0, mapped upstream cases move 3672 -> 3673, mappedOdfScriptPackageMediaTypeMismatchCases = 1, and odfScriptPackageMediaTypeMismatchAssertions = 37. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php passed 1 file, 1489 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85580 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "JSON/native text separator constructor sidecars are verified after rebase onto current main a3f9dd3a86; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-15 JSON/native text separator constructor sidecars verified after rebase onto current main a3f9dd3a86; focused PandocJsonNativeAstTest.php passed 1 file, 4155 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85512 assertions, 0 failures.",
+        "status": "Pandoc ODF script package media-type mismatch provenance is verified after rebase onto current main afae1595a6; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-15 ODF script package media-type mismatch provenance verified after rebase onto current main afae1595a6; focused OpenDocumentPackageTest.php passed 1 file, 1489 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85580 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -495,7 +495,9 @@
         "mappedCslArticleNumberNumberLabelCases": 1,
         "cslArticleNumberNumberLabelAssertions": 21,
         "mappedJsonNativeTextSeparatorSidecarCases": 1,
-        "jsonNativeTextSeparatorSidecarAssertions": 12
+        "jsonNativeTextSeparatorSidecarAssertions": 12,
+        "mappedOdfScriptPackageMediaTypeMismatchCases": 1,
+        "odfScriptPackageMediaTypeMismatchAssertions": 37
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
