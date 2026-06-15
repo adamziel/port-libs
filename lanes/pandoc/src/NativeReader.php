@@ -57,7 +57,7 @@ final class NativeReader
     private function normalizeDocument(array $native): array
     {
         if ($this->isTaggedConstructor($native, 'Pandoc')) {
-            $content = $this->tuple($native['c'] ?? null, 2, 'Pandoc native JSON Pandoc content');
+            $content = $this->pandocConstructorContent($native['c'] ?? null);
             $normalized = [
                 'meta' => $content[0],
                 'blocks' => $content[1],
@@ -91,6 +91,24 @@ final class NativeReader
             'meta' => $meta,
             'blocks' => $native[1],
         ];
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function pandocConstructorContent(mixed $content): array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
+        return $this->tuple($content, 2, 'Pandoc native JSON Pandoc content');
     }
 
     /**

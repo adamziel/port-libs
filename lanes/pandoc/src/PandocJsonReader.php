@@ -75,7 +75,7 @@ final class PandocJsonReader
     private function normalizePacket(array $packet): array
     {
         if ($this->isTaggedObject($packet) && $packet['t'] === 'Pandoc') {
-            $content = $this->tuple($packet['c'] ?? null, 2, 'Pandoc');
+            $content = $this->pandocConstructorContent($packet['c'] ?? null);
             $normalized = [
                 'meta' => $content[0],
                 'blocks' => $content[1],
@@ -99,6 +99,24 @@ final class PandocJsonReader
             'meta' => $packet[0],
             'blocks' => $packet[1],
         ];
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function pandocConstructorContent(mixed $content): array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
+        return $this->tuple($content, 2, 'Pandoc');
     }
 
     /**

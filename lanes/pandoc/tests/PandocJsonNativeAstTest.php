@@ -136,6 +136,76 @@ return [
             $t->same(false, array_key_exists('t', $nativePacket), "{$source} native writer emits packet object");
         }
     },
+    'reads single wrapped pandoc document constructor payloads through json and native readers' => static function (TestRunner $t): void {
+        $wrappedPandoc = [
+            't' => 'Pandoc',
+            'pandoc-api-version' => [1, 23, 1],
+            'c' => [[
+                ['t' => 'MetaMap', 'c' => [
+                    'title' => ['t' => 'MetaInlines', 'c' => [
+                        ['t' => 'Str', 'c' => 'Wrapped'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'Pandoc'],
+                    ]],
+                    'source' => ['t' => 'MetaString', 'c' => 'wrapped-document'],
+                ]],
+                [
+                    ['t' => 'Header', 'c' => [
+                        2,
+                        ['wrapped-doc', ['review'], [['data-source', 'constructor']]],
+                        [
+                            ['t' => 'Str', 'c' => 'Wrapped'],
+                        ],
+                    ], 'reviewQueue' => 'wrapped-heading-source'],
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Str', 'c' => 'constructor'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'payload'],
+                    ], 'reviewQueue' => 'wrapped-paragraph-source'],
+                ],
+            ]],
+            'reviewQueue' => 'wrapped-pandoc-document',
+        ];
+
+        $sourceMeta = $wrappedPandoc['c'][0][0]['c'];
+        $sourceBlocks = $wrappedPandoc['c'][0][1];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($wrappedPandoc),
+            'native' => (new NativeReader())->read(json_encode($wrappedPandoc, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $meta = $document->attr('meta');
+            $titleInlines = $meta['titleInlines'];
+            $heading = $document->children[0];
+            $paragraph = $document->children[1];
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('Pandoc', $document->attr('documentConstructor'), "{$source} document constructor");
+            $t->same($wrappedPandoc, $document->attr('documentNative'), "{$source} document native payload");
+            $t->same([1, 23, 1], $document->attr('pandocApiVersion'), "{$source} API version");
+            $t->same($source === 'json' ? 'wrapped-document' : $sourceMeta['source'], $meta['source'], "{$source} source metadata");
+            $t->same($source === 'json' ? ['text', 'space', 'text'] : ['text'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines), "{$source} title helper node shape");
+            $t->same($source === 'json' ? 'Wrapped' : 'Wrapped Pandoc', $titleInlines[0]->attr('text'), "{$source} title helper text");
+            $t->same('heading', $heading->type, "{$source} heading block");
+            $t->same('wrapped-doc', $heading->attr('id'), "{$source} heading attr id");
+            $t->same($sourceBlocks[0], $heading->attr('native'), "{$source} heading native sidecar");
+            $t->same('paragraph', $paragraph->type, "{$source} paragraph block");
+            $t->same('constructor payload', $paragraph->attr('text'), "{$source} paragraph text");
+            $t->same($sourceBlocks[1], $paragraph->attr('native'), "{$source} paragraph native sidecar");
+
+            foreach ([
+                "{$source} json writer" => $jsonPacket,
+                "{$source} native writer" => $nativePacket,
+            ] as $writer => $packet) {
+                $t->same([1, 23, 1], $packet['pandoc-api-version'], "{$writer} API version");
+                $t->same(false, array_key_exists('t', $packet), "{$writer} emits filter packet object");
+                $t->same($sourceMeta, $packet['meta'], "{$writer} emits unwrapped constructor metadata");
+                $t->same($sourceBlocks, $packet['blocks'], "{$writer} emits unwrapped constructor blocks");
+            }
+        }
+    },
     'reads legacy pandoc json metadata envelopes into shared ast documents' => static function (TestRunner $t): void {
         $reader = new PandocJsonReader();
         $wrappedPacket = [
