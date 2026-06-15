@@ -16800,6 +16800,10 @@ final class MarkdownReader
                 $figureAttrs = [];
             }
             $figureAttrs['caption'] = (string) $children[0]->attr('caption', $children[0]->attr('alt', ''));
+            if ($children[0]->children !== []) {
+                $figureAttrs['captionInlines'] = $children[0]->children;
+                $figureAttrs['renderCaptionInlines'] = true;
+            }
             $blocks[] = new AstNode(
                 'figure',
                 $figureAttrs,
