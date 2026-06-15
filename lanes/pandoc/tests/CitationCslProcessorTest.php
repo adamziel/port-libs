@@ -28949,6 +28949,123 @@ XML);
         $t->true($compactPosition !== false && $camelPosition !== false && $precedencePosition !== false);
         $t->true($compactPosition < $camelPosition && $camelPosition < $precedencePosition, 'Part-title sort order is not reflected in WordPress bibliography output');
     },
+    'normalizes bounded direct csl json issue title text aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-issue-title-text-precedence',
+                'type' => 'article-journal',
+                'title' => 'Direct Issue Title Text Precedence Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'container-title' => 'Journal of Migration Review',
+                'issueTitleText' => 'Camel Issue Text',
+                'issue-title-text' => 'Hyphen Issue Text',
+                'issuetitletext' => 'Compact Issue Text',
+                'issueTitleAddon' => 'camel issue addendum',
+            ],
+            [
+                'id' => 'direct-issue-title-text-camel',
+                'type' => 'article-journal',
+                'title' => 'Direct Issue Title Text Camel Packet',
+                'author' => [
+                    ['family' => 'Lopez', 'given' => 'Lia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'container-title' => 'Journal of Migration Review',
+                'issueTitleText' => 'Camel Only Issue Text',
+                'issueTitleAddon' => 'camel-only addendum',
+            ],
+            [
+                'id' => 'direct-issue-title-text-compact',
+                'type' => 'article-journal',
+                'title' => 'Direct Issue Title Text Compact Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'container-title' => 'Journal of Migration Review',
+                'issuetitletext' => 'Alpha Compact Issue Text',
+                'issuetitleaddon' => 'compact addendum',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $precedence = $processor->item('direct-issue-title-text-precedence');
+        $camel = $processor->item('direct-issue-title-text-camel');
+        $compact = $processor->item('direct-issue-title-text-compact');
+        $t->same('Hyphen Issue Text', $precedence['issueTitle'] ?? null);
+        $t->same('camel issue addendum', $precedence['issueTitleAddon'] ?? null);
+        $t->same('Camel Issue Text', $precedence['raw']['issueTitleText'] ?? null);
+        $t->same('Hyphen Issue Text', $precedence['raw']['issue-title-text'] ?? null);
+        $t->same('Compact Issue Text', $precedence['raw']['issuetitletext'] ?? null);
+        $t->same('Camel Only Issue Text', $camel['issueTitle'] ?? null);
+        $t->same('camel-only addendum', $camel['issueTitleAddon'] ?? null);
+        $t->same('Alpha Compact Issue Text', $compact['issueTitle'] ?? null);
+        $t->same('compact addendum', $compact['issueTitleAddon'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Issue Title Text Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-issue-title-text-alias-review</id>
+    <updated>2026-06-15T00:45:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="issue-title-text"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="issue-title-text"/>
+        <text variable="issue-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="issue-title-text"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-text"/>
+      <text variable="issue-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographySort = $summary['bibliographySort'][0] ?? [];
+        $t->same('Bounded Direct CSL Issue Title Text Alias Review', $summary['title'] ?? null);
+        $t->same('issue-title-text', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('issue-title-text', $bibliographySort['variable'] ?? null);
+        $t->same('issue-title-text', $citationChildren[1]['variable'] ?? null);
+        $t->same('issue-title-addon', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Roe | Alpha Compact Issue Text | compact addendum; Lopez | Camel Only Issue Text | camel-only addendum; Ng | Hyphen Issue Text | camel issue addendum]', $styled->renderCitationCluster([
+            $citation('direct-issue-title-text-precedence', '[@direct-issue-title-text-precedence]'),
+            $citation('direct-issue-title-text-camel', '[@direct-issue-title-text-camel]'),
+            $citation('direct-issue-title-text-compact', '[@direct-issue-title-text-compact]'),
+        ]));
+        $t->same('Direct Issue Title Text Precedence Packet :: Hyphen Issue Text :: Hyphen Issue Text :: camel issue addendum', $styled->renderBibliographyEntry('direct-issue-title-text-precedence'));
+        $t->same('Direct Issue Title Text Camel Packet :: Camel Only Issue Text :: Camel Only Issue Text :: camel-only addendum', $styled->renderBibliographyEntry('direct-issue-title-text-camel'));
+        $t->same('Direct Issue Title Text Compact Packet :: Alpha Compact Issue Text :: Alpha Compact Issue Text :: compact addendum', $styled->renderBibliographyEntry('direct-issue-title-text-compact'));
+        $t->same('Ng, Nia. Direct Issue Title Text Precedence Packet. Journal of Migration Review. Issue title: Hyphen Issue Text. Issue title addendum: camel issue addendum. 2026.', $processor->renderBibliographyEntry('direct-issue-title-text-precedence'));
+
+        $document = (new MarkdownReader())->read('Issue title text aliases [@direct-issue-title-text-precedence; @direct-issue-title-text-camel; @direct-issue-title-text-compact] remain sorted.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Issue title text aliases [Roe | Alpha Compact Issue Text | compact addendum; Lopez | Camel Only Issue Text | camel-only addendum; Ng | Hyphen Issue Text | camel issue addendum] remain sorted.</p>', $blocks);
+        $compactPosition = strpos($blocks, '<dt>Roe 2024</dt><dd>Direct Issue Title Text Compact Packet :: Alpha Compact Issue Text :: Alpha Compact Issue Text :: compact addendum</dd>');
+        $camelPosition = strpos($blocks, '<dt>Lopez 2025</dt><dd>Direct Issue Title Text Camel Packet :: Camel Only Issue Text :: Camel Only Issue Text :: camel-only addendum</dd>');
+        $precedencePosition = strpos($blocks, '<dt>Ng 2026</dt><dd>Direct Issue Title Text Precedence Packet :: Hyphen Issue Text :: Hyphen Issue Text :: camel issue addendum</dd>');
+        $t->true($compactPosition !== false && $camelPosition !== false && $precedencePosition !== false);
+        $t->true($compactPosition < $camelPosition && $camelPosition < $precedencePosition, 'Issue-title-text sort order is not reflected in WordPress bibliography output');
+    },
     'normalizes bounded direct csl json biblatex container title aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
