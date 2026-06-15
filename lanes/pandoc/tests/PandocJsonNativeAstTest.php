@@ -12934,6 +12934,158 @@ return [
             }
         }
     },
+    'accepts single wrapped list definition and line helper payloads through json and native readers' => static function (TestRunner $t): void {
+        $quoteBlocks = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Quoted'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'source'],
+            ]],
+        ];
+        $bulletBlocks = [
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Bullet'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'wrapped'],
+            ]],
+        ];
+        $orderedBlocks = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Ordered'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'wrapped'],
+            ]],
+        ];
+        $definitionTermInlines = [
+            ['t' => 'Str', 'c' => 'Wrapped'],
+            ['t' => 'Space'],
+            ['t' => 'Code', 'c' => [
+                ['definition-code', ['native'], [['data-source', 'definition']]],
+                'term',
+            ]],
+        ];
+        $definitionBlocks = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Wrapped'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'definition'],
+            ]],
+        ];
+        $lineInlines = [
+            ['t' => 'Str', 'c' => 'Wrapped'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'line'],
+        ];
+        $bulletItem = [$bulletBlocks];
+        $orderedItem = [$orderedBlocks];
+        $definitionTerm = [$definitionTermInlines];
+        $definitionBody = [$definitionBlocks];
+        $definitionItemPayload = [$definitionTerm, [$definitionBody]];
+        $definitionItem = [$definitionItemPayload];
+        $line = [$lineInlines];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'BlockQuote', 'c' => [$quoteBlocks], 'reviewQueue' => 'blockquote-single-wrap-source'],
+                ['t' => 'BulletList', 'c' => [$bulletItem], 'reviewQueue' => 'bullet-single-wrap-source'],
+                ['t' => 'OrderedList', 'c' => [
+                    [3, ['t' => 'LowerRoman'], ['t' => 'OneParen']],
+                    [$orderedItem],
+                ], 'reviewQueue' => 'ordered-single-wrap-source'],
+                ['t' => 'DefinitionList', 'c' => [$definitionItem], 'reviewQueue' => 'definition-single-wrap-source'],
+                ['t' => 'LineBlock', 'c' => [$line], 'reviewQueue' => 'line-single-wrap-source'],
+            ],
+        ];
+        $withoutWrapperAttrs = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $blockquote = $document->children[0];
+            $bullet = $document->children[1];
+            $ordered = $document->children[2];
+            $definitionList = $document->children[3];
+            $definitionItemNode = $definitionList->children[0];
+            $definitionTermNode = $definitionItemNode->children[0];
+            $definitionNode = $definitionItemNode->children[1];
+            $lineBlock = $document->children[4];
+            $lineNode = $lineBlock->children[0];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('bullet_list', [], $bullet->children),
+                new AstNode('ordered_list', $withoutWrapperAttrs($ordered), $ordered->children),
+                new AstNode('definition_list', [], $definitionList->children),
+                new AstNode('line_block', [], $lineBlock->children),
+            ]);
+            $editedDefinitionTerm = new AstNode('definition_term', $definitionTermNode->attrs, [
+                new AstNode('text', ['text' => 'Edited']),
+                new AstNode('space'),
+                new AstNode('code', [
+                    'id' => 'definition-code',
+                    'classes' => ['native'],
+                    'attributes' => ['data-source' => 'definition'],
+                    'text' => 'term',
+                ]),
+            ]);
+            $editedDefinitionItem = new AstNode('definition_item', $definitionItemNode->attrs, [
+                $editedDefinitionTerm,
+                ...array_slice($definitionItemNode->children, 1),
+            ]);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('definition_list', [], [$editedDefinitionItem]),
+            ]);
+
+            $t->same(['blockquote', 'bullet_list', 'ordered_list', 'definition_list', 'line_block'], array_map(static fn (AstNode $node): string => $node->type, $document->children), "{$source} block helper node types");
+            $t->same($packet['blocks'][0], $blockquote->attr('native'), "{$source} blockquote keeps single-wrapped block payload");
+            $t->same($bulletItem, $bullet->children[0]->attr('listItemNative'), "{$source} bullet item keeps single-wrapped block list");
+            $t->same('Bullet wrapped', $bullet->children[0]->children[0]->attr('text'), "{$source} bullet item text");
+            $t->same($orderedItem, $ordered->children[0]->attr('listItemNative'), "{$source} ordered item keeps single-wrapped block list");
+            $t->same('lower_roman', $ordered->attr('style'), "{$source} ordered style");
+            $t->same($definitionItem, $definitionItemNode->attr('definitionItemNative'), "{$source} definition item keeps single-wrapped tuple");
+            $t->same($definitionTerm, $definitionTermNode->attr('definitionTermNative'), "{$source} definition term keeps single-wrapped inlines");
+            $t->same($definitionBody, $definitionNode->attr('definitionNative'), "{$source} definition body keeps single-wrapped block list");
+            $t->same('Wrapped term', $definitionTermNode->attr('text'), "{$source} definition term text");
+            $t->same('Wrapped definition', $definitionNode->children[0]->attr('text'), "{$source} definition body text");
+            $t->same($line, $lineNode->attr('lineNative'), "{$source} line keeps single-wrapped inlines");
+            $t->same('Wrapped line', $lineNode->attr('text'), "{$source} line text");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($packet['blocks'], $encoded['blocks'], "{$source} {$writer} writer preserves original single-wrapped helper payloads");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($bulletItem, $encoded['blocks'][0]['c'][0], "{$source} {$writer} rebuilt bullet item preserves single-wrap");
+                $t->same($orderedItem, $encoded['blocks'][1]['c'][1][0], "{$source} {$writer} rebuilt ordered item preserves single-wrap");
+                $t->same($definitionItem, $encoded['blocks'][2]['c'][0], "{$source} {$writer} rebuilt definition item preserves single-wrap");
+                $t->same($line, $encoded['blocks'][3]['c'][0], "{$source} {$writer} rebuilt line preserves single-wrap");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedItem = $encoded['blocks'][0]['c'][0];
+
+                $t->same(2, count($encodedItem), "{$source} {$writer} edited definition item emits direct tuple");
+                $t->same('Edited', $encodedItem[0][0]['c'], "{$source} {$writer} edited definition term text");
+                $t->same(false, $encodedItem === $definitionItem, "{$source} {$writer} edited definition item drops stale outer wrapper");
+            }
+        }
+    },
     'accepts single wrapped definition list item tuples through json and native readers' => static function (TestRunner $t): void {
         $definitionTerm = [
             ['t' => 'Str', 'c' => 'Wrapped'],
