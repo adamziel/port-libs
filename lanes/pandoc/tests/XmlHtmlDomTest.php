@@ -3709,6 +3709,65 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             $html
         );
     },
+    'summarizes html dropzone tokens for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="drop" draggable="true" dropzone="copy string:text/plain file:image/png string:text/html">Drop files</section>'
+                . '<p id="bad-drop" dropzone="execute string:javascript file:bad mime link move">Fallback</p>',
+            'dropzone attribute review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/dropzone-attribute-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $drop = $summary[0];
+        $fallback = $summary[1];
+
+        $t->same('drop', $drop['elementId']);
+        $t->same(true, $drop['draggable']);
+        $t->same('html-dropzone-attribute-review', $drop['dropZoneReviewPolicy']);
+        $t->same('copy string:text/plain file:image/png string:text/html', $drop['dropZoneRaw']);
+        $t->same(['copy', 'string:text/plain', 'file:image/png', 'string:text/html'], $drop['dropZoneTokens']);
+        $t->same(['copy'], $drop['dropZoneEffects']);
+        $t->same(['text/plain', 'text/html'], $drop['dropZoneStringTypes']);
+        $t->same(['image/png'], $drop['dropZoneFileTypes']);
+        $t->same([], $drop['invalidDropZoneTokens']);
+        $t->same(false, $drop['dropZoneMultipleEffects']);
+        $t->same(true, $drop['dropZoneValid']);
+        $t->same([
+            ['raw' => 'copy', 'kind' => 'effect', 'value' => 'copy', 'valid' => true],
+            ['raw' => 'string:text/plain', 'kind' => 'string', 'value' => 'text/plain', 'valid' => true],
+            ['raw' => 'file:image/png', 'kind' => 'file', 'value' => 'image/png', 'valid' => true],
+            ['raw' => 'string:text/html', 'kind' => 'string', 'value' => 'text/html', 'valid' => true],
+        ], $drop['dropZoneItems']);
+
+        $t->same('bad-drop', $fallback['elementId']);
+        $t->same('execute string:javascript file:bad mime link move', $fallback['dropZoneRaw']);
+        $t->same(['execute', 'string:javascript', 'file:bad', 'mime', 'link', 'move'], $fallback['dropZoneTokens']);
+        $t->same(['link', 'move'], $fallback['dropZoneEffects']);
+        $t->same([], $fallback['dropZoneStringTypes']);
+        $t->same([], $fallback['dropZoneFileTypes']);
+        $t->same(['execute', 'string:javascript', 'file:bad', 'mime'], $fallback['invalidDropZoneTokens']);
+        $t->same(true, $fallback['dropZoneMultipleEffects']);
+        $t->same(false, $fallback['dropZoneValid']);
+        $t->same([
+            ['raw' => 'execute', 'kind' => null, 'value' => null, 'valid' => false],
+            ['raw' => 'string:javascript', 'kind' => 'string', 'value' => null, 'valid' => false],
+            ['raw' => 'file:bad', 'kind' => 'file', 'value' => null, 'valid' => false],
+            ['raw' => 'mime', 'kind' => null, 'value' => null, 'valid' => false],
+            ['raw' => 'link', 'kind' => 'effect', 'value' => 'link', 'valid' => true],
+            ['raw' => 'move', 'kind' => 'effect', 'value' => 'move', 'valid' => true],
+        ], $fallback['dropZoneItems']);
+        $t->same(
+            '<section draggable="true" dropzone="copy string:text/plain file:image/png string:text/html" id="drop">Drop files</section>'
+                . '<p dropzone="execute string:javascript file:bad mime link move" id="bad-drop">Fallback</p>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/dropzone-attribute-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes inherited html language and direction for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="root" lang="en-US" dir="LTR"><section id="chapter"><p id="body" dir="sideways">Body <span id="quote" lang="fr-CA" dir="auto">Citation</span></p></section></article>'

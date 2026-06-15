@@ -17619,6 +17619,20 @@ final class XmlHtmlDom
             };
         }
 
+        if (array_key_exists('dropzone', $attributes)) {
+            $dropZone = self::dropZoneSummary($attributes['dropzone']);
+            $summary['dropZoneReviewPolicy'] = 'html-dropzone-attribute-review';
+            $summary['dropZoneRaw'] = $attributes['dropzone'];
+            $summary['dropZoneTokens'] = $dropZone['tokens'];
+            $summary['dropZoneItems'] = $dropZone['items'];
+            $summary['dropZoneEffects'] = $dropZone['effects'];
+            $summary['dropZoneStringTypes'] = $dropZone['stringTypes'];
+            $summary['dropZoneFileTypes'] = $dropZone['fileTypes'];
+            $summary['invalidDropZoneTokens'] = $dropZone['invalid'];
+            $summary['dropZoneMultipleEffects'] = $dropZone['multipleEffects'];
+            $summary['dropZoneValid'] = $dropZone['valid'];
+        }
+
         if (array_key_exists('spellcheck', $attributes)) {
             $spellcheck = strtolower(trim($attributes['spellcheck']));
             $summary['spellcheckRaw'] = $attributes['spellcheck'];
@@ -18551,6 +18565,73 @@ final class XmlHtmlDom
         }
 
         return preg_match_all('/./us', $token) === 1;
+    }
+
+    /**
+     * @return array{tokens:list<string>, items:list<array<string, mixed>>, effects:list<string>, stringTypes:list<string>, fileTypes:list<string>, invalid:list<string>, multipleEffects:bool, valid:bool}
+     */
+    private static function dropZoneSummary(string $value): array
+    {
+        $tokens = self::spaceSeparatedTokens($value);
+        $items = [];
+        $effects = [];
+        $stringTypes = [];
+        $fileTypes = [];
+        $invalid = [];
+
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            $item = [
+                'raw' => $token,
+                'kind' => null,
+                'value' => null,
+                'valid' => false,
+            ];
+
+            if (in_array($lower, ['copy', 'move', 'link'], true)) {
+                $item['kind'] = 'effect';
+                $item['value'] = $lower;
+                $item['valid'] = true;
+                self::appendUniqueString($effects, $lower);
+            } elseif (str_starts_with($lower, 'string:')) {
+                $type = substr($lower, 7);
+                $item['kind'] = 'string';
+                $item['value'] = self::isHtmlDropZoneMimeType($type) ? $type : null;
+                $item['valid'] = $item['value'] !== null;
+                if ($item['valid']) {
+                    self::appendUniqueString($stringTypes, $type);
+                }
+            } elseif (str_starts_with($lower, 'file:')) {
+                $type = substr($lower, 5);
+                $item['kind'] = 'file';
+                $item['value'] = self::isHtmlDropZoneMimeType($type) ? $type : null;
+                $item['valid'] = $item['value'] !== null;
+                if ($item['valid']) {
+                    self::appendUniqueString($fileTypes, $type);
+                }
+            }
+
+            if (!$item['valid']) {
+                $invalid[] = $token;
+            }
+            $items[] = $item;
+        }
+
+        return [
+            'tokens' => $tokens,
+            'items' => $items,
+            'effects' => $effects,
+            'stringTypes' => $stringTypes,
+            'fileTypes' => $fileTypes,
+            'invalid' => $invalid,
+            'multipleEffects' => count($effects) > 1,
+            'valid' => $tokens !== [] && $invalid === [],
+        ];
+    }
+
+    private static function isHtmlDropZoneMimeType(string $value): bool
+    {
+        return preg_match('/^[a-z0-9!#$&^_.+-]+\/(?:[a-z0-9!#$&^_.+-]+|\*)$/', $value) === 1;
     }
 
     /**
