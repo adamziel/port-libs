@@ -8151,6 +8151,39 @@ return [
                 'types' => ['table'],
                 'tags' => ['Table'],
             ],
+            'figure local leaf block constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'Figure', 'c' => [
+                            ['matrix-leaf-figure', ['review'], [['data-source', 'matrix']]],
+                            ['t' => 'Caption', 'c' => [
+                                ['t' => 'Nothing'],
+                                [
+                                    ['t' => 'Plain', 'c' => [
+                                        ['t' => 'Str', 'c' => 'Figure'],
+                                        ['t' => 'Space'],
+                                        ['t' => 'Str', 'c' => 'leaf'],
+                                    ]],
+                                ],
+                            ]],
+                            [
+                                ['t' => 'CodeBlock', 'c' => [
+                                    ['', ['bash'], [['data-kind', 'figure-code']]],
+                                    "wp post list --post_type=attachment\n",
+                                ]],
+                                ['t' => 'RawBlock', 'c' => [
+                                    ['t' => 'Format', 'c' => 'html'],
+                                    '<aside data-figure="raw">review</aside>',
+                                ]],
+                            ],
+                        ]],
+                    ],
+                ],
+                'types' => ['figure'],
+                'tags' => ['Figure'],
+            ],
         ];
 
         foreach ($cases as $caseName => $case) {
