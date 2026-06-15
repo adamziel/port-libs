@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 2,205 | 1,096 |
+| Markdown / CommonMark / GFM | 2,227 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownWriter` emits top pipe-table captions before tables, normalizes plain and inline caption line breaks into single-line Pandoc caption Markdown, routes text-only table cells through the same pipe/newline normalization as inline cells, and keeps Markdown table-geometry diagnostics aligned with supported top caption placement.
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` preserves 102 common emoji shortcode aliases as native emoji spans with `data-emoji` metadata, while `MarkdownWriter` round-trips `:alias:` syntax and `WordPressBlockWriter` emits safe emoji span markup.
 
-Current Pandoc counters: 6,022 PHP passes / 0 failures and 6,012 mapped upstream cases. Verification passed after rebase: `php -l` for `MarkdownWriter.php`, `TableGeometry.php`, `MarkdownWriterTableCaptionSpanCompletionTest.php`, `MarkdownWriterTablesSurgeTest.php`, `TableGeometryTest.php`, and `TableGeometryReaderHandoffTest.php`; focused writer coverage passed 2 files, 222 assertions, 0 failures; focused table geometry coverage passed 2 files, 3395 assertions, 0 failures; full `lanes/pandoc/tests` passed 72 files, 103786 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 6,044 PHP passes / 0 failures and 6,034 mapped upstream cases. Verification passed after rebase: `php -l` for `MarkdownEmojiAliases.php` and `MarkdownReaderEmojiExtensionSurgeTest.php`; focused emoji/reader coverage passed 4 files, 8154 assertions, 0 failures; full `lanes/pandoc/tests` passed 72 files, 103941 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
