@@ -8771,6 +8771,30 @@ return [
                 'types' => ['native_block', 'paragraph'],
                 'tags' => ['VendorBlock', 'Para'],
             ],
+            'note local leaf block constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Str', 'c' => 'Note'],
+                            ['t' => 'Space'],
+                            ['t' => 'Note', 'c' => [
+                                ['t' => 'CodeBlock', 'c' => [
+                                    ['', ['php'], [['data-kind', 'note-code']]],
+                                    "echo 'note';\n",
+                                ]],
+                                ['t' => 'RawBlock', 'c' => [
+                                    ['t' => 'Format', 'c' => 'html'],
+                                    '<aside data-note="raw">review</aside>',
+                                ]],
+                            ]],
+                        ]],
+                    ],
+                ],
+                'types' => ['paragraph'],
+                'tags' => ['Para'],
+            ],
         ];
 
         foreach ($cases as $caseName => $case) {
