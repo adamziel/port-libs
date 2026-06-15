@@ -8610,6 +8610,30 @@ return [
                 'types' => ['paragraph'],
                 'tags' => ['Para'],
             ],
+            'note constructor' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Str', 'c' => 'Before'],
+                            ['t' => 'Space'],
+                            ['t' => 'Note', 'c' => [
+                                ['t' => 'Plain', 'c' => [
+                                    ['t' => 'Str', 'c' => 'Footnote'],
+                                    ['t' => 'Space'],
+                                    ['t' => 'Str', 'c' => 'matrix'],
+                                ]],
+                                ['t' => 'HorizontalRule'],
+                            ], 'noteLabel' => 'matrix-note'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'after'],
+                        ]],
+                    ],
+                ],
+                'types' => ['paragraph'],
+                'tags' => ['Para'],
+            ],
             'table and figure caption constructors' => [
                 'packet' => [
                     'pandoc-api-version' => [1, 23, 1],
