@@ -143,6 +143,11 @@ final class PandocJsonReader
             return $this->metaMapContent($content);
         }
 
+        $metaEnvelope = $this->metaEnvelopeContent($meta);
+        if ($metaEnvelope !== null) {
+            return $metaEnvelope;
+        }
+
         if (!is_array($meta) || ($meta !== [] && array_is_list($meta))) {
             throw new \InvalidArgumentException('Pandoc JSON meta must be an object');
         }
@@ -172,6 +177,44 @@ final class PandocJsonReader
         }
 
         return $meta;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function metaEnvelopeContent(mixed $meta): ?array
+    {
+        if (!$this->isTaggedConstructor($meta, 'Meta')) {
+            return null;
+        }
+
+        $content = $meta['c'] ?? null;
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+
+        if ($this->taggedMetaConstructor($content) === 'MetaMap') {
+            return $this->metaMapContent($content['c'] ?? null);
+        }
+
+        if (!is_array($content) || array_is_list($content) || count($content) !== 1 || !array_key_exists('unMeta', $content)) {
+            return null;
+        }
+
+        $unMeta = $content['unMeta'];
+        if ($this->taggedMetaConstructor($unMeta) === 'MetaMap') {
+            return $this->metaMapContent($unMeta['c'] ?? null);
+        }
+
+        if ($this->isTaggedObject($unMeta)) {
+            return null;
+        }
+
+        if (!is_array($unMeta) || ($unMeta !== [] && array_is_list($unMeta))) {
+            throw new \InvalidArgumentException('Pandoc JSON meta Meta.unMeta content must be an object');
+        }
+
+        return $unMeta;
     }
 
     /**
@@ -241,6 +284,9 @@ final class PandocJsonReader
         $attrs = [];
         if ($this->taggedMetaConstructor($rawMeta) === 'MetaMap') {
             $attrs['metaConstructor'] = 'MetaMap';
+            $attrs['metaNative'] = $rawMeta;
+        } elseif ($this->metaEnvelopeContent($rawMeta) !== null) {
+            $attrs['metaConstructor'] = 'Meta';
             $attrs['metaNative'] = $rawMeta;
         } elseif (
             is_array($rawMeta)
@@ -506,6 +552,19 @@ final class PandocJsonReader
         $provenance = [];
         if ($this->looksLikeMetaConstructor($metadata)) {
             $this->collectMetaConstructorProvenance($metadata, [], $provenance);
+
+            return $provenance;
+        }
+
+        $metaEnvelope = $this->metaEnvelopeContent($metadata);
+        if ($metaEnvelope !== null && is_array($metadata) && !array_is_list($metadata)) {
+            $provenance['/'] = [
+                'constructor' => 'Meta',
+                'native' => $metadata,
+            ];
+            foreach ($metaEnvelope as $key => $value) {
+                $this->collectMetaConstructorProvenance($value, [(string) $key], $provenance);
+            }
 
             return $provenance;
         }

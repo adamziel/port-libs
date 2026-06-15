@@ -444,6 +444,75 @@ return [
         $t->same('literal-modern-key', $literalUnMeta['unMeta']['items']['queue']);
         $t->same(false, $literalUnMeta['unMeta']['items']['blocked']);
     },
+    'reads tagged pandoc Meta metadata envelopes through json and native readers' => static function (TestRunner $t): void {
+        $metaEnvelope = ['t' => 'Meta', 'c' => [
+            'unMeta' => [
+                'source' => ['t' => 'MetaString', 'c' => 'legacy-meta-constructor'],
+                'draft' => ['t' => 'MetaBool', 'c' => false],
+                'title' => ['t' => 'MetaInlines', 'c' => [
+                    ['t' => 'Str', 'c' => 'Legacy'],
+                    ['t' => 'Space'],
+                    ['t' => 'Emph', 'c' => [
+                        ['t' => 'Str', 'c' => 'metadata'],
+                    ]],
+                ]],
+            ],
+        ], 'reviewQueue' => 'meta-envelope-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 17, 0, 4],
+            'meta' => $metaEnvelope,
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Legacy'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'metadata'],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $meta = $document->attr('meta');
+            $titleInlines = $meta['titleInlines'] ?? null;
+            $provenance = $document->attr('metaConstructorProvenance');
+
+            $t->same('Meta', $document->attr('metaConstructor'), "{$source} records top-level Meta constructor");
+            $t->same($metaEnvelope, $document->attr('metaNative'), "{$source} records top-level Meta native payload");
+            $t->same('Meta', $provenance['/']['constructor'], "{$source} indexes root Meta constructor provenance");
+            $t->same($metaEnvelope, $provenance['/']['native'], "{$source} indexes root Meta native payload");
+            $t->same('MetaString', $provenance['/source']['constructor'], "{$source} indexes child MetaString provenance");
+            $t->same('MetaInlines', $provenance['/title']['constructor'], "{$source} indexes child MetaInlines provenance");
+            $t->same('paragraph', $document->children[0]->type, "{$source} reads body block after Meta envelope");
+            $t->same('Legacy metadata', $document->children[0]->attr('text'), "{$source} preserves body text");
+            $t->same(true, is_array($titleInlines), "{$source} exposes title helper inlines");
+
+            if ($source === 'json') {
+                $t->same('legacy-meta-constructor', $meta['source'], "{$source} unwraps MetaString");
+                $t->same(false, $meta['draft'], "{$source} unwraps MetaBool");
+                $t->same('inlines', $meta['title']['type'], "{$source} exposes normalized title metadata");
+                $t->same('emph', $titleInlines[2]->type, "{$source} preserves title inline formatting");
+            } else {
+                $t->same($metaEnvelope['c']['unMeta']['source'], $meta['source'], "{$source} keeps native MetaString payload");
+                $t->same($metaEnvelope['c']['unMeta']['draft'], $meta['draft'], "{$source} keeps native MetaBool payload");
+                $t->same($metaEnvelope['c']['unMeta']['title'], $meta['title'], "{$source} keeps native MetaInlines payload");
+                $t->same('Legacy ', $titleInlines[0]->attr('text'), "{$source} exposes title helper text run");
+                $t->same('emph', $titleInlines[1]->type, "{$source} exposes title helper emphasis");
+            }
+
+            foreach ([
+                "{$source} json writer" => (new PandocJsonWriter())->toArray($document),
+                "{$source} native writer" => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($metaEnvelope['c']['unMeta'], $encoded['meta'], "{$writer} canonicalizes Meta envelope to metadata map");
+                $t->same($packet['blocks'], $encoded['blocks'], "{$writer} preserves body block payload");
+                $t->same(false, isset($encoded['meta']['t']), "{$writer} does not re-emit top-level Meta envelope");
+            }
+        }
+    },
     'reads simplified pandoc json metadata values as compatible meta constructors' => static function (TestRunner $t): void {
         $reader = new PandocJsonReader();
         $writer = new PandocJsonWriter();

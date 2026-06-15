@@ -226,6 +226,11 @@ final class NativeReader
             return $this->metaMapContent($metadata['c'] ?? null);
         }
 
+        $metaEnvelope = $this->metaEnvelopeContent($metadata);
+        if ($metaEnvelope !== null) {
+            return $metaEnvelope;
+        }
+
         if (!is_array($metadata) || ($metadata !== [] && array_is_list($metadata))) {
             throw new \InvalidArgumentException('Pandoc native JSON meta must be an object');
         }
@@ -236,6 +241,44 @@ final class NativeReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function metaEnvelopeContent(mixed $metadata): ?array
+    {
+        if (!$this->isTaggedConstructor($metadata, 'Meta')) {
+            return null;
+        }
+
+        $content = $metadata['c'] ?? null;
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+
+        if ($this->taggedMetaConstructor($content) === 'MetaMap') {
+            return $this->metaMapContent($content['c'] ?? null);
+        }
+
+        if (!is_array($content) || array_is_list($content) || count($content) !== 1 || !array_key_exists('unMeta', $content)) {
+            return null;
+        }
+
+        $unMeta = $content['unMeta'];
+        if ($this->taggedMetaConstructor($unMeta) === 'MetaMap') {
+            return $this->metaMapContent($unMeta['c'] ?? null);
+        }
+
+        if ($this->isTaggedObject($unMeta)) {
+            return null;
+        }
+
+        if (!is_array($unMeta) || ($unMeta !== [] && array_is_list($unMeta))) {
+            throw new \InvalidArgumentException('Pandoc native JSON Meta.unMeta content must be an object');
+        }
+
+        return $unMeta;
     }
 
     /**
@@ -324,6 +367,9 @@ final class NativeReader
         $attrs = [];
         if ($this->taggedMetaConstructor($rawMetadata) === 'MetaMap') {
             $attrs['metaConstructor'] = 'MetaMap';
+            $attrs['metaNative'] = $rawMetadata;
+        } elseif ($this->metaEnvelopeContent($rawMetadata) !== null) {
+            $attrs['metaConstructor'] = 'Meta';
             $attrs['metaNative'] = $rawMetadata;
         }
 
@@ -421,6 +467,19 @@ final class NativeReader
         $provenance = [];
         if ($this->isMetaConstructor($metadata)) {
             $this->collectMetaConstructorProvenance($metadata, [], $provenance);
+
+            return $provenance;
+        }
+
+        $metaEnvelope = $this->metaEnvelopeContent($metadata);
+        if ($metaEnvelope !== null && is_array($metadata) && !array_is_list($metadata)) {
+            $provenance['/'] = [
+                'constructor' => 'Meta',
+                'native' => $metadata,
+            ];
+            foreach ($metaEnvelope as $key => $value) {
+                $this->collectMetaConstructorProvenance($value, [(string) $key], $provenance);
+            }
 
             return $provenance;
         }
