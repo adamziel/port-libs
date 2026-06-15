@@ -646,6 +646,7 @@ final class EpubPackage
             $this->manifestItems,
             $manifestFallbacks,
             $this->mediaOverlays,
+            $this->bindings,
             $packageInventory,
         );
         $compactPackageReport = self::compactPackageReport(
@@ -1484,6 +1485,7 @@ final class EpubPackage
                 'fallbackEdgeCount' => (int) ($manifestDependencyInventory['fallbackEdgeCount'] ?? 0),
                 'fallbackStyleEdgeCount' => (int) ($manifestDependencyInventory['fallbackStyleEdgeCount'] ?? 0),
                 'mediaOverlayEdgeCount' => (int) ($manifestDependencyInventory['mediaOverlayEdgeCount'] ?? 0),
+                'bindingHandlerEdgeCount' => (int) ($manifestDependencyInventory['bindingHandlerEdgeCount'] ?? 0),
                 'missingManifestTargetCount' => (int) ($manifestDependencyInventory['missingManifestTargetCount'] ?? 0),
                 'missingPackagePartTargetCount' => (int) ($manifestDependencyInventory['missingPackagePartTargetCount'] ?? 0),
                 'externalTargetCount' => (int) ($manifestDependencyInventory['externalTargetCount'] ?? 0),
@@ -10067,6 +10069,7 @@ final class EpubPackage
         array $manifestItems,
         array $manifestFallbacks,
         array $mediaOverlays,
+        array $bindings,
         array $packageInventory
     ): array {
         $manifestById = [];
@@ -10085,6 +10088,9 @@ final class EpubPackage
             : [];
         $overlaysById = is_array($mediaOverlays['itemsById'] ?? null)
             ? $mediaOverlays['itemsById']
+            : [];
+        $bindingItems = is_array($bindings['items'] ?? null)
+            ? array_values(array_filter($bindings['items'], static fn (mixed $item): bool => is_array($item)))
             : [];
 
         $edges = [];
@@ -10240,6 +10246,7 @@ final class EpubPackage
                     'fallback' => self::compactDiagnosticList($relationReport['fallbackDiagnostics'] ?? []),
                     'fallback-style' => self::compactDiagnosticList($relationReport['fallbackStyleDiagnostics'] ?? []),
                     'media-overlay' => self::compactDiagnosticList($relationReport['diagnostics'] ?? []),
+                    'binding-handler' => self::compactDiagnosticList($relationReport['diagnostics'] ?? []),
                     default => [],
                 };
                 if ($relation === 'fallback') {
@@ -10262,6 +10269,14 @@ final class EpubPackage
                     $terminalId = is_string($relationReport['id'] ?? null) ? $relationReport['id'] : null;
                     $terminalPartName = is_string($relationReport['partName'] ?? null) ? $relationReport['partName'] : null;
                     $terminalMediaType = is_string($relationReport['mediaType'] ?? null) ? $relationReport['mediaType'] : null;
+                    $chainLength = 1;
+                } elseif ($relation === 'binding-handler') {
+                    $relationResolved = is_string($relationReport['handlerMediaType'] ?? null);
+                    $relationUsable = ($relationReport['handlerCanExposeBytes'] ?? false) === true
+                        && $relationDiagnostics === [];
+                    $terminalId = is_string($relationReport['handlerId'] ?? null) ? $relationReport['handlerId'] : null;
+                    $terminalPartName = is_string($relationReport['handlerPartName'] ?? null) ? $relationReport['handlerPartName'] : null;
+                    $terminalMediaType = is_string($relationReport['handlerMediaType'] ?? null) ? $relationReport['handlerMediaType'] : null;
                     $chainLength = 1;
                 }
             }
@@ -10483,6 +10498,25 @@ final class EpubPackage
             }
         }
 
+        foreach ($bindingItems as $bindingItem) {
+            $handlerId = self::nullableManifestId($bindingItem['handlerId'] ?? null);
+            if ($handlerId === null) {
+                continue;
+            }
+
+            $index = is_int($bindingItem['index'] ?? null) ? $bindingItem['index'] : count($edges);
+            $mediaType = is_string($bindingItem['mediaType'] ?? null) ? $bindingItem['mediaType'] : '';
+            $sourceItem = [
+                'id' => $mediaType === '' ? 'binding:#' . $index : 'binding:' . $mediaType,
+                'href' => '',
+                'partName' => null,
+                'mediaType' => $mediaType,
+                'properties' => [],
+            ];
+
+            $appendEdge('binding-handler', $sourceItem, $handlerId, $bindingItem);
+        }
+
         ksort($relationCounts, SORT_STRING);
         ksort($byteExposurePolicyCounts, SORT_STRING);
         ksort($compressionMethodCounts, SORT_STRING);
@@ -10493,6 +10527,7 @@ final class EpubPackage
             'fallbackEdgeCount' => $relationCounts['fallback'] ?? 0,
             'fallbackStyleEdgeCount' => $relationCounts['fallback-style'] ?? 0,
             'mediaOverlayEdgeCount' => $relationCounts['media-overlay'] ?? 0,
+            'bindingHandlerEdgeCount' => $relationCounts['binding-handler'] ?? 0,
             'manifestTargetCount' => $manifestTargetCount,
             'existingTargetCount' => $existingTargetCount,
             'missingManifestTargetCount' => $missingManifestTargetCount,

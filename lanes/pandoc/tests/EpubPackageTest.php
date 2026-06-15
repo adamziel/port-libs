@@ -8306,6 +8306,129 @@ XML;
         $t->same(strlen($audio), $audioDirectory['byteLength']);
     },
 
+    'includes OPF binding handlers in manifest dependency inventory handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $handlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Local handler</h1></body></html>';
+        $opfWithBindingDependencies = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:binding-dependency-inventory</dc:identifier>
+    <dc:title>Binding Dependency Inventory</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="local-handler" href="widgets/local-handler.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
+    <item id="remote-handler" href="https://cdn.example.invalid/widgets/remote-handler.xhtml" media-type="application/xhtml+xml" properties="scripted remote-resources"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+  <bindings>
+    <mediaType media-type="application/x-local-widget" handler="local-handler"/>
+    <mediaType media-type="application/x-remote-widget" handler="remote-handler"/>
+    <mediaType media-type="application/x-missing-widget" handler="missing-handler"/>
+  </bindings>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithBindingDependencies],
+            ['name' => 'EPUB/nav.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Chapter</a></li></ol></nav></body></html>'],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter</h1></body></html>'],
+            ['name' => 'EPUB/widgets/local-handler.xhtml', 'data' => $handlerXhtml],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['manifestDependencyInventory'];
+        $case = $summary['compactPackageReport']['casesById']['manifest-dependencies'];
+        $local = $inventory['edgesByTargetId']['local-handler'][0];
+        $remote = $inventory['edgesByTargetId']['remote-handler'][0];
+        $missing = $inventory['edgesByTargetId']['missing-handler'][0];
+
+        $t->same($inventory, $summary['wordpressImport']['manifestDependencyInventory']);
+        $t->same($inventory['edges'], $summary['wordpressImport']['manifestDependencyEdges']);
+        $t->same($inventory['diagnostics'], $summary['wordpressImport']['manifestDependencyDiagnostics']);
+        $t->same(true, $inventory['present']);
+        $t->same(3, $inventory['edgeCount']);
+        $t->same(3, $inventory['bindingHandlerEdgeCount']);
+        $t->same(0, $inventory['fallbackEdgeCount']);
+        $t->same(0, $inventory['fallbackStyleEdgeCount']);
+        $t->same(0, $inventory['mediaOverlayEdgeCount']);
+        $t->same(2, $inventory['manifestTargetCount']);
+        $t->same(1, $inventory['existingTargetCount']);
+        $t->same(1, $inventory['missingManifestTargetCount']);
+        $t->same(0, $inventory['missingPackagePartTargetCount']);
+        $t->same(1, $inventory['externalTargetCount']);
+        $t->same(1, $inventory['exposableTargetCount']);
+        $t->same(2, $inventory['blockedTargetCount']);
+        $t->same(strlen($handlerXhtml), $inventory['totalByteLength']);
+        $t->same(strlen(gzdeflate($handlerXhtml)), $inventory['totalCompressedByteLength']);
+        $t->same(strlen($handlerXhtml), $inventory['exposableByteLength']);
+        $t->same(strlen(gzdeflate($handlerXhtml)), $inventory['exposableCompressedByteLength']);
+        $t->same(0, $inventory['blockedByteLength']);
+        $t->same(0, $inventory['blockedCompressedByteLength']);
+        $t->same(['binding-handler' => 3], $inventory['relationCounts']);
+        $t->same([
+            'external-manifest-dependency-target-metadata-only' => 1,
+            'manifest-dependency-target-bytes-exposable' => 1,
+            'missing-manifest-dependency-target-metadata-only' => 1,
+        ], $inventory['byteExposurePolicyCounts']);
+        $t->same(['deflated' => 1], $inventory['compressionMethodCounts']);
+        $t->same([
+            'binding:application/x-local-widget',
+            'binding:application/x-remote-widget',
+            'binding:application/x-missing-widget',
+        ], $inventory['sourceIds']);
+        $t->same(['local-handler', 'remote-handler', 'missing-handler'], $inventory['targetIds']);
+        $t->same(['/EPUB/widgets/local-handler.xhtml'], $inventory['targetPartNames']);
+        $t->same(['missing-handler'], $inventory['missingManifestTargetIds']);
+        $t->same(['remote-handler'], $inventory['externalTargetIds']);
+        $t->same(4, $inventory['diagnosticCount']);
+        $t->same([
+            'external-manifest-dependency-target',
+            'external-binding-handler',
+            'missing-manifest-dependency-target',
+            'missing-binding-handler-manifest-item',
+        ], $inventory['diagnosticTypes']);
+
+        $t->same('binding-handler', $local['relation']);
+        $t->same('binding:application/x-local-widget', $local['sourceId']);
+        $t->same('application/x-local-widget', $local['sourceMediaType']);
+        $t->same('local-handler', $local['targetId']);
+        $t->same('/EPUB/widgets/local-handler.xhtml', $local['targetPartName']);
+        $t->same('xhtml', $local['targetResourceKind']);
+        $t->same(true, $local['targetCanExposeBytes']);
+        $t->same('manifest-dependency-target-bytes-exposable', $local['targetByteExposurePolicy']);
+        $t->same(true, $local['relationResolved']);
+        $t->same(true, $local['relationUsable']);
+        $t->same('local-handler', $local['relationTerminalId']);
+        $t->same('/EPUB/widgets/local-handler.xhtml', $local['relationTerminalPartName']);
+
+        $t->same('remote-handler', $remote['targetId']);
+        $t->same(true, $remote['targetExternal']);
+        $t->same(false, $remote['targetExists']);
+        $t->same('external-manifest-dependency-target-metadata-only', $remote['targetByteExposurePolicy']);
+        $t->same(true, $remote['relationResolved']);
+        $t->same(false, $remote['relationUsable']);
+        $t->same('external-manifest-dependency-target', $remote['diagnostics'][0]['type']);
+        $t->same('external-binding-handler', $remote['diagnostics'][1]['type']);
+
+        $t->same('missing-handler', $missing['targetId']);
+        $t->same(false, $missing['targetPresentInManifest']);
+        $t->same(false, $missing['relationResolved']);
+        $t->same(false, $missing['relationUsable']);
+        $t->same('missing-manifest-dependency-target-metadata-only', $missing['targetByteExposurePolicy']);
+        $t->same('missing-manifest-dependency-target', $missing['diagnostics'][0]['type']);
+        $t->same('missing-binding-handler-manifest-item', $missing['diagnostics'][1]['type']);
+
+        $t->same(3, $case['itemCount']);
+        $t->same(3, $case['bindingHandlerEdgeCount']);
+        $t->same(['binding-handler' => 3], $case['relationCounts']);
+        $t->same($inventory['diagnosticTypes'], $case['diagnosticTypes']);
+    },
+
     'reports OPF metadata meta property vocabulary diagnostics for package review' => static function (TestRunner $t) use ($epubContainerXml): void {
         $opfWithMetaVocabulary = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" prefix="review: https://example.invalid/epub-review#">
