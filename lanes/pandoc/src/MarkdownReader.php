@@ -15597,18 +15597,26 @@ final class MarkdownReader
         if ($firstText !== '' && $this->isListItemInitialCodeBlock($marker)) {
             [$codeBlock, $cursor] = $this->readListItemInitialCodeBlock($lines, $cursor + 1, $contentIndent, $firstText);
             $parts[] = $codeBlock;
-        } elseif ($firstText !== '' && $this->isListItemContinuationBlockStart($firstText)) {
-            $block = $this->readListItemBlockFromFirstText($lines, $cursor, $baseIndent, $contentIndent, $firstText);
-            array_push($parts, ...$block['blocks']);
-            $loose = $loose || $block['loose'];
         } elseif ($firstText !== '') {
             $task = $this->stripTaskListMarker($firstText);
             if ($task !== null) {
                 $taskChecked = $task['checked'];
                 $firstText = $task['text'];
             }
-            $paragraph[] = $firstText;
-            $cursor++;
+            if ($this->shouldParseListItemOpeningTextAsBlocks($firstText, $lines, $cursor + 1, $baseIndent, $contentIndent)) {
+                [$blockParts, $cursor, $blockLoose] = $this->readListItemIndentedBlocks(
+                    $lines,
+                    $cursor + 1,
+                    $baseIndent,
+                    $contentIndent,
+                    [$firstText]
+                );
+                array_push($parts, ...$blockParts);
+                $loose = $loose || $blockLoose;
+            } else {
+                $paragraph[] = $firstText;
+                $cursor++;
+            }
         } else {
             $cursor++;
         }
@@ -15625,7 +15633,7 @@ final class MarkdownReader
                     break;
                 }
 
-                if ($this->isHorizontalRule($lines[$next])) {
+                if ($this->isHorizontalRule($lines[$next]) && $this->countIndentColumns($lines[$next]) < $contentIndent) {
                     break;
                 }
 
@@ -15642,6 +15650,10 @@ final class MarkdownReader
                     continue;
                 }
 
+                break;
+            }
+
+            if ($this->isHorizontalRule($line) && $this->countIndentColumns($line) < $contentIndent) {
                 break;
             }
 
@@ -15668,12 +15680,28 @@ final class MarkdownReader
 
             $indent = $this->countIndentColumns($line);
             if ($indent >= $contentIndent) {
-                $stripped = $this->stripIndentColumns($line, $contentIndent);
-                if ($this->isListItemContinuationBlockStart($stripped)) {
-                    $this->flushListItemParagraph($paragraph, $parts);
-                    $block = $this->readListItemContinuationBlock($lines, $cursor, $baseIndent, $contentIndent);
-                    array_push($parts, ...$block['blocks']);
-                    $loose = $loose || $block['loose'];
+                $stripped = rtrim($this->stripIndentColumns($line, $contentIndent));
+                if ($this->shouldParseListItemIndentedLineAsBlocks($stripped, $paragraph, $lines, $cursor, $baseIndent, $contentIndent)) {
+                    $seedLines = [];
+                    $continuesDefinitionList = $paragraph !== []
+                        && $this->isDefinitionMarker($stripped)
+                        && !$this->isListItemBlockStartLine($stripped);
+                    if ($paragraph !== [] && $continuesDefinitionList) {
+                        $seedLines = $paragraph;
+                        $paragraph = [];
+                    } else {
+                        $this->flushListItemParagraph($paragraph, $parts);
+                    }
+
+                    [$blockParts, $cursor, $blockLoose] = $this->readListItemIndentedBlocks(
+                        $lines,
+                        $cursor,
+                        $baseIndent,
+                        $contentIndent,
+                        $seedLines
+                    );
+                    array_push($parts, ...$blockParts);
+                    $loose = $loose || $blockLoose;
                     continue;
                 }
 
@@ -15709,79 +15737,127 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{blocks:list<AstNode>, next:int, loose:bool}
      */
-    private function readListItemBlockFromFirstText(
+    private function shouldParseListItemOpeningTextAsBlocks(
+        string $text,
         array $lines,
-        int &$cursor,
+        int $cursor,
         int $baseIndent,
-        int $contentIndent,
-        string $firstText
-    ): array {
-        $cursor++;
-        $block = $this->readListItemContinuationBlock($lines, $cursor, $baseIndent, $contentIndent);
-        array_unshift($block['content'], rtrim($firstText));
-        $blocks = $this->read(implode("\n", $block['content']))->children;
+        int $contentIndent
+    ): bool {
+        return $this->isListItemBlockStartLine($text)
+            || $this->canStartListItemDefinitionBlock($text, $lines, $cursor, $baseIndent, $contentIndent);
+    }
 
-        return [
-            'blocks' => $blocks,
-            'next' => $block['next'],
-            'loose' => $block['loose'],
-        ];
+    /**
+     * @param list<string> $paragraph
+     * @param list<string> $lines
+     */
+    private function shouldParseListItemIndentedLineAsBlocks(
+        string $line,
+        array $paragraph,
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent
+    ): bool {
+        if ($this->isListItemBlockStartLine($line)) {
+            return true;
+        }
+
+        return ($paragraph !== [] && $this->isDefinitionMarker($line))
+            || ($paragraph === [] && $this->canStartListItemDefinitionBlock($line, $lines, $cursor + 1, $baseIndent, $contentIndent));
+    }
+
+    private function isListItemBlockStartLine(string $line): bool
+    {
+        if (trim($line) === '') {
+            return false;
+        }
+
+        if (
+            $this->tryParseMarkdownHeading($line) !== null
+            || $this->isHorizontalRule($line)
+            || $this->isBlockQuoteLine($line)
+            || $this->isIndentedCodeLine($line)
+            || $this->matchFencedDivOpening($line) !== null
+            || $this->isFencedDivClosing($line, 3)
+            || $this->isCommonMarkParagraphInterruptingRawHtmlBlockStart($line)
+            || $this->isCommonMarkGenericRawHtmlBlockStart($line)
+        ) {
+            return true;
+        }
+
+        return preg_match('/^ {0,3}(?:`{3,}|~{3,})/', $line) === 1
+            || preg_match('/^ {0,3}\|/', $line) === 1
+            || preg_match('/^ {0,3}\+[=-]/', $line) === 1;
     }
 
     /**
      * @param list<string> $lines
-     * @return array{blocks:list<AstNode>, content:list<string>, next:int, loose:bool}
      */
-    private function readListItemContinuationBlock(array $lines, int &$cursor, int $baseIndent, int $contentIndent): array
-    {
-        $content = [];
-        $loose = false;
+    private function canStartListItemDefinitionBlock(
+        string $termLine,
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent
+    ): bool {
+        if (!$this->canStartDefinitionTerm($termLine)) {
+            return false;
+        }
+
         $count = count($lines);
+        while ($cursor < $count && trim($lines[$cursor]) === '') {
+            $cursor++;
+        }
+
+        if ($cursor >= $count) {
+            return false;
+        }
+
+        $stripped = $this->stripListItemContentLine($lines[$cursor], $cursor, $baseIndent, $contentIndent);
+
+        return $stripped !== null
+            && $this->isDefinitionMarker($stripped)
+            && !$this->isListItemBlockStartLine($stripped);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<string> $seedLines
+     * @return array{0:list<AstNode>, 1:int, 2:bool}
+     */
+    private function readListItemIndentedBlocks(
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent,
+        array $seedLines = []
+    ): array {
+        $content = $seedLines;
+        $count = count($lines);
+        $loose = false;
 
         while ($cursor < $count) {
             $line = $lines[$cursor];
             if (trim($line) === '') {
-                $next = $cursor;
-                while ($next < $count && trim($lines[$next]) === '') {
-                    $next++;
-                }
-
-                if ($next >= $count) {
+                if (!$this->hasListItemContinuationAfterBlank($lines, $cursor + 1, $baseIndent, $contentIndent)) {
                     break;
                 }
 
-                $nextMarker = $this->matchListMarker($lines[$next], $next);
-                if ($nextMarker !== null && $nextMarker['indent'] <= $baseIndent) {
-                    break;
-                }
+                $content[] = '';
+                $cursor++;
+                $loose = true;
+                continue;
+            }
 
-                $nextIndent = $this->countIndentColumns($lines[$next]);
-                if ($this->isNestedListMarker($nextMarker, $baseIndent, $contentIndent) || $nextIndent >= $contentIndent) {
-                    $content[] = '';
-                    $loose = true;
-                    $cursor = $next;
-                    continue;
-                }
-
+            $stripped = $this->stripListItemContentLine($line, $cursor, $baseIndent, $contentIndent);
+            if ($stripped === null) {
                 break;
             }
 
-            $lineMarker = $this->matchListMarker($line, $cursor);
-            if ($lineMarker !== null && $lineMarker['indent'] <= $baseIndent) {
-                break;
-            }
-
-            if ($lineMarker !== null && !$this->isNestedListMarker($lineMarker, $baseIndent, $contentIndent)) {
-                break;
-            }
-
-            if ($this->countIndentColumns($line) < $contentIndent) {
-                break;
-            }
-
-            $content[] = rtrim($this->stripIndentColumns($line, $contentIndent));
+            $content[] = $stripped;
             $cursor++;
         }
 
@@ -15789,28 +15865,45 @@ final class MarkdownReader
             array_pop($content);
         }
 
-        return [
-            'blocks' => $content === [] ? [] : $this->read(implode("\n", $content))->children,
-            'content' => $content,
-            'next' => $cursor,
-            'loose' => $loose,
-        ];
-    }
-
-    private function isListItemContinuationBlockStart(string $line): bool
-    {
-        if (trim($line) === '') {
-            return false;
+        if ($content === []) {
+            return [[], $cursor, $loose];
         }
 
-        return $this->isBlockQuoteLine($line)
-            || $this->isIndentedCodeLine($line)
-            || $this->isHorizontalRule($line)
-            || $this->tryParseMarkdownHeading($line) !== null
-            || $this->matchFencedDivOpening($line) !== null
-            || $this->isFencedDivClosing($line, 3)
-            || preg_match('/^ {0,3}(`{3,}|~{3,})/', $line) === 1
-            || $this->isCommonMarkParagraphInterruptingRawHtmlBlockStart($line);
+        return [$this->read(implode("\n", $content))->children, $cursor, $loose];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function hasListItemContinuationAfterBlank(array $lines, int $cursor, int $baseIndent, int $contentIndent): bool
+    {
+        $count = count($lines);
+        while ($cursor < $count && trim($lines[$cursor]) === '') {
+            $cursor++;
+        }
+
+        return $cursor < $count
+            && $this->stripListItemContentLine($lines[$cursor], $cursor, $baseIndent, $contentIndent) !== null;
+    }
+
+    private function stripListItemContentLine(string $line, int $lineIndex, int $baseIndent, int $contentIndent): ?string
+    {
+        $marker = $this->matchListMarker($line, $lineIndex);
+        if ($marker !== null) {
+            if ($marker['indent'] <= $baseIndent) {
+                return null;
+            }
+
+            if ($this->isNestedListMarker($marker, $baseIndent, $contentIndent)) {
+                return rtrim($this->stripIndentColumns($line, $baseIndent));
+            }
+        }
+
+        if ($this->countIndentColumns($line) < $contentIndent) {
+            return null;
+        }
+
+        return rtrim($this->stripIndentColumns($line, $contentIndent));
     }
 
     /**

@@ -8694,8 +8694,8 @@ MD;
         $nativeItem = $findItemBlocks($nativePacket['blocks'], 'Keep completed reviewer tasks');
         $roundTripItem = $findAstListItem($roundTrip, 'Keep completed reviewer tasks');
 
-        $t->same(177, count($jsonPacket['blocks']));
-        $t->same(177, count($nativePacket['blocks']));
+        $t->same(176, count($jsonPacket['blocks']));
+        $t->same(176, count($nativePacket['blocks']));
         $t->true($jsonItem !== null, 'JSON writer should emit nested task-list item blocks from fixture');
         $t->true($nativeItem !== null, 'Native writer should emit nested task-list item blocks from fixture');
         $t->true($roundTripItem !== null, 'JSON reader should recover the nested task-list item from fixture');

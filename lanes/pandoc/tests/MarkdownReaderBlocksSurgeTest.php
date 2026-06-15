@@ -36,6 +36,61 @@ $listItemText = static function (AstNode $item) use ($inlineText): string {
     return trim(implode(' ', array_filter($parts, static fn (string $part): bool => $part !== '')));
 };
 
+$nodeSummary = static function (AstNode $node) use (&$nodeSummary, $inlineText, $listItemText): array {
+    $summary = ['type' => $node->type];
+    if ($node->type === 'text' || $node->type === 'paragraph') {
+        $summary['text'] = trim($inlineText($node));
+    } elseif ($node->type === 'heading') {
+        $summary['level'] = $node->attr('level');
+        $summary['text'] = (string) $node->attr('text', '');
+    } elseif ($node->type === 'code_block') {
+        $summary['text'] = (string) $node->attr('text', '');
+        $classes = $node->attr('classes', []);
+        if ($classes !== []) {
+            $summary['classes'] = $classes;
+        }
+    } elseif ($node->type === 'blockquote') {
+        $summary['text'] = trim($inlineText($node));
+    } elseif ($node->type === 'raw_html') {
+        $summary['html'] = (string) $node->attr('html', '');
+    } elseif ($node->type === 'div') {
+        $summary['text'] = trim($inlineText($node));
+        $classes = $node->attr('classes', []);
+        if ($classes !== []) {
+            $summary['classes'] = $classes;
+        }
+    } elseif ($node->type === 'line_block') {
+        $summary['lines'] = array_map(
+            static fn (AstNode $line): string => (string) $line->attr('text', ''),
+            $node->children
+        );
+    } elseif ($node->type === 'definition_list') {
+        $items = [];
+        foreach ($node->children as $item) {
+            $term = (string) $item->attr('term', '');
+            $definitions = [];
+            foreach ($item->children as $child) {
+                if ($child->type === 'definition') {
+                    $definitions[] = trim($inlineText($child));
+                }
+            }
+            $items[] = ['term' => $term, 'definitions' => $definitions];
+        }
+        $summary['items'] = $items;
+    } elseif ($node->type === 'bullet_list' || $node->type === 'ordered_list') {
+        $summary['items'] = array_map($listItemText, $node->children);
+        if ($node->type === 'ordered_list') {
+            $summary['start'] = $node->attr('start');
+            $summary['style'] = $node->attr('style');
+            $summary['delimiter'] = $node->attr('delimiter');
+        }
+    } elseif ($node->type === 'table') {
+        $summary['alignments'] = $node->attr('alignments', []);
+    }
+
+    return $summary;
+};
+
 $cases = [
     '01 dash bullet interrupts paragraph' => [
         'markdown' => "Lead\n- dash item",
@@ -669,6 +724,467 @@ foreach ($markers as $label => $case) {
         $item = $firstItem($t, $document, $case['list']);
 
         $t->same(['text', 'horizontal_rule'], $types($item));
+    };
+}
+
+$blockCases = [
+    '01 plus bullet opens with atx heading' => [
+        'markdown' => "+ # Import heading",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'heading', 'level' => 1, 'text' => 'Import heading'],
+        ],
+    ],
+    '02 task bullet opens with atx heading' => [
+        'markdown' => "- [ ] # Review task heading",
+        'listType' => 'bullet_list',
+        'taskList' => true,
+        'tasks' => [false],
+        'children' => [
+            ['type' => 'heading', 'level' => 1, 'text' => 'Review task heading'],
+        ],
+    ],
+    '03 decimal ordered opens with heading' => [
+        'markdown' => "1. ## Ordered heading",
+        'listType' => 'ordered_list',
+        'start' => 1,
+        'style' => 'decimal',
+        'delimiter' => 'period',
+        'children' => [
+            ['type' => 'heading', 'level' => 2, 'text' => 'Ordered heading'],
+        ],
+    ],
+    '04 default ordered opens with heading' => [
+        'markdown' => "#. ### Default heading",
+        'listType' => 'ordered_list',
+        'start' => 1,
+        'style' => 'default',
+        'delimiter' => 'default',
+        'children' => [
+            ['type' => 'heading', 'level' => 3, 'text' => 'Default heading'],
+        ],
+    ],
+    '05 numbered example opens with heading' => [
+        'markdown' => "(@) # Example heading",
+        'listType' => 'ordered_list',
+        'start' => 1,
+        'style' => 'example',
+        'delimiter' => 'two_parens',
+        'children' => [
+            ['type' => 'heading', 'level' => 1, 'text' => 'Example heading'],
+        ],
+    ],
+    '06 bullet opens with blockquote' => [
+        'markdown' => "- > quoted import",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'blockquote', 'text' => 'quoted import'],
+        ],
+    ],
+    '07 bullet opens with multiline blockquote' => [
+        'markdown' => "- > quoted\n  > continued",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'blockquote', 'text' => 'quoted continued'],
+        ],
+    ],
+    '08 ordered opens with blockquote' => [
+        'markdown' => "1. > ordered quote",
+        'listType' => 'ordered_list',
+        'start' => 1,
+        'style' => 'decimal',
+        'delimiter' => 'period',
+        'children' => [
+            ['type' => 'blockquote', 'text' => 'ordered quote'],
+        ],
+    ],
+    '09 checked task opens with blockquote' => [
+        'markdown' => "- [x] > checked quote",
+        'listType' => 'bullet_list',
+        'taskList' => true,
+        'tasks' => [true],
+        'children' => [
+            ['type' => 'blockquote', 'text' => 'checked quote'],
+        ],
+    ],
+    '10 nested bullet item opens with heading' => [
+        'markdown' => "- parent\n  - # Child heading",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'text', 'text' => 'parent'],
+            ['type' => 'bullet_list', 'items' => ['Child heading']],
+        ],
+    ],
+    '11 nested ordered item opens with blockquote' => [
+        'markdown' => "- parent\n  1. > Child quote",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'text', 'text' => 'parent'],
+            ['type' => 'ordered_list', 'items' => ['Child quote'], 'start' => 1, 'style' => 'decimal', 'delimiter' => 'period'],
+        ],
+    ],
+    '12 paragraph continues into heading block' => [
+        'markdown' => "- item\n  # Nested heading",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'text', 'text' => 'item'],
+            ['type' => 'heading', 'level' => 1, 'text' => 'Nested heading'],
+        ],
+    ],
+    '13 paragraph continues into blockquote block' => [
+        'markdown' => "- item\n  > nested quote",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'text', 'text' => 'item'],
+            ['type' => 'blockquote', 'text' => 'nested quote'],
+        ],
+    ],
+    '14 paragraph continues into fenced php code' => [
+        'markdown' => "- item\n  ```php\n  echo 1;\n  ```",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'text', 'text' => 'item'],
+            ['type' => 'code_block', 'text' => 'echo 1;', 'classes' => ['php']],
+        ],
+    ],
+    '15 bullet opens with fenced php code' => [
+        'markdown' => "- ```php\n  echo 1;\n  ```",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'code_block', 'text' => 'echo 1;', 'classes' => ['php']],
+        ],
+    ],
+    '16 bullet opens with tilde code attributes' => [
+        'markdown' => "- ~~~ {.php}\n  echo 2;\n  ~~~",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'code_block', 'text' => 'echo 2;', 'classes' => ['php']],
+        ],
+    ],
+    '17 ordered paragraph continues into tilde js code' => [
+        'markdown' => "1. item\n   ~~~ js\n   const ok = true;\n   ~~~",
+        'listType' => 'ordered_list',
+        'start' => 1,
+        'style' => 'decimal',
+        'delimiter' => 'period',
+        'children' => [
+            ['type' => 'text', 'text' => 'item'],
+            ['type' => 'code_block', 'text' => 'const ok = true;', 'classes' => ['js']],
+        ],
+    ],
+    '18 bullet loose item contains indented code block' => [
+        'markdown' => "- item\n\n      code",
+        'listType' => 'bullet_list',
+        'loose' => true,
+        'children' => [
+            ['type' => 'paragraph', 'text' => 'item'],
+            ['type' => 'code_block', 'text' => 'code'],
+        ],
+    ],
+    '19 ordered loose item contains indented code block' => [
+        'markdown' => "1. item\n\n       code",
+        'listType' => 'ordered_list',
+        'loose' => true,
+        'start' => 1,
+        'style' => 'decimal',
+        'delimiter' => 'period',
+        'children' => [
+            ['type' => 'paragraph', 'text' => 'item'],
+            ['type' => 'code_block', 'text' => 'code'],
+        ],
+    ],
+    '20 bullet paragraph continues into dash thematic break' => [
+        'markdown' => "- item\n\n  ---",
+        'listType' => 'bullet_list',
+        'loose' => true,
+        'children' => [
+            ['type' => 'paragraph', 'text' => 'item'],
+            ['type' => 'horizontal_rule'],
+        ],
+    ],
+    '21 bullet paragraph continues into star thematic break' => [
+        'markdown' => "- item\n  ***",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'text', 'text' => 'item'],
+            ['type' => 'horizontal_rule'],
+        ],
+    ],
+    '22 bullet paragraph continues into underscore thematic break' => [
+        'markdown' => "- item\n  ___",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'text', 'text' => 'item'],
+            ['type' => 'horizontal_rule'],
+        ],
+    ],
+    '23 bullet opens with fenced div' => [
+        'markdown' => "- ::: {.review}\n  body\n  :::",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'div', 'text' => 'body', 'classes' => ['review']],
+        ],
+    ],
+    '24 bullet paragraph continues into fenced div' => [
+        'markdown' => "- item\n  ::: {.review}\n  body\n  :::",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'text', 'text' => 'item'],
+            ['type' => 'div', 'text' => 'body', 'classes' => ['review']],
+        ],
+    ],
+    '25 bullet opens with section raw html' => [
+        'markdown' => "- <section>\n    *raw*\n  </section>",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'raw_html', 'html' => "<section>\n  *raw*\n</section>"],
+        ],
+    ],
+    '26 bullet opens with div html block' => [
+        'markdown' => "- <div>\n  body\n  </div>",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'div', 'text' => 'body'],
+        ],
+    ],
+    '27 bullet paragraph continues into aside raw html' => [
+        'markdown' => "- item\n  <aside>\n  note\n  </aside>",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'text', 'text' => 'item'],
+            ['type' => 'raw_html', 'html' => "<aside>\nnote\n</aside>"],
+        ],
+    ],
+    '28 bullet opens with raw html comment' => [
+        'markdown' => "- <!-- review -->",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'raw_html', 'html' => '<!-- review -->'],
+        ],
+    ],
+    '29 bullet opens with processing instruction raw html' => [
+        'markdown' => "- <?review instruction?>",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'raw_html', 'html' => '<?review instruction?>'],
+        ],
+    ],
+    '30 bullet opens with cdata raw html' => [
+        'markdown' => "- <![CDATA[review]]>",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'raw_html', 'html' => '<![CDATA[review]]>'],
+        ],
+    ],
+    '31 bullet opens with line block' => [
+        'markdown' => "- | line one\n  | line two",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'line_block', 'lines' => ['line one', 'line two']],
+        ],
+    ],
+    '32 bullet paragraph continues into line block' => [
+        'markdown' => "- item\n  | line one\n  | line two",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'text', 'text' => 'item'],
+            ['type' => 'line_block', 'lines' => ['line one', 'line two']],
+        ],
+    ],
+    '33 bullet opens with pipe table' => [
+        'markdown' => "- | A | B |\n  |---|---|\n  | 1 | 2 |",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'table', 'alignments' => ['default', 'default']],
+        ],
+    ],
+    '34 bullet paragraph continues into pipe table' => [
+        'markdown' => "- item\n  | A | B |\n  |---|---|\n  | 1 | 2 |",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'text', 'text' => 'item'],
+            ['type' => 'table', 'alignments' => ['default', 'default']],
+        ],
+    ],
+    '35 bullet opens with colon definition list' => [
+        'markdown' => "- Term\n  : Definition",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'definition_list', 'items' => [['term' => 'Term', 'definitions' => ['Definition']]]],
+        ],
+    ],
+    '36 bullet opens with tilde definition list' => [
+        'markdown' => "- Term\n  ~ Alternate definition",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'definition_list', 'items' => [['term' => 'Term', 'definitions' => ['Alternate definition']]]],
+        ],
+    ],
+    '37 bullet opens with loose definition list' => [
+        'markdown' => "- Term\n\n  : Loose definition",
+        'listType' => 'bullet_list',
+        'loose' => true,
+        'children' => [
+            ['type' => 'definition_list', 'items' => [['term' => 'Term', 'definitions' => ['Loose definition']]]],
+        ],
+    ],
+    '38 bullet paragraph followed by definition list' => [
+        'markdown' => "- intro\n\n  Term\n  : Definition",
+        'listType' => 'bullet_list',
+        'loose' => true,
+        'children' => [
+            ['type' => 'paragraph', 'text' => 'intro'],
+            ['type' => 'definition_list', 'items' => [['term' => 'Term', 'definitions' => ['Definition']]]],
+        ],
+    ],
+    '39 ordered item opens with definition list' => [
+        'markdown' => "1. Term\n   : Definition",
+        'listType' => 'ordered_list',
+        'start' => 1,
+        'style' => 'decimal',
+        'delimiter' => 'period',
+        'children' => [
+            ['type' => 'definition_list', 'items' => [['term' => 'Term', 'definitions' => ['Definition']]]],
+        ],
+    ],
+    '40 bullet paragraph continues into definition list after blank' => [
+        'markdown' => "- item\n\n  Term\n  ~ Alternate",
+        'listType' => 'bullet_list',
+        'loose' => true,
+        'children' => [
+            ['type' => 'paragraph', 'text' => 'item'],
+            ['type' => 'definition_list', 'items' => [['term' => 'Term', 'definitions' => ['Alternate']]]],
+        ],
+    ],
+    '41 unchecked task opens with fenced code' => [
+        'markdown' => "- [ ] ```\n  code\n  ```",
+        'listType' => 'bullet_list',
+        'taskList' => true,
+        'tasks' => [false],
+        'children' => [
+            ['type' => 'code_block', 'text' => 'code'],
+        ],
+    ],
+    '42 checked task paragraph continues into fenced code' => [
+        'markdown' => "- [x] task\n  ```\n  code\n  ```",
+        'listType' => 'bullet_list',
+        'taskList' => true,
+        'tasks' => [true],
+        'children' => [
+            ['type' => 'text', 'text' => 'task'],
+            ['type' => 'code_block', 'text' => 'code'],
+        ],
+    ],
+    '43 ordered paragraph continues into heading block' => [
+        'markdown' => "1. item\n   # Ordered nested heading",
+        'listType' => 'ordered_list',
+        'start' => 1,
+        'style' => 'decimal',
+        'delimiter' => 'period',
+        'children' => [
+            ['type' => 'text', 'text' => 'item'],
+            ['type' => 'heading', 'level' => 1, 'text' => 'Ordered nested heading'],
+        ],
+    ],
+    '44 upper alpha item opens with heading' => [
+        'markdown' => "A.  # Alpha heading",
+        'listType' => 'ordered_list',
+        'start' => 1,
+        'style' => 'upper_alpha',
+        'delimiter' => 'period',
+        'children' => [
+            ['type' => 'heading', 'level' => 1, 'text' => 'Alpha heading'],
+        ],
+    ],
+    '45 upper roman item opens with blockquote' => [
+        'markdown' => "I.  > Roman quote",
+        'listType' => 'ordered_list',
+        'start' => 1,
+        'style' => 'upper_roman',
+        'delimiter' => 'period',
+        'children' => [
+            ['type' => 'blockquote', 'text' => 'Roman quote'],
+        ],
+    ],
+    '46 parenthesized ordered item opens with fenced code' => [
+        'markdown' => "(1) ```\n    code\n    ```",
+        'listType' => 'ordered_list',
+        'start' => 1,
+        'style' => 'decimal',
+        'delimiter' => 'two_parens',
+        'children' => [
+            ['type' => 'code_block', 'text' => 'code'],
+        ],
+    ],
+    '47 default ordered paragraph continues into thematic break' => [
+        'markdown' => "#. item\n\n   ---",
+        'listType' => 'ordered_list',
+        'loose' => true,
+        'start' => 1,
+        'style' => 'default',
+        'delimiter' => 'default',
+        'children' => [
+            ['type' => 'paragraph', 'text' => 'item'],
+            ['type' => 'horizontal_rule'],
+        ],
+    ],
+    '48 numbered example paragraph continues into blockquote' => [
+        'markdown' => "(@) item\n    > example quote",
+        'listType' => 'ordered_list',
+        'start' => 1,
+        'style' => 'example',
+        'delimiter' => 'two_parens',
+        'children' => [
+            ['type' => 'text', 'text' => 'item'],
+            ['type' => 'blockquote', 'text' => 'example quote'],
+        ],
+    ],
+    '49 heading item keeps following nested bullet' => [
+        'markdown' => "- # Parent heading\n  - child",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'heading', 'level' => 1, 'text' => 'Parent heading'],
+            ['type' => 'bullet_list', 'items' => ['child']],
+        ],
+    ],
+    '50 heading item keeps following ordered child' => [
+        'markdown' => "- ## Parent heading\n  1. child",
+        'listType' => 'bullet_list',
+        'children' => [
+            ['type' => 'heading', 'level' => 2, 'text' => 'Parent heading'],
+            ['type' => 'ordered_list', 'items' => ['child'], 'start' => 1, 'style' => 'decimal', 'delimiter' => 'period'],
+        ],
+    ],
+];
+
+foreach ($blockCases as $name => $case) {
+    $tests['maps upstream markdown reader list-item block continuation surge ' . $name] = static function (TestRunner $t) use ($case, $nodeSummary): void {
+        $document = (new MarkdownReader())->read($case['markdown']);
+        $list = $document->children[0] ?? new AstNode('missing');
+        $item = $list->children[0] ?? new AstNode('missing');
+
+        $t->same($case['listType'], $list->type);
+        $t->same((bool) ($case['loose'] ?? false), (bool) $list->attr('loose'));
+        if (isset($case['start'])) {
+            $t->same($case['start'], $list->attr('start'));
+        }
+        if (isset($case['style'])) {
+            $t->same($case['style'], $list->attr('style'));
+        }
+        if (isset($case['delimiter'])) {
+            $t->same($case['delimiter'], $list->attr('delimiter'));
+        }
+        if (isset($case['taskList'])) {
+            $t->same($case['taskList'], (bool) $list->attr('taskList'));
+        }
+        if (isset($case['tasks'])) {
+            $t->same($case['tasks'], array_map(
+                static fn (AstNode $listItem): ?bool => $listItem->attr('taskChecked', null),
+                $list->children
+            ));
+        }
+
+        $t->same($case['children'], array_map($nodeSummary, $item->children));
     };
 }
 

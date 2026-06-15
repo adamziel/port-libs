@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 1,253 | 1,096 |
+| Markdown / CommonMark / GFM | 1,303 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,4 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` recognizes EOL list markers, blank-marker nesting/looseness, and tab-expanded indented code blocks while `MarkdownWriter` can force adaptive fenced code blocks and retains inline/link/escape hardening.
-
-Current Pandoc counters: 4,678 PHP passes / 0 failures and 4,668 mapped upstream cases. Verification passed after rebase: `php -l` for `MarkdownReader.php`, `MarkdownWriter.php`, `MarkdownWriterBlockListCodeSurgeTest.php`, `MarkdownWriterBlocksSurgeTest.php`, `MarkdownWriterInlinesSurgeTest.php`, `MarkdownWriterInlineSurgeTest.php`, `MarkdownReaderBlocksSurgeTest.php`, `MarkdownReaderMetadataRawExtensionSurgeTest.php`, and `MarkdownReaderTest.php`; focused Markdown block/list/code writer coverage passed 7 files, 9917 assertions, 0 failures; full `lanes/pandoc/tests` passed 59 files, 94599 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` preserves block-level list-item continuation payloads for headings, blockquotes, fenced and indented code, thematic breaks, fenced divs, raw HTML, line blocks, pipe tables, definition lists, task-list block payloads, nested list block starts, and ordered-marker variants.\n\nCurrent Pandoc counters: 4,954 PHP passes / 0 failures and 4,944 mapped upstream cases. Verification passed: `php -l` for `MarkdownReader.php`, `MarkdownReaderBlocksSurgeTest.php`, and `MarkdownReaderTest.php`; focused `MarkdownReaderBlocksSurgeTest.php` plus `MarkdownReaderTest.php` passed 2 files, 8969 assertions, 0 failures; full `lanes/pandoc/tests` passed 62 files, 96198 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.\n
