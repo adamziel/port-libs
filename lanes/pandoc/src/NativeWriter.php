@@ -2033,6 +2033,15 @@ final class NativeWriter
                 continue;
             }
 
+            if ($part['t'] === 'SoftBreak' || $part['t'] === 'LineBreak') {
+                if (array_key_exists('c', $part)) {
+                    return null;
+                }
+                $text .= ' ';
+                $normalized[] = $part;
+                continue;
+            }
+
             return null;
         }
 

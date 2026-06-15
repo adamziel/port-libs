@@ -2259,6 +2259,47 @@ return [
             ['t' => 'Str', 'c' => 'Edited text'],
         ], $editedJson['blocks'][0]['c']);
     },
+    'preserves native soft and line break text parts through json and native writers' => static function (TestRunner $t): void {
+        $nativeParts = [
+            ['t' => 'Str', 'c' => 'Alpha', 'reviewQueue' => 'alpha-source'],
+            ['t' => 'SoftBreak', 'reviewQueue' => 'soft-break-source'],
+            ['t' => 'Str', 'c' => 'Beta', 'reviewQueue' => 'beta-source'],
+            ['t' => 'LineBreak', 'reviewQueue' => 'line-break-source'],
+            ['t' => 'Str', 'c' => 'Gamma', 'reviewQueue' => 'gamma-source'],
+        ];
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', [
+                    'text' => 'Alpha Beta Gamma',
+                    'nativeInlineParts' => $nativeParts,
+                ]),
+            ]),
+        ]);
+
+        $packets = [
+            'json writer' => (new PandocJsonWriter())->toArray($document),
+            'native writer' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+        ];
+
+        foreach ($packets as $writer => $packet) {
+            $inlines = $packet['blocks'][0]['c'];
+
+            $t->same($nativeParts, $inlines, "{$writer} preserves text separator native parts");
+            $t->same('soft-break-source', $inlines[1]['reviewQueue'], "{$writer} keeps SoftBreak sidecar");
+            $t->same('line-break-source', $inlines[3]['reviewQueue'], "{$writer} keeps LineBreak sidecar");
+            $t->same(false, array_key_exists('c', $inlines[1]), "{$writer} keeps SoftBreak nullary");
+            $t->same(false, array_key_exists('c', $inlines[3]), "{$writer} keeps LineBreak nullary");
+        }
+
+        $roundTrips = [
+            'json reader' => (new PandocJsonReader())->readPacket($packets['json writer']),
+            'native reader' => (new NativeReader())->read(json_encode($packets['native writer'], JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($roundTrips as $source => $roundTrip) {
+            $t->same(['text', 'softbreak', 'text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $roundTrip->children[0]->children), "{$source} reads preserved separator constructors");
+        }
+    },
     'records pandoc constructor provenance on json and native helper ast nodes' => static function (TestRunner $t): void {
         $citationRecord = [
             'citationId' => 'source-a',
