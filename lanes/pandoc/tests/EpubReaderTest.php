@@ -567,6 +567,42 @@ return [
         $t->same($authoring, $result['document']->attr('metadata')['packageAuthoring']);
         $t->same($authoring, $result['document']->attr('package')['authoring']);
     },
+    'preserves OPF metadata container authoring attributes for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithMetadataAuthoring = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" xmlns:review="https://example.invalid/epub-review" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            $opfXml
+        );
+        $opfWithMetadataAuthoring = str_replace(
+            '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">',
+            '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" id="publication-metadata" xml:lang="es" dir="rtl" xml:base="https://example.invalid/metadata/" data-review="metadata-container" review:stage="source">',
+            $opfWithMetadataAuthoring
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithMetadataAuthoring));
+        $metadata = $result['metadata'];
+        $authoring = $metadata['metadataAuthoring'];
+
+        $t->same(true, $authoring['present']);
+        $t->same('es', $authoring['language']);
+        $t->same('rtl', $authoring['direction']);
+        $t->same('https://example.invalid/metadata/', $authoring['base']);
+        $t->same(6, $authoring['attributeCount']);
+        $t->same('publication-metadata', $authoring['attributes']['id']);
+        $t->same('es', $authoring['attributes']['xml:lang']);
+        $t->same('rtl', $authoring['attributes']['dir']);
+        $t->same('https://example.invalid/metadata/', $authoring['attributes']['xml:base']);
+        $t->same(['data-review' => 'metadata-container', 'review:stage' => 'source'], $authoring['customAttributes']);
+        $t->same(4, $authoring['structuralAttributeCount']);
+        $t->same(2, $authoring['customAttributeCount']);
+        $t->same(true, $authoring['baseResolution']['metadataOnly']);
+        $t->same(false, $authoring['baseResolution']['appliesToPackagePaths']);
+        $t->same('reported-not-applied-to-package-paths', $authoring['baseResolutionPolicy']);
+        $t->same('es', $metadata['dc']['title'][0]['language']);
+        $t->same('rtl', $metadata['dc']['title'][0]['direction']);
+        $t->same($authoring, $result['importReport']['metadata']['metadataAuthoring']);
+        $t->same($authoring, $result['document']->attr('metadata')['metadataAuthoring']);
+    },
     'reports OCF container links with package targets and diagnostics' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $containerRecord = '{"source":"wordpress-export","kind":"epub-container-link"}';
         $containerXml = <<<'XML'
