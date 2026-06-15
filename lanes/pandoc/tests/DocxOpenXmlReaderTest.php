@@ -4566,6 +4566,92 @@ XML;
         $t->same(false, $settings['savePolicy']['embedSystemFonts']);
         $t->same(true, $settings['savePolicy']['saveSubsetFonts']);
     },
+    'summarizes docx settings document variables for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?vars=review#docVars"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars>
+    <w:docVar w:name="ReviewBatch" w:val="draft"/>
+    <w:docVar w:name="Department" w:val="Editorial"/>
+    <w:docVar w:name="ReviewBatch" w:val="final"/>
+    <w:docVar w:val="missing-name"/>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $settings = $docx['settings'];
+        $details = $settings['documentVariableDetails'];
+        $summary = $docx['packageProvenance']['summary'];
+        $selectedSettings = $docx['packageProvenance']['selectedXmlParts']['byKind']['settings'];
+
+        $t->same('word/settings.xml', $docx['settingsPart']);
+        $t->same('settings.xml?vars=review#docVars', $docx['settingsRelationship']['target']);
+        $t->same('vars=review', $docx['settingsRelationship']['targetQuery']);
+        $t->same('docVars', $docx['settingsRelationship']['targetFragment']);
+        $t->same('settings', $selectedSettings['rootLocalName']);
+
+        $t->same(['ReviewBatch' => 'final', 'Department' => 'Editorial'], $settings['documentVariables']);
+        $t->same(4, $details['count']);
+        $t->same(3, $details['namedCount']);
+        $t->same(1, $details['emptyNameCount']);
+        $t->same(1, $details['duplicateNameCount']);
+        $t->same(['ReviewBatch'], $details['duplicateNames']);
+        $t->same(3, $details['issueCount']);
+        $t->same(['duplicate-name', 'missing-name'], $details['issueCodes']);
+        $t->same(['ReviewBatch' => 'final', 'Department' => 'Editorial'], $details['byName']);
+
+        $first = $details['items'][0];
+        $second = $details['items'][1];
+        $third = $details['items'][2];
+        $missingName = $details['items'][3];
+
+        $t->same(0, $first['index']);
+        $t->same('ReviewBatch', $first['name']);
+        $t->same('draft', $first['value']);
+        $t->same(5, $first['valueLength']);
+        $t->same(hash('sha256', 'draft'), $first['valueSha256']);
+        $t->same(true, $first['duplicateName']);
+        $t->same(['duplicate-name'], $first['issues']);
+
+        $t->same('Department', $second['name']);
+        $t->same('Editorial', $second['value']);
+        $t->same(false, $second['duplicateName']);
+        $t->same([], $second['issues']);
+
+        $t->same(2, $third['index']);
+        $t->same('ReviewBatch', $third['name']);
+        $t->same('final', $third['value']);
+        $t->same(true, $third['duplicateName']);
+        $t->same(['duplicate-name'], $third['issues']);
+
+        $t->same('', $missingName['name']);
+        $t->same('missing-name', $missingName['value']);
+        $t->same(false, $missingName['duplicateName']);
+        $t->same(['missing-name'], $missingName['issues']);
+
+        $t->same(4, $summary['settingsDocumentVariableCount']);
+        $t->same(3, $summary['settingsDocumentVariableNamedCount']);
+        $t->same(1, $summary['settingsDocumentVariableEmptyNameCount']);
+        $t->same(1, $summary['settingsDocumentVariableDuplicateNameCount']);
+        $t->same(['ReviewBatch'], $summary['settingsDocumentVariableDuplicateNames']);
+        $t->same(3, $summary['settingsDocumentVariableIssueCount']);
+        $t->same(['duplicate-name', 'missing-name'], $summary['settingsDocumentVariableIssueCodes']);
+    },
     'preflights docx font table embedded font package relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $fontKey = '{00112233-4455-6677-8899-AABBCCDDEEFF}';

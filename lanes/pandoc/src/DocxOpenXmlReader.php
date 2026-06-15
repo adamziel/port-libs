@@ -532,6 +532,16 @@ final class DocxOpenXmlReader
                 $packageProvenance['summary']['mailMergeRecipientDataIssueCount'] = count($recipientData['issues'] ?? []);
             }
         }
+        $documentVariableDetails = $settings['documentVariableDetails'] ?? null;
+        if (is_array($documentVariableDetails)) {
+            $packageProvenance['summary']['settingsDocumentVariableCount'] = (int) ($documentVariableDetails['count'] ?? 0);
+            $packageProvenance['summary']['settingsDocumentVariableNamedCount'] = (int) ($documentVariableDetails['namedCount'] ?? 0);
+            $packageProvenance['summary']['settingsDocumentVariableEmptyNameCount'] = (int) ($documentVariableDetails['emptyNameCount'] ?? 0);
+            $packageProvenance['summary']['settingsDocumentVariableDuplicateNameCount'] = (int) ($documentVariableDetails['duplicateNameCount'] ?? 0);
+            $packageProvenance['summary']['settingsDocumentVariableDuplicateNames'] = $documentVariableDetails['duplicateNames'] ?? [];
+            $packageProvenance['summary']['settingsDocumentVariableIssueCount'] = (int) ($documentVariableDetails['issueCount'] ?? 0);
+            $packageProvenance['summary']['settingsDocumentVariableIssueCodes'] = $documentVariableDetails['issueCodes'] ?? [];
+        }
         $packageProvenance['chartParts'] = $chartParts;
         $packageProvenance['summary']['chartPartCount'] = $chartParts['count'];
         $packageProvenance['summary']['chartPartRelationshipCount'] = $chartParts['relationshipCount'];
@@ -9850,15 +9860,12 @@ final class DocxOpenXmlReader
             $settings['compatibility'] = $compatibility;
         }
 
-        $documentVariables = [];
-        foreach ($this->elements($xpath, '/w:settings/w:docVars/w:docVar') as $variable) {
-            $name = $variable->getAttributeNS(self::NS_W, 'name');
-            if ($name !== '') {
-                $documentVariables[$name] = $variable->getAttributeNS(self::NS_W, 'val');
-            }
+        $documentVariables = $this->readSettingsDocumentVariables($xpath, $dom);
+        if ($documentVariables['byName'] !== []) {
+            $settings['documentVariables'] = $documentVariables['byName'];
         }
-        if ($documentVariables !== []) {
-            $settings['documentVariables'] = $documentVariables;
+        if ($documentVariables['items'] !== []) {
+            $settings['documentVariableDetails'] = $documentVariables;
         }
 
         $mailMerge = $this->readMailMergeSettings(
@@ -9874,6 +9881,77 @@ final class DocxOpenXmlReader
         }
 
         return $settings;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readSettingsDocumentVariables(\DOMXPath $xpath, \DOMDocument $dom): array
+    {
+        $items = [];
+        $byName = [];
+        $nameCounts = [];
+
+        foreach ($this->elements($xpath, '/w:settings/w:docVars/w:docVar', $dom) as $variable) {
+            $name = $variable->getAttributeNS(self::NS_W, 'name');
+            $value = $variable->getAttributeNS(self::NS_W, 'val');
+            $item = [
+                'index' => count($items),
+                'name' => $name,
+                'value' => $value,
+                'valueLength' => strlen($value),
+                'valueSha256' => hash('sha256', $value),
+                'issues' => [],
+            ];
+
+            if ($name === '') {
+                $item['issues'][] = 'missing-name';
+            } else {
+                $byName[$name] = $value;
+                $nameCounts[$name] = ($nameCounts[$name] ?? 0) + 1;
+            }
+
+            $items[] = $item;
+        }
+
+        $duplicateNames = [];
+        foreach ($nameCounts as $name => $count) {
+            if ($count > 1) {
+                $duplicateNames[] = $name;
+            }
+        }
+        sort($duplicateNames, SORT_STRING);
+
+        $duplicateLookup = array_fill_keys($duplicateNames, true);
+        $issueCodes = [];
+        $issueCount = 0;
+        foreach ($items as &$item) {
+            $name = $item['name'];
+            $item['duplicateName'] = is_string($name) && isset($duplicateLookup[$name]);
+            if ($item['duplicateName']) {
+                $item['issues'][] = 'duplicate-name';
+            }
+            if ($item['issues'] !== []) {
+                ++$issueCount;
+                foreach ($item['issues'] as $issue) {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        unset($item);
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'namedCount' => count(array_filter($items, static fn (array $item): bool => $item['name'] !== '')),
+            'emptyNameCount' => count(array_filter($items, static fn (array $item): bool => $item['name'] === '')),
+            'duplicateNameCount' => count($duplicateNames),
+            'duplicateNames' => $duplicateNames,
+            'issueCount' => $issueCount,
+            'issueCodes' => array_keys($issueCodes),
+            'items' => $items,
+            'byName' => $byName,
+        ];
     }
 
     /**
