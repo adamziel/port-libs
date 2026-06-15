@@ -45,6 +45,9 @@ final class EpubPackageReader
                 'uniqueIdentifierId' => $package['uniqueIdentifierId'],
                 'packageReport' => $package['packageReport'],
                 'identityReport' => $package['packageReport'],
+                'packagePrefixReport' => $package['packageReport']['prefixReport'],
+                'packagePrefixBindings' => $package['packageReport']['prefixBindings'],
+                'packagePrefixDiagnostics' => $package['packageReport']['prefixDiagnostics'],
                 'uniqueIdentifier' => $package['packageReport']['uniqueIdentifier'],
                 'identifierDetails' => $package['packageReport']['identifierDetails'],
                 'identifierSummary' => $package['packageReport']['identifierSummary'],
@@ -376,6 +379,7 @@ final class EpubPackageReader
         if ($xmlBase === '') {
             $xmlBase = trim($packageElement->getAttribute('xml:base'));
         }
+        $prefixReport = $this->packagePrefixReport($packageElement->hasAttribute('prefix') ? $packageElement->getAttribute('prefix') : '');
 
         $identifierDetails = $this->metadataIdentifierDetails(
             $metadataItems,
@@ -385,6 +389,7 @@ final class EpubPackageReader
         $uniqueIdentifier = $this->metadataUniqueIdentifierReport($uniqueIdentifierId, $identifierDetails, true);
         $identifierSummary = $this->metadataIdentifierSummary($identifierDetails, $uniqueIdentifier);
         $identifierDiagnostics = array_merge($uniqueIdentifier['diagnostics'], $identifierSummary['diagnostics']);
+        $packageDiagnostics = array_merge($identifierDiagnostics, $prefixReport['diagnostics']);
 
         return [
             'present' => true,
@@ -395,12 +400,20 @@ final class EpubPackageReader
             'direction' => $this->nullableAttribute($packageElement, 'dir'),
             'xmlBase' => $xmlBase === '' ? null : $xmlBase,
             'prefix' => $this->nullableAttribute($packageElement, 'prefix'),
+            'prefixReport' => $prefixReport,
+            'prefixDeclarations' => $prefixReport['bindings'],
+            'prefixBindings' => $prefixReport['bindingsByPrefix'],
+            'prefixDiagnosticCount' => count($prefixReport['diagnostics']),
+            'prefixDiagnostics' => $prefixReport['diagnostics'],
+            'prefixValid' => $prefixReport['diagnostics'] === [],
             'uniqueIdentifier' => $uniqueIdentifier,
             'identifierDetails' => $identifierDetails,
             'identifierSummary' => $identifierSummary,
             'identifierDiagnosticCount' => count($identifierDiagnostics),
             'identifierDiagnostics' => $identifierDiagnostics,
-            'valid' => $identifierDiagnostics === [],
+            'packageDiagnosticCount' => count($packageDiagnostics),
+            'packageDiagnostics' => $packageDiagnostics,
+            'valid' => $packageDiagnostics === [],
             'summary' => [
                 'version' => $version,
                 'uniqueIdentifierId' => $uniqueIdentifierId === '' ? null : $uniqueIdentifierId,
@@ -408,8 +421,83 @@ final class EpubPackageReader
                 'selectedIdentifier' => $uniqueIdentifier['value'],
                 'selectedBy' => $uniqueIdentifier['selectedBy'],
                 'identifierDiagnosticCount' => count($identifierDiagnostics),
-                'valid' => $identifierDiagnostics === [],
+                'prefixDeclarationCount' => count($prefixReport['bindings']),
+                'prefixBindingCount' => count($prefixReport['bindingsByPrefix']),
+                'prefixDiagnosticCount' => count($prefixReport['diagnostics']),
+                'packageDiagnosticCount' => count($packageDiagnostics),
+                'valid' => $packageDiagnostics === [],
             ],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     raw:string,
+     *     declarationCount:int,
+     *     bindingCount:int,
+     *     bindings:list<array{index:int, prefix:string, iri:string}>,
+     *     bindingsByPrefix:array<string, string>,
+     *     valid:bool,
+     *     diagnosticCount:int,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private function packagePrefixReport(string $raw): array
+    {
+        $value = trim($raw);
+        $bindings = [];
+        $bindingsByPrefix = [];
+        $diagnostics = [];
+
+        $offset = 0;
+        $length = strlen($value);
+        while ($offset < $length) {
+            $offset += strspn($value, " \t\r\n", $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $segment = substr($value, $offset);
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9._-]*):[ \t\r\n]+([^ \t\r\n]+)/', $segment, $match) !== 1) {
+                $diagnostics[] = [
+                    'type' => 'invalid-package-prefix-declaration',
+                    'offset' => $offset,
+                    'value' => $segment,
+                    'message' => 'EPUB OPF prefix declarations must be prefix: IRI pairs separated by whitespace',
+                ];
+                break;
+            }
+
+            $prefix = $match[1];
+            $iri = $match[2];
+            if (isset($bindingsByPrefix[$prefix])) {
+                $diagnostics[] = [
+                    'type' => 'duplicate-package-prefix-declaration',
+                    'prefix' => $prefix,
+                    'previousIri' => $bindingsByPrefix[$prefix],
+                    'iri' => $iri,
+                    'message' => 'EPUB OPF prefix declaration repeats a prefix; later binding is retained',
+                ];
+            }
+
+            $bindingsByPrefix[$prefix] = $iri;
+            $bindings[] = [
+                'index' => count($bindings),
+                'prefix' => $prefix,
+                'iri' => $iri,
+            ];
+            $offset += strlen($match[0]);
+        }
+
+        return [
+            'raw' => $value,
+            'declarationCount' => count($bindings),
+            'bindingCount' => count($bindingsByPrefix),
+            'bindings' => $bindings,
+            'bindingsByPrefix' => $bindingsByPrefix,
+            'valid' => $diagnostics === [],
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
         ];
     }
 

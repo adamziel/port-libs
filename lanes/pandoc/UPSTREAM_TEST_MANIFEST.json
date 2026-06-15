@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3675,
-        "latestSlice": "pandoc-json-native-single-wrapped-target-tuples maps one Pandoc JSON/native AST target tuple sidecar case after rebase onto current main 9f2dd9a0fd. PandocJsonReader and NativeReader accept single-wrapped Link and Image target tuples while preserving the original wrapped targetNative sidecar; PandocJsonWriter and NativeWriter reuse unchanged wrapped target sidecars and regenerate canonical direct target tuples after URL/title edits without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3637 -> 3638, phpFail remains 0, mapped upstream cases move 3674 -> 3675, mappedJsonNativeTargetTupleSidecarCases moves 1 -> 2, and jsonNativeTargetTupleSidecarAssertions moves 24 -> 52. Verification passed php -l for PandocJsonReader.php, NativeReader.php, PandocJsonWriter.php, NativeWriter.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php passed 1 file, 4197 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85622 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+        "mapped": 3676,
+        "latestSlice": "pandoc-epub-reader-prefix-report maps one EPUB reader package prefix report case after rebase onto current main d9a52ded95. EpubPackageReader now exposes normalized OPF package prefix declarations, retained prefix bindings, duplicate-prefix diagnostics, malformed declaration diagnostics, and package-level prefix aliases without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3638 -> 3639, phpFail remains 0, mapped upstream cases move 3675 -> 3676, mappedEpubReaderPackagePrefixCases = 1, and epubReaderPackagePrefixAssertions = 32. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php passed 1 file, 1074 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85654 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "Pandoc JSON/native single-wrapped target tuple sidecars are verified after rebase onto current main 9f2dd9a0fd; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-15 Pandoc JSON/native single-wrapped target tuple sidecars verified after rebase onto current main 9f2dd9a0fd; focused PandocJsonNativeAstTest.php passed 1 file, 4197 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85622 assertions, 0 failures.",
+        "status": "EPUB reader package prefix report is verified after rebase onto current main d9a52ded95; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-15 EPUB reader package prefix report verified after rebase onto current main d9a52ded95; focused EpubPackageReaderTest.php passed 1 file, 1074 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85654 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -497,7 +497,9 @@
         "mappedJsonNativeTextSeparatorSidecarCases": 1,
         "jsonNativeTextSeparatorSidecarAssertions": 12,
         "mappedOdfScriptPackageMediaTypeMismatchCases": 1,
-        "odfScriptPackageMediaTypeMismatchAssertions": 37
+        "odfScriptPackageMediaTypeMismatchAssertions": 37,
+        "mappedEpubReaderPackagePrefixCases": 1,
+        "epubReaderPackagePrefixAssertions": 32
     },
     "benchmarkDenominator": {
         "status": "Pandoc JSON/native single-wrapped target tuple sidecars are verified after rebase onto current main 9f2dd9a0fd; phpFail remains 0.",
@@ -1508,12 +1510,12 @@
         "mappedZipCreatorVersionHostMatrixCases": 5,
         "zipCreatorVersionHostMatrixAssertions": 36
     },
-    "wordpressScenario": "EPUB reader metadata reports preserve OPF metadata item kinds, refinement properties, and local/external metadata links for WordPress import review packets.",
+    "wordpressScenario": "EPUB reader package reports preserve OPF prefix declaration bindings and diagnostics for WordPress import review packets.",
     "nextTask": "Continue bounded shared ZIP/OPC, DOCX/OpenXML, EPUB3, ODF/ODT, JSON/native-AST, CSL, XML/HTML, wiki/roff/text, or PDF/Typst blocker slices while keeping phpFail at zero.",
-    "status": "EPUB reader metadata report is verified after rebase onto current main f1ed2bae74; phpFail remains 0.",
-    "mapping": "Adds eight bounded native PHP EPUB reader metadata report mappings on top of the current JSON/native, EPUB3, ODF/ODT, shared ZIP/OPC, DOCX/OpenXML, CSL, XML/HTML, PDF/Typst, and text-format counters.",
+    "status": "EPUB reader package prefix report is verified after rebase onto current main d9a52ded95; phpFail remains 0.",
+    "mapping": "Adds one bounded native PHP EPUB reader package prefix report mapping on top of the current JSON/native, EPUB3, ODF/ODT, shared ZIP/OPC, DOCX/OpenXML, CSL, XML/HTML, PDF/Typst, and text-format counters.",
     "audit": "updated 2026-06-15: pandoc-epub-collection-hierarchy-report maps one EPUB3 OPF collection hierarchy case after rebase onto current main c4d82f0785. EpubPackage now emits collectionHierarchy plus WordPress import hierarchy items/diagnostics and compact collection path/depth/role/link rollups for nested OPF collections without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3623 -> 3624, phpFail remains 0, mapped upstream cases move 3635 -> 3636, mappedEpubCollectionHierarchyCases = 1, and epubCollectionHierarchyAssertions = 45. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2550 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85057 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
-    "latestSlice": "pandoc-epub-reader-metadata-report maps eight EPUB reader metadata report cases after rebase onto current main f1ed2bae74. EpubPackageReader now exposes OPF metadataItems plus metadataReport summaries for item kinds, IDs, languages, directions, schemes, roles, file-as names, refinement properties, and local/external metadata links without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3627 -> 3628, phpFail remains 0, mapped upstream cases move 3649 -> 3657, mappedEpubReaderMetadataReportCases = 8, and epubReaderMetadataReportAssertions = 46. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php passed 1 file, 992 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85261 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+    "latestSlice": "pandoc-epub-reader-prefix-report maps one EPUB reader package prefix report case after rebase onto current main d9a52ded95. EpubPackageReader now exposes normalized OPF package prefix declarations, retained prefix bindings, duplicate-prefix diagnostics, malformed declaration diagnostics, and package-level prefix aliases without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3638 -> 3639, phpFail remains 0, mapped upstream cases move 3675 -> 3676, mappedEpubReaderPackagePrefixCases = 1, and epubReaderPackagePrefixAssertions = 32. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php passed 1 file, 1074 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85654 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
     "mappedXmlHtmlDomOutputForReferenceCases": 1,
     "xmlHtmlDomOutputForReferenceAssertions": 41,
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
@@ -1681,7 +1683,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-15 EPUB reader metadata report verified after rebase onto current main f1ed2bae74; focused EpubPackageReaderTest.php passed 1 file, 992 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85261 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-15 EPUB reader package prefix report verified after rebase onto current main d9a52ded95; focused EpubPackageReaderTest.php passed 1 file, 1074 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85654 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -2138,5 +2140,7 @@
     "mappedEpubReaderMetadataReportCases": 8,
     "epubReaderMetadataReportAssertions": 46,
     "mappedEpubResourcePropertyZipProvenanceCases": 1,
-    "epubResourcePropertyZipProvenanceAssertions": 30
+    "epubResourcePropertyZipProvenanceAssertions": 30,
+    "mappedEpubReaderPackagePrefixCases": 1,
+    "epubReaderPackagePrefixAssertions": 32
 }

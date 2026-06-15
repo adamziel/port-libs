@@ -314,6 +314,90 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports epub opf package prefix declarations for reader review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-prefix-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:base="OPS/" prefix="schema: https://schema.org/ review: https://example.invalid/review# schema: https://schema.example/ broken-token">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:reader-prefix-report</dc:identifier>
+    <dc:title>Reader Prefix Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable prefix package.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $packageReport = $epub['packageReport'];
+            $prefixReport = $packageReport['prefixReport'];
+
+            $t->same('OPS/', $packageReport['xmlBase']);
+            $t->same('schema: https://schema.org/ review: https://example.invalid/review# schema: https://schema.example/ broken-token', $packageReport['prefix']);
+            $t->same($prefixReport, $epub['packagePrefixReport']);
+            $t->same(3, $prefixReport['declarationCount']);
+            $t->same(2, $prefixReport['bindingCount']);
+            $t->same(false, $prefixReport['valid']);
+            $t->same(2, $prefixReport['diagnosticCount']);
+            $t->same('schema', $prefixReport['bindings'][0]['prefix']);
+            $t->same('https://schema.org/', $prefixReport['bindings'][0]['iri']);
+            $t->same('review', $prefixReport['bindings'][1]['prefix']);
+            $t->same('https://example.invalid/review#', $prefixReport['bindings'][1]['iri']);
+            $t->same('schema', $prefixReport['bindings'][2]['prefix']);
+            $t->same('https://schema.example/', $prefixReport['bindings'][2]['iri']);
+            $t->same([
+                'schema' => 'https://schema.example/',
+                'review' => 'https://example.invalid/review#',
+            ], $prefixReport['bindingsByPrefix']);
+            $t->same($prefixReport['bindingsByPrefix'], $packageReport['prefixBindings']);
+            $t->same($prefixReport['bindingsByPrefix'], $epub['packagePrefixBindings']);
+            $t->same(['duplicate-package-prefix-declaration', 'invalid-package-prefix-declaration'], array_column($prefixReport['diagnostics'], 'type'));
+            $t->same('schema', $prefixReport['diagnostics'][0]['prefix']);
+            $t->same('https://schema.org/', $prefixReport['diagnostics'][0]['previousIri']);
+            $t->same('https://schema.example/', $prefixReport['diagnostics'][0]['iri']);
+            $t->true(str_starts_with($prefixReport['diagnostics'][1]['value'], 'broken-token'), 'Invalid prefix declaration tail is preserved');
+            $t->same(2, $packageReport['prefixDiagnosticCount']);
+            $t->same(false, $packageReport['prefixValid']);
+            $t->same($prefixReport['diagnostics'], $packageReport['prefixDiagnostics']);
+            $t->same($prefixReport['diagnostics'], $epub['packagePrefixDiagnostics']);
+            $t->same(['duplicate-package-prefix-declaration', 'invalid-package-prefix-declaration'], array_column($packageReport['packageDiagnostics'], 'type'));
+            $t->same(2, $packageReport['packageDiagnosticCount']);
+            $t->same(3, $packageReport['summary']['prefixDeclarationCount']);
+            $t->same(2, $packageReport['summary']['prefixBindingCount']);
+            $t->same(2, $packageReport['summary']['prefixDiagnosticCount']);
+            $t->same(2, $packageReport['summary']['packageDiagnosticCount']);
+            $t->same(false, $packageReport['summary']['valid']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub guide references for compact package review' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $epub = $document->attr('epub');
