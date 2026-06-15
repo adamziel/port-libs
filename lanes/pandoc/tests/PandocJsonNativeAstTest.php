@@ -7819,6 +7819,208 @@ return [
             }
         }
     },
+    'maps json native helper constructor variant completeness through reader writer stacks' => static function (TestRunner $t): void {
+        $listCases = [
+            'default list helpers' => [
+                'styleNative' => ['t' => 'DefaultStyle'],
+                'delimiterNative' => ['t' => 'DefaultDelim'],
+                'style' => 'default',
+                'delimiter' => 'default',
+            ],
+            'decimal period list helpers' => [
+                'styleNative' => ['t' => 'Decimal'],
+                'delimiterNative' => ['t' => 'Period'],
+                'style' => 'decimal',
+                'delimiter' => 'period',
+            ],
+            'example two-parens list helpers' => [
+                'styleNative' => ['t' => 'Example'],
+                'delimiterNative' => ['t' => 'TwoParens'],
+                'style' => 'example',
+                'delimiter' => 'two_parens',
+            ],
+            'lower-roman one-paren list helpers' => [
+                'styleNative' => ['t' => 'LowerRoman'],
+                'delimiterNative' => ['t' => 'OneParen'],
+                'style' => 'lower_roman',
+                'delimiter' => 'one_paren',
+            ],
+            'upper-roman period list helpers' => [
+                'styleNative' => ['t' => 'UpperRoman'],
+                'delimiterNative' => ['t' => 'Period'],
+                'style' => 'upper_roman',
+                'delimiter' => 'period',
+            ],
+            'lower-alpha default-delim list helpers' => [
+                'styleNative' => ['t' => 'LowerAlpha'],
+                'delimiterNative' => ['t' => 'DefaultDelim'],
+                'style' => 'lower_alpha',
+                'delimiter' => 'default',
+            ],
+            'upper-alpha one-paren list helpers' => [
+                'styleNative' => ['t' => 'UpperAlpha'],
+                'delimiterNative' => ['t' => 'OneParen'],
+                'style' => 'upper_alpha',
+                'delimiter' => 'one_paren',
+            ],
+        ];
+
+        foreach ($listCases as $caseName => $case) {
+            $packet = [
+                'pandoc-api-version' => [1, 23, 1],
+                'meta' => [],
+                'blocks' => [
+                    ['t' => 'OrderedList', 'c' => [
+                        [3, $case['styleNative'], $case['delimiterNative']],
+                        [[
+                            ['t' => 'Plain', 'c' => [
+                                ['t' => 'Str', 'c' => $caseName],
+                            ]],
+                        ]],
+                    ]],
+                ],
+            ];
+
+            foreach ([
+                'json' => (new PandocJsonReader())->readPacket($packet),
+                'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+            ] as $source => $document) {
+                $list = $document->children[0];
+                $jsonPacket = (new PandocJsonWriter())->toArray($document);
+                $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+                $label = "{$caseName} {$source}";
+
+                $t->same('ordered_list', $list->type, "{$label} shared AST list type");
+                $t->same($case['style'], $list->attr('style'), "{$label} list style value");
+                $t->same($case['delimiter'], $list->attr('delimiter'), "{$label} list delimiter value");
+                $t->same($case['styleNative'], $list->attr('listStyleNative'), "{$label} list style native helper");
+                $t->same($case['delimiterNative'], $list->attr('listDelimiterNative'), "{$label} list delimiter native helper");
+                $t->same($packet['blocks'], $jsonPacket['blocks'], "{$label} JSON writer preserves list helpers");
+                $t->same($packet['blocks'], $nativePacket['blocks'], "{$label} native writer preserves list helpers");
+            }
+        }
+
+        $tablePacket = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [[
+                't' => 'Table',
+                'c' => [
+                    ['variant-table', ['constructor-variant'], [['data-kind', 'helper-matrix']]],
+                    ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                    [
+                        [
+                            ['t' => 'AlignDefault'],
+                            ['t' => 'ColWidthDefault'],
+                        ],
+                        [
+                            ['t' => 'AlignLeft'],
+                            ['t' => 'ColWidth', 'c' => 0.25],
+                        ],
+                        [
+                            ['t' => 'AlignRight'],
+                            ['t' => 'ColWidth', 'c' => [0.5]],
+                        ],
+                        [
+                            ['t' => 'AlignCenter'],
+                            ['t' => 'ColWidth', 'c' => 0.75],
+                        ],
+                    ],
+                    ['t' => 'TableHead', 'c' => [
+                        ['', [], []],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 4],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Head']]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                    [[
+                        't' => 'TableBody',
+                        'c' => [
+                            ['', [], []],
+                            ['t' => 'RowHeadColumns', 'c' => [2]],
+                            [[
+                                't' => 'Row',
+                                'c' => [
+                                    ['', [], []],
+                                    [
+                                        ['t' => 'Cell', 'c' => [
+                                            ['', [], []],
+                                            ['t' => 'AlignRight'],
+                                            ['t' => 'RowSpan', 'c' => [1]],
+                                            ['t' => 'ColSpan', 'c' => [1]],
+                                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Subhead']]]],
+                                        ]],
+                                    ],
+                                ],
+                            ]],
+                            [[
+                                't' => 'Row',
+                                'c' => [
+                                    ['', [], []],
+                                    [
+                                        ['t' => 'Cell', 'c' => [
+                                            ['', [], []],
+                                            ['t' => 'AlignLeft'],
+                                            ['t' => 'RowSpan', 'c' => 2],
+                                            ['t' => 'ColSpan', 'c' => 2],
+                                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Body']]]],
+                                        ]],
+                                    ],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                    ['t' => 'TableFoot', 'c' => [
+                        ['', [], []],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignCenter'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Foot']]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+            ]],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($tablePacket),
+            'native' => (new NativeReader())->read(json_encode($tablePacket, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $table = $document->children[0];
+            $body = $table->children[1];
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('table', $table->type, "{$source} table helper matrix shared AST type");
+            $t->same(['default', 'left', 'right', 'center'], $table->attr('alignments'), "{$source} table alignment variants");
+            $t->same([null, 0.25, 0.5, 0.75], $table->attr('widths'), "{$source} table width variants");
+            $t->same(['AlignDefault', 'AlignLeft', 'AlignRight', 'AlignCenter'], $table->attr('alignmentConstructors'), "{$source} table alignment constructors");
+            $t->same(['ColWidthDefault', 'ColWidth', 'ColWidth', 'ColWidth'], $table->attr('columnWidthConstructors'), "{$source} table width constructors");
+            $t->same(2, $body->attr('rowHeadColumns'), "{$source} table row-head helper value");
+            $t->same(['t' => 'RowHeadColumns', 'c' => [2]], $body->attr('rowHeadColumnsNative'), "{$source} table row-head helper native");
+            $t->same($tablePacket['blocks'], $jsonPacket['blocks'], "{$source} JSON writer preserves table helper variants");
+            $t->same($tablePacket['blocks'], $nativePacket['blocks'], "{$source} native writer preserves table helper variants");
+        }
+    },
     'flushes mixed inline children inside block containers for json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

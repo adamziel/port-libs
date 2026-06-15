@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3612,
-        "latestSlice": "pandoc-typst-boundary-provenance-matrix maps eight additional PDF/Typst boundary matrix cases after rebase onto current main 7d36cbcc8. PdfEngineHandoff now emits matrix cases for font-path policy, input variable overrides, font access controls, execution jobs, sidecar outputs, diagnostic output, creation timestamps, and open-output side effects while keeping fake-run dependency/read/package/warning provenance native PHP-only without invoking Pandoc, Typst, TeX/PDF engines, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3610 -> 3618, phpFail remains 0, mapped upstream cases move 3604 -> 3612, mappedTypstBoundaryMatrixCases moves 10 -> 18, and typstBoundaryMatrixAssertions moves 26 -> 41. Verification passed php -l for PdfEngineHandoff.php and PdfEngineHandoffTest.php; focused PdfEngineHandoffTest.php passed 1 file, 2584 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84746 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+        "mapped": 3620,
+        "latestSlice": "pandoc-json-native-helper-constructor-variant-completeness maps eight JSON/native helper constructor variant cases after rebase onto current main 603b38e04. PandocJsonReader and NativeReader preserve ordered-list style/delimiter helper variants plus table alignment, width, row-head, row-span, and col-span helper payloads through JSON/native writer round trips without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3618 -> 3619, phpFail remains 0, mapped upstream cases move 3612 -> 3620, mappedJsonNativeHelperConstructorVariantCases = 8, and jsonNativeHelperConstructorVariantAssertions = 116. Verification passed php -l for PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php passed 1 file, 3825 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84862 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "PDF/Typst boundary provenance matrix is verified after rebase onto current main 7d36cbcc8; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-15 PDF/Typst boundary provenance matrix verified after rebase onto current main 7d36cbcc8; focused PdfEngineHandoffTest.php passed 1 file, 2584 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84746 assertions, 0 failures.",
+        "status": "Pandoc JSON/native helper constructor variant completeness is verified after rebase onto current main 603b38e04; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-15 Pandoc JSON/native helper constructor variant completeness verified after rebase onto current main 603b38e04; focused PandocJsonNativeAstTest.php passed 1 file, 3825 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84862 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -471,7 +471,9 @@
         "mappedEpubManifestItemReferenceReadinessCases": 10,
         "epubManifestItemReferenceReadinessAssertions": 35,
         "mappedZipCreatorVersionHostMatrixCases": 5,
-        "zipCreatorVersionHostMatrixAssertions": 36
+        "zipCreatorVersionHostMatrixAssertions": 36,
+        "mappedJsonNativeHelperConstructorVariantCases": 8,
+        "jsonNativeHelperConstructorVariantAssertions": 116
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -2098,5 +2100,7 @@
     "mappedEpubManifestItemReferenceReadinessCases": 10,
     "epubManifestItemReferenceReadinessAssertions": 35,
     "mappedZipCreatorVersionHostMatrixCases": 5,
-    "zipCreatorVersionHostMatrixAssertions": 36
+    "zipCreatorVersionHostMatrixAssertions": 36,
+    "mappedJsonNativeHelperConstructorVariantCases": 8,
+    "jsonNativeHelperConstructorVariantAssertions": 116
 }
