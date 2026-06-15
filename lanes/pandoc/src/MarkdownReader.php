@@ -14352,9 +14352,10 @@ final class MarkdownReader
      * @param list<string>|null $headerCells
      * @param list<list<string>> $bodyRows
      * @param list<string> $alignments
+     * @param array<string, mixed>|string $caption
      * @param list<float>|null $widths
      */
-    private function buildSimpleTable(?array $headerCells, array $bodyRows, array $alignments, string $caption, ?array $widths = null): AstNode
+    private function buildSimpleTable(?array $headerCells, array $bodyRows, array $alignments, array|string $caption, ?array $widths = null): AstNode
     {
         $children = [];
         if ($headerCells !== null) {
@@ -14386,9 +14387,10 @@ final class MarkdownReader
      * @param AstNode|null $headerRow
      * @param list<AstNode> $bodyRows
      * @param list<string> $alignments
+     * @param array<string, mixed>|string $caption
      * @param list<float>|null $widths
      */
-    private function buildGridTable(?AstNode $headerRow, array $bodyRows, array $alignments, string $caption, ?array $widths): AstNode
+    private function buildGridTable(?AstNode $headerRow, array $bodyRows, array $alignments, array|string $caption, ?array $widths): AstNode
     {
         return $this->buildGridTableRows($headerRow instanceof AstNode ? [$headerRow] : [], $bodyRows, $alignments, $caption, $widths);
     }
@@ -14397,9 +14399,10 @@ final class MarkdownReader
      * @param list<AstNode> $headerRows
      * @param list<AstNode> $bodyRows
      * @param list<string> $alignments
+     * @param array<string, mixed>|string $caption
      * @param list<float>|null $widths
      */
-    private function buildGridTableRows(array $headerRows, array $bodyRows, array $alignments, string $caption, ?array $widths): AstNode
+    private function buildGridTableRows(array $headerRows, array $bodyRows, array $alignments, array|string $caption, ?array $widths): AstNode
     {
         $children = [];
         if ($headerRows !== []) {
@@ -14462,7 +14465,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{0:string, 1:int}
+     * @return array{0:array<string, mixed>, 1:int}
      */
     private function readTableCaption(array $lines, int $cursor): array
     {
@@ -14474,7 +14477,7 @@ final class MarkdownReader
 
         $captionLine = $captionCursor < $count ? $this->matchTableCaptionLine($lines[$captionCursor]) : null;
         if ($captionLine !== null) {
-            $caption = [trim($captionLine)];
+            $caption = [trim($captionLine['text'])];
             $next = $captionCursor + 1;
             while (
                 $next < $count
@@ -14487,10 +14490,10 @@ final class MarkdownReader
                 $next++;
             }
 
-            return [implode("\n", $caption), $next];
+            return [$this->buildTableCaptionRecord(implode("\n", $caption), 'after-table', $captionLine['marker']), $next];
         }
 
-        return ['', $cursor];
+        return [$this->emptyTableCaptionRecord(), $cursor];
     }
 
     /**
@@ -14524,7 +14527,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{caption:string, tableStart:int}|null
+     * @return array{caption:array<string, mixed>, tableStart:int}|null
      */
     private function readLeadingTableCaption(array $lines, int $index): ?array
     {
@@ -14533,7 +14536,7 @@ final class MarkdownReader
             return null;
         }
 
-        $caption = [trim($captionLine)];
+        $caption = [trim($captionLine['text'])];
         $cursor = $index + 1;
         $count = count($lines);
         while (
@@ -14556,21 +14559,141 @@ final class MarkdownReader
         }
 
         return [
-            'caption' => implode("\n", $caption),
+            'caption' => $this->buildTableCaptionRecord(implode("\n", $caption), 'before-table', $captionLine['marker']),
             'tableStart' => $cursor,
         ];
     }
 
-    private function matchTableCaptionLine(string $line): ?string
+    /**
+     * @return array{marker:string, text:string}|null
+     */
+    private function matchTableCaptionLine(string $line): ?array
     {
-        if (preg_match('/^ {0,3}(?:(?:Table|Caption):|:)\s*(.*)$/iu', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}((?:Table|Caption):|:)\s*(.*)$/iu', $line, $m) !== 1) {
             return null;
         }
 
-        return $m[1];
+        return [
+            'marker' => $m[1],
+            'text' => $m[2],
+        ];
     }
 
-    private function tableWithCaption(AstNode $table, string $caption): AstNode
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyTableCaptionRecord(): array
+    {
+        return ['caption' => ''];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildTableCaptionRecord(string $source, string $position, string $marker): array
+    {
+        [$caption, $tableAttrs] = $this->splitTableCaptionAttributes(trim($source));
+        [$shortCaption, $longCaption] = $this->splitTableShortCaption($caption);
+
+        $record = [
+            'caption' => $longCaption,
+            'captionSource' => [
+                'element' => 'markdown-table-caption',
+                'position' => $position,
+                'marker' => $marker,
+                'captionSide' => $position === 'before-table' ? 'top' : 'bottom',
+                'captionSideSource' => 'markdown-table-caption-position',
+            ],
+        ];
+        if ($longCaption !== '') {
+            $record['captionInlines'] = $this->parseInlines($longCaption);
+        }
+        if ($shortCaption !== null && $shortCaption !== '') {
+            $record['shortCaption'] = $this->plainTextFromInlines($this->parseInlines($shortCaption));
+            $record['shortCaptionInlines'] = $this->parseInlines($shortCaption);
+        }
+
+        return array_replace($record, $tableAttrs);
+    }
+
+    /**
+     * @return array{0:string, 1:array<string, mixed>}
+     */
+    private function splitTableCaptionAttributes(string $caption): array
+    {
+        if (preg_match('/^([\s\S]*?)[ \t]*\{([^{}\r\n]+)\}[ \t]*$/u', $caption, $match) !== 1) {
+            return [$caption, []];
+        }
+
+        [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($match[2]);
+        if ($id === null && $classes === [] && $attributes === []) {
+            return [$caption, []];
+        }
+
+        return [
+            rtrim($match[1]),
+            $this->markdownAttributeAstAttrs($id, $classes, $attributes),
+        ];
+    }
+
+    /**
+     * @return array{0:string|null, 1:string}
+     */
+    private function splitTableShortCaption(string $caption): array
+    {
+        $caption = trim($caption);
+        if ($caption === '' || $caption[0] !== '[') {
+            return [null, $caption];
+        }
+
+        $end = $this->findClosingTableShortCaptionBracket($caption);
+        if ($end === null) {
+            return [null, $caption];
+        }
+
+        $remainder = trim(substr($caption, $end + 1));
+        if ($remainder === '') {
+            return [null, $caption];
+        }
+
+        return [substr($caption, 1, $end - 1), $remainder];
+    }
+
+    private function findClosingTableShortCaptionBracket(string $caption): ?int
+    {
+        $depth = 0;
+        $length = strlen($caption);
+        for ($offset = 1; $offset < $length; $offset++) {
+            $char = $caption[$offset];
+            if ($char === '\\') {
+                $offset++;
+                continue;
+            }
+
+            if ($char === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($char !== ']') {
+                continue;
+            }
+
+            if ($depth > 0) {
+                $depth--;
+                continue;
+            }
+
+            return $offset;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed>|string $caption
+     */
+    private function tableWithCaption(AstNode $table, array|string $caption): AstNode
     {
         if ($table->type !== 'table') {
             return $table;
@@ -14582,33 +14705,33 @@ final class MarkdownReader
     }
 
     /**
+     * @param array<string, mixed>|string $caption
      * @return array<string, mixed>
      */
-    private function tableCaptionAttrs(string $captionSpec): array
+    private function tableCaptionAttrs(array|string $caption): array
     {
-        [$captionSpec, $attributeAttrs] = $this->extractTrailingTableCaptionAttributes(trim($captionSpec));
-
-        $shortCaption = '';
-        $caption = trim($captionSpec);
-        $short = $caption !== '' ? $this->parseBracketedLabel($caption, 0) : null;
-        if (
-            $short !== null
-            && ($short['next'] >= strlen($caption) || ctype_space($caption[$short['next']]))
-        ) {
-            $shortCaption = trim($short['text']);
-            $caption = ltrim(substr($caption, $short['next']));
+        if (is_string($caption)) {
+            $caption = $caption === ''
+                ? $this->emptyTableCaptionRecord()
+                : $this->buildTableCaptionRecord($caption, 'after-table', ':');
         }
 
-        $attrs = ['caption' => $caption];
-        if ($caption !== '') {
-            $attrs['captionInlines'] = $this->parseInlines($caption);
-        }
-        if ($shortCaption !== '') {
-            $attrs['shortCaption'] = $shortCaption;
-            $attrs['shortCaptionInlines'] = $this->parseInlines($shortCaption);
+        $text = (string) ($caption['caption'] ?? '');
+        $attrs = ['caption' => $text];
+        if ($text !== '') {
+            $inlines = $caption['captionInlines'] ?? $this->parseInlines($text);
+            if (is_array($inlines)) {
+                $attrs['captionInlines'] = $inlines;
+            }
         }
 
-        return array_replace($attrs, $attributeAttrs);
+        foreach (['shortCaption', 'shortCaptionInlines', 'captionSource', 'id', 'classes', 'attributes', 'htmlAttributes'] as $name) {
+            if (array_key_exists($name, $caption)) {
+                $attrs[$name] = $caption[$name];
+            }
+        }
+
+        return $attrs;
     }
 
     /**
