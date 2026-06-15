@@ -1860,8 +1860,8 @@ final class MarkdownWriter
             'link' => $this->renderLink($node, $following),
             'image' => $this->renderImage($node, $following),
             'math' => $this->renderMath($node),
-            'citation' => (string) $node->attr('rendered', $node->attr('text', $this->renderInlines($node->children))),
-            'citation_group' => (string) $node->attr('rendered', $node->attr('text', $this->renderInlines($node->children))),
+            'citation' => $this->renderCitation($node),
+            'citation_group' => $this->renderCitationGroup($node),
             'raw_tex', 'raw_inline', 'raw_markdown', 'raw_html_inline' => $this->renderRawInline($node),
             'note' => $this->renderNoteReference($node),
             default => $this->renderInlines($node->children),
@@ -1975,6 +1975,122 @@ final class MarkdownWriter
         $this->noteUsedLabels[strtolower($candidate)] = true;
 
         return $candidate;
+    }
+
+    private function renderCitation(AstNode $node): string
+    {
+        $explicit = $this->explicitCitationMarkdown($node);
+        if ($explicit !== null) {
+            return $explicit;
+        }
+
+        if (
+            (string) $node->attr('mode', 'normal') === 'author_in_text'
+            && $this->citationAffixMarkdown($node, 'prefix') === ''
+        ) {
+            $suffix = $this->citationSuffixMarkdown($node);
+            $token = '@' . $this->citationIdentifierMarkdown((string) $node->attr('id', ''));
+
+            return $suffix === '' ? $token : $token . ' [' . $suffix . ']';
+        }
+
+        return '[' . $this->citationItemMarkdown($node) . ']';
+    }
+
+    private function renderCitationGroup(AstNode $node): string
+    {
+        $explicit = $this->explicitCitationMarkdown($node);
+        if ($explicit !== null) {
+            return $explicit;
+        }
+
+        $citations = $this->citationGroupChildren($node);
+        if ($citations === []) {
+            return '';
+        }
+
+        return '[' . implode('; ', array_map(fn (AstNode $citation): string => $this->citationItemMarkdown($citation), $citations)) . ']';
+    }
+
+    private function explicitCitationMarkdown(AstNode $node): ?string
+    {
+        foreach (['rendered', 'text'] as $name) {
+            $value = $node->attr($name);
+            if (is_scalar($value) && (string) $value !== '') {
+                return (string) $value;
+            }
+        }
+
+        $sourceInlines = $node->attr('citationSourceInlines', []);
+        if (is_array($sourceInlines) && $sourceInlines !== [] && $this->allAstNodes(array_values($sourceInlines))) {
+            $source = $this->plainInlineText(array_values($sourceInlines));
+
+            return $source === '' ? null : $source;
+        }
+
+        if ($node->type === 'citation' && $node->children !== [] && $this->allAstNodes($node->children)) {
+            $source = $this->plainInlineText($node->children);
+
+            return $source === '' ? null : $source;
+        }
+
+        return null;
+    }
+
+    private function citationItemMarkdown(AstNode $citation): string
+    {
+        $prefix = $this->citationAffixMarkdown($citation, 'prefix');
+        $token = ((string) $citation->attr('mode', 'normal') === 'suppress_author' ? '-@' : '@')
+            . $this->citationIdentifierMarkdown((string) $citation->attr('id', ''));
+        $suffix = $this->citationSuffixMarkdown($citation);
+        $markdown = $prefix === '' ? $token : $prefix . ' ' . $token;
+
+        return $suffix === '' ? $markdown : $markdown . ', ' . $suffix;
+    }
+
+    private function citationIdentifierMarkdown(string $id): string
+    {
+        if (preg_match('/\A[A-Za-z0-9_](?:[A-Za-z0-9_]|[:.#\/$%&+?<>~|-](?=[A-Za-z0-9_]))*\z/u', $id) === 1) {
+            return $id;
+        }
+
+        return '{' . str_replace(['\\', '}'], ['\\\\', '\\}'], $id) . '}';
+    }
+
+    private function citationSuffixMarkdown(AstNode $citation): string
+    {
+        $suffix = $this->citationAffixMarkdown($citation, 'suffix');
+
+        return $suffix === '' ? $this->citationAffixMarkdown($citation, 'locator') : $suffix;
+    }
+
+    private function citationAffixMarkdown(AstNode $citation, string $name): string
+    {
+        $value = $citation->attr($name, '');
+        if (is_array($value) && $this->allAstNodes(array_values($value))) {
+            return $this->renderInlines(array_values($value));
+        }
+
+        if ($value instanceof AstNode) {
+            return $this->renderInline($value);
+        }
+
+        if (!is_scalar($value)) {
+            return '';
+        }
+
+        return $this->escapeText(trim((string) $value));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationGroupChildren(AstNode $node): array
+    {
+        return array_values(array_filter(
+            $node->children,
+            static fn (AstNode $child): bool => $child->type === 'citation'
+        ));
     }
 
     private function renderCode(AstNode $node): string

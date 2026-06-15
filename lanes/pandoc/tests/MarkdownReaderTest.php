@@ -9734,6 +9734,87 @@ MD;
             'Some more text.',
         ]), $endOfSection);
     },
+    'maps upstream markdown writer structured citation source regeneration' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Structured citations: '),
+                new AstNode('citation', [
+                    'id' => 'source-a',
+                    'mode' => 'normal',
+                    'prefix' => [
+                        $text('see'),
+                        new AstNode('space'),
+                        new AstNode('emph', [], [$text('review')]),
+                    ],
+                    'locator' => 'pp. 10-12',
+                ]),
+                $text(', '),
+                new AstNode('citation', [
+                    'id' => 'source-b',
+                    'mode' => 'suppress_author',
+                    'suffix' => [
+                        new AstNode('strong', [], [$text('sec. 4')]),
+                    ],
+                ]),
+                $text(', '),
+                new AstNode('citation', [
+                    'id' => 'smith.2026',
+                    'mode' => 'author_in_text',
+                    'suffix' => 'chapter 2',
+                ]),
+                $text(', '),
+                new AstNode('citation', [
+                    'id' => 'source key',
+                    'mode' => 'normal',
+                ]),
+                $text(', and '),
+                new AstNode('citation_group', [], [
+                    new AstNode('citation', [
+                        'id' => 'source-c',
+                        'mode' => 'normal',
+                        'prefix' => 'compare',
+                        'locator' => 'fig. 2',
+                    ]),
+                    new AstNode('citation', [
+                        'id' => 'source-d',
+                        'mode' => 'suppress_author',
+                    ]),
+                ]),
+                $text('.'),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $roundTripParagraph = (new MarkdownReader())->read($markdown)->children[0];
+        $children = $roundTripParagraph->children;
+        $group = $children[9] ?? new AstNode('missing');
+        $explicit = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('citation', [
+                    'id' => 'explicit-source',
+                    'mode' => 'normal',
+                    'text' => '[pre-rendered @explicit-source, p. 9]',
+                ]),
+            ]),
+        ]);
+
+        $t->same('Structured citations: [see *review* @source-a, pp. 10-12], [-@source-b, **sec. 4**], @smith.2026 [chapter 2], [@{source key}], and [compare @source-c, fig. 2; -@source-d].', $markdown);
+        $t->same(['text', 'citation', 'text', 'citation', 'text', 'citation', 'text', 'citation', 'text', 'citation_group', 'text'], array_map(static fn (AstNode $node): string => $node->type, $children));
+        $t->same('source-a', $children[1]->attr('id'));
+        $t->same('normal', $children[1]->attr('mode'));
+        $t->same('see *review*', $children[1]->attr('prefix'));
+        $t->same('pp. 10-12', $children[1]->attr('locator'));
+        $t->same('suppress_author', $children[3]->attr('mode'));
+        $t->same('**sec. 4**', $children[3]->attr('locator'));
+        $t->same('author_in_text', $children[5]->attr('mode'));
+        $t->same('chapter 2', $children[5]->attr('suffix'));
+        $t->same('source key', $children[7]->attr('id'));
+        $t->same('citation_group', $group->type);
+        $t->same(['source-c', 'source-d'], array_map(static fn (AstNode $node): string => $node->attr('id'), $group->children));
+        $t->same(['normal', 'suppress_author'], array_map(static fn (AstNode $node): string => $node->attr('mode'), $group->children));
+        $t->same('[pre-rendered @explicit-source, p. 9]', (new MarkdownWriter())->write($explicit));
+    },
     'maps upstream markdown writer shortcut reference link boundaries' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $link = static fn (string $url, string $title, string $label): AstNode => new AstNode('link', [
