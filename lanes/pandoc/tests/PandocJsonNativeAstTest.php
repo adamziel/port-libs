@@ -10955,6 +10955,70 @@ return [
             $t->contains('\item[$\boxtimes$]', $latex, "{$source} latex checked task label");
         }
     },
+    'writes generated labeled note constructors through json and native writers' => static function (TestRunner $t): void {
+        $noteBlocks = [
+            new AstNode('plain', [], [
+                new AstNode('text', ['text' => 'Review']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'source']),
+            ]),
+        ];
+        $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Archive']),
+                new AstNode('space'),
+                new AstNode('note', ['label' => 'source-review-note'], $noteBlocks),
+                new AstNode('space'),
+                new AstNode('note', ['label' => 'invalid label'], [
+                    new AstNode('paragraph', [], [
+                        new AstNode('text', ['text' => 'Invalid']),
+                        new AstNode('space'),
+                        new AstNode('text', ['text' => 'label']),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $packets = [
+            'json' => (new PandocJsonWriter())->toArray($document),
+            'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+        ];
+
+        foreach ($packets as $writer => $packet) {
+            $inlines = $packet['blocks'][0]['c'];
+            $labeledNote = $inlines[2];
+            $invalidNote = $inlines[4];
+
+            $t->same('Para', $packet['blocks'][0]['t'], "{$writer} paragraph constructor");
+            $t->same('Note', $labeledNote['t'], "{$writer} labeled note constructor");
+            $t->same('source-review-note', $labeledNote['noteLabel'] ?? null, "{$writer} labeled note sidecar");
+            $t->same('Plain', $labeledNote['c'][0]['t'], "{$writer} labeled note child block");
+            $t->same('Review', $labeledNote['c'][0]['c'][0]['c'], "{$writer} labeled note child text");
+            $t->same('Note', $invalidNote['t'], "{$writer} invalid-label note constructor");
+            $t->same(false, array_key_exists('noteLabel', $invalidNote), "{$writer} rejects invalid generated note label");
+            $t->same('Para', $invalidNote['c'][0]['t'], "{$writer} invalid-label note child block");
+        }
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packets['json']),
+            'native' => (new NativeReader())->read(json_encode($packets['native'], JSON_THROW_ON_ERROR)),
+        ] as $source => $roundTrip) {
+            $paragraph = $roundTrip->children[0];
+            $notes = array_values(array_filter(
+                $paragraph->children,
+                static fn (AstNode $node): bool => $node->type === 'note'
+            ));
+            $labeledNote = $notes[0] ?? new AstNode('missing');
+            $invalidNote = $notes[1] ?? new AstNode('missing');
+
+            $t->same('note', $labeledNote->type, "{$source} labeled note round-trip type");
+            $t->same('source-review-note', $labeledNote->attr('label'), "{$source} labeled note round-trip label");
+            $t->same('plain', $labeledNote->children[0]->type, "{$source} labeled note round-trip block");
+            $t->same('Review source', $labeledNote->children[0]->attr('text'), "{$source} labeled note round-trip text");
+            $t->same('note', $invalidNote->type, "{$source} invalid-label note round-trip type");
+            $t->same(null, $invalidNote->attr('label'), "{$source} invalid-label note omits label");
+        }
+    },
     'preserves cite source inline constructors when regenerating citation wrappers' => static function (TestRunner $t): void {
         $sourceInlines = [
             ['t' => 'Str', 'c' => '[see'],
