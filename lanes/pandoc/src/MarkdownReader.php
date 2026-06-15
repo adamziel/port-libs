@@ -19059,9 +19059,17 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($node->type === 'code') {
+                $char = $this->lastUtf8Character((string) $node->attr('text', ''));
+                if ($char !== null) {
+                    return $char;
+                }
+                continue;
+            }
+
             if (in_array(
                 $node->type,
-                ['emph', 'strong', 'span', 'small_caps', 'underline', 'strikeout', 'superscript', 'subscript', 'quoted'],
+                ['emph', 'strong', 'span', 'small_caps', 'underline', 'strikeout', 'superscript', 'subscript', 'quoted', 'link'],
                 true
             )) {
                 $char = $this->lastInlineCharacterForEastAsianBreak('', $node->children);

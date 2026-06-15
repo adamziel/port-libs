@@ -7222,6 +7222,27 @@ return [
         $t->contains("<p>A\nB</p>", $blocks);
         $t->contains('<p>東<br/>京</p>', $blocks);
     },
+    'maps pandoc markdown east asian line break across inline wrapper left boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader(['eastAsianLineBreaks' => true]))->read(implode("\n\n", [
+            "[東](https://example.test/source)\n京",
+            "`東`\n京",
+        ]));
+        $linked = $document->children[0];
+        $coded = $document->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['link', 'text'], array_map(static fn (AstNode $node): string => $node->type, $linked->children));
+        $t->same('東', $linked->children[0]->children[0]->attr('text'));
+        $t->same('京', $linked->children[1]->attr('text'));
+        $t->same('東京', $linked->attr('text'));
+        $t->same(['code', 'text'], array_map(static fn (AstNode $node): string => $node->type, $coded->children));
+        $t->same('東', $coded->children[0]->attr('text'));
+        $t->same('京', $coded->children[1]->attr('text'));
+        $t->same('東京', $coded->attr('text'));
+        $t->same("[東](https://example.test/source)京\n\n`東`京", (new MarkdownWriter())->write($document));
+        $t->contains('<p><a href="https://example.test/source">東</a>京</p>', $blocks);
+        $t->contains('<p><code>東</code>京</p>', $blocks);
+    },
     'maps upstream markdown reader inline code attributes and spaced literals' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             '`document.write("Hello");`{.javascript}',
