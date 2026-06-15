@@ -985,6 +985,10 @@ final class MarkdownWriter
      */
     private function renderBlock(AstNode $node, int $indent): array
     {
+        if ($this->shouldRenderHtmlBlockFallback($node)) {
+            return $this->renderHtmlBlockFallback($node, $indent);
+        }
+
         return match ($node->type) {
             'paragraph', 'plain' => [str_repeat(' ', $indent) . $this->renderInlines($node->children)],
             'heading' => $this->renderHeading($node, $indent),
@@ -1001,6 +1005,130 @@ final class MarkdownWriter
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => $this->renderRawBlock($node, $indent),
             default => [],
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderHtmlBlockFallback(AstNode $node, int $indent): array
+    {
+        $prefix = str_repeat(' ', $indent);
+
+        return array_map(
+            static fn (string $line): string => $prefix . $line,
+            explode("\n", $this->renderHtmlBlock($node))
+        );
+    }
+
+    private function shouldRenderHtmlBlockFallback(AstNode $node): bool
+    {
+        if ($this->requestsHtmlMarkdownFormat($node->attr('markdownBlockFormat', $node->attr('markdownFormat', '')))) {
+            return true;
+        }
+
+        if (($node->type === 'bullet_list' || $node->type === 'ordered_list' || $node->type === 'definition_list')
+            && $this->requestsHtmlMarkdownFormat($node->attr('markdownListFormat', ''))
+        ) {
+            return true;
+        }
+
+        if ($node->type === 'code_block' && $this->requestsHtmlMarkdownFormat($node->attr('markdownCodeBlockFormat', ''))) {
+            return true;
+        }
+
+        if ($node->type !== 'bullet_list' && $node->type !== 'ordered_list') {
+            return false;
+        }
+
+        return $this->listHasHtmlOnlyAttributes($node);
+    }
+
+    private function requestsHtmlMarkdownFormat(mixed $format): bool
+    {
+        if (!is_scalar($format)) {
+            return false;
+        }
+
+        return in_array(strtolower(trim((string) $format)), ['html', 'html4', 'html5', 'raw_html', 'raw-html'], true);
+    }
+
+    private function listHasHtmlOnlyAttributes(AstNode $node): bool
+    {
+        if ($this->hasHtmlOnlyAttributes($node)) {
+            return true;
+        }
+
+        foreach ($node->children as $item) {
+            if ($item->type !== 'list_item' && $item->type !== 'definition_item') {
+                continue;
+            }
+
+            if ($this->hasHtmlOnlyAttributes($item)) {
+                return true;
+            }
+
+            foreach ($item->children as $child) {
+                if (($child->type === 'definition_term' || $child->type === 'definition') && $this->hasHtmlOnlyAttributes($child)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function hasHtmlOnlyAttributes(AstNode $node): bool
+    {
+        $attrs = $this->htmlAttributeMap($node);
+        unset($attrs['start'], $attrs['type']);
+        $attrs = $this->filterReviewMetadataHtmlAttributes($attrs);
+
+        if ($attrs !== []) {
+            return true;
+        }
+
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+
+        return is_array($htmlAttributes)
+            && strtolower((string) ($htmlAttributes['data-pandoc-writer'] ?? '')) === 'html';
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @return array<string, string>
+     */
+    private function filterReviewMetadataHtmlAttributes(array $attrs): array
+    {
+        foreach ($attrs as $name => $value) {
+            if ($this->isReviewMetadataHtmlAttribute($name)) {
+                unset($attrs[$name]);
+                continue;
+            }
+
+            if ($name === 'class') {
+                $classes = array_values(array_filter(
+                    preg_split('/\s+/', trim($value)) ?: [],
+                    static fn (string $class): bool => $class !== ''
+                        && !str_starts_with($class, 'docx-')
+                        && !str_starts_with($class, 'odf-')
+                ));
+
+                if ($classes === []) {
+                    unset($attrs[$name]);
+                    continue;
+                }
+
+                $attrs[$name] = implode(' ', $classes);
+            }
+        }
+
+        return $attrs;
+    }
+
+    private function isReviewMetadataHtmlAttribute(string $name): bool
+    {
+        return str_starts_with($name, 'data-docx-')
+            || str_starts_with($name, 'data-odf-');
     }
 
     /**
@@ -1942,7 +2070,11 @@ final class MarkdownWriter
             'heading' => $this->renderHtmlHeading($node),
             'bullet_list' => $this->renderHtmlList($node, 'ul'),
             'ordered_list' => $this->renderHtmlList($node, 'ol'),
-            'blockquote' => '<blockquote>' . $this->renderHtmlBlocks($node->children) . '</blockquote>',
+            'definition_list' => $this->renderHtmlDefinitionList($node),
+            'line_block' => $this->renderHtmlLineBlock($node),
+            'blockquote' => '<blockquote' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
+                . $this->renderHtmlBlocks($node->children)
+                . '</blockquote>',
             'code_block' => '<pre><code' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
                 . $this->escapeHtml((string) $node->attr('text', ''))
                 . '</code></pre>',
@@ -1973,6 +2105,15 @@ final class MarkdownWriter
         if ($tag === 'ol' && (int) $node->attr('start', 1) !== 1) {
             $attrs['start'] = (string) (int) $node->attr('start', 1);
         }
+        if ($tag === 'ol') {
+            $type = $this->htmlOrderedListType($node);
+            if ($type !== null && !isset($attrs['type'])) {
+                $attrs['type'] = $type;
+            }
+        }
+        if ($tag === 'ul' && $this->htmlListHasTaskItems($node)) {
+            $this->appendHtmlClass($attrs, 'task-list');
+        }
 
         $html = '<' . $tag . $this->renderHtmlAttributes($attrs) . '>';
         foreach ($node->children as $item) {
@@ -1980,12 +2121,109 @@ final class MarkdownWriter
                 continue;
             }
 
-            $html .= '<li' . $this->renderHtmlAttributes($this->htmlAttributeMap($item)) . '>'
-                . $this->renderHtmlBlocks($item->children)
+            $itemAttrs = $this->htmlAttributeMap($item);
+            $number = $item->attr('number', null);
+            if (is_int($number) || (is_string($number) && preg_match('/\A-?\d+\z/', $number) === 1)) {
+                $itemAttrs['value'] = (string) $number;
+            }
+
+            $html .= '<li' . $this->renderHtmlAttributes($itemAttrs) . '>'
+                . $this->renderHtmlListItemContent($item)
                 . '</li>';
         }
 
         return $html . '</' . $tag . '>';
+    }
+
+    private function htmlOrderedListType(AstNode $node): ?string
+    {
+        return match ((string) $node->attr('style', 'decimal')) {
+            'lower_alpha' => 'a',
+            'upper_alpha' => 'A',
+            'lower_roman' => 'i',
+            'upper_roman' => 'I',
+            default => null,
+        };
+    }
+
+    private function htmlListHasTaskItems(AstNode $node): bool
+    {
+        if ((bool) $node->attr('taskList', false)) {
+            return true;
+        }
+
+        foreach ($node->children as $item) {
+            if ($item->type === 'list_item' && is_bool($item->attr('taskChecked', null))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function renderHtmlListItemContent(AstNode $item): string
+    {
+        $content = $this->renderHtmlBlocks($item->children);
+        $task = $item->attr('taskChecked', null);
+        if (!is_bool($task)) {
+            return $content;
+        }
+
+        return '<input type="checkbox"' . ($task ? ' checked=""' : '') . ' />' . $content;
+    }
+
+    private function renderHtmlDefinitionList(AstNode $node): string
+    {
+        $html = '<dl' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>';
+
+        foreach ($node->children as $item) {
+            if ($item->type !== 'definition_item' || $item->children === []) {
+                continue;
+            }
+
+            $term = $item->children[0];
+            $html .= '<dt' . $this->renderHtmlAttributes($this->htmlAttributeMap($term)) . '>'
+                . $this->renderHtmlDefinitionTerm($term)
+                . '</dt>';
+
+            foreach (array_slice($item->children, 1) as $definition) {
+                if ($definition->type !== 'definition') {
+                    continue;
+                }
+
+                $html .= '<dd' . $this->renderHtmlAttributes($this->htmlAttributeMap($definition)) . '>'
+                    . $this->renderHtmlBlocks($definition->children)
+                    . '</dd>';
+            }
+        }
+
+        return $html . '</dl>';
+    }
+
+    private function renderHtmlDefinitionTerm(AstNode $term): string
+    {
+        $children = in_array($term->type, ['definition_term', 'term'], true) ? $term->children : [$term];
+
+        return $this->renderHtmlInlines($children);
+    }
+
+    private function renderHtmlLineBlock(AstNode $node): string
+    {
+        $attrs = $this->htmlAttributeMap($node);
+        $this->appendHtmlClass($attrs, 'line-block');
+        $lines = [];
+
+        foreach ($node->children as $line) {
+            if ($line->type !== 'line') {
+                continue;
+            }
+
+            $lines[] = $line->children === []
+                ? $this->escapeHtml((string) $line->attr('text', ''))
+                : $this->renderHtmlInlines($line->children);
+        }
+
+        return '<div' . $this->renderHtmlAttributes($attrs) . '>' . implode("<br />\n", $lines) . '</div>';
     }
 
     /**
@@ -2218,7 +2456,9 @@ final class MarkdownWriter
                 'style',
                 'summary',
                 'title',
+                'type',
                 'valign',
+                'value',
                 'width',
                 'xml:lang',
             ], true);

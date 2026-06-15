@@ -327,7 +327,29 @@ foreach ($tabCodeCases as $name => $case) {
 }
 
 $codeBlock = static fn (string $text, array $attrs = []): AstNode => new AstNode('code_block', array_merge(['text' => $text], $attrs));
-$document = static fn (AstNode ...$blocks): AstNode => new AstNode('document', [], $blocks);
+$document = static function (...$blocks): AstNode {
+    if (count($blocks) === 1 && is_array($blocks[0])) {
+        $blocks = $blocks[0];
+    }
+
+    return new AstNode('document', [], $blocks);
+};
+$text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+$paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
+$listItem = static fn (array $children, array $attrs = []): AstNode => new AstNode('list_item', $attrs, $children);
+$bulletList = static fn (array $items, array $attrs = []): AstNode => new AstNode('bullet_list', $attrs, $items);
+$definition = static fn (array $children, array $attrs = []): AstNode => new AstNode('definition', $attrs, $children);
+$definitionTerm = static fn (array $children, array $attrs = []): AstNode => new AstNode('definition_term', $attrs, $children);
+$definitionItem = static fn (AstNode $term, array $definitions): AstNode => new AstNode(
+    'definition_item',
+    [],
+    array_merge([$term], $definitions)
+);
+$line = static fn (string $value = ''): AstNode => $value === ''
+    ? new AstNode('line')
+    : new AstNode('line', [], [$text($value)]);
+$blockquote = static fn (array $children): AstNode => new AstNode('blockquote', [], $children);
+$div = static fn (array $children = [], array $attrs = []): AstNode => new AstNode('div', $attrs, $children);
 
 $writerCases = [
     '01 plain code can be emitted as backtick fence' => [
@@ -470,6 +492,350 @@ foreach ($writerCases as $name => $case) {
             $t->same($case['classes'], $code->attr('classes'));
         }
     };
+}
+
+$strong = static fn (string $value): AstNode => new AstNode('strong', [], [$text($value)]);
+$emph = static fn (string $value): AstNode => new AstNode('emph', [], [$text($value)]);
+$span = static fn (array $children, array $attrs = []): AstNode => new AstNode('span', $attrs, $children);
+$link = static fn (string $label, string $url, array $attrs = []): AstNode => new AstNode('link', array_merge(['url' => $url], $attrs), [$text($label)]);
+$image = static fn (string $alt, string $url, array $attrs = []): AstNode => new AstNode('image', array_merge(['url' => $url, 'alt' => $alt], $attrs), [$text($alt)]);
+
+$htmlFallbackCases = [
+    '01 bullet list id class data auto fallback' => [
+        $document([new AstNode('bullet_list', ['id' => 'review', 'classes' => ['queue'], 'attributes' => ['data-source' => 'batch']], [
+            $listItem([$text('alpha')], ['classes' => ['ready']]),
+        ])]),
+        '<ul id="review" class="queue" data-source="batch"><li class="ready">alpha</li></ul>',
+    ],
+    '02 bullet list html attributes merge classes' => [
+        $document([new AstNode('bullet_list', ['classes' => ['source'], 'htmlAttributes' => ['class' => 'from-html', 'data-pandoc-writer' => 'html']], [
+            $listItem([$text('alpha')]),
+        ])]),
+        '<ul class="from-html source" data-pandoc-writer="html"><li>alpha</li></ul>',
+    ],
+    '03 bullet list data writer attribute requests fallback' => [
+        $document([new AstNode('bullet_list', ['htmlAttributes' => ['data-pandoc-writer' => 'html']], [
+            $listItem([$text('alpha')]),
+            $listItem([$text('beta')]),
+        ])]),
+        '<ul data-pandoc-writer="html"><li>alpha</li><li>beta</li></ul>',
+    ],
+    '04 bullet list sanitizer drops unsafe event attributes' => [
+        $document([new AstNode('bullet_list', ['attributes' => ['onclick' => 'alert(1)', 'data-safe' => 'yes']], [
+            $listItem([$text('safe')]),
+        ])]),
+        '<ul data-safe="yes"><li>safe</li></ul>',
+    ],
+    '05 bullet item id is preserved by auto fallback' => [
+        $document([$bulletList([$listItem([$text('alpha')], ['id' => 'item-alpha'])])]),
+        '<ul><li id="item-alpha">alpha</li></ul>',
+    ],
+    '06 bullet item class and data attributes are preserved' => [
+        $document([$bulletList([$listItem([$text('alpha')], ['classes' => ['done'], 'attributes' => ['data-step' => '1']])])]),
+        '<ul><li class="done" data-step="1">alpha</li></ul>',
+    ],
+    '07 bullet item html attributes merge classes' => [
+        $document([$bulletList([$listItem([$text('alpha')], ['classes' => ['source'], 'htmlAttributes' => ['class' => 'from-html', 'data-state' => 'ready']])])]),
+        '<ul><li class="from-html source" data-state="ready">alpha</li></ul>',
+    ],
+    '08 bullet item sanitizer drops unsafe event attributes' => [
+        $document([$bulletList([$listItem([$text('alpha')], ['attributes' => ['onclick' => 'bad()', 'data-ok' => '1']])])]),
+        '<ul><li data-ok="1">alpha</li></ul>',
+    ],
+    '09 explicit html bullet list keeps nested bullet attrs' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([
+                $text('parent'),
+                new AstNode('bullet_list', ['id' => 'child-list'], [$listItem([$text('child')])]),
+            ]),
+        ])]),
+        '<ul><li>parent<ul id="child-list"><li>child</li></ul></li></ul>',
+    ],
+    '10 explicit html bullet list keeps nested ordered attrs' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([
+                $text('parent'),
+                new AstNode('ordered_list', ['style' => 'upper_alpha', 'start' => 2], [$listItem([$text('child')])]),
+            ]),
+        ])]),
+        '<ul><li>parent<ol start="2" type="A"><li>child</li></ol></li></ul>',
+    ],
+    '11 explicit html bullet item paragraph block' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([$paragraph('alpha')]),
+        ])]),
+        '<ul><li><p>alpha</p></li></ul>',
+    ],
+    '12 explicit html bullet item two paragraphs' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([$paragraph('alpha'), $paragraph('beta')]),
+        ])]),
+        '<ul><li><p>alpha</p><p>beta</p></li></ul>',
+    ],
+    '13 explicit html bullet item blockquote' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([$blockquote([$paragraph('quoted')])]),
+        ])]),
+        '<ul><li><blockquote><p>quoted</p></blockquote></li></ul>',
+    ],
+    '14 explicit html bullet item code block' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([$codeBlock('echo alpha', ['classes' => ['php']])]),
+        ])]),
+        '<ul><li><pre><code class="php">echo alpha</code></pre></li></ul>',
+    ],
+    '15 explicit html bullet item div block' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([$div([$paragraph('note')], ['id' => 'note', 'classes' => ['callout']])]),
+        ])]),
+        '<ul><li><div id="note" class="callout"><p>note</p></div></li></ul>',
+    ],
+    '16 explicit html bullet item raw html block' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([new AstNode('raw_html', ['html' => '<aside>raw</aside>'])]),
+        ])]),
+        '<ul><li><aside>raw</aside></li></ul>',
+    ],
+    '17 explicit html bullet item rich inline children' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([$text('one '), $strong('strong'), $text(' and '), $emph('em')]),
+        ])]),
+        '<ul><li>one <strong>strong</strong> and <em>em</em></li></ul>',
+    ],
+    '18 explicit html task list unchecked item' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html', 'taskList' => true], [
+            $listItem([$text('todo')], ['taskChecked' => false]),
+        ])]),
+        '<ul class="task-list"><li><input type="checkbox" />todo</li></ul>',
+    ],
+    '19 explicit html task list checked item' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html', 'taskList' => true], [
+            $listItem([$text('done')], ['taskChecked' => true]),
+        ])]),
+        '<ul class="task-list"><li><input type="checkbox" checked="" />done</li></ul>',
+    ],
+    '20 explicit html task list mixed items' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([$text('todo')], ['taskChecked' => false]),
+            $listItem([$text('plain')]),
+            $listItem([$text('done')], ['taskChecked' => true]),
+        ])]),
+        '<ul class="task-list"><li><input type="checkbox" />todo</li><li>plain</li><li><input type="checkbox" checked="" />done</li></ul>',
+    ],
+    '21 explicit html task list preserves source class' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html', 'classes' => ['review'], 'taskList' => true], [
+            $listItem([$text('todo')], ['taskChecked' => false]),
+        ])]),
+        '<ul class="task-list review"><li><input type="checkbox" />todo</li></ul>',
+    ],
+    '22 ordered list explicit html start attribute' => [
+        $document([new AstNode('ordered_list', ['markdownListFormat' => 'html', 'start' => 3], [$listItem([$text('three')])])]),
+        '<ol start="3"><li>three</li></ol>',
+    ],
+    '23 ordered list explicit html lower alpha type' => [
+        $document([new AstNode('ordered_list', ['markdownListFormat' => 'html', 'style' => 'lower_alpha'], [$listItem([$text('alpha')])])]),
+        '<ol type="a"><li>alpha</li></ol>',
+    ],
+    '24 ordered list explicit html upper alpha type' => [
+        $document([new AstNode('ordered_list', ['markdownListFormat' => 'html', 'style' => 'upper_alpha'], [$listItem([$text('alpha')])])]),
+        '<ol type="A"><li>alpha</li></ol>',
+    ],
+    '25 ordered list explicit html lower roman type' => [
+        $document([new AstNode('ordered_list', ['markdownListFormat' => 'html', 'style' => 'lower_roman'], [$listItem([$text('roman')])])]),
+        '<ol type="i"><li>roman</li></ol>',
+    ],
+    '26 ordered list explicit html upper roman start type' => [
+        $document([new AstNode('ordered_list', ['markdownListFormat' => 'html', 'style' => 'upper_roman', 'start' => 4], [$listItem([$text('four')])])]),
+        '<ol start="4" type="I"><li>four</li></ol>',
+    ],
+    '27 ordered item number becomes html value' => [
+        $document([new AstNode('ordered_list', ['markdownListFormat' => 'html'], [
+            $listItem([$text('seven')], ['number' => 7]),
+        ])]),
+        '<ol><li value="7">seven</li></ol>',
+    ],
+    '28 ordered list id class data attributes' => [
+        $document([new AstNode('ordered_list', ['id' => 'steps', 'classes' => ['review'], 'attributes' => ['data-kind' => 'audit']], [
+            $listItem([$text('one')]),
+        ])]),
+        '<ol id="steps" class="review" data-kind="audit"><li>one</li></ol>',
+    ],
+    '29 ordered html type attribute is not overwritten' => [
+        $document([new AstNode('ordered_list', ['markdownListFormat' => 'html', 'style' => 'lower_roman', 'htmlAttributes' => ['type' => 'A']], [
+            $listItem([$text('alpha')]),
+        ])]),
+        '<ol type="A"><li>alpha</li></ol>',
+    ],
+    '30 ordered item unsafe event attribute is dropped' => [
+        $document([new AstNode('ordered_list', ['markdownListFormat' => 'html'], [
+            $listItem([$text('safe')], ['attributes' => ['onclick' => 'bad()', 'data-ok' => '1']]),
+        ])]),
+        '<ol><li data-ok="1">safe</li></ol>',
+    ],
+    '31 definition list explicit html simple item' => [
+        $document([new AstNode('definition_list', ['markdownListFormat' => 'html'], [
+            $definitionItem($definitionTerm([$text('Term')]), [$definition([$paragraph('Definition')])]),
+        ])]),
+        '<dl><dt>Term</dt><dd><p>Definition</p></dd></dl>',
+    ],
+    '32 definition list explicit html preserves id' => [
+        $document([new AstNode('definition_list', ['markdownListFormat' => 'html', 'id' => 'glossary'], [
+            $definitionItem($definitionTerm([$text('Term')]), [$definition([$paragraph('Definition')])]),
+        ])]),
+        '<dl id="glossary"><dt>Term</dt><dd><p>Definition</p></dd></dl>',
+    ],
+    '33 definition term attributes are preserved' => [
+        $document([new AstNode('definition_list', ['markdownListFormat' => 'html'], [
+            $definitionItem(new AstNode('definition_term', ['id' => 'term', 'classes' => ['primary']], [$text('Term')]), [$definition([$paragraph('Definition')])]),
+        ])]),
+        '<dl><dt id="term" class="primary">Term</dt><dd><p>Definition</p></dd></dl>',
+    ],
+    '34 definition body attributes are preserved' => [
+        $document([new AstNode('definition_list', ['markdownListFormat' => 'html'], [
+            $definitionItem($definitionTerm([$text('Term')]), [new AstNode('definition', ['classes' => ['meaning'], 'attributes' => ['data-source' => 'batch']], [$paragraph('Definition')])]),
+        ])]),
+        '<dl><dt>Term</dt><dd class="meaning" data-source="batch"><p>Definition</p></dd></dl>',
+    ],
+    '35 definition list multiple definitions' => [
+        $document([new AstNode('definition_list', ['markdownListFormat' => 'html'], [
+            $definitionItem($definitionTerm([$text('Term')]), [$definition([$paragraph('First')]), $definition([$paragraph('Second')])]),
+        ])]),
+        '<dl><dt>Term</dt><dd><p>First</p></dd><dd><p>Second</p></dd></dl>',
+    ],
+    '36 definition list multiple items' => [
+        $document([new AstNode('definition_list', ['markdownListFormat' => 'html'], [
+            $definitionItem($definitionTerm([$text('One')]), [$definition([$paragraph('First')])]),
+            $definitionItem($definitionTerm([$text('Two')]), [$definition([$paragraph('Second')])]),
+        ])]),
+        '<dl><dt>One</dt><dd><p>First</p></dd><dt>Two</dt><dd><p>Second</p></dd></dl>',
+    ],
+    '37 definition term linebreak becomes html break' => [
+        $document([new AstNode('definition_list', ['markdownListFormat' => 'html'], [
+            $definitionItem($definitionTerm([$text('Primary'), new AstNode('linebreak'), $text('Alias')]), [$definition([$paragraph('Definition')])]),
+        ])]),
+        '<dl><dt>Primary<br />Alias</dt><dd><p>Definition</p></dd></dl>',
+    ],
+    '38 definition body code block renders html code' => [
+        $document([new AstNode('definition_list', ['markdownListFormat' => 'html'], [
+            $definitionItem($definitionTerm([$text('Command')]), [$definition([$codeBlock('wp import')])]),
+        ])]),
+        '<dl><dt>Command</dt><dd><pre><code>wp import</code></pre></dd></dl>',
+    ],
+    '39 line block explicit html two lines' => [
+        $document([new AstNode('line_block', ['markdownBlockFormat' => 'html'], [$line('one'), $line('two')])]),
+        "<div class=\"line-block\">one<br />\ntwo</div>",
+    ],
+    '40 line block attributes merge line block class' => [
+        $document([new AstNode('line_block', ['markdownBlockFormat' => 'html', 'classes' => ['review'], 'attributes' => ['data-kind' => 'verse']], [$line('one')])]),
+        '<div class="line-block review" data-kind="verse">one</div>',
+    ],
+    '41 line block empty line stays explicit break' => [
+        $document([new AstNode('line_block', ['markdownBlockFormat' => 'html'], [$line('one'), $line(), $line('two')])]),
+        "<div class=\"line-block\">one<br />\n<br />\ntwo</div>",
+    ],
+    '42 blockquote explicit html preserves attrs' => [
+        $document([new AstNode('blockquote', ['markdownBlockFormat' => 'html', 'classes' => ['review'], 'attributes' => ['data-source' => 'quote']], [$paragraph('quoted')])]),
+        '<blockquote class="review" data-source="quote"><p>quoted</p></blockquote>',
+    ],
+    '43 code block explicit html preserves class' => [
+        $document([$codeBlock('echo alpha', ['markdownBlockFormat' => 'html', 'classes' => ['php']])]),
+        '<pre><code class="php">echo alpha</code></pre>',
+    ],
+    '44 code block explicit html sanitizes attrs' => [
+        $document([$codeBlock('echo alpha', ['markdownCodeBlockFormat' => 'html', 'attributes' => ['onclick' => 'bad()', 'data-safe' => '1']])]),
+        '<pre><code data-safe="1">echo alpha</code></pre>',
+    ],
+    '45 div explicit html preserves attrs' => [
+        $document([new AstNode('div', ['markdownBlockFormat' => 'html', 'id' => 'note', 'classes' => ['callout']], [$paragraph('Body')])]),
+        '<div id="note" class="callout"><p>Body</p></div>',
+    ],
+    '46 heading explicit html preserves attrs' => [
+        $document([new AstNode('heading', ['markdownBlockFormat' => 'html', 'level' => 2, 'id' => 'review'], [$text('Review')])]),
+        '<h2 id="review">Review</h2>',
+    ],
+    '47 paragraph explicit html escapes text' => [
+        $document([new AstNode('paragraph', ['markdownBlockFormat' => 'html'], [$text('<review>')])]),
+        '<p>&lt;review&gt;</p>',
+    ],
+    '48 horizontal rule explicit html' => [
+        $document([new AstNode('horizontal_rule', ['markdownBlockFormat' => 'html'])]),
+        '<hr />',
+    ],
+    '49 bullet item link inline renders html link' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([$link('packet', 'https://example.test/packet')]),
+        ])]),
+        '<ul><li><a href="https://example.test/packet">packet</a></li></ul>',
+    ],
+    '50 bullet item image inline renders html image' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([$image('alt', '/media.png')]),
+        ])]),
+        '<ul><li><img src="/media.png" alt="alt" /></li></ul>',
+    ],
+    '51 bullet item span inline preserves attrs' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([$span([$text('marked')], ['classes' => ['mark'], 'attributes' => ['data-state' => 'new']])]),
+        ])]),
+        '<ul><li><span class="mark" data-state="new">marked</span></li></ul>',
+    ],
+    '52 explicit html list deduplicates classes' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html', 'classes' => ['review'], 'htmlAttributes' => ['class' => 'review queue']], [
+            $listItem([$text('alpha')]),
+        ])]),
+        '<ul class="review queue"><li>alpha</li></ul>',
+    ],
+    '53 definition list html attributes are preserved' => [
+        $document([new AstNode('definition_list', ['markdownListFormat' => 'html', 'htmlAttributes' => ['class' => 'glossary', 'data-source' => 'batch']], [
+            $definitionItem($definitionTerm([$text('Term')]), [$definition([$paragraph('Definition')])]),
+        ])]),
+        '<dl class="glossary" data-source="batch"><dt>Term</dt><dd><p>Definition</p></dd></dl>',
+    ],
+    '54 line block text is escaped in html fallback' => [
+        $document([new AstNode('line_block', ['markdownBlockFormat' => 'html'], [new AstNode('line', ['text' => '<tag>'])])]),
+        '<div class="line-block">&lt;tag&gt;</div>',
+    ],
+    '55 bullet item raw html inline is preserved' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html'], [
+            $listItem([new AstNode('raw_html_inline', ['html' => '<span>raw</span>'])]),
+        ])]),
+        '<ul><li><span>raw</span></li></ul>',
+    ],
+    '56 blockquote explicit html nested list' => [
+        $document([new AstNode('blockquote', ['markdownBlockFormat' => 'html'], [
+            $bulletList([$listItem([$text('point')])]),
+        ])]),
+        '<blockquote><ul><li>point</li></ul></blockquote>',
+    ],
+    '57 ordered explicit html nested blockquote' => [
+        $document([new AstNode('ordered_list', ['markdownListFormat' => 'html'], [
+            $listItem([$blockquote([$paragraph('quoted')])]),
+        ])]),
+        '<ol><li><blockquote><p>quoted</p></blockquote></li></ol>',
+    ],
+    '58 code block explicit html escapes content' => [
+        $document([$codeBlock('<script>alert(1)</script>', ['markdownBlockFormat' => 'html'])]),
+        '<pre><code>&lt;script&gt;alert(1)&lt;/script&gt;</code></pre>',
+    ],
+    '59 explicit html list preserves aria attrs' => [
+        $document([new AstNode('bullet_list', ['markdownListFormat' => 'html', 'attributes' => ['aria-label' => 'Review queue']], [
+            $listItem([$text('alpha')]),
+        ])]),
+        '<ul aria-label="Review queue"><li>alpha</li></ul>',
+    ],
+    '60 explicit html ordered list preserves item title' => [
+        $document([new AstNode('ordered_list', ['markdownListFormat' => 'html'], [
+            $listItem([$text('alpha')], ['attributes' => ['title' => 'First step']]),
+        ])]),
+        '<ol><li title="First step">alpha</li></ol>',
+    ],
+];
+
+foreach ($htmlFallbackCases as $name => $case) {
+    $tests['maps upstream markdown writer html block list code fallback surge ' . $name] =
+        static function (TestRunner $t) use ($case): void {
+            $t->same($case[1], (new MarkdownWriter())->write($case[0]));
+        };
 }
 
 return $tests;
