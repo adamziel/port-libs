@@ -852,6 +852,102 @@ BIB;
         $t->contains('Call number: MS 42 Box 4', $markdown);
         $t->contains('Call number: Reading Room Shelf B/12', $blocks);
     },
+    'carries biblatex relation alias and shorthand metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{relation-manual,
+  author         = {Ng, Nia},
+  title          = {Relation Review Manual},
+  date           = {2026},
+  ids            = {legacy-relation, migrated-relation},
+  shorthand      = {RRM},
+  shorthandintro = {cited as Relation Review Manual},
+  sortshorthand  = {010 relation manual},
+  related        = {source-appendix, source-license},
+  relatedtype    = {updated-by},
+  relatedstring  = {Updated source},
+  relatedoptions = {dataonly; skipbib},
+  crossref       = {source-proceedings}
+}
+
+@proceedings{source-proceedings,
+  editor = {Curator, Eli},
+  title  = {Source Proceedings},
+  date   = {2025}
+}
+BIB;
+
+        $items = (new BibtexCslProcessor())->cslItems($source);
+        $item = $items['relation-manual'];
+
+        $t->same('legacy-relation, migrated-relation', $item['citation-aliases']);
+        $t->same('RRM', $item['shorthand']);
+        $t->same('cited as Relation Review Manual', $item['shorthand-intro']);
+        $t->same('010 relation manual', $item['sort-shorthand']);
+        $t->same('source-appendix, source-license', $item['related']);
+        $t->same('updated-by', $item['related-type']);
+        $t->same('Updated source', $item['related-string']);
+        $t->same('dataonly; skipbib', $item['related-options']);
+        $t->same('source-proceedings', $item['xref']);
+        $t->same('source-proceedings', $item['rawBibtex']['fields']['crossref']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Relation Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-relation-review</id>
+    <updated>2026-06-15T13:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="shorthand"/>
+        <text variable="related-summary"/>
+        <text variable="xref-summary"/>
+        <text variable="citation-alias-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="related-summary"/>
+      <text variable="related-options"/>
+      <text variable="xref-summary"/>
+      <text variable="shorthand"/>
+      <text variable="citation-alias-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('relation-manual');
+        $legacyAlias = $styled->item('legacy-relation');
+        $summary = $styled->cslStyleSummary();
+
+        $t->same('Bounded Legacy BibLaTeX Relation Review', $summary['title'] ?? null);
+        $t->same(['legacy-relation', 'migrated-relation'], $normalized['citationAliases'] ?? null);
+        $t->same('legacy-relation; migrated-relation', $normalized['citationAliasSummary'] ?? null);
+        $t->same('RRM', $normalized['shorthand'] ?? null);
+        $t->same('010 relation manual', $normalized['sortShorthand'] ?? null);
+        $t->same('010 relation manual', $normalized['shorthandListSortKey'] ?? null);
+        $t->same(['source-appendix', 'source-license'], $normalized['relatedKeys'] ?? null);
+        $t->same('updated-by', $normalized['relatedType'] ?? null);
+        $t->same('Updated source', $normalized['relatedString'] ?? null);
+        $t->same(['dataonly', 'skipbib'], $normalized['relatedOptions'] ?? null);
+        $t->same(['source-proceedings'], $normalized['xrefKeys'] ?? null);
+        $t->same('relation-manual', $legacyAlias['id'] ?? null);
+        $t->same('legacy-relation', $legacyAlias['citationAlias'] ?? null);
+        $t->same('[RRM | Updated source (updated-by): source-appendix; source-license | Xref: source-proceedings | legacy-relation; migrated-relation]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-relation', 'text' => '[@legacy-relation]']),
+        ]));
+        $t->same('Relation Review Manual :: Updated source (updated-by): source-appendix; source-license :: dataonly, skipbib :: Xref: source-proceedings :: RRM :: legacy-relation; migrated-relation', $styled->renderBibliographyEntry('relation-manual'));
+
+        $document = (new MarkdownReader())->read('Relation review [@legacy-relation] keeps relation metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Relation review [RRM | Updated source (updated-by): source-appendix; source-license | Xref: source-proceedings | legacy-relation; migrated-relation] keeps relation metadata visible.</p>', $blocks);
+        $t->contains('<dt>RRM</dt><dd>Relation Review Manual :: Updated source (updated-by): source-appendix; source-license :: dataonly, skipbib :: Xref: source-proceedings :: RRM :: legacy-relation; migrated-relation</dd>', $blocks);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

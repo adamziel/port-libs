@@ -496,6 +496,16 @@ final class BibtexCslProcessor
             'abstract' => ['abstract', 'annotation', 'annote'],
             'note' => ['note', 'addendum'],
             'genre' => ['type', 'entrysubtype'],
+            'citation-aliases' => ['ids', 'citation-aliases', 'citationaliases', 'citation-alias', 'citationalias'],
+            'shorthand' => ['shorthand'],
+            'shorthand-intro' => ['shorthandintro', 'shorthand-intro'],
+            'sort-shorthand' => ['sortshorthand', 'sort-shorthand'],
+            'shorthand-list-sort-key' => ['listshorthand', 'list-shorthand', 'shorthandlistsortkey', 'shorthand-list-sort-key'],
+            'related' => ['related'],
+            'related-type' => ['relatedtype', 'related-type'],
+            'related-string' => ['relatedstring', 'related-string'],
+            'related-options' => ['relatedoptions', 'related-options'],
+            'xref' => ['xref', 'crossref'],
         ];
 
         foreach ($stringFields as $target => $names) {

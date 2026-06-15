@@ -5,11 +5,11 @@
   "upstream": {
     "name": "jgm/pandoc",
     "url": "https://github.com/jgm/pandoc",
-    "commit": "pandoc-markdown-reader-grid-table-deferred-captions-04e5b9151b",
+    "commit": "pandoc-biblatex-relation-aliases-f962b89bb1",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 3755,
-    "latestSlice": "pandoc-markdown-reader-grid-table-deferred-captions maps one Markdown reader grid-table deferred caption case after rebase onto current main 04e5b9151b. MarkdownReader now parses post-table Table: and Caption: markers for grid-table captions while preserving existing colon-caption continuation behavior, inline caption parsing, and WordPress figcaption rendering without invoking Pandoc, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3738 -> 3739, phpFail remains 0, mapped upstream cases move 3754 -> 3755, mappedMarkdownReaderMoreGridTableDeferredCases = 1, and markdownReaderMoreGridTableDeferredAssertions = 12. Verification passed php -l for MarkdownReader.php and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6790 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88853 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+    "mapped": 3756,
+    "latestSlice": "pandoc-biblatex-relation-aliases maps one CSL/BibTeX/BibLaTeX bibliography case after rebase onto current main f962b89bb1. BibtexCslProcessor now carries legacy BibLaTeX ids, shorthand/list sort, related/relatedtype/relatedstring/relatedoptions, and xref/crossref metadata into CSL item fields that CitationCslProcessor already normalizes for alias citation, relation summaries, shorthand labels, and bibliography rendering without invoking Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3739 -> 3740, phpFail remains 0, mapped upstream cases move 3755 -> 3756, mappedBibtexCslProcessorCases moves 7 -> 8 in lane status, mappedBiblatexRelationAliasCases = 1, and biblatexRelationAliasAssertions = 27. Verification passed php -l for BibtexCslProcessor.php and BibtexCslProcessorTest.php; focused BibtexCslProcessorTest.php passed 1 file, 285 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 88880 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
     "mappedOdfPackageFontFormatProvenanceCases": 6,
     "odfPackageFontFormatProvenanceAssertions": 56,
     "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -577,7 +577,7 @@
     "epubContainerRootfileSelectionAssertions": 41,
     "mappedEpubCollectionAuthoringCases": 1,
     "epubCollectionAuthoringAssertions": 35,
-    "latestFullSource": "2026-06-15 full lanes/pandoc/tests passed for JSON/native single-wrapped block tuple payloads after rebase onto current main f4a2c4886a: 46 files, 88664 assertions, 0 failures.",
+    "latestFullSource": "2026-06-15 full lanes/pandoc/tests passed for BibLaTeX relation aliases after rebase onto current main f962b89bb1: 46 files, 88880 assertions, 0 failures.",
     "mappedEpubPackageInventoryLocalHeaderOrderCases": 1,
     "epubPackageInventoryLocalHeaderOrderAssertions": 31,
     "mappedJsonNativeSingleWrappedBlockTupleConstructorCases": 1,
@@ -585,7 +585,13 @@
     "mappedJsonNativeSingleWrappedColumnSpecCases": 1,
     "jsonNativeSingleWrappedColumnSpecAssertions": 38,
     "mappedEpubGuideReferenceAuthoringCases": 1,
-    "epubGuideReferenceAuthoringAssertions": 23
+    "epubGuideReferenceAuthoringAssertions": 23,
+    "mappedBibtexCslProcessorCases": 8,
+    "mappedBiblatexRelationAliasCases": 1,
+    "biblatexRelationAliasAssertions": 27,
+    "currentWork": "BibtexCslProcessor preserves BibLaTeX relation, xref, shorthand, and citation alias metadata for downstream CSL review handoff.",
+    "blocker": "CSL/BibTeX/BibLaTeX relation metadata remains native-PHP-only; this slice adds bounded legacy relation alias coverage without invoking Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, or external validators.",
+    "wordpressScenarios": "CSL/BibTeX/BibLaTeX relation alias handoff preserves ids, shorthand, related, and xref metadata for review packets."
   },
   "benchmarkDenominator": {
     "status": "Pandoc JSON/native single-wrapped target tuple sidecars are verified after rebase onto current main 9f2dd9a0fd; phpFail remains 0.",
