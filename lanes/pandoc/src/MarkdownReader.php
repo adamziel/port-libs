@@ -17213,6 +17213,10 @@ final class MarkdownReader
                 $text .= (string) $node->attr('tex', '');
                 continue;
             }
+            if ($node->type === 'raw_html_inline') {
+                $text .= (string) $node->attr('html', '');
+                continue;
+            }
             if ($node->type === 'softbreak') {
                 $text .= "\n";
                 continue;
@@ -17241,6 +17245,10 @@ final class MarkdownReader
             }
             if ($node->type === 'raw_tex') {
                 $text .= (string) $node->attr('tex', '');
+                continue;
+            }
+            if ($node->type === 'raw_html_inline') {
+                $text .= (string) $node->attr('html', '');
                 continue;
             }
             if ($node->type === 'softbreak') {
@@ -17699,23 +17707,46 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('~\G</a\s*>~iu', $text, $close, 0, $offset) === 1) {
+        foreach ([
+            '~\G<!--.*?-->~su',
+            '~\G<!\[CDATA\[.*?\]\]>~su',
+            '~\G<\?.*?\?>~su',
+            '~\G<![A-Za-z][^>]*>~su',
+        ] as $pattern) {
+            if (preg_match($pattern, $text, $raw, 0, $offset) === 1) {
+                return [
+                    'node' => new AstNode('raw_html_inline', ['html' => $raw[0]]),
+                    'next' => $offset + strlen($raw[0]),
+                ];
+            }
+        }
+
+        if (preg_match('~\G</([A-Za-z][A-Za-z0-9-]*)\s*>~iu', $text, $close, 0, $offset) === 1) {
+            if (!$this->isMarkdownInlineRawHtmlTag($close[1])) {
+                return null;
+            }
+
             return [
                 'node' => new AstNode('raw_html_inline', ['html' => $close[0]]),
                 'next' => $offset + strlen($close[0]),
             ];
         }
 
-        if (preg_match('~\G<a(?=\s|>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?>~iu', $text, $open, 0, $offset) === 1) {
+        if (preg_match('~\G<([A-Za-z][A-Za-z0-9-]*)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $text, $open, 0, $offset) === 1) {
+            $tag = strtolower($open[1]);
+            if (!$this->isMarkdownInlineRawHtmlTag($tag)) {
+                return null;
+            }
+
             $afterOpen = $offset + strlen($open[0]);
-            if (preg_match('~\G</a\s*>~iu', $text, $close, 0, $afterOpen) === 1) {
+            if (preg_match('~\G</' . preg_quote($tag, '~') . '\s*>~iu', $text, $close, 0, $afterOpen) === 1) {
                 return [
                     'node' => new AstNode('raw_html_inline', ['html' => $open[0]]),
                     'next' => $afterOpen,
                 ];
             }
 
-            if (preg_match('~</a\s*>~iu', $text, $close, PREG_OFFSET_CAPTURE, $afterOpen) === 1) {
+            if (preg_match('~</' . preg_quote($tag, '~') . '\s*>~iu', $text, $close, PREG_OFFSET_CAPTURE, $afterOpen) === 1) {
                 $end = $close[0][1] + strlen($close[0][0]);
 
                 return [
@@ -17723,9 +17754,158 @@ final class MarkdownReader
                     'next' => $end,
                 ];
             }
+
+            return [
+                'node' => new AstNode('raw_html_inline', ['html' => $open[0]]),
+                'next' => $afterOpen,
+            ];
         }
 
         return null;
+    }
+
+    private function isMarkdownInlineRawHtmlTag(string $tag): bool
+    {
+        return in_array(strtolower($tag), [
+            'a',
+            'abbr',
+            'address',
+            'animate',
+            'animatemotion',
+            'animatetransform',
+            'annotation',
+            'annotation-xml',
+            'area',
+            'audio',
+            'base',
+            'bdi',
+            'bdo',
+            'button',
+            'canvas',
+            'circle',
+            'cite',
+            'clippath',
+            'data',
+            'datalist',
+            'defs',
+            'desc',
+            'details',
+            'dfn',
+            'dialog',
+            'ellipse',
+            'embed',
+            'feblend',
+            'fecomposite',
+            'fedropshadow',
+            'feflood',
+            'fegaussianblur',
+            'feoffset',
+            'fieldset',
+            'filter',
+            'foreignobject',
+            'form',
+            'g',
+            'hgroup',
+            'iframe',
+            'image',
+            'input',
+            'kbd',
+            'label',
+            'legend',
+            'line',
+            'lineargradient',
+            'link',
+            'maligngroup',
+            'malignmark',
+            'map',
+            'mark',
+            'mask',
+            'math',
+            'maction',
+            'metadata',
+            'menclose',
+            'merror',
+            'menu',
+            'meta',
+            'meter',
+            'mfenced',
+            'mfrac',
+            'mglyph',
+            'mi',
+            'mlabeledtr',
+            'mlongdiv',
+            'mmultiscripts',
+            'mn',
+            'mo',
+            'mover',
+            'mpadded',
+            'mpath',
+            'mphantom',
+            'mprescripts',
+            'mroot',
+            'mrow',
+            'ms',
+            'mscarries',
+            'mscarry',
+            'msgroup',
+            'msline',
+            'mspace',
+            'msqrt',
+            'msrow',
+            'mstack',
+            'mstyle',
+            'msub',
+            'msubsup',
+            'msup',
+            'mtable',
+            'mtd',
+            'mtext',
+            'mtr',
+            'munder',
+            'munderover',
+            'none',
+            'object',
+            'optgroup',
+            'option',
+            'output',
+            'param',
+            'path',
+            'pattern',
+            'picture',
+            'polygon',
+            'polyline',
+            'progress',
+            'radialgradient',
+            'rect',
+            'rp',
+            'rt',
+            'ruby',
+            'search',
+            'select',
+            'semantics',
+            'set',
+            'slot',
+            'small',
+            'source',
+            'span',
+            'stop',
+            'summary',
+            'svg',
+            'switch',
+            'symbol',
+            'template',
+            'text',
+            'textarea',
+            'textpath',
+            'time',
+            'track',
+            'tspan',
+            'use',
+            'var',
+            'video',
+            'view',
+            'wbr',
+        ], true);
     }
 
     /**

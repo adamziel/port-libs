@@ -13898,6 +13898,26 @@ HTML;
         $t->same('<hr>', $document->children[6]->attr('html'));
         $t->same('<hr class="foo" id="bar" />', $document->children[7]->attr('html'));
     },
+    'maps upstream markdown reader inline raw html tags with quoted attributes' => static function (TestRunner $t): void {
+        $markdown = 'Press <kbd data-key="ctrl">Ctrl</kbd> and keep <span class="mark" data-source="batch-1214">raw</span> markup.';
+        $document = (new MarkdownReader())->read($markdown);
+        $paragraph = $document->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $autolink = (new MarkdownReader())->read('<http://foo.bar>')->children[0]->children[0];
+        $emptyAnchor = (new MarkdownReader())->read('<a></a>')->children[0];
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline', 'text', 'raw_html_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<kbd data-key="ctrl">Ctrl</kbd>', $paragraph->children[1]->attr('html'));
+        $t->same('<span class="mark" data-source="batch-1214">raw</span>', $paragraph->children[3]->attr('html'));
+        $t->same('link', $autolink->type);
+        $t->same('http://foo.bar', $autolink->attr('url'));
+        $t->same(['raw_html_inline', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $emptyAnchor->children));
+        $t->same('<a>', $emptyAnchor->children[0]->attr('html'));
+        $t->same('</a>', $emptyAnchor->children[1]->attr('html'));
+        $t->same($markdown, (new MarkdownWriter())->write($document));
+        $t->contains('<p>Press <kbd data-key="ctrl">Ctrl</kbd> and keep <span class="mark" data-source="batch-1214">raw</span> markup.</p>', $blocks);
+    },
     'maps upstream tables simple syntax with and without captions' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             'Simple table with caption:',
