@@ -289,6 +289,11 @@ final class MarkdownReader
                 $blocks[] = $rawTexBlock;
                 continue;
             }
+            $figureWithAdjacentCaption = $paragraph === [] && $listStack === [] ? $this->tryReadFigureWithAdjacentCaption($lines, $index) : null;
+            if ($figureWithAdjacentCaption !== null) {
+                $blocks[] = $figureWithAdjacentCaption;
+                continue;
+            }
             $tableWithLeadingCaption = $paragraph === [] && $listStack === [] ? $this->tryReadTableWithLeadingCaption($lines, $index) : null;
             if ($tableWithLeadingCaption !== null) {
                 $blocks[] = $tableWithLeadingCaption;
@@ -14605,6 +14610,169 @@ final class MarkdownReader
         }
 
         return [$this->emptyTableCaptionRecord(), $cursor];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadFigureWithAdjacentCaption(array $lines, int &$index): ?AstNode
+    {
+        $leading = $this->readLeadingFigureCaption($lines, $index);
+        if ($leading !== null) {
+            $figure = $this->figureFromStandaloneImageLine($lines[$leading['figureStart']] ?? '');
+            if ($figure !== null) {
+                $index = $leading['figureStart'];
+
+                return $this->figureWithCaption($figure, $leading['caption']);
+            }
+        }
+
+        $figure = $this->figureFromStandaloneImageLine($lines[$index] ?? '');
+        if ($figure === null) {
+            return null;
+        }
+
+        [$caption, $next] = $this->readFigureCaption($lines, $index + 1);
+        if ($caption === '') {
+            return null;
+        }
+
+        $index = $next - 1;
+
+        return $this->figureWithCaption($figure, $caption);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int}
+     */
+    private function readFigureCaption(array $lines, int $cursor): array
+    {
+        $count = count($lines);
+        $captionCursor = $cursor;
+        while ($captionCursor < $count && trim($lines[$captionCursor]) === '') {
+            $captionCursor++;
+        }
+
+        $captionLine = $captionCursor < $count ? $this->matchFigureCaptionLine($lines[$captionCursor]) : null;
+        if ($captionLine === null) {
+            return ['', $cursor];
+        }
+
+        $caption = [trim($captionLine)];
+        $next = $captionCursor + 1;
+        while (
+            $next < $count
+            && trim($lines[$next]) !== ''
+            && $this->countIndentColumns($lines[$next]) >= 2
+            && $this->figureFromStandaloneImageLine($lines[$next]) === null
+        ) {
+            $caption[] = trim($lines[$next]);
+            $next++;
+        }
+
+        return [implode("\n", $caption), $next];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{caption:string, figureStart:int}|null
+     */
+    private function readLeadingFigureCaption(array $lines, int $index): ?array
+    {
+        $captionLine = $this->matchFigureCaptionLine($lines[$index] ?? '');
+        if ($captionLine === null) {
+            return null;
+        }
+
+        $caption = [trim($captionLine)];
+        $cursor = $index + 1;
+        $count = count($lines);
+        while (
+            $cursor < $count
+            && trim($lines[$cursor]) !== ''
+            && $this->countIndentColumns($lines[$cursor]) >= 2
+            && $this->figureFromStandaloneImageLine($lines[$cursor]) === null
+        ) {
+            $caption[] = trim($lines[$cursor]);
+            $cursor++;
+        }
+
+        while ($cursor < $count && trim($lines[$cursor]) === '') {
+            $cursor++;
+        }
+
+        if ($cursor >= $count || $this->figureFromStandaloneImageLine($lines[$cursor]) === null) {
+            return null;
+        }
+
+        return [
+            'caption' => implode("\n", $caption),
+            'figureStart' => $cursor,
+        ];
+    }
+
+    private function matchFigureCaptionLine(string $line): ?string
+    {
+        if (preg_match('/^ {0,3}(?:(?:Figure|Fig\.?|Image|Caption):|:)\s*(.*)$/iu', $line, $m) !== 1) {
+            return null;
+        }
+
+        return $m[1];
+    }
+
+    private function figureFromStandaloneImageLine(string $line): ?AstNode
+    {
+        if ($this->countIndentColumns($line) > 3) {
+            return null;
+        }
+
+        $text = trim($line);
+        if ($text === '') {
+            return null;
+        }
+
+        $children = $this->parseInlines($text);
+        if (count($children) !== 1 || $children[0]->type !== 'image') {
+            return null;
+        }
+
+        $figureAttrs = $children[0]->attr('figureAttributes', []);
+        if (!is_array($figureAttrs)) {
+            $figureAttrs = [];
+        }
+        $figureAttrs['caption'] = (string) $children[0]->attr('caption', $children[0]->attr('alt', ''));
+
+        return new AstNode('figure', $figureAttrs, [$children[0]]);
+    }
+
+    private function figureWithCaption(AstNode $figure, string $caption): AstNode
+    {
+        if ($figure->type !== 'figure') {
+            return $figure;
+        }
+
+        return new AstNode(
+            'figure',
+            array_replace($figure->attrs, $this->figureCaptionAttrs($caption)),
+            $figure->children
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function figureCaptionAttrs(string $captionSpec): array
+    {
+        $attrs = $this->tableCaptionAttrs($captionSpec);
+        if (isset($attrs['captionInlines'])) {
+            $attrs['renderCaptionInlines'] = true;
+        }
+        if (isset($attrs['shortCaption'])) {
+            $attrs['renderShortCaptionAttribute'] = true;
+        }
+
+        return $attrs;
     }
 
     /**

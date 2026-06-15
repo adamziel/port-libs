@@ -184,6 +184,148 @@ foreach ($cases as $case) {
     };
 }
 
+$makeAdjacentFigureCaptionImage = static function (array $case): string {
+    return match ($case['syntax']) {
+        'inline' => '![' . $case['sourceLabel'] . '](' . $case['url'] . ' "' . $case['title'] . '"){alt="' . $case['alt'] . '"}',
+        'reference' => '![' . $case['sourceLabel'] . '][fig-ref-' . $case['caseId'] . ']',
+        'shortcut' => '![' . $case['sourceLabel'] . '][]',
+    };
+};
+
+$makeAdjacentFigureCaptionReference = static function (array $case): string {
+    return match ($case['syntax']) {
+        'reference' => "\n\n" . '[fig-ref-' . $case['caseId'] . ']: ' . $case['url'] . ' "' . $case['title'] . '"',
+        'shortcut' => "\n\n" . '[' . $case['sourceLabel'] . ']: ' . $case['url'] . ' "' . $case['title'] . '"',
+        default => '',
+    };
+};
+
+$makeAdjacentFigureCaptionMarkdown = static function (array $case) use (
+    $makeAdjacentFigureCaptionImage,
+    $makeAdjacentFigureCaptionReference
+): string {
+    $caption = $case['marker'] . ' [' . $case['shortCaption'] . '] ' . $case['caption']
+        . ' {#' . $case['id'] . ' .figure-surge .' . $case['caseClass']
+        . ' ' . $case['attributeSource'] . '}';
+    $image = $makeAdjacentFigureCaptionImage($case);
+    $reference = $makeAdjacentFigureCaptionReference($case);
+
+    return $case['position'] === 'leading'
+        ? $caption . "\n\n" . $image . $reference
+        : $image . "\n\n" . $caption . $reference;
+};
+
+$adjacentFigureCaptionCases = [];
+$adjacentFigureCaptionCaseNumber = 1;
+foreach (['inline', 'reference', 'shortcut'] as $syntax) {
+    foreach (['trailing', 'leading'] as $position) {
+        foreach (['Figure:', 'Fig:', 'Caption:'] as $marker) {
+            for ($variant = 1; $variant <= 3; $variant++) {
+                $caseId = str_pad((string) $adjacentFigureCaptionCaseNumber, 3, '0', STR_PAD_LEFT);
+                $attributeSet = match ($variant) {
+                    1 => [
+                        'source' => 'data-source="upstream-figure-' . $caseId . '" lang="en"',
+                        'attributes' => ['data-source' => 'upstream-figure-' . $caseId, 'lang' => 'en'],
+                        'wordpress' => 'data-source="upstream-figure-' . $caseId . '" lang="en"',
+                    ],
+                    2 => [
+                        'source' => 'role="figure" title="Review figure ' . $caseId . '"',
+                        'attributes' => ['role' => 'figure', 'title' => 'Review figure ' . $caseId],
+                        'wordpress' => 'role="figure" title="Review figure ' . $caseId . '"',
+                    ],
+                    default => [
+                        'source' => 'aria-label="Review figure ' . $caseId . '" dir="ltr"',
+                        'attributes' => ['aria-label' => 'Review figure ' . $caseId, 'dir' => 'ltr'],
+                        'wordpress' => 'aria-label="Review figure ' . $caseId . '" dir="ltr"',
+                    ],
+                };
+
+                $syntaxLabel = ucfirst($syntax);
+                $adjacentFigureCaptionCases[] = [
+                    'caseId' => $caseId,
+                    'id' => 'md-figure-caption-surge-' . $caseId,
+                    'caseClass' => 'case-' . $caseId,
+                    'attributeSource' => $attributeSet['source'],
+                    'attributes' => $attributeSet['attributes'],
+                    'wordpressAttributeFragment' => $attributeSet['wordpress'],
+                    'syntax' => $syntax,
+                    'position' => $position,
+                    'marker' => $marker,
+                    'caption' => 'Review *figure* ' . $caseId,
+                    'shortCaption' => 'Queue ' . $caseId,
+                    'sourceLabel' => $syntaxLabel . ' source ' . $caseId,
+                    'alt' => $syntax === 'inline' ? $syntaxLabel . ' alt ' . $caseId : $syntaxLabel . ' source ' . $caseId,
+                    'url' => 'media/' . $syntax . '-figure-' . $caseId . '.png',
+                    'title' => $syntaxLabel . ' title ' . $caseId,
+                    'name' => sprintf(
+                        'maps upstream markdown adjacent figure caption surge case %s %s %s %s',
+                        $caseId,
+                        $syntax,
+                        $position,
+                        strtolower(rtrim($marker, ':'))
+                    ),
+                ];
+                $adjacentFigureCaptionCaseNumber++;
+            }
+        }
+    }
+}
+
+foreach ($adjacentFigureCaptionCases as $case) {
+    $tests[$case['name']] = static function (TestRunner $t) use ($case, $makeAdjacentFigureCaptionMarkdown): void {
+        $document = (new MarkdownReader())->read($makeAdjacentFigureCaptionMarkdown($case));
+        $figure = $document->children[0] ?? new AstNode('missing');
+        $image = $figure->children[0] ?? new AstNode('missing');
+        $captionInlines = $figure->attr('captionInlines', []);
+        $shortCaptionInlines = $figure->attr('shortCaptionInlines', []);
+        $attributes = $figure->attr('attributes', []);
+        $htmlAttributes = $figure->attr('htmlAttributes', []);
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($document->children));
+        $t->same('figure', $figure->type);
+        $t->same('image', $image->type);
+        $t->same($case['caption'], $figure->attr('caption'));
+        $t->same($case['shortCaption'], $figure->attr('shortCaption'));
+        $t->same(true, $figure->attr('renderCaptionInlines'));
+        $t->same(true, $figure->attr('renderShortCaptionAttribute'));
+        $t->same($case['id'], $figure->attr('id'));
+        $t->same(['figure-surge', $case['caseClass']], $figure->attr('classes'));
+        $t->same($case['attributes'], $attributes);
+        $t->same($case['id'], $htmlAttributes['id'] ?? null);
+        $t->same('figure-surge ' . $case['caseClass'], $htmlAttributes['class'] ?? null);
+        $t->same($case['url'], $image->attr('url'));
+        $t->same($case['title'], $image->attr('title'));
+        $t->same($case['alt'], $image->attr('alt'));
+        $t->same($case['sourceLabel'], $image->attr('caption'));
+        $t->same(['text', 'emph', 'text'], array_map(static fn (AstNode $node): string => $node->type, $captionInlines));
+        $t->same('figure', $captionInlines[1]->children[0]->attr('text'));
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $shortCaptionInlines));
+        $t->same($case['shortCaption'], $shortCaptionInlines[0]->attr('text'));
+
+        $t->contains('![Review *figure* ' . $case['caseId'] . '](' . $case['url'] . ' "' . $case['title'] . '")', $markdown);
+        $t->contains('{#' . $case['id'] . ' .figure-surge .' . $case['caseClass'], $markdown);
+        $t->contains($case['attributeSource'], $markdown);
+        if ($case['alt'] !== 'Review figure ' . $case['caseId']) {
+            $t->contains('alt="' . $case['alt'] . '"', $markdown);
+        }
+
+        $t->contains('<!-- wp:image -->', $blocks);
+        $t->contains(
+            '<figure class="wp-block-image figure-surge ' . $case['caseClass'] . '" id="' . $case['id'] . '" '
+                . $case['wordpressAttributeFragment']
+                . ' data-pandoc-short-caption="' . $case['shortCaption'] . '">',
+            $blocks
+        );
+        $t->contains(
+            '<img src="' . $case['url'] . '" alt="' . $case['alt'] . '" title="' . $case['title'] . '"/>',
+            $blocks
+        );
+        $t->contains('<figcaption>Review <em>figure</em> ' . $case['caseId'] . '</figcaption>', $blocks);
+    };
+}
+
 $tests['records upstream markdown figure caption surge mapped-case count'] = static function (TestRunner $t) use ($cases): void {
     $t->same(54, count($cases));
 };

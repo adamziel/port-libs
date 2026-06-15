@@ -2552,6 +2552,11 @@ final class WordPressBlockWriter
             $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $attributes['latex-placement']) . '"';
         }
 
+        $shortCaption = (string) $node->attr('shortCaption', '');
+        if ($shortCaption !== '' && $node->attr('renderShortCaptionAttribute') === true && !isset($rendered['data-pandoc-short-caption'])) {
+            $attrs .= ' data-pandoc-short-caption="' . $this->esc($shortCaption) . '"';
+        }
+
         return $attrs;
     }
 
