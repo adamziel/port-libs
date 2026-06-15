@@ -14419,7 +14419,12 @@ HTML;
         $t->same(1, count($genericTagLine->children));
         $t->same('paragraph', $genericTagLine->children[0]->type);
         $t->same(
-            'Paragraph before generic tag <custom-review> continuation',
+            ['text', 'softbreak', 'raw_html_inline', 'softbreak', 'text'],
+            array_map(static fn (AstNode $node): string => $node->type, $genericTagLine->children[0]->children)
+        );
+        $t->same('<custom-review>', $genericTagLine->children[0]->children[2]->attr('html'));
+        $t->same(
+            'Paragraph before generic tag  continuation',
             $genericTagLine->children[0]->attr('text')
         );
     },

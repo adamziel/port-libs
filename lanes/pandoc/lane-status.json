@@ -1271,5 +1271,7 @@
   "mappedMarkdownReaderBareAutolinkAttributeSurgeCases": 50,
   "markdownReaderBareAutolinkAttributeSurgeAssertions": 538,
   "mappedMarkdownReaderAttributeTokenSurgeCases": 50,
-  "markdownReaderAttributeTokenSurgeAssertions": 897
+  "markdownReaderAttributeTokenSurgeAssertions": 897,
+  "mappedMarkdownReaderInlineGenericHtmlSurgeCases": 50,
+  "markdownReaderInlineGenericHtmlSurgeAssertions": 254
 }
