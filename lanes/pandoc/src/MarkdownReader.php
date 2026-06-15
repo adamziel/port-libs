@@ -17428,14 +17428,6 @@ final class MarkdownReader
                 continue;
             }
 
-            $wikiLink = $allowLinks ? $this->tryParseWikiLink($text, $offset) : null;
-            if ($wikiLink !== null) {
-                $this->flushText($buffer, $nodes);
-                $nodes[] = $wikiLink['node'];
-                $offset = $wikiLink['next'];
-                continue;
-            }
-
             $image = $allowLinks ? $this->tryParseImage($text, $offset) : null;
             if ($image !== null) {
                 $this->flushText($buffer, $nodes);
@@ -17473,6 +17465,14 @@ final class MarkdownReader
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $referenceLink['node'];
                 $offset = $referenceLink['next'];
+                continue;
+            }
+
+            $wikiLink = $allowLinks ? $this->tryParseWikiLink($text, $offset) : null;
+            if ($wikiLink !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $wikiLink['node'];
+                $offset = $wikiLink['next'];
                 continue;
             }
 
@@ -17625,7 +17625,7 @@ final class MarkdownReader
             if ($text[$cursor] === '`') {
                 $tickCount = $this->countBackticks($text, $cursor);
                 $end = $this->findMatchingBacktickRun($text, $cursor + $tickCount, $tickCount);
-                if ($end !== null) {
+                if ($end !== null && $this->hasBracketedLabelCloseAfter($text, $end + $tickCount, $depth)) {
                     $cursor = $end + $tickCount - 1;
                 }
                 continue;
@@ -19172,6 +19172,15 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($text[$cursor] === '`') {
+                $tickCount = $this->countBackticks($text, $cursor);
+                $end = $this->findMatchingBacktickRun($text, $cursor + $tickCount, $tickCount);
+                if ($end !== null && $this->hasBracketedLabelCloseAfter($text, $end + $tickCount, $depth)) {
+                    $cursor = $end + $tickCount - 1;
+                }
+                continue;
+            }
+
             if ($text[$cursor] === '[') {
                 $depth++;
                 continue;
@@ -19193,6 +19202,34 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function hasBracketedLabelCloseAfter(string $text, int $offset, int $depth): bool
+    {
+        $length = strlen($text);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($text[$cursor] === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($text[$cursor] !== ']') {
+                continue;
+            }
+
+            if ($depth === 0) {
+                return true;
+            }
+
+            $depth--;
+        }
+
+        return false;
     }
 
     /**
