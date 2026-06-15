@@ -1558,6 +1558,7 @@ final class MarkdownWriter
 
         $head = null;
         $bodies = [];
+        $directRows = [];
         $foot = null;
         foreach ($node->children as $child) {
             if ($child->type === 'table_head') {
@@ -1572,6 +1573,11 @@ final class MarkdownWriter
 
             if ($child->type === 'table_foot') {
                 $foot = $child;
+                continue;
+            }
+
+            if ($child->type === 'table_row') {
+                $directRows[] = $child;
             }
         }
 
@@ -1594,6 +1600,17 @@ final class MarkdownWriter
             $lines[] = $innerPrefix . '<tbody' . $this->renderHtmlAttributes($this->htmlAttributeMap($body)) . '>';
             array_push($lines, ...$this->renderHtmlTableRows(
                 $this->tableBodyRowEntries($body, $columnCount),
+                $node,
+                $columnCount,
+                $indent + 4
+            ));
+            $lines[] = $innerPrefix . '</tbody>';
+        }
+
+        if ($directRows !== []) {
+            $lines[] = $innerPrefix . '<tbody>';
+            array_push($lines, ...$this->renderHtmlTableRows(
+                $this->tableRowsEntries($directRows, false),
                 $node,
                 $columnCount,
                 $indent + 4
@@ -1731,7 +1748,7 @@ final class MarkdownWriter
     {
         $shortCaptionBlocks = $this->htmlTableCaptionBlocks($node->attr('shortCaptionBlocks', []));
         if ($shortCaptionBlocks !== []) {
-            return trim($this->plainInlineText($this->flattenPlainHtmlBlockInlines($shortCaptionBlocks)));
+            return $this->plainBlockText($shortCaptionBlocks);
         }
 
         $shortCaptionInlines = $node->attr('shortCaptionInlines', []);
@@ -1743,35 +1760,30 @@ final class MarkdownWriter
     }
 
     /**
-     * @param list<AstNode> $blocks
-     * @return list<AstNode>
-     */
-    private function flattenPlainHtmlBlockInlines(array $blocks): array
-    {
-        $inlines = [];
-        foreach ($blocks as $block) {
-            if (in_array($block->type, ['plain', 'paragraph'], true)) {
-                array_push($inlines, ...$block->children);
-            }
-        }
-
-        return $inlines;
-    }
-
-    /**
      * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
      */
     private function tableRowEntries(AstNode $section, bool $header): array
     {
+        return $this->tableRowsEntries($section->children, $header);
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
+     */
+    private function tableRowsEntries(array $rows, bool $header, int $rowHeadColumns = 0): array
+    {
         $entries = [];
-        foreach ($section->children as $row) {
-            if ($row->type === 'table_row') {
-                $entries[] = [
-                    'row' => $row,
-                    'header' => $header,
-                    'rowHeadColumns' => 0,
-                ];
+        foreach ($rows as $row) {
+            if ($row->type !== 'table_row') {
+                continue;
             }
+
+            $entries[] = [
+                'row' => $row,
+                'header' => $header || $row->attr('header') === true,
+                'rowHeadColumns' => $rowHeadColumns,
+            ];
         }
 
         return $entries;
@@ -1783,24 +1795,10 @@ final class MarkdownWriter
     private function tableBodyRowEntries(AstNode $body, int $columnCount): array
     {
         $entries = [];
-        foreach ($this->tableBodyHeadRows($body) as $row) {
-            $entries[] = [
-                'row' => $row,
-                'header' => true,
-                'rowHeadColumns' => 0,
-            ];
-        }
+        array_push($entries, ...$this->tableRowsEntries($this->tableBodyHeadRows($body), true));
 
         $rowHeadColumns = TableGeometry::rowHeadColumns($body, $columnCount);
-        foreach ($body->children as $row) {
-            if ($row->type === 'table_row') {
-                $entries[] = [
-                    'row' => $row,
-                    'header' => false,
-                    'rowHeadColumns' => $rowHeadColumns,
-                ];
-            }
-        }
+        array_push($entries, ...$this->tableRowsEntries($body->children, false, $rowHeadColumns));
 
         return $entries;
     }
@@ -1839,13 +1837,32 @@ final class MarkdownWriter
             $column = (int) $layoutCell['column'];
             $isHeaderCell = TableGeometry::isHeaderCell($header, $rowHeadColumns, $column, $cell);
             $tag = $isHeaderCell ? 'th' : 'td';
-            $scope = $isHeaderCell ? ($header ? 'col' : 'row') : '';
+            $scope = $isHeaderCell ? $this->htmlTableHeaderScope($header, $rowHeadColumns, $column, $layoutCell) : '';
             $html .= '<' . $tag . $this->renderHtmlTableCellAttributes($table, $column, $layoutCell, $cell, $scope) . '>'
                 . $this->renderHtmlTableCellContent($cell)
                 . '</' . $tag . '>';
         }
 
         return $html . '</tr>';
+    }
+
+    /**
+     * @param array{colspan:int,rowspan:int} $layoutCell
+     */
+    private function htmlTableHeaderScope(bool $headerRow, int $rowHeadColumns, int $column, array $layoutCell): string
+    {
+        $colspan = max(1, (int) $layoutCell['colspan']);
+        $rowspan = max(1, (int) $layoutCell['rowspan']);
+
+        if (!$headerRow && $rowHeadColumns > 0 && $column < $rowHeadColumns) {
+            return $rowspan > 1 ? 'rowgroup' : 'row';
+        }
+
+        if ($headerRow) {
+            return $colspan > 1 ? 'colgroup' : 'col';
+        }
+
+        return $rowspan > 1 ? 'rowgroup' : 'row';
     }
 
     /**
@@ -3668,6 +3685,45 @@ final class MarkdownWriter
         }
 
         return trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function plainBlockText(array $nodes): string
+    {
+        $parts = [];
+        foreach ($nodes as $node) {
+            $text = $this->plainNodeText($node);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        $text = implode(' ', $parts);
+
+        return trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+    }
+
+    private function plainNodeText(AstNode $node): string
+    {
+        if ($node->type === 'raw_html' || $node->type === 'raw_markdown' || $node->type === 'raw_block') {
+            return trim((string) $node->attr('text', $node->attr('html', $node->attr('markdown', ''))));
+        }
+
+        if ($this->isInlineNode($node)) {
+            return $this->plainInlineText([$node]);
+        }
+
+        if (in_array($node->type, ['paragraph', 'plain', 'heading', 'table_cell'], true)) {
+            return $this->plainInlineText($node->children);
+        }
+
+        if ($node->type === 'code_block') {
+            return trim((string) $node->attr('text', ''));
+        }
+
+        return $this->plainBlockText($node->children);
     }
 
     private function normalizeReferenceLabelText(string $label): string
