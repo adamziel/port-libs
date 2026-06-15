@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 2,327 | 1,096 |
+| Markdown / CommonMark / GFM | 2,377 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not a current upstream Pandoc input token) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` preserves attributed native HTML div blocks with ids, normalized classes, data/ARIA/lang/dir/title/role/translate/xml:lang attributes, quote-aware values, Markdown fenced-div output, WordPress block handoff, URL control-byte normalization, and existing emoji alias coverage.
+Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` maps supplemental pipe, simple, and grid table captions with role, ARIA, language, direction, title, data, class, and decoded entity attributes, while preserving formatted short captions, link-starting long captions, Markdown writer attribute round-trip, table geometry placement, and WordPress short-caption handoff.
 
-Current Pandoc counters: 6,185 PHP passes / 0 failures and 6,175 mapped upstream cases. Verification passed after rebase onto current main `cc87fc6ba3`: `php -l` for `MarkdownReader.php` and `MarkdownReaderMetadataRawExtensionSurgeTest.php`; focused native-div coverage with `MarkdownReaderTest.php` passed 2 files, 10079 assertions, 0 failures; full `lanes/pandoc/tests` passed 74 files, 105433 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 6,235 PHP passes / 0 failures and 6,225 mapped upstream cases. Verification passed after rebase onto current main `c12e4c4023`: `php -l` for `MarkdownReader.php` and `MarkdownReaderTablesSurgeTest.php`; focused `MarkdownReaderTablesSurgeTest.php` passed 1 file, 1372 assertions, 0 failures; focused `MarkdownReaderTest.php` plus `MarkdownReaderTablesSurgeTest.php` passed 2 files, 8391 assertions, 0 failures; full `lanes/pandoc/tests` passed 74 files, 106253 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.

@@ -192,4 +192,165 @@ foreach ($tableFixtures as $tableName => $fixture) {
     }
 }
 
+$supplementalPlacements = [
+    ['label' => 'pipe before table marker', 'fixture' => $tableFixtures['pipe'], 'position' => 'before-table', 'marker' => 'Table:'],
+    ['label' => 'pipe after colon marker', 'fixture' => $tableFixtures['pipe'], 'position' => 'after-table', 'marker' => ':'],
+    ['label' => 'simple before caption marker', 'fixture' => $tableFixtures['simple'], 'position' => 'before-table', 'marker' => 'Caption:'],
+    ['label' => 'grid after colon marker', 'fixture' => $tableFixtures['grid'], 'position' => 'after-table', 'marker' => ':'],
+    ['label' => 'grid before table marker', 'fixture' => $tableFixtures['grid'], 'position' => 'before-table', 'marker' => 'Table:'],
+];
+
+$supplementalCaptionCases = [
+    [
+        'label' => 'role aria title attributes',
+        'line' => 'Access review {#tbl-{id} .a11y role="presentation" aria-label="Review table {n}" title="Caption {n}"}',
+        'caption' => 'Access review',
+        'classes' => ['a11y'],
+        'attributes' => ['role' => 'presentation', 'aria-label' => 'Review table {n}', 'title' => 'Caption {n}'],
+    ],
+    [
+        'label' => 'locale direction attributes',
+        'line' => 'Locale review {#tbl-{id} .i18n lang=fr dir=rtl data-owner=editorial}',
+        'caption' => 'Locale review',
+        'classes' => ['i18n'],
+        'attributes' => ['lang' => 'fr', 'dir' => 'rtl', 'data-owner' => 'editorial'],
+    ],
+    [
+        'label' => 'single quoted title attribute',
+        'line' => 'Quoted title caption {#tbl-{id} .quote title=\'Batch "{n}" table\'}',
+        'caption' => 'Quoted title caption',
+        'classes' => ['quote'],
+        'attributes' => ['title' => 'Batch "{n}" table'],
+    ],
+    [
+        'label' => 'html entity attribute decode',
+        'line' => 'Entity caption {#tbl-{id} .entity data-label="Review &amp; measure {n}"}',
+        'caption' => 'Entity caption',
+        'classes' => ['entity'],
+        'attributes' => ['data-label' => 'Review & measure {n}'],
+    ],
+    [
+        'label' => 'multiple class data attributes',
+        'line' => 'Multi class caption {#tbl-{id} .review .wide .sortable data-source=batch-{n} data-state=ready}',
+        'caption' => 'Multi class caption',
+        'classes' => ['review', 'wide', 'sortable'],
+        'attributes' => ['data-source' => 'batch-{n}', 'data-state' => 'ready'],
+    ],
+    [
+        'label' => 'formatted emph short caption',
+        'line' => '[Review *short* {n}] Long caption {n} {#tbl-{id} .short data-kind=emph}',
+        'caption' => 'Long caption {n}',
+        'short' => 'Review short {n}',
+        'shortTypes' => ['text', 'emph', 'text'],
+        'classes' => ['short'],
+        'attributes' => ['data-kind' => 'emph'],
+    ],
+    [
+        'label' => 'formatted strong short caption',
+        'line' => '[**Review** short {n}] Long caption {n} {#tbl-{id} .short data-kind=strong}',
+        'caption' => 'Long caption {n}',
+        'short' => 'Review short {n}',
+        'shortTypes' => ['strong', 'text'],
+        'classes' => ['short'],
+        'attributes' => ['data-kind' => 'strong'],
+    ],
+    [
+        'label' => 'long caption link code inlines',
+        'line' => 'Review [docs](/docs/{n}) and `code {n}` {#tbl-{id} .inline data-kind=link-code}',
+        'caption' => 'Review [docs](/docs/{n}) and `code {n}`',
+        'captionTypes' => ['text', 'link', 'text', 'code'],
+        'classes' => ['inline'],
+        'attributes' => ['data-kind' => 'link-code'],
+    ],
+    [
+        'label' => 'link starting caption not short',
+        'line' => '[Docs](/docs/{n}) caption {#tbl-{id} .link-start data-kind=not-short}',
+        'caption' => '[Docs](/docs/{n}) caption',
+        'captionTypes' => ['link', 'text'],
+        'classes' => ['link-start'],
+        'attributes' => ['data-kind' => 'not-short'],
+        'short' => null,
+    ],
+    [
+        'label' => 'multiline continuation with attributes',
+        'line' => "First caption {n}\n  second line `code {n}` {#tbl-{id} .continued data-source=multi-{n}}",
+        'caption' => "First caption {n}\nsecond line `code {n}`",
+        'captionTypes' => ['text', 'softbreak', 'text', 'code'],
+        'classes' => ['continued'],
+        'attributes' => ['data-source' => 'multi-{n}'],
+    ],
+];
+
+foreach ($supplementalPlacements as $placementIndex => $placement) {
+    foreach ($supplementalCaptionCases as $captionIndex => $case) {
+        $number = str_pad((string) $caseNumber++, 2, '0', STR_PAD_LEFT);
+        $replacements = [
+            '{id}' => "{$placementIndex}-{$captionIndex}",
+            '{n}' => $number,
+        ];
+        $line = strtr($case['line'], $replacements);
+        $expectedCaption = strtr($case['caption'], $replacements);
+        $expectedShort = array_key_exists('short', $case) && $case['short'] !== null ? strtr($case['short'], $replacements) : null;
+        $expectedAttributes = [];
+        foreach ($case['attributes'] ?? [] as $name => $value) {
+            $expectedAttributes[$name] = strtr($value, $replacements);
+        }
+        $id = 'tbl-' . $replacements['{id}'];
+        $tests["maps upstream markdown reader table caption supplemental surge {$number} {$placement['label']} {$case['label']}"] =
+            static function (TestRunner $t) use (
+                $captionedMarkdown,
+                $firstTable,
+                $inlineTypes,
+                $assertTableShape,
+                $placement,
+                $line,
+                $expectedCaption,
+                $expectedShort,
+                $expectedAttributes,
+                $id,
+                $case
+            ): void {
+                $document = (new MarkdownReader())->read($captionedMarkdown(
+                    $placement['fixture']['markdown'],
+                    $placement['position'],
+                    $placement['marker'],
+                    $line
+                ));
+                $table = $firstTable($document);
+                $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+                $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
+
+                $assertTableShape($t, $table, $placement['fixture']);
+                $t->same($expectedCaption, $table->attr('caption'));
+                $t->same($id, $table->attr('id'));
+                $t->same($case['classes'], $table->attr('classes'));
+                $t->same($expectedAttributes, $table->attr('attributes'));
+                $t->same('markdown-table-caption', $table->attr('captionSource')['element'] ?? null);
+                $t->same($placement['position'], $table->attr('captionSource')['position'] ?? null);
+                $t->same($placement['marker'], $table->attr('captionSource')['marker'] ?? null);
+                $t->same($placement['position'] === 'before-table' ? 'top' : 'bottom', $table->attr('captionSource')['captionSide'] ?? null);
+                $t->same($placement['position'] === 'before-table' ? 'before-table' : 'after-table', $packet['summary']['captionPlacement'] ?? null);
+                $t->contains('#' . $id, $markdown);
+
+                foreach ($case['classes'] as $class) {
+                    $t->contains('.' . $class, $markdown);
+                }
+
+                if ($expectedShort !== null) {
+                    $t->same($expectedShort, $table->attr('shortCaption'));
+                    $t->same($case['shortTypes'], $inlineTypes($table->attr('shortCaptionInlines')));
+                    $t->same($expectedShort, $packet['captions']['short']['text'] ?? null);
+                    $blocks = (new WordPressBlockWriter())->write($document);
+                    $t->contains('data-pandoc-short-caption="' . htmlspecialchars($expectedShort, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"', $blocks);
+                } elseif (array_key_exists('short', $case)) {
+                    $t->same(null, $table->attr('shortCaption', null));
+                }
+
+                if (isset($case['captionTypes'])) {
+                    $t->same($case['captionTypes'], $inlineTypes($table->attr('captionInlines')));
+                }
+            };
+    }
+}
+
 return $tests;

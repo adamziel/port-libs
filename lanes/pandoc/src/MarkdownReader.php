@@ -14976,8 +14976,9 @@ final class MarkdownReader
             $record['captionInlines'] = $this->parseInlines($longCaption);
         }
         if ($shortCaption !== null && $shortCaption !== '') {
-            $record['shortCaption'] = $this->plainTextFromInlines($this->parseInlines($shortCaption));
-            $record['shortCaptionInlines'] = $this->parseInlines($shortCaption);
+            $shortCaptionInlines = $this->parseInlines($shortCaption);
+            $record['shortCaption'] = $this->plainTextFromInlines($shortCaptionInlines);
+            $record['shortCaptionInlines'] = $shortCaptionInlines;
         }
 
         return array_replace($record, $tableAttrs);
@@ -15018,7 +15019,12 @@ final class MarkdownReader
             return [null, $caption];
         }
 
-        $remainder = trim(substr($caption, $end + 1));
+        $afterShortCaption = substr($caption, $end + 1);
+        if ($afterShortCaption !== '' && !ctype_space($afterShortCaption[0])) {
+            return [null, $caption];
+        }
+
+        $remainder = trim($afterShortCaption);
         if ($remainder === '') {
             return [null, $caption];
         }
