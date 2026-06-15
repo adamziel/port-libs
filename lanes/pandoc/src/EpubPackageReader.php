@@ -32,6 +32,7 @@ final class EpubPackageReader
         'media-overlay' => true,
         'media-type' => true,
         'properties' => true,
+        'xml:base' => true,
         'xml:lang' => true,
     ];
     private const OPF_METADATA_LINK_STRUCTURAL_ATTRIBUTES = [
@@ -426,7 +427,7 @@ final class EpubPackageReader
      *     metadataItems:list<array<string, mixed>>,
      *     metadataReport:array<string, mixed>,
      *     metadataProperties:list<array<string, mixed>>,
-     *     metadataLinks:list<array{id:string, rel:list<string>, href:string, path:string, fragment:string, mediaType:string, properties:list<string>, refines:string, external:bool}>,
+     *     metadataLinks:list<array<string, mixed>>,
      *     manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>,
      *     manifestAuthoring:array<string, mixed>,
      *     spine:list<array{idref:string, href:string, path:string, mediaType:string, linear:bool, properties:list<string>}>,
@@ -558,6 +559,8 @@ final class EpubPackageReader
                 }
                 $attributes = $this->elementAttributes($node);
                 $language = $this->elementLanguage($node);
+                $base = $this->elementBase($node);
+                $baseResolution = self::manifestItemBaseResolution($base);
                 $item = [
                     'index' => $manifestIndex,
                     'id' => $id,
@@ -584,6 +587,9 @@ final class EpubPackageReader
                     'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
                     'language' => $language === '' ? null : $language,
                     'direction' => $this->nullableAttribute($node, 'dir'),
+                    'base' => $base,
+                    'baseResolutionPolicy' => $baseResolution['policy'],
+                    'baseResolution' => $baseResolution,
                     'attributes' => $attributes,
                     'customAttributes' => $this->customAttributes(
                         $attributes,
@@ -1068,7 +1074,6 @@ final class EpubPackageReader
     {
         $href = trim($linkElement->getAttribute('href'));
         $rel = $this->tokens($linkElement->getAttribute('rel'));
-        $suffix = $this->hrefSuffix($href);
         $attributes = $this->elementAttributes($linkElement);
         $customAttributes = $this->customAttributes($attributes, self::OPF_METADATA_LINK_STRUCTURAL_ATTRIBUTES);
         $language = $this->nullableAttribute($linkElement, 'xml:lang');
@@ -1077,6 +1082,7 @@ final class EpubPackageReader
             $language = $this->nullableAttribute($linkElement, 'lang');
             $languageSource = $language === null ? null : 'lang';
         }
+        $suffix = $this->hrefSuffix($href);
         $external = $href !== '' && $this->isExternalHref($href);
         $path = '';
         $target = '';
@@ -1394,6 +1400,7 @@ final class EpubPackageReader
         $itemsById = [];
         $languageItems = [];
         $directionItems = [];
+        $baseItems = [];
         $customAttributeItems = [];
 
         foreach ($manifest as $item) {
@@ -1401,6 +1408,12 @@ final class EpubPackageReader
             $customAttributes = is_array($item['customAttributes'] ?? null)
                 ? $item['customAttributes']
                 : $this->customAttributes($attributes, self::OPF_MANIFEST_ITEM_STRUCTURAL_ATTRIBUTES);
+            $base = is_string($item['base'] ?? null) && $item['base'] !== ''
+                ? $item['base']
+                : (is_string($attributes['xml:base'] ?? null) && $attributes['xml:base'] !== ''
+                    ? $attributes['xml:base']
+                    : null);
+            $baseResolution = self::manifestItemBaseResolution($base);
             $summary = [
                 'index' => (int) ($item['index'] ?? count($items)),
                 'id' => (string) ($item['id'] ?? ''),
@@ -1410,10 +1423,14 @@ final class EpubPackageReader
                 'mediaType' => (string) ($item['mediaType'] ?? ''),
                 'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
                 'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+                'base' => $base,
+                'baseResolutionPolicy' => $baseResolution['policy'],
+                'baseResolution' => $baseResolution,
                 'attributes' => $attributes,
                 'attributeCount' => count($attributes),
                 'customAttributes' => $customAttributes,
                 'customAttributeCount' => count($customAttributes),
+                'hasBase' => $base !== null,
             ];
 
             $items[] = $summary;
@@ -1425,6 +1442,9 @@ final class EpubPackageReader
             }
             if ($summary['direction'] !== null) {
                 $directionItems[] = $summary;
+            }
+            if ($base !== null) {
+                $baseItems[] = $summary;
             }
             if ($customAttributes !== []) {
                 $customAttributeItems[] = $summary;
@@ -1442,8 +1462,22 @@ final class EpubPackageReader
             'languageItems' => $languageItems,
             'directionItemCount' => count($directionItems),
             'directionItems' => $directionItems,
+            'baseItemCount' => count($baseItems),
+            'baseItems' => $baseItems,
             'customAttributeItemCount' => count($customAttributeItems),
             'customAttributeItems' => $customAttributeItems,
+        ];
+    }
+
+    /**
+     * @return array{metadataOnly:bool, appliesToManifestHrefs:bool, policy:?string}
+     */
+    private static function manifestItemBaseResolution(?string $base): array
+    {
+        return [
+            'metadataOnly' => $base !== null,
+            'appliesToManifestHrefs' => false,
+            'policy' => $base === null ? null : 'reported-not-applied-to-manifest-hrefs',
         ];
     }
 
@@ -1875,6 +1909,11 @@ final class EpubPackageReader
             'localLinkCount' => $linkReport['localLinkCount'],
             'externalLinkCount' => $linkReport['externalLinkCount'],
             'missingLinkCount' => $linkReport['missingLinkCount'],
+            'linkTitleCount' => $linkReport['titleCount'],
+            'linkHreflangCount' => $linkReport['hreflangCount'],
+            'linkLanguageTaggedCount' => $linkReport['languageTaggedCount'],
+            'linkDirectionTaggedCount' => $linkReport['directionTaggedCount'],
+            'linkCustomAttributeCount' => $linkReport['customAttributeCount'],
             'linkRelTokens' => $linkReport['relTokens'],
             'linkRelCounts' => $linkReport['relCounts'],
             'linkTargets' => $linkReport['targets'],
@@ -1956,15 +1995,15 @@ final class EpubPackageReader
         $localLinks = [];
         $externalLinks = [];
         $missingLinks = [];
-        $relCounts = [];
-        $linksByRel = [];
-        $targets = [];
-        $diagnostics = [];
         $titledLinks = [];
         $hreflangLinks = [];
         $languageTaggedLinks = [];
         $directionTaggedLinks = [];
         $customAttributeLinks = [];
+        $relCounts = [];
+        $linksByRel = [];
+        $targets = [];
+        $diagnostics = [];
 
         foreach ($links as $linkIndex => $link) {
             if (($link['external'] ?? false) === true) {
@@ -1975,13 +2014,6 @@ final class EpubPackageReader
 
             if (($link['external'] ?? false) !== true && ($link['path'] ?? '') !== '' && ($link['exists'] ?? false) !== true) {
                 $missingLinks[] = $link;
-            }
-
-            $target = is_string($link['target'] ?? null) && $link['target'] !== ''
-                ? $link['target']
-                : (is_string($link['path'] ?? null) ? $link['path'] : '');
-            if ($target !== '') {
-                $targets[] = $target;
             }
             if (is_string($link['title'] ?? null) && $link['title'] !== '') {
                 $titledLinks[] = $link;
@@ -1997,6 +2029,13 @@ final class EpubPackageReader
             }
             if (($link['customAttributeCount'] ?? 0) > 0) {
                 $customAttributeLinks[] = $link;
+            }
+
+            $target = is_string($link['target'] ?? null) && $link['target'] !== ''
+                ? $link['target']
+                : (is_string($link['path'] ?? null) ? $link['path'] : '');
+            if ($target !== '') {
+                $targets[] = $target;
             }
 
             foreach (is_array($link['rel'] ?? null) ? $link['rel'] : [] as $rel) {
@@ -2031,14 +2070,14 @@ final class EpubPackageReader
             'localLinkCount' => count($localLinks),
             'externalLinkCount' => count($externalLinks),
             'missingLinkCount' => count($missingLinks),
-            'localLinks' => $localLinks,
-            'externalLinks' => $externalLinks,
-            'missingLinks' => $missingLinks,
             'titleCount' => count($titledLinks),
             'hreflangCount' => count($hreflangLinks),
             'languageTaggedCount' => count($languageTaggedLinks),
             'directionTaggedCount' => count($directionTaggedLinks),
             'customAttributeCount' => count($customAttributeLinks),
+            'localLinks' => $localLinks,
+            'externalLinks' => $externalLinks,
+            'missingLinks' => $missingLinks,
             'titledLinks' => $titledLinks,
             'hreflangLinks' => $hreflangLinks,
             'languageTaggedLinks' => $languageTaggedLinks,

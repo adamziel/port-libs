@@ -117,6 +117,7 @@ final class EpubPackage
         'media-overlay' => true,
         'media-type' => true,
         'properties' => true,
+        'xml:base' => true,
         'xml:lang' => true,
     ];
     private const OPF_SPINE_ITEMREF_STRUCTURAL_ATTRIBUTES = [
@@ -7447,7 +7448,7 @@ final class EpubPackage
             if (!is_string($name) || !is_string($value)) {
                 continue;
             }
-            if (isset(self::OPF_GUIDE_REFERENCE_STRUCTURAL_ATTRIBUTES[$name])) {
+            if (isset(self::OPF_GUIDE_REFERENCE_STRUCTURAL_ATTRIBUTES[$name]) || $name === 'xmlns' || str_starts_with($name, 'xmlns:')) {
                 continue;
             }
 
@@ -7662,6 +7663,7 @@ final class EpubPackage
         $itemsById = [];
         $languageItems = [];
         $directionItems = [];
+        $baseItems = [];
         $customAttributeItems = [];
 
         foreach ($manifestItems as $item) {
@@ -7669,6 +7671,12 @@ final class EpubPackage
             $customAttributes = is_array($item['customAttributes'] ?? null)
                 ? $item['customAttributes']
                 : self::manifestItemCustomAttributes($attributes);
+            $base = is_string($item['base'] ?? null) && $item['base'] !== ''
+                ? $item['base']
+                : (is_string($attributes['xml:base'] ?? null) && $attributes['xml:base'] !== ''
+                    ? $attributes['xml:base']
+                    : null);
+            $baseResolution = self::manifestItemBaseResolution($base);
             $summary = [
                 'id' => (string) ($item['id'] ?? ''),
                 'href' => (string) ($item['href'] ?? ''),
@@ -7677,10 +7685,14 @@ final class EpubPackage
                 'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
                 'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
                 'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+                'base' => $base,
+                'baseResolutionPolicy' => $baseResolution['policy'],
+                'baseResolution' => $baseResolution,
                 'attributes' => $attributes,
                 'attributeCount' => count($attributes),
                 'customAttributes' => $customAttributes,
                 'customAttributeCount' => count($customAttributes),
+                'hasBase' => $base !== null,
             ];
 
             $items[] = $summary;
@@ -7692,6 +7704,9 @@ final class EpubPackage
             }
             if ($summary['direction'] !== null) {
                 $directionItems[] = $summary;
+            }
+            if ($base !== null) {
+                $baseItems[] = $summary;
             }
             if ($customAttributes !== []) {
                 $customAttributeItems[] = $summary;
@@ -7709,8 +7724,22 @@ final class EpubPackage
             'languageItems' => $languageItems,
             'directionItemCount' => count($directionItems),
             'directionItems' => $directionItems,
+            'baseItemCount' => count($baseItems),
+            'baseItems' => $baseItems,
             'customAttributeItemCount' => count($customAttributeItems),
             'customAttributeItems' => $customAttributeItems,
+        ];
+    }
+
+    /**
+     * @return array{metadataOnly:bool, appliesToManifestHrefs:bool, policy:?string}
+     */
+    private static function manifestItemBaseResolution(?string $base): array
+    {
+        return [
+            'metadataOnly' => $base !== null,
+            'appliesToManifestHrefs' => false,
+            'policy' => $base === null ? null : 'reported-not-applied-to-manifest-hrefs',
         ];
     }
 
@@ -7900,6 +7929,61 @@ final class EpubPackage
     }
 
     /**
+     * @param list<array<string, mixed>> $collections
+     *
+     * @return array<string, mixed>
+     */
+    private static function collectionAuthoringReport(array $collections): array
+    {
+        $items = [];
+        self::appendCollectionAuthoringItems($collections, [], $items);
+
+        $itemsByPathKey = [];
+        $itemsById = [];
+        $languageItems = [];
+        $directionItems = [];
+        $baseItems = [];
+        $customAttributeItems = [];
+
+        foreach ($items as $item) {
+            $itemsByPathKey[(string) $item['pathKey']] = $item;
+            if (is_string($item['id'] ?? null) && $item['id'] !== '') {
+                $itemsById[$item['id']] = $item;
+            }
+            if ($item['language'] !== null) {
+                $languageItems[] = $item;
+            }
+            if ($item['direction'] !== null) {
+                $directionItems[] = $item;
+            }
+            if ($item['base'] !== null) {
+                $baseItems[] = $item;
+            }
+            if ($item['customAttributes'] !== []) {
+                $customAttributeItems[] = $item;
+            }
+        }
+
+        ksort($itemsById, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'collectionCount' => count($items),
+            'items' => $items,
+            'itemsByPathKey' => $itemsByPathKey,
+            'itemsById' => $itemsById,
+            'languageItemCount' => count($languageItems),
+            'languageItems' => $languageItems,
+            'directionItemCount' => count($directionItems),
+            'directionItems' => $directionItems,
+            'baseItemCount' => count($baseItems),
+            'baseItems' => $baseItems,
+            'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeItems' => $customAttributeItems,
+        ];
+    }
+
+    /**
      * @param list<array<string, mixed>> $references
      *
      * @return array<string, mixed>
@@ -7956,61 +8040,6 @@ final class EpubPackage
             'languageItems' => $languageItems,
             'directionItemCount' => count($directionItems),
             'directionItems' => $directionItems,
-            'customAttributeItemCount' => count($customAttributeItems),
-            'customAttributeItems' => $customAttributeItems,
-        ];
-    }
-
-    /**
-     * @param list<array<string, mixed>> $collections
-     *
-     * @return array<string, mixed>
-     */
-    private static function collectionAuthoringReport(array $collections): array
-    {
-        $items = [];
-        self::appendCollectionAuthoringItems($collections, [], $items);
-
-        $itemsByPathKey = [];
-        $itemsById = [];
-        $languageItems = [];
-        $directionItems = [];
-        $baseItems = [];
-        $customAttributeItems = [];
-
-        foreach ($items as $item) {
-            $itemsByPathKey[(string) $item['pathKey']] = $item;
-            if (is_string($item['id'] ?? null) && $item['id'] !== '') {
-                $itemsById[$item['id']] = $item;
-            }
-            if ($item['language'] !== null) {
-                $languageItems[] = $item;
-            }
-            if ($item['direction'] !== null) {
-                $directionItems[] = $item;
-            }
-            if ($item['base'] !== null) {
-                $baseItems[] = $item;
-            }
-            if ($item['customAttributes'] !== []) {
-                $customAttributeItems[] = $item;
-            }
-        }
-
-        ksort($itemsById, SORT_STRING);
-
-        return [
-            'present' => $items !== [],
-            'collectionCount' => count($items),
-            'items' => $items,
-            'itemsByPathKey' => $itemsByPathKey,
-            'itemsById' => $itemsById,
-            'languageItemCount' => count($languageItems),
-            'languageItems' => $languageItems,
-            'directionItemCount' => count($directionItems),
-            'directionItems' => $directionItems,
-            'baseItemCount' => count($baseItems),
-            'baseItems' => $baseItems,
             'customAttributeItemCount' => count($customAttributeItems),
             'customAttributeItems' => $customAttributeItems,
         ];
@@ -9948,6 +9977,8 @@ final class EpubPackage
 
             $attributes = self::elementAttributes($itemElement);
             $customAttributes = self::manifestItemCustomAttributes($attributes);
+            $base = self::metadataElementBase($itemElement);
+            $baseResolution = self::manifestItemBaseResolution($base);
             $item = [
                 'id' => $id,
                 'href' => $href,
@@ -9957,6 +9988,9 @@ final class EpubPackage
                 'mediaType' => $mediaType,
                 'language' => self::metadataElementLanguage($itemElement),
                 'direction' => self::metadataElementDirection($itemElement),
+                'base' => $base,
+                'baseResolutionPolicy' => $baseResolution['policy'],
+                'baseResolution' => $baseResolution,
                 'attributes' => $attributes,
                 'customAttributes' => $customAttributes,
                 'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],

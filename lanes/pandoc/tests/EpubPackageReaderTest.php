@@ -3558,7 +3558,7 @@ XML);
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav" data-nav="toc"/>
-    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" xml:lang="fr" dir="rtl" data-track="spine" review:role="chapter"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" xml:base="alternate/" xml:lang="fr" dir="rtl" data-track="spine" review:role="chapter"/>
   </manifest>
   <spine page-progression-direction="rtl">
     <itemref id="spine-chapter" idref="chapter" linear="yes" properties="page-spread-left" xml:lang="fr" dir="rtl" data-spine="primary" review:note="ordered"/>
@@ -3602,14 +3602,22 @@ XML);
 
             $t->same('fr', $manifest['chapter']['language']);
             $t->same('rtl', $manifest['chapter']['direction']);
+            $t->same('alternate/', $manifest['chapter']['base']);
+            $t->same('reported-not-applied-to-manifest-hrefs', $manifest['chapter']['baseResolutionPolicy']);
+            $t->same(false, $manifest['chapter']['baseResolution']['appliesToManifestHrefs']);
+            $t->same('EPUB/chapter.xhtml', $manifest['chapter']['target']);
             $t->same('spine', $manifest['chapter']['customAttributes']['data-track']);
             $t->same('chapter', $manifest['chapter']['customAttributes']['review:role']);
             $t->same(true, $manifestAuthoring['present']);
             $t->same(2, $manifestAuthoring['itemCount']);
             $t->same(1, $manifestAuthoring['languageItemCount']);
             $t->same(1, $manifestAuthoring['directionItemCount']);
+            $t->same(1, $manifestAuthoring['baseItemCount']);
             $t->same(2, $manifestAuthoring['customAttributeItemCount']);
             $t->same('toc', $manifestAuthoring['itemsById']['nav']['customAttributes']['data-nav']);
+            $t->same('alternate/', $manifestAuthoring['itemsById']['chapter']['base']);
+            $t->same('reported-not-applied-to-manifest-hrefs', $manifestAuthoring['itemsById']['chapter']['baseResolutionPolicy']);
+            $t->same(['chapter'], array_column($manifestAuthoring['baseItems'], 'id'));
             $t->same(['nav', 'chapter'], array_column($manifestAuthoring['customAttributeItems'], 'id'));
             $t->same($manifest['chapter']['attributes'], $manifestAuthoring['itemsById']['chapter']['attributes']);
             $t->same($manifest['chapter']['customAttributes'], $manifestAuthoring['itemsById']['chapter']['customAttributes']);
@@ -3722,6 +3730,55 @@ XML);
             $t->same(1, $epub['spineReport']['readableItemCount']);
             $t->same('Parameterized chapter', $epub['toc'][0]['label']);
             $t->same(1, count($document->children));
+        } finally {
+            $removeDirectory($root);
+        }
+    },
+    'reports direct reader manifest item xml base authoring policy' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-manifest-base-authoring-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" version="3.0" unique-identifier="bookid">
+  <metadata>
+    <dc:identifier id="bookid">urn:manifest-base-authoring</dc:identifier>
+    <dc:title>Manifest Base Authoring Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" xml:base="ignored-base/" xml:lang="en"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable chapter.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $manifest = $epub['manifestById'];
+            $authoring = $epub['manifestAuthoring'];
+            $chapter = $manifest['chapter'];
+
+            $t->same('ignored-base/', $chapter['base']);
+            $t->same('reported-not-applied-to-manifest-hrefs', $chapter['baseResolutionPolicy']);
+            $t->same(false, $chapter['baseResolution']['appliesToManifestHrefs']);
+            $t->same(true, $chapter['baseResolution']['metadataOnly']);
+            $t->same('EPUB/chapter.xhtml', $chapter['target']);
+            $t->same('EPUB/chapter.xhtml', $chapter['path']);
+            $t->same(false, array_key_exists('xml:base', $chapter['customAttributes']));
+            $t->same(1, $authoring['baseItemCount']);
+            $t->same(['chapter'], array_column($authoring['baseItems'], 'id'));
+            $t->same('ignored-base/', $authoring['itemsById']['chapter']['base']);
+            $t->same('reported-not-applied-to-manifest-hrefs', $authoring['itemsById']['chapter']['baseResolutionPolicy']);
         } finally {
             $removeDirectory($root);
         }

@@ -82,6 +82,7 @@ final class EpubReader
         'fallback' => true,
         'fallback-style' => true,
         'media-overlay' => true,
+        'xml:base' => true,
         'xml:lang' => true,
         'dir' => true,
     ];
@@ -4850,6 +4851,8 @@ final class EpubReader
             $customAttributes = self::manifestItemCustomAttributes($attributes);
             $language = self::xmlLang($item);
             $direction = self::direction($item);
+            $base = self::xmlBase($item);
+            $baseResolution = self::manifestItemBaseResolution($base);
 
             if (self::isExternalReference($href)) {
                 $fragmentFields = self::targetFragmentFields($href);
@@ -4868,6 +4871,9 @@ final class EpubReader
                     'propertyVocabulary' => $propertyVocabulary,
                     'language' => $language,
                     'direction' => $direction,
+                    'base' => $base,
+                    'baseResolutionPolicy' => $baseResolution['policy'],
+                    'baseResolution' => $baseResolution,
                     'attributes' => $attributes,
                     'customAttributes' => $customAttributes,
                     'resourceFlags' => $resourceFlags,
@@ -4926,6 +4932,9 @@ final class EpubReader
                 'propertyVocabulary' => $propertyVocabulary,
                 'language' => $language,
                 'direction' => $direction,
+                'base' => $base,
+                'baseResolutionPolicy' => $baseResolution['policy'],
+                'baseResolution' => $baseResolution,
                 'attributes' => $attributes,
                 'customAttributes' => $customAttributes,
                 'resourceFlags' => $resourceFlags,
@@ -5546,6 +5555,7 @@ final class EpubReader
         $itemsById = [];
         $languageItems = [];
         $directionItems = [];
+        $baseItems = [];
         $customAttributeItems = [];
 
         foreach ($manifest as $item) {
@@ -5553,6 +5563,12 @@ final class EpubReader
             $customAttributes = is_array($item['customAttributes'] ?? null)
                 ? $item['customAttributes']
                 : self::manifestItemCustomAttributes($attributes);
+            $base = is_string($item['base'] ?? null) && $item['base'] !== ''
+                ? $item['base']
+                : (is_string($attributes['xml:base'] ?? null) && $attributes['xml:base'] !== ''
+                    ? $attributes['xml:base']
+                    : null);
+            $baseResolution = self::manifestItemBaseResolution($base);
             $summary = [
                 'id' => (string) ($item['id'] ?? ''),
                 'href' => (string) ($item['href'] ?? ''),
@@ -5561,10 +5577,14 @@ final class EpubReader
                 'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
                 'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
                 'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+                'base' => $base,
+                'baseResolutionPolicy' => $baseResolution['policy'],
+                'baseResolution' => $baseResolution,
                 'attributes' => $attributes,
                 'attributeCount' => count($attributes),
                 'customAttributes' => $customAttributes,
                 'customAttributeCount' => count($customAttributes),
+                'hasBase' => $base !== null,
             ];
 
             $items[] = $summary;
@@ -5576,6 +5596,9 @@ final class EpubReader
             }
             if ($summary['direction'] !== null) {
                 $directionItems[] = $summary;
+            }
+            if ($base !== null) {
+                $baseItems[] = $summary;
             }
             if ($customAttributes !== []) {
                 $customAttributeItems[] = $summary;
@@ -5593,8 +5616,22 @@ final class EpubReader
             'languageItems' => $languageItems,
             'directionItemCount' => count($directionItems),
             'directionItems' => $directionItems,
+            'baseItemCount' => count($baseItems),
+            'baseItems' => $baseItems,
             'customAttributeItemCount' => count($customAttributeItems),
             'customAttributeItems' => $customAttributeItems,
+        ];
+    }
+
+    /**
+     * @return array{metadataOnly:bool, appliesToManifestHrefs:bool, policy:?string}
+     */
+    private static function manifestItemBaseResolution(?string $base): array
+    {
+        return [
+            'metadataOnly' => $base !== null,
+            'appliesToManifestHrefs' => false,
+            'policy' => $base === null ? null : 'reported-not-applied-to-manifest-hrefs',
         ];
     }
 
