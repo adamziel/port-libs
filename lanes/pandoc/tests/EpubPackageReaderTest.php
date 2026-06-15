@@ -785,6 +785,131 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports epub opf metadata refinement targets for direct package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-refinement-targets-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" id="pkg-record" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:reader-refinement-targets</dc:identifier>
+    <dc:title id="title-main">Reader Refinement Targets</dc:title>
+    <dc:creator id="creator">Refinement Desk</dc:creator>
+    <dc:language>en</dc:language>
+    <meta id="title-kind" refines="#title-main" property="title-type">main</meta>
+    <meta refines="#pkg-record" property="schema:name">Package record</meta>
+    <meta refines="#chapter" property="schema:encodingFormat">application/xhtml+xml</meta>
+    <meta refines="#chapter-entry" property="schema:position">1</meta>
+    <meta refines="#series" property="schema:name">Series packet</meta>
+    <meta refines="#series-record" property="schema:about">Series link</meta>
+    <meta refines="#series-title" property="display-seq">1</meta>
+    <meta refines="#creator-record" property="schema:about">Creator record</meta>
+    <meta refines="#missing-target" property="schema:reviewStatus">missing</meta>
+    <meta refines="https://example.invalid/meta#remote" property="schema:about">Remote refinement</meta>
+    <meta refines="meta/authority.json#authority" property="schema:about">Package relative refinement</meta>
+    <meta refines="#" property="schema:bad">Broken refinement</meta>
+    <link id="creator-record" rel="record" refines="#creator" href="meta/creator.json" media-type="application/json"/>
+    <link id="remote-record" rel="record" refines="https://example.invalid/meta#remote" href="https://example.invalid/remote.json" media-type="application/json"/>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="creator-json" href="meta/creator.json" media-type="application/json"/>
+    <item id="series-json" href="meta/series.json" media-type="application/json"/>
+  </manifest>
+  <spine>
+    <itemref id="chapter-entry" idref="chapter"/>
+  </spine>
+  <collection id="series" role="series">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title id="series-title">Series Review</dc:title>
+    </metadata>
+    <link id="series-record" rel="record" href="meta/series.json" media-type="application/json"/>
+  </collection>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable refinement package.</p></body></html>');
+            $writePackageFile($root, 'EPUB/meta/creator.json', '{"name":"Refinement Desk"}');
+            $writePackageFile($root, 'EPUB/meta/series.json', '{"name":"Series Review"}');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $report = $epub['metadataReport'];
+            $targets = $epub['metadataRefinementTargets'];
+            $find = static function (string $source, string $refines) use ($targets): array {
+                foreach ($targets['items'] as $item) {
+                    if (($item['source'] ?? null) === $source && ($item['refines'] ?? null) === $refines) {
+                        return $item;
+                    }
+                }
+
+                throw new RuntimeException('Missing refinement item: ' . $source . ' ' . $refines);
+            };
+
+            $t->same($targets, $report['refinementTargets']);
+            $t->same($targets['diagnostics'], $epub['metadataRefinementTargetDiagnostics']);
+            $t->same(true, $targets['present']);
+            $t->same(15, $targets['targetIdCount']);
+            $t->same(15, $targets['targetCount']);
+            $t->same([
+                'collection' => 1,
+                'collection-link' => 1,
+                'collection-metadata-item' => 1,
+                'manifest-item' => 4,
+                'metadata-item' => 3,
+                'metadata-link' => 2,
+                'metadata-meta' => 1,
+                'package' => 1,
+                'spine-itemref' => 1,
+            ], $targets['targetKindCounts']);
+            $t->same(14, $targets['refinementCount']);
+            $t->same(9, $targets['resolvedRefinementCount']);
+            $t->same(5, $targets['unresolvedRefinementCount']);
+            $t->same(2, $targets['externalRefinementCount']);
+            $t->same(1, $targets['packageRelativeRefinementCount']);
+            $t->same(2, $targets['diagnosticCount']);
+            $t->same(['unresolved-metadata-refinement-target', 'invalid-metadata-refinement-target'], array_column($targets['diagnostics'], 'type'));
+            $t->same(14, $report['summary']['refinementTargetCount']);
+            $t->same(9, $report['summary']['resolvedRefinementTargetCount']);
+            $t->same(5, $report['summary']['unresolvedRefinementTargetCount']);
+            $t->same(2, $report['summary']['refinementTargetDiagnosticCount']);
+
+            $t->same(['package'], $find('metadata-meta', '#pkg-record')['targetKinds']);
+            $t->same(['metadata-item'], $find('metadata-meta', '#title-main')['targetKinds']);
+            $t->same(['manifest-item'], $find('metadata-meta', '#chapter')['targetKinds']);
+            $t->same(['spine-itemref'], $find('metadata-meta', '#chapter-entry')['targetKinds']);
+            $t->same(['collection'], $find('metadata-meta', '#series')['targetKinds']);
+            $t->same(['collection-link'], $find('metadata-meta', '#series-record')['targetKinds']);
+            $t->same(['collection-metadata-item'], $find('metadata-meta', '#series-title')['targetKinds']);
+            $t->same(['metadata-link'], $find('metadata-meta', '#creator-record')['targetKinds']);
+            $t->same(['metadata-item'], $find('metadata-link', '#creator')['targetKinds']);
+            $t->same(false, $find('metadata-meta', '#missing-target')['resolved']);
+            $t->same('missing-target', $find('metadata-meta', '#missing-target')['subjectId']);
+            $t->same(true, $find('metadata-meta', 'https://example.invalid/meta#remote')['targetExternal']);
+            $t->same(true, $find('metadata-meta', 'meta/authority.json#authority')['targetPackageRelative']);
+            $t->same('invalid-metadata-refinement-target', $find('metadata-meta', '#')['diagnostics'][0]['type']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports epub opf package identity and identifier diagnostics for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-reader-identity-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);

@@ -123,6 +123,8 @@ final class EpubPackageReader
                 'metadataProperties' => $package['metadataProperties'],
                 'metadataLinks' => $package['metadataLinks'],
                 'metadataLinkReport' => $package['metadataLinkReport'],
+                'metadataRefinementTargets' => $package['metadataReport']['refinementTargets'],
+                'metadataRefinementTargetDiagnostics' => $package['metadataReport']['refinementTargetDiagnostics'],
                 'manifest' => array_values($package['manifest']),
                 'manifestById' => $package['manifest'],
                 'manifestReport' => $package['manifestReport'],
@@ -478,6 +480,7 @@ final class EpubPackageReader
                 }
                 if ($name === 'meta') {
                     $metadataProperties[] = [
+                        'index' => count($metadataProperties),
                         'id' => $this->nullableAttribute($node, 'id'),
                         'property' => trim($node->getAttribute('property')),
                         'value' => $value,
@@ -608,9 +611,8 @@ final class EpubPackageReader
                 ++$manifestIndex;
             }
         }
-        $manifestReport = $this->manifestReport($manifest, $manifestOccurrences);
         $metadataLinks = $this->metadataLinksWithManifestContext($metadataLinks, $manifest);
-        $metadataReport = $this->metadataReport($metadataItems, $metadataProperties, $metadataLinks);
+        $manifestReport = $this->manifestReport($manifest, $manifestOccurrences);
         $bindings = $this->readBindings($root, $manifest, $packageElement);
         $bindingsByMediaType = $this->bindingsByMediaType($bindings);
 
@@ -730,6 +732,15 @@ final class EpubPackageReader
         $guide = $this->readGuideReferences($root, $opfDir, $manifest, $packageElement);
         $collections = $this->readCollections($root, $opfDir, $manifest, $packageElement);
         $collectionReport = $this->collectionReport($collections);
+        $metadataReport = $this->metadataReport(
+            $packageElement,
+            $metadataItems,
+            $metadataProperties,
+            $metadataLinks,
+            $manifest,
+            $spine,
+            $collections
+        );
 
         return [
             'version' => trim($packageElement->getAttribute('version')),
@@ -1852,10 +1863,341 @@ final class EpubPackageReader
      * @param list<array<string, mixed>> $items
      * @param list<array<string, mixed>> $properties
      * @param list<array<string, mixed>> $links
+     * @param array<string, array<string, mixed>> $manifest
+     * @param list<array<string, mixed>> $spine
+     * @param list<array<string, mixed>> $collections
      *
      * @return array<string, mixed>
      */
-    private function metadataReport(array $items, array $properties, array $links): array
+    private function metadataRefinementTargetReport(
+        \DOMElement $packageElement,
+        array $items,
+        array $properties,
+        array $links,
+        array $manifest,
+        array $spine,
+        array $collections
+    ): array {
+        $targetItems = [];
+        $targetsById = [];
+        $targetKindCounts = [];
+        $addTarget = static function (?string $id, string $kind, array $context = []) use (&$targetItems, &$targetsById, &$targetKindCounts): void {
+            $id = is_string($id) ? trim($id) : '';
+            if ($id === '') {
+                return;
+            }
+
+            $target = [
+                'id' => $id,
+                'kind' => $kind,
+            ] + $context;
+            $targetItems[] = $target;
+            $targetsById[$id][] = $target;
+            $targetKindCounts[$kind] = ($targetKindCounts[$kind] ?? 0) + 1;
+        };
+
+        $addTarget($this->nullableAttribute($packageElement, 'id'), 'package', [
+            'version' => trim($packageElement->getAttribute('version')),
+            'uniqueIdentifierId' => $this->nullableAttribute($packageElement, 'unique-identifier'),
+        ]);
+
+        foreach ($items as $item) {
+            $addTarget(
+                is_string($item['id'] ?? null) ? $item['id'] : null,
+                'metadata-item',
+                [
+                    'index' => (int) ($item['index'] ?? count($targetItems)),
+                    'name' => is_string($item['name'] ?? null) ? $item['name'] : null,
+                    'metadataKind' => is_string($item['kind'] ?? null) ? $item['kind'] : null,
+                    'value' => is_string($item['value'] ?? null) ? $item['value'] : null,
+                ]
+            );
+        }
+
+        foreach ($properties as $propertyIndex => $property) {
+            $addTarget(
+                is_string($property['id'] ?? null) ? $property['id'] : null,
+                'metadata-meta',
+                [
+                    'index' => (int) ($property['index'] ?? $propertyIndex),
+                    'property' => is_string($property['property'] ?? null) ? $property['property'] : null,
+                    'value' => is_string($property['value'] ?? null) ? $property['value'] : null,
+                ]
+            );
+        }
+
+        foreach ($links as $link) {
+            $addTarget(
+                is_string($link['id'] ?? null) ? $link['id'] : null,
+                'metadata-link',
+                [
+                    'index' => (int) ($link['index'] ?? count($targetItems)),
+                    'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                    'target' => is_string($link['target'] ?? null) ? $link['target'] : null,
+                ]
+            );
+        }
+
+        foreach ($manifest as $item) {
+            $addTarget(
+                is_string($item['id'] ?? null) ? $item['id'] : null,
+                'manifest-item',
+                [
+                    'index' => (int) ($item['index'] ?? count($targetItems)),
+                    'href' => is_string($item['href'] ?? null) ? $item['href'] : null,
+                    'path' => is_string($item['path'] ?? null) ? $item['path'] : null,
+                    'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                ]
+            );
+        }
+
+        foreach ($spine as $item) {
+            $addTarget(
+                is_string($item['id'] ?? null) ? $item['id'] : null,
+                'spine-itemref',
+                [
+                    'index' => (int) ($item['index'] ?? count($targetItems)),
+                    'idref' => is_string($item['idref'] ?? null) ? $item['idref'] : null,
+                    'path' => is_string($item['path'] ?? null) ? $item['path'] : null,
+                ]
+            );
+        }
+
+        $appendCollectionTargets = function (array $items, array $path = []) use (&$appendCollectionTargets, $addTarget): void {
+            foreach ($items as $index => $collection) {
+                if (!is_array($collection)) {
+                    continue;
+                }
+
+                $currentPath = array_merge($path, [(int) $index]);
+                $addTarget(
+                    is_string($collection['id'] ?? null) ? $collection['id'] : null,
+                    'collection',
+                    [
+                        'index' => (int) $index,
+                        'path' => $currentPath,
+                        'role' => is_string($collection['role'] ?? null) ? $collection['role'] : null,
+                    ]
+                );
+
+                foreach (is_array($collection['links'] ?? null) ? $collection['links'] : [] as $linkIndex => $link) {
+                    if (!is_array($link)) {
+                        continue;
+                    }
+
+                    $addTarget(
+                        is_string($link['id'] ?? null) ? $link['id'] : null,
+                        'collection-link',
+                        [
+                            'index' => (int) $linkIndex,
+                            'collectionPath' => $currentPath,
+                            'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                            'target' => is_string($link['target'] ?? null) ? $link['target'] : null,
+                        ]
+                    );
+                }
+
+                $metadata = is_array($collection['metadata'] ?? null) ? $collection['metadata'] : [];
+                foreach (is_array($metadata['items'] ?? null) ? $metadata['items'] : [] as $metadataIndex => $metadataItem) {
+                    if (!is_array($metadataItem)) {
+                        continue;
+                    }
+
+                    $addTarget(
+                        is_string($metadataItem['id'] ?? null) ? $metadataItem['id'] : null,
+                        'collection-metadata-item',
+                        [
+                            'index' => (int) $metadataIndex,
+                            'collectionPath' => $currentPath,
+                            'name' => is_string($metadataItem['name'] ?? null) ? $metadataItem['name'] : null,
+                        ]
+                    );
+                }
+
+                $appendCollectionTargets(is_array($collection['children'] ?? null) ? $collection['children'] : [], $currentPath);
+            }
+        };
+        $appendCollectionTargets($collections);
+
+        ksort($targetKindCounts, SORT_STRING);
+        $duplicateTargetItems = [];
+        foreach ($targetsById as $id => $targets) {
+            if (count($targets) < 2) {
+                continue;
+            }
+
+            $duplicateTargetItems[] = [
+                'id' => $id,
+                'targetCount' => count($targets),
+                'targetKinds' => array_values(array_unique(array_map(
+                    static fn (array $target): string => (string) ($target['kind'] ?? ''),
+                    $targets
+                ))),
+                'targets' => array_values($targets),
+            ];
+        }
+
+        $refinementItems = [];
+        $resolvedItems = [];
+        $unresolvedItems = [];
+        $externalItems = [];
+        $packageRelativeItems = [];
+        $diagnostics = [];
+        $sources = [
+            ['source' => 'metadata-meta', 'items' => $properties],
+            ['source' => 'metadata-link', 'items' => $links],
+        ];
+
+        foreach ($sources as $source) {
+            foreach ($source['items'] as $sourceIndex => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $refines = is_string($entry['refines'] ?? null) ? trim($entry['refines']) : '';
+                if ($refines === '') {
+                    continue;
+                }
+
+                $subjectId = $this->metadataRefinementSubject($refines);
+                $targetLocal = str_starts_with($refines, '#');
+                $targetExternal = !$targetLocal && $this->isExternalHref($refines);
+                $targetPackageRelative = !$targetLocal && !$targetExternal && str_contains($refines, '#');
+                $targets = $targetLocal && $subjectId !== null && isset($targetsById[$subjectId])
+                    ? array_values($targetsById[$subjectId])
+                    : [];
+                $targetKinds = array_values(array_unique(array_map(
+                    static fn (array $target): string => (string) ($target['kind'] ?? ''),
+                    $targets
+                )));
+                $itemDiagnostics = [];
+
+                if ($subjectId === null) {
+                    $itemDiagnostics[] = [
+                        'type' => 'invalid-metadata-refinement-target',
+                        'source' => $source['source'],
+                        'sourceIndex' => (int) ($entry['index'] ?? $sourceIndex),
+                        'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                        'refines' => $refines,
+                        'message' => 'EPUB OPF metadata refinement target must include a fragment identifier',
+                    ];
+                } elseif ($targetLocal && $targets === []) {
+                    $itemDiagnostics[] = [
+                        'type' => 'unresolved-metadata-refinement-target',
+                        'source' => $source['source'],
+                        'sourceIndex' => (int) ($entry['index'] ?? $sourceIndex),
+                        'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                        'refines' => $refines,
+                        'subjectId' => $subjectId,
+                        'message' => 'EPUB OPF metadata refinement points at a local package subject id that was not found in the direct reader target inventory',
+                    ];
+                }
+
+                $item = [
+                    'source' => $source['source'],
+                    'sourceIndex' => (int) ($entry['index'] ?? $sourceIndex),
+                    'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                    'property' => is_string($entry['property'] ?? null) ? $entry['property'] : null,
+                    'rel' => is_array($entry['rel'] ?? null) ? array_values($entry['rel']) : [],
+                    'href' => is_string($entry['href'] ?? null) ? $entry['href'] : null,
+                    'refines' => $refines,
+                    'subjectId' => $subjectId,
+                    'value' => is_string($entry['value'] ?? null) ? $entry['value'] : null,
+                    'targetLocal' => $targetLocal,
+                    'targetExternal' => $targetExternal,
+                    'targetPackageRelative' => $targetPackageRelative,
+                    'resolved' => $targets !== [],
+                    'targetCount' => count($targets),
+                    'targetKinds' => $targetKinds,
+                    'targets' => $targets,
+                    'diagnostics' => $itemDiagnostics,
+                ];
+                $refinementItems[] = $item;
+
+                if ($item['resolved']) {
+                    $resolvedItems[] = $item;
+                } else {
+                    $unresolvedItems[] = $item;
+                }
+                if ($targetExternal) {
+                    $externalItems[] = $item;
+                } elseif ($targetPackageRelative) {
+                    $packageRelativeItems[] = $item;
+                }
+                array_push($diagnostics, ...$itemDiagnostics);
+            }
+        }
+
+        return [
+            'present' => $refinementItems !== [],
+            'targetIdCount' => count($targetsById),
+            'targetCount' => count($targetItems),
+            'targetKindCounts' => $targetKindCounts,
+            'targetItems' => $targetItems,
+            'targetsById' => $targetsById,
+            'duplicateTargetIdCount' => count($duplicateTargetItems),
+            'duplicateTargetItems' => $duplicateTargetItems,
+            'refinementCount' => count($refinementItems),
+            'localRefinementCount' => count(array_filter(
+                $refinementItems,
+                static fn (array $item): bool => ($item['targetLocal'] ?? false) === true
+            )),
+            'externalRefinementCount' => count($externalItems),
+            'packageRelativeRefinementCount' => count($packageRelativeItems),
+            'resolvedRefinementCount' => count($resolvedItems),
+            'unresolvedRefinementCount' => count($unresolvedItems),
+            'items' => $refinementItems,
+            'resolvedItems' => $resolvedItems,
+            'unresolvedItems' => $unresolvedItems,
+            'externalItems' => $externalItems,
+            'packageRelativeItems' => $packageRelativeItems,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private function metadataRefinementSubject(string $refines): ?string
+    {
+        $refines = trim($refines);
+        if ($refines === '') {
+            return null;
+        }
+
+        if (str_starts_with($refines, '#')) {
+            $subject = substr($refines, 1);
+
+            return $subject === '' ? null : $subject;
+        }
+
+        $fragmentOffset = strpos($refines, '#');
+        if ($fragmentOffset === false) {
+            return null;
+        }
+
+        $subject = substr($refines, $fragmentOffset + 1);
+
+        return $subject === '' ? null : $subject;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<array<string, mixed>> $properties
+     * @param list<array<string, mixed>> $links
+     * @param array<string, array<string, mixed>> $manifest
+     * @param list<array<string, mixed>> $spine
+     * @param list<array<string, mixed>> $collections
+     *
+     * @return array<string, mixed>
+     */
+    private function metadataReport(
+        \DOMElement $packageElement,
+        array $items,
+        array $properties,
+        array $links,
+        array $manifest,
+        array $spine,
+        array $collections
+    ): array
     {
         $itemsByKind = [];
         $itemsById = [];
@@ -1903,6 +2245,15 @@ final class EpubPackageReader
         ));
         $linkReport = $this->metadataLinkReport($links);
         $linkMediaTypes = $this->metadataLinkMediaTypeReport($links);
+        $refinementTargets = $this->metadataRefinementTargetReport(
+            $packageElement,
+            $items,
+            $properties,
+            $links,
+            $manifest,
+            $spine,
+            $collections
+        );
 
         $report = [
             'present' => $items !== [] || $properties !== [] || $links !== [],
@@ -1918,6 +2269,13 @@ final class EpubPackageReader
             'fileAsCount' => count($fileAsItems),
             'propertyCount' => count($properties),
             'refinementPropertyCount' => count($refinementProperties),
+            'refinementTargetCount' => $refinementTargets['refinementCount'],
+            'resolvedRefinementTargetCount' => $refinementTargets['resolvedRefinementCount'],
+            'unresolvedRefinementTargetCount' => $refinementTargets['unresolvedRefinementCount'],
+            'externalRefinementTargetCount' => $refinementTargets['externalRefinementCount'],
+            'packageRelativeRefinementTargetCount' => $refinementTargets['packageRelativeRefinementCount'],
+            'refinementTargetDiagnosticCount' => $refinementTargets['diagnosticCount'],
+            'refinementTargetDiagnostics' => $refinementTargets['diagnostics'],
             'linkCount' => $linkReport['itemCount'],
             'localLinkCount' => $linkReport['localLinkCount'],
             'externalLinkCount' => $linkReport['externalLinkCount'],
@@ -1954,6 +2312,7 @@ final class EpubPackageReader
             'roleItems' => $roleItems,
             'fileAsItems' => $fileAsItems,
             'refinementProperties' => $refinementProperties,
+            'refinementTargets' => $refinementTargets,
             'localLinks' => $linkReport['localLinks'],
             'externalLinks' => $linkReport['externalLinks'],
             'missingLinks' => $linkReport['missingLinks'],
@@ -1991,6 +2350,12 @@ final class EpubPackageReader
             'kindCounts' => $report['kindCounts'],
             'propertyCount' => $report['propertyCount'],
             'refinementPropertyCount' => $report['refinementPropertyCount'],
+            'refinementTargetCount' => $report['refinementTargetCount'],
+            'resolvedRefinementTargetCount' => $report['resolvedRefinementTargetCount'],
+            'unresolvedRefinementTargetCount' => $report['unresolvedRefinementTargetCount'],
+            'externalRefinementTargetCount' => $report['externalRefinementTargetCount'],
+            'packageRelativeRefinementTargetCount' => $report['packageRelativeRefinementTargetCount'],
+            'refinementTargetDiagnosticCount' => $report['refinementTargetDiagnosticCount'],
             'linkCount' => $report['linkCount'],
             'localLinkCount' => $report['localLinkCount'],
             'externalLinkCount' => $report['externalLinkCount'],
