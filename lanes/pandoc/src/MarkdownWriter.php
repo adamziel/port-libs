@@ -1857,7 +1857,12 @@ final class MarkdownWriter
     {
         $text = '';
         foreach ($nodes as $index => $node) {
-            $text .= $this->renderInline($node, array_slice($nodes, $index + 1), $index === 0);
+            $previous = $nodes[$index - 1] ?? null;
+            $text .= $this->renderInline(
+                $node,
+                array_slice($nodes, $index + 1),
+                $index === 0 || ($previous instanceof AstNode && ($previous->type === 'softbreak' || $previous->type === 'linebreak'))
+            );
         }
 
         return $text;
@@ -2561,46 +2566,69 @@ final class MarkdownWriter
     {
         $escaped = '';
         $length = strlen($text);
+        $lineStart = true;
+        $definitionLineStart = $escapeDefinitionMarker;
 
         for ($i = 0; $i < $length; $i++) {
             $char = $text[$i];
             $tail = substr($text, $i);
 
-            if ($i === 0 && $char === '#' && $this->startsWithAtxHeadingMarker($text)) {
-                $escaped .= '\\#';
+            if ($char === "\n") {
+                $escaped .= "\n";
+                $lineStart = true;
+                $definitionLineStart = true;
                 continue;
             }
 
-            if ($i === 0 && preg_match('/^([0-9]+)([.)])(?=[ \t]|$)/', $text, $match) === 1) {
+            if ($lineStart && $char === '#' && $this->startsWithAtxHeadingMarker($tail)) {
+                $escaped .= '\\#';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if ($lineStart && preg_match('/^([0-9]+)([.)])(?=[ \t]|$)/', $tail, $match) === 1) {
                 $escaped .= $match[1] . '\\' . $match[2];
                 $i += strlen($match[1]);
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
-            if ($i === 0 && $this->startsWithBulletListMarker($text)) {
+            if ($lineStart && $this->startsWithBulletListMarker($tail)) {
                 $escaped .= '\\' . $char;
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
-            if ($escapeDefinitionMarker && $i === 0 && $this->startsWithDefinitionMarker($text)) {
+            if ($definitionLineStart && $this->startsWithDefinitionMarker($tail)) {
                 $escaped .= '\\' . $char;
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
             if ($i === 0 && $char === '@' && isset($text[$i + 1]) && preg_match('/[A-Za-z0-9_{]/', $text[$i + 1]) === 1) {
                 $escaped .= '\\@';
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
             if (str_starts_with($tail, '...')) {
                 $escaped .= '\\...';
                 $i += 2;
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
             if (str_starts_with($tail, '--')) {
                 $escaped .= '\\--';
                 $i++;
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
@@ -2608,33 +2636,45 @@ final class MarkdownWriter
                 $colonRun = strspn($tail, ':');
                 $escaped .= '\\' . str_repeat(':', $colonRun);
                 $i += $colonRun - 1;
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
             if (str_starts_with($tail, '![')) {
                 $escaped .= '\\![';
                 $i++;
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
             if (str_starts_with($tail, '~~')) {
                 $escaped .= '\\~~';
                 $i++;
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
             if ($char === '&' && preg_match('/^&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);/', $tail) === 1) {
                 $escaped .= '\\&';
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
             if ($char === '\\') {
                 $escaped .= '\\\\';
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
             if ($char === '_' && $this->isIntrawordUnderscore($text, $i)) {
                 $escaped .= '_';
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
@@ -2643,6 +2683,8 @@ final class MarkdownWriter
                 '>', '<' => '\\' . $char,
                 default => $char,
             };
+            $lineStart = false;
+            $definitionLineStart = false;
         }
 
         return $escaped;
@@ -2870,7 +2912,8 @@ final class MarkdownWriter
         $label = (string) $node->children[0]->attr('text', '');
         $suffix = $this->autolinkText($node);
 
-        return $label === $suffix || $this->escapeUri($label) === $suffix;
+        return $this->canRenderAutolinkText($suffix)
+            && ($label === $suffix || $this->escapeUri($label) === $suffix);
     }
 
     private function autolinkText(AstNode $node): string
@@ -2878,6 +2921,12 @@ final class MarkdownWriter
         $url = (string) $node->attr('url', '');
 
         return str_starts_with($url, 'mailto:') ? substr($url, 7) : $url;
+    }
+
+    private function canRenderAutolinkText(string $text): bool
+    {
+        return $text !== ''
+            && preg_match('/[\s\x00-\x1F\x7F<>]/u', $text) !== 1;
     }
 
     /**
@@ -2986,11 +3035,24 @@ final class MarkdownWriter
 
     private function renderLinkDestination(string $url): string
     {
+        $url = $this->escapeLinkDestinationControlCharacters($url);
         if (!$this->linkDestinationNeedsAngles($url)) {
             return $url;
         }
 
         return '<' . str_replace(['\\', '<', '>'], ['\\\\', '\\<', '\\>'], $url) . '>';
+    }
+
+    private function escapeLinkDestinationControlCharacters(string $url): string
+    {
+        return preg_replace_callback(
+            '/[\x00-\x1F\x7F]/',
+            static fn (array $match): string => implode('', array_map(
+                static fn (string $byte): string => sprintf('%%%02X', ord($byte)),
+                str_split($match[0])
+            )),
+            $url
+        ) ?? $url;
     }
 
     private function linkDestinationNeedsAngles(string $url): bool
@@ -3062,7 +3124,12 @@ final class MarkdownWriter
      */
     private function attributeSignature(array $attrs): string
     {
-        return json_encode($attrs, JSON_THROW_ON_ERROR);
+        $normalized = $attrs;
+        if (isset($normalized['attributes']) && is_array($normalized['attributes'])) {
+            ksort($normalized['attributes']);
+        }
+
+        return json_encode($normalized, JSON_THROW_ON_ERROR);
     }
 
     private function escapeAttributeToken(string $value): string
@@ -3072,6 +3139,8 @@ final class MarkdownWriter
 
     private function escapeLinkTitle(string $title): string
     {
+        $title = preg_replace('/[\x00-\x1F\x7F]+/', ' ', $title) ?? $title;
+
         return str_replace(['\\', '"'], ['\\\\', '\\"'], $title);
     }
 
