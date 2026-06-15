@@ -27,6 +27,9 @@ final class MarkdownWriter
     /** @var array<string, string> */
     private array $abbreviationDefinitions = [];
 
+    /** @var array<string, bool> */
+    private array $numberedExampleLabels = [];
+
     /** @var array<string, string> */
     private array $yamlMetadataExplicitCollectionTags = [];
 
@@ -44,6 +47,8 @@ final class MarkdownWriter
     private int $lastReferenceIndex = 0;
 
     private int $fancyOrderedMarkerEscapeSuppression = 0;
+
+    private int $plainTextTriggerEscapeSuppression = 0;
 
     /**
      * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool} $options
@@ -65,6 +70,7 @@ final class MarkdownWriter
         $this->referenceUsedLabels = [];
         $this->referenceTargetLabels = [];
         $this->abbreviationDefinitions = [];
+        $this->numberedExampleLabels = $this->collectNumberedExampleLabels($document);
         $this->yamlMetadataExplicitCollectionTags = [];
         $this->yamlMetadataExplicitScalarTags = [];
         $this->yamlMetadataStandaloneCommentsByPath = [];
@@ -72,6 +78,7 @@ final class MarkdownWriter
         $this->nextNoteNumber = 1;
         $this->lastReferenceIndex = 0;
         $this->fancyOrderedMarkerEscapeSuppression = 0;
+        $this->plainTextTriggerEscapeSuppression = 0;
 
         $blocks = [];
         if ((bool) ($this->options['yamlMetadata'] ?? false)) {
@@ -1132,7 +1139,12 @@ final class MarkdownWriter
      */
     private function renderDefinitionBody(AstNode $definition, int $indent): array
     {
-        $body = $this->renderBlockCollection($definition->children, true);
+        $this->plainTextTriggerEscapeSuppression++;
+        try {
+            $body = $this->renderBlockCollection($definition->children, true);
+        } finally {
+            $this->plainTextTriggerEscapeSuppression--;
+        }
         $markerPrefix = str_repeat(' ', $indent) . ':   ';
         $continuationPrefix = str_repeat(' ', $indent + 4);
 
@@ -1254,6 +1266,36 @@ final class MarkdownWriter
         }
 
         return '';
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function collectNumberedExampleLabels(AstNode $node): array
+    {
+        $labels = [];
+        $this->collectNumberedExampleLabelsFromNode($node, $labels);
+
+        return $labels;
+    }
+
+    /**
+     * @param array<string, bool> $labels
+     */
+    private function collectNumberedExampleLabelsFromNode(AstNode $node, array &$labels): void
+    {
+        if ($node->type === 'ordered_list' && $this->orderedListMarkerStyle($node) === 'example') {
+            foreach ($node->children as $item) {
+                $label = $this->numberedExampleLabel($item);
+                if ($label !== '') {
+                    $labels[$label] = true;
+                }
+            }
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectNumberedExampleLabelsFromNode($child, $labels);
+        }
     }
 
     private function bulletListMarker(): string
@@ -2709,6 +2751,19 @@ final class MarkdownWriter
     }
 
     /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderBracketedLabelInlines(array $nodes): string
+    {
+        $this->plainTextTriggerEscapeSuppression++;
+        try {
+            return $this->renderInlineLabelInlines($nodes);
+        } finally {
+            $this->plainTextTriggerEscapeSuppression--;
+        }
+    }
+
+    /**
      * @param list<AstNode> $following
      */
     private function renderInline(AstNode $node, array $following = [], bool $escapeDefinitionMarker = false): string
@@ -2760,7 +2815,7 @@ final class MarkdownWriter
         $title = (string) $node->attr('title', '');
         $titleMarkdown = $title === '' ? '' : ' "' . $this->escapeLinkTitle($title) . '"';
 
-        return '[' . $this->renderInlineLabelInlines($node->children) . ']('
+        return '[' . $this->renderBracketedLabelInlines($node->children) . ']('
             . $this->renderLinkDestination((string) $node->attr('url', ''))
             . $titleMarkdown
             . ')'
@@ -2783,7 +2838,7 @@ final class MarkdownWriter
      */
     private function renderReferenceLink(AstNode $node, array $following): string
     {
-        $labelText = $this->renderInlines($node->children);
+        $labelText = $this->renderBracketedLabelInlines($node->children);
         $plainLabel = $this->normalizeReferenceLabelText($this->plainInlineText($node->children));
         $referenceLabel = $this->registerReference(
             $plainLabel,
@@ -2995,7 +3050,10 @@ final class MarkdownWriter
 
     private function renderSpan(AstNode $node): string
     {
-        $content = $this->renderInlineLabelInlines($node->children);
+        $attrs = $this->renderLinkAttributes($node);
+        $content = $attrs === ''
+            ? $this->renderInlineLabelInlines($node->children)
+            : $this->renderBracketedLabelInlines($node->children);
         $emojiAlias = $this->markdownEmojiAlias($node, $content);
         if ($emojiAlias !== null) {
             return ':' . $emojiAlias . ':';
@@ -3011,8 +3069,6 @@ final class MarkdownWriter
         if ($this->isMarkdownMarkSpan($node, $content)) {
             return '==' . $content . '==';
         }
-
-        $attrs = $this->renderLinkAttributes($node);
 
         return $attrs === '' ? $content : '[' . $content . ']' . $attrs;
     }
@@ -3066,7 +3122,7 @@ final class MarkdownWriter
         $attrs = $this->linkAttrTuple($node);
         array_unshift($attrs['classes'], 'smallcaps');
 
-        return '[' . $this->renderInlineLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+        return '[' . $this->renderBracketedLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
     }
 
     private function renderUnderline(AstNode $node): string
@@ -3074,7 +3130,7 @@ final class MarkdownWriter
         $attrs = $this->linkAttrTuple($node);
         array_unshift($attrs['classes'], 'underline');
 
-        return '[' . $this->renderInlineLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+        return '[' . $this->renderBracketedLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
     }
 
     private function renderStrikeout(AstNode $node): string
@@ -3100,7 +3156,7 @@ final class MarkdownWriter
         $attrs = $this->linkAttrTuple($node);
         array_unshift($attrs['classes'], $semanticClass);
 
-        return '[' . $this->renderInlineLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+        return '[' . $this->renderBracketedLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
     }
 
     private function markdownEmojiAlias(AstNode $node, string $content): ?string
@@ -3483,6 +3539,31 @@ final class MarkdownWriter
                 continue;
             }
 
+            if (
+                $char === '@'
+                && $this->plainTextTriggerEscapeSuppression === 0
+                && ($this->startsWithBareCitationMarker($text, $i) || $this->isBareEmailAtSign($text, $i))
+            ) {
+                $escaped .= '\\@';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if ($char === ':' && $this->plainTextTriggerEscapeSuppression === 0 && $this->isBareUriSchemeColon($text, $i)) {
+                $escaped .= '\\:';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if ($char === '.' && $this->plainTextTriggerEscapeSuppression === 0 && $this->isBareWwwAutolinkDot($text, $i)) {
+                $escaped .= '\\.';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
             if (str_starts_with($tail, '...')) {
                 $escaped .= '\\...';
                 $i += 2;
@@ -3648,6 +3729,130 @@ final class MarkdownWriter
     private function startsWithDefinitionMarker(string $text): bool
     {
         return preg_match('/^[:~](?:[ \t]|$)/', $text) === 1;
+    }
+
+    private function startsWithBareCitationMarker(string $text, int $offset): bool
+    {
+        if (($text[$offset] ?? '') !== '@') {
+            return false;
+        }
+
+        $previous = $offset === 0 ? '' : $text[$offset - 1];
+        if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+            return false;
+        }
+
+        if (
+            $previous === '('
+            && ($offset === 1 || ($text[$offset - 2] ?? '') === "\n")
+            && $this->startsWithParenthesizedOrderedListMarker(substr($text, $offset - 1))
+        ) {
+            return false;
+        }
+
+        if ($previous === '(' && $this->startsWithKnownNumberedExampleReference($text, $offset)) {
+            return false;
+        }
+
+        return preg_match(
+            '/\G@(?:\{[^}\r\n]+\}|[A-Za-z0-9_:.#\/$%&+?<>~|-]*[A-Za-z0-9_#\/$%&+?<>~|-])/u',
+            $text,
+            $match,
+            0,
+            $offset
+        ) === 1;
+    }
+
+    private function startsWithKnownNumberedExampleReference(string $text, int $offset): bool
+    {
+        return preg_match('/\G@([A-Za-z0-9_-]+)\)/', $text, $match, 0, $offset) === 1
+            && isset($this->numberedExampleLabels[$match[1]]);
+    }
+
+    private function isBareEmailAtSign(string $text, int $offset): bool
+    {
+        if (($text[$offset] ?? '') !== '@') {
+            return false;
+        }
+
+        $localStart = $offset;
+        while (
+            $localStart > 0
+            && preg_match('/[A-Za-z0-9.!#$%&\'*+\/=?^_`{|}~-]/', $text[$localStart - 1]) === 1
+        ) {
+            $localStart--;
+        }
+
+        if ($localStart === $offset) {
+            return false;
+        }
+
+        $previous = $localStart === 0 ? '' : $text[$localStart - 1];
+        if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+            return false;
+        }
+
+        return preg_match(
+            '/\G@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+/u',
+            $text,
+            $match,
+            0,
+            $offset
+        ) === 1;
+    }
+
+    private function isBareUriSchemeColon(string $text, int $offset): bool
+    {
+        if (($text[$offset] ?? '') !== ':') {
+            return false;
+        }
+
+        $schemeStart = $offset;
+        while (
+            $schemeStart > 0
+            && preg_match('/[A-Za-z0-9+.-]/', $text[$schemeStart - 1]) === 1
+        ) {
+            $schemeStart--;
+        }
+
+        if ($schemeStart === $offset) {
+            return false;
+        }
+
+        $scheme = strtolower(substr($text, $schemeStart, $offset - $schemeStart));
+        if (!in_array($scheme, ['http', 'https', 'git', 'file', 'mailto', 'doi'], true)) {
+            return false;
+        }
+
+        $previous = $schemeStart === 0 ? '' : $text[$schemeStart - 1];
+        if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+            return false;
+        }
+
+        $pattern = match ($scheme) {
+            'http', 'https', 'git', 'file' => '~\G' . preg_quote(substr($text, $schemeStart, $offset - $schemeStart), '~') . '://[^\s<>"\']+~iu',
+            'mailto' => '~\Gmailto:[^\s<>"\']+~iu',
+            'doi' => '~\Gdoi:10\.[^\s<>"\']+~iu',
+            default => null,
+        };
+
+        return $pattern !== null && preg_match($pattern, $text, $match, 0, $schemeStart) === 1;
+    }
+
+    private function isBareWwwAutolinkDot(string $text, int $offset): bool
+    {
+        if (($text[$offset] ?? '') !== '.' || $offset < 3 || strcasecmp(substr($text, $offset - 3, 3), 'www') !== 0) {
+            return false;
+        }
+
+        $start = $offset - 3;
+        $previous = $start === 0 ? '' : $text[$start - 1];
+        if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+            return false;
+        }
+
+        return preg_match('~\Gwww\.[^\s<>"\']+~iu', $text, $match, 0, $start) === 1
+            && strlen($match[0]) > 4;
     }
 
     private function isIntrawordUnderscore(string $text, int $offset): bool
