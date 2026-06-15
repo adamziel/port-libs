@@ -5629,6 +5629,18 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             'formEnctype' => 'multipart/form-data',
             'formTarget' => '_parent',
             'formNoValidate' => true,
+            'formOwnerTargetId' => null,
+            'formOwnerId' => 'remote-review',
+            'formOwnerSource' => 'ancestor',
+            'formOwnerFound' => true,
+            'formOwnerAction' => 'https://forms.example.invalid/submit',
+            'formOwnerMethod' => 'post',
+            'formOwnerEnctype' => 'multipart/form-data',
+            'formOwnerTarget' => '_blank',
+            'effectiveFormAction' => '/image-submit',
+            'effectiveFormMethod' => 'post',
+            'effectiveFormEnctype' => 'multipart/form-data',
+            'effectiveFormTarget' => '_parent',
         ], $imageSubmitter['submitter']);
         $t->same('submit', $buttonSubmitter['buttonType']);
         $t->same([
@@ -5638,6 +5650,18 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             'formEnctype' => 'text/plain',
             'formTarget' => '_self',
             'formNoValidate' => true,
+            'formOwnerTargetId' => null,
+            'formOwnerId' => 'remote-review',
+            'formOwnerSource' => 'ancestor',
+            'formOwnerFound' => true,
+            'formOwnerAction' => 'https://forms.example.invalid/submit',
+            'formOwnerMethod' => 'post',
+            'formOwnerEnctype' => 'multipart/form-data',
+            'formOwnerTarget' => '_blank',
+            'effectiveFormAction' => '/local-submit',
+            'effectiveFormMethod' => 'dialog',
+            'effectiveFormEnctype' => 'text/plain',
+            'effectiveFormTarget' => '_self',
         ], $buttonSubmitter['submitter']);
         $t->same('get', $fallbackForm['method']);
         $t->same('application/x-www-form-urlencoded', $fallbackForm['enctype']);
@@ -5652,8 +5676,64 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             'formEnctype' => null,
             'formTarget' => null,
             'formNoValidate' => false,
+            'formOwnerTargetId' => null,
+            'formOwnerId' => 'invalid-method',
+            'formOwnerSource' => 'ancestor',
+            'formOwnerFound' => true,
+            'formOwnerAction' => null,
+            'formOwnerMethod' => 'get',
+            'formOwnerEnctype' => 'application/x-www-form-urlencoded',
+            'formOwnerTarget' => null,
+            'effectiveFormAction' => null,
+            'effectiveFormMethod' => 'get',
+            'effectiveFormEnctype' => 'application/x-www-form-urlencoded',
+            'effectiveFormTarget' => null,
         ], $defaultButton['submitter']);
         $t->same('<form accept-charset="UTF-8 ISO-8859-1" action="https://forms.example.invalid/submit" autocomplete="off" enctype="multipart/form-data" id="remote-review" method="POST" novalidate target="_blank"><input name="title" value="Packet"><input formaction="/image-submit" formenctype="multipart/form-data" formmethod="POST" formnovalidate formtarget="_parent" src="submit.png" type="image"><button formaction="/local-submit" formenctype="text/plain" formmethod="dialog" formnovalidate formtarget="_self" type="submit">Send</button></form><form autocomplete="maybe" enctype="application/json" id="invalid-method" method="TRACE"><button>Default</button></form>', $html);
+    },
+    'resolves html remote submitter effective form targets for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="primary" action="/save" method="post" enctype="multipart/form-data" target="_blank"></form>'
+                . '<button id="remote-submit" form="primary" formaction="/remote" formmethod="GET" formenctype="text/plain" formtarget="_self">Remote</button>'
+                . '<input id="lost-submit" type="submit" form="missing" value="Lost">',
+            'remote submitter review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/remote-submitter-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $remote = $summary[1];
+        $lost = $summary[2];
+
+        $t->same('button', $remote['formControl']);
+        $t->same('primary', $remote['formOwnerId']);
+        $t->same('form-attribute', $remote['formOwnerSource']);
+        $t->same('primary', $remote['submitter']['formOwnerId']);
+        $t->same('form-attribute', $remote['submitter']['formOwnerSource']);
+        $t->same(true, $remote['submitter']['formOwnerFound']);
+        $t->same('/save', $remote['submitter']['formOwnerAction']);
+        $t->same('post', $remote['submitter']['formOwnerMethod']);
+        $t->same('multipart/form-data', $remote['submitter']['formOwnerEnctype']);
+        $t->same('_blank', $remote['submitter']['formOwnerTarget']);
+        $t->same('/remote', $remote['submitter']['effectiveFormAction']);
+        $t->same('get', $remote['submitter']['effectiveFormMethod']);
+        $t->same('text/plain', $remote['submitter']['effectiveFormEnctype']);
+        $t->same('_self', $remote['submitter']['effectiveFormTarget']);
+
+        $t->same('input', $lost['formControl']);
+        $t->same('missing-form-attribute', $lost['formOwnerSource']);
+        $t->same(false, $lost['submitter']['formOwnerFound']);
+        $t->same('missing', $lost['submitter']['formOwnerTargetId']);
+        $t->same('missing-form-attribute', $lost['submitter']['formOwnerSource']);
+        $t->same(null, $lost['submitter']['effectiveFormAction']);
+        $t->same(null, $lost['submitter']['effectiveFormMethod']);
+        $t->same(null, $lost['submitter']['effectiveFormEnctype']);
+        $t->same(null, $lost['submitter']['effectiveFormTarget']);
+        $t->contains($html, $blocks);
+        $t->same('/migration/remote-submitter-review.html', $document->children[0]->attr('part'));
     },
     'summarizes html form owner associations for remote controls' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(

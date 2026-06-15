@@ -19270,13 +19270,32 @@ final class XmlHtmlDom
      */
     private static function formSubmitterSummary(\DOMElement $submitter): array
     {
+        $formOwner = self::formOwnerSummary($submitter);
+        $formOwnerFound = (bool) ($formOwner['formOwnerFound'] ?? false);
+        $formAction = self::attributeOrNull($submitter, 'formaction');
+        $formMethod = self::formMethod($submitter, 'formmethod', null);
+        $formEnctype = self::formEnctype($submitter, 'formenctype', null);
+        $formTarget = self::attributeOrNull($submitter, 'formtarget');
+
         return [
             'form' => self::attributeOrNull($submitter, 'form'),
-            'formAction' => self::attributeOrNull($submitter, 'formaction'),
-            'formMethod' => self::formMethod($submitter, 'formmethod', null),
-            'formEnctype' => self::formEnctype($submitter, 'formenctype', null),
-            'formTarget' => self::attributeOrNull($submitter, 'formtarget'),
+            'formAction' => $formAction,
+            'formMethod' => $formMethod,
+            'formEnctype' => $formEnctype,
+            'formTarget' => $formTarget,
             'formNoValidate' => $submitter->hasAttribute('formnovalidate'),
+            'formOwnerTargetId' => $formOwner['formOwnerTargetId'] ?? null,
+            'formOwnerId' => $formOwner['formOwnerId'] ?? null,
+            'formOwnerSource' => $formOwner['formOwnerSource'] ?? 'none',
+            'formOwnerFound' => $formOwnerFound,
+            'formOwnerAction' => $formOwner['formOwnerAction'] ?? null,
+            'formOwnerMethod' => $formOwner['formOwnerMethod'] ?? null,
+            'formOwnerEnctype' => $formOwner['formOwnerEnctype'] ?? null,
+            'formOwnerTarget' => $formOwner['formOwnerTarget'] ?? null,
+            'effectiveFormAction' => $formOwnerFound ? ($formAction ?? $formOwner['formOwnerAction'] ?? null) : null,
+            'effectiveFormMethod' => $formOwnerFound ? ($formMethod ?? $formOwner['formOwnerMethod'] ?? null) : null,
+            'effectiveFormEnctype' => $formOwnerFound ? ($formEnctype ?? $formOwner['formOwnerEnctype'] ?? null) : null,
+            'effectiveFormTarget' => $formOwnerFound ? ($formTarget ?? $formOwner['formOwnerTarget'] ?? null) : null,
         ];
     }
 
