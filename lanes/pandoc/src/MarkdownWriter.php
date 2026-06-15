@@ -1342,12 +1342,11 @@ final class MarkdownWriter
     private function renderListItem(AstNode $item, string $marker, int $indent): array
     {
         $prefix = str_repeat(' ', $indent) . $marker;
-        $continuationIndent = $indent + strlen($marker);
-        $blockIndent = $continuationIndent;
+        $blockIndent = $indent + strlen($marker);
+        $paragraphContinuationIndent = $blockIndent;
         $task = $item->attr('taskChecked', null);
         if (is_bool($task)) {
             $prefix .= $task ? '[x] ' : '[ ] ';
-            $continuationIndent += 4;
         }
 
         $inlineChildren = [];
@@ -1372,7 +1371,7 @@ final class MarkdownWriter
                     $lines = $this->appendInlineListItemLines(
                         $lines,
                         $prefix,
-                        $continuationIndent,
+                        $paragraphContinuationIndent,
                         $this->renderInlines($child->children)
                     );
                     continue;
@@ -1382,7 +1381,7 @@ final class MarkdownWriter
                     $lines[] = '';
                 }
                 foreach (explode("\n", $this->renderInlines($child->children)) as $line) {
-                    $lines[] = str_repeat(' ', $continuationIndent) . $line;
+                    $lines[] = str_repeat(' ', $paragraphContinuationIndent) . $line;
                 }
                 continue;
             }
@@ -1396,7 +1395,7 @@ final class MarkdownWriter
             $lines = $this->appendInlineListItemLines(
                 $lines,
                 $prefix,
-                $continuationIndent,
+                $paragraphContinuationIndent,
                 $this->renderInlines($inlineChildren)
             );
         }
