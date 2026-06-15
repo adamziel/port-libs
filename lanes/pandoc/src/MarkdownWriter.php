@@ -4448,27 +4448,81 @@ final class MarkdownWriter
 
     private function explicitCitationMarkdown(AstNode $node): ?string
     {
-        foreach (['rendered', 'text'] as $name) {
-            $value = $node->attr($name);
-            if (is_scalar($value) && (string) $value !== '') {
-                return (string) $value;
-            }
+        $rendered = $node->attr('rendered');
+        if (is_scalar($rendered) && (string) $rendered !== '') {
+            return (string) $rendered;
+        }
+
+        $text = $node->attr('text');
+        if (
+            is_scalar($text)
+            && (string) $text !== ''
+            && !$this->hasNativeCitationSource($node)
+        ) {
+            return (string) $text;
         }
 
         $sourceInlines = $node->attr('citationSourceInlines', []);
-        if (is_array($sourceInlines) && $sourceInlines !== [] && $this->allAstNodes(array_values($sourceInlines))) {
+        if (
+            !$this->hasStructuredCitationChildren($node)
+            && is_array($sourceInlines)
+            && $sourceInlines !== []
+            && $this->allAstNodes(array_values($sourceInlines))
+        ) {
             $source = $this->plainInlineText(array_values($sourceInlines));
 
             return $source === '' ? null : $source;
         }
 
-        if ($node->type === 'citation' && $node->children !== [] && $this->allAstNodes($node->children)) {
+        if (
+            $node->type === 'citation'
+            && !$this->hasNativeCitationSource($node)
+            && $node->children !== []
+            && $this->allAstNodes($node->children)
+        ) {
             $source = $this->plainInlineText($node->children);
 
             return $source === '' ? null : $source;
         }
 
         return null;
+    }
+
+    private function hasNativeCitationSource(AstNode $node): bool
+    {
+        foreach ([
+            'citationNative',
+            'citationRecordsNative',
+            'citationModeNative',
+            'citationPrefixNative',
+            'citationSuffixNative',
+        ] as $name) {
+            $value = $node->attr($name);
+            if (is_array($value) && $value !== []) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasStructuredCitationChildren(AstNode $node): bool
+    {
+        if ($node->type === 'citation') {
+            return is_scalar($node->attr('id')) && (string) $node->attr('id') !== '';
+        }
+
+        if ($node->type !== 'citation_group') {
+            return false;
+        }
+
+        foreach ($node->children as $child) {
+            if ($child->type === 'citation') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function citationItemMarkdown(AstNode $citation): string
