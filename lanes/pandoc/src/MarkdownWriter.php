@@ -3933,7 +3933,7 @@ final class MarkdownWriter
 
     private function renderTableAttributes(AstNode $node): string
     {
-        return $this->renderAttributesTuple($this->tableAttrTuple($node));
+        return $this->renderAttributesTuple($this->tableAttrTuple($node), false);
     }
 
     /**
@@ -6165,6 +6165,9 @@ final class MarkdownWriter
             'url' => $this->linkUrl($node),
             'title' => $this->linkTitle($node),
         ];
+        if ($node->attr('preserveAttributeValueBraces') === true) {
+            $attrs['preserveAttributeValueBraces'] = true;
+        }
 
         $linkAttrs = $this->linkAttrTuple($node);
         if ($linkAttrs['id'] !== '') {
@@ -6212,6 +6215,9 @@ final class MarkdownWriter
             $attrs['attributes'] = $imageAttributes + $figureAttributes;
         } elseif ($imageAttributes !== []) {
             $attrs['attributes'] = $imageAttributes;
+        }
+        if (is_array($figure->attr('captionSource', null))) {
+            $attrs['preserveAttributeValueBraces'] = true;
         }
 
         $caption = (string) $figure->attr('caption', '');
@@ -6484,6 +6490,7 @@ final class MarkdownWriter
                 }
             }
         }
+        $attributes = $this->removeRedundantDataAttributeAliases($attributes);
 
         return [
             'id' => $id,
@@ -6663,15 +6670,38 @@ final class MarkdownWriter
         return $name === 'title' && (string) $node->attr('title', '') !== '';
     }
 
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, string>
+     */
+    private function removeRedundantDataAttributeAliases(array $attributes): array
+    {
+        foreach ($attributes as $name => $value) {
+            if (!str_starts_with($name, 'data-')) {
+                continue;
+            }
+
+            $alias = substr($name, 5);
+            if ($alias !== '' && isset($attributes[$alias]) && $attributes[$alias] === $value) {
+                unset($attributes[$name]);
+            }
+        }
+
+        return $attributes;
+    }
+
     private function renderLinkAttributes(AstNode $node): string
     {
-        return $this->renderAttributesTuple($this->linkAttrTuple($node));
+        return $this->renderAttributesTuple(
+            $this->linkAttrTuple($node),
+            $node->attr('preserveAttributeValueBraces') !== true
+        );
     }
 
     /**
      * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
      */
-    private function renderAttributesTuple(array $attrs): string
+    private function renderAttributesTuple(array $attrs, bool $escapeValueBraces = true): string
     {
         $parts = [];
         if ($attrs['id'] !== '') {
@@ -6683,7 +6713,7 @@ final class MarkdownWriter
         foreach ($attrs['attributes'] as $name => $value) {
             $parts[] = $this->escapeAttributeIdentifierToken((string) $name)
                 . '="'
-                . $this->escapeAttributeValue($value)
+                . $this->escapeAttributeValue($value, $escapeValueBraces)
                 . '"';
         }
 
@@ -6717,11 +6747,20 @@ final class MarkdownWriter
         return trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value);
     }
 
-    private function escapeAttributeValue(string $value): string
+    private function escapeAttributeValue(string $value, bool $escapeBraces = true): string
     {
         $value = preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value;
 
-        return str_replace(['\\', '"', '{', '}'], ['\\\\', '\\"', '\\{', '\\}'], $value);
+        $search = ['\\', '"'];
+        $replace = ['\\\\', '\\"'];
+        if ($escapeBraces) {
+            $search[] = '{';
+            $search[] = '}';
+            $replace[] = '\\{';
+            $replace[] = '\\}';
+        }
+
+        return str_replace($search, $replace, $value);
     }
 
     private function escapeLinkTitle(string $title): string
