@@ -33,6 +33,7 @@ final class DocxOpenXmlReader
     private const EXTENDED_PROPERTIES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
     private const CUSTOM_PROPERTIES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties';
     private const STYLES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
+    private const STYLES_WITH_EFFECTS_REL = 'http://schemas.microsoft.com/office/2007/relationships/stylesWithEffects';
     private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     private const ATTACHED_TEMPLATE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
@@ -90,6 +91,7 @@ final class DocxOpenXmlReader
     private const CT_EXTENDED_PROPERTIES = 'application/vnd.openxmlformats-officedocument.extended-properties+xml';
     private const CT_CUSTOM_PROPERTIES = 'application/vnd.openxmlformats-officedocument.custom-properties+xml';
     private const CT_WORD_STYLES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml';
+    private const CT_WORD_STYLES_WITH_EFFECTS = 'application/vnd.ms-word.styleswitheffects+xml';
     private const CT_WORD_NUMBERING = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
     private const CT_WORD_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
     private const CT_WORD_WEB_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml';
@@ -205,6 +207,7 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCount'] = $packageRootResources['issueCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCodes'] = $packageRootResources['issueCodes'];
         $stylesPart = $this->stylesPart($parts, $documentRelationships, $documentPart);
+        $stylesWithEffectsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::STYLES_WITH_EFFECTS_REL, 'stylesWithEffects.xml');
         $styles = $this->readStyles($stylesPart['xml'], $stylesPart['partName']);
         $latentStyles = $this->readLatentStyles($stylesPart['xml'], $stylesPart['partName']);
         $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
@@ -508,6 +511,7 @@ final class DocxOpenXmlReader
             $this->selectedXmlPartDefinition('extendedProperties', $extendedPropertiesPart['partName'], $extendedPropertiesPart['xml'], $extendedPropertiesPart['exists'], $extendedPropertiesPart['relationship'], '/', '_rels/.rels', false, self::NS_EP, 'Properties', self::CT_EXTENDED_PROPERTIES),
             $this->selectedXmlPartDefinition('customProperties', $customPropertiesPart['partName'], $customPropertiesPart['xml'], $customPropertiesPart['exists'], $customPropertiesPart['relationship'], '/', '_rels/.rels', false, self::NS_CUSTOM_PROPS, 'Properties', self::CT_CUSTOM_PROPERTIES),
             $this->selectedXmlPartDefinition('styles', $stylesPart['partName'], $stylesPart['xml'], $stylesPart['exists'], $stylesPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'styles', self::CT_WORD_STYLES),
+            $this->selectedXmlPartDefinition('stylesWithEffects', $stylesWithEffectsPart['partName'], $stylesWithEffectsPart['xml'], $stylesWithEffectsPart['exists'], $stylesWithEffectsPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'styles', self::CT_WORD_STYLES_WITH_EFFECTS),
             $this->selectedXmlPartDefinition('numbering', $numberingPart['partName'], $numberingPart['xml'], $numberingPart['exists'], $numberingPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'numbering', self::CT_WORD_NUMBERING),
             $this->selectedXmlPartDefinition('settings', $settingsPart['partName'], $settingsPart['xml'], $settingsPart['exists'], $settingsPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'settings', self::CT_WORD_SETTINGS),
             $this->selectedXmlPartDefinition('webSettings', $webSettingsPart['partName'], $webSettingsPart['xml'], $webSettingsPart['exists'], $webSettingsPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'webSettings', self::CT_WORD_WEB_SETTINGS),
@@ -525,6 +529,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartIssueCount'] = $selectedXmlParts['issueCount'];
         $packageProvenance['summary']['selectedXmlPartInvalidXmlCount'] = $selectedXmlParts['invalidXmlCount'];
         $packageProvenance['summary']['selectedXmlPartIssueKinds'] = $selectedXmlParts['issueKinds'];
+        $packageProvenance['summary']['stylesWithEffectsPart'] = $stylesWithEffectsPart['partName'];
+        $packageProvenance['summary']['stylesWithEffectsExists'] = $stylesWithEffectsPart['exists'];
+        $packageProvenance['summary']['stylesWithEffectsRelationshipId'] = $stylesWithEffectsPart['relationship']['id'] ?? null;
         $packageProvenance['summary']['commentsIdsCount'] = $commentsIds['summary']['count'];
         $packageProvenance['summary']['commentsIdsMissingParaIdCount'] = $commentsIds['summary']['missingParaIdCount'];
         $packageProvenance['summary']['commentsIdsMissingDurableIdCount'] = $commentsIds['summary']['missingDurableIdCount'];
@@ -686,6 +693,7 @@ final class DocxOpenXmlReader
                 'packageProvenance' => $packageProvenance,
                 'stylesPart' => $stylesPart['partName'],
                 'styles' => $styles,
+                'stylesWithEffectsPart' => $stylesWithEffectsPart['partName'],
                 'latentStyles' => $latentStyles,
                 'numberingPart' => $numberingPart['partName'],
                 'numbering' => $numbering,
@@ -773,6 +781,16 @@ final class DocxOpenXmlReader
                 $this->relationshipsPartFor($documentPart),
                 $stylesPart['partName'],
                 $stylesPart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($stylesWithEffectsPart['relationship'] !== null) {
+            $attrs['docx']['stylesWithEffectsRelationship'] = $this->relationshipSummary(
+                $stylesWithEffectsPart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $stylesWithEffectsPart['partName'],
+                $stylesWithEffectsPart['exists'],
                 $contentTypes,
             );
         }
@@ -10315,6 +10333,7 @@ final class DocxOpenXmlReader
     private function relationshipTargetInventoryRole(string $relationshipType): ?string
     {
         return match ($relationshipType) {
+            self::STYLES_WITH_EFFECTS_REL => 'styles-with-effects',
             self::FOOTNOTES_REL => 'footnotes',
             self::ENDNOTES_REL => 'endnotes',
             self::COMMENTS_REL => 'comments',

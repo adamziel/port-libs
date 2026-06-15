@@ -4402,6 +4402,97 @@ XML;
         $t->same(2, $heading->attr('level'));
         $t->same('Relationship Heading', $heading->attr('docxStyleName'));
     },
+    'tracks docx styles with effects selected xml provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/word/stylesWithEffects.xml" ContentType="application/vnd.ms-word.stylesWithEffects+xml; profile=effects"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rStylesWithEffects" Type="http://schemas.microsoft.com/office/2007/relationships/stylesWithEffects" Target="stylesWithEffects.xml?profile=effects#styles"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/stylesWithEffects.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="EffectHeading">
+    <w:name w:val="Effect Heading"/>
+  </w:style>
+</w:styles>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $effects = $selected['byKind']['stylesWithEffects'];
+        $relationship = $docx['stylesWithEffectsRelationship'];
+        $relationshipType = $package['relationshipTypes']['http://schemas.microsoft.com/office/2007/relationships/stylesWithEffects'];
+        $inventory = $package['parts']['word/stylesWithEffects.xml'];
+
+        $t->same('word/stylesWithEffects.xml', $docx['stylesWithEffectsPart']);
+        $t->same('word/stylesWithEffects.xml', $package['summary']['stylesWithEffectsPart']);
+        $t->same(true, $package['summary']['stylesWithEffectsExists']);
+        $t->same('rStylesWithEffects', $package['summary']['stylesWithEffectsRelationshipId']);
+
+        $t->same(17, $selected['count']);
+        $t->same(5, $selected['existingCount']);
+        $t->same(3, $selected['relationshipSelectedCount']);
+        $t->same(5, $selected['validRootCount']);
+        $t->same(0, $selected['issueCount']);
+        $t->same([], $selected['issueKinds']);
+
+        $t->same('relationship', $effects['selectionSource']);
+        $t->same('word/stylesWithEffects.xml', $effects['partName']);
+        $t->same('rStylesWithEffects', $effects['relationshipId']);
+        $t->same('http://schemas.microsoft.com/office/2007/relationships/stylesWithEffects', $effects['relationshipType']);
+        $t->same('word/document.xml', $effects['relationshipSourcePart']);
+        $t->same('word/_rels/document.xml.rels', $effects['relationshipsPart']);
+        $t->same('stylesWithEffects.xml?profile=effects#styles', $effects['relationshipTarget']);
+        $t->same('word/stylesWithEffects.xml?profile=effects#styles', $effects['relationshipResolvedTarget']);
+        $t->same('?profile=effects#styles', $effects['targetReferenceSuffix']);
+        $t->same('profile=effects', $effects['targetQuery']);
+        $t->same('styles', $effects['targetFragment']);
+        $t->same('styles', $effects['rootLocalName']);
+        $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $effects['rootNamespace']);
+        $t->same(true, $effects['validRoot']);
+        $t->same('application/vnd.ms-word.styleswitheffects+xml', $effects['expectedContentTypeBase']);
+        $t->same('application/vnd.ms-word.stylesWithEffects+xml; profile=effects', $effects['contentType']);
+        $t->same('application/vnd.ms-word.styleswitheffects+xml', $effects['contentTypeBase']);
+        $t->same(['profile' => 'effects'], $effects['contentTypeParameterMap']);
+        $t->same(true, $effects['contentTypeMatchesExpected']);
+        $t->same([], $effects['issues']);
+
+        $t->same('rStylesWithEffects', $relationship['id']);
+        $t->same('word/document.xml', $relationship['sourcePart']);
+        $t->same('stylesWithEffects.xml?profile=effects#styles', $relationship['target']);
+        $t->same('word/stylesWithEffects.xml?profile=effects#styles', $relationship['resolvedTarget']);
+        $t->same('word/stylesWithEffects.xml', $relationship['targetPart']);
+        $t->same('?profile=effects#styles', $relationship['targetReferenceSuffix']);
+        $t->same(true, $relationship['exists']);
+        $t->same('application/vnd.ms-word.stylesWithEffects+xml; profile=effects', $relationship['contentType']);
+        $t->same('application/vnd.ms-word.styleswitheffects+xml', $relationship['contentTypeBase']);
+        $t->same('override', $relationship['contentTypeSource']);
+
+        $t->same('stylesWithEffects', $relationshipType['label']);
+        $t->same(1, $relationshipType['count']);
+        $t->same(['word/stylesWithEffects.xml'], $relationshipType['existingTargetParts']);
+        $t->same(['application/vnd.ms-word.stylesWithEffects+xml; profile=effects'], $relationshipType['contentTypes']);
+        $t->same(1, $relationshipType['targetRoleCounts']['styles-with-effects']);
+        $t->same('?profile=effects#styles', $relationshipType['relationships'][0]['targetReferenceSuffix']);
+
+        $t->true(in_array('document-relationship-target', $inventory['roles'], true), 'stylesWithEffects document target role missing');
+        $t->true(in_array('styles-with-effects', $inventory['roles'], true), 'stylesWithEffects semantic inventory role missing');
+        $t->same(1, $package['summary']['roleCounts']['styles-with-effects']);
+        $t->same('application/vnd.ms-word.styleswitheffects+xml', $inventory['contentTypeBase']);
+        $t->same(['profile' => 'effects'], $inventory['contentTypeParameterMap']);
+    },
     'summarizes docx latent style defaults for package review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/styles.xml'] = str_replace(
@@ -5552,7 +5643,7 @@ XML;
         $summary = $document->attr('docx')['packageProvenance']['summary'];
         $byKind = $selected['byKind'];
 
-        $t->same(16, $selected['count']);
+        $t->same(17, $selected['count']);
         $t->same(6, $selected['existingCount']);
         $t->same(5, $selected['relationshipSelectedCount']);
         $t->same(1, $selected['missingRequiredOrReferencedCount']);
@@ -5561,7 +5652,7 @@ XML;
         $t->same(0, $selected['unexpectedContentTypeCount']);
         $t->same(1, $selected['issueCount']);
         $t->same(['webSettings'], $selected['issueKinds']);
-        $t->same(16, $summary['selectedXmlPartCount']);
+        $t->same(17, $summary['selectedXmlPartCount']);
         $t->same(1, $summary['selectedXmlPartIssueCount']);
         $t->same(['webSettings'], $summary['selectedXmlPartIssueKinds']);
 
@@ -5705,11 +5796,11 @@ XML;
         $t->same('override', $relationship['contentTypeSource']);
         $t->same('word/glossary/document.xml', $relationship['overridePartName']);
 
-        $t->same(16, $selected['count']);
+        $t->same(17, $selected['count']);
         $t->same(5, $selected['existingCount']);
         $t->same(3, $selected['relationshipSelectedCount']);
         $t->same(0, $selected['issueCount']);
-        $t->same(16, $package['summary']['selectedXmlPartCount']);
+        $t->same(17, $package['summary']['selectedXmlPartCount']);
         $t->same('word/glossary/document.xml', $package['summary']['glossaryDocumentPart']);
         $t->same(true, $package['summary']['glossaryDocumentExists']);
         $t->same('rGlossary', $package['summary']['glossaryDocumentRelationshipId']);
@@ -6010,7 +6101,7 @@ XML;
         $t->same('word/glossary/document.xml', $docx['glossaryDocumentRelationship']['targetPart']);
         $t->same(true, $docx['glossaryDocumentRelationship']['exists']);
 
-        $t->same(16, $selected['count']);
+        $t->same(17, $selected['count']);
         $t->same(5, $selected['existingCount']);
         $t->same(3, $selected['relationshipSelectedCount']);
         $t->same(4, $selected['validRootCount']);
