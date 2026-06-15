@@ -7725,6 +7725,71 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(['template-content-unsafe-or-unparseable'], $unsafe['templateContentDiagnostics']);
         $t->contains('document type', $unsafe['templateContentError']);
     },
+    'summarizes html declarative shadow roots and slot fallback provenance' => static function (TestRunner $t): void {
+        $shadowSource = '<h2 id="headline">Headline</h2>'
+            . '<slot name="headline">Fallback <a href="/headline">link</a><img src="fallback.png" alt="Fallback"></slot>'
+            . '<slot>Default fallback</slot>'
+            . '<slot name="bad<tag">Bad fallback</slot>';
+        $invalidSource = '<slot name="side">Side fallback</slot>';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<template shadowrootmode="open" shadowrootdelegatesfocus shadowrootclonable aria-label=" Review card " aria-describedby="headline missing headline">'
+                . $shadowSource
+                . '</template>'
+                . '<template shadowrootmode="invalid" shadowrootserializable>'
+                . $invalidSource
+                . '</template>',
+            'shadow slot review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $shadow = $summary[0];
+        $invalid = $summary[1];
+        $headlineSlot = $shadow['shadowRootSlots'][0];
+        $defaultSlot = $shadow['shadowRootSlots'][1];
+        $badSlot = $shadow['shadowRootSlots'][2];
+
+        $t->same(2, count($summary));
+        $t->same('template', $shadow['name']);
+        $t->same(true, $shadow['declarativeShadowRoot']);
+        $t->same('declarative-shadow-root-review', $shadow['shadowRootReviewPolicy']);
+        $t->same('open', $shadow['shadowRootModeRaw']);
+        $t->same('open', $shadow['shadowRootMode']);
+        $t->same(true, $shadow['shadowRootModeValid']);
+        $t->same(true, $shadow['shadowRootDelegatesFocus']);
+        $t->same(true, $shadow['shadowRootClonable']);
+        $t->same(false, $shadow['shadowRootSerializable']);
+        $t->same('Review card', $shadow['shadowRootAccessibility']['aria-label']['value']);
+        $t->same(['headline', 'missing'], $shadow['shadowRootAccessibility']['aria-describedby']['values']);
+        $t->same(3, $shadow['shadowRootSlotCount']);
+        $t->same(1, $shadow['shadowRootDefaultSlotCount']);
+        $t->same(['headline'], $shadow['shadowRootNamedSlotNames']);
+        $t->same(['invalid-slot-name'], $shadow['shadowRootDiagnosticCodes']);
+        $t->same('headline', $headlineSlot['nameRaw']);
+        $t->same('headline', $headlineSlot['name']);
+        $t->same(true, $headlineSlot['nameValid']);
+        $t->same('Fallback link', $headlineSlot['fallbackText']);
+        $t->same(['a', 'img'], $headlineSlot['fallbackElementNames']);
+        $t->same(null, $defaultSlot['nameRaw']);
+        $t->same(null, $defaultSlot['name']);
+        $t->same('Default fallback', $defaultSlot['fallbackText']);
+        $t->same('bad<tag', $badSlot['nameRaw']);
+        $t->same(null, $badSlot['name']);
+        $t->same(false, $badSlot['nameValid']);
+
+        $t->same('template', $invalid['name']);
+        $t->same(true, $invalid['declarativeShadowRoot']);
+        $t->same('invalid', $invalid['shadowRootModeRaw']);
+        $t->same(null, $invalid['shadowRootMode']);
+        $t->same(false, $invalid['shadowRootModeValid']);
+        $t->same(false, $invalid['shadowRootDelegatesFocus']);
+        $t->same(false, $invalid['shadowRootClonable']);
+        $t->same(true, $invalid['shadowRootSerializable']);
+        $t->same(['side'], $invalid['shadowRootNamedSlotNames']);
+        $t->same(['invalid-shadowroot-mode'], $invalid['shadowRootDiagnosticCodes']);
+        $t->contains('&lt;slot name="headline"&gt;', $html);
+        $t->true(!str_contains($html, '<slot name="headline">'), 'Expected shadow template slot source to stay escaped in raw handoff');
+    },
     'summarizes html template content across nested template and raw text sentinels' => static function (TestRunner $t): void {
         $templateSource = '<template data-inner="1"><p>Inner</p></template>'
             . '<noscript><script>const fallback = "</template>";</script><p>Fallback</p></noscript>'

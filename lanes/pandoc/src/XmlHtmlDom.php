@@ -14689,6 +14689,12 @@ final class XmlHtmlDom
         }
         if ($name === 'template') {
             $summary += self::templateSummary($node);
+            if (self::isDeclarativeShadowRootTemplate($node)) {
+                $summary += self::templateShadowRootSummary($node);
+            }
+        }
+        if ($name === 'slot') {
+            $summary += self::slotSummary($node);
         }
         if ($name === 'noscript') {
             $summary += self::noscriptSummary($node);
@@ -15672,6 +15678,207 @@ final class XmlHtmlDom
         ];
 
         return $summary + self::templateContentReviewSummary($text);
+    }
+
+    private static function isDeclarativeShadowRootTemplate(\DOMElement $element): bool
+    {
+        return $element->hasAttribute('shadowrootmode')
+            || $element->hasAttribute('shadowrootdelegatesfocus')
+            || $element->hasAttribute('shadowrootclonable')
+            || $element->hasAttribute('shadowrootserializable');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function templateShadowRootSummary(\DOMElement $template): array
+    {
+        $modeRaw = self::attributeOrNull($template, 'shadowrootmode');
+        $mode = $modeRaw === null ? null : strtolower(trim($modeRaw));
+        $modeValid = in_array($mode, ['open', 'closed'], true);
+        $diagnostics = [];
+        if (!$modeValid) {
+            $diagnostics[] = [
+                'code' => 'invalid-shadowroot-mode',
+                'attribute' => 'shadowrootmode',
+                'value' => $modeRaw,
+            ];
+        }
+
+        $slots = [];
+        $namedSlotNames = [];
+        $defaultSlotCount = 0;
+        $source = $template->textContent;
+        $contentSlots = [];
+        try {
+            $contentDom = self::loadHtmlFragment($source, 'declarative shadow root template content');
+            $contentRoot = self::requireFragmentRoot($contentDom);
+            $contentSlots = self::descendantHtmlElements($contentRoot, 'slot');
+        } catch (\InvalidArgumentException $exception) {
+            $diagnostics[] = [
+                'code' => 'shadowroot-template-content-unparseable',
+                'message' => $exception->getMessage(),
+            ];
+        }
+
+        foreach ($contentSlots as $slot) {
+            $slotSummary = self::slotSummary($slot);
+            $slots[] = [
+                'nameRaw' => $slotSummary['slotNameRaw'],
+                'name' => $slotSummary['slotName'],
+                'nameValid' => $slotSummary['slotNameValid'],
+                'fallbackText' => $slotSummary['slotFallbackText'],
+                'fallbackElementNames' => $slotSummary['slotFallbackElementNames'],
+            ];
+
+            if (($slotSummary['slotNameRaw'] ?? null) === null) {
+                ++$defaultSlotCount;
+            }
+            if (($slotSummary['slotName'] ?? null) !== null) {
+                $namedSlotNames[] = (string) $slotSummary['slotName'];
+            }
+            foreach ($slotSummary['slotDiagnostics'] as $diagnostic) {
+                $diagnostics[] = [
+                    'code' => (string) ($diagnostic['code'] ?? ''),
+                    'element' => 'slot',
+                    'attribute' => $diagnostic['attribute'] ?? null,
+                    'value' => $diagnostic['value'] ?? null,
+                ];
+            }
+        }
+
+        $aria = [];
+        foreach (['aria-label', 'aria-description'] as $attribute) {
+            if (!$template->hasAttribute($attribute)) {
+                continue;
+            }
+
+            $value = self::safeHtmlReviewTextAttribute($template->getAttribute($attribute));
+            $aria[$attribute] = [
+                'raw' => $template->getAttribute($attribute),
+                'value' => $value,
+                'valid' => $value !== null,
+            ];
+            if ($value === null) {
+                $diagnostics[] = [
+                    'code' => 'invalid-shadowroot-accessibility-text',
+                    'attribute' => $attribute,
+                ];
+            }
+        }
+
+        foreach (['aria-describedby', 'aria-labelledby'] as $attribute) {
+            if (!$template->hasAttribute($attribute)) {
+                continue;
+            }
+
+            $summary = self::idReferenceTokenSummary($template->getAttribute($attribute));
+            $aria[$attribute] = $summary;
+            if (!$summary['valid']) {
+                $diagnostics[] = [
+                    'code' => 'invalid-shadowroot-accessibility-idref',
+                    'attribute' => $attribute,
+                    'invalidTokens' => $summary['invalid'],
+                ];
+            }
+        }
+
+        return [
+            'declarativeShadowRoot' => true,
+            'shadowRootReviewPolicy' => 'declarative-shadow-root-review',
+            'shadowRootModeRaw' => $modeRaw,
+            'shadowRootMode' => $modeValid ? $mode : null,
+            'shadowRootModeValid' => $modeValid,
+            'shadowRootDelegatesFocus' => $template->hasAttribute('shadowrootdelegatesfocus'),
+            'shadowRootClonable' => $template->hasAttribute('shadowrootclonable'),
+            'shadowRootSerializable' => $template->hasAttribute('shadowrootserializable'),
+            'shadowRootAccessibility' => $aria,
+            'shadowRootSlotCount' => count($slots),
+            'shadowRootDefaultSlotCount' => $defaultSlotCount,
+            'shadowRootNamedSlotNames' => array_values(array_unique($namedSlotNames)),
+            'shadowRootSlots' => $slots,
+            'shadowRootDiagnostics' => $diagnostics,
+            'shadowRootDiagnosticCodes' => array_values(array_unique(array_map(
+                static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
+                $diagnostics
+            ))),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function slotSummary(\DOMElement $slot): array
+    {
+        $nameRaw = self::attributeOrNull($slot, 'name');
+        $name = $nameRaw === null ? null : self::normalizeHtmlSlotName($nameRaw);
+        $diagnostics = [];
+        if ($nameRaw !== null && $name === null) {
+            $diagnostics[] = [
+                'code' => 'invalid-slot-name',
+                'attribute' => 'name',
+                'value' => $nameRaw,
+            ];
+        }
+
+        $fallbackElementNames = [];
+        foreach ($slot->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $fallbackElementNames[] = self::htmlElementName($child);
+            }
+        }
+
+        return [
+            'slot' => 'slot',
+            'slotReviewPolicy' => 'slot-fallback-review',
+            'slotNameRaw' => $nameRaw,
+            'slotName' => $name,
+            'slotNamed' => $nameRaw !== null,
+            'slotNameValid' => $nameRaw === null ? null : $name !== null,
+            'slotFallbackText' => self::normalizedText($slot),
+            'slotFallbackElementNames' => $fallbackElementNames,
+            'slotFallbackElementCount' => count($fallbackElementNames),
+            'slotFallbackLinkHrefs' => array_values(array_filter(
+                array_map(static fn (\DOMElement $link): ?string => self::attributeOrNull($link, 'href'), self::descendantHtmlElements($slot, 'a')),
+                static fn (?string $href): bool => $href !== null && $href !== ''
+            )),
+            'slotFallbackImageSources' => array_values(array_filter(
+                array_map(static fn (\DOMElement $image): ?string => self::attributeOrNull($image, 'src'), self::descendantHtmlElements($slot, 'img')),
+                static fn (?string $src): bool => $src !== null && $src !== ''
+            )),
+            'slotDiagnostics' => $diagnostics,
+            'slotDiagnosticCodes' => array_values(array_unique(array_map(
+                static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
+                $diagnostics
+            ))),
+        ];
+    }
+
+    private static function normalizeHtmlSlotName(string $name): ?string
+    {
+        $name = self::safeHtmlReviewTextAttribute($name);
+        if ($name === null || strlen($name) > 128) {
+            return null;
+        }
+        if (preg_match('/[\s<>"\'`{}\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $name) === 1) {
+            return null;
+        }
+
+        return $name;
+    }
+
+    private static function safeHtmlReviewTextAttribute(string $value): ?string
+    {
+        $value = preg_replace('/[ \t\r\n\f]+/u', ' ', $value) ?? $value;
+        $value = trim($value);
+        if ($value === '' || strlen($value) > 512) {
+            return null;
+        }
+        if (preg_match('/[<>{}`\p{Cc}\p{Zl}\p{Zp}]/u', $value) === 1) {
+            return null;
+        }
+
+        return $value;
     }
 
     /**
