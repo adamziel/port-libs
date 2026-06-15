@@ -10,7 +10,7 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
 | Markdown / CommonMark / GFM | 452 | 1,096 |
-| JSON / native AST | 63 | 252 |
+| JSON / native AST | 64 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
 | Wiki / roff / text markup readers | 0 | 20 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest EPUB3 evidence: `EpubPackage` reports nested OPF collection hierarchy with path, depth, role, link, and diagnostic rollups in package review and WordPress import summaries.
+Latest JSON/native AST evidence: `PandocJsonNativeAstTest` preserves single-wrapped `RowHeadColumns`, `RowSpan`, and `ColSpan` helper constructors plus cell alignment sidecars through rebuilt JSON and native table wrappers.
 
-Current Pandoc counters: 3,624 PHP passes / 0 failures and 3,636 mapped upstream cases. Verification passed `php -l` for `EpubPackage.php` and `EpubPackageTest.php`; focused `EpubPackageTest.php` (`1` file, `2,550` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,057` assertions, `0` failures); `jq empty`; and `git diff --check`.
+Current Pandoc counters: 3,625 PHP passes / 0 failures and 3,637 mapped upstream cases. Verification passed `php -l` for `PandocJsonNativeAstTest.php`; focused `PandocJsonNativeAstTest.php` (`1` file, `3,903` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,113` assertions, `0` failures); `jq empty`; and `git diff --check`.

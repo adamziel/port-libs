@@ -9463,6 +9463,122 @@ return [
             }
         }
     },
+    'preserves single wrapped table integer helpers through rebuilt json and native table wrappers' => static function (TestRunner $t): void {
+        $rowHeadColumns = ['t' => 'RowHeadColumns', 'c' => [1], 'reviewQueue' => 'row-head-source'];
+        $rowSpan = ['t' => 'RowSpan', 'c' => [2], 'reviewQueue' => 'row-span-source'];
+        $colSpan = ['t' => 'ColSpan', 'c' => [3], 'reviewQueue' => 'col-span-source'];
+        $alignment = ['t' => 'AlignRight', 'reviewQueue' => 'cell-align-source'];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['wrapped-integer-table', ['json-native'], [['data-source', 'constructor-completeness']]],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [[['t' => 'AlignRight'], ['t' => 'ColWidth', 'c' => [0.5], 'reviewQueue' => 'width-source']]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['wrapped-body', ['body'], []],
+                        $rowHeadColumns,
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['wrapped-row', ['row'], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['wrapped-cell', ['cell'], [['data-kind', 'metric']]],
+                                        $alignment,
+                                        $rowSpan,
+                                        $colSpan,
+                                        [['t' => 'Plain', 'c' => [
+                                            ['t' => 'Str', 'c' => 'Wrapped'],
+                                            ['t' => 'Space'],
+                                            ['t' => 'Str', 'c' => 'cell'],
+                                        ]]],
+                                    ], 'reviewQueue' => 'cell-wrapper-source'],
+                                ],
+                            ], 'reviewQueue' => 'row-wrapper-source'],
+                        ],
+                    ], 'reviewQueue' => 'body-wrapper-source'],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'table-wrapper-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+        $stripWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+        $tableBodyPayload = static fn (array $encoded): array => $encoded['blocks'][0]['c'][4][0];
+        $tableCellPayload = static function (array $encoded): array {
+            $body = $encoded['blocks'][0]['c'][4][0];
+            $bodyPayload = $body['c'] ?? $body;
+            $row = $bodyPayload[3][0];
+            $rowPayload = $row['c'] ?? $row;
+            $cell = $rowPayload[1][0];
+
+            return $cell['c'] ?? $cell;
+        };
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $body = $table->children[0];
+            $row = $body->children[0];
+            $cell = $row->children[0];
+
+            $t->same(1, $body->attr('rowHeadColumns'), "{$source} row head columns value");
+            $t->same($rowHeadColumns, $body->attr('rowHeadColumnsNative'), "{$source} row head columns native payload");
+            $t->same(2, $cell->attr('rowspan'), "{$source} row span value");
+            $t->same($rowSpan, $cell->attr('rowSpanNative'), "{$source} row span native payload");
+            $t->same(3, $cell->attr('colspan'), "{$source} col span value");
+            $t->same($colSpan, $cell->attr('colSpanNative'), "{$source} col span native payload");
+
+            $rebuiltCell = new AstNode('table_cell', $stripWrapper($cell), $cell->children);
+            $rebuiltRow = new AstNode('table_row', $stripWrapper($row), [$rebuiltCell]);
+            $rebuiltBody = new AstNode('table_body', $stripWrapper($body), [$rebuiltRow]);
+            $rebuiltTable = new AstNode('table', $stripWrapper($table), [$rebuiltBody]);
+            $rebuiltDocument = new AstNode('document', $document->attrs, [$rebuiltTable]);
+
+            foreach ([
+                "{$source} json" => (new PandocJsonWriter())->toArray($rebuiltDocument),
+                "{$source} native" => json_decode((new NativeWriter())->write($rebuiltDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $bodyPayload = $tableBodyPayload($encoded);
+                $bodyContent = $bodyPayload['c'] ?? $bodyPayload;
+                $cellPayload = $tableCellPayload($encoded);
+
+                $t->same(false, array_key_exists('t', $bodyPayload), "{$writer} writer rebuilds table body wrapper");
+                $t->same($rowHeadColumns, $bodyContent[1], "{$writer} writer preserves single wrapped row head columns helper");
+                $t->same($alignment, $cellPayload[1], "{$writer} writer preserves cell alignment helper");
+                $t->same($rowSpan, $cellPayload[2], "{$writer} writer preserves single wrapped row span helper");
+                $t->same($colSpan, $cellPayload[3], "{$writer} writer preserves single wrapped col span helper");
+
+                $roundTrips = [
+                    "{$writer} json round trip" => (new PandocJsonReader())->readPacket($encoded),
+                    "{$writer} native round trip" => (new NativeReader())->read(json_encode($encoded, JSON_THROW_ON_ERROR)),
+                ];
+                foreach ($roundTrips as $roundTripLabel => $roundTrip) {
+                    $roundTripBody = $roundTrip->children[0]->children[0];
+                    $roundTripCell = $roundTripBody->children[0]->children[0];
+
+                    $t->same(1, $roundTripBody->attr('rowHeadColumns'), "{$roundTripLabel} row head columns");
+                    $t->same(2, $roundTripCell->attr('rowspan'), "{$roundTripLabel} row span");
+                    $t->same(3, $roundTripCell->attr('colspan'), "{$roundTripLabel} col span");
+                }
+            }
+        }
+    },
     'writes shared short caption blocks as pandoc json caption inlines' => static function (TestRunner $t): void {
         $sourceTable = new AstNode('table', [
             'captionBlocks' => [
