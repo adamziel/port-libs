@@ -1676,7 +1676,7 @@ final class PandocJsonWriter
             return is_string($native['c'] ?? null);
         }
 
-        $content = $native['c'] ?? null;
+        $content = $this->nativeInlineTupleContent($tag, $native['c'] ?? null);
         if (!is_array($content) || !array_is_list($content)) {
             return false;
         }
@@ -1700,6 +1700,23 @@ final class PandocJsonWriter
             'Image' => count($content) === 3,
             default => false,
         };
+    }
+
+    private function nativeInlineTupleContent(string $tag, mixed $content): mixed
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+            && count($content[0]) > 1
+            && in_array($tag, ['Quoted', 'Code', 'Math', 'RawInline', 'Cite', 'Link', 'Image', 'Span'], true)
+        ) {
+            return $content[0];
+        }
+
+        return $content;
     }
 
     private function isNativeInlineConstructorTag(string $tag): bool

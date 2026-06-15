@@ -1552,7 +1552,7 @@ final class NativeReader
      */
     private function quotedInline(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Pandoc native JSON Quoted inline content');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Pandoc native JSON Quoted inline content');
         $quoteTypeNative = $tuple[0];
         $quoteTypeConstructor = $this->constructorTag($quoteTypeNative, 'Pandoc native JSON quote type');
 
@@ -1568,9 +1568,10 @@ final class NativeReader
      */
     private function codeInline(array $attrs, mixed $content): AstNode
     {
-        if (is_array($content) && isset($content[0], $content[1]) && is_string($content[1])) {
-            $attrs = array_replace($attrs, $this->attrsFromTuple($content[0]));
-            $attrs['text'] = $content[1];
+        $tuple = $this->singleWrappedTuple($content, 2, 'Pandoc native JSON Code inline content');
+        if (is_string($tuple[1])) {
+            $attrs = array_replace($attrs, $this->attrsFromTuple($tuple[0]));
+            $attrs['text'] = $tuple[1];
 
             return new AstNode('code', $attrs);
         }
@@ -1583,7 +1584,7 @@ final class NativeReader
      */
     private function mathInline(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Pandoc native JSON Math inline content');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Pandoc native JSON Math inline content');
         if (!is_string($tuple[1])) {
             throw new \InvalidArgumentException('Pandoc native JSON Math inline content must contain text');
         }
@@ -1604,7 +1605,7 @@ final class NativeReader
      */
     private function rawInline(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Pandoc native JSON RawInline content');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Pandoc native JSON RawInline content');
         if (!is_string($tuple[1])) {
             throw new \InvalidArgumentException('Pandoc native JSON RawInline content must contain format and text strings');
         }
@@ -1633,7 +1634,7 @@ final class NativeReader
      */
     private function citeInline(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Pandoc native JSON Cite inline content');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Pandoc native JSON Cite inline content');
         $records = $this->listContent($tuple[0], 'Pandoc native JSON Cite citation records');
         if ($records === []) {
             throw new \InvalidArgumentException('Pandoc native JSON Cite inline must contain at least one citation record');
@@ -1755,9 +1756,7 @@ final class NativeReader
      */
     private function linkInline(array $attrs, mixed $content): AstNode
     {
-        if (!is_array($content) || !array_is_list($content)) {
-            throw new \InvalidArgumentException('Pandoc native JSON Link inline content must be a list');
-        }
+        $content = $this->singleWrappedTupleContent($content, 'Pandoc native JSON Link inline content');
 
         if (count($content) === 3) {
             $attrs = array_replace($attrs, $this->attrsFromTuple($content[0]));
@@ -1789,9 +1788,7 @@ final class NativeReader
      */
     private function imageInline(array $attrs, mixed $content): AstNode
     {
-        if (!is_array($content) || !array_is_list($content)) {
-            throw new \InvalidArgumentException('Pandoc native JSON Image inline content must be a list');
-        }
+        $content = $this->singleWrappedTupleContent($content, 'Pandoc native JSON Image inline content');
 
         if (count($content) === 3) {
             $attrs = array_replace($attrs, $this->attrsFromTuple($content[0]));
@@ -1846,9 +1843,7 @@ final class NativeReader
      */
     private function spanInline(array $attrs, mixed $content): AstNode
     {
-        if (!is_array($content) || !isset($content[0], $content[1])) {
-            throw new \InvalidArgumentException('Pandoc native JSON Span inline content must contain attributes and inlines');
-        }
+        $content = $this->singleWrappedTuple($content, 2, 'Pandoc native JSON Span inline content');
 
         $attrs = array_replace($attrs, $this->attrsFromTuple($content[0]));
 
@@ -1892,6 +1887,37 @@ final class NativeReader
         $tuple = $this->listContent($value, $context);
         if (count($tuple) !== $size) {
             throw new \InvalidArgumentException("{$context} must have {$size} entries");
+        }
+
+        return $tuple;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function singleWrappedTuple(mixed $value, int $size, string $context): array
+    {
+        $tuple = $this->singleWrappedTupleContent($value, $context);
+        if (count($tuple) !== $size) {
+            throw new \InvalidArgumentException("{$context} must have {$size} entries");
+        }
+
+        return $tuple;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function singleWrappedTupleContent(mixed $value, string $context): array
+    {
+        $tuple = $this->listContent($value, $context);
+        if (
+            count($tuple) === 1
+            && is_array($tuple[0])
+            && array_is_list($tuple[0])
+            && count($tuple[0]) > 1
+        ) {
+            return $tuple[0];
         }
 
         return $tuple;

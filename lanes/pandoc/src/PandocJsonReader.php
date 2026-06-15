@@ -1471,7 +1471,7 @@ final class PandocJsonReader
 
     private function readQuotedInline(mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Quoted');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Quoted');
         $quoteTypeNative = $tuple[0];
         $quoteTypeConstructor = $this->enumTag($quoteTypeNative, 'quote type');
 
@@ -1484,7 +1484,7 @@ final class PandocJsonReader
 
     private function readCodeInline(mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Code');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Code');
         if (!is_string($tuple[1])) {
             throw new \InvalidArgumentException('Code text must be a string');
         }
@@ -1494,7 +1494,7 @@ final class PandocJsonReader
 
     private function readMathInline(mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Math');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Math');
         if (!is_string($tuple[1])) {
             throw new \InvalidArgumentException('Math text must be a string');
         }
@@ -1537,7 +1537,7 @@ final class PandocJsonReader
 
     private function readCiteInline(mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Cite');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Cite');
         $records = $this->listContent($tuple[0], 'Cite citation records');
         if ($records === []) {
             throw new \InvalidArgumentException('Cite must contain at least one citation record');
@@ -1645,7 +1645,7 @@ final class PandocJsonReader
 
     private function readTargetInline(string $type, mixed $content): AstNode
     {
-        $tuple = $this->listContent($content, ucfirst($type));
+        $tuple = $this->singleWrappedTupleContent($content, ucfirst($type));
         if (count($tuple) === 3) {
             $attrs = $this->readAttrTuple($tuple[0]);
             $labelContent = $tuple[1];
@@ -1703,7 +1703,7 @@ final class PandocJsonReader
 
     private function readSpanInline(mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Span');
+        $tuple = $this->singleWrappedTuple($content, 2, 'Span');
 
         return new AstNode('span', $this->readAttrTuple($tuple[0]), $this->readInlines($this->listContent($tuple[1], 'Span inlines')));
     }
@@ -1773,7 +1773,7 @@ final class PandocJsonReader
 
     private function formatTextTuple(mixed $content, string $context): array
     {
-        $tuple = $this->tuple($content, 2, $context);
+        $tuple = $this->singleWrappedTuple($content, 2, $context);
         if (!is_string($tuple[1])) {
             throw new \InvalidArgumentException("{$context} content must be [format, text]");
         }
@@ -1878,6 +1878,37 @@ final class PandocJsonReader
         $tuple = $this->listContent($value, $context);
         if (count($tuple) !== $size) {
             throw new \InvalidArgumentException("{$context} must have {$size} entries");
+        }
+
+        return $tuple;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function singleWrappedTuple(mixed $value, int $size, string $context): array
+    {
+        $tuple = $this->singleWrappedTupleContent($value, $context);
+        if (count($tuple) !== $size) {
+            throw new \InvalidArgumentException("{$context} must have {$size} entries");
+        }
+
+        return $tuple;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function singleWrappedTupleContent(mixed $value, string $context): array
+    {
+        $tuple = $this->listContent($value, $context);
+        if (
+            count($tuple) === 1
+            && is_array($tuple[0])
+            && array_is_list($tuple[0])
+            && count($tuple[0]) > 1
+        ) {
+            return $tuple[0];
         }
 
         return $tuple;

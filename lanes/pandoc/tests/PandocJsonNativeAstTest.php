@@ -1349,6 +1349,109 @@ return [
             }
         }
     },
+    'accepts single wrapped inline tuple constructor payloads through json and native readers' => static function (TestRunner $t): void {
+        $quoteType = ['t' => 'SingleQuote', 'reviewQueue' => 'quote-kind-source'];
+        $mathType = ['t' => 'InlineMath', 'reviewQueue' => 'math-type-source'];
+        $format = ['t' => 'Format', 'c' => ['html'], 'reviewQueue' => 'format-source'];
+        $citationMode = ['t' => 'NormalCitation', 'reviewQueue' => 'citation-mode-source'];
+        $citationRecord = [
+            'citationId' => 'smith1899',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => $citationMode,
+            'citationNoteNum' => 0,
+            'citationHash' => 1899,
+            'reviewQueue' => 'citation-record-source',
+        ];
+        $sourceInlines = [
+            ['t' => 'Quoted', 'c' => [[$quoteType, [['t' => 'Str', 'c' => 'quoted']]]], 'reviewQueue' => 'quoted-tuple-source'],
+            ['t' => 'Code', 'c' => [[['code-id', ['php'], [['data-source', 'tuple']]], 'wp_insert_post']], 'reviewQueue' => 'code-tuple-source'],
+            ['t' => 'Math', 'c' => [[$mathType, 'x + y']], 'reviewQueue' => 'math-tuple-source'],
+            ['t' => 'RawInline', 'c' => [[$format, '<span>raw</span>']], 'reviewQueue' => 'raw-tuple-source'],
+            ['t' => 'Cite', 'c' => [[[$citationRecord], [['t' => 'Str', 'c' => '@smith1899']]]], 'reviewQueue' => 'cite-tuple-source'],
+            ['t' => 'Link', 'c' => [[['link-id', ['review'], [['data-link', 'tuple']]], [['t' => 'Str', 'c' => 'source']], ['https://example.test/source', 'Source title', 'target-sidecar']]], 'reviewQueue' => 'link-tuple-source'],
+            ['t' => 'Image', 'c' => [[['image-id', ['media'], [['data-image', 'tuple']]], [['t' => 'Str', 'c' => 'Alt']], ['media/image.png', 'Image title', 'image-target-sidecar']]], 'reviewQueue' => 'image-tuple-source'],
+            ['t' => 'Span', 'c' => [[['span-id', ['metadata'], [['data-span', 'tuple']]], [['t' => 'Str', 'c' => 'span']]]], 'reviewQueue' => 'span-tuple-source'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => $sourceInlines, 'reviewQueue' => 'tuple-paragraph-source'],
+            ],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $paragraph = $document->children[0];
+            $children = $paragraph->children;
+
+            $t->same([
+                'quoted',
+                'code',
+                'math',
+                'raw_html_inline',
+                'citation',
+                'link',
+                'image',
+                'span',
+            ], array_map(static fn (AstNode $node): string => $node->type, $children), "{$source} normalizes single wrapped inline tuple constructors");
+            $t->same('single', $children[0]->attr('kind'), "{$source} quoted kind");
+            $t->same($sourceInlines[0], $children[0]->attr('native'), "{$source} quoted native payload");
+            $t->same('wp_insert_post', $children[1]->attr('text'), "{$source} code text");
+            $t->same($sourceInlines[1], $children[1]->attr('native'), "{$source} code native payload");
+            $t->same(false, $children[2]->attr('display'), "{$source} inline math display flag");
+            $t->same($mathType, $children[2]->attr('mathTypeNative'), "{$source} math type native");
+            $t->same('html', $children[3]->attr('format'), "{$source} raw format");
+            $t->same($format, $children[3]->attr('formatNative'), "{$source} raw format native");
+            $t->same('smith1899', $children[4]->attr('id'), "{$source} citation id");
+            $t->same($citationRecord, $children[4]->attr('citationNative'), "{$source} citation record native");
+            $t->same('link-id', $children[5]->attr('id'), "{$source} link attr id");
+            $t->same(['https://example.test/source', 'Source title', 'target-sidecar'], $children[5]->attr('targetNative'), "{$source} link target sidecar");
+            $t->same('Alt', $children[6]->attr('alt'), "{$source} image alt");
+            $t->same(['media/image.png', 'Image title', 'image-target-sidecar'], $children[6]->attr('targetNative'), "{$source} image target sidecar");
+            $t->same('span-id', $children[7]->attr('id'), "{$source} span attr id");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($packet['blocks'], $encoded['blocks'], "{$source} {$writer} writer preserves unchanged tuple wrapper payloads");
+            }
+
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], $children),
+            ]);
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same('Para', $encoded['blocks'][0]['t'], "{$source} {$writer} writer rebuilds paragraph wrapper");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} {$writer} writer drops rebuilt paragraph sidecar");
+                $t->same($sourceInlines, $encoded['blocks'][0]['c'], "{$source} {$writer} writer preserves rebuilt tuple inline payloads");
+            }
+
+            $editedChildren = $children;
+            $editedChildren[1] = new AstNode('code', array_replace($children[1]->attrs, ['text' => 'edited']));
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], $editedChildren),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $editedCode = $encoded['blocks'][0]['c'][1];
+
+                $t->same('Code', $editedCode['t'], "{$source} {$writer} writer keeps edited code constructor");
+                $t->same('edited', $editedCode['c'][1], "{$source} {$writer} writer emits edited code text");
+                $t->same(false, array_key_exists('reviewQueue', $editedCode), "{$source} {$writer} writer drops stale edited code sidecar");
+                $t->same($sourceInlines[0], $encoded['blocks'][0]['c'][0], "{$source} {$writer} writer preserves neighboring tuple inline");
+            }
+        }
+    },
     'round trips core block constructors through pandoc json' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('blockquote', [], [
