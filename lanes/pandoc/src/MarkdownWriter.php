@@ -1129,7 +1129,7 @@ final class MarkdownWriter
      */
     private function renderDefinitionBody(AstNode $definition, int $indent): array
     {
-        $body = $this->renderBlockCollection($definition->children);
+        $body = $this->renderBlockCollection($definition->children, true);
         $markerPrefix = str_repeat(' ', $indent) . ':   ';
         $continuationPrefix = str_repeat(' ', $indent + 4);
 

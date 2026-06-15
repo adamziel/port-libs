@@ -11006,6 +11006,61 @@ MD;
             '',
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer definition list section reference boundaries' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
+        $heading = static fn (string $value): AstNode => new AstNode('heading', [
+            'level' => 2,
+        ], [$text($value)]);
+        $note = static fn (string $value): AstNode => new AstNode('note', [], [
+            $paragraph([$text($value)]),
+        ]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('definition_list', [], [
+                new AstNode('definition_item', [], [
+                    new AstNode('term', [], [$text('Source packet')]),
+                    new AstNode('definition', [], [
+                        $heading('Review entry'),
+                        $paragraph([
+                            $text('Definition note'),
+                            $note('Keep note in the first section.'),
+                            $text(' with '),
+                            new AstNode('link', [
+                                'url' => '/audit',
+                                'title' => '',
+                            ], [$text('audit link')]),
+                            $text('.'),
+                        ]),
+                        $heading('Follow up'),
+                        $paragraph([$text('Second section stays after local definitions.')]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter([
+            'referenceLinks' => true,
+            'referenceLocation' => 'end_of_section',
+        ]))->write($document);
+
+        $t->same(implode("\n", [
+            'Source packet',
+            ':   ## Review entry',
+            '',
+            '    Definition note[^1] with [audit link].',
+            '',
+            '    [^1]: Keep note in the first section.',
+            '',
+            '      [audit link]: /audit',
+            '',
+            '    ## Follow up',
+            '',
+            '    Second section stays after local definitions.',
+        ]), $markdown);
+        $t->true(strpos($markdown, '[^1]:') < strpos($markdown, '## Follow up'), 'Definition-list section notes should flush before the next nested heading');
+        $t->true(strpos($markdown, '[audit link]:') < strpos($markdown, '## Follow up'), 'Definition-list section references should flush before the next nested heading');
+    },
     'maps upstream markdown writer alternate definition markers to canonical colon output' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             'Source glossary',
