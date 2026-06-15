@@ -5,11 +5,11 @@
   "upstream": {
     "name": "jgm/pandoc",
     "url": "https://github.com/jgm/pandoc",
-    "commit": "pandoc-markdown-native-div-extension-surge-cc87fc6ba3",
+    "commit": "pandoc-markdown-writer-wrapped-figure-caption-surge-125ba7381c",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 6175,
-    "latestSlice": "pandoc-markdown-native-div-extension-surge maps 50 upstream Markdown native_divs/metadata extension cases after rebase onto current main cc87fc6ba3, preserving current Markdown URL-normalization, block/list, emoji extension, and GFM emoji alias counters already on main. Attributed HTML div blocks now preserve ids, normalized classes, data/ARIA/lang/dir/title/role/translate/xml:lang attributes, quote-aware > and entity attribute values, MarkdownWriter fenced-div output, and WordPress block handoff. No Pandoc, cmark, Cabal/Haskell runner, Node tooling, browser renderer, external validator, online service, live provider, or live-service provider is invoked. phpPass moves 6135 -> 6185, phpFail remains 0, mapped upstream cases move 6125 -> 6175, mappedMarkdownNativeDivExtensionSurgeCases = 50, and markdownNativeDivExtensionSurgeAssertions = 912. Verification passed php -l for MarkdownReader.php and MarkdownReaderMetadataRawExtensionSurgeTest.php; focused MarkdownReaderMetadataRawExtensionSurgeTest.php plus MarkdownReaderTest.php passed 2 files, 10079 assertions, 0 failures; full lanes/pandoc/tests passed 74 files, 105433 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and exact conflict-marker scan.",
+    "mapped": 6399,
+    "latestSlice": "pandoc-markdown-writer-wrapped-figure-caption-surge maps 54 Markdown writer figure/caption cases after rebase onto current main 125ba7381c. MarkdownWriter now treats figure children that wrap a single image in plain or paragraph blocks the same as direct image figures, merging caption inlines, rendered caption text, ids, classes, key/value attributes, titles, and distinct alt text into the emitted Markdown image while preserving reader round trips. It preserves current main Markdown figure-caption, inline/link/escape completion, writer list/code style, native-div extension, URL normalization, block/list, emoji extension, GFM emoji alias, numbered-example writer, table-caption, raw-format, and adjacent figure-caption coverage. No Pandoc, cmark/commonmark runners, Cabal/Haskell runners, browser renderers, Node tooling, online services, live provider tests, live-service provider tests, or external validators are invoked. phpPass moves 6355 -> 6409, phpFail remains 0, mapped upstream cases move 6345 -> 6399, mappedMarkdownWriterWrappedFigureCaptionSurgeCases = 54, and markdownWriterWrappedFigureCaptionSurgeAssertions = 559. Verification passed php -l for MarkdownWriter.php and MarkdownWriterFigureCaptionSurgeTest.php; focused MarkdownWriterFigureCaptionSurgeTest.php passed 1 file, 559 assertions, 0 failures; focused MarkdownWriterFigureCaptionSurgeTest.php plus MarkdownWriterInlineSurgeTest.php plus MarkdownReaderFigureCaptionSurgeTest.php plus MarkdownReaderTest.php passed 4 files, 10715 assertions, 0 failures; full lanes/pandoc/tests passed 76 files, 106804 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and exact conflict-marker scan.",
     "mappedMarkdownReaderBlockListSurgeCases": 330,
     "markdownReaderBlockListSurgeAssertions": 11257,
     "mappedOdfPackageFontFormatProvenanceCases": 6,
@@ -60,8 +60,8 @@
     "opcRawZipCentralDirectoryManifestAssertions": 37,
     "mappedZipCentralDirectorySignaturePolicyCases": 2,
     "zipCentralDirectorySignaturePolicyAssertions": 30,
-    "status": "Markdown native div extension surge is verified after rebase onto current main cc87fc6ba3; phpFail remains 0.",
-    "latestFocusedSource": "2026-06-15 Markdown native div extension surge validated after rebase onto current main cc87fc6ba3: php -l clean for MarkdownReader.php and MarkdownReaderMetadataRawExtensionSurgeTest.php; focused MarkdownReaderMetadataRawExtensionSurgeTest.php plus MarkdownReaderTest.php passed 2 files, 10079 assertions, 0 failures; PHP JSON status/manifest validation, git diff --check, and exact conflict-marker scan passed.",
+    "status": "Markdown writer wrapped figure caption surge is verified after rebase onto current main 125ba7381c; phpFail remains 0.",
+    "latestFocusedSource": "2026-06-15 Markdown writer wrapped figure caption surge verified after rebase onto current main 125ba7381c: php -l for MarkdownWriter.php and MarkdownWriterFigureCaptionSurgeTest.php passed; focused MarkdownWriterFigureCaptionSurgeTest.php passed 1 file, 559 assertions, 0 failures; focused MarkdownWriterFigureCaptionSurgeTest.php plus MarkdownWriterInlineSurgeTest.php plus MarkdownReaderFigureCaptionSurgeTest.php plus MarkdownReaderTest.php passed 4 files, 10715 assertions, 0 failures; full lanes/pandoc/tests passed 76 files, 106804 assertions, 0 failures; PHP JSON status/manifest validation, git diff --check, and exact conflict-marker scan passed.",
     "mappedPandocFormatReaderEvidenceBatchCases": 6,
     "pandocFormatReaderEvidenceBatchAssertions": 200,
     "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -695,7 +695,9 @@
     "mappedMarkdownReaderUrlNormalizationSurgeCases": 50,
     "markdownReaderUrlNormalizationSurgeAssertions": 250,
     "mappedMarkdownNativeDivExtensionSurgeCases": 50,
-    "markdownNativeDivExtensionSurgeAssertions": 912
+    "markdownNativeDivExtensionSurgeAssertions": 912,
+    "mappedMarkdownWriterWrappedFigureCaptionSurgeCases": 54,
+    "markdownWriterWrappedFigureCaptionSurgeAssertions": 559
   },
   "benchmarkDenominator": {
     "status": "Pandoc JSON/native single-wrapped target tuple sidecars are verified after rebase onto current main 9f2dd9a0fd; phpFail remains 0.",
