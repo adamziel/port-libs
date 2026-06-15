@@ -874,6 +874,10 @@ final class EpubPackage
                 'linkHrefSuffixItems' => $linkHrefSuffixes['items'],
                 'mediaTypeBindings' => $this->bindings['items'],
                 'mediaTypeBindingDiagnostics' => $this->bindings['diagnostics'],
+                'mediaTypeBindingMediaTypeItems' => $this->bindings['mediaTypeItems'],
+                'mediaTypeBindingMediaTypeParameterItems' => $this->bindings['mediaTypeParameterItems'],
+                'mediaTypeBindingMediaTypeParameterNames' => $this->bindings['mediaTypeParameterNames'],
+                'mediaTypeBindingMediaTypeDiagnostics' => $this->bindings['mediaTypeDiagnostics'],
                 'mediaOverlays' => $this->mediaOverlays,
                 'mediaOverlayItems' => $this->mediaOverlays['items'],
                 'mediaOverlayTargets' => $this->mediaOverlays['textTargets'],
@@ -14908,6 +14912,123 @@ final class EpubPackage
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function bindingMediaTypeItemReport(string $mediaType, int $index, ?string $handlerId): array
+    {
+        if ($mediaType === '') {
+            return [
+                'index' => $index,
+                'mediaType' => null,
+                'baseMediaType' => null,
+                'normalizedMediaType' => null,
+                'handlerId' => $handlerId,
+                'mediaTypeParameters' => [],
+                'parameterMap' => [],
+                'parameterNames' => [],
+                'parameterItems' => [],
+                'parameterCount' => 0,
+                'duplicateParameters' => [],
+                'duplicateParameterCount' => 0,
+                'valid' => false,
+                'diagnosticCount' => 0,
+                'diagnostics' => [],
+            ];
+        }
+
+        $report = self::mediaTypeReport($mediaType);
+        $parameterItems = [];
+        $duplicateParameters = [];
+        $seen = [];
+
+        foreach ($report['mediaTypeParameters'] as $ordinal => $parameter) {
+            $name = (string) ($parameter['name'] ?? '');
+            $value = (string) ($parameter['value'] ?? '');
+            $duplicate = array_key_exists($name, $seen);
+            $previousValue = $duplicate ? $seen[$name] : null;
+            $reviewItem = [
+                'index' => $ordinal,
+                'raw' => (string) ($parameter['raw'] ?? ''),
+                'name' => $name,
+                'value' => $value,
+                'duplicate' => $duplicate,
+                'previousValue' => $previousValue,
+            ];
+            $parameterItems[] = $reviewItem;
+
+            if ($duplicate) {
+                $duplicateParameters[] = [
+                    'index' => $ordinal,
+                    'raw' => $reviewItem['raw'],
+                    'name' => $name,
+                    'previousValue' => (string) $previousValue,
+                    'value' => $value,
+                ];
+            }
+
+            $seen[$name] = $value;
+        }
+
+        $diagnostics = [];
+        foreach ($report['mediaTypeDiagnostics'] as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $diagnostics[] = [
+                'index' => $index,
+                'mediaType' => $mediaType,
+                'handlerId' => $handlerId,
+            ] + self::bindingMediaTypeDiagnostic($diagnostic);
+        }
+
+        return [
+            'index' => $index,
+            'mediaType' => $mediaType,
+            'baseMediaType' => $report['mediaTypeBase'],
+            'normalizedMediaType' => $report['normalizedMediaType'],
+            'handlerId' => $handlerId,
+            'mediaTypeParameters' => $report['mediaTypeParameterMap'],
+            'parameterMap' => $report['mediaTypeParameterMap'],
+            'parameterNames' => array_keys($report['mediaTypeParameterMap']),
+            'parameterItems' => $parameterItems,
+            'parameterCount' => count($parameterItems),
+            'duplicateParameters' => $duplicateParameters,
+            'duplicateParameterCount' => count($duplicateParameters),
+            'valid' => $diagnostics === [],
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     *
+     * @return array<string, mixed>
+     */
+    private static function bindingMediaTypeDiagnostic(array $diagnostic): array
+    {
+        $type = is_string($diagnostic['type'] ?? null) ? $diagnostic['type'] : '';
+        $mappedType = match ($type) {
+            'invalid-manifest-media-type' => 'invalid-binding-media-type',
+            'invalid-manifest-media-type-parameter' => 'invalid-binding-media-type-parameter',
+            'invalid-manifest-media-type-parameter-name' => 'invalid-binding-media-type-parameter-name',
+            'duplicate-manifest-media-type-parameter' => 'duplicate-binding-media-type-parameter',
+            default => $type,
+        };
+
+        $message = match ($mappedType) {
+            'invalid-binding-media-type' => 'EPUB OPF binding media-type must be a MIME type in type/subtype form',
+            'invalid-binding-media-type-parameter' => 'EPUB OPF binding media-type parameters must use name=value syntax',
+            'invalid-binding-media-type-parameter-name' => 'EPUB OPF binding media-type parameter names must be MIME tokens',
+            'duplicate-binding-media-type-parameter' => 'EPUB OPF binding media-type repeats a parameter name; later value is retained for package review',
+            default => is_string($diagnostic['message'] ?? null) ? $diagnostic['message'] : '',
+        };
+
+        return ['type' => $mappedType, 'message' => $message] + array_diff_key($diagnostic, ['type' => true, 'message' => true]);
+    }
+
+    /**
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
      *
      * @return array<string, mixed>
@@ -14919,6 +15040,18 @@ final class EpubPackage
                 'present' => false,
                 'itemCount' => 0,
                 'boundMediaTypes' => [],
+                'mediaTypeItemCount' => 0,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameterizedItemCount' => 0,
+                'mediaTypeParameterNames' => [],
+                'mediaTypeDiagnosticCount' => 0,
+                'invalidMediaTypeCount' => 0,
+                'duplicateMediaTypeParameterCount' => 0,
+                'mediaTypeItems' => [],
+                'mediaTypeParameterItems' => [],
+                'invalidMediaTypeItems' => [],
+                'duplicateMediaTypeParameterItems' => [],
+                'mediaTypeDiagnostics' => [],
                 'items' => [],
                 'diagnostics' => [],
             ];
@@ -14927,12 +15060,20 @@ final class EpubPackage
         $items = [];
         $diagnostics = [];
         $boundMediaTypes = [];
+        $mediaTypeItems = [];
+        $mediaTypeParameterItems = [];
+        $mediaTypeParameterNames = [];
+        $mediaTypeParameterCount = 0;
+        $invalidMediaTypeItems = [];
+        $duplicateMediaTypeParameterItems = [];
+        $mediaTypeDiagnostics = [];
 
         foreach (self::childElements($bindingsElement, 'mediaType', self::OPF_NAMESPACE) as $index => $mediaTypeElement) {
             $mediaType = trim($mediaTypeElement->getAttribute('media-type'));
             $handlerId = trim($mediaTypeElement->getAttribute('handler'));
             $handler = $handlerId === '' ? null : ($manifestById[$handlerId] ?? null);
             $itemDiagnostics = [];
+            $mediaTypeReport = self::bindingMediaTypeItemReport($mediaType, $index, $handlerId === '' ? null : $handlerId);
 
             if ($mediaType === '') {
                 $itemDiagnostics[] = [
@@ -14941,6 +15082,25 @@ final class EpubPackage
                 ];
             } else {
                 $boundMediaTypes[] = $mediaType;
+                $mediaTypeItems[] = $mediaTypeReport;
+                $mediaTypeParameterCount += $mediaTypeReport['parameterCount'];
+                if ($mediaTypeReport['parameterCount'] > 0) {
+                    $mediaTypeParameterItems[] = $mediaTypeReport;
+                    foreach ($mediaTypeReport['parameterNames'] as $parameterName) {
+                        $mediaTypeParameterNames[$parameterName] = true;
+                    }
+                }
+
+                if (!$mediaTypeReport['valid']) {
+                    $invalidMediaTypeItems[] = $mediaTypeReport;
+                }
+
+                if ($mediaTypeReport['duplicateParameterCount'] > 0) {
+                    $duplicateMediaTypeParameterItems[] = $mediaTypeReport;
+                }
+
+                array_push($mediaTypeDiagnostics, ...$mediaTypeReport['diagnostics']);
+                array_push($itemDiagnostics, ...$mediaTypeReport['diagnostics']);
             }
 
             if ($handlerId === '') {
@@ -14999,6 +15159,17 @@ final class EpubPackage
             $items[] = [
                 'index' => $index,
                 'mediaType' => $mediaType === '' ? null : $mediaType,
+                'baseMediaType' => $mediaTypeReport['baseMediaType'],
+                'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterItems' => $mediaTypeReport['parameterItems'],
+                'mediaTypeParameterNames' => $mediaTypeReport['parameterNames'],
+                'mediaTypeParameterCount' => $mediaTypeReport['parameterCount'],
+                'duplicateMediaTypeParameters' => $mediaTypeReport['duplicateParameters'],
+                'duplicateMediaTypeParameterCount' => $mediaTypeReport['duplicateParameterCount'],
+                'mediaTypeValid' => $mediaTypeReport['valid'],
+                'mediaTypeDiagnostics' => $mediaTypeReport['diagnostics'],
+                'mediaTypeReport' => $mediaTypeReport,
                 'handlerId' => $handlerId === '' ? null : $handlerId,
                 'handlerHref' => is_array($handler) ? (string) $handler['href'] : null,
                 'handlerTarget' => is_array($handler) ? (string) ($handler['target'] ?? '') : null,
@@ -15030,6 +15201,18 @@ final class EpubPackage
             'present' => true,
             'itemCount' => count($items),
             'boundMediaTypes' => array_values(array_unique($boundMediaTypes)),
+            'mediaTypeItemCount' => count($mediaTypeItems),
+            'mediaTypeParameterCount' => $mediaTypeParameterCount,
+            'mediaTypeParameterizedItemCount' => count($mediaTypeParameterItems),
+            'mediaTypeParameterNames' => array_keys($mediaTypeParameterNames),
+            'mediaTypeDiagnosticCount' => count($mediaTypeDiagnostics),
+            'invalidMediaTypeCount' => count($invalidMediaTypeItems),
+            'duplicateMediaTypeParameterCount' => count($duplicateMediaTypeParameterItems),
+            'mediaTypeItems' => $mediaTypeItems,
+            'mediaTypeParameterItems' => $mediaTypeParameterItems,
+            'invalidMediaTypeItems' => $invalidMediaTypeItems,
+            'duplicateMediaTypeParameterItems' => $duplicateMediaTypeParameterItems,
+            'mediaTypeDiagnostics' => $mediaTypeDiagnostics,
             'items' => $items,
             'diagnostics' => $diagnostics,
         ];

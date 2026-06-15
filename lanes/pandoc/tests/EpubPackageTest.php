@@ -1077,6 +1077,100 @@ XML;
         $t->same($summary['compactPackageReport'], $summary['wordpressImport']['compactPackageReport']);
     },
 
+    'reports OPF binding media-type parameter provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $handlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Widget handler</h1></body></html>';
+        $reviewHandlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review handler</h1></body></html>';
+        $opfWithBindingMediaTypes = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="widget-handler" href="widgets/widget-handler.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
+    <item id="review-handler" href="widgets/review-handler.xhtml" media-type="application/xhtml+xml" properties="scripted"/>',
+            $epub3OpfXml
+        );
+        $opfWithBindingMediaTypes = str_replace(
+            '</spine>',
+            '</spine>
+  <bindings>
+    <mediaType media-type="application/x-review-widget; charset=UTF-8; profile=&quot;author review&quot;" handler="widget-handler"/>
+    <mediaType media-type="review-widget" handler="widget-handler"/>
+    <mediaType media-type="application/x-repeat; charset=UTF-8; charset=windows-1252" handler="review-handler"/>
+    <mediaType media-type="application/x-flag; broken" handler="missing-handler"/>
+  </bindings>',
+            $opfWithBindingMediaTypes
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithBindingMediaTypes],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/widgets/widget-handler.xhtml', 'data' => $handlerXhtml],
+            ['name' => 'EPUB/widgets/review-handler.xhtml', 'data' => $reviewHandlerXhtml],
+        ]));
+
+        $bindings = $epub->bindings();
+        $summary = $epub->summary();
+        $first = $bindings['items'][0];
+        $invalid = $bindings['items'][1];
+        $duplicate = $bindings['items'][2];
+        $flagged = $bindings['items'][3];
+
+        $t->same(true, $bindings['present']);
+        $t->same(4, $bindings['itemCount']);
+        $t->same(4, $bindings['mediaTypeItemCount']);
+        $t->same(4, $bindings['mediaTypeParameterCount']);
+        $t->same(2, $bindings['mediaTypeParameterizedItemCount']);
+        $t->same(['charset', 'profile'], $bindings['mediaTypeParameterNames']);
+        $t->same(3, $bindings['mediaTypeDiagnosticCount']);
+        $t->same(3, $bindings['invalidMediaTypeCount']);
+        $t->same(1, $bindings['duplicateMediaTypeParameterCount']);
+
+        $t->same('application/x-review-widget', $first['baseMediaType']);
+        $t->same('application/x-review-widget; charset=utf-8; profile=author review', $first['normalizedMediaType']);
+        $t->same(['charset' => 'UTF-8', 'profile' => 'author review'], $first['mediaTypeParameters']);
+        $t->same('profile="author review"', $first['mediaTypeParameterItems'][1]['raw']);
+        $t->same([], $first['mediaTypeDiagnostics']);
+        $t->same($first['mediaTypeReport'], $bindings['mediaTypeItems'][0]);
+
+        $t->same(false, $invalid['mediaTypeValid']);
+        $t->same('invalid-binding-media-type', $invalid['mediaTypeDiagnostics'][0]['type']);
+        $t->same('review-widget', $invalid['mediaTypeDiagnostics'][0]['mediaType']);
+        $t->same(['invalid-binding-media-type'], array_column($invalid['diagnostics'], 'type'));
+
+        $t->same('application/x-repeat; charset=windows-1252', $duplicate['normalizedMediaType']);
+        $t->same(['charset' => 'windows-1252'], $duplicate['mediaTypeParameters']);
+        $t->same(true, $duplicate['mediaTypeParameterItems'][1]['duplicate']);
+        $t->same('UTF-8', $duplicate['mediaTypeParameterItems'][1]['previousValue']);
+        $t->same('duplicate-binding-media-type-parameter', $duplicate['mediaTypeDiagnostics'][0]['type']);
+        $t->same('windows-1252', $bindings['duplicateMediaTypeParameterItems'][0]['duplicateParameters'][0]['value']);
+
+        $t->same(['invalid-binding-media-type-parameter', 'missing-binding-handler-manifest-item'], array_column($flagged['diagnostics'], 'type'));
+        $t->same('broken', $flagged['mediaTypeDiagnostics'][0]['parameter']);
+        $t->same(null, $flagged['handlerPartName']);
+        $t->same([
+            'invalid-binding-media-type',
+            'duplicate-binding-media-type-parameter',
+            'invalid-binding-media-type-parameter',
+            'missing-binding-handler-manifest-item',
+        ], array_column($bindings['diagnostics'], 'type'));
+        $t->same([
+            'invalid-binding-media-type',
+            'duplicate-binding-media-type-parameter',
+            'invalid-binding-media-type-parameter',
+        ], array_column($bindings['mediaTypeDiagnostics'], 'type'));
+        $t->same(['application/x-review-widget; charset=UTF-8; profile="author review"', 'application/x-repeat; charset=UTF-8; charset=windows-1252'], array_column($bindings['mediaTypeParameterItems'], 'mediaType'));
+
+        $t->same($bindings['mediaTypeItems'], $summary['wordpressImport']['mediaTypeBindingMediaTypeItems']);
+        $t->same($bindings['mediaTypeParameterItems'], $summary['wordpressImport']['mediaTypeBindingMediaTypeParameterItems']);
+        $t->same($bindings['mediaTypeParameterNames'], $summary['wordpressImport']['mediaTypeBindingMediaTypeParameterNames']);
+        $t->same($bindings['mediaTypeDiagnostics'], $summary['wordpressImport']['mediaTypeBindingMediaTypeDiagnostics']);
+        $t->same($bindings['diagnostics'], $summary['wordpressImport']['mediaTypeBindingDiagnostics']);
+    },
+
     'preserves OPF binding handler target provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $localHandlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Local widget fallback</h1></body></html>';
         $opfWithBindingTargets = str_replace(
