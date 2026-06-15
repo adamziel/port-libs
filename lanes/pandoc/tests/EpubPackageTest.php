@@ -106,9 +106,9 @@ $epub3Package = static function () use ($epubContainerXml, $epub3OpfXml, $epub3N
 
 $buildZipPackage = static function (array $entries): ZipPackage {
     $body = '';
-    $central = '';
+    $centralRecords = [];
 
-    foreach ($entries as $entry) {
+    foreach ($entries as $entryIndex => $entry) {
         $name = $entry['name'];
         $data = $entry['data'] ?? '';
         $method = $entry['method'] ?? 8;
@@ -134,7 +134,7 @@ $buildZipPackage = static function (array $entries): ZipPackage {
         );
         $body .= $name . $compressed;
 
-        $central .= pack(
+        $centralRecord = pack(
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
             0x0314,
@@ -154,9 +154,18 @@ $buildZipPackage = static function (array $entries): ZipPackage {
             $externalAttributes,
             $offset
         );
-        $central .= $name;
+        $centralRecord .= $name;
+        $centralRecords[] = [
+            'index' => $entry['centralIndex'] ?? $entryIndex,
+            'record' => $centralRecord,
+        ];
     }
 
+    usort(
+        $centralRecords,
+        static fn (array $left, array $right): int => [$left['index']] <=> [$right['index']]
+    );
+    $central = implode('', array_column($centralRecords, 'record'));
     $centralOffset = strlen($body);
 
     return ZipPackage::fromString(
@@ -7235,6 +7244,77 @@ XML;
         $t->same(false, $inventory['byPackagePath']['EPUB/audio/theme.mp3']['canExposeBytes']);
         $t->same('unsupported', $inventory['byPackagePath']['EPUB/audio/theme.mp3']['compressionMethodName']);
         $t->same('audio', $inventory['byPackagePath']['EPUB/audio/theme.mp3']['resourceKind']);
+    },
+
+    'reports EPUB package inventory local header order drift for review handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $chapter = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Order drift</h1></body></html>';
+        $navXml = '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="text/chapter.xhtml">Order drift</a></li></ol></nav></body></html>';
+        $opfWithOrderDrift = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:package-local-order-drift</dc:identifier>
+    <dc:title>Package Local Order Drift</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0, 'centralIndex' => 5],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml, 'centralIndex' => 0],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithOrderDrift, 'centralIndex' => 1],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml, 'centralIndex' => 2],
+            ['name' => 'EPUB/text/chapter.xhtml', 'data' => $chapter, 'centralIndex' => 3],
+            ['name' => 'EPUB/notes/reviewer.txt', 'data' => 'local order drift note', 'method' => 0, 'centralIndex' => 4],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $order = $inventory['localHeaderOrder'];
+        $diagnostics = $inventory['localHeaderOrderDiagnostics'];
+
+        $t->same($inventory, $summary['wordpressImport']['packageInventory']);
+        $t->same($order, $summary['wordpressImport']['packageInventoryLocalHeaderOrder']);
+        $t->same($diagnostics, $summary['wordpressImport']['packageInventoryLocalHeaderOrderDiagnostics']);
+        $t->same($diagnostics, $summary['wordpressImport']['packageInventoryDiagnostics']);
+        $t->same(['mimetype', 'META-INF/container.xml', 'EPUB/package.opf', 'EPUB/nav.xhtml', 'EPUB/text/chapter.xhtml', 'EPUB/notes/reviewer.txt'], $order['localHeaderOrderNames']);
+        $t->same(['META-INF/container.xml', 'EPUB/package.opf', 'EPUB/nav.xhtml', 'EPUB/text/chapter.xhtml', 'EPUB/notes/reviewer.txt', 'mimetype'], $order['centralDirectoryOrderNames']);
+        $t->same(true, $order['hasCentralDirectoryOrderMismatch']);
+        $t->same(true, $inventory['hasCentralDirectoryOrderMismatch']);
+        $t->same(6, $order['mismatchedEntryCount']);
+        $t->same(6, $inventory['centralDirectoryOrderMismatchCount']);
+        $t->same(6, $inventory['diagnosticCount']);
+        $t->same(['central-directory-local-header-order-mismatch'], $inventory['diagnosticTypes']);
+        $t->same([
+            '/META-INF/container.xml',
+            '/EPUB/package.opf',
+            '/EPUB/nav.xhtml',
+            '/EPUB/text/chapter.xhtml',
+            '/EPUB/notes/reviewer.txt',
+            '/mimetype',
+        ], $inventory['centralDirectoryOrderMismatchedPartNames']);
+        $t->same('META-INF/container.xml', $diagnostics[0]['packagePath']);
+        $t->same('/META-INF/container.xml', $diagnostics[0]['partName']);
+        $t->same(0, $diagnostics[0]['centralDirectoryIndex']);
+        $t->same(1, $diagnostics[0]['localHeaderOrder']);
+        $t->same('mimetype', $diagnostics[0]['localHeaderNameAtCentralDirectoryIndex']);
+        $t->same('EPUB/package.opf', $diagnostics[0]['centralDirectoryNameAtLocalHeaderOrder']);
+        $t->same('central-directory-local-header-order-mismatch', $diagnostics[5]['type']);
+        $t->same('/mimetype', $diagnostics[5]['partName']);
+        $t->same(5, $diagnostics[5]['centralDirectoryIndex']);
+        $t->same(0, $diagnostics[5]['localHeaderOrder']);
+        $t->same('EPUB/notes/reviewer.txt', $diagnostics[5]['localHeaderNameAtCentralDirectoryIndex']);
+        $t->same('META-INF/container.xml', $diagnostics[5]['centralDirectoryNameAtLocalHeaderOrder']);
+        $t->same(0, $inventory['byPackagePath']['META-INF/container.xml']['index']);
+        $t->same(1, $inventory['byPackagePath']['META-INF/container.xml']['localOrder']);
+        $t->same(5, $inventory['byPackagePath']['mimetype']['index']);
+        $t->same(0, $inventory['byPackagePath']['mimetype']['localOrder']);
+        $t->same(false, $order['entries'][0]['matchesCentralDirectoryOrder']);
+        $t->same('central-directory-local-header-order-mismatch', $diagnostics[0]['type']);
     },
 
     'summarizes EPUB package inventory byte exposure policy buckets for review handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {

@@ -704,6 +704,9 @@ final class EpubPackage
                 'packageInventory' => $packageInventory,
                 'packageInventoryMissingOpfManifestDeclaredItems' => $packageInventory['missingOpfManifestDeclaredItems'],
                 'packageInventoryMissingOpfManifestDeclaredDiagnostics' => $packageInventory['missingOpfManifestDeclaredDiagnostics'],
+                'packageInventoryDiagnostics' => $packageInventory['diagnostics'],
+                'packageInventoryLocalHeaderOrder' => $packageInventory['localHeaderOrder'],
+                'packageInventoryLocalHeaderOrderDiagnostics' => $packageInventory['localHeaderOrderDiagnostics'],
                 'readingOrderInventory' => $readingOrderInventory,
                 'manifestDependencyInventory' => $manifestDependencyInventory,
                 'manifestDependencyEdges' => $manifestDependencyInventory['edges'],
@@ -8331,6 +8334,12 @@ final class EpubPackage
 
         $directorySummaries = self::packageInventoryDirectorySummaries($entries);
         $extensionSummaries = self::packageInventoryExtensionSummaries($entries);
+        $localHeaderOrder = $package->localHeaderOrderPreflight();
+        $localHeaderOrderDiagnostics = self::packageInventoryLocalHeaderOrderDiagnostics($localHeaderOrder);
+        $centralDirectoryOrderMismatchedPartNames = array_values(array_map(
+            static fn (array $entry): string => self::packageInventoryPartName((string) ($entry['name'] ?? '')),
+            is_array($localHeaderOrder['mismatchedEntries'] ?? null) ? $localHeaderOrder['mismatchedEntries'] : []
+        ));
 
         ksort($roleCounts, SORT_STRING);
         ksort($roleByteLengths, SORT_STRING);
@@ -8408,9 +8417,53 @@ final class EpubPackage
             'manifestFallbackStyleTerminalPartNames' => array_keys($manifestFallbackStyleTerminalPartNames),
             'localPackagePaths' => $package->localNames(),
             'centralPackagePaths' => $package->names(),
+            'localHeaderOrder' => $localHeaderOrder,
+            'hasCentralDirectoryOrderMismatch' => (bool) ($localHeaderOrder['hasCentralDirectoryOrderMismatch'] ?? false),
+            'centralDirectoryOrderMismatchCount' => (int) ($localHeaderOrder['mismatchedEntryCount'] ?? 0),
+            'centralDirectoryOrderMismatchedPartNames' => $centralDirectoryOrderMismatchedPartNames,
+            'diagnosticCount' => count($localHeaderOrderDiagnostics),
+            'diagnosticTypes' => self::compactDiagnosticTypes($localHeaderOrderDiagnostics),
+            'diagnostics' => $localHeaderOrderDiagnostics,
+            'localHeaderOrderDiagnostics' => $localHeaderOrderDiagnostics,
             'byPackagePath' => $byPackagePath,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $localHeaderOrder
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function packageInventoryLocalHeaderOrderDiagnostics(array $localHeaderOrder): array
+    {
+        $diagnostics = [];
+        foreach (is_array($localHeaderOrder['mismatchedEntries'] ?? null) ? $localHeaderOrder['mismatchedEntries'] : [] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $packagePath = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $diagnostics[] = [
+                'type' => 'central-directory-local-header-order-mismatch',
+                'packagePath' => $packagePath,
+                'partName' => $packagePath === '' ? null : self::packageInventoryPartName($packagePath),
+                'centralDirectoryIndex' => is_int($entry['centralDirectoryIndex'] ?? null) ? $entry['centralDirectoryIndex'] : null,
+                'centralDirectoryRecordOffset' => is_int($entry['centralDirectoryRecordOffset'] ?? null) ? $entry['centralDirectoryRecordOffset'] : null,
+                'centralDirectoryRecordEnd' => is_int($entry['centralDirectoryRecordEnd'] ?? null) ? $entry['centralDirectoryRecordEnd'] : null,
+                'localHeaderOrder' => is_int($entry['localHeaderOrder'] ?? null) ? $entry['localHeaderOrder'] : null,
+                'localHeaderOffset' => is_int($entry['localHeaderOffset'] ?? null) ? $entry['localHeaderOffset'] : null,
+                'localHeaderNameAtCentralDirectoryIndex' => is_string($entry['localHeaderNameAtCentralDirectoryIndex'] ?? null)
+                    ? $entry['localHeaderNameAtCentralDirectoryIndex']
+                    : null,
+                'centralDirectoryNameAtLocalHeaderOrder' => is_string($entry['centralDirectoryNameAtLocalHeaderOrder'] ?? null)
+                    ? $entry['centralDirectoryNameAtLocalHeaderOrder']
+                    : null,
+                'message' => 'EPUB ZIP central directory order does not match local header order for this package entry',
+            ];
+        }
+
+        return $diagnostics;
     }
 
     /**
