@@ -137,6 +137,36 @@ final class XmlHtmlDom
         'show-modal' => true,
     ];
 
+    /** @var array<string, true> */
+    private const HTML_IFRAME_SANDBOX_TOKENS = [
+        'allow-downloads' => true,
+        'allow-forms' => true,
+        'allow-modals' => true,
+        'allow-orientation-lock' => true,
+        'allow-pointer-lock' => true,
+        'allow-popups' => true,
+        'allow-popups-to-escape-sandbox' => true,
+        'allow-presentation' => true,
+        'allow-same-origin' => true,
+        'allow-scripts' => true,
+        'allow-storage-access-by-user-activation' => true,
+        'allow-top-navigation' => true,
+        'allow-top-navigation-by-user-activation' => true,
+        'allow-top-navigation-to-custom-protocols' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const HTML_REFERRER_POLICIES = [
+        'no-referrer' => true,
+        'no-referrer-when-downgrade' => true,
+        'origin' => true,
+        'origin-when-cross-origin' => true,
+        'same-origin' => true,
+        'strict-origin' => true,
+        'strict-origin-when-cross-origin' => true,
+        'unsafe-url' => true,
+    ];
+
     /** @var array<string, bool> true when the ARIA attribute accepts an ID reference list */
     private const ARIA_ID_REFERENCE_ATTRIBUTES = [
         'aria-activedescendant' => false,
@@ -20435,7 +20465,210 @@ final class XmlHtmlDom
             $summary += self::iframeSrcdocReviewSummary($srcdoc);
         }
 
+        $summary += self::iframePolicyReviewSummary($iframe);
+
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframePolicyReviewSummary(\DOMElement $iframe): array
+    {
+        $summary = [
+            'iframePolicyReview' => 'iframe-policy-metadata-review',
+            'iframePolicyIssueCodes' => [],
+        ];
+
+        if ($iframe->hasAttribute('sandbox')) {
+            $sandbox = self::iframeSandboxPolicySummary($iframe->getAttribute('sandbox'));
+            $summary += $sandbox;
+            if (($sandbox['invalidSandboxTokens'] ?? []) !== []) {
+                $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-sandbox-token';
+            }
+            if (($sandbox['duplicateSandboxTokens'] ?? []) !== []) {
+                $summary['iframePolicyIssueCodes'][] = 'duplicate-iframe-sandbox-token';
+            }
+            if (($sandbox['sandboxAllowsScriptsAndSameOrigin'] ?? false) === true) {
+                $summary['iframePolicyIssueCodes'][] = 'iframe-sandbox-allows-scripts-same-origin';
+            }
+        }
+
+        if ($iframe->hasAttribute('allow')) {
+            $allow = self::iframeAllowPolicySummary($iframe->getAttribute('allow'));
+            $summary += $allow;
+            if (($allow['invalidAllowDirectiveCount'] ?? 0) > 0) {
+                $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-allow-directive';
+            }
+        }
+
+        if ($iframe->hasAttribute('referrerpolicy')) {
+            $referrerPolicy = self::iframeReferrerPolicySummary($iframe->getAttribute('referrerpolicy'));
+            $summary += $referrerPolicy;
+            if (($referrerPolicy['referrerPolicyValid'] ?? true) !== true) {
+                $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-referrer-policy';
+            }
+        }
+
+        if ($iframe->hasAttribute('loading')) {
+            $loading = self::iframeLoadingPolicySummary($iframe->getAttribute('loading'));
+            $summary += $loading;
+            if (($loading['loadingValid'] ?? true) !== true) {
+                $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-loading-state';
+            }
+        }
+
+        $summary['allowFullscreen'] = $iframe->hasAttribute('allowfullscreen');
+
+        return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeSandboxPolicySummary(string $value): array
+    {
+        $tokens = array_map(
+            static fn (string $token): string => strtolower(trim($token)),
+            self::spaceSeparatedTokens($value)
+        );
+        $valid = [];
+        $invalid = [];
+        $duplicates = [];
+        $seen = [];
+
+        foreach ($tokens as $token) {
+            if ($token === '') {
+                continue;
+            }
+
+            if (!isset(self::HTML_IFRAME_SANDBOX_TOKENS[$token])) {
+                $invalid[] = $token;
+                continue;
+            }
+
+            if (isset($seen[$token])) {
+                if (!in_array($token, $duplicates, true)) {
+                    $duplicates[] = $token;
+                }
+                continue;
+            }
+
+            $seen[$token] = true;
+            $valid[] = $token;
+        }
+
+        return [
+            'sandboxRaw' => $value,
+            'sandboxTokens' => $tokens,
+            'sandboxValidTokens' => $valid,
+            'invalidSandboxTokens' => $invalid,
+            'duplicateSandboxTokens' => $duplicates,
+            'sandboxTokenCount' => count($tokens),
+            'sandboxValidTokenCount' => count($valid),
+            'sandboxAllTokensValid' => $invalid === [],
+            'sandboxAllowsScripts' => in_array('allow-scripts', $valid, true),
+            'sandboxAllowsSameOrigin' => in_array('allow-same-origin', $valid, true),
+            'sandboxAllowsScriptsAndSameOrigin' => in_array('allow-scripts', $valid, true)
+                && in_array('allow-same-origin', $valid, true),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeAllowPolicySummary(string $value): array
+    {
+        $directives = [];
+        $features = [];
+        $invalid = [];
+
+        foreach (explode(';', $value) as $rawDirective) {
+            $raw = trim($rawDirective);
+            if ($raw === '') {
+                continue;
+            }
+
+            $tokens = self::spaceSeparatedTokens($raw);
+            $featureRaw = $tokens[0] ?? null;
+            $feature = is_string($featureRaw) ? strtolower($featureRaw) : null;
+            $allowList = array_slice($tokens, 1);
+            $featureValid = $feature !== null && self::isIframeAllowFeatureToken($feature);
+            $allowListValid = true;
+            foreach ($allowList as $allowListToken) {
+                if (!self::isIframeAllowListToken($allowListToken)) {
+                    $allowListValid = false;
+                    break;
+                }
+            }
+            $valid = $featureValid && $allowListValid;
+            if (!$valid) {
+                $invalid[] = $raw;
+            } elseif (!in_array($feature, $features, true)) {
+                $features[] = $feature;
+            }
+
+            $directives[] = [
+                'raw' => $raw,
+                'featureRaw' => $featureRaw,
+                'feature' => $featureValid ? $feature : null,
+                'allowList' => $allowList,
+                'valid' => $valid,
+            ];
+        }
+
+        return [
+            'allowRaw' => $value,
+            'allowDirectiveCount' => count($directives),
+            'allowDirectives' => $directives,
+            'allowFeatures' => $features,
+            'invalidAllowDirectiveCount' => count($invalid),
+            'invalidAllowDirectives' => $invalid,
+            'allowPolicyValid' => $directives !== [] && $invalid === [],
+        ];
+    }
+
+    private static function isIframeAllowFeatureToken(string $token): bool
+    {
+        return preg_match('/^[a-z][a-z0-9-]*$/', $token) === 1;
+    }
+
+    private static function isIframeAllowListToken(string $token): bool
+    {
+        if ($token === '*' || in_array($token, ["'self'", "'src'", "'none'"], true)) {
+            return true;
+        }
+
+        return $token !== '' && preg_match('/[\s<>"`\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $token) === 0;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeReferrerPolicySummary(string $value): array
+    {
+        $policy = strtolower(trim($value));
+
+        return [
+            'referrerPolicyRaw' => $value,
+            'referrerPolicy' => isset(self::HTML_REFERRER_POLICIES[$policy]) ? $policy : null,
+            'referrerPolicyValid' => isset(self::HTML_REFERRER_POLICIES[$policy]),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeLoadingPolicySummary(string $value): array
+    {
+        $loading = strtolower(trim($value));
+        $valid = in_array($loading, ['eager', 'lazy'], true);
+
+        return [
+            'loadingRaw' => $value,
+            'loadingState' => $valid ? $loading : null,
+            'loadingValid' => $valid,
+        ];
     }
 
     /**

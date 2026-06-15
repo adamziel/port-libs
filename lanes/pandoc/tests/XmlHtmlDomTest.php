@@ -6678,6 +6678,86 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('Unsafe fallback', $unsafeIframe['fallbackText']);
         $t->contains('srcdoc="&lt;article data-review=&quot;srcdoc&quot;&gt;', $html);
     },
+    'summarizes iframe sandbox and permissions policy for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<iframe id="trusted-frame" src="frame.html" sandbox="allow-scripts allow-same-origin allow-popups allow-scripts bad-token" allow="fullscreen *; clipboard-write &#039;self&#039;; geolocation https://maps.example.test; bad&lt;feature *; camera" referrerpolicy="Strict-Origin-When-Cross-Origin" loading="Lazy" allowfullscreen>Frame fallback</iframe>'
+                . '<iframe id="bad-frame" src="bad.html" sandbox="" allow="midi &#039;none&#039;; broken&lt;directive" referrerpolicy="unsafe-policy" loading="soon"></iframe>',
+            'iframe policy review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/iframe-policy-summary-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $trusted = $summary[0];
+        $invalid = $summary[1];
+
+        $t->same('iframe-policy-metadata-review', $trusted['iframePolicyReview']);
+        $t->same([
+            'allow-scripts',
+            'allow-same-origin',
+            'allow-popups',
+            'allow-scripts',
+            'bad-token',
+        ], $trusted['sandboxTokens']);
+        $t->same(['allow-scripts', 'allow-same-origin', 'allow-popups'], $trusted['sandboxValidTokens']);
+        $t->same(['bad-token'], $trusted['invalidSandboxTokens']);
+        $t->same(['allow-scripts'], $trusted['duplicateSandboxTokens']);
+        $t->same(false, $trusted['sandboxAllTokensValid']);
+        $t->same(true, $trusted['sandboxAllowsScripts']);
+        $t->same(true, $trusted['sandboxAllowsSameOrigin']);
+        $t->same(true, $trusted['sandboxAllowsScriptsAndSameOrigin']);
+        $t->same([
+            'invalid-iframe-sandbox-token',
+            'duplicate-iframe-sandbox-token',
+            'iframe-sandbox-allows-scripts-same-origin',
+            'invalid-iframe-allow-directive',
+        ], $trusted['iframePolicyIssueCodes']);
+
+        $t->same(5, $trusted['allowDirectiveCount']);
+        $t->same([
+            'fullscreen',
+            'clipboard-write',
+            'geolocation',
+            'camera',
+        ], $trusted['allowFeatures']);
+        $t->same(['bad<feature *'], $trusted['invalidAllowDirectives']);
+        $t->same(false, $trusted['allowPolicyValid']);
+        $t->same(['*'], $trusted['allowDirectives'][0]['allowList']);
+        $t->same(["'self'"], $trusted['allowDirectives'][1]['allowList']);
+        $t->same(['https://maps.example.test'], $trusted['allowDirectives'][2]['allowList']);
+        $t->same(false, $trusted['allowDirectives'][3]['valid']);
+        $t->same([], $trusted['allowDirectives'][4]['allowList']);
+        $t->same('strict-origin-when-cross-origin', $trusted['referrerPolicy']);
+        $t->same(true, $trusted['referrerPolicyValid']);
+        $t->same('lazy', $trusted['loadingState']);
+        $t->same(true, $trusted['loadingValid']);
+        $t->same(true, $trusted['allowFullscreen']);
+        $t->same('Frame fallback', $trusted['fallbackText']);
+
+        $t->same([], $invalid['sandboxTokens']);
+        $t->same([], $invalid['sandboxValidTokens']);
+        $t->same(true, $invalid['sandboxAllTokensValid']);
+        $t->same(2, $invalid['allowDirectiveCount']);
+        $t->same(['midi'], $invalid['allowFeatures']);
+        $t->same(["'none'"], $invalid['allowDirectives'][0]['allowList']);
+        $t->same(['broken<directive'], $invalid['invalidAllowDirectives']);
+        $t->same(null, $invalid['referrerPolicy']);
+        $t->same(false, $invalid['referrerPolicyValid']);
+        $t->same(null, $invalid['loadingState']);
+        $t->same(false, $invalid['loadingValid']);
+        $t->same(false, $invalid['allowFullscreen']);
+        $t->same([
+            'invalid-iframe-allow-directive',
+            'invalid-iframe-referrer-policy',
+            'invalid-iframe-loading-state',
+        ], $invalid['iframePolicyIssueCodes']);
+        $t->contains('allowfullscreen', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/iframe-policy-summary-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html hyperlinks and image-map areas for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p>See <a href="chapter.html#intro" target="_blank" rel="noopener noreferrer tag" download="packet.html" hreflang="en" type="text/html" ping="/audit /log" referrerpolicy="no-referrer">Chapter <span>one</span></a></p>'
