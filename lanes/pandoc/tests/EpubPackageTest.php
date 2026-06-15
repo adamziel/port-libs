@@ -2560,6 +2560,85 @@ XML;
         $t->same('local-package', $policyItem['policy']);
     },
 
+    'preserves OPF collection authoring attributes for package review handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithCollectionAuthoring = str_replace(
+            '</spine>',
+            '</spine>
+  <collection xmlns:review="https://example.invalid/epub-review" id="curated-series" role="series curated" xml:base="collections/" xml:lang="fr" dir="rtl" data-review="series" review:source="wp-import">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Curated series</dc:title></metadata>
+    <collection id="preview-samples" role="preview" xml:base="samples/" data-review="samples">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Preview samples</dc:title></metadata>
+    </collection>
+  </collection>',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithCollectionAuthoring],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $collections = $epub->collections();
+        $summary = $epub->summary();
+        $collection = $collections[0];
+        $child = $collection['children'][0];
+        $authoring = $summary['collectionAuthoring'];
+        $item = $authoring['itemsByPathKey']['0'];
+        $childItem = $authoring['itemsByPathKey']['0.0'];
+
+        $t->same('collections/', $collection['base']);
+        $t->same('series', $collection['customAttributes']['data-review']);
+        $t->same('wp-import', $collection['customAttributes']['review:source']);
+        $t->same(false, array_key_exists('xmlns:review', $collection['customAttributes']));
+        $t->same('samples/', $child['base']);
+        $t->same(['data-review' => 'samples'], $child['customAttributes']);
+
+        $t->same(true, $authoring['present']);
+        $t->same(2, $authoring['collectionCount']);
+        $t->same(1, $authoring['languageItemCount']);
+        $t->same(1, $authoring['directionItemCount']);
+        $t->same(2, $authoring['baseItemCount']);
+        $t->same(2, $authoring['customAttributeItemCount']);
+        $t->same(['0', '0.0'], array_column($authoring['items'], 'pathKey'));
+        $t->same(['curated-series', 'preview-samples'], array_column($authoring['items'], 'id'));
+
+        $t->same('curated-series', $item['id']);
+        $t->same(['series', 'curated'], $item['roleTokens']);
+        $t->same('fr', $item['language']);
+        $t->same('rtl', $item['direction']);
+        $t->same('collections/', $item['base']);
+        $t->same('collections/', $item['attributes']['xml:base']);
+        $t->same([
+            'dir' => 'rtl',
+            'id' => 'curated-series',
+            'role' => 'series curated',
+            'xml:base' => 'collections/',
+            'xml:lang' => 'fr',
+        ], $item['structuralAttributes']);
+        $t->same(['data-review' => 'series', 'review:source' => 'wp-import'], $item['customAttributes']);
+        $t->same(2, $item['customAttributeCount']);
+        $t->same(true, $item['hasBase']);
+        $t->same('reported-not-applied-to-package-paths', $item['baseResolutionPolicy']);
+        $t->same(false, $item['baseResolution']['appliesToPackagePaths']);
+
+        $t->same('preview-samples', $childItem['id']);
+        $t->same([0, 0], $childItem['path']);
+        $t->same('samples/', $childItem['base']);
+        $t->same(false, $childItem['hasLanguage']);
+        $t->same(false, $childItem['hasDirection']);
+        $t->same(['data-review' => 'samples'], $childItem['customAttributes']);
+
+        $t->same($authoring, $summary['wordpressImport']['collectionAuthoring']);
+        $t->same($authoring['items'], $summary['wordpressImport']['collectionAuthoringItems']);
+        $t->same($authoring['customAttributeItems'], $summary['wordpressImport']['collectionAuthoringCustomAttributeItems']);
+    },
+
     'summarizes OPF collection hierarchy for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithCollectionHierarchy = str_replace(
             '</spine>',

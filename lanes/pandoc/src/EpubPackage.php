@@ -127,6 +127,13 @@ final class EpubPackage
         'properties' => true,
         'xml:lang' => true,
     ];
+    private const OPF_COLLECTION_STRUCTURAL_ATTRIBUTES = [
+        'dir' => true,
+        'id' => true,
+        'role' => true,
+        'xml:base' => true,
+        'xml:lang' => true,
+    ];
 
     /**
      * @param list<array<string, mixed>> $rootfiles
@@ -593,6 +600,7 @@ final class EpubPackage
             : self::metadataAuthoringReport([], null, null, null, []);
         $manifestAuthoring = self::manifestItemAuthoringReport($this->manifestItems);
         $spineAuthoring = self::spineItemrefAuthoringReport($this->spine);
+        $collectionAuthoring = self::collectionAuthoringReport($this->collections);
         $guideReport = $this->guideReport();
         $ocfSidecars = $this->ocfSidecars();
         $packageInventory = self::packageInventoryReport(
@@ -671,6 +679,7 @@ final class EpubPackage
             'guideReport' => $guideReport,
             'collections' => $this->collections,
             'collectionHierarchy' => $collectionHierarchy,
+            'collectionAuthoring' => $collectionAuthoring,
             'collectionLinkVocabulary' => $collectionLinkVocabulary,
             'collectionRoleVocabulary' => $collectionRoleVocabulary,
             'bindings' => $this->bindings,
@@ -810,6 +819,9 @@ final class EpubPackage
                 'collectionHierarchy' => $collectionHierarchy,
                 'collectionHierarchyItems' => $collectionHierarchy['items'],
                 'collectionHierarchyDiagnostics' => $collectionHierarchy['diagnostics'],
+                'collectionAuthoring' => $collectionAuthoring,
+                'collectionAuthoringItems' => $collectionAuthoring['items'],
+                'collectionAuthoringCustomAttributeItems' => $collectionAuthoring['customAttributeItems'],
                 'containerLinks' => $this->containerLinks,
                 'containerLinksByRel' => $containerLinkReport['linksByRel'],
                 'containerLinkTargets' => self::packageLinkTargets($this->containerLinks),
@@ -7431,6 +7443,28 @@ final class EpubPackage
     }
 
     /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
+    private static function collectionCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OPF_COLLECTION_STRUCTURAL_ATTRIBUTES[$name]) || $name === 'xmlns' || str_starts_with($name, 'xmlns:')) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
      * @param array<string, mixed> $metadata
      *
      * @return array<string, mixed>
@@ -7763,6 +7797,125 @@ final class EpubPackage
             'customAttributeItemCount' => count($customAttributeItems),
             'customAttributeItems' => $customAttributeItems,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     *
+     * @return array<string, mixed>
+     */
+    private static function collectionAuthoringReport(array $collections): array
+    {
+        $items = [];
+        self::appendCollectionAuthoringItems($collections, [], $items);
+
+        $itemsByPathKey = [];
+        $itemsById = [];
+        $languageItems = [];
+        $directionItems = [];
+        $baseItems = [];
+        $customAttributeItems = [];
+
+        foreach ($items as $item) {
+            $itemsByPathKey[(string) $item['pathKey']] = $item;
+            if (is_string($item['id'] ?? null) && $item['id'] !== '') {
+                $itemsById[$item['id']] = $item;
+            }
+            if ($item['language'] !== null) {
+                $languageItems[] = $item;
+            }
+            if ($item['direction'] !== null) {
+                $directionItems[] = $item;
+            }
+            if ($item['base'] !== null) {
+                $baseItems[] = $item;
+            }
+            if ($item['customAttributes'] !== []) {
+                $customAttributeItems[] = $item;
+            }
+        }
+
+        ksort($itemsById, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'collectionCount' => count($items),
+            'items' => $items,
+            'itemsByPathKey' => $itemsByPathKey,
+            'itemsById' => $itemsById,
+            'languageItemCount' => count($languageItems),
+            'languageItems' => $languageItems,
+            'directionItemCount' => count($directionItems),
+            'directionItems' => $directionItems,
+            'baseItemCount' => count($baseItems),
+            'baseItems' => $baseItems,
+            'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeItems' => $customAttributeItems,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     * @param list<int> $parentPath
+     * @param list<array<string, mixed>> $items
+     */
+    private static function appendCollectionAuthoringItems(array $collections, array $parentPath, array &$items): void
+    {
+        foreach ($collections as $position => $collection) {
+            if (!is_array($collection)) {
+                continue;
+            }
+
+            $index = is_int($collection['index'] ?? null) ? (int) $collection['index'] : $position;
+            $path = array_merge($parentPath, [$index]);
+            $attributes = is_array($collection['attributes'] ?? null) ? $collection['attributes'] : [];
+            $customAttributes = is_array($collection['customAttributes'] ?? null)
+                ? $collection['customAttributes']
+                : self::collectionCustomAttributes($attributes);
+            $structuralAttributes = [];
+            foreach ($attributes as $name => $value) {
+                if (!is_string($name) || !is_string($value)) {
+                    continue;
+                }
+                if (isset(self::OPF_COLLECTION_STRUCTURAL_ATTRIBUTES[$name])) {
+                    $structuralAttributes[$name] = $value;
+                }
+            }
+
+            $base = is_string($collection['base'] ?? null) ? $collection['base'] : null;
+            $summary = [
+                'index' => $index,
+                'path' => $path,
+                'pathKey' => implode('.', array_map(static fn (int $value): string => (string) $value, $path)),
+                'id' => is_string($collection['id'] ?? null) ? $collection['id'] : null,
+                'role' => is_string($collection['role'] ?? null) ? $collection['role'] : null,
+                'roleTokens' => is_array($collection['roleTokens'] ?? null) ? array_values($collection['roleTokens']) : [],
+                'primaryRole' => is_string($collection['primaryRole'] ?? null) ? $collection['primaryRole'] : null,
+                'language' => is_string($collection['language'] ?? null) ? $collection['language'] : null,
+                'direction' => is_string($collection['direction'] ?? null) ? $collection['direction'] : null,
+                'base' => $base,
+                'attributes' => $attributes,
+                'attributeCount' => count($attributes),
+                'structuralAttributes' => $structuralAttributes,
+                'structuralAttributeCount' => count($structuralAttributes),
+                'customAttributes' => $customAttributes,
+                'customAttributeCount' => count($customAttributes),
+                'hasLanguage' => is_string($collection['language'] ?? null) && $collection['language'] !== '',
+                'hasDirection' => is_string($collection['direction'] ?? null) && $collection['direction'] !== '',
+                'hasBase' => $base !== null,
+                'hasCustomAttributes' => $customAttributes !== [],
+                'baseResolutionPolicy' => $base === null ? null : 'reported-not-applied-to-package-paths',
+                'baseResolution' => [
+                    'metadataOnly' => $base !== null,
+                    'appliesToPackagePaths' => false,
+                    'policy' => $base === null ? null : 'reported-not-applied-to-package-paths',
+                ],
+            ];
+            $items[] = $summary;
+
+            $children = is_array($collection['children'] ?? null) ? $collection['children'] : [];
+            self::appendCollectionAuthoringItems($children, $path, $items);
+        }
     }
 
     /**
@@ -10686,6 +10839,8 @@ final class EpubPackage
         $metadata = $metadataElement instanceof \DOMElement
             ? self::parseMetadata($metadataElement, $collectionElement)
             : [];
+        $attributes = self::elementAttributes($collectionElement);
+        $customAttributes = self::collectionCustomAttributes($attributes);
         $role = self::emptyToNull($collectionElement->getAttribute('role'));
         $roleTokens = self::splitTokens($role ?? '');
         $roleVocabulary = self::collectionRoleTokenReport($roleTokens, $prefixBindings, $index);
@@ -10701,6 +10856,11 @@ final class EpubPackage
             'roleVocabulary' => $roleVocabulary,
             'language' => self::metadataElementLanguage($collectionElement),
             'direction' => self::metadataElementDirection($collectionElement),
+            'base' => self::metadataElementBase($collectionElement),
+            'attributes' => $attributes,
+            'attributeCount' => count($attributes),
+            'customAttributes' => $customAttributes,
+            'customAttributeCount' => count($customAttributes),
             'metadata' => $metadata,
             'links' => $links,
             'linkCount' => $report['count'],
