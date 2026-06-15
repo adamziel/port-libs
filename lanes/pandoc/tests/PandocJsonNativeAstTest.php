@@ -7977,6 +7977,59 @@ return [
                 'types' => ['table', 'figure'],
                 'tags' => ['Table', 'Figure'],
             ],
+            'table local leaf block constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'Table', 'c' => [
+                            ['matrix-leaf-table', ['review'], [['data-source', 'matrix']]],
+                            ['t' => 'Caption', 'c' => [
+                                ['t' => 'Nothing'],
+                                [
+                                    ['t' => 'CodeBlock', 'c' => [
+                                        ['', ['bash'], [['data-kind', 'caption-code']]],
+                                        "wp option get siteurl\n",
+                                    ]],
+                                    ['t' => 'RawBlock', 'c' => [
+                                        ['t' => 'Format', 'c' => 'html'],
+                                        '<p>caption raw</p>',
+                                    ]],
+                                ],
+                            ]],
+                            [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                            ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                            [['t' => 'TableBody', 'c' => [
+                                ['', [], []],
+                                ['t' => 'RowHeadColumns', 'c' => 0],
+                                [],
+                                [['t' => 'Row', 'c' => [
+                                    ['', [], []],
+                                    [['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [
+                                            ['t' => 'CodeBlock', 'c' => [
+                                                ['', ['php'], [['data-kind', 'cell-code']]],
+                                                "echo 'cell';\n",
+                                            ]],
+                                            ['t' => 'RawBlock', 'c' => [
+                                                ['t' => 'Format', 'c' => 'html'],
+                                                '<span>cell raw</span>',
+                                            ]],
+                                        ],
+                                    ]]],
+                                ]]],
+                            ]]],
+                            ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                        ]],
+                    ],
+                ],
+                'types' => ['table'],
+                'tags' => ['Table'],
+            ],
         ];
 
         foreach ($cases as $caseName => $case) {
