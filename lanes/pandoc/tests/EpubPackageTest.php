@@ -1424,6 +1424,81 @@ XML;
         $t->same(4, $report['caseCounts']['media-type-bindings']);
     },
 
+    'preserves OPF binding authoring attributes for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $handlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Authoring widget fallback</h1></body></html>';
+        $opfWithBindingAuthoring = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" xmlns:review="https://example.invalid/epub-review" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            $epub3OpfXml
+        );
+        $opfWithBindingAuthoring = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="widget-handler" href="widgets/widget-handler.xhtml" media-type="application/xhtml+xml" properties="scripted"/>',
+            $opfWithBindingAuthoring
+        );
+        $opfWithBindingAuthoring = str_replace(
+            '</spine>',
+            '</spine>
+  <bindings>
+    <mediaType id="primary-binding" media-type="application/x-authoring-widget" handler="widget-handler" xml:lang="en-GB" dir="rtl" data-source="package-review" review:packet="author"/>
+    <mediaType media-type="application/x-secondary-widget" handler="widget-handler" data-source="secondary-review"/>
+  </bindings>',
+            $opfWithBindingAuthoring
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithBindingAuthoring],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/widgets/widget-handler.xhtml', 'data' => $handlerXhtml],
+        ]));
+
+        $bindings = $epub->bindings();
+        $summary = $epub->summary();
+        $authoring = $summary['bindingAuthoring'];
+        $primary = $bindings['items'][0];
+        $primaryAuthoring = $authoring['items'][0];
+        $secondaryAuthoring = $authoring['items'][1];
+
+        $t->same('primary-binding', $primary['id']);
+        $t->same('en-GB', $primary['language']);
+        $t->same('rtl', $primary['direction']);
+        $t->same('package-review', $primary['customAttributes']['data-source']);
+        $t->same('author', $primary['customAttributes']['review:packet']);
+        $t->same([
+            'data-source' => 'package-review',
+            'review:packet' => 'author',
+        ], $primary['customAttributes']);
+        $t->same(true, $authoring['present']);
+        $t->same(2, $authoring['itemCount']);
+        $t->same(10, $authoring['attributeCount']);
+        $t->same(3, $authoring['customAttributeCount']);
+        $t->same(2, $authoring['customAttributeItemCount']);
+        $t->same(['data-source', 'review:packet'], $authoring['customAttributeNames']);
+        $t->same(1, $authoring['languageItemCount']);
+        $t->same(1, $authoring['directionItemCount']);
+        $t->same('primary-binding', $primaryAuthoring['id']);
+        $t->same('application/x-authoring-widget', $primaryAuthoring['mediaType']);
+        $t->same('widget-handler', $primaryAuthoring['handlerId']);
+        $t->same('/EPUB/widgets/widget-handler.xhtml', $primaryAuthoring['handlerPartName']);
+        $t->same('en-GB', $primaryAuthoring['language']);
+        $t->same('rtl', $primaryAuthoring['direction']);
+        $t->same(7, $primaryAuthoring['attributeCount']);
+        $t->same(2, $primaryAuthoring['customAttributeCount']);
+        $t->same('secondary-review', $secondaryAuthoring['customAttributes']['data-source']);
+        $t->same($primaryAuthoring, $authoring['itemsByIndex'][0]);
+        $t->same($primaryAuthoring, $authoring['itemsByMediaType']['application/x-authoring-widget']);
+        $t->same($authoring, $summary['wordpressImport']['mediaTypeBindingAuthoring']);
+        $t->same($authoring['items'], $summary['wordpressImport']['mediaTypeBindingAuthoringItems']);
+        $t->same($authoring['customAttributeItems'], $summary['wordpressImport']['mediaTypeBindingAuthoringCustomAttributeItems']);
+    },
+
     'preserves OPF metadata refinements for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithRefinements = str_replace(
             '<dc:title>WordPress Migration Guide</dc:title>',

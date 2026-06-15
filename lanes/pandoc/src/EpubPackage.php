@@ -151,6 +151,13 @@ final class EpubPackage
         'type' => true,
         'xml:lang' => true,
     ];
+    private const OPF_BINDING_MEDIA_TYPE_STRUCTURAL_ATTRIBUTES = [
+        'dir' => true,
+        'handler' => true,
+        'id' => true,
+        'media-type' => true,
+        'xml:lang' => true,
+    ];
     private const OPF_COLLECTION_STRUCTURAL_ATTRIBUTES = [
         'dir' => true,
         'id' => true,
@@ -634,6 +641,7 @@ final class EpubPackage
         $collectionAuthoring = self::collectionAuthoringReport($this->collections);
         $guideReport = $this->guideReport();
         $guideAuthoring = self::guideReferenceAuthoringReport($this->guideReferences);
+        $bindingAuthoring = self::bindingAuthoringReport($this->bindings);
         $ocfSidecars = $this->ocfSidecars();
         $packageInventory = self::packageInventoryReport(
             $this->package,
@@ -720,6 +728,7 @@ final class EpubPackage
             'collectionLinkVocabulary' => $collectionLinkVocabulary,
             'collectionRoleVocabulary' => $collectionRoleVocabulary,
             'bindings' => $this->bindings,
+            'bindingAuthoring' => $bindingAuthoring,
             'mediaOverlays' => $this->mediaOverlays,
             'manifestFallbacks' => $manifestFallbacks,
             'encryption' => $this->encryption,
@@ -928,6 +937,9 @@ final class EpubPackage
                 'mediaTypeBindingMediaTypeParameterItems' => $this->bindings['mediaTypeParameterItems'],
                 'mediaTypeBindingMediaTypeParameterNames' => $this->bindings['mediaTypeParameterNames'],
                 'mediaTypeBindingMediaTypeDiagnostics' => $this->bindings['mediaTypeDiagnostics'],
+                'mediaTypeBindingAuthoring' => $bindingAuthoring,
+                'mediaTypeBindingAuthoringItems' => $bindingAuthoring['items'],
+                'mediaTypeBindingAuthoringCustomAttributeItems' => $bindingAuthoring['customAttributeItems'],
                 'mediaOverlays' => $this->mediaOverlays,
                 'mediaOverlayItems' => $this->mediaOverlays['items'],
                 'mediaOverlayTargets' => $this->mediaOverlays['textTargets'],
@@ -7810,6 +7822,28 @@ final class EpubPackage
     }
 
     /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
+    private static function bindingMediaTypeCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OPF_BINDING_MEDIA_TYPE_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
      * @param list<array<string, mixed>> $rootfiles
      *
      * @return array<string, mixed>
@@ -8530,6 +8564,94 @@ final class EpubPackage
             'directionItemCount' => count($directionItems),
             'directionItems' => $directionItems,
             'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeItems' => $customAttributeItems,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $bindings
+     *
+     * @return array<string, mixed>
+     */
+    private static function bindingAuthoringReport(array $bindings): array
+    {
+        $bindingItems = is_array($bindings['items'] ?? null)
+            ? array_values(array_filter($bindings['items'], static fn (mixed $item): bool => is_array($item)))
+            : [];
+        $items = [];
+        $itemsByIndex = [];
+        $itemsByMediaType = [];
+        $languageItems = [];
+        $directionItems = [];
+        $customAttributeItems = [];
+        $customAttributeNames = [];
+        $attributeCount = 0;
+        $customAttributeCount = 0;
+
+        foreach ($bindingItems as $item) {
+            $index = is_int($item['index'] ?? null) ? (int) $item['index'] : count($items);
+            $attributes = is_array($item['attributes'] ?? null) ? $item['attributes'] : [];
+            $customAttributes = is_array($item['customAttributes'] ?? null)
+                ? $item['customAttributes']
+                : self::bindingMediaTypeCustomAttributes($attributes);
+            $summary = [
+                'index' => $index,
+                'id' => is_string($item['id'] ?? null) ? $item['id'] : null,
+                'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                'baseMediaType' => is_string($item['baseMediaType'] ?? null) ? $item['baseMediaType'] : null,
+                'normalizedMediaType' => is_string($item['normalizedMediaType'] ?? null) ? $item['normalizedMediaType'] : null,
+                'handlerId' => is_string($item['handlerId'] ?? null) ? $item['handlerId'] : null,
+                'handlerPartName' => is_string($item['handlerPartName'] ?? null) ? $item['handlerPartName'] : null,
+                'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
+                'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+                'attributes' => $attributes,
+                'attributeCount' => count($attributes),
+                'customAttributes' => $customAttributes,
+                'customAttributeCount' => count($customAttributes),
+                'hasCustomAttributes' => $customAttributes !== [],
+            ];
+
+            $items[] = $summary;
+            $itemsByIndex[$index] = $summary;
+            if ($summary['mediaType'] !== null && !isset($itemsByMediaType[$summary['mediaType']])) {
+                $itemsByMediaType[$summary['mediaType']] = $summary;
+            }
+            if ($summary['language'] !== null) {
+                $languageItems[] = $summary;
+            }
+            if ($summary['direction'] !== null) {
+                $directionItems[] = $summary;
+            }
+            if ($customAttributes !== []) {
+                $customAttributeItems[] = $summary;
+            }
+            $attributeCount += count($attributes);
+            $customAttributeCount += count($customAttributes);
+            foreach ($customAttributes as $name => $_value) {
+                if (is_string($name) && $name !== '') {
+                    $customAttributeNames[$name] = true;
+                }
+            }
+        }
+
+        ksort($itemsByIndex, SORT_NUMERIC);
+        ksort($itemsByMediaType, SORT_STRING);
+        ksort($customAttributeNames, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'attributeCount' => $attributeCount,
+            'customAttributeCount' => $customAttributeCount,
+            'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeNames' => array_keys($customAttributeNames),
+            'items' => $items,
+            'itemsByIndex' => $itemsByIndex,
+            'itemsByMediaType' => $itemsByMediaType,
+            'languageItemCount' => count($languageItems),
+            'languageItems' => $languageItems,
+            'directionItemCount' => count($directionItems),
+            'directionItems' => $directionItems,
             'customAttributeItems' => $customAttributeItems,
         ];
     }
@@ -16865,6 +16987,8 @@ final class EpubPackage
             $mediaType = trim($mediaTypeElement->getAttribute('media-type'));
             $handlerId = trim($mediaTypeElement->getAttribute('handler'));
             $handler = $handlerId === '' ? null : ($manifestById[$handlerId] ?? null);
+            $attributes = self::elementAttributes($mediaTypeElement);
+            $customAttributes = self::bindingMediaTypeCustomAttributes($attributes);
             $itemDiagnostics = [];
             $mediaTypeReport = self::bindingMediaTypeItemReport($mediaType, $index, $handlerId === '' ? null : $handlerId);
 
@@ -16951,6 +17075,7 @@ final class EpubPackage
 
             $items[] = [
                 'index' => $index,
+                'id' => self::emptyToNull($mediaTypeElement->getAttribute('id')),
                 'mediaType' => $mediaType === '' ? null : $mediaType,
                 'baseMediaType' => $mediaTypeReport['baseMediaType'],
                 'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
@@ -16986,6 +17111,10 @@ final class EpubPackage
                 'handlerCompressionSupported' => $handlerProvenance['compressionSupported'],
                 'handlerByteSha256' => $handlerByteSha256,
                 'handlerCrc32' => $handlerProvenance['crc32'],
+                'language' => self::metadataElementLanguage($mediaTypeElement),
+                'direction' => self::metadataElementDirection($mediaTypeElement),
+                'attributes' => $attributes,
+                'customAttributes' => $customAttributes,
                 'diagnostics' => $itemDiagnostics,
             ];
         }
