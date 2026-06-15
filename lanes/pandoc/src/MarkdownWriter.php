@@ -51,7 +51,7 @@ final class MarkdownWriter
     private int $plainTextTriggerEscapeSuppression = 0;
 
     /**
-     * @param array{format?: string, extensions?: mixed, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool, autoHtmlTables?: bool, semanticTableHtmlFallback?: bool, tableStyle?: string, markdownTableFormat?: string} $options
+     * @param array{format?: string, extensions?: mixed, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool, autoHtmlTables?: bool, semanticTableHtmlFallback?: bool, tableStyle?: string, markdownTableFormat?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -81,7 +81,7 @@ final class MarkdownWriter
         $this->plainTextTriggerEscapeSuppression = 0;
 
         $blocks = [];
-        if ((bool) ($this->options['yamlMetadata'] ?? false)) {
+        if ($this->yamlMetadataEnabled()) {
             $this->yamlMetadataExplicitCollectionTags = $this->yamlMetadataExplicitCollectionTags(
                 $document->attr('yamlMetadataCollectionProvenance', [])
             );
@@ -4786,10 +4786,9 @@ final class MarkdownWriter
     private function rawFormatAllowed(string $format, string $kind): bool
     {
         return match ($kind) {
-            'html' => $this->markdownExtensionEnabled('raw_html'),
-            'tex' => $this->markdownExtensionEnabled('raw_tex'),
-            'markdown' => $this->markdownExtensionEnabled('raw_markdown')
-                && $this->rawMarkdownFormatMatchesTarget($format),
+            'html' => $this->rawHtmlEnabled(),
+            'tex' => $this->rawTexEnabled(),
+            'markdown' => $this->rawMarkdownEnabled() && $this->rawMarkdownFormatMatchesTarget($format),
             default => false,
         };
     }
@@ -4831,48 +4830,49 @@ final class MarkdownWriter
 
     private function isMarkdownRawFormat(string $format): bool
     {
-        $baseFormat = str_replace('-', '+', $format);
-        $baseFormat = explode('+', $baseFormat, 2)[0];
-
-        return in_array($format, [
-            'markdown',
-            'markdown_strict',
-            'markdown_phpextra',
-            'markdown_github',
-            'markdown_mmd',
-            'pandoc',
-            'commonmark',
-            'commonmark_x',
-            'gfm',
-        ], true) || in_array($baseFormat, [
-            'markdown',
-            'markdown_strict',
-            'markdown_phpextra',
-            'markdown_github',
-            'markdown_mmd',
-            'pandoc',
-            'commonmark',
-            'commonmark_x',
-            'gfm',
-        ], true);
+        return MarkdownFormatProfile::rawFamily($format) === 'markdown';
     }
 
     private function isHtmlRawFormat(string $format): bool
     {
-        $baseFormat = str_replace('-', '+', $format);
-        $baseFormat = explode('+', $baseFormat, 2)[0];
-
-        return in_array($format, ['html', 'html4', 'html5', 'xhtml'], true)
-            || in_array($baseFormat, ['html', 'html4', 'html5', 'xhtml'], true);
+        return MarkdownFormatProfile::rawFamily($format) === 'html';
     }
 
     private function isTexRawFormat(string $format): bool
     {
-        $baseFormat = str_replace('-', '+', $format);
-        $baseFormat = explode('+', $baseFormat, 2)[0];
+        return MarkdownFormatProfile::rawFamily($format) === 'tex';
+    }
 
-        return in_array($format, ['tex', 'latex', 'context'], true)
-            || in_array($baseFormat, ['tex', 'latex', 'context'], true);
+    private function yamlMetadataEnabled(): bool
+    {
+        return MarkdownFormatProfile::yamlMetadataEnabled($this->options, false);
+    }
+
+    private function rawHtmlEnabled(): bool
+    {
+        if (array_key_exists('rawHtml', $this->options)) {
+            return MarkdownFormatProfile::rawHtmlEnabled($this->options, true);
+        }
+
+        return $this->markdownExtensionEnabled('raw_html');
+    }
+
+    private function rawTexEnabled(): bool
+    {
+        if (array_key_exists('rawTex', $this->options)) {
+            return MarkdownFormatProfile::rawTexEnabled($this->options, true);
+        }
+
+        return $this->markdownExtensionEnabled('raw_tex');
+    }
+
+    private function rawMarkdownEnabled(): bool
+    {
+        if (array_key_exists('rawMarkdown', $this->options)) {
+            return MarkdownFormatProfile::rawMarkdownEnabled($this->options, true);
+        }
+
+        return $this->markdownExtensionEnabled('raw_markdown');
     }
 
     private function markdownExtensionEnabled(string $extension): bool

@@ -89,7 +89,7 @@ final class MarkdownReader
     private bool $nativeSpanInlineEnabled = false;
 
     /**
-     * @param array{format?: string, extensions?: list<string>|array<string, bool>, literateHaskell?: bool, yamlMetadata?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool, sectionDivs?: bool, nativeSpans?: bool} $options
+     * @param array{format?: string, extensions?: list<string>|array<string, bool>, literateHaskell?: bool, yamlMetadata?: bool, titleBlock?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool, sectionDivs?: bool, nativeSpans?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -305,12 +305,15 @@ final class MarkdownReader
         $previousNativeSpanInlineEnabled = $this->nativeSpanInlineEnabled;
         $documentAttrs = [];
         $yamlMetadata = null;
-        if (($this->options['yamlMetadata'] ?? true) !== false) {
+        if ($this->yamlMetadataEnabled()) {
             [$lines, $yamlMetadata] = $this->extractYamlMetadataBlocks($lines);
         }
+        $rawHtmlEnabled = $this->rawHtmlEnabled();
         $this->nativeSpanInlineEnabled = ($this->options['nativeSpans'] ?? false) === true
             || $this->metadataEnablesNativeSpans($yamlMetadata);
-        [$lines, $titleBlock] = $this->extractTitleBlock($lines);
+        [$lines, $titleBlock] = $this->titleBlockEnabled()
+            ? $this->extractTitleBlock($lines)
+            : [$lines, null];
         $abbreviations = [];
         if ($this->markdownExtensionEnabled('abbreviations')) {
             [$lines, $abbreviations] = $this->extractAbbreviationDefinitions($lines);
@@ -372,66 +375,66 @@ final class MarkdownReader
                 $blocks[] = $docBookTable;
                 continue;
             }
-            $htmlDocument = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlDocumentBlock($lines, $index) : null;
+            $htmlDocument = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadHtmlDocumentBlock($lines, $index) : null;
             if ($htmlDocument !== null) {
                 $documentAttrs = array_replace($documentAttrs, $htmlDocument->attrs);
                 array_push($blocks, ...$htmlDocument->children);
                 continue;
             }
-            if ($paragraph === [] && $listStack === [] && $this->tryReadEmptyHtmlTableBlock($lines, $index)) {
+            if ($rawHtmlEnabled && $paragraph === [] && $listStack === [] && $this->tryReadEmptyHtmlTableBlock($lines, $index)) {
                 continue;
             }
-            $nestedHtmlDocumentTable = $paragraph === [] && $listStack === [] ? $this->tryReadStructuredHtmlDocumentTableBlock($lines, $index) : null;
+            $nestedHtmlDocumentTable = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadStructuredHtmlDocumentTableBlock($lines, $index) : null;
             if ($nestedHtmlDocumentTable !== null) {
                 $blocks[] = $nestedHtmlDocumentTable;
                 continue;
             }
-            $nestedHtmlTable = $paragraph === [] && $listStack === [] ? $this->tryReadStructuredHtmlTableBlock($lines, $index) : null;
+            $nestedHtmlTable = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadStructuredHtmlTableBlock($lines, $index) : null;
             if ($nestedHtmlTable !== null) {
                 $blocks[] = $nestedHtmlTable;
                 continue;
             }
-            $htmlCodeBlock = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlPreCodeBlock($lines, $index) : null;
+            $htmlCodeBlock = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadHtmlPreCodeBlock($lines, $index) : null;
             if ($htmlCodeBlock !== null) {
                 $blocks[] = $htmlCodeBlock;
                 continue;
             }
-            $htmlBlockQuote = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlBlockQuoteBlock($lines, $index) : null;
+            $htmlBlockQuote = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadHtmlBlockQuoteBlock($lines, $index) : null;
             if ($htmlBlockQuote !== null) {
                 $blocks[] = $htmlBlockQuote;
                 continue;
             }
-            $htmlHeading = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlHeadingBlock($lines, $index) : null;
+            $htmlHeading = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadHtmlHeadingBlock($lines, $index) : null;
             if ($htmlHeading !== null) {
                 $blocks[] = $htmlHeading;
                 continue;
             }
-            $htmlList = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlListBlock($lines, $index) : null;
+            $htmlList = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadHtmlListBlock($lines, $index) : null;
             if ($htmlList !== null) {
                 $blocks[] = $htmlList;
                 continue;
             }
-            $htmlDefinitionList = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlDefinitionListBlock($lines, $index) : null;
+            $htmlDefinitionList = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadHtmlDefinitionListBlock($lines, $index) : null;
             if ($htmlDefinitionList !== null) {
                 $blocks[] = $htmlDefinitionList;
                 continue;
             }
-            $htmlInlineFragment = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlInlineFragmentBlock($lines, $index) : null;
+            $htmlInlineFragment = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadHtmlInlineFragmentBlock($lines, $index) : null;
             if ($htmlInlineFragment !== null) {
                 $blocks[] = $htmlInlineFragment;
                 continue;
             }
-            $htmlParagraph = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlParagraphBlock($lines, $index) : null;
+            $htmlParagraph = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadHtmlParagraphBlock($lines, $index) : null;
             if ($htmlParagraph !== null) {
                 $blocks[] = $htmlParagraph;
                 continue;
             }
-            $htmlHorizontalRule = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlHorizontalRuleBlock($lines, $index) : null;
+            $htmlHorizontalRule = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadHtmlHorizontalRuleBlock($lines, $index) : null;
             if ($htmlHorizontalRule !== null) {
                 $blocks[] = $htmlHorizontalRule;
                 continue;
             }
-            $rawHtmlContainer = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlSingleLineContainerBlock($lines, $index) : null;
+            $rawHtmlContainer = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlSingleLineContainerBlock($lines, $index) : null;
             if ($rawHtmlContainer !== null) {
                 array_push($blocks, ...$rawHtmlContainer);
                 continue;
@@ -439,6 +442,7 @@ final class MarkdownReader
             if (
                 $paragraph !== []
                 && $listStack === []
+                && $rawHtmlEnabled
                 && $this->isCommonMarkParagraphInterruptingRawHtmlBlockStart($line)
             ) {
                 $this->flushParagraph($paragraph, $blocks);
@@ -448,10 +452,10 @@ final class MarkdownReader
                     continue;
                 }
             }
-            if ($paragraph === [] && $listStack === [] && $this->trySkipEmptyHtmlCommentSeparator($lines, $index, $blocks)) {
+            if ($rawHtmlEnabled && $paragraph === [] && $listStack === [] && $this->trySkipEmptyHtmlCommentSeparator($lines, $index, $blocks)) {
                 continue;
             }
-            $rawHtmlBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlBlock($lines, $index) : null;
+            $rawHtmlBlock = $rawHtmlEnabled && $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlBlock($lines, $index) : null;
             if ($rawHtmlBlock !== null) {
                 $blocks[] = $rawHtmlBlock;
                 continue;
@@ -13353,6 +13357,10 @@ final class MarkdownReader
      */
     private function tryReadRawTexBlock(array $lines, int &$index): ?AstNode
     {
+        if (!$this->rawTexEnabled()) {
+            return null;
+        }
+
         $line = $lines[$index] ?? '';
         $macro = $this->tryReadRawTexMacroDefinition($line);
         if ($macro !== null) {
@@ -17870,16 +17878,26 @@ final class MarkdownReader
 
     private function rawFormatAttributeSpec(string $source): ?string
     {
+        if (!$this->rawAttributeEnabled()) {
+            return null;
+        }
+
         $source = trim($source);
         if (preg_match('/^\{=([A-Za-z][A-Za-z0-9_.+-]*)\}$/', $source, $m) !== 1) {
             return null;
         }
 
-        return strtolower($m[1]);
+        $format = strtolower($m[1]);
+
+        return $this->rawFormatEnabled($format) ? $format : null;
     }
 
     private function rawBlockFormatAttributeSpec(string $source): ?string
     {
+        if (!$this->rawAttributeEnabled()) {
+            return null;
+        }
+
         $format = $this->rawFormatAttributeSpec($source);
         if ($format !== null) {
             return $format;
@@ -17928,7 +17946,7 @@ final class MarkdownReader
             }
         }
 
-        return $format;
+        return $format !== null && $this->rawFormatEnabled($format) ? $format : null;
     }
 
     /**
@@ -20030,6 +20048,10 @@ final class MarkdownReader
      */
     private function tryParseRawHtmlInline(string $text, int $offset): ?array
     {
+        if (!$this->rawHtmlEnabled()) {
+            return null;
+        }
+
         if (($text[$offset] ?? '') !== '<' || $this->isEscapedInlinePosition($text, $offset)) {
             return null;
         }
@@ -21283,6 +21305,10 @@ final class MarkdownReader
      */
     private function tryParseRawTexInline(string $text, int $offset): ?array
     {
+        if (!$this->rawTexEnabled()) {
+            return null;
+        }
+
         if (($text[$offset] ?? '') !== '\\' || $this->isEscapedInlinePosition($text, $offset)) {
             return null;
         }
@@ -22237,5 +22263,40 @@ final class MarkdownReader
             . chr(0x80 | (($codePoint >> 12) & 0x3F))
             . chr(0x80 | (($codePoint >> 6) & 0x3F))
             . chr(0x80 | ($codePoint & 0x3F));
+    }
+
+    private function yamlMetadataEnabled(): bool
+    {
+        return MarkdownFormatProfile::yamlMetadataEnabled($this->options, true);
+    }
+
+    private function titleBlockEnabled(): bool
+    {
+        return MarkdownFormatProfile::titleBlockEnabled($this->options, true);
+    }
+
+    private function rawAttributeEnabled(): bool
+    {
+        return MarkdownFormatProfile::rawAttributeEnabled($this->options, true);
+    }
+
+    private function rawTexEnabled(): bool
+    {
+        return MarkdownFormatProfile::rawTexEnabled($this->options, true);
+    }
+
+    private function rawHtmlEnabled(): bool
+    {
+        return MarkdownFormatProfile::rawHtmlEnabled($this->options, true);
+    }
+
+    private function rawFormatEnabled(string $format): bool
+    {
+        return match (MarkdownFormatProfile::rawFamily($format)) {
+            'html' => MarkdownFormatProfile::rawHtmlEnabled($this->options, true),
+            'tex' => MarkdownFormatProfile::rawTexEnabled($this->options, true),
+            'markdown' => MarkdownFormatProfile::rawMarkdownEnabled($this->options, true),
+            default => false,
+        };
     }
 }
