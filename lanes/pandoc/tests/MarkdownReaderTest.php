@@ -10590,6 +10590,50 @@ MD;
             '    plain legacy snippet',
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer tilde fenced code block option' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', [
+                'text' => "wp eval '`tick` fixture'\n``` nested backtick fence",
+                'classes' => ['bash'],
+            ]),
+            new AstNode('code_block', [
+                'text' => 'plain fixture with ~~~ existing tilde run',
+                'classes' => ['text'],
+            ]),
+        ]);
+
+        $defaultMarkdown = (new MarkdownWriter())->write($document);
+        $tildeMarkdown = (new MarkdownWriter(['fencedCodeBlockStyle' => 'tilde']))->write($document);
+
+        $t->same(implode("\n\n", [
+            implode("\n", [
+                '````{.bash}',
+                "wp eval '`tick` fixture'",
+                '``` nested backtick fence',
+                '````',
+            ]),
+            implode("\n", [
+                '```{.text}',
+                'plain fixture with ~~~ existing tilde run',
+                '```',
+            ]),
+        ]), $defaultMarkdown);
+        $t->same(implode("\n\n", [
+            implode("\n", [
+                '~~~{.bash}',
+                "wp eval '`tick` fixture'",
+                '``` nested backtick fence',
+                '~~~',
+            ]),
+            implode("\n", [
+                '~~~~{.text}',
+                'plain fixture with ~~~ existing tilde run',
+                '~~~~',
+            ]),
+        ]), $tildeMarkdown);
+        $t->contains('``` nested backtick fence', $tildeMarkdown);
+        $t->true(!str_contains($tildeMarkdown, '````{.bash}'), 'Tilde fence mode should not lengthen backtick fences for backtick-only code text');
+    },
     'maps upstream markdown writer code span backtick delimiters' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [

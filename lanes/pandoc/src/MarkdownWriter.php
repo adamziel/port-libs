@@ -44,7 +44,7 @@ final class MarkdownWriter
     private int $lastReferenceIndex = 0;
 
     /**
-     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool} $options
+     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -1750,7 +1750,9 @@ final class MarkdownWriter
     {
         $prefix = str_repeat(' ', $indent);
         $text = (string) $node->attr('text', '');
-        $fence = str_repeat('`', max(3, $this->longestBacktickRun($text) + 1));
+        $fenceChar = (string) ($this->options['fencedCodeBlockStyle'] ?? 'backtick') === 'tilde' ? '~' : '`';
+        $longestRun = $fenceChar === '~' ? $this->longestTildeRun($text) : $this->longestBacktickRun($text);
+        $fence = str_repeat($fenceChar, max(3, $longestRun + 1));
 
         return [
             $prefix . $fence . $attrs,
@@ -2483,6 +2485,15 @@ final class MarkdownWriter
     private function longestBacktickRun(string $text): int
     {
         if (preg_match_all('/`+/', $text, $matches) < 1) {
+            return 0;
+        }
+
+        return max(array_map('strlen', $matches[0]));
+    }
+
+    private function longestTildeRun(string $text): int
+    {
+        if (preg_match_all('/~+/', $text, $matches) < 1) {
             return 0;
         }
 
