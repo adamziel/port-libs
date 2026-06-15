@@ -852,6 +852,98 @@ BIB;
         $t->contains('Call number: MS 42 Box 4', $markdown);
         $t->contains('Call number: Reading Room Shelf B/12', $blocks);
     },
+    'inherits legacy biblatex crossref and xdata metadata into csl items' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@xdata{shared-review-source,
+  publisher = {Review Press},
+  location  = {Portland},
+  rights    = {Internal review only},
+  keywords  = {source packet; inheritance}
+}
+
+@proceedings{review-proceedings,
+  title      = {Source Review Proceedings},
+  subtitle   = {Package Track},
+  year       = {2026},
+  eventtitle = {Open Source Review Summit},
+  venue      = {Berlin},
+  xdata      = {shared-review-source}
+}
+
+@inproceedings{crossref-paper,
+  author   = {Ng, Nia},
+  title    = {Packet Audit Trails},
+  pages    = {12--18},
+  crossref = {review-proceedings}
+}
+
+@periodical{journal-parent,
+  title    = {Journal of Import Packets},
+  subtitle = {Audit Notes},
+  year     = {2025}
+}
+
+@article{crossref-article,
+  author   = {Roe, Pat},
+  title    = {Journal Child Packet},
+  pages    = {7--9},
+  crossref = {journal-parent}
+}
+
+@online{xdata-child,
+  author = {Desk, Archive},
+  title  = {Inherited Source Packet},
+  url    = {https://example.test/source-packet},
+  xdata  = {shared-review-source}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $paper = $items['crossref-paper'];
+        $article = $items['crossref-article'];
+        $xdataChild = $items['xdata-child'];
+
+        $t->same('paper-conference', $paper['type']);
+        $t->same('Source Review Proceedings: Package Track', $paper['container-title']);
+        $t->same('Open Source Review Summit', $paper['event']);
+        $t->same('Berlin', $paper['event-place']);
+        $t->same('Review Press', $paper['publisher']);
+        $t->same('Portland', $paper['publisher-place']);
+        $t->same('Internal review only', $paper['rights']);
+        $t->same(['source packet', 'inheritance'], $paper['keyword']);
+        $t->same([2026], $paper['issued']['date-parts'][0]);
+        $t->same('12-18', $paper['page']);
+        $t->same('review-proceedings', $paper['rawBibtex']['fields']['crossref']);
+        $t->same('Source Review Proceedings', $paper['rawBibtex']['fields']['booktitle']);
+        $t->same('Package Track', $paper['rawBibtex']['fields']['booksubtitle']);
+        $t->same('Journal of Import Packets: Audit Notes', $article['container-title']);
+        $t->same([2025], $article['issued']['date-parts'][0]);
+        $t->same('Review Press', $xdataChild['publisher']);
+        $t->same('Portland', $xdataChild['publisher-place']);
+        $t->same('Internal review only', $xdataChild['rights']);
+        $t->same('shared-review-source', $xdataChild['rawBibtex']['fields']['xdata']);
+        $t->same(
+            'Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only.',
+            $processor->renderBibliographyText($paper)
+        );
+        $t->same(
+            'Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. https://example.test/source-packet.',
+            $processor->renderBibliographyText($xdataChild)
+        );
+
+        $document = (new MarkdownReader())->read('Inherited metadata cites @crossref-paper and [@xdata-child].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['crossref-paper', 'xdata-child'], $handoff['citedKeys']);
+        $t->same([], $handoff['missingKeys']);
+        $t->same('Source Review Proceedings: Package Track', $handoff['items'][0]['container-title']);
+        $t->same('Review Press', $handoff['items'][1]['publisher']);
+        $t->contains('<dt>crossref-paper</dt><dd>Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only.</dd>', $blocks);
+        $t->contains('<dt>xdata-child</dt><dd>Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. https://example.test/source-packet.</dd>', $blocks);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

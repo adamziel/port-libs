@@ -27,7 +27,7 @@ final class BibtexCslProcessor
      */
     public function parseBibtex(string $source): array
     {
-        $entries = [];
+        $rawEntries = [];
         $macros = self::MONTH_MACROS;
         $offset = 0;
 
@@ -73,11 +73,21 @@ final class BibtexCslProcessor
                 continue;
             }
 
-            $entries[$key] = [
+            $rawEntries[$key] = [
                 'id' => $key,
                 'type' => $type,
                 'fields' => $fields,
-                'csl' => $this->toCslItem($key, $type, $fields),
+            ];
+        }
+
+        $entries = [];
+        foreach ($rawEntries as $key => $entry) {
+            $fields = $this->resolveInheritedFields($entry, $rawEntries);
+            $entries[$key] = [
+                'id' => $entry['id'],
+                'type' => $entry['type'],
+                'fields' => $fields,
+                'csl' => $this->toCslItem($key, $entry['type'], $fields),
             ];
         }
 
@@ -595,6 +605,187 @@ final class BibtexCslProcessor
         }
 
         return $item;
+    }
+
+    /**
+     * @param array{id:string, type:string, fields:array<string, string>} $entry
+     * @param array<string, array{id:string, type:string, fields:array<string, string>}> $entriesByKey
+     * @param list<string> $stack
+     * @return array<string, string>
+     */
+    private function resolveInheritedFields(array $entry, array $entriesByKey, array $stack = []): array
+    {
+        if (in_array($entry['id'], $stack, true)) {
+            throw new \InvalidArgumentException('BibTeX inheritance cycle involving entry: ' . $entry['id']);
+        }
+
+        $stack[] = $entry['id'];
+        $fields = $this->resolveXdataFields($entry, $entriesByKey, $stack);
+        $crossref = trim($fields['crossref'] ?? '');
+        if ($crossref === '' || !isset($entriesByKey[$crossref])) {
+            return $fields;
+        }
+
+        $parentFields = $this->resolveInheritedFields($entriesByKey[$crossref], $entriesByKey, $stack);
+        foreach ($this->crossrefInheritedFields($entry['type'], $fields, $parentFields) as $field => $value) {
+            if (($fields[$field] ?? '') === '') {
+                $fields[$field] = $value;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array{id:string, type:string, fields:array<string, string>} $entry
+     * @param array<string, array{id:string, type:string, fields:array<string, string>}> $entriesByKey
+     * @param list<string> $stack
+     * @return array<string, string>
+     */
+    private function resolveXdataFields(array $entry, array $entriesByKey, array $stack): array
+    {
+        $fields = $entry['fields'];
+        foreach ($this->fieldKeyList($fields['xdata'] ?? '') as $key) {
+            $parent = $entriesByKey[$key] ?? null;
+            if ($parent === null || $parent['type'] !== 'xdata') {
+                continue;
+            }
+
+            $parentFields = $this->resolveInheritedFields($parent, $entriesByKey, $stack);
+            unset($parentFields['crossref'], $parentFields['xdata']);
+            foreach ($parentFields as $field => $value) {
+                if (($fields[$field] ?? '') === '') {
+                    $fields[$field] = $value;
+                }
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<string, string> $childFields
+     * @param array<string, string> $parentFields
+     * @return array<string, string>
+     */
+    private function crossrefInheritedFields(string $childType, array $childFields, array $parentFields): array
+    {
+        $inherited = $parentFields;
+        unset($inherited['crossref']);
+
+        $containerField = $this->crossrefTitleContainerField($childType);
+        if ($containerField !== null && !$this->hasAnyField($childFields, ['booktitle', 'journaltitle', 'journal'])) {
+            $containerParts = $this->crossrefParentContainerTitleParts($containerField, $parentFields);
+            if ($containerParts['title'] !== '') {
+                $inherited[$containerField] = $containerParts['title'];
+            }
+
+            $subtitleField = $this->crossrefContainerSubtitleField($containerField);
+            if ($containerParts['subtitle'] !== '' && !$this->hasAnyField($childFields, [$subtitleField])) {
+                $inherited[$subtitleField] = $containerParts['subtitle'];
+            }
+
+            $titleAddonField = $this->crossrefContainerTitleAddonField($containerField);
+            if ($containerParts['titleAddon'] !== '' && !$this->hasAnyField($childFields, [$titleAddonField])) {
+                $inherited[$titleAddonField] = $containerParts['titleAddon'];
+            }
+        }
+
+        unset($inherited['title'], $inherited['subtitle'], $inherited['titleaddon']);
+
+        return $inherited;
+    }
+
+    private function crossrefTitleContainerField(string $childType): ?string
+    {
+        return match (strtolower($childType)) {
+            'article' => 'journal',
+            'bookinbook',
+            'conference',
+            'inbook',
+            'incollection',
+            'inproceedings',
+            'inreference',
+            'suppbook',
+            'suppcollection' => 'booktitle',
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, string> $parentFields
+     * @return array{title:string, subtitle:string, titleAddon:string}
+     */
+    private function crossrefParentContainerTitleParts(string $containerField, array $parentFields): array
+    {
+        $subtitleFields = $containerField === 'journal'
+            ? ['journalsubtitle', 'booksubtitle', 'subtitle']
+            : ['booksubtitle', 'journalsubtitle', 'subtitle'];
+        $titleAddonFields = $containerField === 'journal'
+            ? ['journaltitleaddon', 'booktitleaddon', 'titleaddon']
+            : ['booktitleaddon', 'journaltitleaddon', 'titleaddon'];
+
+        return [
+            'title' => $this->firstRawField($parentFields, ['booktitle', 'journaltitle', 'journal', 'title']),
+            'subtitle' => $this->firstRawField($parentFields, $subtitleFields),
+            'titleAddon' => $this->firstRawField($parentFields, $titleAddonFields),
+        ];
+    }
+
+    private function crossrefContainerSubtitleField(string $containerField): string
+    {
+        return $containerField === 'journal' ? 'journalsubtitle' : 'booksubtitle';
+    }
+
+    private function crossrefContainerTitleAddonField(string $containerField): string
+    {
+        return $containerField === 'journal' ? 'journaltitleaddon' : 'booktitleaddon';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fieldKeyList(string $value): array
+    {
+        $keys = [];
+        foreach (preg_split('/[,;]+/', $value) ?: [] as $key) {
+            $key = trim($key);
+            if ($key !== '') {
+                $keys[] = $key;
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $names
+     */
+    private function firstRawField(array $fields, array $names): string
+    {
+        foreach ($names as $name) {
+            if (($fields[$name] ?? '') !== '') {
+                return $fields[$name];
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $names
+     */
+    private function hasAnyField(array $fields, array $names): bool
+    {
+        foreach ($names as $name) {
+            if (($fields[$name] ?? '') !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
