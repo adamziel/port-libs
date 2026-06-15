@@ -16851,8 +16851,16 @@ final class XmlHtmlDom
 
         if (array_key_exists('hidden', $attributes)) {
             $hidden = strtolower(trim($attributes['hidden']));
+            $hiddenKeyword = match ($hidden) {
+                '', 'hidden' => 'hidden',
+                'until-found' => 'until-found',
+                default => null,
+            };
             $summary['hiddenRaw'] = $attributes['hidden'];
-            $summary['hiddenState'] = $hidden === 'until-found' ? 'until-found' : 'hidden';
+            $summary['hiddenKeyword'] = $hiddenKeyword;
+            $summary['hiddenState'] = $hiddenKeyword ?? 'hidden';
+            $summary['hiddenValid'] = $hiddenKeyword !== null;
+            $summary['hiddenInvalidValueDefaulted'] = $hiddenKeyword === null;
         }
 
         if (array_key_exists('inert', $attributes)) {

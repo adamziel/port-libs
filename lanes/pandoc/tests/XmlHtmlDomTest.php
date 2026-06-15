@@ -3667,7 +3667,10 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('rtl', $section['direction']);
         $t->same('Review & Source', $section['titleAttribute']);
         $t->same('until-found', $section['hiddenRaw']);
+        $t->same('until-found', $section['hiddenKeyword']);
         $t->same('until-found', $section['hiddenState']);
+        $t->same(true, $section['hiddenValid']);
+        $t->same(false, $section['hiddenInvalidValueDefaulted']);
         $t->same('no', $section['translateRaw']);
         $t->same(false, $section['translate']);
         $t->same('plaintext-only', $section['contentEditable']);
@@ -3708,6 +3711,66 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
                 . '<table class="data-grid" data-package-part="word/tables.xml" id="review-table"><tr><td>Cell</td></tr></table>',
             $html
         );
+    },
+    'summarizes html hidden token provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="bare" hidden>Bare</section>'
+                . '<section id="keyword" hidden="hidden">Keyword</section>'
+                . '<section id="found" hidden="until-found">Found</section>'
+                . '<section id="case" hidden="UNTIL-FOUND">Case</section>'
+                . '<section id="invalid" hidden="collapse">Invalid</section>',
+            'hidden token provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/hidden-token-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $bare = $summary[0];
+        $keyword = $summary[1];
+        $found = $summary[2];
+        $case = $summary[3];
+        $invalid = $summary[4];
+
+        $t->same('', $bare['hiddenRaw']);
+        $t->same('hidden', $bare['hiddenKeyword']);
+        $t->same('hidden', $bare['hiddenState']);
+        $t->same(true, $bare['hiddenValid']);
+        $t->same(false, $bare['hiddenInvalidValueDefaulted']);
+
+        $t->same('hidden', $keyword['hiddenRaw']);
+        $t->same('hidden', $keyword['hiddenKeyword']);
+        $t->same('hidden', $keyword['hiddenState']);
+        $t->same(true, $keyword['hiddenValid']);
+
+        $t->same('until-found', $found['hiddenRaw']);
+        $t->same('until-found', $found['hiddenKeyword']);
+        $t->same('until-found', $found['hiddenState']);
+        $t->same(true, $found['hiddenValid']);
+        $t->same(false, $found['hiddenInvalidValueDefaulted']);
+
+        $t->same('UNTIL-FOUND', $case['hiddenRaw']);
+        $t->same('until-found', $case['hiddenKeyword']);
+        $t->same('until-found', $case['hiddenState']);
+        $t->same(true, $case['hiddenValid']);
+
+        $t->same('collapse', $invalid['hiddenRaw']);
+        $t->same(null, $invalid['hiddenKeyword']);
+        $t->same('hidden', $invalid['hiddenState']);
+        $t->same(false, $invalid['hiddenValid']);
+        $t->same(true, $invalid['hiddenInvalidValueDefaulted']);
+        $t->same(
+            '<section hidden id="bare">Bare</section>'
+                . '<section hidden id="keyword">Keyword</section>'
+                . '<section hidden="until-found" id="found">Found</section>'
+                . '<section hidden="UNTIL-FOUND" id="case">Case</section>'
+                . '<section hidden="collapse" id="invalid">Invalid</section>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/hidden-token-review.html', $document->children[0]->attr('part'));
     },
     'summarizes html writing assistance attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
