@@ -15671,7 +15671,133 @@ final class XmlHtmlDom
             'templateReviewPolicy' => 'template-inert-escaped-source',
         ];
 
-        return $summary + self::templateContentReviewSummary($text);
+        return $summary
+            + self::templateShadowRootSummary($element, $text)
+            + self::templateContentReviewSummary($text);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function templateShadowRootSummary(\DOMElement $element, string $source): array
+    {
+        $modeRaw = self::attributeOrNull($element, 'shadowrootmode');
+        $mode = $modeRaw === null ? null : strtolower(trim($modeRaw));
+        $modeValid = $mode === null ? null : in_array($mode, ['open', 'closed'], true);
+        $hasShadowRootAttributes = $modeRaw !== null
+            || $element->hasAttribute('shadowrootdelegatesfocus')
+            || $element->hasAttribute('shadowrootclonable')
+            || $element->hasAttribute('shadowrootserializable')
+            || $element->hasAttribute('shadowrootcustomelementregistry');
+
+        $diagnostics = [];
+        if ($hasShadowRootAttributes && $modeRaw === null) {
+            $diagnostics[] = 'missing-shadowrootmode';
+        }
+        if ($modeValid === false) {
+            $diagnostics[] = 'invalid-shadowrootmode';
+        }
+
+        $summary = [
+            'shadowRootReviewPolicy' => 'template-declarative-shadow-root-metadata-review',
+            'declarativeShadowRoot' => $modeRaw !== null,
+            'shadowRootModeRaw' => $modeRaw,
+            'shadowRootMode' => $modeValid === true ? $mode : null,
+            'shadowRootModeValid' => $modeValid,
+            'shadowRootDelegatesFocus' => $element->hasAttribute('shadowrootdelegatesfocus'),
+            'shadowRootClonable' => $element->hasAttribute('shadowrootclonable'),
+            'shadowRootSerializable' => $element->hasAttribute('shadowrootserializable'),
+            'shadowRootCustomElementRegistry' => $element->hasAttribute('shadowrootcustomelementregistry'),
+            'shadowRootDiagnostics' => $diagnostics,
+        ];
+
+        return $summary + self::templateShadowRootSlotSummary($source);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function templateShadowRootSlotSummary(string $source): array
+    {
+        $summary = [
+            'shadowRootSlotReviewPolicy' => 'template-shadow-root-slot-metadata-review',
+            'shadowRootSlotReviewParsed' => false,
+            'shadowRootSlots' => [],
+            'shadowRootSlotNames' => [],
+            'shadowRootSlotCount' => 0,
+            'shadowRootDefaultSlotCount' => 0,
+            'shadowRootNamedSlotCount' => 0,
+            'shadowRootDuplicateSlotNames' => [],
+            'shadowRootSlotDiagnostics' => [],
+        ];
+
+        if (strlen($source) > self::TEMPLATE_CONTENT_REVIEW_MAX_BYTES) {
+            $summary['shadowRootSlotDiagnostics'] = ['shadow-root-slot-review-limit-exceeded'];
+
+            return $summary;
+        }
+
+        try {
+            $fragment = self::loadHtmlFragment($source, 'declarative shadow root slot fragment');
+        } catch (\InvalidArgumentException $exception) {
+            $summary['shadowRootSlotDiagnostics'] = ['shadow-root-slot-unsafe-or-unparseable'];
+            $summary['shadowRootSlotError'] = $exception->getMessage();
+
+            return $summary;
+        }
+
+        $root = self::requireFragmentRoot($fragment);
+        $slotCounts = [];
+        $slots = [];
+        foreach ($root->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || self::htmlElementName($candidate) !== 'slot') {
+                continue;
+            }
+
+            $nameRaw = self::attributeOrNull($candidate, 'name');
+            $name = $nameRaw === null || trim($nameRaw) === '' ? 'default' : trim($nameRaw);
+            $fallbackText = self::normalizedText($candidate);
+            $fallbackElementNames = [];
+            foreach ($candidate->childNodes as $child) {
+                if (!$child instanceof \DOMElement) {
+                    continue;
+                }
+                $fallbackElementNames[] = self::htmlElementName($child);
+            }
+
+            $slotCounts[$name] = ($slotCounts[$name] ?? 0) + 1;
+            $slots[] = [
+                'index' => count($slots),
+                'nameRaw' => $nameRaw,
+                'name' => $name,
+                'defaultSlot' => $name === 'default',
+                'fallbackText' => $fallbackText,
+                'fallbackTextLength' => strlen($fallbackText),
+                'fallbackTextSha256' => hash('sha256', $fallbackText),
+                'fallbackElementNames' => $fallbackElementNames,
+                'fallbackElementCount' => count($fallbackElementNames),
+            ];
+        }
+
+        $duplicates = array_values(array_filter(
+            array_keys($slotCounts),
+            static fn (string $name): bool => $slotCounts[$name] > 1
+        ));
+        $diagnostics = array_map(
+            static fn (string $name): string => 'duplicate-shadow-root-slot-name:' . $name,
+            $duplicates
+        );
+
+        $summary['shadowRootSlotReviewParsed'] = true;
+        $summary['shadowRootSlots'] = $slots;
+        $summary['shadowRootSlotNames'] = array_values(array_keys($slotCounts));
+        $summary['shadowRootSlotCount'] = count($slots);
+        $summary['shadowRootDefaultSlotCount'] = (int) ($slotCounts['default'] ?? 0);
+        $summary['shadowRootNamedSlotCount'] = count($slots) - (int) ($slotCounts['default'] ?? 0);
+        $summary['shadowRootDuplicateSlotNames'] = $duplicates;
+        $summary['shadowRootSlotDiagnostics'] = $diagnostics;
+
+        return $summary;
     }
 
     /**

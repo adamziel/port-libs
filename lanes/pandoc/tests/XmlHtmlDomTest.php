@@ -7725,6 +7725,67 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(['template-content-unsafe-or-unparseable'], $unsafe['templateContentDiagnostics']);
         $t->contains('document type', $unsafe['templateContentError']);
     },
+    'summarizes html declarative shadow root template metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $shadowSource = '<style>:host{display:block}</style>'
+            . '<slot name="title"><h2>Fallback title</h2></slot>'
+            . '<article part="body"><slot>Body fallback</slot><slot name="title">Duplicate title</slot></article>';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<template id="card-shadow" shadowrootmode="open" shadowrootdelegatesfocus shadowrootclonable shadowrootserializable>'
+                . $shadowSource
+                . '</template>'
+                . '<template id="bad-shadow" shadowrootmode="popup"><slot name="actions">Actions</slot></template>',
+            'template declarative shadow root review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+
+        $shadow = $summary[0];
+        $bad = $summary[1];
+        $firstSlot = $shadow['shadowRootSlots'][0] ?? [];
+        $defaultSlot = $shadow['shadowRootSlots'][1] ?? [];
+        $duplicateSlot = $shadow['shadowRootSlots'][2] ?? [];
+
+        $t->same(2, count($summary));
+        $t->same('template', $shadow['name']);
+        $t->same('template-declarative-shadow-root-metadata-review', $shadow['shadowRootReviewPolicy']);
+        $t->same(true, $shadow['declarativeShadowRoot']);
+        $t->same('open', $shadow['shadowRootModeRaw']);
+        $t->same('open', $shadow['shadowRootMode']);
+        $t->same(true, $shadow['shadowRootModeValid']);
+        $t->same(true, $shadow['shadowRootDelegatesFocus']);
+        $t->same(true, $shadow['shadowRootClonable']);
+        $t->same(true, $shadow['shadowRootSerializable']);
+        $t->same(false, $shadow['shadowRootCustomElementRegistry']);
+        $t->same([], $shadow['shadowRootDiagnostics']);
+        $t->same('template-shadow-root-slot-metadata-review', $shadow['shadowRootSlotReviewPolicy']);
+        $t->same(true, $shadow['shadowRootSlotReviewParsed']);
+        $t->same(3, $shadow['shadowRootSlotCount']);
+        $t->same(1, $shadow['shadowRootDefaultSlotCount']);
+        $t->same(2, $shadow['shadowRootNamedSlotCount']);
+        $t->same(['title', 'default'], $shadow['shadowRootSlotNames']);
+        $t->same(['title'], $shadow['shadowRootDuplicateSlotNames']);
+        $t->same(['duplicate-shadow-root-slot-name:title'], $shadow['shadowRootSlotDiagnostics']);
+        $t->same('title', $firstSlot['name'] ?? null);
+        $t->same('title', $firstSlot['nameRaw'] ?? null);
+        $t->same(false, $firstSlot['defaultSlot'] ?? null);
+        $t->same('Fallback title', $firstSlot['fallbackText'] ?? null);
+        $t->same(['h2'], $firstSlot['fallbackElementNames'] ?? null);
+        $t->same('default', $defaultSlot['name'] ?? null);
+        $t->same(true, $defaultSlot['defaultSlot'] ?? null);
+        $t->same('Body fallback', $defaultSlot['fallbackText'] ?? null);
+        $t->same('title', $duplicateSlot['name'] ?? null);
+        $t->same('Duplicate title', $duplicateSlot['fallbackText'] ?? null);
+        $t->same(true, $shadow['templateContentParsed']);
+        $t->same(['style', 'slot', 'article'], $shadow['templateContentTopLevelElementNames']);
+
+        $t->same('template', $bad['name']);
+        $t->same(true, $bad['declarativeShadowRoot']);
+        $t->same('popup', $bad['shadowRootModeRaw']);
+        $t->same(null, $bad['shadowRootMode']);
+        $t->same(false, $bad['shadowRootModeValid']);
+        $t->same(['invalid-shadowrootmode'], $bad['shadowRootDiagnostics']);
+        $t->same(1, $bad['shadowRootSlotCount']);
+        $t->same(['actions'], $bad['shadowRootSlotNames']);
+    },
     'summarizes html template content across nested template and raw text sentinels' => static function (TestRunner $t): void {
         $templateSource = '<template data-inner="1"><p>Inner</p></template>'
             . '<noscript><script>const fallback = "</template>";</script><p>Fallback</p></noscript>'
