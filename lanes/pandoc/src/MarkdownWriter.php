@@ -5206,6 +5206,7 @@ final class MarkdownWriter
         $escaped = '';
         $length = strlen($text);
         $lineStart = $escapeDefinitionMarker;
+        $lineStartSpaces = 0;
         $definitionLineStart = $escapeDefinitionMarker;
 
         for ($i = 0; $i < $length; $i++) {
@@ -5222,7 +5223,14 @@ final class MarkdownWriter
             if ($char === "\n") {
                 $escaped .= "\n";
                 $lineStart = true;
+                $lineStartSpaces = 0;
                 $definitionLineStart = true;
+                continue;
+            }
+
+            if ($lineStart && $char === ' ' && $lineStartSpaces < 3) {
+                $escaped .= ' ';
+                $lineStartSpaces++;
                 continue;
             }
 
@@ -5233,7 +5241,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($lineStart && $char === '=' && $this->startsWithSetextHeadingUnderline($tail)) {
+            if ($lineStart && $this->startsWithSetextEqualsUnderline($tail)) {
                 $escaped .= '\\=';
                 $lineStart = false;
                 $definitionLineStart = false;
@@ -5560,7 +5568,7 @@ final class MarkdownWriter
 
         if (
             $previous === '('
-            && ($offset === 1 || ($text[$offset - 2] ?? '') === "\n")
+            && $this->isIndentedLineStart($text, $offset - 1)
             && $this->startsWithParenthesizedOrderedListMarker(substr($text, $offset - 1))
         ) {
             return false;
@@ -5669,6 +5677,19 @@ final class MarkdownWriter
 
         return preg_match('~\Gwww\.[^\s<>"\']+~iu', $text, $match, 0, $start) === 1
             && strlen($match[0]) > 4;
+    }
+
+    private function isIndentedLineStart(string $text, int $offset): bool
+    {
+        $lineStart = strrpos(substr($text, 0, $offset), "\n");
+        $prefix = substr($text, $lineStart === false ? 0 : $lineStart + 1, $lineStart === false ? $offset : $offset - $lineStart - 1);
+
+        return preg_match('/^[ \t]{0,3}$/', $prefix) === 1;
+    }
+
+    private function startsWithSetextEqualsUnderline(string $text): bool
+    {
+        return preg_match('/^=+[ \t]*(?:\n|\z)/', $text) === 1;
     }
 
     private function isIntrawordUnderscore(string $text, int $offset): bool
