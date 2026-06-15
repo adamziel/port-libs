@@ -6955,6 +6955,161 @@ XML;
         $t->same(1, $relationshipType['externalCount']);
         $t->same(['word/media/review.png', 'word/media/background.jpg', 'word/media/background.xml'], $relationshipType['existingTargetParts']);
     },
+    'summarizes docx document media relationships for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $logoBytes = 'logo png bytes';
+        $badMediaBytes = 'not an image payload';
+        $unreferencedBytes = 'unreferenced jpg bytes';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="jpg" ContentType="image/jpeg"/>' . "\n" .
+            '  <Override PartName="/word/media/not-image.bin" ContentType="application/octet-stream"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rLinkedLogo" Type="' . $imageRel . '" Target="media/logo.png?slot=logo#img"/>' . "\n" .
+            '  <Relationship Id="rMissingLogo" Type="' . $imageRel . '" Target="media/missing.png"/>' . "\n" .
+            '  <Relationship Id="rExternalLogo" Type="' . $imageRel . '" Target="https://cdn.example.test/logo.png?remote=1#img" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeLogo" Type="' . $imageRel . '" Target="javascript:alert(1)" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rWrongTypeMedia" Type="' . $hyperlinkRel . '" Target="media/review.png"/>' . "\n" .
+            '  <Relationship Id="rBadMedia" Type="' . $imageRel . '" Target="media/not-image.bin"/>' . "\n" .
+            '  <Relationship Id="rUnreferencedMedia" Type="' . $imageRel . '" Target="media/unreferenced.jpg"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            "      </w:r>\n    </w:p>\n    <w:tbl>",
+            "      </w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><wp:docPr id=\"31\" name=\"Media logo\" descr=\"Logo alt\"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed=\"rLinkedLogo\"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><wp:docPr id=\"32\" name=\"Missing media\"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed=\"rMissingLogo\"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:anchor><wp:docPr id=\"33\" name=\"External media\"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:link=\"rExternalLogo\"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:anchor><wp:docPr id=\"34\" name=\"Unsafe media\"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:link=\"rUnsafeLogo\"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><wp:docPr id=\"35\" name=\"Wrong rel type\"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed=\"rWrongTypeMedia\"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><wp:docPr id=\"36\" name=\"Bad media type\"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed=\"rBadMedia\"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><wp:docPr id=\"37\" name=\"Missing relationship id\"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "    </w:p>\n    <w:tbl>",
+            $parts['word/document.xml']
+        );
+        $parts['word/media/logo.png'] = $logoBytes;
+        $parts['word/media/not-image.bin'] = $badMediaBytes;
+        $parts['word/media/unreferenced.jpg'] = $unreferencedBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $media = $docx['documentMediaRelationships'];
+        $summary = $docx['packageProvenance']['summary'];
+        $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
+        $linked = $media['byRelationshipId']['rLinkedLogo'];
+        $missing = $media['byRelationshipId']['rMissingLogo'];
+        $external = $media['byRelationshipId']['rExternalLogo'];
+        $unsafe = $media['byRelationshipId']['rUnsafeLogo'];
+        $wrongType = $media['byRelationshipId']['rWrongTypeMedia'];
+        $badMedia = $media['byRelationshipId']['rBadMedia'];
+        $unreferenced = $media['byRelationshipId']['rUnreferencedMedia'];
+
+        $t->same($media, $docx['packageProvenance']['documentMediaRelationships']);
+        $t->same(9, $media['count']);
+        $t->same(7, $media['relationshipCount']);
+        $t->same(8, $media['referencedCount']);
+        $t->same(1, $media['unreferencedRelationshipCount']);
+        $t->same(4, $media['existingCount']);
+        $t->same(1, $media['missingCount']);
+        $t->same(2, $media['externalCount']);
+        $t->same(1, $media['unsafeExternalTargetCount']);
+        $t->same(1, $media['unresolvedCount']);
+        $t->same(1, $media['unexpectedRelationshipTypeCount']);
+        $t->same(0, $media['missingContentTypeCount']);
+        $t->same(1, $media['unexpectedContentTypeCount']);
+        $t->same(6, $media['issueCount']);
+        $t->same([
+            'external-media-target',
+            'external-target-unsafe-scheme',
+            'missing-media-part',
+            'missing-relationship-id',
+            'unexpected-media-content-type',
+            'unexpected-relationship-type',
+        ], $media['issueCodes']);
+        $t->same([
+            'rImage',
+            'rLinkedLogo',
+            'rMissingLogo',
+            'rExternalLogo',
+            'rUnsafeLogo',
+            'rWrongTypeMedia',
+            'rBadMedia',
+            'rUnreferencedMedia',
+        ], $media['relationshipIds']);
+        $t->same(['rUnreferencedMedia'], $media['unreferencedRelationshipIds']);
+        $t->same([
+            'word/media/review.png',
+            'word/media/logo.png',
+            'word/media/missing.png',
+            'word/media/not-image.bin',
+            'word/media/unreferenced.jpg',
+        ], $media['partNames']);
+        $t->same([
+            'https://cdn.example.test/logo.png?remote=1#img',
+            'javascript:alert(1)',
+        ], $media['externalTargets']);
+        $t->same(['image/png', 'application/octet-stream', 'image/jpeg'], $media['contentTypes']);
+        $t->same('document-media-bytes-blocked', $media['byteExposurePolicy']);
+        $t->same('document-media-metadata-only', $media['reviewPolicy']);
+
+        $t->same(true, $linked['referenced']);
+        $t->same('embed', $linked['referenceKind']);
+        $t->same($imageRel, $linked['relationshipType']);
+        $t->same('media/logo.png?slot=logo#img', $linked['target']);
+        $t->same('word/media/logo.png?slot=logo#img', $linked['resolvedTarget']);
+        $t->same('word/media/logo.png', $linked['targetPart']);
+        $t->same('slot=logo', $linked['targetQuery']);
+        $t->same('img', $linked['targetFragment']);
+        $t->same('?slot=logo#img', $linked['targetReferenceSuffix']);
+        $t->same(strlen($logoBytes), $linked['byteLength']);
+        $t->same(sprintf('%08x', crc32($logoBytes)), $linked['crc32']);
+        $t->same(hash('sha256', $logoBytes), $linked['sha256']);
+        $t->same('image/png', $linked['contentType']);
+        $t->same('default', $linked['contentTypeSource']);
+        $t->same([], $linked['issues']);
+        $t->same(true, $linked['valid']);
+
+        $t->same(['missing-media-part'], $missing['issues']);
+        $t->same(false, $missing['exists']);
+        $t->same(['external-media-target'], $external['issues']);
+        $t->same('link', $external['referenceKind']);
+        $t->same('https', $external['externalTargetScheme']);
+        $t->same(true, $external['externalTargetAllowed']);
+        $t->same(['external-media-target', 'external-target-unsafe-scheme'], $unsafe['issues']);
+        $t->same('javascript', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['unexpected-relationship-type'], $wrongType['issues']);
+        $t->same($hyperlinkRel, $wrongType['relationshipType']);
+        $t->same('word/media/review.png', $wrongType['targetPart']);
+        $t->same(['unexpected-media-content-type'], $badMedia['issues']);
+        $t->same('application/octet-stream', $badMedia['contentType']);
+        $t->same(strlen($badMediaBytes), $badMedia['byteLength']);
+        $t->same(false, $unreferenced['referenced']);
+        $t->same(true, $unreferenced['exists']);
+        $t->same('image/jpeg', $unreferenced['contentType']);
+
+        $t->same(9, $summary['documentMediaRelationshipCount']);
+        $t->same(7, $summary['documentMediaRelationshipDeclarationCount']);
+        $t->same(8, $summary['documentMediaRelationshipReferencedCount']);
+        $t->same(4, $summary['documentMediaRelationshipExistingCount']);
+        $t->same(1, $summary['documentMediaRelationshipMissingCount']);
+        $t->same(2, $summary['documentMediaRelationshipExternalCount']);
+        $t->same(1, $summary['documentMediaRelationshipUnsafeExternalCount']);
+        $t->same(6, $summary['documentMediaRelationshipIssueCount']);
+        $t->same($media['issueCodes'], $summary['documentMediaRelationshipIssueCodes']);
+        $t->same(7, $relationshipTypes[$imageRel]['count']);
+        $t->same(5, $relationshipTypes[$imageRel]['internalCount']);
+        $t->same(2, $relationshipTypes[$imageRel]['externalCount']);
+        $t->true(in_array('word/media/unreferenced.jpg', $relationshipTypes[$imageRel]['existingTargetParts'], true), 'unreferenced media relationship target missing from type summary');
+    },
     'summarizes docx chart package parts from drawing relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
