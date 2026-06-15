@@ -2361,6 +2361,100 @@ XML;
         $t->same(['external-collection-link-target', 'missing-collection-link-target'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $summary['wordpressImport']['collectionDiagnostics']));
     },
 
+    'summarizes OPF collection hierarchy for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithCollectionHierarchy = str_replace(
+            '</spine>',
+            '</spine>
+  <collection id="series" role="series curated" xml:lang="en" dir="ltr">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title>Migration packet series</dc:title>
+    </metadata>
+    <link id="series-record" rel="record first" href="meta/series.json" media-type="application/ld+json"/>
+    <link id="missing-review" rel="review" href="meta/missing.json" media-type="application/json"/>
+    <collection id="samples" role="preview">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>Review samples</dc:title>
+      </metadata>
+      <link id="sample-one" rel="sample" href="text/chapter2.xhtml#checklist" media-type="application/xhtml+xml"/>
+    </collection>
+    <collection id="external-records" role="supplement">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>External records</dc:title>
+      </metadata>
+      <link id="remote-record" rel="alternate" href="https://example.invalid/series.json" media-type="application/json"/>
+    </collection>
+  </collection>',
+            $epub3OpfXml
+        );
+
+        $seriesRecord = '{"kind":"series","source":"hierarchy"}';
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithCollectionHierarchy],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="checklist">Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/series.json', 'data' => $seriesRecord],
+        ]));
+
+        $summary = $epub->summary();
+        $hierarchy = $summary['collectionHierarchy'];
+        $itemsByPath = $hierarchy['itemsByPath'];
+        $compactCollections = $summary['compactPackageReport']['casesById']['collections'];
+
+        $t->same(true, $hierarchy['present']);
+        $t->same(3, $hierarchy['collectionCount']);
+        $t->same(1, $hierarchy['rootCollectionCount']);
+        $t->same(2, $hierarchy['leafCollectionCount']);
+        $t->same(2, $hierarchy['maxDepth']);
+        $t->same(['0', '0/0', '0/1'], $hierarchy['pathKeys']);
+        $t->same([1 => 1, 2 => 2], $hierarchy['depthCounts']);
+        $t->same(['curated' => 1, 'preview' => 1, 'series' => 1, 'supplement' => 1], $hierarchy['roleCounts']);
+        $t->same(['preview' => 1, 'series' => 1, 'supplement' => 1], $hierarchy['primaryRoleCounts']);
+        $t->same(['alternate' => 1, 'first' => 1, 'record' => 1, 'review' => 1, 'sample' => 1], $hierarchy['linkRelCounts']);
+        $t->same(3, $hierarchy['localLinkCount']);
+        $t->same(1, $hierarchy['externalLinkCount']);
+        $t->same(1, $hierarchy['missingLinkCount']);
+        $t->same(['Migration packet series', 'Review samples', 'External records'], $hierarchy['titles']);
+        $t->same(['/EPUB/meta/series.json', '/EPUB/meta/missing.json', '/EPUB/text/chapter2.xhtml#checklist', 'https://example.invalid/series.json'], $hierarchy['linkTargets']);
+        $t->same(2, $hierarchy['diagnosticCount']);
+        $t->same(['missing-collection-link-target', 'external-collection-link-target'], array_column($hierarchy['diagnostics'], 'type'));
+
+        $t->same(null, $itemsByPath['0']['parentPathKey']);
+        $t->same('series', $itemsByPath['0']['primaryRole']);
+        $t->same(['series', 'curated'], $itemsByPath['0']['roleTokens']);
+        $t->same('Migration packet series', $itemsByPath['0']['title']);
+        $t->same('en', $itemsByPath['0']['language']);
+        $t->same('ltr', $itemsByPath['0']['direction']);
+        $t->same(2, $itemsByPath['0']['childCount']);
+        $t->same(false, $itemsByPath['0']['leaf']);
+        $t->same(2, $itemsByPath['0']['linkCount']);
+        $t->same(1, $itemsByPath['0']['missingLinkCount']);
+        $t->same(['/EPUB/meta/series.json', '/EPUB/meta/missing.json'], $itemsByPath['0']['linkTargets']);
+        $t->same('missing-collection-link-target', $itemsByPath['0']['diagnostics'][0]['type']);
+
+        $t->same('0', $itemsByPath['0/0']['parentPathKey']);
+        $t->same(2, $itemsByPath['0/0']['depth']);
+        $t->same('samples', $itemsByPath['0/0']['id']);
+        $t->same('preview', $itemsByPath['0/0']['primaryRole']);
+        $t->same(true, $itemsByPath['0/0']['leaf']);
+        $t->same(['/EPUB/text/chapter2.xhtml#checklist'], $itemsByPath['0/0']['linkTargets']);
+        $t->same(1, $itemsByPath['0/1']['externalLinkCount']);
+        $t->same('external-collection-link-target', $itemsByPath['0/1']['diagnostics'][0]['type']);
+
+        $t->same($hierarchy, $summary['wordpressImport']['collectionHierarchy']);
+        $t->same($hierarchy['items'], $summary['wordpressImport']['collectionHierarchyItems']);
+        $t->same($hierarchy['diagnostics'], $summary['wordpressImport']['collectionHierarchyDiagnostics']);
+        $t->same($hierarchy['pathKeys'], $compactCollections['pathKeys']);
+        $t->same(2, $compactCollections['maxDepth']);
+        $t->same(2, $compactCollections['leafCollectionCount']);
+        $t->same($hierarchy['roleCounts'], $compactCollections['roleCounts']);
+        $t->same($hierarchy['linkRelCounts'], $compactCollections['linkRelCounts']);
+    },
+
     'summarizes OCF metadata links for EPUB3 package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $containerRecord = '{"@context":"https://schema.org","name":"OCF container review packet"}';
         $containerMetadataXml = <<<'XML'

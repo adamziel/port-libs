@@ -16,7 +16,7 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Wiki / roff / text markup readers | 0 | 20 |
 | HTML / XML / JATS / BITS DOM | 29 | 54 |
 | DOCX / OpenXML | 95 | 256 |
-| EPUB / EPUB3 | 11 | 15 |
+| EPUB / EPUB3 | 12 | 15 |
 | CSV / TSV | 2 | 4 |
 | CSL / BibTeX / BibLaTeX / csljson / RIS / EndNote XML | 79 | 227 |
 | LaTeX / TeX / math | 21 | 36 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest JSON/native AST evidence: `PandocJsonReader` preserves `LineBreak` as a newline in shared text summaries while keeping `SoftBreak` as a space, matching native reader behavior and preserving both break constructor payloads through JSON and native writers.
+Latest EPUB3 evidence: `EpubPackage` reports nested OPF collection hierarchy with path, depth, role, link, and diagnostic rollups in package review and WordPress import summaries.
 
-Current Pandoc counters: 3,623 PHP passes / 0 failures and 3,635 mapped upstream cases. Verification passed `php -l` for `PandocJsonReader.php` and `PandocJsonNativeAstTest.php`; focused `PandocJsonNativeAstTest.php` (`1` file, `3,847` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,012` assertions, `0` failures); `jq empty`; and `git diff --check`.
+Current Pandoc counters: 3,624 PHP passes / 0 failures and 3,636 mapped upstream cases. Verification passed `php -l` for `EpubPackage.php` and `EpubPackageTest.php`; focused `EpubPackageTest.php` (`1` file, `2,550` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,057` assertions, `0` failures); `jq empty`; and `git diff --check`.

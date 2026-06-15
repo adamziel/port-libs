@@ -548,6 +548,7 @@ final class EpubPackage
             : self::metadataRefinementTargetReport([], [], [], [], []);
         $collectionLinkVocabulary = self::collectionLinkVocabularySummary($this->collections);
         $collectionRoleVocabulary = self::collectionRoleVocabularySummary($this->collections);
+        $collectionHierarchy = self::collectionHierarchyReport($this->collections);
         $remoteResourcePolicy = $this->remoteResourcePolicy();
         $mediaOverlayDiagnostics = self::mediaOverlayDiagnostics($this->mediaOverlays);
         $manifestFallbacks = $this->manifestFallbacks();
@@ -618,6 +619,7 @@ final class EpubPackage
             'guide' => $this->guideReferences,
             'guideReport' => $guideReport,
             'collections' => $this->collections,
+            'collectionHierarchy' => $collectionHierarchy,
             'collectionLinkVocabulary' => $collectionLinkVocabulary,
             'collectionRoleVocabulary' => $collectionRoleVocabulary,
             'bindings' => $this->bindings,
@@ -727,6 +729,9 @@ final class EpubPackage
                 'guideReferenceManifestMediaTypeParameterNames' => $guideReport['manifestMediaTypeParameterNames'],
                 'guideReferenceManifestMediaTypeDiagnostics' => $guideReport['manifestMediaTypeDiagnostics'],
                 'collections' => $this->collections,
+                'collectionHierarchy' => $collectionHierarchy,
+                'collectionHierarchyItems' => $collectionHierarchy['items'],
+                'collectionHierarchyDiagnostics' => $collectionHierarchy['diagnostics'],
                 'containerLinks' => $this->containerLinks,
                 'containerLinksByRel' => $containerLinkReport['linksByRel'],
                 'containerLinkTargets' => self::packageLinkTargets($this->containerLinks),
@@ -933,6 +938,7 @@ final class EpubPackage
             ],
         );
 
+        $collectionHierarchy = self::collectionHierarchyReport($collections);
         $appendCase(
             'collections',
             'collections',
@@ -942,6 +948,12 @@ final class EpubPackage
             [
                 'titles' => self::collectionTitles($collections),
                 'linkTargets' => self::collectionLinkTargets($collections),
+                'pathKeys' => array_column($collectionHierarchy['items'], 'pathKey'),
+                'maxDepth' => $collectionHierarchy['maxDepth'],
+                'leafCollectionCount' => $collectionHierarchy['leafCollectionCount'],
+                'roleCounts' => $collectionHierarchy['roleCounts'],
+                'primaryRoleCounts' => $collectionHierarchy['primaryRoleCounts'],
+                'linkRelCounts' => $collectionHierarchy['linkRelCounts'],
             ],
         );
 
@@ -8957,6 +8969,208 @@ final class EpubPackage
     /**
      * @param list<array<string, mixed>> $collections
      *
+     * @return array<string, mixed>
+     */
+    private static function collectionHierarchyReport(array $collections): array
+    {
+        $items = [];
+        $diagnostics = [];
+        $roleCounts = [];
+        $primaryRoleCounts = [];
+        $linkRelCounts = [];
+        $depthCounts = [];
+        $localLinkCount = 0;
+        $externalLinkCount = 0;
+        $missingLinkCount = 0;
+        $maxDepth = 0;
+        $leafCollectionCount = 0;
+
+        self::appendCollectionHierarchyItems(
+            $collections,
+            [],
+            $items,
+            $diagnostics,
+            $roleCounts,
+            $primaryRoleCounts,
+            $linkRelCounts,
+            $depthCounts,
+            $localLinkCount,
+            $externalLinkCount,
+            $missingLinkCount,
+            $maxDepth,
+            $leafCollectionCount,
+        );
+
+        ksort($roleCounts);
+        ksort($primaryRoleCounts);
+        ksort($linkRelCounts);
+        ksort($depthCounts);
+
+        $itemsByPath = [];
+        foreach ($items as $item) {
+            if (is_string($item['pathKey'] ?? null) && $item['pathKey'] !== '') {
+                $itemsByPath[$item['pathKey']] = $item;
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'collectionCount' => count($items),
+            'rootCollectionCount' => count(array_filter(
+                $collections,
+                static fn (mixed $collection): bool => is_array($collection),
+            )),
+            'leafCollectionCount' => $leafCollectionCount,
+            'maxDepth' => $maxDepth,
+            'pathKeys' => array_column($items, 'pathKey'),
+            'roleCounts' => $roleCounts,
+            'primaryRoleCounts' => $primaryRoleCounts,
+            'linkRelCounts' => $linkRelCounts,
+            'depthCounts' => $depthCounts,
+            'localLinkCount' => $localLinkCount,
+            'externalLinkCount' => $externalLinkCount,
+            'missingLinkCount' => $missingLinkCount,
+            'titles' => self::collectionTitles($collections),
+            'linkTargets' => self::collectionLinkTargets($collections),
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+            'items' => $items,
+            'itemsByPath' => $itemsByPath,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     * @param list<int> $parentPath
+     * @param list<array<string, mixed>> $items
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<string, int> $roleCounts
+     * @param array<string, int> $primaryRoleCounts
+     * @param array<string, int> $linkRelCounts
+     * @param array<int, int> $depthCounts
+     */
+    private static function appendCollectionHierarchyItems(
+        array $collections,
+        array $parentPath,
+        array &$items,
+        array &$diagnostics,
+        array &$roleCounts,
+        array &$primaryRoleCounts,
+        array &$linkRelCounts,
+        array &$depthCounts,
+        int &$localLinkCount,
+        int &$externalLinkCount,
+        int &$missingLinkCount,
+        int &$maxDepth,
+        int &$leafCollectionCount
+    ): void {
+        foreach ($collections as $collectionIndex => $collection) {
+            if (!is_array($collection)) {
+                continue;
+            }
+
+            $currentPath = array_merge($parentPath, [$collectionIndex]);
+            $pathKey = implode('/', $currentPath);
+            $parentPathKey = $parentPath === [] ? null : implode('/', $parentPath);
+            $children = is_array($collection['children'] ?? null) ? $collection['children'] : [];
+            $links = is_array($collection['links'] ?? null) ? $collection['links'] : [];
+            $metadata = is_array($collection['metadata'] ?? null) ? $collection['metadata'] : [];
+            $roleTokens = is_array($collection['roleTokens'] ?? null) ? array_values($collection['roleTokens']) : [];
+            $primaryRole = is_string($collection['primaryRole'] ?? null) ? $collection['primaryRole'] : null;
+            $depth = count($currentPath);
+            $maxDepth = max($maxDepth, $depth);
+            $depthCounts[$depth] = ($depthCounts[$depth] ?? 0) + 1;
+
+            if ($children === []) {
+                ++$leafCollectionCount;
+            }
+
+            foreach ($roleTokens as $roleToken) {
+                if (!is_string($roleToken) || $roleToken === '') {
+                    continue;
+                }
+
+                $roleCounts[$roleToken] = ($roleCounts[$roleToken] ?? 0) + 1;
+            }
+
+            if ($primaryRole !== null && $primaryRole !== '') {
+                $primaryRoleCounts[$primaryRole] = ($primaryRoleCounts[$primaryRole] ?? 0) + 1;
+            }
+
+            foreach (is_array($collection['linkRelCounts'] ?? null) ? $collection['linkRelCounts'] : [] as $rel => $count) {
+                if (!is_string($rel) || $rel === '') {
+                    continue;
+                }
+
+                $linkRelCounts[$rel] = ($linkRelCounts[$rel] ?? 0) + (int) $count;
+            }
+
+            $localLinkCount += (int) ($collection['localLinkCount'] ?? 0);
+            $externalLinkCount += (int) ($collection['externalLinkCount'] ?? 0);
+            $missingLinkCount += (int) ($collection['missingLinkCount'] ?? 0);
+
+            $itemDiagnostics = [];
+            foreach (is_array($collection['diagnostics'] ?? null) ? $collection['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnosticWithPath = [
+                    'collectionPath' => $currentPath,
+                    'collectionPathKey' => $pathKey,
+                    'collectionId' => is_string($collection['id'] ?? null) ? $collection['id'] : null,
+                ] + $diagnostic;
+                $itemDiagnostics[] = $diagnosticWithPath;
+                $diagnostics[] = $diagnosticWithPath;
+            }
+
+            $items[] = [
+                'path' => $currentPath,
+                'pathKey' => $pathKey,
+                'parentPath' => $parentPath === [] ? null : $parentPath,
+                'parentPathKey' => $parentPathKey,
+                'index' => $collectionIndex,
+                'depth' => $depth,
+                'id' => is_string($collection['id'] ?? null) ? $collection['id'] : null,
+                'role' => is_string($collection['role'] ?? null) ? $collection['role'] : null,
+                'roleTokens' => $roleTokens,
+                'primaryRole' => $primaryRole,
+                'title' => is_string($metadata['title'] ?? null) ? $metadata['title'] : null,
+                'language' => is_string($collection['language'] ?? null) ? $collection['language'] : null,
+                'direction' => is_string($collection['direction'] ?? null) ? $collection['direction'] : null,
+                'linkCount' => (int) ($collection['linkCount'] ?? count($links)),
+                'localLinkCount' => (int) ($collection['localLinkCount'] ?? 0),
+                'externalLinkCount' => (int) ($collection['externalLinkCount'] ?? 0),
+                'missingLinkCount' => (int) ($collection['missingLinkCount'] ?? 0),
+                'linkRelCounts' => is_array($collection['linkRelCounts'] ?? null) ? $collection['linkRelCounts'] : [],
+                'linkTargets' => self::collectionOwnLinkTargets($links),
+                'childCount' => count($children),
+                'leaf' => $children === [],
+                'diagnosticCount' => count($itemDiagnostics),
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            self::appendCollectionHierarchyItems(
+                $children,
+                $currentPath,
+                $items,
+                $diagnostics,
+                $roleCounts,
+                $primaryRoleCounts,
+                $linkRelCounts,
+                $depthCounts,
+                $localLinkCount,
+                $externalLinkCount,
+                $missingLinkCount,
+                $maxDepth,
+                $leafCollectionCount,
+            );
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     *
      * @return list<string>
      */
     private static function collectionTitles(array $collections): array
@@ -8995,6 +9209,28 @@ final class EpubPackage
             array_push($targets, ...self::collectionLinkTargets(
                 is_array($collection['children'] ?? null) ? $collection['children'] : [],
             ));
+        }
+
+        return $targets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     *
+     * @return list<string>
+     */
+    private static function collectionOwnLinkTargets(array $links): array
+    {
+        $targets = [];
+        foreach ($links as $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+
+            $target = $link['target'] ?? null;
+            if (is_string($target) && $target !== '') {
+                $targets[] = $target;
+            }
         }
 
         return $targets;
