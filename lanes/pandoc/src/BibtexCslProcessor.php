@@ -250,6 +250,13 @@ final class BibtexCslProcessor
         if (($item['page'] ?? '') !== '') {
             $parts[] = (string) $item['page'];
         }
+        $containerTitleShort = (string) ($item['container-title-short'] ?? $item['journal-abbreviation'] ?? '');
+        if ($containerTitleShort !== '') {
+            $parts[] = 'Journal abbreviation: ' . rtrim($containerTitleShort, '.');
+        }
+        if (($item['article-number'] ?? '') !== '') {
+            $parts[] = 'Article number: ' . (string) $item['article-number'];
+        }
         if (($item['source'] ?? '') !== '') {
             $parts[] = 'Source: ' . (string) $item['source'];
         }
@@ -455,6 +462,26 @@ final class BibtexCslProcessor
             'short-title' => ['shorttitle'],
             'title-addon' => ['titleaddon'],
             'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
+            'container-title-short' => [
+                'shortjournal',
+                'shortjournaltitle',
+                'shortjournal-title',
+                'journaltitle-short',
+                'journalabbreviation',
+                'journal-abbreviation',
+                'container-title-short',
+                'containertitleshort',
+            ],
+            'journal-abbreviation' => [
+                'shortjournal',
+                'shortjournaltitle',
+                'shortjournal-title',
+                'journaltitle-short',
+                'journalabbreviation',
+                'journal-abbreviation',
+                'container-title-short',
+                'containertitleshort',
+            ],
             'event' => ['eventtitle', 'event-title', 'event'],
             'event-title-addon' => ['eventtitleaddon', 'event-title-addon'],
             'event-place' => ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'],
@@ -464,6 +491,7 @@ final class BibtexCslProcessor
             'number-of-volumes' => ['volumes'],
             'issue' => ['number', 'issue'],
             'page' => ['pages', 'page'],
+            'article-number' => ['eid', 'article-number', 'articlenumber'],
             'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
             'chapter-number' => ['chapter'],
             'source' => ['source', 'sourcetitle', 'source-title'],

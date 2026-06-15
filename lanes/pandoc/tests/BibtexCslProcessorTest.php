@@ -762,6 +762,93 @@ BIB;
         $t->same('320', $item['number-of-pages']);
         $t->same('Casey Chapter. Extent Review Chapter. Migration Extent Handbook 2. 2026. 101-120.', $bibliography);
     },
+    'carries legacy biblatex journal abbreviation and article number metadata' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-journal-id,
+  author       = {Roe, Pat},
+  title        = {Electronic Article Packet},
+  journaltitle = {Journal of Legacy Imports},
+  shortjournal = {J. Legacy Import.},
+  date         = {2026},
+  eid          = {e2026-42},
+  doi          = {10.5555/legacy-eid}
+}
+
+@article{legacy-short-alias,
+  author              = {Ng, Nia},
+  title               = {Explicit Article Number Packet},
+  journal             = {Migration Review Quarterly},
+  journalabbreviation = {Migr. Rev. Q.},
+  year                = {2025},
+  article-number      = {A-77}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $journal = $items['legacy-journal-id'];
+        $alias = $items['legacy-short-alias'];
+
+        $t->same('J. Legacy Import.', $journal['container-title-short']);
+        $t->same('J. Legacy Import.', $journal['journal-abbreviation']);
+        $t->same('e2026-42', $journal['article-number']);
+        $t->same('e2026-42', $journal['rawBibtex']['fields']['eid']);
+        $t->same('Migr. Rev. Q.', $alias['container-title-short']);
+        $t->same('Migr. Rev. Q.', $alias['journal-abbreviation']);
+        $t->same('A-77', $alias['article-number']);
+        $t->same('A-77', $alias['rawBibtex']['fields']['article-number']);
+        $t->same(
+            'Pat Roe. Electronic Article Packet. Journal of Legacy Imports. 2026. Journal abbreviation: J. Legacy Import. Article number: e2026-42. doi:10.5555/legacy-eid.',
+            $processor->renderBibliographyText($journal)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Legacy BibLaTeX Journal Identifier Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-journal-identifier-review</id>
+    <updated>2026-06-15T12:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="container-title-short"/>
+        <text variable="journal-abbreviation"/>
+        <text variable="article-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title-short"/>
+      <text variable="article-number"/>
+      <text variable="DOI"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Journal Identifier Review', $summary['title'] ?? null);
+        $t->same('container-title-short', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+        $t->same(
+            'Electronic Article Packet | J. Legacy Import. | J. Legacy Import. | e2026-42; Explicit Article Number Packet | Migr. Rev. Q. | Migr. Rev. Q. | A-77',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'legacy-journal-id', 'text' => '[@legacy-journal-id]']),
+                new AstNode('citation', ['id' => 'legacy-short-alias', 'text' => '[@legacy-short-alias]']),
+            ])
+        );
+        $t->same('Electronic Article Packet :: J. Legacy Import. :: e2026-42 :: 10.5555/legacy-eid', $styled->renderBibliographyEntry('legacy-journal-id'));
+        $t->same('Explicit Article Number Packet :: Migr. Rev. Q. :: A-77', $styled->renderBibliographyEntry('legacy-short-alias'));
+
+        $document = (new MarkdownReader())->read('Legacy journal identifiers [@legacy-journal-id; @legacy-short-alias] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legacy journal identifiers Electronic Article Packet | J. Legacy Import. | J. Legacy Import. | e2026-42; Explicit Article Number Packet | Migr. Rev. Q. | Migr. Rev. Q. | A-77 stay visible.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Electronic Article Packet :: J. Legacy Import. :: e2026-42 :: 10.5555/legacy-eid</dd>', $blocks);
+    },
     'carries biblatex source locator metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @misc{source-locator,
