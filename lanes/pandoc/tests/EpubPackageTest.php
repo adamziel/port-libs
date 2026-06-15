@@ -1028,6 +1028,7 @@ XML;
 
         $bindings = $epub->bindings();
         $summary = $epub->summary();
+        $compactBinding = $summary['compactPackageReport']['casesById']['media-type-bindings'];
 
         $t->same(true, $bindings['present']);
         $t->same(3, $bindings['itemCount']);
@@ -1056,6 +1057,24 @@ XML;
         $t->same($bindings, $summary['bindings']);
         $t->same($bindings['items'], $summary['wordpressImport']['mediaTypeBindings']);
         $t->same($bindings['diagnostics'], $summary['wordpressImport']['mediaTypeBindingDiagnostics']);
+        $t->true(in_array('media-type-bindings', $summary['compactPackageReport']['caseIds'], true));
+        $t->true(in_array('media-type-bindings', $summary['compactPackageReport']['presentCaseIds'], true));
+        $t->true(in_array('media-type-bindings', $summary['compactPackageReport']['diagnosticCaseIds'], true));
+        $t->true(in_array('media-type-bindings', $summary['compactPackageReport']['reviewRequiredCaseIds'], true));
+        $t->same(3, $compactBinding['itemCount']);
+        $t->same(2, $compactBinding['diagnosticCount']);
+        $t->same(['missing-binding-handler-manifest-item', 'missing-binding-media-type'], $compactBinding['diagnosticTypes']);
+        $t->same(['application/x-demo-slideshow', 'application/x-review-widget'], $compactBinding['boundMediaTypes']);
+        $t->same(['slideshow-handler', 'missing-handler'], $compactBinding['handlerIds']);
+        $t->same(['/EPUB/widgets/slideshow-fallback.xhtml'], $compactBinding['handlerPartNames']);
+        $t->same(2, $compactBinding['resolvedHandlerCount']);
+        $t->same(0, $compactBinding['externalHandlerCount']);
+        $t->same(0, $compactBinding['encryptedHandlerCount']);
+        $t->same(2, $compactBinding['byteExposableHandlerCount']);
+        $t->same('manifest', $compactBinding['diagnostics'][0]['domain']);
+        $t->same('media-type-bindings', $compactBinding['diagnostics'][0]['caseId']);
+        $t->same($bindings['diagnostics'][0]['type'], $compactBinding['diagnostics'][0]['type']);
+        $t->same($summary['compactPackageReport'], $summary['wordpressImport']['compactPackageReport']);
     },
 
     'preserves OPF binding handler target provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
@@ -5149,7 +5168,7 @@ XML;
         $report = $summary['compactPackageReport'];
         $casesById = $report['casesById'];
 
-        $t->same(14, $report['caseCount']);
+        $t->same(15, $report['caseCount']);
         $t->same(13, $report['presentCaseCount']);
         $t->same(0, $report['diagnosticCaseCount']);
         $t->same(0, $report['diagnosticCount']);
@@ -5162,6 +5181,7 @@ XML;
             'navigation-sections',
             'guide-references',
             'collections',
+            'media-type-bindings',
             'media-overlays',
             'manifest-fallbacks',
             'manifest-dependencies',
@@ -5193,6 +5213,7 @@ XML;
             'navigation-sections' => 2,
             'guide-references' => 2,
             'collections' => 1,
+            'media-type-bindings' => 0,
             'media-overlays' => 1,
             'manifest-fallbacks' => 1,
             'manifest-dependencies' => 2,
@@ -5207,8 +5228,8 @@ XML;
             'navigation' => 2,
             'guide' => 2,
             'collections' => 1,
-            'media-overlays' => 1,
             'manifest' => 13,
+            'media-overlays' => 1,
             'encryption' => 1,
         ], $report['domainCounts']);
 
@@ -5307,7 +5328,7 @@ XML;
         $packageLinks = $report['casesById']['package-links'];
         $containerLinks = $report['casesById']['container-links'];
 
-        $t->same(14, $report['caseCount']);
+        $t->same(15, $report['caseCount']);
         $t->true(in_array('package-links', $report['presentCaseIds'], true));
         $t->true(in_array('container-links', $report['presentCaseIds'], true));
         $t->same(['package-links', 'container-links'], $report['diagnosticCaseIds']);

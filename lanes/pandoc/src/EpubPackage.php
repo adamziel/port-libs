@@ -635,6 +635,7 @@ final class EpubPackage
             $this->guideReferences,
             $guideReport,
             $this->collections,
+            $this->bindings,
             $this->mediaOverlays,
             $manifestFallbacks,
             $this->encryption,
@@ -1126,6 +1127,7 @@ final class EpubPackage
      * @param list<array<string, mixed>> $guideReferences
      * @param array<string, mixed> $guideReport
      * @param list<array<string, mixed>> $collections
+     * @param array<string, mixed> $bindings
      * @param array<string, mixed> $mediaOverlays
      * @param array<string, mixed> $manifestFallbacks
      * @param array<string, mixed> $encryption
@@ -1146,6 +1148,7 @@ final class EpubPackage
         array $guideReferences,
         array $guideReport,
         array $collections,
+        array $bindings,
         array $mediaOverlays,
         array $manifestFallbacks,
         array $encryption,
@@ -1323,6 +1326,44 @@ final class EpubPackage
                 'roleCounts' => $collectionHierarchy['roleCounts'],
                 'primaryRoleCounts' => $collectionHierarchy['primaryRoleCounts'],
                 'linkRelCounts' => $collectionHierarchy['linkRelCounts'],
+            ],
+        );
+
+        $bindingItems = is_array($bindings['items'] ?? null)
+            ? array_values(array_filter($bindings['items'], static fn (mixed $item): bool => is_array($item)))
+            : [];
+        $bindingHandlerIds = array_values(array_unique(array_filter(
+            array_map(
+                static fn (array $item): ?string => is_string($item['handlerId'] ?? null) && $item['handlerId'] !== ''
+                    ? $item['handlerId']
+                    : null,
+                $bindingItems,
+            ),
+            static fn (?string $handlerId): bool => $handlerId !== null,
+        )));
+        $bindingHandlerPartNames = array_values(array_unique(array_filter(
+            array_map(
+                static fn (array $item): ?string => is_string($item['handlerPartName'] ?? null) && $item['handlerPartName'] !== ''
+                    ? $item['handlerPartName']
+                    : null,
+                $bindingItems,
+            ),
+            static fn (?string $partName): bool => $partName !== null,
+        )));
+        $appendCase(
+            'media-type-bindings',
+            'manifest',
+            'OPF media-type bindings',
+            (int) ($bindings['itemCount'] ?? count($bindingItems)),
+            self::compactDiagnosticList($bindings['diagnostics'] ?? []),
+            [
+                'boundMediaTypes' => is_array($bindings['boundMediaTypes'] ?? null) ? array_values($bindings['boundMediaTypes']) : [],
+                'handlerIds' => $bindingHandlerIds,
+                'handlerPartNames' => $bindingHandlerPartNames,
+                'resolvedHandlerCount' => count(array_filter($bindingItems, static fn (array $item): bool => ($item['handlerExists'] ?? false) === true)),
+                'externalHandlerCount' => count(array_filter($bindingItems, static fn (array $item): bool => ($item['handlerExternal'] ?? false) === true)),
+                'encryptedHandlerCount' => count(array_filter($bindingItems, static fn (array $item): bool => ($item['handlerEncrypted'] ?? false) === true)),
+                'byteExposableHandlerCount' => count(array_filter($bindingItems, static fn (array $item): bool => ($item['handlerCanExposeBytes'] ?? false) === true)),
             ],
         );
 
