@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 2,227 | 1,096 |
+| Markdown / CommonMark / GFM | 2,277 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -24,8 +24,8 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | RTF | 4 | 27 |
 | Shared ZIP / OPC package | 107 | 578 |
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
-| Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
+| Legacy DOC / CFB (adjacent; not a current upstream Pandoc input token) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` preserves 102 common emoji shortcode aliases as native emoji spans with `data-emoji` metadata, while `MarkdownWriter` round-trips `:alias:` syntax and `WordPressBlockWriter` emits safe emoji span markup.
+Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` percent-encodes C0/DEL control bytes in decoded inline link, image, reference-link, and angle-autolink destinations while preserving titles, labels, entity/backslash decoding, native span extension coverage, existing emoji alias coverage, and WordPress handoff.
 
-Current Pandoc counters: 6,044 PHP passes / 0 failures and 6,034 mapped upstream cases. Verification passed after rebase: `php -l` for `MarkdownEmojiAliases.php` and `MarkdownReaderEmojiExtensionSurgeTest.php`; focused emoji/reader coverage passed 4 files, 8154 assertions, 0 failures; full `lanes/pandoc/tests` passed 72 files, 103941 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 6,135 PHP passes / 0 failures and 6,125 mapped upstream cases. Verification passed after rebase onto current main `4cb757a1e1`: `php -l` for `MarkdownReader.php` and `MarkdownReaderUrlNormalizationSurgeTest.php`; focused URL-normalization coverage passed 1 file, 250 assertions, 0 failures; focused related Markdown reader coverage passed 7 files, 10169 assertions, 0 failures; full `lanes/pandoc/tests` passed 74 files, 104521 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.

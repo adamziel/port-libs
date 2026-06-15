@@ -19428,8 +19428,21 @@ final class MarkdownReader
     {
         $destination = $this->decodeHtmlEntities($this->unescapeLinkComponent($destination));
         $destination = trim(preg_replace('/\s+/', ' ', $destination) ?? $destination);
+        $destination = $this->escapeLinkDestinationControlCharacters($destination);
 
         return str_replace(' ', '%20', $destination);
+    }
+
+    private function escapeLinkDestinationControlCharacters(string $destination): string
+    {
+        return preg_replace_callback(
+            '/[\x00-\x1F\x7F]/',
+            static fn (array $match): string => implode('', array_map(
+                static fn (string $byte): string => sprintf('%%%02X', ord($byte)),
+                str_split($match[0])
+            )),
+            $destination
+        ) ?? $destination;
     }
 
     /**
