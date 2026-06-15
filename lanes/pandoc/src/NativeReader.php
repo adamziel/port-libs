@@ -1246,7 +1246,7 @@ final class NativeReader
         $columnWidthConstructors = [];
         $columnWidthNatives = [];
         foreach ($this->listContent($colSpecs, 'Pandoc native JSON Table column specs') as $colSpec) {
-            $tuple = $this->singleWrappedTuple($colSpec, 2, 'Pandoc native JSON Table column spec');
+            $tuple = $this->singleWrappedTupleContent($colSpec, 2, 'Pandoc native JSON Table column spec');
             $alignmentConstructor = $this->constructorTag($tuple[0], 'Pandoc native JSON table alignment');
             $columnWidthConstructor = $this->tableColumnWidthConstructor($tuple[1]);
             $alignments[] = $this->tableAlignmentFromConstructor($alignmentConstructor);

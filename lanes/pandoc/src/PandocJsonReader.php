@@ -1303,7 +1303,7 @@ final class PandocJsonReader
         $columnWidthConstructors = [];
         $columnWidthNatives = [];
         foreach ($this->listContent($colSpecs, 'Table column specs') as $colSpec) {
-            $tuple = $this->singleWrappedTuple($colSpec, 2, 'Table column spec');
+            $tuple = $this->singleWrappedTupleContent($colSpec, 2, 'Table column spec');
             $alignmentConstructor = $this->enumTag($tuple[0], 'table alignment');
             $columnWidthConstructor = $this->tableColumnWidthConstructor($tuple[1]);
             $alignments[] = $this->tableAlignmentFromConstructor($alignmentConstructor);

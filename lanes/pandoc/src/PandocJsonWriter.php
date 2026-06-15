@@ -2048,7 +2048,7 @@ final class PandocJsonWriter
     }
 
     /**
-     * @param array{0:array<string, mixed>, 1:array<string, mixed>} $generated
+     * @param list<mixed> $generated
      * @return list<mixed>|null
      */
     private function columnSpecNativeAt(mixed $natives, int $index, array $generated): ?array

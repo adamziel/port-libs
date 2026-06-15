@@ -11992,6 +11992,112 @@ return [
             }
         }
     },
+    'preserves single wrapped table column specs through rebuilt json and native writers' => static function (TestRunner $t): void {
+        $firstSpec = [[
+            ['t' => 'AlignLeft', 'reviewQueue' => 'first-align-source'],
+            ['t' => 'ColWidth', 'c' => [0.35], 'reviewQueue' => 'first-width-source'],
+        ]];
+        $secondSpec = [[
+            ['t' => 'AlignDefault', 'reviewQueue' => 'second-align-source'],
+            ['t' => 'ColWidthDefault', 'reviewQueue' => 'second-width-source'],
+        ]];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['colspec-table', ['json-native'], [['data-source', 'single-wrapped-colspec']]],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [$firstSpec, $secondSpec],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 0],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Left']]]],
+                                    ]],
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Default']]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'table-wrapper-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+        $withoutWrapperNative = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $table = $document->children[0];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('table', $withoutWrapperNative($table), $table->children),
+            ]);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('table', array_replace($withoutWrapperNative($table), [
+                    'widths' => [0.5, null],
+                ]), $table->children),
+            ]);
+
+            $t->same(['left', 'default'], $table->attr('alignments'), "{$source} reads wrapped column spec alignments");
+            $t->same([0.35, null], $table->attr('widths'), "{$source} reads wrapped column spec widths");
+            $t->same([$firstSpec, $secondSpec], $table->attr('columnSpecNatives'), "{$source} records wrapped column spec sidecars");
+            $t->same($firstSpec[0][0], $table->attr('alignmentNatives')[0], "{$source} unwraps first alignment sidecar");
+            $t->same($firstSpec[0][1], $table->attr('columnWidthNatives')[0], "{$source} unwraps first width sidecar");
+
+            foreach ([
+                "{$source} unchanged json" => (new PandocJsonWriter())->toArray($document),
+                "{$source} unchanged native" => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same([$firstSpec, $secondSpec], $encoded['blocks'][0]['c'][2], "{$writer} writer preserves unchanged wrapped column specs");
+            }
+
+            foreach ([
+                "{$source} rebuilt json" => (new PandocJsonWriter())->toArray($rebuilt),
+                "{$source} rebuilt native" => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same([$firstSpec, $secondSpec], $encoded['blocks'][0]['c'][2], "{$writer} writer preserves wrapped column specs after table wrapper rebuild");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$writer} writer regenerates table wrapper");
+            }
+
+            foreach ([
+                "{$source} edited json" => (new PandocJsonWriter())->toArray($edited),
+                "{$source} edited native" => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $columnSpecs = $encoded['blocks'][0]['c'][2];
+
+                $t->same([$firstSpec[0][0], ['t' => 'ColWidth', 'c' => 0.5]], $columnSpecs[0], "{$writer} writer regenerates edited width as a current colspec tuple");
+                $t->same($secondSpec, $columnSpecs[1], "{$writer} writer preserves untouched wrapped default colspec");
+            }
+        }
+    },
     'preserves single wrapped table section helper constructors through rebuilt writers' => static function (TestRunner $t): void {
         $headCell = ['t' => 'Cell', 'c' => [[
             ['head-cell', ['section'], [['data-kind', 'head']]],
