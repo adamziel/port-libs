@@ -46,7 +46,7 @@ final class MarkdownWriter
     private int $fancyOrderedMarkerEscapeSuppression = 0;
 
     /**
-     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool} $options
+     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, autoHtmlTables?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -1440,7 +1440,7 @@ final class MarkdownWriter
             return [];
         }
 
-        $columnCount = TableGeometry::columnCount($node);
+        $columnCount = $this->tableColumnCount($node);
         if ($columnCount === 0) {
             return [];
         }
@@ -1504,7 +1504,11 @@ final class MarkdownWriter
 
     private function shouldRenderHtmlTable(AstNode $node, int $columnCount): bool
     {
-        return $columnCount > 0 && $this->tableRequestsHtmlFallback($node);
+        return $columnCount > 0
+            && (
+                $this->tableRequestsHtmlFallback($node)
+                || ((bool) ($this->options['autoHtmlTables'] ?? false) && $this->tableNeedsHtmlFallback($node, $columnCount))
+            );
     }
 
     private function tableRequestsHtmlFallback(AstNode $node): bool
@@ -1516,6 +1520,190 @@ final class MarkdownWriter
 
         $htmlAttributes = $node->attr('htmlAttributes', []);
         if (is_array($htmlAttributes) && strtolower((string) ($htmlAttributes['data-pandoc-writer'] ?? '')) === 'html') {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function tableNeedsHtmlFallback(AstNode $node, int $columnCount): bool
+    {
+        if ($this->tableHasHtmlOnlyAttributes($node)) {
+            return true;
+        }
+
+        foreach ($node->children as $child) {
+            if (in_array($child->type, ['table_head', 'table_foot'], true)) {
+                if ($this->nodeHasHtmlOnlyAttributes($child)) {
+                    return true;
+                }
+
+                foreach ($this->tableSectionRowsForFallbackCheck($child) as $row) {
+                    if ($this->tableRowNeedsHtmlFallback($row)) {
+                        return true;
+                    }
+                }
+                continue;
+            }
+
+            if ($child->type === 'table_body') {
+                if (
+                    $this->nodeHasHtmlOnlyAttributes($child)
+                    || TableGeometry::rowHeadColumns($child, $columnCount) > 0
+                ) {
+                    return true;
+                }
+
+                foreach ($this->tableSectionRowsForFallbackCheck($child) as $row) {
+                    if ($this->tableRowNeedsHtmlFallback($row)) {
+                        return true;
+                    }
+                }
+                continue;
+            }
+
+            if ($child->type === 'table_row' && $this->tableRowNeedsHtmlFallback($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function tableColumnCount(AstNode $node): int
+    {
+        $columnCount = TableGeometry::columnCount($node);
+        $directRows = $this->tableDirectRows($node);
+        if ($directRows !== []) {
+            $columnCount = max($columnCount, TableGeometry::columnCountForRows($directRows));
+        }
+
+        return $columnCount;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableDirectRows(AstNode $node): array
+    {
+        return array_values(array_filter(
+            $node->children,
+            static fn (AstNode $child): bool => $child->type === 'table_row'
+        ));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableSectionRowsForFallbackCheck(AstNode $section): array
+    {
+        $rows = $section->type === 'table_body' ? $this->tableBodyHeadRows($section) : [];
+        foreach ($section->children as $row) {
+            if ($row->type === 'table_row' && !in_array($row, $rows, true)) {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    private function tableRowNeedsHtmlFallback(AstNode $row): bool
+    {
+        if ($this->nodeHasHtmlOnlyAttributes($row)) {
+            return true;
+        }
+
+        foreach ($row->children as $cell) {
+            if ($cell->type === 'table_cell' && $this->tableCellNeedsHtmlFallback($cell)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function tableCellNeedsHtmlFallback(AstNode $cell): bool
+    {
+        if ($this->nodeHasHtmlOnlyAttributes($cell)) {
+            return true;
+        }
+
+        if ((int) $this->tableCellSpanAttribute($cell, 'colspan', 1) > 1) {
+            return true;
+        }
+
+        $rowspan = (int) $this->tableCellSpanAttribute($cell, 'rowspan', 1);
+        if ($rowspan === 0 || $rowspan > 1) {
+            return true;
+        }
+
+        return $cell->attr('header') === true
+            || trim((string) $cell->attr('align', '')) !== ''
+            || trim((string) $cell->attr('valign', '')) !== '';
+    }
+
+    private function tableCellSpanAttribute(AstNode $cell, string $name, int $default): int
+    {
+        $value = $cell->attr($name, $default);
+        if (is_string($value)) {
+            $value = trim($value);
+
+            return preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : $default;
+        }
+
+        if (!is_int($value) && !is_float($value)) {
+            return $default;
+        }
+
+        return (int) $value;
+    }
+
+    private function tableHasHtmlOnlyAttributes(AstNode $node): bool
+    {
+        if ($this->hasSourceHtmlAttributes($node, ['data-pandoc-writer'])) {
+            return true;
+        }
+
+        $attrs = $this->linkAttrTuple($node);
+        foreach ($attrs['attributes'] as $name => $_value) {
+            if (!$this->isMarkdownTableAttribute((string) $name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function nodeHasHtmlOnlyAttributes(AstNode $node): bool
+    {
+        $attrs = $this->linkAttrTuple($node);
+
+        return $attrs['id'] !== ''
+            || $attrs['classes'] !== []
+            || $attrs['attributes'] !== []
+            || $this->hasSourceHtmlAttributes($node);
+    }
+
+    /**
+     * @param list<string> $ignoredNames
+     */
+    private function hasSourceHtmlAttributes(AstNode $node, array $ignoredNames = []): bool
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            return false;
+        }
+
+        $ignoredNames = array_fill_keys(array_map('strtolower', $ignoredNames), true);
+        foreach ($htmlAttributes as $name => $value) {
+            if (!is_scalar($value) || (string) $value === '') {
+                continue;
+            }
+
+            if (isset($ignoredNames[strtolower((string) $name)])) {
+                continue;
+            }
+
             return true;
         }
 
@@ -1559,6 +1747,7 @@ final class MarkdownWriter
         $head = null;
         $bodies = [];
         $foot = null;
+        $directRows = [];
         foreach ($node->children as $child) {
             if ($child->type === 'table_head') {
                 $head = $child;
@@ -1572,6 +1761,11 @@ final class MarkdownWriter
 
             if ($child->type === 'table_foot') {
                 $foot = $child;
+                continue;
+            }
+
+            if ($child->type === 'table_row') {
+                $directRows[] = $child;
             }
         }
 
@@ -1594,6 +1788,17 @@ final class MarkdownWriter
             $lines[] = $innerPrefix . '<tbody' . $this->renderHtmlAttributes($this->htmlAttributeMap($body)) . '>';
             array_push($lines, ...$this->renderHtmlTableRows(
                 $this->tableBodyRowEntries($body, $columnCount),
+                $node,
+                $columnCount,
+                $indent + 4
+            ));
+            $lines[] = $innerPrefix . '</tbody>';
+        }
+
+        if ($directRows !== []) {
+            $lines[] = $innerPrefix . '<tbody>';
+            array_push($lines, ...$this->renderHtmlTableRows(
+                $this->tableDirectRowEntries($directRows),
                 $node,
                 $columnCount,
                 $indent + 4
@@ -1769,6 +1974,26 @@ final class MarkdownWriter
                 $entries[] = [
                     'row' => $row,
                     'header' => $header,
+                    'rowHeadColumns' => 0,
+                ];
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
+     */
+    private function tableDirectRowEntries(array $rows): array
+    {
+        $entries = [];
+        foreach ($rows as $row) {
+            if ($row->type === 'table_row') {
+                $entries[] = [
+                    'row' => $row,
+                    'header' => false,
                     'rowHeadColumns' => 0,
                 ];
             }
