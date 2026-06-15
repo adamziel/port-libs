@@ -3437,6 +3437,52 @@ return [
             $t->same(['text', 'softbreak', 'text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $roundTrip->children[0]->children), "{$source} reads preserved separator constructors");
         }
     },
+    'preserves empty native string constructors through json and native writers' => static function (TestRunner $t): void {
+        $emptyStr = ['t' => 'Str', 'c' => '', 'reviewQueue' => 'empty-str-source'];
+        $codeInline = ['t' => 'Code', 'c' => [['empty-code', ['php'], [['data-source', 'empty-str']]], 'wp_insert_post']];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'title' => ['t' => 'MetaInlines', 'c' => [$emptyStr], 'reviewQueue' => 'empty-title-source'],
+            ],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [$emptyStr]],
+                ['t' => 'Para', 'c' => [$emptyStr, $codeInline]],
+            ],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'];
+        $firstText = $document->children[0]->children[0];
+        $secondText = $document->children[1]->children[0];
+        $code = $document->children[1]->children[1];
+
+        $t->same(true, is_array($titleInlines));
+        $t->same('text', $titleInlines[0]->type);
+        $t->same('', $titleInlines[0]->attr('text'));
+        $t->same([$emptyStr], $titleInlines[0]->attr('nativeInlineParts'));
+        $t->same('text', $firstText->type);
+        $t->same('', $firstText->attr('text'));
+        $t->same('Str', $firstText->attr('constructor'));
+        $t->same($emptyStr, $firstText->attr('native'));
+        $t->same([$emptyStr], $firstText->attr('nativeInlineParts'));
+        $t->same('text', $secondText->type);
+        $t->same('', $secondText->attr('text'));
+        $t->same($emptyStr, $secondText->attr('native'));
+        $t->same('code', $code->type);
+        $t->same('wp_insert_post', $code->attr('text'));
+
+        foreach ([
+            'json writer' => (new PandocJsonWriter())->toArray($document),
+            'native writer' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+        ] as $writer => $encoded) {
+            $t->same($emptyStr, $encoded['meta']['title']['c'][0], "{$writer} preserves empty metadata string constructor");
+            $t->same($emptyStr, $encoded['blocks'][0]['c'][0], "{$writer} preserves standalone empty string constructor");
+            $t->same($emptyStr, $encoded['blocks'][1]['c'][0], "{$writer} preserves empty string before inline constructor");
+            $t->same($codeInline, $encoded['blocks'][1]['c'][1], "{$writer} preserves neighboring code constructor");
+        }
+    },
     'records pandoc constructor provenance on json and native helper ast nodes' => static function (TestRunner $t): void {
         $citationRecord = [
             'citationId' => 'source-a',

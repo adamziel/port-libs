@@ -2345,7 +2345,7 @@ final class NativeReader
      */
     private function flushText(string &$text, array &$nativeParts, array &$nodes): void
     {
-        if ($text === '') {
+        if ($text === '' && $nativeParts === []) {
             return;
         }
 
