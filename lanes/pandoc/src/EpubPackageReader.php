@@ -6,6 +6,7 @@ namespace PortLibs\Pandoc;
 
 final class EpubPackageReader
 {
+    private const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     private const EPUB_TYPE_NS = 'http://www.idpf.org/2007/ops';
     private const OPF_PACKAGE_STRUCTURAL_ATTRIBUTES = [
         'dir' => true,
@@ -46,7 +47,8 @@ final class EpubPackageReader
             throw new \RuntimeException('EPUB package directory does not exist: ' . $directory);
         }
 
-        $rootfile = $this->readContainerRootfile($root);
+        $containerRootfileReport = $this->readContainerRootfileReport($root);
+        $rootfile = $containerRootfileReport['selectedRootfile'];
         $opfPath = $this->resolveExistingPackagePath($root, $rootfile);
         $package = $this->readPackageDocument($root, $opfPath, $rootfile);
         $toc = $this->readNavigationDocument($root, $package);
@@ -72,6 +74,9 @@ final class EpubPackageReader
             'meta' => $package['metadata'],
             'epub' => [
                 'containerRootfile' => $rootfile,
+                'containerRootfiles' => $containerRootfileReport['rootfiles'],
+                'containerRootfileReport' => $containerRootfileReport,
+                'containerRootfileDiagnostics' => $containerRootfileReport['diagnostics'],
                 'packageVersion' => $package['version'],
                 'uniqueIdentifierId' => $package['uniqueIdentifierId'],
                 'packageReport' => $package['packageReport'],
@@ -113,23 +118,239 @@ final class EpubPackageReader
         ], $children);
     }
 
-    private function readContainerRootfile(string $root): string
+    /**
+     * @return array<string, mixed>
+     */
+    private function readContainerRootfileReport(string $root): array
     {
         $path = $root . DIRECTORY_SEPARATOR . 'META-INF' . DIRECTORY_SEPARATOR . 'container.xml';
         $document = $this->loadXmlFile($path);
         $xpath = new \DOMXPath($document);
-        $rootfile = $xpath->query('/*[local-name()="container"]/*[local-name()="rootfiles"]/*[local-name()="rootfile"][1]');
-        $element = $rootfile instanceof \DOMNodeList ? $rootfile->item(0) : null;
-        if (!$element instanceof \DOMElement) {
+        $rootfileNodes = $xpath->query('/*[local-name()="container"]/*[local-name()="rootfiles"]/*[local-name()="rootfile"]');
+        if (!$rootfileNodes instanceof \DOMNodeList || $rootfileNodes->length === 0) {
             throw new \RuntimeException('EPUB container.xml does not contain a rootfile');
         }
 
-        $fullPath = trim($element->getAttribute('full-path'));
-        if ($fullPath === '') {
+        $rootfiles = [];
+        $diagnostics = [];
+        $opfRootfileCount = 0;
+        $localRootfileCount = 0;
+        $externalRootfileCount = 0;
+        $unsafeRootfileCount = 0;
+        $missingPackagePartCount = 0;
+        $suffixRootfileCount = 0;
+        $mediaTypeParameterRootfileCount = 0;
+        $missingMediaTypeRootfileCount = 0;
+
+        foreach ($rootfileNodes as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $index = count($rootfiles);
+            $fullPath = trim($node->getAttribute('full-path'));
+            $mediaType = trim($node->getAttribute('media-type'));
+            $mediaTypeBase = $this->mediaTypeBase($mediaType);
+            $pathPart = $this->hrefPathPart($fullPath);
+            $suffix = $this->hrefSuffix($fullPath);
+            $itemDiagnostics = [];
+            $packagePath = '';
+            $external = false;
+            $unsafe = false;
+            $exists = false;
+
+            if ($mediaTypeBase === self::OPF_MEDIA_TYPE) {
+                ++$opfRootfileCount;
+            }
+            if ($mediaType === '') {
+                ++$missingMediaTypeRootfileCount;
+                $itemDiagnostics[] = [
+                    'type' => 'missing-rootfile-media-type',
+                    'message' => 'EPUB container rootfile is missing media-type',
+                ];
+            } elseif (str_contains($mediaType, ';')) {
+                ++$mediaTypeParameterRootfileCount;
+            }
+
+            if ($fullPath === '') {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-rootfile-full-path',
+                    'message' => 'EPUB container rootfile is missing full-path',
+                ];
+            } elseif ($this->isExternalHref($fullPath) || str_starts_with($fullPath, '//')) {
+                $external = true;
+                $itemDiagnostics[] = [
+                    'type' => 'external-rootfile-full-path',
+                    'fullPath' => $fullPath,
+                    'message' => 'EPUB container rootfile full-path points outside the package and was not fetched',
+                ];
+            } elseif (str_starts_with($pathPart, '/')) {
+                $external = true;
+                $itemDiagnostics[] = [
+                    'type' => 'absolute-rootfile-full-path',
+                    'fullPath' => $fullPath,
+                    'message' => 'EPUB container rootfile full-path must be package-relative',
+                ];
+            } else {
+                try {
+                    $packagePath = $this->normalizeRelativePath(rawurldecode($pathPart));
+                    if ($packagePath !== '') {
+                        $exists = $this->packagePathExists($root, $packagePath);
+                        if (!$exists) {
+                            $itemDiagnostics[] = [
+                                'type' => 'missing-rootfile-package-part',
+                                'fullPath' => $fullPath,
+                                'path' => $packagePath,
+                                'message' => 'EPUB container rootfile points at a missing package part',
+                            ];
+                        }
+                    }
+                } catch (\RuntimeException $exception) {
+                    $unsafe = true;
+                    $itemDiagnostics[] = [
+                        'type' => 'unsafe-rootfile-full-path',
+                        'fullPath' => $fullPath,
+                        'message' => $exception->getMessage(),
+                    ];
+                }
+            }
+
+            if ($suffix['hasQuery'] || $suffix['hasFragment']) {
+                $itemDiagnostics[] = [
+                    'type' => 'rootfile-full-path-suffix',
+                    'fullPath' => $fullPath,
+                    'query' => $suffix['query'],
+                    'fragment' => $suffix['fragment'],
+                    'message' => 'EPUB container rootfile full-path carries query or fragment suffix provenance',
+                ];
+            }
+
+            if (!$external && !$unsafe && $packagePath !== '') {
+                ++$localRootfileCount;
+            }
+            if ($external) {
+                ++$externalRootfileCount;
+            }
+            if ($unsafe) {
+                ++$unsafeRootfileCount;
+            }
+            if (!$external && !$unsafe && $packagePath !== '' && !$exists) {
+                ++$missingPackagePartCount;
+            }
+            if ($suffix['hasQuery'] || $suffix['hasFragment']) {
+                ++$suffixRootfileCount;
+            }
+
+            $item = [
+                'index' => $index,
+                'fullPath' => $fullPath,
+                'path' => $packagePath,
+                'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeBase,
+                'mediaTypeHasParameters' => str_contains($mediaType, ';'),
+                'opfPackageCandidate' => $mediaTypeBase === self::OPF_MEDIA_TYPE,
+                'external' => $external,
+                'unsafe' => $unsafe,
+                'exists' => $exists,
+                'hasQuery' => $suffix['hasQuery'],
+                'query' => $suffix['query'],
+                'hasFragment' => $suffix['hasFragment'],
+                'fragment' => $suffix['fragment'],
+                'selected' => false,
+                'diagnosticCount' => count($itemDiagnostics),
+                'diagnostics' => $itemDiagnostics,
+            ];
+            $rootfiles[] = $item;
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+        }
+
+        $selectedIndex = null;
+        foreach ($rootfiles as $index => $rootfile) {
+            if (($rootfile['opfPackageCandidate'] ?? false) !== true) {
+                continue;
+            }
+            if (($rootfile['exists'] ?? false) === true && ($rootfile['diagnosticCount'] ?? 0) === 0) {
+                $selectedIndex = $index;
+                break;
+            }
+        }
+        if ($selectedIndex === null) {
+            foreach ($rootfiles as $index => $rootfile) {
+                if (($rootfile['exists'] ?? false) === true && ($rootfile['path'] ?? '') !== '') {
+                    $selectedIndex = $index;
+                    break;
+                }
+            }
+        }
+        if ($selectedIndex === null) {
+            foreach ($rootfiles as $index => $rootfile) {
+                if (($rootfile['path'] ?? '') !== '' && ($rootfile['external'] ?? false) !== true && ($rootfile['unsafe'] ?? false) !== true) {
+                    $selectedIndex = $index;
+                    break;
+                }
+            }
+        }
+        if ($selectedIndex === null) {
             throw new \RuntimeException('EPUB rootfile is missing a full-path');
         }
 
-        return $this->normalizeRelativePath($fullPath);
+        $rootfiles[$selectedIndex]['selected'] = true;
+        $selectedRootfile = (string) $rootfiles[$selectedIndex]['path'];
+        $selectedMediaTypeBase = (string) $rootfiles[$selectedIndex]['mediaTypeBase'];
+        $selectedBy = $selectedMediaTypeBase === self::OPF_MEDIA_TYPE
+            ? 'media-type-opf'
+            : 'first-local-rootfile';
+        $diagnosticTypes = [];
+        foreach ($diagnostics as $diagnostic) {
+            $type = (string) ($diagnostic['type'] ?? '');
+            if ($type === '') {
+                continue;
+            }
+            $diagnosticTypes[$type] = ($diagnosticTypes[$type] ?? 0) + 1;
+        }
+        ksort($diagnosticTypes, SORT_STRING);
+
+        return [
+            'present' => true,
+            'path' => 'META-INF/container.xml',
+            'selectedRootfile' => $selectedRootfile,
+            'selectedIndex' => $selectedIndex,
+            'selectedMediaType' => (string) $rootfiles[$selectedIndex]['mediaType'],
+            'selectedMediaTypeBase' => $selectedMediaTypeBase,
+            'selectedBy' => $selectedBy,
+            'rootfileCount' => count($rootfiles),
+            'opfRootfileCount' => $opfRootfileCount,
+            'nonOpfRootfileCount' => count($rootfiles) - $opfRootfileCount,
+            'localRootfileCount' => $localRootfileCount,
+            'externalRootfileCount' => $externalRootfileCount,
+            'unsafeRootfileCount' => $unsafeRootfileCount,
+            'missingPackagePartCount' => $missingPackagePartCount,
+            'suffixRootfileCount' => $suffixRootfileCount,
+            'mediaTypeParameterRootfileCount' => $mediaTypeParameterRootfileCount,
+            'missingMediaTypeRootfileCount' => $missingMediaTypeRootfileCount,
+            'valid' => $diagnostics === [],
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticTypes' => $diagnosticTypes,
+            'diagnostics' => $diagnostics,
+            'rootfiles' => $rootfiles,
+            'summary' => [
+                'selectedRootfile' => $selectedRootfile,
+                'selectedIndex' => $selectedIndex,
+                'selectedBy' => $selectedBy,
+                'rootfileCount' => count($rootfiles),
+                'opfRootfileCount' => $opfRootfileCount,
+                'nonOpfRootfileCount' => count($rootfiles) - $opfRootfileCount,
+                'localRootfileCount' => $localRootfileCount,
+                'externalRootfileCount' => $externalRootfileCount,
+                'unsafeRootfileCount' => $unsafeRootfileCount,
+                'missingPackagePartCount' => $missingPackagePartCount,
+                'suffixRootfileCount' => $suffixRootfileCount,
+                'diagnosticCount' => count($diagnostics),
+                'valid' => $diagnostics === [],
+            ],
+        ];
     }
 
     /**
@@ -6431,6 +6652,11 @@ final class EpubPackageReader
     private function isExternalHref(string $href): bool
     {
         return preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', trim($href)) === 1;
+    }
+
+    private function mediaTypeBase(string $mediaType): string
+    {
+        return strtolower(trim(explode(';', $mediaType, 2)[0]));
     }
 
     /**

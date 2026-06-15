@@ -88,6 +88,120 @@ return [
         $t->same('EPUB/chapter2.xhtml', $spine[1]['path']);
         $t->same(true, $spine[1]['linear']);
     },
+    'reports epub container rootfile declaration matrix for compact package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-container-rootfiles-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/alternate.opf?profile=print" media-type="application/oebps-package+xml; charset=utf-8"/>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+    <rootfile full-path="../outside.opf" media-type="application/oebps-package+xml"/>
+    <rootfile full-path="https://example.invalid/book.opf" media-type="application/oebps-package+xml"/>
+    <rootfile full-path="EPUB/missing.opf" media-type="application/oebps-package+xml"/>
+    <rootfile full-path="EPUB/preview.xml" media-type="application/xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/alternate.opf', '<package xmlns="http://www.idpf.org/2007/opf" version="3.0"/>');
+            $writePackageFile($root, 'EPUB/preview.xml', '<preview/>');
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:container-rootfiles</dc:identifier>
+    <dc:title>Container Rootfiles</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable container rootfile package.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $meta = $document->attr('meta');
+            $epub = $document->attr('epub');
+            $report = $epub['containerRootfileReport'];
+            $rootfiles = $epub['containerRootfiles'];
+
+            $t->same('Container Rootfiles', $meta['title']);
+            $t->same('EPUB/package.opf', $epub['containerRootfile']);
+            $t->same('EPUB/package.opf', $report['selectedRootfile']);
+            $t->same(1, $report['selectedIndex']);
+            $t->same('media-type-opf', $report['selectedBy']);
+            $t->same(6, $report['rootfileCount']);
+            $t->same(5, $report['opfRootfileCount']);
+            $t->same(1, $report['nonOpfRootfileCount']);
+            $t->same(4, $report['localRootfileCount']);
+            $t->same(1, $report['externalRootfileCount']);
+            $t->same(1, $report['unsafeRootfileCount']);
+            $t->same(1, $report['missingPackagePartCount']);
+            $t->same(1, $report['suffixRootfileCount']);
+            $t->same(1, $report['mediaTypeParameterRootfileCount']);
+            $t->same(4, $report['diagnosticCount']);
+            $t->same(false, $report['valid']);
+            $t->same([
+                'external-rootfile-full-path' => 1,
+                'missing-rootfile-package-part' => 1,
+                'rootfile-full-path-suffix' => 1,
+                'unsafe-rootfile-full-path' => 1,
+            ], $report['diagnosticTypes']);
+            $t->same([
+                'rootfile-full-path-suffix',
+                'unsafe-rootfile-full-path',
+                'external-rootfile-full-path',
+                'missing-rootfile-package-part',
+            ], array_column($report['diagnostics'], 'type'));
+            $t->same('EPUB/alternate.opf', $rootfiles[0]['path']);
+            $t->same('application/oebps-package+xml', $rootfiles[0]['mediaTypeBase']);
+            $t->same(true, $rootfiles[0]['mediaTypeHasParameters']);
+            $t->same(true, $rootfiles[0]['exists']);
+            $t->same(true, $rootfiles[0]['hasQuery']);
+            $t->same('profile=print', $rootfiles[0]['query']);
+            $t->same(false, $rootfiles[0]['selected']);
+            $t->same(true, $rootfiles[1]['selected']);
+            $t->same(true, $rootfiles[2]['unsafe']);
+            $t->same(true, $rootfiles[3]['external']);
+            $t->same(false, $rootfiles[4]['exists']);
+            $t->same('EPUB/missing.opf', $rootfiles[4]['path']);
+            $t->same(false, $rootfiles[5]['opfPackageCandidate']);
+            $t->same('EPUB/preview.xml', $rootfiles[5]['path']);
+            $t->same([
+                'selectedRootfile' => 'EPUB/package.opf',
+                'selectedIndex' => 1,
+                'selectedBy' => 'media-type-opf',
+                'rootfileCount' => 6,
+                'opfRootfileCount' => 5,
+                'nonOpfRootfileCount' => 1,
+                'localRootfileCount' => 4,
+                'externalRootfileCount' => 1,
+                'unsafeRootfileCount' => 1,
+                'missingPackagePartCount' => 1,
+                'suffixRootfileCount' => 1,
+                'diagnosticCount' => 4,
+                'valid' => false,
+            ], $report['summary']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports epub opf package root authoring provenance for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-package-root-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
