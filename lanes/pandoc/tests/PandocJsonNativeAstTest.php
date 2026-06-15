@@ -1806,6 +1806,63 @@ return [
         $t->same(['t' => 'AlignRight'], $jsonEncoded['blocks'][0]['c'][2][2][0]);
         $t->same(['t' => 'ColWidth', 'c' => 0.25], $jsonEncoded['blocks'][0]['c'][2][2][1]);
     },
+    'maps legacy table column width constructor variants through json and native stacks' => static function (TestRunner $t): void {
+        $defaultWidth = ['t' => 'ColWidthDefault', 'c' => [], 'reviewQueue' => 'legacy-default-width-source'];
+        $scalarWidth = ['t' => 'ColWidth', 'c' => 0.5, 'reviewQueue' => 'legacy-scalar-width-source'];
+        $wrappedWidth = ['t' => 'ColWidth', 'c' => [0.75], 'reviewQueue' => 'legacy-wrapped-width-source'];
+        $legacyWidths = [0, 0.25, $defaultWidth, $scalarWidth, $wrappedWidth];
+        $legacyTable = [
+            't' => 'Table',
+            'c' => [
+                [],
+                [
+                    ['t' => 'AlignDefault'],
+                    ['t' => 'AlignLeft'],
+                    ['t' => 'AlignCenter'],
+                    ['t' => 'AlignRight'],
+                    ['t' => 'AlignDefault'],
+                ],
+                $legacyWidths,
+                [],
+                [],
+            ],
+            'reviewQueue' => 'legacy-width-table-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 17, 5, 1],
+            'meta' => [],
+            'blocks' => [$legacyTable],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+
+            $t->same('Table', $table->attr('constructor'), "{$source} legacy table constructor");
+            $t->same($legacyTable, $table->attr('native'), "{$source} legacy table native payload");
+            $t->same(['default', 'left', 'center', 'right', 'default'], $table->attr('alignments'), "{$source} legacy alignments");
+            $t->same([null, 0.25, null, 0.5, 0.75], $table->attr('widths'), "{$source} legacy width variants");
+            $t->same(['ColWidthDefault', 'ColWidth', 'ColWidthDefault', 'ColWidth', 'ColWidth'], $table->attr('columnWidthConstructors'), "{$source} legacy width constructors");
+            $t->same($legacyWidths, $table->attr('columnWidthNatives'), "{$source} legacy width native payloads");
+
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+            $jsonSpecs = $jsonPacket['blocks'][0]['c'][2];
+
+            $t->same($legacyTable, $nativePacket['blocks'][0], "{$source} native writer preserves unchanged legacy width table");
+            $t->same('Table', $jsonPacket['blocks'][0]['t'], "{$source} json writer upgrades legacy width table");
+            $t->same(6, count($jsonPacket['blocks'][0]['c']), "{$source} json writer emits current table shape");
+            $t->same(['t' => 'ColWidthDefault'], $jsonSpecs[0][1], "{$source} json writer regenerates numeric zero width");
+            $t->same(['t' => 'ColWidth', 'c' => 0.25], $jsonSpecs[1][1], "{$source} json writer regenerates numeric width");
+            $t->same($defaultWidth, $jsonSpecs[2][1], "{$source} json writer preserves default width sidecar");
+            $t->same($scalarWidth, $jsonSpecs[3][1], "{$source} json writer preserves scalar width sidecar");
+            $t->same($wrappedWidth, $jsonSpecs[4][1], "{$source} json writer preserves wrapped width sidecar");
+        }
+    },
     'preserves legacy table cell block payloads while upgrading table constructors' => static function (TestRunner $t): void {
         $headerCellBlocks = [
             ['t' => 'Plain', 'c' => [

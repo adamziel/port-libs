@@ -695,11 +695,9 @@ final class NativeReader
         $columnWidthConstructors = [];
         $columnWidthNatives = [];
         foreach ($widthValues as $width) {
-            if (!is_int($width) && !is_float($width)) {
-                throw new \InvalidArgumentException('Pandoc native JSON legacy Table widths must be numeric');
-            }
-            $mappedWidths[] = ((float) $width) === 0.0 ? null : (float) $width;
-            $columnWidthConstructors[] = ((float) $width) === 0.0 ? 'ColWidthDefault' : 'ColWidth';
+            [$mappedWidth, $constructor] = $this->legacyTableWidth($width);
+            $mappedWidths[] = $mappedWidth;
+            $columnWidthConstructors[] = $constructor;
             $columnWidthNatives[] = $width;
         }
 
@@ -716,6 +714,22 @@ final class NativeReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array{0:?float, 1:string}
+     */
+    private function legacyTableWidth(mixed $width): array
+    {
+        if (is_int($width) || is_float($width)) {
+            return ((float) $width) === 0.0
+                ? [null, 'ColWidthDefault']
+                : [(float) $width, 'ColWidth'];
+        }
+
+        $constructor = $this->tableColumnWidthConstructor($width);
+
+        return [$this->tableColumnWidth($width), $constructor];
     }
 
     /**

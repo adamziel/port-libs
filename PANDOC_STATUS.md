@@ -10,7 +10,7 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
 | Markdown / CommonMark / GFM | 452 | 1,096 |
-| JSON / native AST | 71 | 252 |
+| JSON / native AST | 76 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
 | Wiki / roff / text markup readers | 0 | 20 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest JSON/native evidence: styled inline constructors preserve `Emph`, `Strong`, `Underline`, `Strikeout`, `Superscript`, `Subscript`, and `SmallCaps` sidecars through JSON and native readers/writers.
+Latest JSON/native evidence: legacy five-field table widths preserve numeric defaults, explicit widths, tagged `ColWidthDefault`, scalar `ColWidth`, and single-wrapped `ColWidth` sidecars through JSON and native readers/writers.
 
-Current Pandoc counters: 3,626 PHP passes / 0 failures and 3,644 mapped upstream cases. Verification passed `php -l` for `PandocJsonNativeAstTest.php`; focused `PandocJsonNativeAstTest.php` (`1` file, `3,977` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,187` assertions, `0` failures); `jq empty`; and `git diff --check`.
+Current Pandoc counters: 3,627 PHP passes / 0 failures and 3,649 mapped upstream cases. Verification passed `php -l` for `PandocJsonReader.php`, `NativeReader.php`, and `PandocJsonNativeAstTest.php`; focused `PandocJsonNativeAstTest.php` (`1` file, `4,005` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,215` assertions, `0` failures); `jq empty`; and `git diff --check`.

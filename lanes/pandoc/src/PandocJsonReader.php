@@ -957,11 +957,9 @@ final class PandocJsonReader
         $columnWidthConstructors = [];
         $columnWidthNatives = [];
         foreach ($widthValues as $width) {
-            if (!is_int($width) && !is_float($width)) {
-                throw new \InvalidArgumentException('legacy Table widths must be numeric');
-            }
-            $mappedWidths[] = ((float) $width) === 0.0 ? null : (float) $width;
-            $columnWidthConstructors[] = ((float) $width) === 0.0 ? 'ColWidthDefault' : 'ColWidth';
+            [$mappedWidth, $constructor] = $this->readLegacyTableWidth($width);
+            $mappedWidths[] = $mappedWidth;
+            $columnWidthConstructors[] = $constructor;
             $columnWidthNatives[] = $width;
         }
 
@@ -978,6 +976,22 @@ final class PandocJsonReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array{0:?float, 1:string}
+     */
+    private function readLegacyTableWidth(mixed $width): array
+    {
+        if (is_int($width) || is_float($width)) {
+            return ((float) $width) === 0.0
+                ? [null, 'ColWidthDefault']
+                : [(float) $width, 'ColWidth'];
+        }
+
+        $constructor = $this->tableColumnWidthConstructor($width);
+
+        return [$this->readTableColumnWidth($width), $constructor];
     }
 
     /**
