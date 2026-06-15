@@ -328,6 +328,21 @@ foreach ($tabCodeCases as $name => $case) {
 
 $codeBlock = static fn (string $text, array $attrs = []): AstNode => new AstNode('code_block', array_merge(['text' => $text], $attrs));
 $document = static fn (AstNode ...$blocks): AstNode => new AstNode('document', [], $blocks);
+$textNode = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+$paragraphNode = static fn (string $text): AstNode => new AstNode('paragraph', [], [$textNode($text)]);
+$listItemNode = static fn (array $children, array $attrs = []): AstNode => new AstNode('list_item', $attrs, $children);
+$bulletListNode = static fn (array $items, array $attrs = []): AstNode => new AstNode('bullet_list', $attrs, $items);
+$orderedListNode = static fn (array $items, array $attrs = []): AstNode => new AstNode('ordered_list', $attrs, $items);
+$definitionNode = static fn (array $children): AstNode => new AstNode('definition', [], $children);
+$definitionTermNode = static fn (string $text): AstNode => new AstNode('definition_term', [], [$textNode($text)]);
+$definitionItemNode = static fn (AstNode $term, array $definitions): AstNode => new AstNode(
+    'definition_item',
+    [],
+    array_merge([$term], $definitions)
+);
+$definitionListNode = static fn (string $term, string $definition): AstNode => new AstNode('definition_list', [], [
+    $definitionItemNode($definitionTermNode($term), [$definitionNode([$paragraphNode($definition)])]),
+]);
 
 $writerCases = [
     '01 plain code can be emitted as backtick fence' => [
@@ -470,6 +485,170 @@ foreach ($writerCases as $name => $case) {
             $t->same($case['classes'], $code->attr('classes'));
         }
     };
+}
+
+$tests['maps upstream markdown writer adjacent top-level code blocks remain separate'] =
+    static function (TestRunner $t) use ($document, $codeBlock): void {
+        $markdown = (new MarkdownWriter())->write($document(
+            $codeBlock('first top-level literal'),
+            $codeBlock('second top-level literal')
+        ));
+
+        $t->same("    first top-level literal\n\n<!-- -->\n\n    second top-level literal", $markdown);
+
+        $roundTrip = (new MarkdownReader())->read($markdown);
+        $t->same('code_block', $roundTrip->children[0]->type ?? 'missing');
+        $t->same('first top-level literal', $roundTrip->children[0]->attr('text'));
+        $t->same('raw_html', $roundTrip->children[1]->type ?? 'missing');
+        $t->same('code_block', $roundTrip->children[2]->type ?? 'missing');
+        $t->same('second top-level literal', $roundTrip->children[2]->attr('text'));
+    };
+
+$blockSignatures = static function (AstNode $item): array {
+    $signatures = [];
+    foreach ($item->children as $child) {
+        if ($child->type === 'raw_html' || $child->type === 'paragraph' || $child->type === 'text') {
+            continue;
+        }
+
+        if ($child->type === 'code_block') {
+            $signatures[] = 'code_block:' . $child->attr('text', '');
+            continue;
+        }
+
+        if ($child->type === 'bullet_list' || $child->type === 'ordered_list' || $child->type === 'definition_list') {
+            $signatures[] = $child->type . ':' . count($child->children);
+        }
+    }
+
+    return $signatures;
+};
+
+$outerListFamilies = [
+    'dash bullet outer' => [
+        'document' => static fn (array $children): AstNode => $document($bulletListNode([
+            $listItemNode(array_merge([$textNode('outer item')], $children)),
+        ])),
+        'options' => [],
+    ],
+    'plus bullet outer' => [
+        'document' => static fn (array $children): AstNode => $document($bulletListNode([
+            $listItemNode(array_merge([$textNode('outer item')], $children)),
+        ])),
+        'options' => ['bulletListMarker' => 'plus'],
+    ],
+    'star bullet outer' => [
+        'document' => static fn (array $children): AstNode => $document($bulletListNode([
+            $listItemNode(array_merge([$textNode('outer item')], $children)),
+        ])),
+        'options' => ['bulletListMarker' => 'star'],
+    ],
+    'decimal ordered outer' => [
+        'document' => static fn (array $children): AstNode => $document($orderedListNode([
+            $listItemNode(array_merge([$textNode('outer item')], $children)),
+        ])),
+        'options' => [],
+    ],
+    'lower alpha ordered outer' => [
+        'document' => static fn (array $children): AstNode => $document($orderedListNode([
+            $listItemNode(array_merge([$textNode('outer item')], $children)),
+        ], ['style' => 'lower_alpha'])),
+        'options' => [],
+    ],
+    'upper roman ordered outer' => [
+        'document' => static fn (array $children): AstNode => $document($orderedListNode([
+            $listItemNode(array_merge([$textNode('outer item')], $children)),
+        ], ['style' => 'upper_roman', 'start' => 4])),
+        'options' => [],
+    ],
+    'default ordered outer' => [
+        'document' => static fn (array $children): AstNode => $document($orderedListNode([
+            $listItemNode(array_merge([$textNode('outer item')], $children)),
+        ], ['style' => 'default'])),
+        'options' => [],
+    ],
+    'example ordered outer' => [
+        'document' => static fn (array $children): AstNode => $document($orderedListNode([
+            $listItemNode(array_merge([$textNode('outer item')], $children)),
+        ], ['style' => 'example'])),
+        'options' => [],
+    ],
+];
+
+$adjacentBlockCases = [
+    'keeps adjacent bullet lists separate' => [
+        'children' => static fn (): array => [
+            $bulletListNode([$listItemNode([$textNode('first bullet child')])]),
+            $bulletListNode([$listItemNode([$textNode('second bullet child')])]),
+        ],
+        'expected' => ['bullet_list:1', 'bullet_list:1'],
+    ],
+    'keeps adjacent decimal ordered lists separate' => [
+        'children' => static fn (): array => [
+            $orderedListNode([$listItemNode([$textNode('first ordered child')])]),
+            $orderedListNode([$listItemNode([$textNode('second ordered child')])]),
+        ],
+        'expected' => ['ordered_list:1', 'ordered_list:1'],
+    ],
+    'keeps adjacent lower alpha ordered lists separate' => [
+        'children' => static fn (): array => [
+            $orderedListNode([$listItemNode([$textNode('first alpha child')])], ['style' => 'lower_alpha']),
+            $orderedListNode([$listItemNode([$textNode('second alpha child')])], ['style' => 'lower_alpha']),
+        ],
+        'expected' => ['ordered_list:1', 'ordered_list:1'],
+    ],
+    'keeps adjacent definition lists separate' => [
+        'children' => static fn (): array => [
+            $definitionListNode('First term', 'first definition'),
+            $definitionListNode('Second term', 'second definition'),
+        ],
+        'expected' => ['definition_list:1', 'definition_list:1'],
+    ],
+    'keeps bullet list before indented code separate' => [
+        'children' => static fn (): array => [
+            $bulletListNode([$listItemNode([$textNode('bullet before code')])]),
+            $codeBlock('literal code after bullet'),
+        ],
+        'expected' => ['bullet_list:1', 'code_block:literal code after bullet'],
+    ],
+    'keeps ordered list before indented code separate' => [
+        'children' => static fn (): array => [
+            $orderedListNode([$listItemNode([$textNode('ordered before code')])]),
+            $codeBlock('literal code after ordered'),
+        ],
+        'expected' => ['ordered_list:1', 'code_block:literal code after ordered'],
+    ],
+    'keeps definition list before indented code separate' => [
+        'children' => static fn (): array => [
+            $definitionListNode('Code term', 'definition before code'),
+            $codeBlock('literal code after definition'),
+        ],
+        'expected' => ['definition_list:1', 'code_block:literal code after definition'],
+    ],
+    'keeps adjacent indented code blocks separate' => [
+        'children' => static fn (): array => [
+            $codeBlock('first literal code'),
+            $codeBlock('second literal code'),
+        ],
+        'expected' => ['code_block:first literal code', 'code_block:second literal code'],
+    ],
+];
+
+foreach ($outerListFamilies as $outerName => $outer) {
+    foreach ($adjacentBlockCases as $caseName => $case) {
+        $tests['maps upstream markdown writer nested block separator surge ' . $outerName . ' ' . $caseName] =
+            static function (TestRunner $t) use ($outer, $case, $blockSignatures): void {
+                $markdown = (new MarkdownWriter($outer['options']))->write($outer['document']($case['children']()));
+
+                $t->same(1, substr_count($markdown, '<!-- -->'), $markdown);
+
+                $roundTrip = (new MarkdownReader())->read($markdown);
+                $list = $roundTrip->children[0] ?? new AstNode('missing');
+                $item = $list->children[0] ?? new AstNode('missing');
+
+                $t->same($case['expected'], $blockSignatures($item), $markdown);
+            };
+    }
 }
 
 return $tests;

@@ -98,7 +98,7 @@ final class MarkdownWriter
                 $this->appendPendingDefinitions($blocks);
             }
 
-            if ($index > 0 && $this->needsListSeparator($document->children[$index - 1], $node)) {
+            if ($index > 0 && $this->needsBlockSeparator($document->children[$index - 1], $node)) {
                 $blocks[] = '<!-- -->';
             }
 
@@ -1328,6 +1328,7 @@ final class MarkdownWriter
         $inlineChildren = [];
         $lines = [];
         $hasFirstLine = false;
+        $previousBlock = null;
 
         foreach ($item->children as $child) {
             if ($this->isInlineNode($child)) {
@@ -1350,6 +1351,7 @@ final class MarkdownWriter
                         $continuationIndent,
                         $this->renderInlines($child->children)
                     );
+                    $previousBlock = $child;
                     continue;
                 }
 
@@ -1359,12 +1361,29 @@ final class MarkdownWriter
                 foreach (explode("\n", $this->renderInlines($child->children)) as $line) {
                     $lines[] = str_repeat(' ', $continuationIndent) . $line;
                 }
+                $previousBlock = $child;
                 continue;
             }
 
-            foreach ($this->renderBlock($child, $blockIndent) as $nestedLine) {
+            $nestedIndent = $blockIndent;
+            if ($previousBlock instanceof AstNode && $this->needsBlockSeparator($previousBlock, $child)) {
+                if ($lines !== [] && end($lines) !== '') {
+                    $lines[] = '';
+                }
+                $lines[] = str_repeat(' ', $blockIndent) . '<!-- -->';
+                $lines[] = '';
+                if (
+                    ($child->type === 'bullet_list' || $child->type === 'ordered_list')
+                    && $blockIndent >= $indent + 4
+                ) {
+                    $nestedIndent = $indent + 3;
+                }
+            }
+
+            foreach ($this->renderBlock($child, $nestedIndent) as $nestedLine) {
                 $lines[] = $nestedLine;
             }
+            $previousBlock = $child;
         }
 
         if ($inlineChildren !== [] || !$hasFirstLine) {
@@ -3700,7 +3719,7 @@ final class MarkdownWriter
                 $this->appendPendingDefinitions($blocks);
             }
 
-            if ($previous instanceof AstNode && $this->needsListSeparator($previous, $node)) {
+            if ($previous instanceof AstNode && $this->needsBlockSeparator($previous, $node)) {
                 $blocks[] = '<!-- -->';
             }
 
@@ -4185,8 +4204,15 @@ final class MarkdownWriter
         return $node->type === 'bullet_list' || $node->type === 'ordered_list' || $node->type === 'definition_list';
     }
 
-    private function needsListSeparator(AstNode $previous, AstNode $current): bool
+    private function needsBlockSeparator(AstNode $previous, AstNode $current): bool
     {
+        if (
+            $this->rendersIndentedCodeBlock($previous)
+            && $this->rendersIndentedCodeBlock($current)
+        ) {
+            return true;
+        }
+
         if (!$this->isListBlock($previous)) {
             return false;
         }
@@ -4207,6 +4233,14 @@ final class MarkdownWriter
             && $current->type === 'ordered_list'
             && $this->orderedListMarkerStyle($previous) === $this->orderedListMarkerStyle($current)
             && $this->orderedListSeparatorDelimiter($previous) === $this->orderedListSeparatorDelimiter($current);
+    }
+
+    private function rendersIndentedCodeBlock(AstNode $node): bool
+    {
+        return $node->type === 'code_block'
+            && !(bool) ($this->options['fencedCodeBlocks'] ?? false)
+            && $this->renderCodeBlockAttributes($node) === ''
+            && $this->codeBlockInfo($node) === '';
     }
 
     private function orderedListSeparatorDelimiter(AstNode $node): string
