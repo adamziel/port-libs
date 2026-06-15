@@ -435,21 +435,35 @@ final class MarkdownReader
             return false;
         }
 
-        foreach (['extension', 'extensions', 'format', 'from', 'inputFormat', 'readerFormat', 'markdownExtensions'] as $key) {
-            if (
-                array_key_exists($key, $metadata)
-                && $this->metadataExtensionValueEnablesNativeSpans($metadata[$key])
-            ) {
+        return $this->metadataMapEnablesNativeSpans($metadata);
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function metadataMapEnablesNativeSpans(array $metadata): bool
+    {
+        foreach ([
+            'extension',
+            'extensions',
+            'enabledExtensions',
+            'readerExtensions',
+            'reader_extensions',
+            'format',
+            'from',
+            'inputFormat',
+            'input_format',
+            'readerFormat',
+            'markdownExtensions',
+        ] as $key) {
+            if (array_key_exists($key, $metadata) && $this->metadataExtensionValueEnablesNativeSpans($metadata[$key])) {
                 return true;
             }
         }
 
         foreach (['review', 'source', 'reader', 'input', 'pandoc', 'options'] as $key) {
-            if (
-                isset($metadata[$key])
-                && is_array($metadata[$key])
-                && $this->metadataEnablesNativeSpans($metadata[$key])
-            ) {
+            $value = $metadata[$key] ?? null;
+            if (is_array($value) && $this->metadataMapEnablesNativeSpans($value)) {
                 return true;
             }
         }
@@ -468,8 +482,16 @@ final class MarkdownReader
                 return true;
             }
 
-            foreach ($extension as $value) {
-                if ($this->metadataExtensionValueEnablesNativeSpans($value)) {
+            foreach ($extension as $key => $value) {
+                if (
+                    is_string($key)
+                    && preg_match('/^native_spans$/i', trim($key)) === 1
+                    && $this->metadataExtensionSwitchEnabled($value)
+                ) {
+                    return true;
+                }
+
+                if (is_int($key) && $this->metadataExtensionValueEnablesNativeSpans($value)) {
                     return true;
                 }
             }
@@ -502,6 +524,23 @@ final class MarkdownReader
         return $enabled;
     }
 
+    private function metadataExtensionSwitchEnabled(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return $value !== 0;
+        }
+
+        if (is_string($value)) {
+            return !in_array(strtolower(trim($value)), ['', '0', 'false', 'no', 'off', 'disabled'], true);
+        }
+
+        return $value !== null;
+    }
+
     /**
      * @param array<mixed> $extension
      */
@@ -512,15 +551,7 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($value === false || $value === null) {
-                return false;
-            }
-
-            if (is_string($value) && in_array(strtolower(trim($value)), ['false', 'no', 'off', '0', 'disabled'], true)) {
-                return false;
-            }
-
-            return true;
+            return $this->metadataExtensionSwitchEnabled($value);
         }
 
         return false;
