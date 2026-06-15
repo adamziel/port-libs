@@ -7,6 +7,7 @@ namespace PortLibs\Pandoc;
 final class MarkdownReader
 {
     private const MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+    private const MAX_REFERENCE_LABEL_CHARACTERS = 999;
     private const SUPPORTED_YAML_METADATA_VERSIONS = ['1.1', '1.2'];
     private const YAML_TAG_SUFFIX_PATTERN = '[A-Za-z0-9_.:\/\?#@!$&()*+;=%~-]+';
 
@@ -7613,9 +7614,40 @@ final class MarkdownReader
 
     private function normalizeReferenceLabel(string $label): string
     {
+        return $this->lowercaseReferenceLabel($this->canonicalReferenceLabelText($label));
+    }
+
+    private function isValidReferenceLabel(string $label): bool
+    {
+        return $this->referenceLabelLength($this->canonicalReferenceLabelText($label)) <= self::MAX_REFERENCE_LABEL_CHARACTERS;
+    }
+
+    private function canonicalReferenceLabelText(string $label): string
+    {
         $label = $this->decodeHtmlEntities($this->unescapeLinkComponent($label));
 
-        return strtolower(trim(preg_replace('/\s+/', ' ', $label) ?? $label));
+        return trim(preg_replace('/\s+/u', ' ', $label) ?? $label);
+    }
+
+    private function lowercaseReferenceLabel(string $label): string
+    {
+        if (function_exists('mb_strtolower')) {
+            return mb_strtolower($label, 'UTF-8');
+        }
+
+        return strtolower($label);
+    }
+
+    private function referenceLabelLength(string $label): int
+    {
+        if (function_exists('mb_strlen')) {
+            $length = mb_strlen($label, 'UTF-8');
+            if ($length !== false) {
+                return $length;
+            }
+        }
+
+        return strlen($label);
     }
 
     /**
@@ -7691,9 +7723,12 @@ final class MarkdownReader
             }
 
             $idsByLine[$index] = $id;
-            $label = $this->normalizeReferenceLabel($this->plainMarkdownHeadingText($heading['text']));
+            $headingText = $this->plainMarkdownHeadingText($heading['text']);
+            $label = $this->normalizeReferenceLabel($headingText);
             if ($label !== '' && !isset($references[$label])) {
-                $references[$label] = ['url' => '#' . $id, 'title' => ''];
+                if ($this->isValidReferenceLabel($headingText)) {
+                    $references[$label] = ['url' => '#' . $id, 'title' => ''];
+                }
             }
 
             if ($setext) {
@@ -8204,6 +8239,7 @@ final class MarkdownReader
             $label === null
             || $label['text'] === ''
             || str_starts_with($label['text'], '^')
+            || !$this->isValidReferenceLabel($label['text'])
             || ($line[$label['next']] ?? '') !== ':'
         ) {
             return null;
@@ -18147,6 +18183,10 @@ final class MarkdownReader
             $next = $reference['next'];
         }
 
+        if (!$this->isValidReferenceLabel($referenceLabel)) {
+            return null;
+        }
+
         $target = $this->referenceLinks[$this->normalizeReferenceLabel($referenceLabel)] ?? null;
         if ($target === null) {
             return null;
@@ -18429,6 +18469,10 @@ final class MarkdownReader
 
             $referenceLabel = $reference['text'] === '' ? $label['text'] : $reference['text'];
             $next = $reference['next'];
+        }
+
+        if (!$this->isValidReferenceLabel($referenceLabel)) {
+            return null;
         }
 
         $target = $this->referenceLinks[$this->normalizeReferenceLabel($referenceLabel)] ?? null;
