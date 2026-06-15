@@ -590,4 +590,86 @@ foreach ($tableCaptionSurgeCases as $case) {
 }
 
 
+$read = static fn (string $markdown): AstNode => (new MarkdownReader())->read($markdown);
+$types = static fn (AstNode $node): array => array_map(static fn (AstNode $child): string => $child->type, $node->children);
+$firstItem = static function (TestRunner $t, AstNode $document, string $listType): AstNode {
+    $list = $document->children[0] ?? new AstNode('missing');
+    $t->same($listType, $list->type);
+    $t->same(2, count($list->children));
+    $next = $list->children[1] ?? new AstNode('missing');
+    $t->same('next', $next->attr('text'));
+
+    return $list->children[0] ?? new AstNode('missing');
+};
+
+$markers = [
+    'dash bullet' => ['marker' => '- ', 'next' => '- next', 'indent' => '  ', 'list' => 'bullet_list'],
+    'plus bullet' => ['marker' => '+ ', 'next' => '+ next', 'indent' => '  ', 'list' => 'bullet_list'],
+    'star bullet' => ['marker' => '* ', 'next' => '* next', 'indent' => '  ', 'list' => 'bullet_list'],
+    'decimal period' => ['marker' => '1. ', 'next' => '2. next', 'indent' => '   ', 'list' => 'ordered_list'],
+    'decimal paren' => ['marker' => '1) ', 'next' => '2) next', 'indent' => '   ', 'list' => 'ordered_list'],
+    'two paren decimal' => ['marker' => '(1) ', 'next' => '(2) next', 'indent' => '    ', 'list' => 'ordered_list'],
+    'upper alpha period' => ['marker' => 'A.  ', 'next' => 'B.  next', 'indent' => '    ', 'list' => 'ordered_list'],
+    'lower alpha paren' => ['marker' => 'a)  ', 'next' => 'b)  next', 'indent' => '    ', 'list' => 'ordered_list'],
+    'upper roman period' => ['marker' => 'IV.  ', 'next' => 'V.  next', 'indent' => '     ', 'list' => 'ordered_list'],
+    'default ordered' => ['marker' => '#. ', 'next' => '#. next', 'indent' => '   ', 'list' => 'ordered_list'],
+];
+
+foreach ($markers as $label => $case) {
+    $tests["maps commonmark block list surge {$label} continuation blockquote"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n" . $case['indent'] . '> quoted' . "\n" . $case['indent'] . '> tail' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $quote = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'blockquote'], $types($item));
+        $t->same('blockquote', $quote->type);
+        $t->same('quoted tail', $quote->children[0]->attr('text'));
+    };
+
+    $tests["maps commonmark block list surge {$label} continuation fenced code"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n" . $case['indent'] . '``` php' . "\n" . $case['indent'] . 'echo 1;' . "\n" . $case['indent'] . '```' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $code = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'code_block'], $types($item));
+        $t->same(['php'], $code->attr('classes'));
+        $t->same('echo 1;', $code->attr('text'));
+    };
+
+    $tests["maps commonmark block list surge {$label} first text blockquote"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . '> quoted' . "\n" . $case['indent'] . '> tail' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $quote = $item->children[0] ?? new AstNode('missing');
+
+        $t->same(['blockquote'], $types($item));
+        $t->same('quoted tail', $quote->children[0]->attr('text'));
+    };
+
+    $tests["maps commonmark block list surge {$label} continuation heading"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n" . $case['indent'] . '# Nested heading' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $heading = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'heading'], $types($item));
+        $t->same(1, $heading->attr('level'));
+        $t->same('Nested heading', $heading->attr('text'));
+    };
+
+    $tests["maps commonmark block list surge {$label} continuation indented code"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n" . $case['indent'] . '    code' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $code = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'code_block'], $types($item));
+        $t->same('code', $code->attr('text'));
+    };
+
+    $tests["maps commonmark block list surge {$label} continuation horizontal rule"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n" . $case['indent'] . '---' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+
+        $t->same(['text', 'horizontal_rule'], $types($item));
+    };
+}
+
 return $tests;
