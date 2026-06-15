@@ -1517,6 +1517,13 @@ final class MarkdownWriter
         $prefix = str_repeat(' ', $indent);
         $lines = [];
 
+        $captionLine = $this->renderTableCaptionLine($node, $prefix);
+        $captionBeforeTable = $captionLine !== '' && $this->tableCaptionBeforeTable($node);
+        if ($captionBeforeTable) {
+            $lines[] = $captionLine;
+            $lines[] = '';
+        }
+
         foreach ($expandedHeadRows as $row) {
             $lines[] = $prefix . $this->renderPipeTableRow($row, $widths, $alignments);
         }
@@ -1525,14 +1532,38 @@ final class MarkdownWriter
             $lines[] = $prefix . $this->renderPipeTableRow($row, $widths, $alignments);
         }
 
-        $caption = $this->renderTableCaption($node);
-        $attrs = $this->renderTableAttributes($node);
-        if ($caption !== '' || $attrs !== '') {
+        if ($captionLine !== '' && !$captionBeforeTable) {
             $lines[] = '';
-            $lines[] = $prefix . ': ' . trim($caption . ($attrs === '' ? '' : ' ' . $attrs));
+            $lines[] = $captionLine;
         }
 
         return $lines;
+    }
+
+    private function renderTableCaptionLine(AstNode $node, string $prefix): string
+    {
+        $caption = $this->renderTableCaption($node);
+        $attrs = $this->renderTableAttributes($node);
+        if ($caption === '' && $attrs === '') {
+            return '';
+        }
+
+        return $prefix . ': ' . trim($caption . ($attrs === '' ? '' : ' ' . $attrs));
+    }
+
+    private function tableCaptionBeforeTable(AstNode $node): bool
+    {
+        $captionSource = $node->attr('captionSource', []);
+        if (!is_array($captionSource)) {
+            return false;
+        }
+
+        $placement = strtolower(trim((string) ($captionSource['captionPlacement'] ?? '')));
+        if ($placement === 'before-table') {
+            return true;
+        }
+
+        return strtolower(trim((string) ($captionSource['captionSide'] ?? ''))) === 'top';
     }
 
     private function shouldRenderHtmlTable(AstNode $node, int $columnCount): bool
@@ -2344,8 +2375,9 @@ final class MarkdownWriter
         $markdown = $this->escapeTableCellPipes($markdown);
         $markdown = str_replace("\\\r\n", "<br />", $markdown);
         $markdown = str_replace("\\\n", "<br />", $markdown);
+        $markdown = str_replace("\\\r", "<br />", $markdown);
 
-        return str_replace(["\r\n", "\r", "\n"], [' ', ' ', '<br />'], trim($markdown));
+        return str_replace(["\r\n", "\r", "\n"], ['<br />', ' ', '<br />'], trim($markdown));
     }
 
     private function escapeTableCellPipes(string $markdown): string
@@ -2493,8 +2525,10 @@ final class MarkdownWriter
     {
         $markdown = str_replace("\\\r\n", '<br />', $markdown);
         $markdown = str_replace("\\\n", '<br />', $markdown);
+        $markdown = str_replace("\\\r", '<br />', $markdown);
+        $markdown = str_replace(["\r\n", "\r", "\n"], ' ', $markdown);
 
-        return trim(str_replace(["\r\n", "\r", "\n"], [' ', ' ', ' '], $markdown));
+        return trim(preg_replace('/[ \t]+/u', ' ', $markdown) ?? $markdown);
     }
 
     /**

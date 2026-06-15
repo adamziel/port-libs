@@ -322,7 +322,7 @@ HTML;
         $t->same(true, $packet['summary']['captionBeforeTable'] ?? null);
         $t->same(false, $packet['summary']['captionAfterTable'] ?? null);
         $markdownCodes = array_map(static fn (array $diagnostic): string => $diagnostic['code'], $packet['writerDowngrades']['markdown'] ?? []);
-        $t->same(true, in_array('markdown-caption-side-reordered', $markdownCodes, true));
+        $t->same(false, in_array('markdown-caption-side-reordered', $markdownCodes, true));
         $t->same(true, in_array('markdown-caption-source-attributes-require-raw-html', $markdownCodes, true));
         $t->contains('<figcaption id="top-caption" class="wp-element-caption caption-title" data-origin="html-reader" style="caption-side: top; color: blue">Top <em>caption</em></figcaption><table id="top-caption-grid" data-source="html-reader">', $blocks);
         $t->true(!str_contains($blocks, 'onclick='), 'Unsafe caption event attributes must not render');
@@ -412,9 +412,7 @@ HTML;
             $topMarkdownDiagnostics,
             static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-caption-side-reordered'
         ));
-        $t->same(1, count($topSideDiagnostics));
-        $t->same('align', $topSideDiagnostics[0]['captionSideSource'] ?? null);
-        $t->same('top', $topSideDiagnostics[0]['captionSide'] ?? null);
+        $t->same(0, count($topSideDiagnostics));
         $t->contains('<figcaption id="legacy-align-top-caption" class="wp-element-caption caption-title" data-origin="legacy-doc">Legacy <em>top</em> caption</figcaption><table id="legacy-align-top-grid" data-source="html-reader">', $topBlocks);
         $t->true(!str_contains($topBlocks, 'align='), 'Legacy caption align should drive geometry without rendering obsolete figcaption align');
         $t->true(!str_contains($topBlocks, 'onclick='), 'Unsafe legacy caption event attributes must not render');

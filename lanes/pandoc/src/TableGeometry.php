@@ -10933,7 +10933,6 @@ final class TableGeometry
             }
         } elseif ($captionPlacement === 'before-table') {
             $captionSideRequirements = [
-                'markdown' => ['markdown-caption-side-reordered', 'table-caption-top-placement'],
                 'asciidoc' => ['asciidoc-caption-side-review-required', 'table-caption-top-placement'],
                 'latex' => ['latex-caption-side-review-required', 'caption-position-review'],
             ];

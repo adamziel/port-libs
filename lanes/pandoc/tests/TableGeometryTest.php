@@ -4327,16 +4327,15 @@ return [
         $t->same('before-table', $packet['summary']['captionPlacement'] ?? null);
         $t->same(true, $packet['summary']['captionBeforeTable'] ?? null);
         $t->same(false, $packet['summary']['captionAfterTable'] ?? null);
-        $t->same(['markdown-caption-side-reordered'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
+        $t->same([], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
         $t->same(['asciidoc-caption-side-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocDiagnostics));
         $t->same(['latex-caption-side-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $latexDiagnostics));
-        $t->same('caption-side', $markdownDiagnostics[0]['reason'] ?? null);
-        $t->same('table-caption-top-placement', $markdownDiagnostics[0]['requiredFeature'] ?? null);
-        $t->same('before-table', $markdownDiagnostics[0]['captionPlacement'] ?? null);
+        $t->same(null, $markdownDiagnostics[0]['reason'] ?? null);
+        $t->same(null, $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(null, $markdownDiagnostics[0]['captionPlacement'] ?? null);
         $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
-        $t->same(3, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same(2, $packet['summary']['writerDowngradeCount'] ?? null);
         $t->same([
-            'markdown-caption-side-reordered',
             'asciidoc-caption-side-review-required',
             'latex-caption-side-review-required',
         ], $packet['summary']['writerDowngradeCodes'] ?? null);
