@@ -279,6 +279,256 @@ foreach ($captionNormalizationCases as $label => $case) {
         };
 }
 
+$captionSourceAttributeCases = [
+    'source id' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['id' => 'cap']]],
+        'line' => ': Caption {#cap}',
+    ],
+    'source class' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['classes' => ['caption']]]],
+        'line' => ': Caption {.caption}',
+    ],
+    'source classes' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['classes' => ['review', 'caption']]]],
+        'line' => ': Caption {.review .caption}',
+    ],
+    'source data attribute' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-source' => 'reader']]]],
+        'line' => ': Caption {data-source="reader"}',
+    ],
+    'source aria label' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['aria-label' => 'Review caption']]]],
+        'line' => ': Caption {aria-label="Review caption"}',
+    ],
+    'source language' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['lang' => 'es']]]],
+        'line' => ': Caption {lang="es"}',
+    ],
+    'source direction' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['dir' => 'rtl']]]],
+        'line' => ': Caption {dir="rtl"}',
+    ],
+    'source role' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['role' => 'note']]]],
+        'line' => ': Caption {role="note"}',
+    ],
+    'source title' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['title' => 'Source caption']]]],
+        'line' => ': Caption {title="Source caption"}',
+    ],
+    'source xml language' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['xml:lang' => 'fr']]]],
+        'line' => ': Caption {xml:lang="fr"}',
+    ],
+    'html source id' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['htmlAttributes' => ['id' => 'html-cap']]]],
+        'line' => ': Caption {#html-cap}',
+    ],
+    'html source class' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['htmlAttributes' => ['class' => 'source caption']]]],
+        'line' => ': Caption {.source .caption}',
+    ],
+    'html and parsed source classes' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['htmlAttributes' => ['class' => 'source'], 'classes' => ['review']]]],
+        'line' => ': Caption {.source .review}',
+    ],
+    'html source data attribute' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['htmlAttributes' => ['data-source' => 'html']]]],
+        'line' => ': Caption {data-source="html"}',
+    ],
+    'html language direction attributes' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['htmlAttributes' => ['lang' => 'en', 'dir' => 'ltr']]]],
+        'line' => ': Caption {lang="en" dir="ltr"}',
+    ],
+    'combined source id class data' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['id' => 'cap', 'classes' => ['review'], 'attributes' => ['data-source' => 'reader']]]],
+        'line' => ': Caption {#cap .review data-source="reader"}',
+    ],
+    'quoted source data attribute' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-label' => 'a "quoted" value']]]],
+        'line' => ': Caption {data-label="a \\"quoted\\" value"}',
+    ],
+    'backslash source title' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['title' => 'path \\ source']]]],
+        'line' => ': Caption {title="path \\\\ source"}',
+    ],
+    'table id wins over caption id' => [
+        'attrs' => ['caption' => 'Caption', 'id' => 'table-id', 'captionSource' => ['sourceAttributes' => ['id' => 'cap', 'attributes' => ['data-caption' => 'source']]]],
+        'line' => ': Caption {#table-id data-caption="source"}',
+        'forbid' => '#cap',
+    ],
+    'table class merges caption class' => [
+        'attrs' => ['caption' => 'Caption', 'classes' => ['table'], 'captionSource' => ['sourceAttributes' => ['classes' => ['caption']]]],
+        'line' => ': Caption {.table .caption}',
+    ],
+    'duplicate caption class is deduplicated' => [
+        'attrs' => ['caption' => 'Caption', 'classes' => ['table'], 'captionSource' => ['sourceAttributes' => ['classes' => ['table', 'caption']]]],
+        'line' => ': Caption {.table .caption}',
+    ],
+    'table attribute wins duplicate source attribute' => [
+        'attrs' => ['caption' => 'Caption', 'attributes' => ['data-source' => 'table'], 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-source' => 'caption', 'data-caption' => 'source']]]],
+        'line' => ': Caption {data-source="table" data-caption="source"}',
+        'forbid' => 'data-source="caption"',
+    ],
+    'docx source metadata is filtered' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-docx-style' => 'Caption', 'data-source' => 'reader']]]],
+        'line' => ': Caption {data-source="reader"}',
+        'forbid' => 'data-docx-style',
+    ],
+    'event handler source metadata is filtered' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['onclick' => 'alert(1)', 'data-source' => 'reader']]]],
+        'line' => ': Caption {data-source="reader"}',
+        'forbid' => 'onclick',
+    ],
+    'style source metadata is filtered' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['style' => 'color:red', 'data-source' => 'reader']]]],
+        'line' => ': Caption {data-source="reader"}',
+        'forbid' => 'style=',
+    ],
+    'summary source metadata is filtered' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['summary' => 'old summary', 'data-source' => 'reader']]]],
+        'line' => ': Caption {data-source="reader"}',
+        'forbid' => 'summary=',
+    ],
+    'empty caption keeps source id' => [
+        'attrs' => ['captionSource' => ['sourceAttributes' => ['id' => 'cap']]],
+        'line' => ': {#cap}',
+    ],
+    'short-only caption keeps source class' => [
+        'attrs' => ['shortCaption' => 'Short only', 'captionSource' => ['sourceAttributes' => ['classes' => ['caption']]]],
+        'line' => ': [Short only] {.caption}',
+    ],
+    'short and long caption keeps source data' => [
+        'attrs' => ['shortCaption' => 'Short', 'caption' => 'Long', 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-caption' => 'source']]]],
+        'line' => ': [Short] Long {data-caption="source"}',
+    ],
+    'inline caption keeps source data' => [
+        'attrs' => ['captionInlines' => [$text('Inline '), new AstNode('strong', [], [$text('caption')])], 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-caption' => 'inline']]]],
+        'line' => ': Inline **caption** {data-caption="inline"}',
+    ],
+    'block caption keeps source data' => [
+        'attrs' => ['captionBlocks' => [$paragraph([$text('Block caption')])], 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-caption' => 'block']]]],
+        'line' => ': Block caption {data-caption="block"}',
+    ],
+    'raw markdown caption keeps source data' => [
+        'attrs' => ['captionInlines' => [new AstNode('raw_markdown', ['text' => '*raw* caption'])], 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-caption' => 'raw']]]],
+        'line' => ': *raw* caption {data-caption="raw"}',
+    ],
+    'mark span caption keeps source data' => [
+        'attrs' => ['captionInlines' => [new AstNode('span', ['classes' => ['mark']], [$text('marked')])], 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-caption' => 'mark']]]],
+        'line' => ': ==marked== {data-caption="mark"}',
+    ],
+    'html class and source id combine' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['id' => 'cap', 'htmlAttributes' => ['class' => 'source']]]],
+        'line' => ': Caption {#cap .source}',
+    ],
+    'html id takes precedence inside source attributes' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['id' => 'cap', 'htmlAttributes' => ['id' => 'html-cap']]]],
+        'line' => ': Caption {#html-cap}',
+        'forbid' => '#cap',
+    ],
+    'numeric source data attribute' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-count' => 42]]]],
+        'line' => ': Caption {data-count="42"}',
+    ],
+    'boolean source data attribute' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-enabled' => true]]]],
+        'line' => ': Caption {data-enabled="1"}',
+    ],
+    'uppercase source attribute name normalizes' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['DATA-SOURCE' => 'Reader']]]],
+        'line' => ': Caption {data-source="Reader"}',
+    ],
+    'uppercase html aria name normalizes' => [
+        'attrs' => ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['htmlAttributes' => ['ARIA-LABEL' => 'Caption label']]]],
+        'line' => ': Caption {aria-label="Caption label"}',
+    ],
+    'table language merges source direction' => [
+        'attrs' => ['caption' => 'Caption', 'attributes' => ['lang' => 'en'], 'captionSource' => ['sourceAttributes' => ['attributes' => ['dir' => 'ltr']]]],
+        'line' => ': Caption {lang="en" dir="ltr"}',
+    ],
+];
+
+foreach ($captionSourceAttributeCases as $label => $case) {
+    $tests["maps upstream markdown writer table caption source attributes {$label}"] =
+        static function (TestRunner $t) use ($case, $table, $writeTable): void {
+            $markdown = $writeTable($table($case['attrs']));
+
+            $t->contains("\n\n" . $case['line'], $markdown);
+            if (isset($case['forbid'])) {
+                $t->true(!str_contains($markdown, $case['forbid']), 'Caption source attributes should not leak filtered or overridden metadata');
+            }
+        };
+}
+
+$captionSourcePlacementCases = [
+    'html position before table sections' => [
+        'attrs' => ['caption' => 'Before source', 'captionSource' => ['position' => 'before-table-sections', 'sourceAttributes' => ['attributes' => ['data-pos' => 'before']]]],
+        'line' => ': Before source {data-pos="before"}',
+        'before' => true,
+    ],
+    'markdown position before table' => [
+        'attrs' => ['caption' => 'Before table', 'captionSource' => ['position' => 'before-table', 'sourceAttributes' => ['attributes' => ['data-pos' => 'before-table']]]],
+        'line' => ': Before table {data-pos="before-table"}',
+        'before' => true,
+    ],
+    'source position before table sections' => [
+        'attrs' => ['caption' => 'Source before', 'captionSource' => ['sourcePosition' => 'before-table-sections', 'sourceAttributes' => ['attributes' => ['data-pos' => 'source-before']]]],
+        'line' => ': Source before {data-pos="source-before"}',
+        'before' => true,
+    ],
+    'caption placement before table sections' => [
+        'attrs' => ['caption' => 'Placement before', 'captionSource' => ['captionPlacement' => 'before-table-sections', 'sourceAttributes' => ['attributes' => ['data-pos' => 'placement-before']]]],
+        'line' => ': Placement before {data-pos="placement-before"}',
+        'before' => true,
+    ],
+    'caption side top keeps source attributes before table' => [
+        'attrs' => ['caption' => 'Side before', 'captionSource' => ['captionSide' => 'top', 'sourceAttributes' => ['attributes' => ['data-pos' => 'side-top']]]],
+        'line' => ': Side before {data-pos="side-top"}',
+        'before' => true,
+    ],
+    'empty caption with before position keeps source id' => [
+        'attrs' => ['captionSource' => ['position' => 'before-table-sections', 'sourceAttributes' => ['id' => 'cap']]],
+        'line' => ': {#cap}',
+        'before' => true,
+    ],
+    'body-only table keeps leading source caption' => [
+        'attrs' => ['caption' => 'Body before', 'captionSource' => ['position' => 'before-table-sections', 'sourceAttributes' => ['attributes' => ['data-pos' => 'body']]]],
+        'line' => ': Body before {data-pos="body"}',
+        'before' => true,
+        'bodyOnly' => true,
+    ],
+    'html position after table sections remains trailing' => [
+        'attrs' => ['caption' => 'After source', 'captionSource' => ['position' => 'after-table-sections', 'sourceAttributes' => ['attributes' => ['data-pos' => 'after']]]],
+        'line' => ': After source {data-pos="after"}',
+        'before' => false,
+    ],
+    'odf following table source remains trailing' => [
+        'attrs' => ['caption' => 'Following source', 'captionSource' => ['sourcePosition' => 'following-table', 'sourceAttributes' => ['attributes' => ['data-odf-table-caption-style-name' => 'Caption']]]],
+        'line' => ': Following source {data-odf-table-caption-style-name="Caption"}',
+        'before' => false,
+    ],
+    'explicit after placement remains trailing' => [
+        'attrs' => ['caption' => 'After placement', 'captionSource' => ['captionPlacement' => 'after-table', 'sourceAttributes' => ['attributes' => ['data-pos' => 'after-placement']]]],
+        'line' => ': After placement {data-pos="after-placement"}',
+        'before' => false,
+    ],
+];
+
+foreach ($captionSourcePlacementCases as $label => $case) {
+    $tests["maps upstream markdown writer table caption source placement {$label}"] =
+        static function (TestRunner $t) use ($case, $table, $writeTable): void {
+            $markdown = $writeTable($table($case['attrs'], null, (bool) ($case['bodyOnly'] ?? false)));
+
+            if ((bool) $case['before']) {
+                $t->true(str_starts_with($markdown, $case['line'] . "\n\n|"), 'Expected source caption placement to precede the pipe table');
+                return;
+            }
+
+            $t->contains("\n\n" . $case['line'], $markdown);
+        };
+}
+
 $textCellCases = [
     'lf text attr cell' => [
         'text' => "Alpha\nBeta",
@@ -418,7 +668,7 @@ foreach ($readerTableFixtures as $tableName => $tableMarkdown) {
 
 $tests['records markdown writer table caption span completion mapped-case count'] =
     static function (TestRunner $t): void {
-        $t->same(116, 30 + 10 + 10 + 54 + 12);
+        $t->same(166, 30 + 10 + 40 + 10 + 10 + 54 + 12);
     };
 
 
