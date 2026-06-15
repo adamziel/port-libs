@@ -56,6 +56,14 @@ final class EpubPackageReader
         'properties' => true,
         'xml:lang' => true,
     ];
+    private const OPF_BINDING_MEDIA_TYPE_STRUCTURAL_ATTRIBUTES = [
+        'dir' => true,
+        'handler' => true,
+        'id' => true,
+        'lang' => true,
+        'media-type' => true,
+        'xml:lang' => true,
+    ];
 
     public function readDirectory(string $directory): AstNode
     {
@@ -79,7 +87,7 @@ final class EpubPackageReader
                 continue;
             }
 
-            $path = (string) ($spineItem['path'] ?? '');
+            $path = (string) ($spineItem['contentPath'] ?? $spineItem['path'] ?? '');
             if ($path === '') {
                 continue;
             }
@@ -128,6 +136,9 @@ final class EpubPackageReader
                 'collectionHierarchy' => $package['collectionReport'],
                 'collectionDiagnostics' => $package['collectionReport']['diagnostics'],
                 'collectionLinkTargets' => $package['collectionReport']['linkTargets'],
+                'bindings' => $package['bindings'],
+                'bindingReport' => $package['bindings'],
+                'bindingDiagnostics' => $package['bindings']['diagnostics'],
                 'toc' => $toc,
                 'tocReport' => $navReport,
                 'navReport' => $navReport,
@@ -592,6 +603,8 @@ final class EpubPackageReader
         $manifestReport = $this->manifestReport($manifest, $manifestOccurrences);
         $metadataLinks = $this->metadataLinksWithManifestContext($metadataLinks, $manifest);
         $metadataReport = $this->metadataReport($metadataItems, $metadataProperties, $metadataLinks);
+        $bindings = $this->readBindings($root, $manifest, $packageElement);
+        $bindingsByMediaType = $this->bindingsByMediaType($bindings);
 
         $spineElement = $this->firstDirectChild($packageElement, 'spine');
         $spineMetadata = $this->spineMetadataReport($spineElement);
@@ -634,6 +647,35 @@ final class EpubPackageReader
                         'path' => $item['path'],
                     ];
                 }
+                $binding = $mediaType !== '' ? ($bindingsByMediaType[$mediaType] ?? null) : null;
+                $contentId = $idref;
+                $contentPath = is_array($item) ? (string) $item['path'] : '';
+                $contentMediaType = $mediaType;
+                $contentIsFallback = false;
+                $fallbackChain = [];
+                $fallbackDiagnostics = [];
+                if (!$readable && $linear && is_array($binding)) {
+                    $handlerPath = is_string($binding['handlerPath'] ?? null) ? $binding['handlerPath'] : '';
+                    $handlerMediaType = is_string($binding['handlerMediaType'] ?? null) ? $binding['handlerMediaType'] : '';
+                    $handlerExists = ($binding['handlerExists'] ?? false) === true;
+                    if ($handlerPath !== '' && $handlerMediaType === 'application/xhtml+xml' && $handlerExists) {
+                        $contentId = is_string($binding['handlerId'] ?? null) ? $binding['handlerId'] : $idref;
+                        $contentPath = $handlerPath;
+                        $contentMediaType = $handlerMediaType;
+                        $contentIsFallback = true;
+                        $readable = true;
+                        $fallbackChain[] = [
+                            'id' => $contentId,
+                            'source' => 'binding-handler',
+                            'bindingMediaType' => $mediaType,
+                            'href' => is_string($binding['handlerHref'] ?? null) ? $binding['handlerHref'] : '',
+                            'path' => $handlerPath,
+                            'mediaType' => $handlerMediaType,
+                        ];
+                    } else {
+                        $fallbackDiagnostics = is_array($binding['diagnostics'] ?? null) ? $binding['diagnostics'] : [];
+                    }
+                }
                 $attributes = $this->elementAttributes($node);
                 $language = $this->elementLanguage($node);
                 $spine[] = [
@@ -647,6 +689,14 @@ final class EpubPackageReader
                     'mediaTypeBase' => $mediaTypeBase,
                     'linear' => $linear,
                     'linearRaw' => $linearRaw,
+                    'contentId' => $contentId,
+                    'contentPath' => $contentPath,
+                    'contentMediaType' => $contentMediaType,
+                    'contentIsFallback' => $contentIsFallback,
+                    'fallbackChain' => $fallbackChain,
+                    'fallbackDiagnostics' => $fallbackDiagnostics,
+                    'binding' => $binding,
+                    'bindingHandlerReadable' => is_array($binding) && ($binding['handlerReadable'] ?? false) === true,
                     'properties' => $this->tokens($node->getAttribute('properties')),
                     'language' => $language === '' ? null : $language,
                     'direction' => $this->nullableAttribute($node, 'dir'),
@@ -687,7 +737,247 @@ final class EpubPackageReader
             'guide' => $guide,
             'collections' => $collections,
             'collectionReport' => $collectionReport,
+            'bindings' => $bindings,
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function readBindings(string $root, array $manifest, \DOMElement $packageElement): array
+    {
+        $bindingsElement = $this->firstDirectChild($packageElement, 'bindings');
+        if (!$bindingsElement instanceof \DOMElement) {
+            return [
+                'present' => false,
+                'itemCount' => 0,
+                'handlerCount' => 0,
+                'resolvedHandlerCount' => 0,
+                'readableHandlerCount' => 0,
+                'externalHandlerCount' => 0,
+                'missingHandlerCount' => 0,
+                'invalidMediaTypeCount' => 0,
+                'boundMediaTypes' => [],
+                'items' => [],
+                'itemsByMediaType' => [],
+                'diagnosticCount' => 0,
+                'diagnostics' => [],
+            ];
+        }
+
+        $items = [];
+        $itemsByMediaType = [];
+        $diagnostics = [];
+        $boundMediaTypes = [];
+        $handlerCount = 0;
+        $resolvedHandlerCount = 0;
+        $readableHandlerCount = 0;
+        $externalHandlerCount = 0;
+        $missingHandlerCount = 0;
+        $invalidMediaTypeCount = 0;
+
+        foreach ($this->directChildElements($bindingsElement, 'mediaType') as $index => $node) {
+            $rawMediaType = trim($node->getAttribute('media-type'));
+            $handlerId = trim($node->getAttribute('handler'));
+            $attributes = $this->elementAttributes($node);
+            $mediaTypeReport = $rawMediaType === ''
+                ? [
+                    'mediaType' => '',
+                    'normalizedMediaType' => '',
+                    'mediaTypeBase' => '',
+                    'mediaTypeHasParameters' => false,
+                    'mediaTypeParameterCount' => 0,
+                    'mediaTypeParameters' => [],
+                    'mediaTypeParameterMap' => [],
+                    'mediaTypeSyntaxValid' => false,
+                    'mediaTypeDiagnostics' => [],
+                ]
+                : $this->bindingMediaTypeReport($rawMediaType);
+            $mediaType = $mediaTypeReport['mediaTypeBase'];
+            $handler = $handlerId === '' ? null : ($manifest[$handlerId] ?? null);
+            $handlerPath = is_array($handler) && is_string($handler['path'] ?? null) ? $handler['path'] : null;
+            $handlerHref = is_array($handler) && is_string($handler['href'] ?? null) ? $handler['href'] : null;
+            $handlerTarget = is_array($handler) && is_string($handler['target'] ?? null) ? $handler['target'] : null;
+            $handlerExternal = is_array($handler) && ($handler['external'] ?? false) === true;
+            $handlerExists = is_array($handler) && ($handler['exists'] ?? false) === true;
+            $handlerMediaType = is_array($handler) && is_string($handler['mediaType'] ?? null) ? $handler['mediaType'] : null;
+            $handlerReadable = $handlerExists && !$handlerExternal && $handlerMediaType === 'application/xhtml+xml';
+            $itemDiagnostics = [];
+
+            if ($rawMediaType === '') {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-binding-media-type',
+                    'message' => 'EPUB OPF binding mediaType entry is missing media-type',
+                ];
+            } else {
+                $boundMediaTypes[$mediaType] = $mediaType;
+                foreach ($mediaTypeReport['mediaTypeDiagnostics'] as $diagnostic) {
+                    $itemDiagnostics[] = $diagnostic;
+                }
+            }
+
+            if ($handlerId === '') {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-binding-handler',
+                    'mediaType' => $mediaType === '' ? null : $mediaType,
+                    'message' => 'EPUB OPF binding mediaType entry is missing handler',
+                ];
+            } else {
+                ++$handlerCount;
+                if (!is_array($handler)) {
+                    ++$missingHandlerCount;
+                    $itemDiagnostics[] = [
+                        'type' => 'missing-binding-handler-manifest-item',
+                        'mediaType' => $mediaType === '' ? null : $mediaType,
+                        'handlerId' => $handlerId,
+                        'message' => 'EPUB OPF binding handler does not reference a manifest item',
+                    ];
+                } elseif ($handlerExternal) {
+                    ++$externalHandlerCount;
+                    $itemDiagnostics[] = [
+                        'type' => 'external-binding-handler',
+                        'mediaType' => $mediaType === '' ? null : $mediaType,
+                        'handlerId' => $handlerId,
+                        'handlerHref' => $handlerHref,
+                        'handlerTarget' => $handlerTarget,
+                        'message' => 'EPUB OPF binding handler points outside the package and was not fetched',
+                    ];
+                } elseif (!$handlerExists) {
+                    ++$missingHandlerCount;
+                    $itemDiagnostics[] = [
+                        'type' => 'missing-binding-handler-package-part',
+                        'mediaType' => $mediaType === '' ? null : $mediaType,
+                        'handlerId' => $handlerId,
+                        'handlerPath' => $handlerPath,
+                        'message' => 'EPUB OPF binding handler package part is missing',
+                    ];
+                } elseif ($handlerMediaType !== 'application/xhtml+xml') {
+                    $itemDiagnostics[] = [
+                        'type' => 'non-xhtml-binding-handler',
+                        'mediaType' => $mediaType === '' ? null : $mediaType,
+                        'handlerId' => $handlerId,
+                        'handlerPath' => $handlerPath,
+                        'handlerMediaType' => $handlerMediaType,
+                        'message' => 'EPUB OPF binding handler should resolve to an XHTML content document',
+                    ];
+                }
+            }
+
+            if ($mediaTypeReport['mediaTypeSyntaxValid'] !== true) {
+                ++$invalidMediaTypeCount;
+            }
+            if ($handlerExists) {
+                ++$resolvedHandlerCount;
+            }
+            if ($handlerReadable) {
+                ++$readableHandlerCount;
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = [
+                    'index' => $index,
+                    'mediaType' => $mediaType === '' ? null : $mediaType,
+                    'handlerId' => $handlerId === '' ? null : $handlerId,
+                ] + $diagnostic;
+            }
+
+            $handlerByteLength = null;
+            $handlerByteSha256 = null;
+            if ($handlerExists && !$handlerExternal && $handlerPath !== null) {
+                $absolute = $this->resolveExistingPackagePath($root, $handlerPath);
+                $handlerByteLength = filesize($absolute);
+                $handlerByteSha256 = hash_file('sha256', $absolute);
+            }
+
+            $item = [
+                'index' => $index,
+                'id' => $this->nullableAttribute($node, 'id'),
+                'rawMediaType' => $rawMediaType,
+                'mediaType' => $mediaType === '' ? null : $mediaType,
+                'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
+                'handlerId' => $handlerId === '' ? null : $handlerId,
+                'handlerHref' => $handlerHref,
+                'handlerTarget' => $handlerTarget,
+                'handlerPath' => $handlerPath,
+                'handlerExternal' => $handlerExternal,
+                'handlerMediaType' => $handlerMediaType,
+                'handlerProperties' => is_array($handler) && is_array($handler['properties'] ?? null) ? $handler['properties'] : [],
+                'handlerExists' => $handlerExists,
+                'handlerReadable' => $handlerReadable,
+                'handlerByteLength' => $handlerByteLength === false ? null : $handlerByteLength,
+                'handlerByteSha256' => $handlerByteSha256 === false ? null : $handlerByteSha256,
+                'attributes' => $attributes,
+                'customAttributes' => $this->customAttributes($attributes, self::OPF_BINDING_MEDIA_TYPE_STRUCTURAL_ATTRIBUTES),
+                'diagnostics' => $itemDiagnostics,
+            ];
+            $items[] = $item;
+            if ($mediaType !== '' && !isset($itemsByMediaType[$mediaType])) {
+                $itemsByMediaType[$mediaType] = $item;
+            }
+        }
+
+        return [
+            'present' => true,
+            'itemCount' => count($items),
+            'handlerCount' => $handlerCount,
+            'resolvedHandlerCount' => $resolvedHandlerCount,
+            'readableHandlerCount' => $readableHandlerCount,
+            'externalHandlerCount' => $externalHandlerCount,
+            'missingHandlerCount' => $missingHandlerCount,
+            'invalidMediaTypeCount' => $invalidMediaTypeCount,
+            'boundMediaTypes' => array_values($boundMediaTypes),
+            'items' => $items,
+            'itemsByMediaType' => $itemsByMediaType,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $bindings
+     * @return array<string, array<string, mixed>>
+     */
+    private function bindingsByMediaType(array $bindings): array
+    {
+        $itemsByMediaType = is_array($bindings['itemsByMediaType'] ?? null) ? $bindings['itemsByMediaType'] : [];
+        $result = [];
+        foreach ($itemsByMediaType as $mediaType => $item) {
+            if (is_string($mediaType) && is_array($item)) {
+                $result[$mediaType] = $item;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function bindingMediaTypeReport(string $mediaType): array
+    {
+        $report = $this->mediaTypeReport($mediaType);
+        $diagnostics = [];
+        foreach ($report['mediaTypeDiagnostics'] as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $type = is_string($diagnostic['type'] ?? null) ? $diagnostic['type'] : '';
+            $diagnostic['type'] = str_replace('manifest-media-type', 'binding-media-type', $type);
+            if (is_string($diagnostic['message'] ?? null)) {
+                $diagnostic['message'] = str_replace('manifest media-type', 'binding media-type', $diagnostic['message']);
+            }
+            $diagnostics[] = $diagnostic;
+        }
+        $report['mediaTypeDiagnostics'] = $diagnostics;
+
+        return $report;
     }
 
     /**

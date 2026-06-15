@@ -3783,6 +3783,113 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports direct package OPF bindings and readable handler handoff' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-direct-bindings-' . str_replace('.', '', uniqid('', true));
+        $handlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Bound widget fallback stays readable.</p></body></html>';
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-binding-review</dc:identifier>
+    <dc:title>Binding Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="widget" href="widgets/review-widget.bin" media-type="application/x-review-widget"/>
+    <item id="widget-handler" href="text/widget-handler.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="widget"/>
+    <itemref idref="chapter"/>
+  </spine>
+  <bindings>
+    <mediaType id="widget-binding" media-type="application/x-review-widget; profile=&quot;interactive&quot;" handler="widget-handler" data-source="package-review"/>
+    <mediaType media-type="application/x-missing-widget" handler="missing-handler"/>
+  </bindings>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="text/chapter.xhtml">Chapter</a></li></ol></nav></body></html>');
+            $writePackageFile($root, 'EPUB/widgets/review-widget.bin', 'CUSTOM-WIDGET-BYTES');
+            $writePackageFile($root, 'EPUB/text/widget-handler.xhtml', $handlerXhtml);
+            $writePackageFile($root, 'EPUB/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Regular chapter remains readable.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $bindings = $epub['bindings'];
+            $binding = $bindings['items'][0];
+            $missing = $bindings['items'][1];
+            $spine = $epub['spine'];
+
+            $t->same(true, $bindings['present']);
+            $t->same(2, $bindings['itemCount']);
+            $t->same(2, $bindings['handlerCount']);
+            $t->same(1, $bindings['resolvedHandlerCount']);
+            $t->same(1, $bindings['readableHandlerCount']);
+            $t->same(1, $bindings['missingHandlerCount']);
+            $t->same(['application/x-review-widget', 'application/x-missing-widget'], $bindings['boundMediaTypes']);
+            $t->same('widget-binding', $binding['id']);
+            $t->same('application/x-review-widget; profile="interactive"', $binding['rawMediaType']);
+            $t->same('application/x-review-widget', $binding['mediaType']);
+            $t->same('application/x-review-widget; profile=interactive', $binding['normalizedMediaType']);
+            $t->same(['profile' => 'interactive'], $binding['mediaTypeParameterMap']);
+            $t->same('widget-handler', $binding['handlerId']);
+            $t->same('text/widget-handler.xhtml', $binding['handlerHref']);
+            $t->same('EPUB/text/widget-handler.xhtml', $binding['handlerPath']);
+            $t->same('application/xhtml+xml', $binding['handlerMediaType']);
+            $t->same(['scripted'], $binding['handlerProperties']);
+            $t->same(true, $binding['handlerExists']);
+            $t->same(true, $binding['handlerReadable']);
+            $t->same(strlen($handlerXhtml), $binding['handlerByteLength']);
+            $t->same(hash('sha256', $handlerXhtml), $binding['handlerByteSha256']);
+            $t->same('package-review', $binding['customAttributes']['data-source']);
+            $t->same([], $binding['diagnostics']);
+            $t->same('application/x-missing-widget', $missing['mediaType']);
+            $t->same('missing-handler', $missing['handlerId']);
+            $t->same(false, $missing['handlerExists']);
+            $t->same('missing-binding-handler-manifest-item', $missing['diagnostics'][0]['type']);
+            $t->same(1, $bindings['diagnosticCount']);
+            $t->same('missing-binding-handler-manifest-item', $bindings['diagnostics'][0]['type']);
+            $t->same(1, $bindings['diagnostics'][0]['index']);
+            $t->same($binding, $bindings['itemsByMediaType']['application/x-review-widget']);
+            $t->same($bindings, $epub['bindingReport']);
+            $t->same($bindings['diagnostics'], $epub['bindingDiagnostics']);
+
+            $t->same('widget', $spine[0]['idref']);
+            $t->same('application/x-review-widget', $spine[0]['mediaType']);
+            $t->same('EPUB/widgets/review-widget.bin', $spine[0]['path']);
+            $t->same($binding, $spine[0]['binding']);
+            $t->same(true, $spine[0]['bindingHandlerReadable']);
+            $t->same(true, $spine[0]['readable']);
+            $t->same('widget-handler', $spine[0]['contentId']);
+            $t->same('EPUB/text/widget-handler.xhtml', $spine[0]['contentPath']);
+            $t->same('application/xhtml+xml', $spine[0]['contentMediaType']);
+            $t->same(true, $spine[0]['contentIsFallback']);
+            $t->same('binding-handler', $spine[0]['fallbackChain'][0]['source']);
+            $t->same('application/x-review-widget', $spine[0]['fallbackChain'][0]['bindingMediaType']);
+            $t->same([], $spine[0]['fallbackDiagnostics']);
+            $t->same('EPUB/text/chapter.xhtml', $spine[1]['contentPath']);
+            $t->same(false, $spine[1]['contentIsFallback']);
+            $t->same(2, count($document->children));
+            $t->contains('Bound widget fallback stays readable.', $document->children[0]->attr('text'));
+            $t->contains('Regular chapter remains readable.', $document->children[1]->attr('text'));
+
+            $markdown = (new MarkdownWriter())->write($document);
+            $t->contains('Bound widget fallback stays readable.', $markdown);
+            $t->contains('Regular chapter remains readable.', $markdown);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'rejects missing epub package directories before parsing' => static function (TestRunner $t): void {
         $t->throws(\RuntimeException::class, static function (): void {
             (new EpubPackageReader())->readDirectory(dirname(__DIR__) . '/fixtures/missing-epub-package');
