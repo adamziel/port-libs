@@ -526,6 +526,7 @@ final class MarkdownReader
                 if ($setextHeading['attributes'] !== []) {
                     $attrs['attributes'] = $setextHeading['attributes'];
                 }
+                $this->addMarkdownHtmlAttributes($attrs);
                 $blocks[] = new AstNode(
                     'heading',
                     $attrs,
@@ -550,6 +551,7 @@ final class MarkdownReader
                 if ($markdownHeading['attributes'] !== []) {
                     $attrs['attributes'] = $markdownHeading['attributes'];
                 }
+                $this->addMarkdownHtmlAttributes($attrs);
                 $blocks[] = new AstNode(
                     'heading',
                     $attrs,
@@ -8151,6 +8153,36 @@ final class MarkdownReader
     }
 
     /**
+     * @param array<string, mixed> $attrs
+     */
+    private function addMarkdownHtmlAttributes(array &$attrs): void
+    {
+        $htmlAttributes = [];
+        $id = $attrs['id'] ?? '';
+        if (is_scalar($id) && (string) $id !== '') {
+            $htmlAttributes['id'] = (string) $id;
+        }
+
+        $classes = $attrs['classes'] ?? [];
+        if (is_array($classes) && $classes !== []) {
+            $htmlAttributes['class'] = implode(' ', array_map(static fn (mixed $class): string => (string) $class, $classes));
+        }
+
+        $attributes = $attrs['attributes'] ?? [];
+        if (is_array($attributes)) {
+            foreach ($attributes as $name => $value) {
+                if (is_scalar($name) && is_scalar($value)) {
+                    $htmlAttributes[(string) $name] = (string) $value;
+                }
+            }
+        }
+
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function markdownSectionAttrs(AstNode $heading, int $level): array
@@ -8329,8 +8361,19 @@ final class MarkdownReader
             'classes' => $classes,
             'attributes' => $attributes,
         ];
+        $htmlAttributes = [];
         if ($id !== null && $id !== '') {
             $heading['id'] = $id;
+            $htmlAttributes['id'] = $id;
+        }
+        if ($classes !== []) {
+            $htmlAttributes['class'] = implode(' ', $classes);
+        }
+        foreach ($attributes as $name => $value) {
+            $htmlAttributes[$name] = $value;
+        }
+        if ($htmlAttributes !== []) {
+            $heading['htmlAttributes'] = $htmlAttributes;
         }
 
         return $heading;
@@ -8385,11 +8428,36 @@ final class MarkdownReader
     {
         $start = $offset;
         $length = strlen($source);
-        while ($offset < $length && !ctype_space($source[$offset])) {
+        while ($offset < $length) {
+            if ($source[$offset] === '\\' && $offset + 1 < $length) {
+                $offset += 2;
+                continue;
+            }
+            if (ctype_space($source[$offset])) {
+                break;
+            }
+
             $offset++;
         }
 
-        return substr($source, $start, $offset - $start);
+        return $this->unescapeMarkdownAttributeToken(substr($source, $start, $offset - $start));
+    }
+
+    private function unescapeMarkdownAttributeToken(string $text): string
+    {
+        $unescaped = '';
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($text[$offset] === '\\' && $offset + 1 < $length) {
+                $unescaped .= $text[$offset + 1];
+                $offset++;
+                continue;
+            }
+
+            $unescaped .= $text[$offset];
+        }
+
+        return $unescaped;
     }
 
     private function decodeMarkdownAttributeToken(string $token): string
@@ -8404,13 +8472,31 @@ final class MarkdownReader
     {
         $start = $offset;
         $length = strlen($source);
-        if (preg_match('/^[A-Za-z_:][A-Za-z0-9_.:-]*/', substr($source, $offset), $m) !== 1) {
+
+        $nameStart = $offset;
+        while ($offset < $length) {
+            if ($source[$offset] === '\\' && $offset + 1 < $length) {
+                $offset += 2;
+                continue;
+            }
+            if ($source[$offset] === '=') {
+                break;
+            }
+            if (ctype_space($source[$offset])) {
+                $offset = $start;
+                return null;
+            }
+
+            $offset++;
+        }
+
+        if (($source[$offset] ?? '') !== '=' || $offset === $nameStart) {
+            $offset = $start;
             return null;
         }
 
-        $name = $m[0];
-        $offset += strlen($name);
-        if (($source[$offset] ?? '') !== '=') {
+        $name = $this->unescapeMarkdownAttributeToken(substr($source, $nameStart, $offset - $nameStart));
+        if ($name === '') {
             $offset = $start;
             return null;
         }
@@ -8433,7 +8519,15 @@ final class MarkdownReader
         }
 
         $valueStart = $offset;
-        while ($offset < $length && !ctype_space($source[$offset])) {
+        while ($offset < $length) {
+            if ($source[$offset] === '\\' && $offset + 1 < $length) {
+                $offset += 2;
+                continue;
+            }
+            if (ctype_space($source[$offset])) {
+                break;
+            }
+
             $offset++;
         }
         if ($offset === $valueStart) {
