@@ -1,0 +1,412 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\MarkdownWriter;
+
+$text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+$space = static fn (): AstNode => new AstNode('space');
+$paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
+$plain = static fn (array $children): AstNode => new AstNode('plain', [], $children);
+$cell = static function (array|string $children, array $attrs = []) use ($text): AstNode {
+    if (is_string($children)) {
+        return new AstNode('table_cell', array_merge(['text' => $children], $attrs), [$text($children)]);
+    }
+
+    return new AstNode('table_cell', $attrs, $children);
+};
+$row = static fn (array $cells, array $attrs = []): AstNode => new AstNode('table_row', $attrs, $cells);
+$head = static fn (array $rows, array $attrs = []): AstNode => new AstNode('table_head', $attrs, $rows);
+$body = static fn (array $rows, array $attrs = []): AstNode => new AstNode('table_body', $attrs, $rows);
+$document = static fn (array $children): AstNode => new AstNode('document', [], $children);
+$writeDocument = static fn (AstNode $node): string => (new MarkdownWriter())->write($document([$node]));
+$writeInlineDocument = static fn (AstNode $inline): string => (new MarkdownWriter())->write($document([$paragraph([$inline])]));
+
+$table = static function (array $sections, array $attrs = []): AstNode {
+    $attrs += [
+        'alignments' => ['left', 'right'],
+        'widths' => [0.25, 0.75],
+    ];
+
+    return new AstNode('table', $attrs, $sections);
+};
+
+$twoColumnTable = static function (AstNode $valueCell, array $attrs = []) use ($table, $head, $body, $row, $cell): AstNode {
+    return $table([
+        $head([$row([$cell('Metric'), $cell('Value')])]),
+        $body([$row([$cell('Probe'), $valueCell])]),
+    ], $attrs);
+};
+
+$tests = [];
+
+$topCaptionCases = [
+    'caption source top side' => [
+        'attrs' => ['caption' => 'Top caption', 'captionSource' => ['captionSide' => 'top']],
+        'expectedLine' => ': Top caption',
+    ],
+    'direct captionSide top attribute' => [
+        'attrs' => ['captionSide' => 'top', 'caption' => 'Direct top'],
+        'expectedLine' => ': Direct top',
+    ],
+    'uppercase caption side source' => [
+        'attrs' => ['caption' => 'Upper source top', 'captionSource' => ['captionSide' => 'TOP']],
+        'expectedLine' => ': Upper source top',
+    ],
+    'caption side with surrounding whitespace' => [
+        'attrs' => ['caption' => 'Trimmed source top', 'captionSource' => ['captionSide' => ' top ']],
+        'expectedLine' => ': Trimmed source top',
+    ],
+    'top short caption prefix' => [
+        'attrs' => ['captionSource' => ['captionSide' => 'top'], 'shortCaption' => 'Short', 'caption' => 'Long caption'],
+        'expectedLine' => ': [Short] Long caption',
+    ],
+    'top short caption with escaped brackets' => [
+        'attrs' => ['captionSource' => ['captionSide' => 'top'], 'shortCaption' => '[Short]', 'caption' => 'Long caption'],
+        'expectedLine' => ': [\\[Short\\]] Long caption',
+    ],
+    'top short caption with pipe escaping' => [
+        'attrs' => ['captionSource' => ['captionSide' => 'top'], 'shortCaption' => 'A | B', 'caption' => 'Long caption'],
+        'expectedLine' => ': [A \\| B] Long caption',
+    ],
+    'top formatted short caption prefix' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'shortCaptionInlines' => [$text('Short'), $space(), new AstNode('strong', [], [$text('label')])],
+            'caption' => 'Long caption',
+        ],
+        'expectedLine' => ': [Short **label**] Long caption',
+    ],
+    'top short caption inlines with linebreak' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'shortCaptionInlines' => [$text('Short'), new AstNode('linebreak'), $text('Label')],
+            'caption' => 'Long caption',
+        ],
+        'expectedLine' => ': [Short<br />Label] Long caption',
+    ],
+    'top short caption inlines with softbreak' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'shortCaptionInlines' => [$text('Short'), new AstNode('softbreak'), $text('Label')],
+            'caption' => 'Long caption',
+        ],
+        'expectedLine' => ': [Short Label] Long caption',
+    ],
+    'top short caption block' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'shortCaptionBlocks' => [$plain([$text('Short block')])],
+            'caption' => 'Long caption',
+        ],
+        'expectedLine' => ': [Short block] Long caption',
+    ],
+    'top short caption block with emphasis' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'shortCaptionBlocks' => [$paragraph([$text('Short '), new AstNode('emph', [], [$text('block')])])],
+            'caption' => 'Long caption',
+        ],
+        'expectedLine' => ': [Short *block*] Long caption',
+    ],
+    'top short caption only' => [
+        'attrs' => ['captionSource' => ['captionSide' => 'top'], 'shortCaption' => 'Short only'],
+        'expectedLine' => ': [Short only]',
+    ],
+    'top plain caption with pipe' => [
+        'attrs' => ['captionSource' => ['captionSide' => 'top'], 'caption' => 'Caption | pipe'],
+        'expectedLine' => ': Caption \\| pipe',
+    ],
+    'top plain caption with brackets' => [
+        'attrs' => ['captionSource' => ['captionSide' => 'top'], 'caption' => '[Caption]'],
+        'expectedLine' => ': \\[Caption\\]',
+    ],
+    'top plain caption line feed' => [
+        'attrs' => ['captionSource' => ['captionSide' => 'top'], 'caption' => "Alpha\nBeta"],
+        'expectedLine' => ': Alpha Beta',
+    ],
+    'top inline strong caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Inline '), new AstNode('strong', [], [$text('caption')])],
+        ],
+        'expectedLine' => ': Inline **caption**',
+    ],
+    'top inline emphasis caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Inline '), new AstNode('emph', [], [$text('caption')])],
+        ],
+        'expectedLine' => ': Inline *caption*',
+    ],
+    'top inline code caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Use '), new AstNode('code', ['text' => 'code'])],
+        ],
+        'expectedLine' => ': Use `code`',
+    ],
+    'top inline link caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('See '), new AstNode('link', ['url' => 'https://example.test'], [$text('link')])],
+        ],
+        'expectedLine' => ': See [link](https://example.test)',
+    ],
+    'top inline image caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [new AstNode('image', ['url' => 'media/chart.png', 'alt' => 'Chart'])],
+        ],
+        'expectedLine' => ': ![Chart](media/chart.png)',
+    ],
+    'top inline raw markdown caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Raw '), new AstNode('raw_markdown', ['text' => '*caption*'])],
+        ],
+        'expectedLine' => ': Raw *caption*',
+    ],
+    'top inline raw html caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Raw '), new AstNode('raw_html_inline', ['html' => '<span>caption</span>'])],
+        ],
+        'expectedLine' => ': Raw <span>caption</span>',
+    ],
+    'top inline math caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Math '), new AstNode('math', ['text' => 'a+b'])],
+        ],
+        'expectedLine' => ': Math $a+b$',
+    ],
+    'top inline citation caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Source '), new AstNode('citation', ['id' => 'doe2026', 'suffix' => 'p. 4'])],
+        ],
+        'expectedLine' => ': Source [@doe2026, p. 4]',
+    ],
+    'top inline quoted caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Quote '), new AstNode('quoted', ['kind' => 'single'], [$text('term')])],
+        ],
+        'expectedLine' => ": Quote \u{2018}term\u{2019}",
+    ],
+    'top inline span caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Span '), new AstNode('span', ['classes' => ['review']], [$text('label')])],
+        ],
+        'expectedLine' => ': Span [label]{.review}',
+    ],
+    'top inline mark span caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Mark '), new AstNode('span', ['classes' => ['mark']], [$text('label')])],
+        ],
+        'expectedLine' => ': Mark ==label==',
+    ],
+    'top inline small caps caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Small '), new AstNode('small_caps', [], [$text('caps')])],
+        ],
+        'expectedLine' => ': Small [caps]{.smallcaps}',
+    ],
+    'top inline underline caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Under '), new AstNode('underline', [], [$text('line')])],
+        ],
+        'expectedLine' => ': Under [line]{.underline}',
+    ],
+    'top inline strikeout caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Gone '), new AstNode('strikeout', [], [$text('old')])],
+        ],
+        'expectedLine' => ': Gone ~~old~~',
+    ],
+    'top inline superscript caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('x'), new AstNode('superscript', [], [$text('2')])],
+        ],
+        'expectedLine' => ': x^2^',
+    ],
+    'top inline subscript caption' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('H'), new AstNode('subscript', [], [$text('2')]), $text('O')],
+        ],
+        'expectedLine' => ': H~2~O',
+    ],
+    'top caption hard break normalization' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Alpha'), new AstNode('linebreak'), $text('Beta')],
+        ],
+        'expectedLine' => ': Alpha<br />Beta',
+    ],
+    'top caption soft break normalization' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionInlines' => [$text('Alpha'), new AstNode('softbreak'), $text('Beta')],
+        ],
+        'expectedLine' => ': Alpha Beta',
+    ],
+    'top paragraph caption block' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionBlocks' => [$paragraph([$text('Block '), new AstNode('emph', [], [$text('caption')])])],
+        ],
+        'expectedLine' => ': Block *caption*',
+    ],
+    'top multiple paragraph caption blocks' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionBlocks' => [$paragraph([$text('First caption')]), $paragraph([$text('Second caption')])],
+        ],
+        'expectedLine' => ': First caption<br />Second caption',
+    ],
+    'top raw markdown caption block' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionBlocks' => [new AstNode('raw_markdown', ['text' => '*raw caption*'])],
+        ],
+        'expectedLine' => ': *raw caption*',
+    ],
+    'top list caption block flattening' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'captionBlocks' => [new AstNode('bullet_list', [], [
+                new AstNode('list_item', [], [$paragraph([$text('One')])]),
+                new AstNode('list_item', [], [$paragraph([$text('Two')])]),
+            ])],
+        ],
+        'expectedLine' => ': - One - Two',
+    ],
+    'top caption with table id class data attributes' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'caption' => 'Caption',
+            'id' => 'top-table',
+            'classes' => ['review'],
+            'attributes' => ['data-source' => 'reader'],
+        ],
+        'expectedLine' => ': Caption {#top-table .review data-source="reader"}',
+    ],
+    'top caption with role and aria attributes' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'caption' => 'Caption',
+            'attributes' => ['role' => 'presentation', 'aria-label' => 'Review table'],
+        ],
+        'expectedLine' => ': Caption {role="presentation" aria-label="Review table"}',
+    ],
+    'top caption with language attributes' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'caption' => 'Caption',
+            'attributes' => ['lang' => 'en', 'xml:lang' => 'en-US', 'dir' => 'ltr'],
+        ],
+        'expectedLine' => ': Caption {lang="en" xml:lang="en-US" dir="ltr"}',
+    ],
+    'top caption filters docx private attributes' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'caption' => 'Caption',
+            'attributes' => ['data-docx-grid' => 'hidden', 'data-review' => 'visible'],
+        ],
+        'expectedLine' => ': Caption {data-review="visible"}',
+        'forbid' => ['data-docx-grid'],
+    ],
+    'top caption without caption but with table attributes' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top'],
+            'id' => 'attr-only-table',
+            'classes' => ['audit'],
+        ],
+        'expectedLine' => ': {#attr-only-table .audit}',
+    ],
+    'top empty short caption falls back to long caption' => [
+        'attrs' => ['captionSource' => ['captionSide' => 'top'], 'shortCaption' => '', 'caption' => 'Fallback caption'],
+        'expectedLine' => ': Fallback caption',
+    ],
+    'top caption source with extra metadata still uses top' => [
+        'attrs' => [
+            'captionSource' => ['captionSide' => 'top', 'element' => 'markdown-table-caption', 'captionSideSource' => 'reader'],
+            'caption' => 'Source metadata',
+        ],
+        'expectedLine' => ': Source metadata',
+    ],
+    'top direct side wins over bottom source side' => [
+        'attrs' => [
+            'captionSide' => 'top',
+            'captionSource' => ['captionSide' => 'bottom'],
+            'caption' => 'Direct wins',
+        ],
+        'expectedLine' => ': Direct wins',
+    ],
+    'explicit bottom caption stays after table' => [
+        'attrs' => ['captionSource' => ['captionSide' => 'bottom'], 'caption' => 'Bottom caption'],
+        'expectedLine' => ': Bottom caption',
+        'bottom' => true,
+    ],
+    'uppercase direct bottom caption stays after table' => [
+        'attrs' => ['captionSide' => 'BOTTOM', 'caption' => 'Direct bottom'],
+        'expectedLine' => ': Direct bottom',
+        'bottom' => true,
+    ],
+    'invalid caption side falls back to bottom' => [
+        'attrs' => ['captionSource' => ['captionSide' => 'sideways'], 'caption' => 'Fallback bottom'],
+        'expectedLine' => ': Fallback bottom',
+        'bottom' => true,
+    ],
+    'missing caption side falls back to bottom' => [
+        'attrs' => ['caption' => 'Default bottom'],
+        'expectedLine' => ': Default bottom',
+        'bottom' => true,
+    ],
+];
+
+foreach ($topCaptionCases as $label => $case) {
+    $tests["maps upstream markdown writer table caption side {$label}"] =
+        static function (TestRunner $t) use ($case, $twoColumnTable, $cell, $writeDocument): void {
+            $markdown = $writeDocument($twoColumnTable($cell('Ready'), $case['attrs']));
+            $captionPosition = strpos($markdown, $case['expectedLine']);
+            $tablePosition = strpos($markdown, '| Metric');
+
+            $t->contains($case['expectedLine'], $markdown);
+            foreach ($case['forbid'] ?? [] as $forbidden) {
+                $t->true(!str_contains($markdown, $forbidden), "Table caption should not contain {$forbidden}");
+            }
+            if (($case['bottom'] ?? false) === true) {
+                $t->true($captionPosition > $tablePosition, 'Bottom caption should remain after the pipe table');
+                return;
+            }
+
+            $t->true($captionPosition < $tablePosition, 'Top caption should render before the pipe table');
+        };
+}
+
+$tests['maps upstream markdown writer simple uncaptioned table still omits caption block'] =
+    static function (TestRunner $t) use ($twoColumnTable, $cell, $writeDocument): void {
+        $markdown = $writeDocument($twoColumnTable($cell('Ready')));
+
+        $t->contains('| Metric', $markdown);
+        $t->true(!str_contains($markdown, "\n\n:"), 'Uncaptioned tables should not gain a caption block');
+    };
+
+$tests['maps upstream markdown writer attributed span remains bracketed outside table captions'] =
+    static function (TestRunner $t) use ($text, $writeInlineDocument): void {
+        $markdown = $writeInlineDocument(new AstNode('span', ['classes' => ['review']], [$text('label')]));
+
+        $t->same('[label]{.review}', $markdown);
+    };
+
+return $tests;

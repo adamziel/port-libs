@@ -1490,7 +1490,14 @@ final class MarkdownWriter
         $widths = $this->tableColumnWidths($renderedRows, $node->attr('widths', []), $columnCount);
         $alignments = $this->tableAlignments($node, $columnCount);
         $prefix = str_repeat(' ', $indent);
+        $captionLine = $this->renderTableCaptionLine($node, $prefix);
+        $captionSide = $this->tableCaptionSide($node);
         $lines = [];
+
+        if ($captionLine !== '' && $captionSide === 'top') {
+            $lines[] = $captionLine;
+            $lines[] = '';
+        }
 
         foreach ($expandedHeadRows as $row) {
             $lines[] = $prefix . $this->renderPipeTableRow($row, $widths, $alignments);
@@ -1500,11 +1507,9 @@ final class MarkdownWriter
             $lines[] = $prefix . $this->renderPipeTableRow($row, $widths, $alignments);
         }
 
-        $caption = $this->renderTableCaption($node);
-        $attrs = $this->renderTableAttributes($node);
-        if ($caption !== '' || $attrs !== '') {
+        if ($captionLine !== '' && $captionSide !== 'top') {
             $lines[] = '';
-            $lines[] = $prefix . ': ' . trim($caption . ($attrs === '' ? '' : ' ' . $attrs));
+            $lines[] = $captionLine;
         }
 
         return $lines;
@@ -2438,6 +2443,35 @@ final class MarkdownWriter
         }
 
         return $caption;
+    }
+
+    private function renderTableCaptionLine(AstNode $node, string $prefix): string
+    {
+        $caption = $this->renderTableCaption($node);
+        $attrs = $this->renderTableAttributes($node);
+        if ($caption === '' && $attrs === '') {
+            return '';
+        }
+
+        return $prefix . ': ' . trim($caption . ($attrs === '' ? '' : ' ' . $attrs));
+    }
+
+    private function tableCaptionSide(AstNode $node): string
+    {
+        $side = strtolower(trim((string) $node->attr('captionSide', '')));
+        if (in_array($side, ['top', 'bottom'], true)) {
+            return $side;
+        }
+
+        $captionSource = $node->attr('captionSource', []);
+        if (is_array($captionSource)) {
+            $side = strtolower(trim((string) ($captionSource['captionSide'] ?? '')));
+            if (in_array($side, ['top', 'bottom'], true)) {
+                return $side;
+            }
+        }
+
+        return 'bottom';
     }
 
     private function renderTableCaptionBlocks(mixed $blocks): string
