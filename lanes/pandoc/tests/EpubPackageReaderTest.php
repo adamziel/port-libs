@@ -204,6 +204,116 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports epub opf package identity and identifier diagnostics for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-identity-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" id="package-record" version="3.0" unique-identifier="bookid" xml:lang="en" dir="ltr" prefix="schema: https://schema.org/">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="legacy-isbn" scheme="ISBN">9780000000007</dc:identifier>
+    <dc:identifier id="bookid" scheme="UUID">urn:uuid:reader-identity-primary</dc:identifier>
+    <dc:identifier id="bookid" scheme="UUID">urn:uuid:reader-identity-secondary</dc:identifier>
+    <dc:identifier id="duplicate-isbn" scheme="ISBN">9780000000007</dc:identifier>
+    <dc:title>Reader Identity Review</dc:title>
+    <dc:language>en</dc:language>
+    <meta refines="#bookid" property="identifier-type" scheme="onix:codelist5">15</meta>
+    <meta refines="#duplicate-isbn" property="identifier-type" scheme="onix:codelist5">15</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable identity package.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $meta = $document->attr('meta');
+            $epub = $document->attr('epub');
+            $packageReport = $epub['packageReport'];
+            $uniqueIdentifier = $packageReport['uniqueIdentifier'];
+            $identifierDetails = $packageReport['identifierDetails'];
+            $identifierSummary = $packageReport['identifierSummary'];
+
+            $t->same('urn:uuid:reader-identity-primary', $meta['identifier']);
+            $t->same('bookid', $epub['uniqueIdentifierId']);
+            $t->same($packageReport, $epub['identityReport']);
+            $t->same($uniqueIdentifier, $epub['uniqueIdentifier']);
+            $t->same($identifierDetails, $epub['identifierDetails']);
+            $t->same($identifierSummary, $epub['identifierSummary']);
+            $t->same('package-record', $packageReport['id']);
+            $t->same('3.0', $packageReport['version']);
+            $t->same('bookid', $packageReport['uniqueIdentifierId']);
+            $t->same('en', $packageReport['language']);
+            $t->same('ltr', $packageReport['direction']);
+            $t->same('schema: https://schema.org/', $packageReport['prefix']);
+
+            $t->same(true, $uniqueIdentifier['specified']);
+            $t->same('bookid', $uniqueIdentifier['id']);
+            $t->same(true, $uniqueIdentifier['matched']);
+            $t->same('urn:uuid:reader-identity-primary', $uniqueIdentifier['value']);
+            $t->same('unique-identifier', $uniqueIdentifier['selectedBy']);
+            $t->same(4, $uniqueIdentifier['identifierCount']);
+            $t->same(2, $uniqueIdentifier['matchCount']);
+            $t->same(1, $uniqueIdentifier['duplicateMatchCount']);
+            $t->same(false, $uniqueIdentifier['valid']);
+            $t->same('duplicate-unique-identifier-id', $uniqueIdentifier['diagnostics'][0]['type']);
+            $t->same(['urn:uuid:reader-identity-primary', 'urn:uuid:reader-identity-secondary'], $uniqueIdentifier['diagnostics'][0]['values']);
+            $t->same('15', $uniqueIdentifier['matchedEntries'][0]['identifierType']);
+            $t->same('onix:codelist5', $uniqueIdentifier['matchedEntries'][0]['identifierTypeScheme']);
+
+            $t->same(4, count($identifierDetails));
+            $t->same(false, $identifierDetails[0]['selectedByUniqueIdentifier']);
+            $t->same(true, $identifierDetails[1]['selectedByUniqueIdentifier']);
+            $t->same(true, $identifierDetails[2]['selectedByUniqueIdentifier']);
+            $t->same('15', $identifierDetails[1]['identifierType']);
+            $t->same('onix:codelist5', $identifierDetails[1]['identifierTypeScheme']);
+            $t->same(true, $identifierDetails[0]['duplicateValue']);
+            $t->same(['legacy-isbn', 'duplicate-isbn'], $identifierDetails[0]['duplicateIds']);
+            $t->same([0, 3], $identifierDetails[0]['duplicateIndexes']);
+
+            $t->same(true, $identifierSummary['present']);
+            $t->same(4, $identifierSummary['count']);
+            $t->same(3, $identifierSummary['typedCount']);
+            $t->same(['ISBN', 'UUID'], $identifierSummary['schemes']);
+            $t->same(['15'], $identifierSummary['identifierTypes']);
+            $t->same('urn:uuid:reader-identity-primary', $identifierSummary['selectedValue']);
+            $t->same('bookid', $identifierSummary['selectedId']);
+            $t->same(1, $identifierSummary['selectedIndex']);
+            $t->same(1, $identifierSummary['duplicateValueCount']);
+            $t->same('9780000000007', $identifierSummary['duplicatesByValue'][0]['value']);
+            $t->same(['legacy-isbn', 'duplicate-isbn'], $identifierSummary['duplicatesByValue'][0]['ids']);
+            $t->same(['duplicate-unique-identifier-id', 'duplicate-metadata-identifier-value'], array_column($packageReport['identifierDiagnostics'], 'type'));
+            $t->same(false, $packageReport['valid']);
+            $t->same(2, $packageReport['identifierDiagnosticCount']);
+            $t->same($packageReport['identifierDiagnostics'], $epub['identifierDiagnostics']);
+            $t->same('urn:uuid:reader-identity-primary', $packageReport['summary']['selectedIdentifier']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub guide references for compact package review' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $epub = $document->attr('epub');

@@ -43,6 +43,12 @@ final class EpubPackageReader
                 'containerRootfile' => $rootfile,
                 'packageVersion' => $package['version'],
                 'uniqueIdentifierId' => $package['uniqueIdentifierId'],
+                'packageReport' => $package['packageReport'],
+                'identityReport' => $package['packageReport'],
+                'uniqueIdentifier' => $package['packageReport']['uniqueIdentifier'],
+                'identifierDetails' => $package['packageReport']['identifierDetails'],
+                'identifierSummary' => $package['packageReport']['identifierSummary'],
+                'identifierDiagnostics' => $package['packageReport']['identifierDiagnostics'],
                 'metadataItems' => $package['metadataItems'],
                 'metadataReport' => $package['metadataReport'],
                 'metadataProperties' => $package['metadataProperties'],
@@ -88,10 +94,11 @@ final class EpubPackageReader
      * @return array{
      *     version:string,
      *     uniqueIdentifierId:string,
+     *     packageReport:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     metadataItems:list<array<string, mixed>>,
      *     metadataReport:array<string, mixed>,
-     *     metadataProperties:list<array{property:string, value:string, refines:string}>,
+     *     metadataProperties:list<array<string, mixed>>,
      *     metadataLinks:list<array{id:string, rel:list<string>, href:string, path:string, fragment:string, mediaType:string, properties:list<string>, refines:string, external:bool}>,
      *     manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>,
      *     spine:list<array{idref:string, href:string, path:string, mediaType:string, linear:bool, properties:list<string>}>,
@@ -151,9 +158,11 @@ final class EpubPackageReader
                 }
                 if ($name === 'meta') {
                     $metadataProperties[] = [
+                        'id' => $this->nullableAttribute($node, 'id'),
                         'property' => trim($node->getAttribute('property')),
                         'value' => $value,
                         'refines' => trim($node->getAttribute('refines')),
+                        'scheme' => $this->nullableAttribute($node, 'scheme'),
                     ];
                     continue;
                 }
@@ -175,6 +184,11 @@ final class EpubPackageReader
                     $metadata['publisher'] = $value;
                 }
             }
+        }
+        $packageReport = $this->packageReport($packageElement, $metadataItems, $metadataProperties);
+        $selectedIdentifier = $packageReport['uniqueIdentifier']['value'] ?? null;
+        if (is_string($selectedIdentifier) && $selectedIdentifier !== '') {
+            $metadata['identifier'] = $selectedIdentifier;
         }
 
         $manifest = [];
@@ -309,6 +323,7 @@ final class EpubPackageReader
         return [
             'version' => trim($packageElement->getAttribute('version')),
             'uniqueIdentifierId' => trim($packageElement->getAttribute('unique-identifier')),
+            'packageReport' => $packageReport,
             'metadata' => $metadata,
             'metadataItems' => $metadataItems,
             'metadataReport' => $this->metadataReport($metadataItems, $metadataProperties, $metadataLinks),
@@ -344,6 +359,353 @@ final class EpubPackageReader
             'direction' => $this->nullableAttribute($element, 'dir'),
             'role' => $this->nullableAttribute($element, 'role'),
             'fileAs' => $this->nullableAttribute($element, 'file-as'),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $metadataItems
+     * @param list<array<string, mixed>> $metadataProperties
+     * @return array<string, mixed>
+     */
+    private function packageReport(\DOMElement $packageElement, array $metadataItems, array $metadataProperties): array
+    {
+        $version = trim($packageElement->getAttribute('version'));
+        $uniqueIdentifierId = trim($packageElement->getAttribute('unique-identifier'));
+        $language = $this->elementLanguage($packageElement);
+        $xmlBase = trim($packageElement->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'base'));
+        if ($xmlBase === '') {
+            $xmlBase = trim($packageElement->getAttribute('xml:base'));
+        }
+
+        $identifierDetails = $this->metadataIdentifierDetails(
+            $metadataItems,
+            $metadataProperties,
+            $uniqueIdentifierId
+        );
+        $uniqueIdentifier = $this->metadataUniqueIdentifierReport($uniqueIdentifierId, $identifierDetails, true);
+        $identifierSummary = $this->metadataIdentifierSummary($identifierDetails, $uniqueIdentifier);
+        $identifierDiagnostics = array_merge($uniqueIdentifier['diagnostics'], $identifierSummary['diagnostics']);
+
+        return [
+            'present' => true,
+            'id' => $this->nullableAttribute($packageElement, 'id'),
+            'version' => $version,
+            'uniqueIdentifierId' => $uniqueIdentifierId === '' ? null : $uniqueIdentifierId,
+            'language' => $language === '' ? null : $language,
+            'direction' => $this->nullableAttribute($packageElement, 'dir'),
+            'xmlBase' => $xmlBase === '' ? null : $xmlBase,
+            'prefix' => $this->nullableAttribute($packageElement, 'prefix'),
+            'uniqueIdentifier' => $uniqueIdentifier,
+            'identifierDetails' => $identifierDetails,
+            'identifierSummary' => $identifierSummary,
+            'identifierDiagnosticCount' => count($identifierDiagnostics),
+            'identifierDiagnostics' => $identifierDiagnostics,
+            'valid' => $identifierDiagnostics === [],
+            'summary' => [
+                'version' => $version,
+                'uniqueIdentifierId' => $uniqueIdentifierId === '' ? null : $uniqueIdentifierId,
+                'identifierCount' => count($identifierDetails),
+                'selectedIdentifier' => $uniqueIdentifier['value'],
+                'selectedBy' => $uniqueIdentifier['selectedBy'],
+                'identifierDiagnosticCount' => count($identifierDiagnostics),
+                'valid' => $identifierDiagnostics === [],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<array<string, mixed>> $properties
+     * @return list<array<string, mixed>>
+     */
+    private function metadataIdentifierDetails(array $items, array $properties, string $uniqueIdentifierId): array
+    {
+        $uniqueIdentifierId = trim($uniqueIdentifierId);
+        $refinementsById = $this->metadataRefinementsBySubjectId($properties);
+        $identifiers = [];
+        $values = [];
+
+        foreach ($items as $item) {
+            if (($item['kind'] ?? null) !== 'identifier') {
+                continue;
+            }
+
+            $value = (string) ($item['value'] ?? $item['text'] ?? '');
+            if ($value === '') {
+                continue;
+            }
+
+            $index = (int) ($item['index'] ?? count($identifiers));
+            $id = is_string($item['id'] ?? null) ? $item['id'] : null;
+            $identifiers[] = $item + [
+                'index' => $index,
+                'id' => $id,
+                'value' => $value,
+            ];
+            $values[$value][] = [
+                'index' => $index,
+                'id' => $id,
+            ];
+        }
+
+        $details = [];
+        foreach ($identifiers as $item) {
+            $id = is_string($item['id'] ?? null) ? $item['id'] : null;
+            $value = (string) ($item['value'] ?? '');
+            $duplicateEntries = $value !== '' && count($values[$value] ?? []) > 1 ? $values[$value] : [];
+            $refinements = $id !== null && isset($refinementsById[$id]) ? $refinementsById[$id] : [];
+            $identifierTypes = is_array($refinements['identifier-type'] ?? null)
+                ? $refinements['identifier-type']
+                : [];
+            $identifierType = is_array($identifierTypes[0] ?? null) ? $identifierTypes[0] : null;
+
+            $details[] = [
+                'kind' => 'identifier',
+                'index' => (int) ($item['index'] ?? 0),
+                'value' => $value,
+                'text' => (string) ($item['text'] ?? $value),
+                'id' => $id,
+                'scheme' => is_string($item['scheme'] ?? null) ? $item['scheme'] : null,
+                'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
+                'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+                'identifierTypes' => $identifierTypes,
+                'identifierType' => is_array($identifierType) ? (string) ($identifierType['value'] ?? '') : null,
+                'identifierTypeScheme' => is_array($identifierType) && is_string($identifierType['scheme'] ?? null)
+                    ? $identifierType['scheme']
+                    : null,
+                'selectedByUniqueIdentifier' => $uniqueIdentifierId !== ''
+                    && $id !== null
+                    && $id === $uniqueIdentifierId,
+                'duplicateValue' => $duplicateEntries !== [],
+                'duplicateIds' => array_values(array_filter(
+                    array_map(static fn (array $duplicate): ?string => $duplicate['id'], $duplicateEntries),
+                    static fn (?string $id): bool => $id !== null && $id !== '',
+                )),
+                'duplicateIndexes' => array_map(
+                    static fn (array $duplicate): int => (int) $duplicate['index'],
+                    $duplicateEntries,
+                ),
+                'refinements' => $refinements,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $properties
+     * @return array<string, array<string, list<array<string, mixed>>>>
+     */
+    private function metadataRefinementsBySubjectId(array $properties): array
+    {
+        $byId = [];
+        foreach ($properties as $property) {
+            $refines = is_string($property['refines'] ?? null) ? trim($property['refines']) : '';
+            $propertyName = is_string($property['property'] ?? null) ? trim($property['property']) : '';
+            if ($refines === '' || $propertyName === '' || !str_starts_with($refines, '#')) {
+                continue;
+            }
+
+            $subjectId = substr($refines, 1);
+            if ($subjectId === '') {
+                continue;
+            }
+
+            $byId[$subjectId][$propertyName][] = [
+                'id' => is_string($property['id'] ?? null) ? $property['id'] : null,
+                'property' => $propertyName,
+                'value' => (string) ($property['value'] ?? ''),
+                'refines' => $refines,
+                'scheme' => is_string($property['scheme'] ?? null) ? $property['scheme'] : null,
+            ];
+        }
+
+        return $byId;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $identifierDetails
+     * @return array<string, mixed>
+     */
+    private function metadataUniqueIdentifierReport(string $uniqueIdentifierId, array $identifierDetails, bool $required): array
+    {
+        $id = trim($uniqueIdentifierId);
+        $specified = $id !== '';
+        $entries = [];
+        foreach ($identifierDetails as $index => $detail) {
+            $entries[] = [
+                'index' => (int) ($detail['index'] ?? $index),
+                'id' => is_string($detail['id'] ?? null) ? $detail['id'] : null,
+                'value' => (string) ($detail['value'] ?? ''),
+                'text' => (string) ($detail['text'] ?? $detail['value'] ?? ''),
+                'scheme' => is_string($detail['scheme'] ?? null) ? $detail['scheme'] : null,
+                'identifierType' => is_string($detail['identifierType'] ?? null) ? $detail['identifierType'] : null,
+                'identifierTypeScheme' => is_string($detail['identifierTypeScheme'] ?? null)
+                    ? $detail['identifierTypeScheme']
+                    : null,
+                'duplicateValue' => (bool) ($detail['duplicateValue'] ?? false),
+                'duplicateIds' => is_array($detail['duplicateIds'] ?? null) ? array_values($detail['duplicateIds']) : [],
+                'duplicateIndexes' => is_array($detail['duplicateIndexes'] ?? null) ? array_values($detail['duplicateIndexes']) : [],
+            ];
+        }
+
+        $matchedEntries = [];
+        if ($specified) {
+            foreach ($entries as $entry) {
+                if (($entry['id'] ?? null) === $id) {
+                    $matchedEntries[] = $entry;
+                }
+            }
+        }
+
+        $value = null;
+        $selectedBy = null;
+        if ($matchedEntries !== []) {
+            $value = (string) $matchedEntries[0]['value'];
+            $selectedBy = 'unique-identifier';
+        } elseif ($entries !== []) {
+            $value = (string) $entries[0]['value'];
+            $selectedBy = 'first-dc-identifier';
+        }
+
+        $diagnostics = [];
+        if ($required && !$specified) {
+            $diagnostics[] = [
+                'type' => 'missing-unique-identifier',
+                'message' => 'EPUB OPF package is missing the unique-identifier attribute',
+            ];
+        }
+        if ($specified && $matchedEntries === []) {
+            $diagnostics[] = [
+                'type' => 'unique-identifier-not-found',
+                'id' => $id,
+                'message' => 'EPUB OPF unique-identifier does not match any dc:identifier id',
+            ];
+        }
+        if ($required && $entries === []) {
+            $diagnostics[] = [
+                'type' => 'missing-dc-identifier',
+                'message' => 'EPUB OPF metadata does not contain a dc:identifier entry',
+            ];
+        }
+        if (count($matchedEntries) > 1) {
+            $diagnostics[] = [
+                'type' => 'duplicate-unique-identifier-id',
+                'id' => $id,
+                'values' => array_map(
+                    static fn (array $entry): string => (string) $entry['value'],
+                    $matchedEntries,
+                ),
+                'message' => 'EPUB OPF metadata contains multiple dc:identifier entries with the unique-identifier id',
+            ];
+        }
+
+        return [
+            'specified' => $specified,
+            'id' => $specified ? $id : null,
+            'present' => $value !== null,
+            'matched' => $matchedEntries !== [],
+            'value' => $value,
+            'selectedBy' => $selectedBy,
+            'identifierCount' => count($entries),
+            'matchCount' => count($matchedEntries),
+            'duplicateMatchCount' => max(0, count($matchedEntries) - 1),
+            'entries' => $entries,
+            'matchedEntries' => $matchedEntries,
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $identifierDetails
+     * @param array<string, mixed> $uniqueIdentifier
+     * @return array<string, mixed>
+     */
+    private function metadataIdentifierSummary(array $identifierDetails, array $uniqueIdentifier): array
+    {
+        $schemes = [];
+        $identifierTypes = [];
+        $duplicatesByValue = [];
+        $selectedValue = is_string($uniqueIdentifier['value'] ?? null) ? $uniqueIdentifier['value'] : null;
+        $selectedId = null;
+        $selectedIndex = null;
+        $diagnostics = [];
+
+        foreach ($identifierDetails as $detail) {
+            $scheme = is_string($detail['scheme'] ?? null) ? trim($detail['scheme']) : '';
+            if ($scheme !== '') {
+                $schemes[$scheme] = $scheme;
+            }
+
+            $identifierType = is_string($detail['identifierType'] ?? null) ? trim($detail['identifierType']) : '';
+            if ($identifierType !== '') {
+                $identifierTypes[$identifierType] = $identifierType;
+            }
+
+            if (($detail['selectedByUniqueIdentifier'] ?? false) === true && $selectedIndex === null) {
+                $selectedIndex = (int) ($detail['index'] ?? 0);
+                $selectedId = is_string($detail['id'] ?? null) ? $detail['id'] : null;
+            }
+
+            if (($detail['duplicateValue'] ?? false) !== true) {
+                continue;
+            }
+
+            $value = (string) ($detail['value'] ?? '');
+            if ($value === '' || isset($duplicatesByValue[$value])) {
+                continue;
+            }
+
+            $duplicateIds = is_array($detail['duplicateIds'] ?? null) ? array_values($detail['duplicateIds']) : [];
+            $duplicateIndexes = is_array($detail['duplicateIndexes'] ?? null)
+                ? array_values($detail['duplicateIndexes'])
+                : [];
+            $duplicatesByValue[$value] = [
+                'value' => $value,
+                'count' => count($duplicateIndexes),
+                'ids' => $duplicateIds,
+                'indexes' => $duplicateIndexes,
+            ];
+            $diagnostics[] = [
+                'type' => 'duplicate-metadata-identifier-value',
+                'value' => $value,
+                'ids' => $duplicateIds,
+                'indexes' => $duplicateIndexes,
+                'message' => 'EPUB OPF metadata contains multiple dc:identifier entries with the same value',
+            ];
+        }
+
+        if ($selectedIndex === null && $selectedValue !== null) {
+            foreach ($identifierDetails as $detail) {
+                if ((string) ($detail['value'] ?? '') !== $selectedValue) {
+                    continue;
+                }
+
+                $selectedIndex = (int) ($detail['index'] ?? 0);
+                $selectedId = is_string($detail['id'] ?? null) ? $detail['id'] : null;
+                break;
+            }
+        }
+
+        return [
+            'present' => $identifierDetails !== [],
+            'count' => count($identifierDetails),
+            'typedCount' => count(array_filter(
+                $identifierDetails,
+                static fn (array $detail): bool => is_string($detail['identifierType'] ?? null)
+                    && $detail['identifierType'] !== '',
+            )),
+            'schemeCount' => count($schemes),
+            'schemes' => array_values($schemes),
+            'identifierTypes' => array_values($identifierTypes),
+            'selectedValue' => $selectedValue,
+            'selectedId' => $selectedId,
+            'selectedIndex' => $selectedIndex,
+            'duplicateValueCount' => count($duplicatesByValue),
+            'duplicatesByValue' => array_values($duplicatesByValue),
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
         ];
     }
 
