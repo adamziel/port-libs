@@ -366,7 +366,9 @@ final class MarkdownReader
                 );
                 continue;
             }
-            $listBlock = $paragraph === [] ? $this->tryReadListBlock($lines, $index) : null;
+            $listBlock = ($paragraph === [] || $listStack === [])
+                ? $this->tryReadListBlock($lines, $index, $paragraph !== [])
+                : null;
             if ($listBlock !== null) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
@@ -15199,10 +15201,13 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
-    private function tryReadListBlock(array $lines, int &$index): ?AstNode
+    private function tryReadListBlock(array $lines, int &$index, bool $interruptsParagraph = false): ?AstNode
     {
         $marker = $this->matchListMarker($lines[$index] ?? '', $index);
         if ($marker === null || $marker['indent'] > 3) {
+            return null;
+        }
+        if ($interruptsParagraph && !$this->canListMarkerInterruptParagraph($marker)) {
             return null;
         }
 
@@ -15214,6 +15219,18 @@ final class MarkdownReader
         $index = $result['next'] - 1;
 
         return $result['node'];
+    }
+
+    /**
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null} $marker
+     */
+    private function canListMarkerInterruptParagraph(array $marker): bool
+    {
+        if (trim($marker['text']) === '') {
+            return false;
+        }
+
+        return !$marker['ordered'] || $marker['start'] === 1;
     }
 
     /**
