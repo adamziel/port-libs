@@ -417,6 +417,110 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports epub opf metadata link target policy for direct package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-metadata-links-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-metadata-link-review</dc:identifier>
+    <dc:title>Metadata Link Review</dc:title>
+    <dc:language>en</dc:language>
+    <link id="publication-record" rel="record alternate" refines="#bookid" href="records/publication.json?profile=wp#record" media-type="application/json" properties="source review"/>
+    <link id="missing-record" rel="review" href="records/missing.json" media-type="application/json"/>
+    <link id="remote-record" rel="record" href="https://example.invalid/book.json" media-type="application/json"/>
+    <link id="unmanifested-record" rel="preview" href="records/unmanifested.json" media-type="application/json"/>
+    <link id="broken-record"/>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="publication-json" href="records/publication.json" media-type="application/json"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable metadata link package.</p></body></html>');
+            $writePackageFile($root, 'EPUB/records/publication.json', '{"id":"publication"}');
+            $writePackageFile($root, 'EPUB/records/unmanifested.json', '{"id":"unmanifested"}');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $report = $epub['metadataReport'];
+            $linkReport = $epub['metadataLinkReport'];
+            $links = $epub['metadataLinks'];
+
+            $t->same($report['linkReport'], $linkReport);
+            $t->same($links, $linkReport['links']);
+            $t->same(5, $report['linkCount']);
+            $t->same(3, $report['localLinkCount']);
+            $t->same(1, $report['externalLinkCount']);
+            $t->same(1, $report['missingLinkCount']);
+            $t->same(5, $report['linkDiagnosticCount']);
+            $t->same(['alternate' => 1, 'preview' => 1, 'record' => 2, 'review' => 1], $report['linkRelCounts']);
+            $t->same([
+                'EPUB/records/publication.json?profile=wp#record',
+                'EPUB/records/missing.json',
+                'https://example.invalid/book.json',
+                'EPUB/records/unmanifested.json',
+            ], $report['linkTargets']);
+
+            $publication = $links[0];
+            $t->same('publication-record', $publication['id']);
+            $t->same(['record', 'alternate'], $publication['rel']);
+            $t->same('EPUB/records/publication.json?profile=wp#record', $publication['target']);
+            $t->same('EPUB/records/publication.json', $publication['path']);
+            $t->same('record', $publication['fragment']);
+            $t->same(true, $publication['hrefHasQuery']);
+            $t->same('profile=wp', $publication['hrefQuery']);
+            $t->same(true, $publication['hrefHasFragment']);
+            $t->same('record', $publication['hrefFragment']);
+            $t->same('publication-json', $publication['manifestId']);
+            $t->same('application/json', $publication['manifestMediaType']);
+            $t->same(true, $publication['exists']);
+            $t->same([], $publication['diagnostics']);
+            $t->same($publication, $report['linksByRel']['alternate'][0]);
+
+            $t->same('missing-metadata-link-target', $links[1]['diagnostics'][0]['type']);
+            $t->same('EPUB/records/missing.json', $linkReport['missingLinks'][0]['path']);
+            $t->same('external-metadata-link-target', $links[2]['diagnostics'][0]['type']);
+            $t->same('https://example.invalid/book.json', $report['linksByRel']['record'][1]['target']);
+            $t->same('unmanifested-metadata-link-target', $links[3]['diagnostics'][0]['type']);
+            $t->same('EPUB/records/unmanifested.json', $links[3]['path']);
+            $t->same(null, $links[3]['manifestId']);
+            $t->same(['missing-metadata-link-rel', 'missing-metadata-link-href'], array_column($links[4]['diagnostics'], 'type'));
+            $t->same(
+                ['missing-metadata-link-target', 'external-metadata-link-target', 'unmanifested-metadata-link-target', 'missing-metadata-link-rel', 'missing-metadata-link-href'],
+                array_column($linkReport['diagnostics'], 'type')
+            );
+            $t->same(5, $report['summary']['linkCount']);
+            $t->same(1, $report['summary']['missingLinkCount']);
+            $t->same(5, $report['summary']['linkDiagnosticCount']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports epub opf package identity and identifier diagnostics for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-reader-identity-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);

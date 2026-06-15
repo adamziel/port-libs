@@ -93,6 +93,7 @@ final class EpubPackageReader
                 'metadataReport' => $package['metadataReport'],
                 'metadataProperties' => $package['metadataProperties'],
                 'metadataLinks' => $package['metadataLinks'],
+                'metadataLinkReport' => $package['metadataLinkReport'],
                 'manifest' => array_values($package['manifest']),
                 'manifestById' => $package['manifest'],
                 'manifestReport' => $package['manifestReport'],
@@ -402,19 +403,7 @@ final class EpubPackageReader
                 }
                 $name = $node->localName;
                 if ($name === 'link') {
-                    $href = trim($node->getAttribute('href'));
-                    [$path, $fragment] = $this->splitResolvedHref($opfDir, $href);
-                    $metadataLinks[] = [
-                        'id' => trim($node->getAttribute('id')),
-                        'rel' => $this->tokens($node->getAttribute('rel')),
-                        'href' => $href,
-                        'path' => $path,
-                        'fragment' => $fragment,
-                        'mediaType' => trim($node->getAttribute('media-type')),
-                        'properties' => $this->tokens($node->getAttribute('properties')),
-                        'refines' => trim($node->getAttribute('refines')),
-                        'external' => $href !== '' && preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $href) === 1,
-                    ];
+                    $metadataLinks[] = $this->metadataLink($root, $opfDir, $node, count($metadataLinks));
                     continue;
                 }
 
@@ -550,6 +539,8 @@ final class EpubPackageReader
             }
         }
         $manifestReport = $this->manifestReport($manifest, $manifestOccurrences);
+        $metadataLinks = $this->metadataLinksWithManifestContext($metadataLinks, $manifest);
+        $metadataReport = $this->metadataReport($metadataItems, $metadataProperties, $metadataLinks);
 
         $spineElement = $this->firstDirectChild($packageElement, 'spine');
         $spineMetadata = $this->spineMetadataReport($spineElement);
@@ -631,9 +622,10 @@ final class EpubPackageReader
             'packageAuthoring' => $this->packageAuthoringReport($packageElement),
             'metadata' => $metadata,
             'metadataItems' => $metadataItems,
-            'metadataReport' => $this->metadataReport($metadataItems, $metadataProperties, $metadataLinks),
+            'metadataReport' => $metadataReport,
             'metadataProperties' => $metadataProperties,
             'metadataLinks' => $metadataLinks,
+            'metadataLinkReport' => $metadataReport['linkReport'],
             'manifest' => $manifest,
             'manifestReport' => $manifestReport,
             'manifestAuthoring' => $this->manifestAuthoringReport($manifest),
@@ -726,6 +718,134 @@ final class EpubPackageReader
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metadataLink(string $root, string $opfDir, \DOMElement $linkElement, int $index): array
+    {
+        $href = trim($linkElement->getAttribute('href'));
+        $rel = $this->tokens($linkElement->getAttribute('rel'));
+        $suffix = $this->hrefSuffix($href);
+        $external = $href !== '' && $this->isExternalHref($href);
+        $path = '';
+        $target = '';
+        $exists = false;
+        $diagnostics = [];
+
+        if ($rel === []) {
+            $diagnostics[] = [
+                'type' => 'missing-metadata-link-rel',
+                'message' => 'EPUB OPF metadata link is missing rel tokens for package review classification',
+            ];
+        }
+
+        if ($href === '') {
+            $diagnostics[] = [
+                'type' => 'missing-metadata-link-href',
+                'message' => 'EPUB OPF metadata link is missing href',
+            ];
+        } elseif ($external) {
+            $path = $href;
+            $target = $href;
+            $diagnostics[] = [
+                'type' => 'external-metadata-link-target',
+                'href' => $href,
+                'target' => $target,
+                'message' => 'EPUB OPF metadata link points outside the package and was not fetched',
+            ];
+        } else {
+            try {
+                $path = $this->resolvePackageHref($opfDir, $href);
+                $target = $this->targetWithSuffix($path, $suffix);
+                $exists = $path !== '' && $this->packagePathExists($root, $path);
+                if ($path !== '' && !$exists) {
+                    $diagnostics[] = [
+                        'type' => 'missing-metadata-link-target',
+                        'href' => $href,
+                        'path' => $path,
+                        'message' => 'EPUB OPF metadata link target is missing from the package',
+                    ];
+                }
+            } catch (\RuntimeException $exception) {
+                $diagnostics[] = [
+                    'type' => 'invalid-metadata-link-href',
+                    'href' => $href,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'index' => $index,
+            'id' => trim($linkElement->getAttribute('id')),
+            'rel' => $rel,
+            'href' => $href,
+            'target' => $target,
+            'path' => $path,
+            'partName' => $external ? null : ($path === '' ? null : $path),
+            'fragment' => is_string($suffix['fragment'] ?? null) ? $suffix['fragment'] : '',
+            'mediaType' => trim($linkElement->getAttribute('media-type')),
+            'properties' => $this->tokens($linkElement->getAttribute('properties')),
+            'refines' => trim($linkElement->getAttribute('refines')),
+            'external' => $external,
+            'exists' => $exists,
+            'hrefHasQuery' => (bool) ($suffix['hasQuery'] ?? false),
+            'hrefQuery' => $suffix['query'] ?? null,
+            'hrefHasFragment' => (bool) ($suffix['hasFragment'] ?? false),
+            'hrefFragment' => $suffix['fragment'] ?? null,
+            'manifestId' => null,
+            'manifestMediaType' => null,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @param array<string, array<string, mixed>> $manifest
+     * @return list<array<string, mixed>>
+     */
+    private function metadataLinksWithManifestContext(array $links, array $manifest): array
+    {
+        $manifestByPath = [];
+        foreach ($manifest as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $path = is_string($item['path'] ?? null) ? $item['path'] : '';
+            if ($path !== '' && !isset($manifestByPath[$path])) {
+                $manifestByPath[$path] = $item;
+            }
+        }
+
+        foreach ($links as $index => $link) {
+            $path = is_string($link['partName'] ?? null) ? $link['partName'] : '';
+            $manifestItem = $path !== '' && isset($manifestByPath[$path]) ? $manifestByPath[$path] : null;
+            $diagnostics = is_array($link['diagnostics'] ?? null) ? array_values($link['diagnostics']) : [];
+
+            if (is_array($manifestItem)) {
+                $links[$index]['manifestId'] = is_string($manifestItem['id'] ?? null) ? $manifestItem['id'] : null;
+                $links[$index]['manifestMediaType'] = is_string($manifestItem['mediaType'] ?? null) ? $manifestItem['mediaType'] : null;
+            } elseif (
+                ($link['external'] ?? false) !== true
+                && $path !== ''
+                && ($link['exists'] ?? false) === true
+            ) {
+                $diagnostics[] = [
+                    'type' => 'unmanifested-metadata-link-target',
+                    'href' => is_string($link['href'] ?? null) ? $link['href'] : '',
+                    'path' => $path,
+                    'message' => 'EPUB OPF metadata link resolves to package bytes that are not declared in the OPF manifest',
+                ];
+            }
+
+            $links[$index]['diagnostics'] = $diagnostics;
+            $links[$index]['diagnosticCount'] = count($diagnostics);
+        }
+
+        return $links;
     }
 
     /**
@@ -1378,15 +1498,7 @@ final class EpubPackageReader
             $properties,
             static fn (array $property): bool => is_string($property['refines'] ?? null) && $property['refines'] !== ''
         ));
-        $localLinks = [];
-        $externalLinks = [];
-        foreach ($links as $link) {
-            if (($link['external'] ?? false) === true) {
-                $externalLinks[] = $link;
-            } else {
-                $localLinks[] = $link;
-            }
-        }
+        $linkReport = $this->metadataLinkReport($links);
 
         $report = [
             'present' => $items !== [] || $properties !== [] || $links !== [],
@@ -1402,9 +1514,16 @@ final class EpubPackageReader
             'fileAsCount' => count($fileAsItems),
             'propertyCount' => count($properties),
             'refinementPropertyCount' => count($refinementProperties),
-            'linkCount' => count($links),
-            'localLinkCount' => count($localLinks),
-            'externalLinkCount' => count($externalLinks),
+            'linkCount' => $linkReport['itemCount'],
+            'localLinkCount' => $linkReport['localLinkCount'],
+            'externalLinkCount' => $linkReport['externalLinkCount'],
+            'missingLinkCount' => $linkReport['missingLinkCount'],
+            'linkRelTokens' => $linkReport['relTokens'],
+            'linkRelCounts' => $linkReport['relCounts'],
+            'linkTargets' => $linkReport['targets'],
+            'linkDiagnosticCount' => $linkReport['diagnosticCount'],
+            'linkDiagnostics' => $linkReport['diagnostics'],
+            'linkReport' => $linkReport,
             'items' => $items,
             'itemsById' => $itemsById,
             'itemsByKind' => $itemsByKind,
@@ -1414,8 +1533,10 @@ final class EpubPackageReader
             'roleItems' => $roleItems,
             'fileAsItems' => $fileAsItems,
             'refinementProperties' => $refinementProperties,
-            'localLinks' => $localLinks,
-            'externalLinks' => $externalLinks,
+            'localLinks' => $linkReport['localLinks'],
+            'externalLinks' => $linkReport['externalLinks'],
+            'missingLinks' => $linkReport['missingLinks'],
+            'linksByRel' => $linkReport['linksByRel'],
         ];
 
         foreach ([
@@ -1447,9 +1568,87 @@ final class EpubPackageReader
             'linkCount' => $report['linkCount'],
             'localLinkCount' => $report['localLinkCount'],
             'externalLinkCount' => $report['externalLinkCount'],
+            'missingLinkCount' => $report['missingLinkCount'],
+            'linkDiagnosticCount' => $report['linkDiagnosticCount'],
         ];
 
         return $report;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @return array<string, mixed>
+     */
+    private function metadataLinkReport(array $links): array
+    {
+        $localLinks = [];
+        $externalLinks = [];
+        $missingLinks = [];
+        $relCounts = [];
+        $linksByRel = [];
+        $targets = [];
+        $diagnostics = [];
+
+        foreach ($links as $linkIndex => $link) {
+            if (($link['external'] ?? false) === true) {
+                $externalLinks[] = $link;
+            } elseif (($link['path'] ?? '') !== '') {
+                $localLinks[] = $link;
+            }
+
+            if (($link['external'] ?? false) !== true && ($link['path'] ?? '') !== '' && ($link['exists'] ?? false) !== true) {
+                $missingLinks[] = $link;
+            }
+
+            $target = is_string($link['target'] ?? null) && $link['target'] !== ''
+                ? $link['target']
+                : (is_string($link['path'] ?? null) ? $link['path'] : '');
+            if ($target !== '') {
+                $targets[] = $target;
+            }
+
+            foreach (is_array($link['rel'] ?? null) ? $link['rel'] : [] as $rel) {
+                if (!is_string($rel) || $rel === '') {
+                    continue;
+                }
+                $relCounts[$rel] = ($relCounts[$rel] ?? 0) + 1;
+                $linksByRel[$rel][] = $link;
+            }
+
+            foreach (is_array($link['diagnostics'] ?? null) ? $link['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'index' => $linkIndex,
+                    'id' => is_string($link['id'] ?? null) && $link['id'] !== '' ? $link['id'] : null,
+                    'rel' => is_array($link['rel'] ?? null) ? array_values($link['rel']) : [],
+                    'href' => is_string($link['href'] ?? null) ? $link['href'] : '',
+                ] + $diagnostic;
+            }
+        }
+
+        ksort($relCounts, SORT_STRING);
+        ksort($linksByRel, SORT_STRING);
+
+        return [
+            'present' => $links !== [],
+            'itemCount' => count($links),
+            'links' => $links,
+            'localLinkCount' => count($localLinks),
+            'externalLinkCount' => count($externalLinks),
+            'missingLinkCount' => count($missingLinks),
+            'localLinks' => $localLinks,
+            'externalLinks' => $externalLinks,
+            'missingLinks' => $missingLinks,
+            'relTokens' => array_keys($relCounts),
+            'relCounts' => $relCounts,
+            'linksByRel' => $linksByRel,
+            'targets' => $targets,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**
