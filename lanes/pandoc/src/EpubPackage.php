@@ -6880,6 +6880,11 @@ final class EpubPackage
                     ? 'obfuscated-font-bytes-blocked'
                     : 'encrypted-resource-bytes-blocked';
             }
+            $item['byteSha256'] = self::packageEntryByteSha256(
+                $package,
+                $packagePath,
+                ($item['canExposeBytes'] ?? false) === true
+            );
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -6950,6 +6955,15 @@ final class EpubPackage
             'byPackagePath' => $byPackagePath,
             'entries' => $entries,
         ];
+    }
+
+    private static function packageEntryByteSha256(ZipPackage $package, string $packagePath, bool $canExposeBytes): ?string
+    {
+        if (!$canExposeBytes) {
+            return null;
+        }
+
+        return hash('sha256', $package->read($packagePath));
     }
 
     private static function packageInventoryEntryName(mixed $partName): ?string

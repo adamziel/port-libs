@@ -5919,6 +5919,75 @@ XML;
         $t->same('audio', $inventory['byPackagePath']['EPUB/audio/theme.mp3']['resourceKind']);
     },
 
+    'preserves EPUB package inventory SHA-256 byte provenance for exposable entries' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml, $buildZipPackage): void {
+        $opfWithProtectedAssets = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="audio" href="audio/theme.mp3" media-type="audio/mpeg"/>
+    <item id="font" href="fonts/source.otf" media-type="font/otf"/>',
+            $epub3OpfXml
+        );
+        $chapter1 = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>';
+        $chapter2 = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>';
+        $cover = 'PNG';
+        $audio = 'UNSUPPORTED-AUDIO-BYTES';
+        $font = 'OBFUSCATED-FONT-BYTES';
+        $note = 'unmanifested reviewer note';
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <CipherData>
+      <CipherReference URI="EPUB/fonts/source.otf"/>
+    </CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml, 'method' => 8],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml, 'method' => 8],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithProtectedAssets, 'method' => 8],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml, 'method' => 8],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => $chapter1, 'method' => 8],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => $chapter2, 'method' => 8],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }', 'method' => 8],
+            ['name' => 'EPUB/images/cover.png', 'data' => $cover, 'method' => 0],
+            ['name' => 'EPUB/audio/theme.mp3', 'data' => $audio, 'method' => 12],
+            ['name' => 'EPUB/fonts/source.otf', 'data' => $font, 'method' => 0],
+            ['name' => 'EPUB/notes/source.txt', 'data' => $note, 'method' => 0],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $byPath = $inventory['byPackagePath'];
+
+        $t->same($inventory, $summary['wordpressImport']['packageInventory']);
+        $t->same(12, $inventory['entryCount']);
+        $t->same(7, $inventory['opfManifestDeclaredEntryCount']);
+        $t->same(1, $inventory['undeclaredEntryCount']);
+        $t->same(1, $inventory['unsupportedCompressionMethodCount']);
+        $t->same(1, $inventory['encryptedEntryCount']);
+        $t->same(1, $inventory['obfuscatedFontEntryCount']);
+
+        $t->same(hash('sha256', EpubPackage::EPUB_MIMETYPE), $byPath['mimetype']['byteSha256']);
+        $t->same(hash('sha256', $epubContainerXml), $byPath['META-INF/container.xml']['byteSha256']);
+        $t->same(hash('sha256', $encryptionXml), $byPath['META-INF/encryption.xml']['byteSha256']);
+        $t->same(hash('sha256', $opfWithProtectedAssets), $byPath['EPUB/package.opf']['byteSha256']);
+        $t->same(hash('sha256', $epub3NavXml), $byPath['EPUB/nav.xhtml']['byteSha256']);
+        $t->same(hash('sha256', $chapter1), $byPath['EPUB/text/chapter1.xhtml']['byteSha256']);
+        $t->same(hash('sha256', $chapter2), $byPath['EPUB/text/chapter2.xhtml']['byteSha256']);
+        $t->same(hash('sha256', $cover), $byPath['EPUB/images/cover.png']['byteSha256']);
+        $t->same(hash('sha256', $note), $byPath['EPUB/notes/source.txt']['byteSha256']);
+        $t->same(null, $byPath['EPUB/audio/theme.mp3']['byteSha256']);
+        $t->same(null, $byPath['EPUB/fonts/source.otf']['byteSha256']);
+        $t->same(false, $byPath['EPUB/audio/theme.mp3']['canExposeBytes']);
+        $t->same(false, $byPath['EPUB/fonts/source.otf']['canExposeBytes']);
+        $t->same('unsupported', $byPath['EPUB/audio/theme.mp3']['compressionMethodName']);
+        $t->same('obfuscated-font-bytes-blocked', $byPath['EPUB/fonts/source.otf']['byteExposurePolicy']);
+        $t->same($byPath['EPUB/text/chapter1.xhtml']['byteSha256'], $inventory['entries'][5]['byteSha256']);
+    },
+
     'reports OPF metadata meta property vocabulary diagnostics for package review' => static function (TestRunner $t) use ($epubContainerXml): void {
         $opfWithMetaVocabulary = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" prefix="review: https://example.invalid/epub-review#">
