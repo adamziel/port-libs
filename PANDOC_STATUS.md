@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 2,227 | 1,096 |
+| Markdown / CommonMark / GFM | 2,282 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` preserves 102 common emoji shortcode aliases as native emoji spans with `data-emoji` metadata, while `MarkdownWriter` round-trips `:alias:` syntax and `WordPressBlockWriter` emits safe emoji span markup.
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownWriter` renders Pandoc `plain` blocks inside list items inline with the list marker instead of emitting blank-marker continuations, covering bullets, ordered styles, task states, nested lists, blockquotes, line blocks, definition lists, fenced divs, and indented/fenced code.
 
-Current Pandoc counters: 6,044 PHP passes / 0 failures and 6,034 mapped upstream cases. Verification passed after rebase: `php -l` for `MarkdownEmojiAliases.php` and `MarkdownReaderEmojiExtensionSurgeTest.php`; focused emoji/reader coverage passed 4 files, 8154 assertions, 0 failures; full `lanes/pandoc/tests` passed 72 files, 103941 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 6,099 PHP passes / 0 failures and 6,089 mapped upstream cases. Verification passed after rebase: `php -l` for `MarkdownWriter.php`, `MarkdownReaderTest.php`, and `MarkdownWriterPlainListCompletionSurgeTest.php`; focused Markdown writer/list coverage passed 4 files, 7509 assertions, 0 failures; full `lanes/pandoc/tests` passed 73 files, 103996 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
