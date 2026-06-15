@@ -252,6 +252,7 @@ foreach (['inline', 'reference', 'shortcut'] as $syntax) {
                     'position' => $position,
                     'marker' => $marker,
                     'caption' => 'Review *figure* ' . $caseId,
+                    'expectedCaption' => 'Review figure ' . $caseId,
                     'shortCaption' => 'Queue ' . $caseId,
                     'sourceLabel' => $syntaxLabel . ' source ' . $caseId,
                     'alt' => $syntax === 'inline' ? $syntaxLabel . ' alt ' . $caseId : $syntaxLabel . ' source ' . $caseId,
@@ -286,7 +287,7 @@ foreach ($adjacentFigureCaptionCases as $case) {
         $t->same(1, count($document->children));
         $t->same('figure', $figure->type);
         $t->same('image', $image->type);
-        $t->same($case['caption'], $figure->attr('caption'));
+        $t->same($case['expectedCaption'], $figure->attr('caption'));
         $t->same($case['shortCaption'], $figure->attr('shortCaption'));
         $t->same(true, $figure->attr('renderCaptionInlines'));
         $t->same(true, $figure->attr('renderShortCaptionAttribute'));
@@ -324,6 +325,182 @@ foreach ($adjacentFigureCaptionCases as $case) {
         );
         $t->contains('<figcaption>Review <em>figure</em> ' . $case['caseId'] . '</figcaption>', $blocks);
     };
+}
+
+$imageFixtures = [
+    'inline' => [
+        'markdown' => '![Source image](images/source.png "Source title")',
+        'tail' => '',
+        'url' => 'images/source.png',
+        'title' => 'Source title',
+        'imageAlt' => 'Source image',
+    ],
+    'attributed' => [
+        'markdown' => '![Review image](images/review.png){#image-source .from-image width="640" height="480" alt="Editorial alt"}',
+        'tail' => '',
+        'url' => 'images/review.png',
+        'title' => '',
+        'imageAlt' => 'Editorial alt',
+    ],
+    'reference' => [
+        'markdown' => '![Reference image][figure-ref]',
+        'tail' => "\n\n[figure-ref]: media/reference.png \"Reference title\"",
+        'url' => 'media/reference.png',
+        'title' => 'Reference title',
+        'imageAlt' => 'Reference image',
+    ],
+];
+
+$captionedFigureMarkdown = static function (array $fixture, string $position, string $marker, string $caption): string {
+    $captionLine = $marker . ($caption === '' ? '' : ' ' . $caption);
+    $body = $position === 'before-figure'
+        ? $captionLine . "\n\n" . $fixture['markdown']
+        : $fixture['markdown'] . "\n\n" . $captionLine;
+
+    return $body . $fixture['tail'];
+};
+
+$firstFigure = static function (AstNode $document): AstNode {
+    foreach ($document->children as $node) {
+        if ($node->type === 'figure') {
+            return $node;
+        }
+    }
+
+    return new AstNode('missing');
+};
+
+$inlineTypes = static fn (array $nodes): array => array_values(array_map(
+    static fn (AstNode $node): string => $node->type,
+    $nodes
+));
+
+$assertFigureImage = static function (TestRunner $t, AstNode $figure, array $fixture): void {
+    $t->same('figure', $figure->type);
+    $t->same(1, count($figure->children));
+    $image = $figure->children[0];
+    $t->same('image', $image->type);
+    $t->same($fixture['url'], $image->attr('url'));
+    $t->same($fixture['imageAlt'], $image->attr('alt'));
+    if ($fixture['title'] !== '') {
+        $t->same($fixture['title'], $image->attr('title'));
+    }
+};
+
+$caseNumber = 1;
+
+foreach ($imageFixtures as $imageName => $fixture) {
+    foreach (['before-figure' => 'Figure:', 'after-figure' => ':'] as $position => $marker) {
+        foreach (['plain' => 'Short label', 'formatted' => 'Short **label**'] as $style => $short) {
+            $number = $caseNumber++;
+            $tests["maps upstream markdown reader figure short caption {$imageName} {$position} {$style}"] =
+                static function (TestRunner $t) use ($captionedFigureMarkdown, $firstFigure, $inlineTypes, $assertFigureImage, $fixture, $position, $marker, $short, $style, $number): void {
+                    $caption = "[{$short} {$number}] Long **figure** caption {$number}";
+                    $document = (new MarkdownReader())->read($captionedFigureMarkdown($fixture, $position, $marker, $caption));
+                    $figure = $firstFigure($document);
+
+                    $assertFigureImage($t, $figure, $fixture);
+                    $t->same("Long figure caption {$number}", $figure->attr('caption'));
+                    $t->same("Short label {$number}", $figure->attr('shortCaption'));
+                    $t->same($style === 'formatted' ? ['text', 'strong', 'text'] : ['text'], $inlineTypes($figure->attr('shortCaptionInlines')));
+                    $t->same(['text', 'strong', 'text'], $inlineTypes($figure->attr('captionInlines')));
+                    $t->same($position, $figure->attr('captionSource')['position'] ?? null);
+                    $t->same(true, $figure->attr('renderCaptionInlines'));
+                };
+        }
+    }
+}
+
+foreach ($imageFixtures as $imageName => $fixture) {
+    foreach (['before-figure' => 'Caption:', 'after-figure' => 'Figure:'] as $position => $marker) {
+        foreach (['data' => 'data-source', 'lang' => 'lang'] as $style => $attributeName) {
+            $number = $caseNumber++;
+            $id = "fig-{$imageName}-{$position}-{$style}";
+            $tests["maps upstream markdown reader figure caption attributes {$imageName} {$position} {$style}"] =
+                static function (TestRunner $t) use ($captionedFigureMarkdown, $firstFigure, $assertFigureImage, $fixture, $position, $marker, $imageName, $attributeName, $number, $id): void {
+                    $caption = $attributeName === 'data-source'
+                        ? "Attributed figure {$number} {#{$id} .review-figure .{$imageName} data-source=\"batch-{$number}\" title=\"Review &amp; figure\"}"
+                        : "Attributed figure {$number} {#{$id} .review-figure .{$imageName} lang=\"en-US\" title=\"{$imageName} figure\"}";
+                    $document = (new MarkdownReader())->read($captionedFigureMarkdown($fixture, $position, $marker, $caption));
+                    $figure = $firstFigure($document);
+                    $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$figure]));
+
+                    $assertFigureImage($t, $figure, $fixture);
+                    $t->same("Attributed figure {$number}", $figure->attr('caption'));
+                    $t->same($id, $figure->attr('id'));
+                    $t->same($attributeName === 'data-source' ? "batch-{$number}" : 'en-US', $figure->attr('attributes')[$attributeName] ?? null);
+                    $t->contains('review-figure', implode(',', $figure->attr('classes')));
+                    $t->contains("#{$id}", $markdown);
+                    $t->contains('.review-figure', $markdown);
+                };
+        }
+    }
+}
+
+foreach ($imageFixtures as $imageName => $fixture) {
+    foreach (['before-figure', 'after-figure'] as $position) {
+        foreach (['Figure:', 'Fig.:', 'Image:'] as $marker) {
+            $number = $caseNumber++;
+            $tests["maps upstream markdown reader figure caption source {$imageName} {$position} {$marker}"] =
+                static function (TestRunner $t) use ($captionedFigureMarkdown, $firstFigure, $assertFigureImage, $fixture, $position, $marker, $number): void {
+                    $document = (new MarkdownReader())->read($captionedFigureMarkdown($fixture, $position, $marker, "Source marker figure {$number}"));
+                    $figure = $firstFigure($document);
+                    $source = $figure->attr('captionSource');
+
+                    $assertFigureImage($t, $figure, $fixture);
+                    $t->same("Source marker figure {$number}", $figure->attr('caption'));
+                    $t->same('markdown-figure-caption', $source['element'] ?? null);
+                    $t->same($position, $source['position'] ?? null);
+                    $t->same($marker, $source['marker'] ?? null);
+                    $t->same($position === 'before-figure' ? 'top' : 'bottom', $source['captionSide'] ?? null);
+                    $t->same('markdown-figure-caption-position', $source['captionSideSource'] ?? null);
+                };
+        }
+    }
+}
+
+foreach ($imageFixtures as $imageName => $fixture) {
+    foreach (['before-figure' => 'Figure:', 'after-figure' => ':'] as $position => $marker) {
+        foreach (['link-continuation', 'code-continuation'] as $style) {
+            $number = $caseNumber++;
+            $tests["maps upstream markdown reader multiline figure caption {$imageName} {$position} {$style}"] =
+                static function (TestRunner $t) use ($captionedFigureMarkdown, $firstFigure, $inlineTypes, $assertFigureImage, $fixture, $position, $marker, $style, $number): void {
+                    $continuation = $style === 'link-continuation'
+                        ? "  continuation with [review link](/figure-review-{$number})"
+                        : "  continuation with `code {$number}`";
+                    $caption = "Multiline **figure** {$number}\n{$continuation}";
+                    $document = (new MarkdownReader())->read($captionedFigureMarkdown($fixture, $position, $marker, $caption));
+                    $figure = $firstFigure($document);
+                    $types = $inlineTypes($figure->attr('captionInlines'));
+
+                    $assertFigureImage($t, $figure, $fixture);
+                    $t->contains("Multiline figure {$number}\ncontinuation", $figure->attr('caption'));
+                    $t->contains('strong', implode(',', $types));
+                    $t->contains($style === 'link-continuation' ? 'link' : 'code', implode(',', $types));
+                    $t->same($position === 'before-figure' ? 'top' : 'bottom', $figure->attr('captionSource')['captionSide'] ?? null);
+                };
+        }
+    }
+}
+
+foreach ($imageFixtures as $imageName => $fixture) {
+    foreach (['before-figure' => 'Caption:', 'after-figure' => ':'] as $position => $marker) {
+        $number = $caseNumber++;
+        $tests["maps upstream markdown reader figure caption wordpress handoff {$imageName} {$position}"] =
+            static function (TestRunner $t) use ($captionedFigureMarkdown, $firstFigure, $fixture, $position, $marker, $imageName, $number): void {
+                $caption = "[Short {$number}] Handoff **figure** {$number} {#handoff-{$imageName}-{$position} .handoff-figure data-source=\"figure-surge\"}";
+                $document = (new MarkdownReader())->read($captionedFigureMarkdown($fixture, $position, $marker, $caption));
+                $figure = $firstFigure($document);
+                $blocks = (new WordPressBlockWriter())->write($document);
+
+                $t->same("Short {$number}", $figure->attr('shortCaption'));
+                $t->contains('id="handoff-' . $imageName . '-' . $position . '"', $blocks);
+                $t->contains('wp-block-image', $blocks);
+                $t->contains('handoff-figure', $blocks);
+                $t->contains('data-source="figure-surge"', $blocks);
+                $t->contains('Handoff <strong>figure</strong> ' . $number, $blocks);
+            };
+    }
 }
 
 $tests['records upstream markdown figure caption surge mapped-case count'] = static function (TestRunner $t) use ($cases): void {

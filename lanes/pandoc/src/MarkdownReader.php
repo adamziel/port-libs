@@ -14707,32 +14707,32 @@ final class MarkdownReader
     {
         $leading = $this->readLeadingFigureCaption($lines, $index);
         if ($leading !== null) {
-            $figure = $this->figureFromStandaloneImageLine($lines[$leading['figureStart']] ?? '');
-            if ($figure !== null) {
+            $image = $this->tryParseStandaloneImageLine($lines[$leading['figureStart']] ?? '');
+            if ($image instanceof AstNode) {
                 $index = $leading['figureStart'];
 
-                return $this->figureWithCaption($figure, $leading['caption']);
+                return $this->buildFigureFromImageAndCaption($image, $leading['caption']);
             }
         }
 
-        $figure = $this->figureFromStandaloneImageLine($lines[$index] ?? '');
-        if ($figure === null) {
+        $image = $this->tryParseStandaloneImageLine($lines[$index] ?? '');
+        if (!$image instanceof AstNode) {
             return null;
         }
 
         [$caption, $next] = $this->readFigureCaption($lines, $index + 1);
-        if ($caption === '') {
+        if (($caption['caption'] ?? '') === '') {
             return null;
         }
 
         $index = $next - 1;
 
-        return $this->figureWithCaption($figure, $caption);
+        return $this->buildFigureFromImageAndCaption($image, $caption);
     }
 
     /**
      * @param list<string> $lines
-     * @return array{0:string, 1:int}
+     * @return array{0:array<string, mixed>, 1:int}
      */
     private function readFigureCaption(array $lines, int $cursor): array
     {
@@ -14742,125 +14742,231 @@ final class MarkdownReader
             $captionCursor++;
         }
 
-        $captionLine = $captionCursor < $count ? $this->matchFigureCaptionLine($lines[$captionCursor]) : null;
+        $captionLine = $captionCursor < $count ? $this->matchFigureCaptionLine($lines[$captionCursor], false) : null;
         if ($captionLine === null) {
-            return ['', $cursor];
+            return [$this->emptyFigureCaptionRecord(), $cursor];
         }
 
-        $caption = [trim($captionLine)];
+        $caption = [trim($captionLine['text'])];
         $next = $captionCursor + 1;
-        while (
-            $next < $count
-            && trim($lines[$next]) !== ''
-            && $this->countIndentColumns($lines[$next]) >= 2
-            && $this->figureFromStandaloneImageLine($lines[$next]) === null
-        ) {
+        while ($this->isFigureCaptionContinuation($lines, $next)) {
             $caption[] = trim($lines[$next]);
             $next++;
         }
 
-        return [implode("\n", $caption), $next];
+        return [$this->buildFigureCaptionRecord(implode("\n", $caption), 'after-figure', $captionLine['marker']), $next];
     }
 
     /**
      * @param list<string> $lines
-     * @return array{caption:string, figureStart:int}|null
+     * @return array{caption:array<string, mixed>, figureStart:int}|null
      */
     private function readLeadingFigureCaption(array $lines, int $index): ?array
     {
-        $captionLine = $this->matchFigureCaptionLine($lines[$index] ?? '');
+        $captionLine = $this->matchFigureCaptionLine($lines[$index] ?? '', true);
         if ($captionLine === null) {
             return null;
         }
 
-        $caption = [trim($captionLine)];
+        $caption = [trim($captionLine['text'])];
         $cursor = $index + 1;
-        $count = count($lines);
-        while (
-            $cursor < $count
-            && trim($lines[$cursor]) !== ''
-            && $this->countIndentColumns($lines[$cursor]) >= 2
-            && $this->figureFromStandaloneImageLine($lines[$cursor]) === null
-        ) {
+        while ($this->isFigureCaptionContinuation($lines, $cursor)) {
             $caption[] = trim($lines[$cursor]);
             $cursor++;
         }
 
+        $count = count($lines);
         while ($cursor < $count && trim($lines[$cursor]) === '') {
             $cursor++;
         }
 
-        if ($cursor >= $count || $this->figureFromStandaloneImageLine($lines[$cursor]) === null) {
+        if ($cursor >= $count || $this->tryParseStandaloneImageLine($lines[$cursor]) === null) {
             return null;
         }
 
         return [
-            'caption' => implode("\n", $caption),
+            'caption' => $this->buildFigureCaptionRecord(implode("\n", $caption), 'before-figure', $captionLine['marker']),
             'figureStart' => $cursor,
         ];
     }
 
-    private function matchFigureCaptionLine(string $line): ?string
+    /**
+     * @param list<string> $lines
+     */
+    private function isFigureCaptionContinuation(array $lines, int $index): bool
     {
-        if (preg_match('/^ {0,3}(?:(?:Figure|Fig\.?|Image|Caption):|:)\s*(.*)$/iu', $line, $m) !== 1) {
-            return null;
+        if (!isset($lines[$index]) || trim($lines[$index]) === '') {
+            return false;
         }
 
-        return $m[1];
+        $line = $lines[$index];
+        if ($this->countIndentColumns($line) < 2) {
+            return false;
+        }
+
+        return $this->tryParseStandaloneImageLine($line) === null
+            && $this->parseSimpleTableDelimiter($line) === null
+            && !$this->isSimpleTableBoundary($line);
     }
 
-    private function figureFromStandaloneImageLine(string $line): ?AstNode
+    /**
+     * @return array{marker:string, text:string}|null
+     */
+    private function matchFigureCaptionLine(string $line, bool $leading): ?array
     {
-        if ($this->countIndentColumns($line) > 3) {
+        $markerPattern = $leading
+            ? '(?:Figure|Fig\.?|Image|Caption):'
+            : '(?:(?:Figure|Fig\.?|Image|Caption):|:)';
+        if (preg_match('/^ {0,3}(' . $markerPattern . ')\s*(.*)$/iu', $line, $m) !== 1) {
             return null;
         }
 
-        $text = trim($line);
-        if ($text === '') {
-            return null;
-        }
-
-        $children = $this->parseInlines($text);
-        if (count($children) !== 1 || $children[0]->type !== 'image') {
-            return null;
-        }
-
-        $figureAttrs = $children[0]->attr('figureAttributes', []);
-        if (!is_array($figureAttrs)) {
-            $figureAttrs = [];
-        }
-        $figureAttrs['caption'] = (string) $children[0]->attr('caption', $children[0]->attr('alt', ''));
-
-        return new AstNode('figure', $figureAttrs, [$children[0]]);
-    }
-
-    private function figureWithCaption(AstNode $figure, string $caption): AstNode
-    {
-        if ($figure->type !== 'figure') {
-            return $figure;
-        }
-
-        return new AstNode(
-            'figure',
-            array_replace($figure->attrs, $this->figureCaptionAttrs($caption)),
-            $figure->children
-        );
+        return [
+            'marker' => $m[1],
+            'text' => $m[2],
+        ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function figureCaptionAttrs(string $captionSpec): array
+    private function emptyFigureCaptionRecord(): array
     {
-        $attrs = $this->tableCaptionAttrs($captionSpec);
-        if (isset($attrs['captionInlines'])) {
-            $attrs['renderCaptionInlines'] = true;
+        return ['caption' => ''];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildFigureCaptionRecord(string $source, string $position, string $marker): array
+    {
+        [$caption, $figureAttrs] = $this->splitTableCaptionAttributes(trim($source));
+        [$shortCaption, $longCaption] = $this->splitTableShortCaption($caption);
+        $captionInlines = $longCaption === '' ? [] : $this->parseInlines($longCaption);
+
+        $record = [
+            'caption' => $captionInlines === [] ? $longCaption : $this->plainTextFromInlines($captionInlines),
+            'captionSource' => [
+                'element' => 'markdown-figure-caption',
+                'position' => $position,
+                'marker' => $marker,
+                'captionSide' => $position === 'before-figure' ? 'top' : 'bottom',
+                'captionSideSource' => 'markdown-figure-caption-position',
+            ],
+            'renderCaptionInlines' => true,
+        ];
+        if ($captionInlines !== []) {
+            $record['captionInlines'] = $captionInlines;
         }
-        if (isset($attrs['shortCaption'])) {
-            $attrs['renderShortCaptionAttribute'] = true;
+        if ($shortCaption !== null && $shortCaption !== '') {
+            $shortCaptionInlines = $this->parseInlines($shortCaption);
+            $record['shortCaption'] = $this->plainTextFromInlines($shortCaptionInlines);
+            $record['shortCaptionInlines'] = $shortCaptionInlines;
+            $record['renderShortCaptionAttribute'] = true;
         }
 
-        return $attrs;
+        return $this->mergeFigureAttributeAttrs($record, $figureAttrs);
+    }
+
+    private function tryParseStandaloneImageLine(string $line): ?AstNode
+    {
+        if ($this->countIndentColumns($line) > 3) {
+            return null;
+        }
+
+        $trimmed = trim($line);
+        if ($trimmed === '' || !str_starts_with($trimmed, '![')) {
+            return null;
+        }
+
+        $inlines = $this->parseInlines($trimmed);
+        if (count($inlines) !== 1 || $inlines[0]->type !== 'image') {
+            return null;
+        }
+
+        return $inlines[0];
+    }
+
+    /**
+     * @param array<string, mixed> $caption
+     */
+    private function buildFigureFromImageAndCaption(AstNode $image, array $caption): AstNode
+    {
+        $figureAttrs = $image->attr('figureAttributes', []);
+        if (!is_array($figureAttrs)) {
+            $figureAttrs = [];
+        }
+
+        $figureAttrs = $this->mergeFigureAttributeAttrs($figureAttrs, $caption);
+        if ((string) ($figureAttrs['caption'] ?? '') === '') {
+            $figureAttrs['caption'] = (string) $image->attr('caption', $image->attr('alt', ''));
+        }
+
+        return new AstNode('figure', $figureAttrs, [$image]);
+    }
+
+    /**
+     * @param array<string, mixed> $base
+     * @param array<string, mixed> $next
+     * @return array<string, mixed>
+     */
+    private function mergeFigureAttributeAttrs(array $base, array $next): array
+    {
+        $merged = array_replace($base, $next);
+
+        $baseClasses = is_array($base['classes'] ?? null) ? $base['classes'] : [];
+        $nextClasses = is_array($next['classes'] ?? null) ? $next['classes'] : [];
+        if ($baseClasses !== [] || $nextClasses !== []) {
+            $classes = [];
+            foreach (array_merge($baseClasses, $nextClasses) as $class) {
+                if (!is_scalar($class)) {
+                    continue;
+                }
+                $class = trim((string) $class);
+                if ($class !== '' && !in_array($class, $classes, true)) {
+                    $classes[] = $class;
+                }
+            }
+            if ($classes !== []) {
+                $merged['classes'] = $classes;
+            }
+        }
+
+        $baseAttributes = is_array($base['attributes'] ?? null) ? $base['attributes'] : [];
+        $nextAttributes = is_array($next['attributes'] ?? null) ? $next['attributes'] : [];
+        if ($baseAttributes !== [] || $nextAttributes !== []) {
+            $merged['attributes'] = array_replace($baseAttributes, $nextAttributes);
+        }
+
+        $htmlAttributes = [];
+        foreach ([$base['htmlAttributes'] ?? [], $next['htmlAttributes'] ?? []] as $sourceAttributes) {
+            if (!is_array($sourceAttributes)) {
+                continue;
+            }
+            foreach ($sourceAttributes as $name => $value) {
+                if (is_scalar($value)) {
+                    $htmlAttributes[(string) $name] = (string) $value;
+                }
+            }
+        }
+        if (isset($merged['id']) && is_scalar($merged['id']) && (string) $merged['id'] !== '') {
+            $htmlAttributes['id'] = (string) $merged['id'];
+        }
+        if (isset($merged['classes']) && is_array($merged['classes']) && $merged['classes'] !== []) {
+            $htmlAttributes['class'] = implode(' ', array_map(static fn (mixed $class): string => (string) $class, $merged['classes']));
+        }
+        if (isset($merged['attributes']) && is_array($merged['attributes'])) {
+            foreach ($merged['attributes'] as $name => $value) {
+                if (is_scalar($value)) {
+                    $htmlAttributes[(string) $name] = (string) $value;
+                }
+            }
+        }
+        if ($htmlAttributes !== []) {
+            $merged['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $merged;
     }
 
     /**
