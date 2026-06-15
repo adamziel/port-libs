@@ -1969,6 +1969,141 @@ return [
             }
         }
     },
+    'accepts tagged single wrapped block tuple constructors through json and native readers' => static function (TestRunner $t): void {
+        $emptyAttr = ['', [], []];
+        $sourceBlocks = [
+            ['t' => 'Header', 'c' => [[
+                2,
+                ['t' => 'Attr', 'c' => [['wrapped-heading', ['json-native'], [['data-source', 'block-tuple']]]]],
+                [
+                    ['t' => 'Str', 'c' => 'Wrapped'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'heading'],
+                ],
+            ]], 'reviewQueue' => 'header-tuple-source'],
+            ['t' => 'CodeBlock', 'c' => [[
+                ['t' => 'Attr', 'c' => [['wrapped-code', ['php'], []]]],
+                'wp_insert_post',
+            ]], 'reviewQueue' => 'code-block-tuple-source'],
+            ['t' => 'OrderedList', 'c' => [[
+                ['t' => 'ListAttributes', 'c' => [[3, ['t' => 'UpperAlpha'], ['t' => 'OneParen']]], 'reviewQueue' => 'list-attrs-source'],
+                [
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Review'],
+                        ]],
+                    ],
+                ],
+            ]], 'reviewQueue' => 'ordered-list-tuple-source'],
+            ['t' => 'DefinitionList', 'c' => [
+                [[
+                    [
+                        ['t' => 'Str', 'c' => 'Term'],
+                    ],
+                    [
+                        [
+                            ['t' => 'Plain', 'c' => [
+                                ['t' => 'Str', 'c' => 'Definition'],
+                            ]],
+                        ],
+                    ],
+                ]],
+            ], 'reviewQueue' => 'definition-list-tuple-source'],
+            ['t' => 'Div', 'c' => [[
+                ['t' => 'Attr', 'c' => [['wrapped-div', ['metadata'], []]]],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Str', 'c' => 'Div'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'body'],
+                    ]],
+                ],
+            ]], 'reviewQueue' => 'div-tuple-source'],
+            ['t' => 'Figure', 'c' => [[
+                ['t' => 'Attr', 'c' => [['wrapped-figure', ['media'], []]]],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Nothing'],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Figure'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'caption'],
+                        ]],
+                    ],
+                ]],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Figure'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'body'],
+                    ]],
+                ],
+            ]], 'reviewQueue' => 'figure-tuple-source'],
+            ['t' => 'Table', 'c' => [[
+                ['t' => 'Attr', 'c' => [['wrapped-table', ['json-native'], []]]],
+                ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                [],
+                ['t' => 'TableHead', 'c' => [$emptyAttr, []]],
+                [],
+                ['t' => 'TableFoot', 'c' => [$emptyAttr, []]],
+            ]], 'reviewQueue' => 'table-tuple-source'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => $sourceBlocks,
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $children = $document->children;
+
+            $t->same([
+                'heading',
+                'code_block',
+                'ordered_list',
+                'definition_list',
+                'div',
+                'figure',
+                'table',
+            ], array_map(static fn (AstNode $node): string => $node->type, $children), "{$source} normalizes tagged single wrapped block tuple constructors");
+            $t->same('wrapped-heading', $children[0]->attr('id'), "{$source} header attr tuple");
+            $t->same(['php'], $children[1]->attr('classes'), "{$source} code block attr tuple");
+            $t->same(3, $children[2]->attr('start'), "{$source} ordered list start");
+            $t->same('upper_alpha', $children[2]->attr('style'), "{$source} ordered list style");
+            $t->same('one_paren', $children[2]->attr('delimiter'), "{$source} ordered list delimiter");
+            $definitionItem = $children[3]->children[0];
+            $t->same('Term', $definitionItem->children[0]->attr('text'), "{$source} definition term");
+            $t->same('Definition', $definitionItem->children[1]->children[0]->attr('text'), "{$source} definition body");
+            $t->same('wrapped-div', $children[4]->attr('id'), "{$source} div attr tuple");
+            $t->same('Figure caption', $children[5]->attr('caption'), "{$source} figure caption");
+            $t->same('wrapped-table', $children[6]->attr('id'), "{$source} table attr tuple");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($sourceBlocks, $encoded['blocks'], "{$source} {$writer} writer preserves unchanged tagged block tuple wrappers");
+            }
+
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('code_block', array_replace($children[1]->attrs, ['text' => 'edited'])),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $code = $encoded['blocks'][0];
+
+                $t->same('CodeBlock', $code['t'], "{$source} {$writer} writer keeps edited code block constructor");
+                $t->same('edited', $code['c'][1], "{$source} {$writer} writer emits edited code block text");
+                $t->same(false, array_key_exists('reviewQueue', $code), "{$source} {$writer} writer drops stale edited code block sidecar");
+            }
+        }
+    },
     'round trips core block constructors through pandoc json' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('blockquote', [], [

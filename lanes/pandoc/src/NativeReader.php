@@ -2008,7 +2008,7 @@ final class NativeReader
      */
     private function tuple(mixed $value, int $size, string $context): array
     {
-        $tuple = $this->listContent($value, $context);
+        $tuple = $this->singleWrappedTupleContent($value, $size, $context);
         if (count($tuple) !== $size) {
             throw new \InvalidArgumentException("{$context} must have {$size} entries");
         }

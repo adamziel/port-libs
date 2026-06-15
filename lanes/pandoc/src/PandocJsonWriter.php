@@ -1672,9 +1672,7 @@ final class PandocJsonWriter
         if ($tag === 'Figure' || $tag === 'Table') {
             $content = $this->nativeBlockTupleContent($native['c'] ?? null);
 
-            return is_array($content)
-                && array_is_list($content)
-                && count($content) === ($tag === 'Figure' ? 3 : 6);
+            return $this->isCurrentNativeTuplePayload($content, $tag === 'Figure' ? 3 : 6);
         }
 
         return in_array($tag, [
@@ -1704,6 +1702,22 @@ final class PandocJsonWriter
         }
 
         return $content;
+    }
+
+    private function isCurrentNativeTuplePayload(mixed $content, int $size): bool
+    {
+        if (!is_array($content) || !array_is_list($content)) {
+            return false;
+        }
+
+        if (count($content) === $size) {
+            return true;
+        }
+
+        return count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+            && count($content[0]) === $size;
     }
 
     private function hasNonCurrentNativeBlockPayload(mixed $value): bool
