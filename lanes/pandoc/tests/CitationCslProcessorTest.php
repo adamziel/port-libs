@@ -31593,6 +31593,96 @@ XML);
         $t->contains('<p>RIS attachments [RIS Attachment Packet | RIS L1: attachments/report.pdf; RIS L4: images/chart.png | remote-uri; path-traversal] remain reviewable.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>RIS Attachment Packet :: RIS L1; RIS L4 :: attachments/report.pdf; images/chart.png :: RIS L2: remote-uri (https://example.test/report.pdf); RIS L3: path-traversal (../private/report.pdf)</dd>', $blocks);
     },
+    'maps bounded ris user and custom fields into csl custom variables' => static function (TestRunner $t) use ($citation): void {
+        $ris = <<<'RIS'
+TY  - RPRT
+ID  - ris-user-fields
+AU  - Migration Review Desk
+TI  - RIS User Field Packet
+PY  - 2026
+U1  - review channel
+U2  - source lane
+U3  - migration priority
+U4  - editorial note
+U5  - export trace
+C1  - verbatim brace {review}
+C2  - raw separator ::
+C3  - preserved code `@source`
+C4  - retained raw only
+ER  -
+RIS;
+
+        $items = CitationCslProcessor::risItems($ris);
+        $t->same(1, count($items));
+        $t->same([
+            'usera' => 'review channel',
+            'userb' => 'source lane',
+            'userc' => 'migration priority',
+            'userd' => 'editorial note',
+            'usere' => 'export trace',
+            'verba' => 'verbatim brace {review}',
+            'verbb' => 'raw separator ::',
+            'verbc' => 'preserved code `@source`',
+        ], $items[0]['biblatex-custom-fields']);
+        $t->same('retained raw only', $items[0]['rawRis']['fields']['C4'][0] ?? null);
+        $t->same('usera<=U1; userb<=U2; userc<=U3; userd<=U4; usere<=U5; verba<=C1; verbb<=C2; verbc<=C3', $items[0]['risFieldProvenanceSummary']);
+
+        $processor = CitationCslProcessor::fromRis($ris);
+        $item = $processor->item('ris-user-fields');
+        $t->same('review channel', $item['biblatexCustomFields']['usera'] ?? null);
+        $t->same('preserved code `@source`', $item['biblatexCustomFields']['verbc'] ?? null);
+        $t->same('usera: review channel; userb: source lane; userc: migration priority; userd: editorial note; usere: export trace; verba: verbatim brace {review}; verbb: raw separator ::; verbc: preserved code `@source`', $item['biblatexCustomFieldSummary'] ?? null);
+        $t->same('usera<=U1; userb<=U2; userc<=U3; userd<=U4; usere<=U5; verba<=C1; verbb<=C2; verbc<=C3', $item['risFieldProvenanceSummary'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded RIS User Field Review</title>
+    <id>https://example.test/styles/bounded-ris-user-field-review</id>
+    <updated>2026-06-15T11:52:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="usera"/>
+        <text variable="userb"/>
+        <text variable="userc"/>
+        <text variable="userd"/>
+        <text variable="usere"/>
+        <text variable="verba"/>
+        <text variable="verbb"/>
+        <text variable="verbc"/>
+        <text variable="biblatex-custom-field-summary"/>
+        <text variable="ris-field-provenance"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="usera"/>
+      <text variable="verbc"/>
+      <text variable="biblatex-custom-field-summary"/>
+      <text variable="ris-field-provenance"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $expectedCustomSummary = 'usera: review channel; userb: source lane; userc: migration priority; userd: editorial note; usere: export trace; verba: verbatim brace {review}; verbb: raw separator ::; verbc: preserved code `@source`';
+        $expectedProvenance = 'usera<=U1; userb<=U2; userc<=U3; userd<=U4; usere<=U5; verba<=C1; verbb<=C2; verbc<=C3';
+        $t->same('[review channel | source lane | migration priority | editorial note | export trace | verbatim brace {review} | raw separator :: | preserved code `@source` | ' . $expectedCustomSummary . ' | ' . $expectedProvenance . ']', $styled->renderCitationCluster([
+            $citation('ris-user-fields', '[@ris-user-fields]'),
+        ]));
+        $t->same('RIS User Field Packet :: review channel :: preserved code `@source` :: ' . $expectedCustomSummary . ' :: ' . $expectedProvenance, $styled->renderBibliographyEntry('ris-user-fields'));
+
+        $document = (new MarkdownReader())->read('RIS user fields [@ris-user-fields] remain style-visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $expectedProvenanceHtml = 'usera&lt;=U1; userb&lt;=U2; userc&lt;=U3; userd&lt;=U4; usere&lt;=U5; verba&lt;=C1; verbb&lt;=C2; verbc&lt;=C3';
+        $t->contains('<p>RIS user fields [review channel | source lane | migration priority | editorial note | export trace | verbatim brace {review} | raw separator :: | preserved code `@source` | ' . $expectedCustomSummary . ' | ' . $expectedProvenanceHtml . '] remain style-visible.</p>', $blocks);
+        $t->contains('<dt>Migration Review Desk 2026</dt><dd>RIS User Field Packet :: review channel :: preserved code `@source` :: ' . $expectedCustomSummary . ' :: ' . $expectedProvenanceHtml . '</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

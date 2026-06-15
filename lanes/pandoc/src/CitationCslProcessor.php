@@ -1739,6 +1739,7 @@ final class CitationCslProcessor
             'translator' => self::risNames($fields, ['A3']),
             'collaborator' => self::risNames($fields, ['A4']),
             'keyword' => self::risValues($fields, ['KW']),
+            'biblatex-custom-fields' => self::risCustomFields($fields),
             'sourceFiles' => self::risSourceFiles($fields),
             'rawRis' => [
                 'type' => $type,
@@ -1854,6 +1855,14 @@ final class CitationCslProcessor
             'note' => ['N1', 'NT'],
             'medium' => ['M3'],
             'source' => ['DB'],
+            'usera' => ['U1'],
+            'userb' => ['U2'],
+            'userc' => ['U3'],
+            'userd' => ['U4'],
+            'usere' => ['U5'],
+            'verba' => ['C1'],
+            'verbb' => ['C2'],
+            'verbc' => ['C3'],
             'issued' => ['Y1', 'PY', 'DA'],
             'accessed' => ['Y2'],
             'serial-number' => ['SN'],
@@ -1871,6 +1880,14 @@ final class CitationCslProcessor
             'original-title',
             'number-of-volumes',
             'call-number',
+            'usera',
+            'userb',
+            'userc',
+            'userd',
+            'usere',
+            'verba',
+            'verbb',
+            'verbc',
         ];
     }
 
@@ -1996,6 +2013,32 @@ final class CitationCslProcessor
         }
 
         return $files;
+    }
+
+    /**
+     * @param array<string, list<string>> $fields
+     * @return array<string, string>
+     */
+    private static function risCustomFields(array $fields): array
+    {
+        $customFields = [];
+        foreach ([
+            'usera' => 'U1',
+            'userb' => 'U2',
+            'userc' => 'U3',
+            'userd' => 'U4',
+            'usere' => 'U5',
+            'verba' => 'C1',
+            'verbb' => 'C2',
+            'verbc' => 'C3',
+        ] as $field => $tag) {
+            $value = self::risFirst($fields, [$tag]);
+            if ($value !== '') {
+                $customFields[$field] = $value;
+            }
+        }
+
+        return $customFields;
     }
 
     /**
