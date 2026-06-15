@@ -5761,6 +5761,15 @@ final class MarkdownWriter
         }
 
         $lines = explode("\n", $body);
+        if ($this->noteDefinitionStartsWithIndentedCodeBlock($node)) {
+            $rendered = '[^' . $label . ']:';
+            foreach ($lines as $line) {
+                $rendered .= "\n" . ($line === '' ? '' : '    ' . $line);
+            }
+
+            return $rendered;
+        }
+
         $first = array_shift($lines);
         $rendered = '[^' . $label . ']: ' . $first;
         foreach ($lines as $line) {
@@ -5768,6 +5777,13 @@ final class MarkdownWriter
         }
 
         return $rendered;
+    }
+
+    private function noteDefinitionStartsWithIndentedCodeBlock(AstNode $node): bool
+    {
+        $first = $node->children[0] ?? null;
+
+        return $first instanceof AstNode && $this->rendersIndentedCodeBlock($first);
     }
 
     /**
