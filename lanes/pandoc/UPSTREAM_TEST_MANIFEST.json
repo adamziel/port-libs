@@ -5,11 +5,11 @@
   "upstream": {
     "name": "jgm/pandoc",
     "url": "https://github.com/jgm/pandoc",
-    "commit": "pandoc-markdown-gfm-emoji-alias-surge-2ea3da99f7",
+    "commit": "pandoc-markdown-reader-angle-destination-surge-4cb757a1e1",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 6075,
-    "latestSlice": "pandoc-markdown-gfm-emoji-alias-surge adds 41 additional upstream-style GFM/Pandoc emoji alias cases after rebase onto current main 2ea3da99f7, preserving the already-landed 102 Markdown emoji extension aliases and adding numeric, symbolic, object, activity, and status shortcodes such as :100:, :airplane:, :basketball:, :blue_heart:, :construction:, and :dart:. MarkdownEmojiAliases now covers 164 aliases; MarkdownReader emits emoji spans with data-emoji provenance; MarkdownWriter round-trips :alias: syntax; and WordPress handoff preserves safe emoji spans. No Pandoc, cmark/commonmark runners, Cabal/Haskell runners, browser renderers, Node tooling, online services, live provider tests, live-service provider tests, or external validators are invoked. phpPass moves 6044 -> 6085, phpFail remains 0, mapped upstream manifest cases move 6034 -> 6075, mappedMarkdownEmojiExtensionSurgeCases moves 102 -> 143, and markdownEmojiExtensionSurgeAssertions moves 715 -> 1045. Verification passed php -l for MarkdownEmojiAliases.php and MarkdownReaderEmojiSurgeTest.php; focused MarkdownReaderEmojiSurgeTest.php passed 1 file, 330 assertions, 0 failures; focused MarkdownReaderEmojiSurgeTest.php plus MarkdownReaderEmojiExtensionSurgeTest.php plus MarkdownReaderTest.php passed 3 files, 8064 assertions, 0 failures; full lanes/pandoc/tests passed 73 files, 104271 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and exact conflict-marker scan.",
+    "mapped": 6129,
+    "latestSlice": "pandoc-markdown-reader-angle-destination-surge maps 54 additional upstream-style Markdown/CommonMark inline link and image angle-destination cases after rebase onto current main 4cb757a1e1. MarkdownReader now treats the first <...> inline link/image target as an angle-delimited destination while scanning for the closing parenthesis, so literal open and close parentheses inside angle destinations no longer break links, images, titles, entity decoding, escaped punctuation, or WordPress handoff. No Pandoc, cmark/commonmark runners, Cabal/Haskell runners, browser renderers, Node tooling, online services, live provider tests, live-service provider tests, or external validators are invoked. phpPass moves 6085 -> 6139, phpFail remains 0, mapped upstream manifest cases move 6075 -> 6129, mappedMarkdownReaderInlineAngleDestinationSurgeCases moves 0 -> 54, and markdownReaderInlineAngleDestinationSurgeAssertions moves 0 -> 217. Verification passed php -l for MarkdownReader.php and MarkdownReaderInlineAngleDestinationSurgeTest.php; focused MarkdownReaderInlineAngleDestinationSurgeTest.php passed 1 file, 217 assertions, 0 failures; adjacent Markdown reader focused suite passed 7 files, 8238 assertions, 0 failures; full lanes/pandoc/tests passed 74 files, 104488 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and exact conflict-marker scan.",
     "mappedMarkdownReaderBlockListSurgeCases": 330,
     "markdownReaderBlockListSurgeAssertions": 11257,
     "mappedOdfPackageFontFormatProvenanceCases": 6,
@@ -60,8 +60,8 @@
     "opcRawZipCentralDirectoryManifestAssertions": 37,
     "mappedZipCentralDirectorySignaturePolicyCases": 2,
     "zipCentralDirectorySignaturePolicyAssertions": 30,
-    "status": "Markdown reader emoji extension additive surge is verified after rebase onto current main fa17cc7307; phpFail remains 0.",
-    "latestFocusedSource": "2026-06-15 Markdown reader emoji extension additive surge validated after rebase onto current main fa17cc7307: php -l clean for MarkdownEmojiAliases.php and MarkdownReaderEmojiExtensionSurgeTest.php; focused MarkdownReaderEmojiExtensionSurgeTest.php plus MarkdownReaderReferenceDefinitionSurgeTest.php plus MarkdownReaderInlineLinkEntitySurgeTest.php plus MarkdownReaderTest.php passed 4 files, 8154 assertions, 0 failures; full lanes/pandoc/tests passed 72 files, 103941 assertions, 0 failures; PHP JSON status/manifest validation, git diff --check, and exact conflict-marker scan passed.",
+    "status": "Markdown reader angle-destination surge is verified after rebase onto current main 4cb757a1e1; phpFail remains 0.",
+    "latestFocusedSource": "2026-06-15 Markdown reader angle-destination surge validated after rebase onto current main 4cb757a1e1: php -l clean for MarkdownReader.php and MarkdownReaderInlineAngleDestinationSurgeTest.php; focused MarkdownReaderInlineAngleDestinationSurgeTest.php passed 1 file, 217 assertions, 0 failures; adjacent Markdown reader focused suite passed 7 files, 8238 assertions, 0 failures; full lanes/pandoc/tests passed 74 files, 104488 assertions, 0 failures; PHP JSON status/manifest validation, git diff --check, and exact conflict-marker scan passed.",
     "mappedPandocFormatReaderEvidenceBatchCases": 6,
     "pandocFormatReaderEvidenceBatchAssertions": 200,
     "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -688,7 +688,9 @@
     "mappedMarkdownWriterInlineCompletionSurgeCases": 56,
     "markdownWriterInlineCompletionSurgeAssertions": 57,
     "mappedMarkdownReaderNestedEmphasisSurgeCases": 60,
-    "markdownReaderNestedEmphasisSurgeAssertions": 480
+    "markdownReaderNestedEmphasisSurgeAssertions": 480,
+    "mappedMarkdownReaderInlineAngleDestinationSurgeCases": 54,
+    "markdownReaderInlineAngleDestinationSurgeAssertions": 217
   },
   "benchmarkDenominator": {
     "status": "Pandoc JSON/native single-wrapped target tuple sidecars are verified after rebase onto current main 9f2dd9a0fd; phpFail remains 0.",

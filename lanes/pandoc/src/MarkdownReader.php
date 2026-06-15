@@ -19225,10 +19225,20 @@ final class MarkdownReader
     {
         $length = strlen($text);
         $quote = null;
+        $angleDestination = false;
+        $canStartAngleDestination = true;
         $parenDepth = 0;
         for ($cursor = $offset; $cursor < $length; $cursor++) {
             if ($text[$cursor] === '\\') {
                 $cursor++;
+                continue;
+            }
+
+            if ($angleDestination) {
+                if ($text[$cursor] === '>') {
+                    $angleDestination = false;
+                    $canStartAngleDestination = false;
+                }
                 continue;
             }
 
@@ -19237,6 +19247,19 @@ final class MarkdownReader
                     $quote = null;
                 }
                 continue;
+            }
+
+            if ($canStartAngleDestination) {
+                if (ctype_space($text[$cursor])) {
+                    continue;
+                }
+
+                if ($text[$cursor] === '<') {
+                    $angleDestination = true;
+                    continue;
+                }
+
+                $canStartAngleDestination = false;
             }
 
             if ($text[$cursor] === '"' || $text[$cursor] === "'") {
