@@ -8771,6 +8771,7 @@ final class MarkdownReader
             return null;
         }
 
+        $attrs = $this->htmlDivOpeningAttrs($m[0][0]);
         $content = [];
         $depth = 1;
         $openingIndex = $index;
@@ -8809,7 +8810,7 @@ final class MarkdownReader
                     $closedOnOpeningLine = $cursor === $openingIndex;
                     $index = $cursor;
 
-                    return $this->buildDivBlock($content, $closedOnOpeningLine);
+                    return $this->buildDivBlock($content, $closedOnOpeningLine, $attrs);
                 }
 
                 $lineContent .= substr($segment, $offset, $nextClose['offset'] + $nextClose['length'] - $offset);
@@ -8823,10 +8824,29 @@ final class MarkdownReader
         if ($this->divBlockContentIsBlank($content)) {
             $index = max($openingIndex, $count - 1);
 
-            return new AstNode('div');
+            return new AstNode('div', $attrs);
         }
 
         return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlDivOpeningAttrs(string $openingTag): array
+    {
+        $body = XmlHtml5Dom::parseHtmlFragmentBody($openingTag . '</div>');
+        if (!$body instanceof \DOMElement) {
+            return [];
+        }
+
+        foreach ($body->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower($child->localName) === 'div') {
+                return $this->htmlElementPandocAttrs($child);
+            }
+        }
+
+        return [];
     }
 
     /**
@@ -8862,7 +8882,7 @@ final class MarkdownReader
     /**
      * @param list<string> $content
      */
-    private function buildDivBlock(array $content, bool $closedOnOpeningLine): AstNode
+    private function buildDivBlock(array $content, bool $closedOnOpeningLine, array $attrs = []): AstNode
     {
         while ($content !== [] && trim($content[0]) === '') {
             array_shift($content);
@@ -8879,14 +8899,14 @@ final class MarkdownReader
         ) {
             $text = trim($content[0]);
 
-            return new AstNode('div', [], [
+            return new AstNode('div', $attrs, [
                 new AstNode('plain', ['text' => $text], $this->parseInlines($text)),
             ]);
         }
 
         $inner = $this->read(implode("\n", $content));
 
-        return new AstNode('div', [], $inner->children);
+        return new AstNode('div', $attrs, $inner->children);
     }
 
     /**

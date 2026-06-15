@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 1,927 | 1,096 |
+| Markdown / CommonMark / GFM | 1,977 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,4 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` parses list-item line-block starts and continuations as nested Markdown subdocuments across bullet and ordered marker families.\nCurrent Pandoc counters: 5,568 PHP passes / 0 failures and 5,558 mapped upstream cases. Verification passed: `php -l` for `MarkdownWriter.php` and `MarkdownWriterOrderedListSurgeTest.php`; focused `MarkdownWriterOrderedListSurgeTest.php` passed 1 file, 279 assertions, 0 failures; focused `MarkdownReaderTest.php` plus `MarkdownWriterBlocksSurgeTest.php` plus `MarkdownWriterOrderedListSurgeTest.php` passed 3 files, 7418 assertions, 0 failures; full `lanes/pandoc/tests` passed 69 files, 99268 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.\n
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` preserves opening HTML `<div>` attributes when `native_divs` converts raw HTML div blocks into native div AST nodes, keeping id/class/data/ARIA/role/language/review metadata through Markdown fenced-div output and WordPress handoff.
+
+Current Pandoc counters: 5,678 PHP passes / 0 failures and 5,668 mapped upstream cases. Verification passed: `php -l` for `MarkdownReader.php` and `MarkdownReaderNativeDivExtensionCompletionSurgeTest.php`; dedicated `MarkdownReaderNativeDivExtensionCompletionSurgeTest.php` passed 1 file, 1004 assertions, 0 failures; focused `MarkdownReaderNativeDivExtensionCompletionSurgeTest.php` plus `MarkdownReaderMetadataRawExtensionSurgeTest.php` plus `MarkdownReaderTest.php` plus `MarkdownWriterBlocksSurgeTest.php` passed 4 files, 9271 assertions, 0 failures; full `lanes/pandoc/tests` passed 70 files, 100582 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
