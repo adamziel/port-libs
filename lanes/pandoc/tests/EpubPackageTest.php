@@ -6827,6 +6827,104 @@ XML;
         $t->same($validation, $summary['wordpressImport']['packageValidation']);
     },
 
+    'reports invalid OPF spine linear values without changing reading order ingestion' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfWithInvalidLinear = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:spine-linear-review</dc:identifier>
+    <dc:title>Spine linear review</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-15T08:59:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="appendix" href="appendix.xhtml" media-type="application/xhtml+xml"/>
+    <item id="colophon" href="colophon.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref id="chapter-spine" idref="chapter" linear="sometimes"/>
+    <itemref id="appendix-spine" idref="appendix" linear="NO"/>
+    <itemref id="colophon-spine" idref="colophon"/>
+  </spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+        <li><a href="appendix.xhtml">Appendix</a></li>
+        <li><a href="colophon.xhtml">Colophon</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithInvalidLinear],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Chapter</body></html>'],
+            ['name' => 'EPUB/appendix.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Appendix</body></html>'],
+            ['name' => 'EPUB/colophon.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Colophon</body></html>'],
+        ]));
+        $spine = $epub->spine();
+        $summary = $epub->summary();
+        $validation = $epub->validationReport();
+        $spineValidation = $validation['spine'];
+        $authoring = $summary['spineAuthoring'];
+        $inventory = $summary['readingOrderInventory'];
+
+        $t->same(false, $validation['valid']);
+        $t->same(['invalid-spine-linear-value'], array_column($validation['diagnostics'], 'type'));
+        $t->same(3, $spineValidation['itemCount']);
+        $t->same(2, $spineValidation['linearCount']);
+        $t->same(1, $spineValidation['nonLinearCount']);
+        $t->same(1, $spineValidation['invalidLinearItemCount']);
+        $t->same(1, $spineValidation['itemDiagnosticCount']);
+        $t->same('invalid-spine-linear-value', $spineValidation['itemDiagnostics'][0]['type']);
+        $t->same('chapter', $spineValidation['itemDiagnostics'][0]['idref']);
+        $t->same('sometimes', $spineValidation['invalidLinearItems'][0]['linearRaw']);
+        $t->same('sometimes', $spineValidation['invalidLinearItems'][0]['linearValue']);
+        $t->same(true, $spineValidation['invalidLinearItems'][0]['linear']);
+
+        $t->same('sometimes', $spine[0]['linearRaw']);
+        $t->same(true, $spine[0]['linearSpecified']);
+        $t->same('sometimes', $spine[0]['linearValue']);
+        $t->same(false, $spine[0]['linearValid']);
+        $t->same(true, $spine[0]['linear']);
+        $t->same('invalid-spine-linear-value', $spine[0]['linearDiagnostics'][0]['type']);
+        $t->same('NO', $spine[1]['linearRaw']);
+        $t->same('no', $spine[1]['linearValue']);
+        $t->same(true, $spine[1]['linearValid']);
+        $t->same(false, $spine[1]['linear']);
+        $t->same(null, $spine[2]['linearRaw']);
+        $t->same(false, $spine[2]['linearSpecified']);
+        $t->same(true, $spine[2]['linearValid']);
+
+        $t->same('sometimes', $authoring['items'][0]['linearRaw']);
+        $t->same(false, $authoring['items'][0]['linearValid']);
+        $t->same('NO', $authoring['items'][1]['linearRaw']);
+        $t->same(false, $authoring['items'][1]['linear']);
+        $t->same($spineValidation['invalidLinearItems'], $summary['wordpressImport']['spineInvalidLinearItems']);
+        $t->same(1, $summary['wordpressImport']['spineInvalidLinearItemCount']);
+
+        $t->same(3, $inventory['itemCount']);
+        $t->same(2, $inventory['linearItemCount']);
+        $t->same(1, $inventory['nonLinearItemCount']);
+        $t->same(1, $inventory['diagnosticCount']);
+        $t->same(['invalid-spine-linear-value'], $inventory['diagnosticTypes']);
+        $t->same(false, $inventory['itemsByIdref']['chapter'][0]['linearValid']);
+        $t->same('sometimes', $inventory['itemsByIdref']['chapter'][0]['linearRaw']);
+        $t->same(false, $inventory['itemsByIdref']['appendix'][0]['linear']);
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+    },
+
     'reports duplicate OPF spine idrefs without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml): void {
         $duplicateSpineOpf = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
