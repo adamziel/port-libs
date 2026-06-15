@@ -8593,6 +8593,42 @@ MD;
             '\end{itemize}',
         ]), (new LatexWriter())->write($latexTaskList));
     },
+    'maps upstream markdown reader uppercase and empty task list markers' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '- [X] Done with uppercase marker',
+            '- [ ]',
+            '- [x] **nested source**',
+            '  - [X] Follow-up',
+            '- [ ] trailing task',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $list = $document->children[0];
+        $nested = $list->children[2]->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('bullet_list', $list->type);
+        $t->true((bool) $list->attr('taskList'));
+        $t->same(true, $list->children[0]->attr('taskChecked'));
+        $t->same('Done with uppercase marker', $list->children[0]->children[0]->attr('text'));
+        $t->same(false, $list->children[1]->attr('taskChecked'));
+        $t->same(0, count($list->children[1]->children));
+        $t->same('strong', $list->children[2]->children[0]->type);
+        $t->same('bullet_list', $nested->type);
+        $t->same(true, $nested->children[0]->attr('taskChecked'));
+        $t->same(false, $list->children[3]->attr('taskChecked'));
+        $t->same(implode("\n", [
+            '- [x] Done with uppercase marker',
+            '- [ ]',
+            '- [x] **nested source**',
+            '  - [x] Follow-up',
+            '- [ ] trailing task',
+        ]), (new MarkdownWriter())->write($document));
+        $t->contains('<ul class="task-list">', $blocks);
+        $t->contains('<li><label><input type="checkbox" checked="" />Done with uppercase marker</label></li>', $blocks);
+        $t->contains('<li><label><input type="checkbox" /></label></li>', $blocks);
+        $t->contains('<label><input type="checkbox" checked="" /><strong>nested source</strong></label><ul class="task-list"><li><label><input type="checkbox" checked="" />Follow-up</label></li></ul>', $blocks);
+        $t->contains('<li><label><input type="checkbox" />trailing task</label></li>', $blocks);
+    },
     'preserves adjacent list boundaries through markdown separators' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $item = static fn (string $value): AstNode => new AstNode('list_item', [], [$text($value)]);
