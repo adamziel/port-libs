@@ -19,7 +19,9 @@ final class NativeWriter
         'citationModeConstructor',
         'citationModeNative',
         'citationNative',
+        'citationPrefixNative',
         'citationRecordsNative',
+        'citationSuffixNative',
         'colSpanConstructor',
         'colSpanNative',
         'columnSpecNatives',
@@ -2031,16 +2033,36 @@ final class NativeWriter
             throw new \InvalidArgumentException('Native writer citation nodes must contain an id');
         }
 
+        $prefix = $this->inlines($this->citationAffixInlines($citation, 'prefix'));
+        $suffix = $this->inlines($this->citationSuffixInlines($citation));
         $record = [
             'citationId' => $id,
-            'citationPrefix' => $this->inlines($this->citationAffixInlines($citation, 'prefix')),
-            'citationSuffix' => $this->inlines($this->citationSuffixInlines($citation)),
+            'citationPrefix' => $this->citationAffixPayload($citation, 'citationPrefixNative', $prefix),
+            'citationSuffix' => $this->citationAffixPayload($citation, 'citationSuffixNative', $suffix),
             'citationMode' => $this->enumFromNative($citation, 'citationModeNative', $this->citationModeConstructor((string) $citation->attr('mode', 'normal'))),
             'citationNoteNum' => (int) $citation->attr('citationNoteNum', 0),
             'citationHash' => (int) $citation->attr('citationHash', 0),
         ];
 
         return $this->reusableCitationNative($citation, $record) ?? $record;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $generated
+     * @return list<array<string, mixed>>|list<mixed>
+     */
+    private function citationAffixPayload(AstNode $citation, string $nativeAttr, array $generated): array
+    {
+        $native = $citation->attr($nativeAttr);
+        if (!is_array($native) || !array_is_list($native)) {
+            return $generated;
+        }
+
+        if ($native === $generated) {
+            return $native;
+        }
+
+        return $this->singleWrappedReusableListPayload($native, $generated) ?? $generated;
     }
 
     /**
@@ -2061,8 +2083,17 @@ final class NativeWriter
                 return null;
             }
 
-            foreach (['citationId', 'citationPrefix', 'citationSuffix', 'citationMode', 'citationNoteNum', 'citationHash'] as $key) {
+            foreach (['citationId', 'citationMode', 'citationNoteNum', 'citationHash'] as $key) {
                 if (!array_key_exists($key, $payload) || $payload[$key] !== $record[$key]) {
+                    return null;
+                }
+            }
+
+            foreach (['citationPrefix', 'citationSuffix'] as $key) {
+                if (
+                    !array_key_exists($key, $payload)
+                    || !$this->reusableCitationAffixNative($payload[$key], $record[$key])
+                ) {
                     return null;
                 }
             }
@@ -2070,8 +2101,17 @@ final class NativeWriter
             return $tagged;
         }
 
-        foreach (['citationId', 'citationPrefix', 'citationSuffix', 'citationMode', 'citationNoteNum', 'citationHash'] as $key) {
+        foreach (['citationId', 'citationMode', 'citationNoteNum', 'citationHash'] as $key) {
             if (!array_key_exists($key, $native) || $native[$key] !== $record[$key]) {
+                return null;
+            }
+        }
+
+        foreach (['citationPrefix', 'citationSuffix'] as $key) {
+            if (
+                !array_key_exists($key, $native)
+                || !$this->reusableCitationAffixNative($native[$key], $record[$key])
+            ) {
                 return null;
             }
         }
@@ -2095,6 +2135,20 @@ final class NativeWriter
         }
 
         return is_array($content) && !array_is_list($content) ? $content : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $generated
+     */
+    private function reusableCitationAffixNative(mixed $native, array $generated): bool
+    {
+        if ($native === $generated) {
+            return true;
+        }
+
+        return is_array($native)
+            && array_is_list($native)
+            && $this->singleWrappedReusableListPayload($native, $generated) !== null;
     }
 
     /**

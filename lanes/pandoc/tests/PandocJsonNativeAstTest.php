@@ -14014,6 +14014,155 @@ return [
             }
         }
     },
+    'preserves single-wrapped citation affix lists when rebuilding cite records' => static function (TestRunner $t): void {
+        $prefixInlines = [
+            ['t' => 'Str', 'c' => 'see'],
+            ['t' => 'Space'],
+            ['t' => 'Emph', 'c' => [
+                ['t' => 'Str', 'c' => 'review'],
+            ]],
+        ];
+        $suffixInlines = [
+            ['t' => 'Str', 'c' => 'p.'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '42'],
+        ];
+        $prefixNative = [$prefixInlines];
+        $suffixNative = [$suffixInlines];
+        $sourceInlines = [
+            ['t' => 'Str', 'c' => '[see'],
+            ['t' => 'Space'],
+            ['t' => 'Emph', 'c' => [
+                ['t' => 'Str', 'c' => 'review'],
+            ]],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@smith1899,'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'p.'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '42]'],
+        ];
+        $record = [
+            'citationId' => 'smith1899',
+            'citationPrefix' => $prefixNative,
+            'citationSuffix' => $suffixNative,
+            'citationMode' => ['t' => 'NormalCitation'],
+            'citationNoteNum' => 4,
+            'citationHash' => 1899,
+            'reviewQueue' => 'citation-affix-record-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Cite', 'c' => [
+                        [$record],
+                        $sourceInlines,
+                    ], 'reviewQueue' => 'citation-affix-wrapper-source'],
+                ]],
+            ],
+        ];
+        $emptySuffixPacket = $packet;
+        $emptySuffixPacket['blocks'][0]['c'][0]['c'][0][0] = array_replace($record, [
+            'citationSuffix' => [[]],
+            'reviewQueue' => 'citation-empty-suffix-record-source',
+        ]);
+        $emptySuffixPacket['blocks'][0]['c'][0]['c'][1] = [
+            ['t' => 'Str', 'c' => '[see'],
+            ['t' => 'Space'],
+            ['t' => 'Emph', 'c' => [
+                ['t' => 'Str', 'c' => 'review'],
+            ]],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@smith1899]'],
+        ];
+        $stripWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+        $encodedRecord = static fn (array $encoded): array => $encoded['blocks'][0]['c'][0]['c'][0][0];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $citation = $document->children[0]->children[0];
+            $prefix = $citation->attr('prefix');
+            $suffix = $citation->attr('suffix');
+            $expectedPrefixTypes = $source === 'native' ? ['text', 'emph'] : ['text', 'space', 'emph'];
+            $expectedSuffixTypes = $source === 'native' ? ['text'] : ['text', 'space', 'text'];
+
+            $t->same('citation', $citation->type, "{$source} citation node type");
+            $t->same($prefixNative, $citation->attr('citationNative')['citationPrefix'], "{$source} keeps single-wrapped prefix native");
+            $t->same($suffixNative, $citation->attr('citationNative')['citationSuffix'], "{$source} keeps single-wrapped suffix native");
+            $t->same($expectedPrefixTypes, array_map(static fn (AstNode $node): string => $node->type, $prefix), "{$source} prefix inline shape");
+            $t->same($expectedSuffixTypes, array_map(static fn (AstNode $node): string => $node->type, $suffix), "{$source} suffix inline shape");
+            $t->same('[see review @smith1899, p. 42]', $citation->attr('text'), "{$source} citation source text");
+
+            $rebuiltDocument = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('citation', $stripWrapper($citation), $citation->children),
+                ]),
+            ]);
+            $editedPrefixCitation = new AstNode('citation', array_replace($stripWrapper($citation), [
+                'prefix' => [new AstNode('text', ['text' => 'edited'])],
+            ]), $citation->children);
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [$editedPrefixCitation]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuiltDocument),
+                'native' => json_decode((new NativeWriter())->write($rebuiltDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $rebuiltRecord = $encodedRecord($encoded);
+
+                $t->same($prefixNative, $rebuiltRecord['citationPrefix'], "{$source} {$writer} writer preserves single-wrapped prefix");
+                $t->same($suffixNative, $rebuiltRecord['citationSuffix'], "{$source} {$writer} writer preserves single-wrapped suffix");
+                $t->same('citation-affix-record-source', $rebuiltRecord['reviewQueue'], "{$source} {$writer} writer preserves unchanged citation sidecar");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $editedRecord = $encodedRecord($encoded);
+
+                $t->same([['t' => 'Str', 'c' => 'edited']], $editedRecord['citationPrefix'], "{$source} {$writer} writer regenerates edited prefix");
+                $t->same($suffixNative, $editedRecord['citationSuffix'], "{$source} {$writer} writer preserves unchanged suffix");
+                $t->same(false, array_key_exists('reviewQueue', $editedRecord), "{$source} {$writer} writer drops stale edited citation sidecar");
+            }
+        }
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($emptySuffixPacket),
+            'native' => (new NativeReader())->read(json_encode($emptySuffixPacket, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $citation = $document->children[0]->children[0];
+            $editedPrefixCitation = new AstNode('citation', array_replace($stripWrapper($citation), [
+                'prefix' => [new AstNode('text', ['text' => 'edited'])],
+            ]), $citation->children);
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [$editedPrefixCitation]),
+            ]);
+
+            $t->same([[]], $citation->attr('citationSuffixNative'), "{$source} keeps empty single-wrapped suffix native");
+            $t->same([], $citation->attr('suffix', []), "{$source} leaves empty single-wrapped suffix semantic list empty");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $editedRecord = $encodedRecord($encoded);
+
+                $t->same([[]], $editedRecord['citationSuffix'], "{$source} {$writer} writer preserves edited record empty single-wrapped suffix");
+                $t->same(false, array_key_exists('reviewQueue', $editedRecord), "{$source} {$writer} writer drops stale empty suffix citation sidecar");
+            }
+        }
+    },
     'preserves cite source inline constructors when regenerating citation wrappers' => static function (TestRunner $t): void {
         $sourceInlines = [
             ['t' => 'Str', 'c' => '[see'],

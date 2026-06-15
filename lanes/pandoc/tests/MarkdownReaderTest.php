@@ -10705,6 +10705,53 @@ MD;
             (new MarkdownReader())->read($markdown)->children
         ));
     },
+    'maps upstream markdown writer block-start definition marker escaping in text' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Source glossary marker']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => ': Reviewer note remains prose']),
+                new AstNode('softbreak'),
+                new AstNode('text', ['text' => '~ Alternate marker remains prose']),
+            ]),
+            new AstNode('blockquote', [], [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => ': Quoted review marker remains literal']),
+                ]),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $roundTrip = (new MarkdownReader())->read($markdown);
+
+        $t->same(implode("\n\n", [
+            'Source glossary marker',
+            '\\: Reviewer note remains prose'
+                . "\n" . '\\~ Alternate marker remains prose',
+            '> \\: Quoted review marker remains literal',
+        ]), $markdown);
+        $t->same(['paragraph', 'paragraph', 'blockquote'], array_map(
+            static fn (AstNode $node): string => $node->type,
+            $roundTrip->children
+        ));
+        $t->same(': Reviewer note remains prose ~ Alternate marker remains prose', $roundTrip->children[1]->attr('text'));
+        $t->same(': Quoted review marker remains literal', $roundTrip->children[2]->children[0]->attr('text'));
+
+        $caption = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Caption ']),
+                new AstNode('span', ['classes' => ['odf-sequence']], [
+                    new AstNode('text', ['text' => 'Figure 1']),
+                ]),
+                new AstNode('text', ['text' => ': Hero image.']),
+            ]),
+        ]);
+        $captionMarkdown = (new MarkdownWriter())->write($caption);
+
+        $t->same('Caption [Figure 1]{.odf-sequence}: Hero image.', $captionMarkdown);
+        $t->same('Caption Figure 1: Hero image.', (new MarkdownReader())->read($captionMarkdown)->children[0]->attr('text'));
+    },
     'maps upstream markdown writer nested space softbreak and hard line break inlines' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [

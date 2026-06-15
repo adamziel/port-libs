@@ -1769,8 +1769,10 @@ final class NativeReader
             throw new \InvalidArgumentException('Pandoc native JSON Cite citation record must contain a non-empty citationId');
         }
 
-        $prefix = $this->inlines($record['citationPrefix'] ?? []);
-        $suffix = $this->inlines($record['citationSuffix'] ?? []);
+        $prefixNative = $record['citationPrefix'] ?? [];
+        $suffixNative = $record['citationSuffix'] ?? [];
+        $prefix = $this->inlines($this->singleWrappedListContent($prefixNative, 'Pandoc native JSON Cite citationPrefix'));
+        $suffix = $this->inlines($this->singleWrappedListContent($suffixNative, 'Pandoc native JSON Cite citationSuffix'));
         $citationModeNative = $record['citationMode'] ?? ['t' => 'NormalCitation'];
         $citationModeConstructor = $this->citationModeConstructor($citationModeNative);
         $mode = $this->citationMode($citationModeConstructor);
@@ -1784,8 +1786,14 @@ final class NativeReader
         if ($prefix !== []) {
             $attrs['prefix'] = $prefix;
         }
+        if ($prefix !== [] || $prefixNative !== []) {
+            $attrs['citationPrefixNative'] = $prefixNative;
+        }
         if ($suffix !== []) {
             $attrs['suffix'] = $suffix;
+        }
+        if ($suffix !== [] || $suffixNative !== []) {
+            $attrs['citationSuffixNative'] = $suffixNative;
         }
 
         if (array_key_exists('citationNoteNum', $record)) {

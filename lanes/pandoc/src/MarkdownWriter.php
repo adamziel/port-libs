@@ -1831,7 +1831,7 @@ final class MarkdownWriter
     {
         $text = '';
         foreach ($nodes as $index => $node) {
-            $text .= $this->renderInline($node, array_slice($nodes, $index + 1));
+            $text .= $this->renderInline($node, array_slice($nodes, $index + 1), $index === 0);
         }
 
         return $text;
@@ -1840,10 +1840,10 @@ final class MarkdownWriter
     /**
      * @param list<AstNode> $following
      */
-    private function renderInline(AstNode $node, array $following = []): string
+    private function renderInline(AstNode $node, array $following = [], bool $escapeDefinitionMarker = false): string
     {
         return match ($node->type) {
-            'text' => $this->escapeText((string) $node->attr('text', '')),
+            'text' => $this->escapeText((string) $node->attr('text', ''), $escapeDefinitionMarker),
             'space' => ' ',
             'softbreak' => $this->softBreakMarkdown(),
             'linebreak' => "\\\n",
@@ -2391,7 +2391,7 @@ final class MarkdownWriter
         return str_replace("\xC2\xA0", '\\ ', $delimited);
     }
 
-    private function escapeText(string $text): string
+    private function escapeText(string $text, bool $escapeDefinitionMarker = true): string
     {
         $escaped = '';
         $length = strlen($text);
@@ -2406,6 +2406,11 @@ final class MarkdownWriter
             }
 
             if ($i === 0 && $this->startsWithListMarker($text)) {
+                $escaped .= '\\' . $char;
+                continue;
+            }
+
+            if ($escapeDefinitionMarker && $i === 0 && $this->startsWithDefinitionMarker($text)) {
                 $escaped .= '\\' . $char;
                 continue;
             }
@@ -2499,6 +2504,11 @@ final class MarkdownWriter
     private function startsWithListMarker(string $text): bool
     {
         return preg_match('/^(?:[0-9]+[.)]|[*+-])(?:[ \t]|$)/', $text) === 1;
+    }
+
+    private function startsWithDefinitionMarker(string $text): bool
+    {
+        return preg_match('/^[:~](?:[ \t]|$)/', $text) === 1;
     }
 
     private function isIntrawordUnderscore(string $text, int $offset): bool
