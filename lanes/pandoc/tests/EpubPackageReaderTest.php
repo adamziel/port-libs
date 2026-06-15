@@ -3137,8 +3137,10 @@ XML);
                 'invalid-manifest-media-type-parameter',
             ], array_column($manifestReport['mediaTypeDiagnostics'], 'type'));
             $t->same(0, $manifestReport['manifestItemReferenceDiagnosticCount']);
-            $t->same('text/css', $manifestReport['fallbackStyleReferences'][0]['targetMediaType']);
-            $t->same('application/smil+xml', $manifestReport['mediaOverlayReferences'][0]['targetMediaType']);
+            $t->same('text/css; charset=UTF-8', $manifestReport['fallbackStyleReferences'][0]['targetMediaType']);
+            $t->same('text/css', $manifestReport['fallbackStyleReferences'][0]['targetMediaTypeBase']);
+            $t->same('application/smil+xml; charset=UTF-8', $manifestReport['mediaOverlayReferences'][0]['targetMediaType']);
+            $t->same('application/smil+xml', $manifestReport['mediaOverlayReferences'][0]['targetMediaTypeBase']);
             $t->same(3, $manifestReport['diagnosticCount']);
             $t->same($manifestReport['mediaTypeDiagnostics'], $manifestReport['diagnostics']);
         } finally {
@@ -3358,6 +3360,101 @@ XML);
             $t->same(1, $spineAuthoring['customAttributeItemCount']);
             $t->same($spine[0]['attributes'], $spineAuthoring['items'][0]['attributes']);
             $t->same($spine[0]['customAttributes'], $spineAuthoring['items'][0]['customAttributes']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
+    'preserves direct manifest media type parameters while resolving readable package content' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-media-types-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-media-type-parameter-review</dc:identifier>
+    <dc:title>Manifest Media Type Parameter Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml; charset=UTF-8" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type='application/xhtml+xml; profile="chapter;review"' media-overlay="overlay"/>
+    <item id="style" href="style.css" media-type='text/css; charset="UTF-8"'/>
+    <item id="overlay" href="overlay.smil" media-type="application/smil+xml; codec=smil"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Parameterized chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable parameterized XHTML.</p></body></html>');
+            $writePackageFile($root, 'EPUB/style.css', 'body { color: #111; }');
+            $writePackageFile($root, 'EPUB/overlay.smil', '<smil xmlns="http://www.w3.org/ns/SMIL"><body/></smil>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $manifest = $epub['manifestById'];
+            $manifestReport = $epub['manifestReport'];
+            $spine = $epub['spine'];
+
+            $t->same('application/xhtml+xml; charset=UTF-8', $manifest['nav']['rawMediaType']);
+            $t->same('application/xhtml+xml', $manifest['nav']['mediaType']);
+            $t->same('application/xhtml+xml', $manifest['nav']['mediaTypeBase']);
+            $t->same('application/xhtml+xml; charset=utf-8', $manifest['nav']['normalizedMediaType']);
+            $t->same(true, $manifest['nav']['mediaTypeHasParameters']);
+            $t->same(['charset' => 'UTF-8'], $manifest['nav']['mediaTypeParameterMap']);
+            $t->same(['charset'], $manifest['nav']['mediaTypeParameterNames']);
+            $t->same([], $manifest['nav']['mediaTypeDiagnostics']);
+
+            $t->same('application/xhtml+xml', $manifest['chapter']['mediaTypeBase']);
+            $t->same(['profile' => 'chapter;review'], $manifest['chapter']['mediaTypeParameterMap']);
+            $t->same('chapter;review', $manifest['chapter']['mediaTypeParameters'][0]['value']);
+            $t->same('profile="chapter;review"', $manifest['chapter']['mediaTypeParameters'][0]['raw']);
+            $t->same('application/smil+xml', $manifest['overlay']['mediaTypeBase']);
+            $t->same(['codec' => 'smil'], $manifest['overlay']['mediaTypeParameterMap']);
+
+            $t->same([
+                'application/smil+xml' => 1,
+                'application/xhtml+xml' => 2,
+                'text/css' => 1,
+            ], $manifestReport['mediaTypeBaseCounts']);
+            $t->same(4, $manifestReport['mediaTypeParameterItemCount']);
+            $t->same(4, $manifestReport['mediaTypeParameterCount']);
+            $t->same(['charset', 'codec', 'profile'], $manifestReport['mediaTypeParameterNames']);
+            $t->same(['nav', 'chapter', 'style', 'overlay'], array_column($manifestReport['mediaTypeParameterItems'], 'id'));
+            $t->same([], $manifestReport['mediaTypeDiagnostics']);
+            $t->same(0, $manifestReport['mediaTypeDiagnosticCount']);
+
+            $t->same(1, $manifestReport['mediaOverlayReferenceCount']);
+            $t->same('chapter', $manifestReport['mediaOverlayReferences'][0]['sourceId']);
+            $t->same('overlay', $manifestReport['mediaOverlayReferences'][0]['targetId']);
+            $t->same('application/smil+xml; codec=smil', $manifestReport['mediaOverlayReferences'][0]['targetMediaType']);
+            $t->same('application/smil+xml', $manifestReport['mediaOverlayReferences'][0]['targetMediaTypeBase']);
+            $t->same(0, $manifestReport['mediaOverlayReferenceDiagnosticCount']);
+
+            $t->same('application/xhtml+xml; profile="chapter;review"', $spine[0]['mediaType']);
+            $t->same('application/xhtml+xml', $spine[0]['mediaTypeBase']);
+            $t->same(true, $spine[0]['readable']);
+            $t->same(1, $epub['spineReport']['readableItemCount']);
+            $t->same('Parameterized chapter', $epub['toc'][0]['label']);
+            $t->same(1, count($document->children));
         } finally {
             $removeDirectory($root);
         }

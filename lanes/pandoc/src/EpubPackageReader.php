@@ -528,6 +528,7 @@ final class EpubPackageReader
                     'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
                     'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
                     'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                    'mediaTypeParameterNames' => array_keys($mediaTypeReport['mediaTypeParameterMap']),
                     'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
                     'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
                     'language' => $language === '' ? null : $language,
@@ -565,10 +566,13 @@ final class EpubPackageReader
                 $linearRaw = $this->nullableAttribute($node, 'linear');
                 $item = $manifest[$idref] ?? null;
                 $linear = $linearRaw === null || strtolower($linearRaw) !== 'no';
-                $mediaType = is_array($item) ? $item['mediaType'] : '';
+                $mediaType = is_array($item) ? (string) ($item['rawMediaType'] ?? $item['mediaType'] ?? '') : '';
+                $mediaTypeBase = is_array($item)
+                    ? (string) ($item['mediaTypeBase'] ?? $this->mediaTypeReport((string) ($item['mediaType'] ?? ''))['mediaTypeBase'])
+                    : '';
                 $external = is_array($item) && ($item['external'] ?? false) === true;
                 $exists = is_array($item) && ($item['exists'] ?? false) === true;
-                $readable = $linear && $mediaType === 'application/xhtml+xml' && !$external && $exists;
+                $readable = $linear && $mediaTypeBase === 'application/xhtml+xml' && !$external && $exists;
                 $diagnostics = [];
                 if (!is_array($item)) {
                     $diagnostics[] = [
@@ -598,6 +602,7 @@ final class EpubPackageReader
                     'target' => is_array($item) ? $item['target'] : '',
                     'path' => is_array($item) ? $item['path'] : '',
                     'mediaType' => $mediaType,
+                    'mediaTypeBase' => $mediaTypeBase,
                     'linear' => $linear,
                     'linearRaw' => $linearRaw,
                     'properties' => $this->tokens($node->getAttribute('properties')),
@@ -1502,12 +1507,17 @@ final class EpubPackageReader
         $mediaTypeParameterItems = [];
         $mediaTypeParameterNames = [];
         $invalidMediaTypeItems = [];
+        $mediaTypeBaseCounts = [];
         $mediaTypeDiagnostics = [];
         $diagnostics = [];
 
         foreach ($manifest as $item) {
             $mediaTypeItem = $this->manifestMediaTypeItemReport($item);
             $mediaTypeItems[] = $mediaTypeItem;
+            $mediaTypeBase = (string) ($mediaTypeItem['baseMediaType'] ?? $mediaTypeItem['mediaTypeBase'] ?? '');
+            if ($mediaTypeBase !== '') {
+                $mediaTypeBaseCounts[$mediaTypeBase] = ($mediaTypeBaseCounts[$mediaTypeBase] ?? 0) + 1;
+            }
             if ($mediaTypeItem['parameterCount'] > 0) {
                 $mediaTypeParameterItems[] = $mediaTypeItem;
                 foreach ($mediaTypeItem['parameterNames'] as $name) {
@@ -1536,7 +1546,6 @@ final class EpubPackageReader
                     'fragment' => $item['hrefFragment'],
                 ];
             }
-
             foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
                 if (!is_array($diagnostic)) {
                     continue;
@@ -1549,6 +1558,8 @@ final class EpubPackageReader
                 ] + $diagnostic;
             }
         }
+        ksort($mediaTypeBaseCounts, SORT_STRING);
+        ksort($mediaTypeParameterNames, SORT_STRING);
 
         $duplicateIdItems = [];
         $duplicateIdDiagnostics = [];
@@ -1604,10 +1615,12 @@ final class EpubPackageReader
             'hrefSuffixCount' => count($hrefSuffixItems),
             'hrefSuffixItems' => $hrefSuffixItems,
             'mediaTypeItems' => $mediaTypeItems,
+            'mediaTypeBaseCounts' => $mediaTypeBaseCounts,
             'mediaTypeParameterCount' => array_sum(array_map(
                 static fn (array $item): int => (int) $item['parameterCount'],
                 $mediaTypeParameterItems
             )),
+            'mediaTypeParameterItemCount' => count($mediaTypeParameterItems),
             'mediaTypeParameterizedItemCount' => count($mediaTypeParameterItems),
             'mediaTypeParameterItems' => $mediaTypeParameterItems,
             'mediaTypeParameterNames' => array_values($mediaTypeParameterNames),
@@ -1818,7 +1831,10 @@ final class EpubPackageReader
             'targetId' => $targetId,
             'target' => is_array($target) ? (string) ($target['target'] ?? '') : '',
             'targetPath' => is_array($target) ? (string) ($target['path'] ?? '') : '',
-            'targetMediaType' => is_array($target) ? (string) ($target['mediaType'] ?? '') : '',
+            'targetMediaType' => is_array($target) ? (string) ($target['rawMediaType'] ?? $target['mediaType'] ?? '') : '',
+            'targetMediaTypeBase' => is_array($target)
+                ? (string) ($target['mediaTypeBase'] ?? $this->mediaTypeReport((string) ($target['mediaType'] ?? ''))['mediaTypeBase'])
+                : '',
             'targetExternal' => is_array($target) && ($target['external'] ?? false) === true,
             'targetExists' => is_array($target) && ($target['exists'] ?? false) === true,
         ];
@@ -1847,11 +1863,13 @@ final class EpubPackageReader
             }
 
             $mediaType = (string) ($target['mediaType'] ?? '');
-            if ($expectedMediaType !== null && $mediaType !== $expectedMediaType) {
+            $mediaTypeBase = (string) ($target['mediaTypeBase'] ?? $this->mediaTypeReport($mediaType)['mediaTypeBase']);
+            if ($expectedMediaType !== null && $mediaTypeBase !== $expectedMediaType) {
                 $referenceDiagnostics[] = [
                     'type' => (string) ($diagnosticTypes['unexpectedType'] ?? 'unexpected-manifest-reference-type'),
                     'targetId' => $targetId,
                     'mediaType' => $mediaType,
+                    'mediaTypeBase' => $mediaTypeBase,
                     'expectedMediaType' => $expectedMediaType,
                     'message' => 'EPUB OPF manifest item reference resolves to an unexpected media type',
                 ];
@@ -2678,7 +2696,8 @@ final class EpubPackageReader
     {
         $ncxItem = null;
         foreach ($package['manifest'] as $item) {
-            if ($item['mediaType'] === 'application/x-dtbncx+xml') {
+            $mediaTypeBase = (string) ($item['mediaTypeBase'] ?? $this->mediaTypeReport((string) ($item['mediaType'] ?? ''))['mediaTypeBase']);
+            if ($mediaTypeBase === 'application/x-dtbncx+xml') {
                 $ncxItem = $item;
                 break;
             }
