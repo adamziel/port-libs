@@ -25,6 +25,59 @@ $slug = static function (string $value): string {
     return trim($slug, '-') ?: 'punct';
 };
 
+$findFirstNodeOfType = static function (AstNode $node, string $type) use (&$findFirstNodeOfType): ?AstNode {
+    if ($node->type === $type) {
+        return $node;
+    }
+
+    foreach ($node->children as $child) {
+        $found = $findFirstNodeOfType($child, $type);
+        if ($found !== null) {
+            return $found;
+        }
+    }
+
+    return null;
+};
+
+$readFirstNodeOfType = static function (string $markdown, string $type) use ($findFirstNodeOfType): AstNode {
+    $document = (new MarkdownReader())->read($markdown);
+    $node = $findFirstNodeOfType($document, $type);
+
+    return $node ?? new AstNode('missing');
+};
+
+$inlineTypes = static fn (array $nodes): array => array_map(
+    static fn (AstNode $node): string => $node->type,
+    $nodes
+);
+
+$inlineText = static function (array $nodes) use (&$inlineText): string {
+    $text = '';
+    foreach ($nodes as $node) {
+        if ($node->type === 'text' || $node->type === 'code' || $node->type === 'math') {
+            $text .= (string) $node->attr('text', '');
+            continue;
+        }
+        if ($node->type === 'raw_tex') {
+            $text .= (string) $node->attr('tex', '');
+            continue;
+        }
+        if ($node->type === 'softbreak') {
+            $text .= "\n";
+            continue;
+        }
+        if ($node->type === 'linebreak') {
+            $text .= "\n";
+            continue;
+        }
+
+        $text .= $inlineText($node->children);
+    }
+
+    return $text;
+};
+
 $tests = [];
 
 $escapedPunctuationCases = [
@@ -121,5 +174,83 @@ $tests['maps upstream entity normalized reference labels through wordpress hando
     $t->contains('<a href="/entity-reference-amp" title="Amp title">AT&amp;T</a>', $blocks);
     $t->contains('<a href="/entity-reference-lambda" title="Lambda title">Greek ' . "\u{03BB}" . '</a>', $blocks);
 };
+
+$codeSpanBracketLabelCases = [
+    'inline code close bracket' => ['kind' => 'link', 'markdown' => '[`]`](/code-close)', 'url' => '/code-close', 'text' => ']', 'types' => ['code']],
+    'inline code open bracket' => ['kind' => 'link', 'markdown' => '[`[`](/code-open)', 'url' => '/code-open', 'text' => '[', 'types' => ['code']],
+    'inline code balanced brackets' => ['kind' => 'link', 'markdown' => '[`[x]`](/code-balanced)', 'url' => '/code-balanced', 'text' => '[x]', 'types' => ['code']],
+    'inline mixed close bracket' => ['kind' => 'link', 'markdown' => '[pre `]` post](/code-mixed-close)', 'url' => '/code-mixed-close', 'text' => 'pre ] post', 'types' => ['text', 'code', 'text']],
+    'inline mixed open bracket' => ['kind' => 'link', 'markdown' => '[pre `[` post](/code-mixed-open)', 'url' => '/code-mixed-open', 'text' => 'pre [ post', 'types' => ['text', 'code', 'text']],
+    'inline mixed balanced brackets' => ['kind' => 'link', 'markdown' => '[pre `[x]` post](/code-mixed-balanced)', 'url' => '/code-mixed-balanced', 'text' => 'pre [x] post', 'types' => ['text', 'code', 'text']],
+    'inline double tick close bracket' => ['kind' => 'link', 'markdown' => '[``]` bracket``](/code-double-tick)', 'url' => '/code-double-tick', 'text' => ']` bracket', 'types' => ['code']],
+    'inline code link syntax' => ['kind' => 'link', 'markdown' => '[`[link](x)`](/code-link-syntax)', 'url' => '/code-link-syntax', 'text' => '[link](x)', 'types' => ['code']],
+    'inline code escaped close bracket' => ['kind' => 'link', 'markdown' => '[`\\]`](/code-escaped-close)', 'url' => '/code-escaped-close', 'text' => '\\]', 'types' => ['code']],
+    'inline code then emphasis' => ['kind' => 'link', 'markdown' => '[`]` *em*](/code-emph)', 'url' => '/code-emph', 'text' => '] em', 'types' => ['code', 'text', 'emph']],
+    'inline strong then code' => ['kind' => 'link', 'markdown' => '[**strong** `[`](/code-strong)', 'url' => '/code-strong', 'text' => 'strong [', 'types' => ['strong', 'text', 'code']],
+    'inline softbreak before code bracket' => ['kind' => 'link', 'markdown' => "[line\n`]`](/code-softbreak)", 'url' => '/code-softbreak', 'text' => "line\n]", 'types' => ['text', 'softbreak', 'code']],
+    'inline hardbreak before code bracket' => ['kind' => 'link', 'markdown' => "[line  \n`]`](/code-hardbreak)", 'url' => '/code-hardbreak', 'text' => "line\n]", 'types' => ['text', 'linebreak', 'code']],
+    'inline title decodes entity after code bracket' => ['kind' => 'link', 'markdown' => '[`]`](/code-title "A &amp; B")', 'url' => '/code-title', 'title' => 'A & B', 'text' => ']', 'types' => ['code']],
+    'inline angle destination after code bracket' => ['kind' => 'link', 'markdown' => '[`[`](<a b>)', 'url' => 'a%20b', 'text' => '[', 'types' => ['code']],
+    'reference code close bracket' => ['kind' => 'link', 'markdown' => "[`]`][ref-close]\n\n[ref-close]: /ref-close \"Close title\"", 'url' => '/ref-close', 'title' => 'Close title', 'text' => ']', 'types' => ['code']],
+    'reference code open bracket' => ['kind' => 'link', 'markdown' => "[`[`][ref-open]\n\n[ref-open]: /ref-open", 'url' => '/ref-open', 'text' => '[', 'types' => ['code']],
+    'reference code balanced brackets' => ['kind' => 'link', 'markdown' => "[`[x]`][ref-balanced]\n\n[ref-balanced]: /ref-balanced", 'url' => '/ref-balanced', 'text' => '[x]', 'types' => ['code']],
+    'reference mixed close bracket' => ['kind' => 'link', 'markdown' => "[pre `]` post][ref-mixed-close]\n\n[ref-mixed-close]: /ref-mixed-close", 'url' => '/ref-mixed-close', 'text' => 'pre ] post', 'types' => ['text', 'code', 'text']],
+    'reference mixed open bracket' => ['kind' => 'link', 'markdown' => "[pre `[` post][ref-mixed-open]\n\n[ref-mixed-open]: /ref-mixed-open", 'url' => '/ref-mixed-open', 'text' => 'pre [ post', 'types' => ['text', 'code', 'text']],
+    'reference mixed balanced brackets' => ['kind' => 'link', 'markdown' => "[pre `[x]` post][ref-mixed-balanced]\n\n[ref-mixed-balanced]: /ref-mixed-balanced", 'url' => '/ref-mixed-balanced', 'text' => 'pre [x] post', 'types' => ['text', 'code', 'text']],
+    'reference code link syntax' => ['kind' => 'link', 'markdown' => "[`[link](x)`][ref-link-syntax]\n\n[ref-link-syntax]: /ref-link-syntax", 'url' => '/ref-link-syntax', 'text' => '[link](x)', 'types' => ['code']],
+    'reference code escaped close bracket' => ['kind' => 'link', 'markdown' => "[`\\]`][ref-escaped-close]\n\n[ref-escaped-close]: /ref-escaped-close", 'url' => '/ref-escaped-close', 'text' => '\\]', 'types' => ['code']],
+    'reference code then emphasis' => ['kind' => 'link', 'markdown' => "[`]` *em*][ref-emph]\n\n[ref-emph]: /ref-emph", 'url' => '/ref-emph', 'text' => '] em', 'types' => ['code', 'text', 'emph']],
+    'reference strong then code' => ['kind' => 'link', 'markdown' => "[**strong** `[`][ref-strong]\n\n[ref-strong]: /ref-strong", 'url' => '/ref-strong', 'text' => 'strong [', 'types' => ['strong', 'text', 'code']],
+    'reference softbreak before code bracket' => ['kind' => 'link', 'markdown' => "[line\n`]`][ref-softbreak]\n\n[ref-softbreak]: /ref-softbreak", 'url' => '/ref-softbreak', 'text' => "line\n]", 'types' => ['text', 'softbreak', 'code']],
+    'reference hardbreak before code bracket' => ['kind' => 'link', 'markdown' => "[line  \n`]`][ref-hardbreak]\n\n[ref-hardbreak]: /ref-hardbreak", 'url' => '/ref-hardbreak', 'text' => "line\n]", 'types' => ['text', 'linebreak', 'code']],
+    'reference angle destination after code bracket' => ['kind' => 'link', 'markdown' => "[`[`][ref-angle]\n\n[ref-angle]: <a b> \"Angle title\"", 'url' => 'a%20b', 'title' => 'Angle title', 'text' => '[', 'types' => ['code']],
+    'reference entity title after code bracket' => ['kind' => 'link', 'markdown' => "[`]`][ref-entity]\n\n[ref-entity]: /ref-entity \"A &amp; B\"", 'url' => '/ref-entity', 'title' => 'A & B', 'text' => ']', 'types' => ['code']],
+    'reference empty destination after code bracket' => ['kind' => 'link', 'markdown' => "[`]`][ref-empty]\n\n[ref-empty]: <> \"Empty title\"", 'url' => '', 'title' => 'Empty title', 'text' => ']', 'types' => ['code']],
+    'image code close bracket' => ['kind' => 'image', 'markdown' => '![`]`](/img-close "Close image")', 'url' => '/img-close', 'title' => 'Close image', 'text' => ']', 'types' => ['code']],
+    'image code open bracket' => ['kind' => 'image', 'markdown' => '![`[`](/img-open)', 'url' => '/img-open', 'text' => '[', 'types' => ['code']],
+    'image code balanced brackets' => ['kind' => 'image', 'markdown' => '![`[x]`](/img-balanced)', 'url' => '/img-balanced', 'text' => '[x]', 'types' => ['code']],
+    'image mixed close bracket' => ['kind' => 'image', 'markdown' => '![alt `]` text](/img-mixed-close)', 'url' => '/img-mixed-close', 'text' => 'alt ] text', 'types' => ['text', 'code', 'text']],
+    'image mixed open bracket' => ['kind' => 'image', 'markdown' => '![alt `[` text](/img-mixed-open)', 'url' => '/img-mixed-open', 'text' => 'alt [ text', 'types' => ['text', 'code', 'text']],
+    'image mixed balanced brackets' => ['kind' => 'image', 'markdown' => '![alt `[x]` text](/img-mixed-balanced)', 'url' => '/img-mixed-balanced', 'text' => 'alt [x] text', 'types' => ['text', 'code', 'text']],
+    'image reference code close bracket' => ['kind' => 'image', 'markdown' => "![`]`][img-ref-close]\n\n[img-ref-close]: /img-ref-close \"Ref image\"", 'url' => '/img-ref-close', 'title' => 'Ref image', 'text' => ']', 'types' => ['code']],
+    'image reference code open bracket' => ['kind' => 'image', 'markdown' => "![`[`][img-ref-open]\n\n[img-ref-open]: /img-ref-open", 'url' => '/img-ref-open', 'text' => '[', 'types' => ['code']],
+    'image reference angle destination' => ['kind' => 'image', 'markdown' => "![`[`][img-ref-angle]\n\n[img-ref-angle]: <img path> \"Image angle\"", 'url' => 'img%20path', 'title' => 'Image angle', 'text' => '[', 'types' => ['code']],
+    'image title decodes entity after code bracket' => ['kind' => 'image', 'markdown' => '![`]`](/img-title "A &amp; B")', 'url' => '/img-title', 'title' => 'A & B', 'text' => ']', 'types' => ['code']],
+    'nested double bracket inline link' => ['kind' => 'link', 'markdown' => '[[foo]](/nested-one)', 'url' => '/nested-one', 'text' => '[foo]', 'types' => ['text'], 'classes' => null],
+    'nested double bracket suffix inline link' => ['kind' => 'link', 'markdown' => '[[foo] suffix](/nested-suffix)', 'url' => '/nested-suffix', 'text' => '[foo] suffix', 'types' => ['text'], 'classes' => null],
+    'nested double bracket deep inline link' => ['kind' => 'link', 'markdown' => '[[foo [bar]]](/nested-deep)', 'url' => '/nested-deep', 'text' => '[foo [bar]]', 'types' => ['text'], 'classes' => null],
+    'nested double bracket angle destination' => ['kind' => 'link', 'markdown' => '[[foo]](<nested path>)', 'url' => 'nested%20path', 'text' => '[foo]', 'types' => ['text'], 'classes' => null],
+    'nested double bracket titled inline link' => ['kind' => 'link', 'markdown' => '[[foo]](/nested-title "Nested &amp; title")', 'url' => '/nested-title', 'title' => 'Nested & title', 'text' => '[foo]', 'types' => ['text'], 'classes' => null],
+    'nested double bracket empty destination' => ['kind' => 'link', 'markdown' => '[[foo]](<> "Empty nested")', 'url' => '', 'title' => 'Empty nested', 'text' => '[foo]', 'types' => ['text'], 'classes' => null],
+    'nested double bracket reference link' => ['kind' => 'link', 'markdown' => "[[foo]][nested-ref]\n\n[nested-ref]: /nested-ref", 'url' => '/nested-ref', 'text' => '[foo]', 'types' => ['text'], 'classes' => null],
+    'nested double bracket titled reference link' => ['kind' => 'link', 'markdown' => "[[foo]][nested-title-ref]\n\n[nested-title-ref]: /nested-title-ref \"Nested ref title\"", 'url' => '/nested-title-ref', 'title' => 'Nested ref title', 'text' => '[foo]', 'types' => ['text'], 'classes' => null],
+    'nested double bracket empty reference link' => ['kind' => 'link', 'markdown' => "[[foo]][nested-empty-ref]\n\n[nested-empty-ref]: <> \"Empty nested ref\"", 'url' => '', 'title' => 'Empty nested ref', 'text' => '[foo]', 'types' => ['text'], 'classes' => null],
+    'nested double bracket angle reference link' => ['kind' => 'link', 'markdown' => "[[foo]][nested-angle-ref]\n\n[nested-angle-ref]: <nested ref path> \"Angle nested ref\"", 'url' => 'nested%20ref%20path', 'title' => 'Angle nested ref', 'text' => '[foo]', 'types' => ['text'], 'classes' => null],
+];
+
+$tests['maps upstream code-span bracket labels and nested double bracket links'] =
+    static function (TestRunner $t) use ($codeSpanBracketLabelCases, $readFirstNodeOfType, $inlineTypes, $inlineText): void {
+        $mapped = 0;
+        foreach ($codeSpanBracketLabelCases as $name => $case) {
+            $node = $readFirstNodeOfType($case['markdown'], $case['kind']);
+
+            $t->same($case['kind'], $node->type, $name . ' node type');
+            $t->same($case['url'], $node->attr('url'), $name . ' url');
+            $t->same($case['title'] ?? null, $node->attr('title'), $name . ' title');
+            if (array_key_exists('classes', $case)) {
+                $t->same($case['classes'], $node->attr('classes'), $name . ' classes');
+            }
+
+            $t->same($case['types'], $inlineTypes($node->children), $name . ' inline types');
+            $t->same($case['text'], $inlineText($node->children), $name . ' inline text');
+            if ($case['kind'] === 'image') {
+                $t->same($case['text'], $node->attr('caption'), $name . ' image caption');
+                $t->same($case['text'], $node->attr('alt'), $name . ' image alt');
+            }
+            $mapped++;
+        }
+
+        $t->same(50, $mapped);
+    };
 
 return $tests;
