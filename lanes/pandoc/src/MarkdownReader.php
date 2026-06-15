@@ -8363,8 +8363,18 @@ final class MarkdownReader
         $content = [];
         $cursor = $index;
         $count = count($lines);
-        while ($cursor < $count && $this->isBlockQuoteLine($lines[$cursor])) {
-            $content[] = $this->stripBlockQuoteMarker($lines[$cursor]);
+        while ($cursor < $count) {
+            if ($this->isBlockQuoteLine($lines[$cursor])) {
+                $content[] = $this->stripBlockQuoteMarker($lines[$cursor]);
+                $cursor++;
+                continue;
+            }
+
+            if (!$this->isLazyBlockQuoteContinuationLine($lines, $cursor, $content)) {
+                break;
+            }
+
+            $content[] = $lines[$cursor];
             $cursor++;
         }
 
@@ -14990,6 +15000,61 @@ final class MarkdownReader
     private function isBlockQuoteLine(string $line): bool
     {
         return preg_match('/^ {0,3}>/', $line) === 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<string> $content
+     */
+    private function isLazyBlockQuoteContinuationLine(array $lines, int $index, array $content): bool
+    {
+        $line = $lines[$index] ?? '';
+        if (trim($line) === '') {
+            return false;
+        }
+
+        $previous = $this->lastNonBlankBlockQuoteContentLine($content);
+        if ($previous === null || !$this->canLineContinueBlockQuoteParagraphLazily($previous)) {
+            return false;
+        }
+
+        return $this->canLineContinueBlockQuoteParagraphLazily($line);
+    }
+
+    /**
+     * @param list<string> $content
+     */
+    private function lastNonBlankBlockQuoteContentLine(array $content): ?string
+    {
+        for ($index = count($content) - 1; $index >= 0; $index--) {
+            if (trim($content[$index]) !== '') {
+                return $content[$index];
+            }
+        }
+
+        return null;
+    }
+
+    private function canLineContinueBlockQuoteParagraphLazily(string $line): bool
+    {
+        $expanded = $this->expandTabsToSpaces($line);
+        if (trim($expanded) === '' || $this->countIndentColumns($expanded) >= 4) {
+            return false;
+        }
+
+        if (
+            preg_match('/^ {0,3}(?:#{1,6}\s+|`{3,}|~{3,}|:{3,})/', $expanded) === 1
+            || preg_match('/^ {0,3}(?:<!--|<\?|<!|<\/?[A-Za-z])/', $expanded) === 1
+            || preg_match('/^ {0,3}[:~]\s+/', $expanded) === 1
+            || preg_match('/^ {0,3}\|/', $expanded) === 1
+            || $this->isHorizontalRule($expanded)
+        ) {
+            return false;
+        }
+
+        $marker = $this->matchListMarker($expanded);
+
+        return $marker === null || $marker['indent'] > 3;
     }
 
     private function stripBlockQuoteMarker(string $line): string

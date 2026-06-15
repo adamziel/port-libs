@@ -11555,6 +11555,40 @@ MD;
         $t->same('paragraph', $quote->children[0]->type);
         $t->same('This is a block quote. It is pretty short.', $quote->children[0]->attr('text'));
     },
+    'maps upstream markdown lazy blockquote paragraph continuations' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '> # Review Quote',
+            '> Keep **source**',
+            'lazy continuation with [audit](https://example.test/audit).',
+            '> Final marked line.',
+            '',
+            'After quote.',
+        ]));
+        $quote = $document->children[0];
+        $paragraph = $quote->children[1];
+        $outside = $document->children[1];
+        $outsideHeading = (new MarkdownReader())->read("> Quote paragraph\n# Outside heading");
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+        $t->same('blockquote', $quote->type);
+        $t->same(['heading', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $quote->children));
+        $t->same('Review Quote', $quote->children[0]->attr('text'));
+        $t->same('review-quote', $quote->children[0]->attr('id'));
+        $t->same(
+            ['text', 'strong', 'softbreak', 'text', 'link', 'text', 'softbreak', 'text'],
+            array_map(static fn (AstNode $node): string => $node->type, $paragraph->children)
+        );
+        $t->same('source', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same('https://example.test/audit', $paragraph->children[4]->attr('url'));
+        $t->same('Keep source lazy continuation with audit. Final marked line.', $paragraph->attr('text'));
+        $t->same('After quote.', $outside->attr('text'));
+        $t->same(['blockquote', 'heading'], array_map(static fn (AstNode $node): string => $node->type, $outsideHeading->children));
+        $t->contains('<blockquote class="wp-block-quote"><h1 id="review-quote">Review Quote</h1><p>Keep <strong>source</strong>', $blocks);
+        $t->contains('lazy continuation with <a href="https://example.test/audit">audit</a>.', $blocks);
+        $t->contains('Final marked line.</p></blockquote>', $blocks);
+        $t->contains('<p>After quote.</p>', $blocks);
+    },
     'maps pandoc markdown alert blockquotes through reader writer and wordpress handoff' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             '> [!TIP]',
