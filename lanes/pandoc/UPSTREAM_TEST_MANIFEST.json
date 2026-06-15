@@ -2581,5 +2581,7 @@
   "mappedMarkdownWriterInlineAliasHandoffSurgeCases": 56,
   "markdownWriterInlineAliasHandoffSurgeAssertions": 57,
   "mappedMarkdownWriterInlineAttributeCompletionSurgeCases": 60,
-  "markdownWriterInlineAttributeCompletionSurgeAssertions": 241
+  "markdownWriterInlineAttributeCompletionSurgeAssertions": 241,
+  "mappedMarkdownWriterTaskListContinuationSurgeCases": 50,
+  "markdownWriterTaskListContinuationSurgeAssertions": 251
 }
