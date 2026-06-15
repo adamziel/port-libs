@@ -1860,8 +1860,8 @@ final class MarkdownWriter
             'link' => $this->renderLink($node, $following),
             'image' => $this->renderImage($node, $following),
             'math' => $this->renderMath($node),
-            'citation' => (string) $node->attr('rendered', $node->attr('text', $this->renderInlines($node->children))),
-            'citation_group' => (string) $node->attr('rendered', $node->attr('text', $this->renderInlines($node->children))),
+            'citation' => $this->renderCitation($node),
+            'citation_group' => $this->renderCitationGroup($node),
             'raw_tex', 'raw_inline', 'raw_markdown', 'raw_html_inline' => $this->renderRawInline($node),
             'note' => $this->renderNoteReference($node),
             default => $this->renderInlines($node->children),
@@ -1935,6 +1935,73 @@ final class MarkdownWriter
         ];
 
         return '[^' . $label . ']';
+    }
+
+    private function renderCitation(AstNode $node): string
+    {
+        $rendered = $node->attr('rendered', null);
+        if (is_string($rendered) && $rendered !== '') {
+            return $rendered;
+        }
+
+        $text = $node->attr('text', null);
+        if (is_string($text) && $text !== '') {
+            return $text;
+        }
+
+        return $this->citationSourceText($node);
+    }
+
+    private function renderCitationGroup(AstNode $node): string
+    {
+        $rendered = $node->attr('rendered', null);
+        if (is_string($rendered) && $rendered !== '') {
+            return $rendered;
+        }
+
+        $text = $node->attr('text', null);
+        if (is_string($text) && $text !== '') {
+            return $text;
+        }
+
+        $citations = [];
+        foreach ($node->children as $child) {
+            if ($child->type === 'citation') {
+                $citations[] = $this->citationSourceText($child);
+            }
+        }
+
+        return '[' . implode('; ', $citations) . ']';
+    }
+
+    private function citationSourceText(AstNode $citation): string
+    {
+        $id = (string) $citation->attr('id', '');
+        $mode = (string) $citation->attr('mode', 'normal');
+        $prefix = $this->citationAffixPlainText($citation, 'prefix');
+        $suffix = $this->citationAffixPlainText($citation, 'suffix');
+        if ($suffix === '') {
+            $suffix = $this->citationAffixPlainText($citation, 'locator');
+        }
+
+        $token = ($mode === 'suppress_author' ? '-@' : '@') . $id;
+        $text = $prefix === '' ? $token : $prefix . ' ' . $token;
+
+        return $suffix === '' ? $text : $text . ', ' . $suffix;
+    }
+
+    private function citationAffixPlainText(AstNode $citation, string $name): string
+    {
+        $value = $citation->attr($name, '');
+        if (is_string($value)) {
+            return trim($value);
+        }
+
+        if (is_array($value) && $this->allAstNodes($value)) {
+            return trim($this->plainInlineText($value));
+        }
+
+        return '';
     }
 
     private function registerNoteLabel(AstNode $node): string

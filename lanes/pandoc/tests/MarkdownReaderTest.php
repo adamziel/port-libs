@@ -9861,6 +9861,63 @@ MD;
             $citation('[@author]'),
         ]));
     },
+    'maps upstream markdown writer citation source reconstruction boundaries' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Reviewer sources: '),
+                new AstNode('link', ['url' => '/source-packet'], [$text('source packet')]),
+                $text(' '),
+                new AstNode('citation_group', [], [
+                    new AstNode('citation', [
+                        'id' => 'smith1899',
+                        'prefix' => [$text('see')],
+                        'locator' => [$text('p. 7')],
+                    ]),
+                    new AstNode('citation', [
+                        'id' => 'missing-source',
+                        'mode' => 'suppress_author',
+                        'prefix' => 'compare',
+                        'suffix' => 'appendix B',
+                    ]),
+                ]),
+                $text(' and '),
+                new AstNode('citation', [
+                    'id' => 'doe2020',
+                    'mode' => 'author_in_text',
+                    'suffix' => 'ch. 2',
+                ]),
+                $text(' before rendered '),
+                new AstNode('citation_group', [
+                    'rendered' => '(Smith 1899; Doe 2020)',
+                ], [
+                    new AstNode('citation', ['id' => 'smith1899']),
+                    new AstNode('citation', ['id' => 'doe2020']),
+                ]),
+                $text('.'),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $referenceMarkdown = (new MarkdownWriter(['referenceLinks' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $paragraph = $roundTripped->children[0] ?? new AstNode('missing');
+        $cluster = $paragraph->children[3] ?? new AstNode('missing');
+        $authorInText = $paragraph->children[5] ?? new AstNode('missing');
+
+        $t->same('Reviewer sources: [source packet](/source-packet) [see @smith1899, p. 7; compare -@missing-source, appendix B] and @doe2020, ch. 2 before rendered (Smith 1899; Doe 2020).', $markdown);
+        $t->same(implode("\n", [
+            'Reviewer sources: [source packet][] [see @smith1899, p. 7; compare -@missing-source, appendix B] and @doe2020, ch. 2 before rendered (Smith 1899; Doe 2020).',
+            '',
+            '  [source packet]: /source-packet',
+        ]), $referenceMarkdown);
+        $t->true(!str_contains($markdown, '\\@'), 'Citation source reconstruction should not escape citation markers as ordinary text');
+        $t->same('citation_group', $cluster->type);
+        $t->same(['smith1899', 'missing-source'], array_map(static fn (AstNode $node): string => (string) $node->attr('id'), $cluster->children));
+        $t->same('suppress_author', $cluster->children[1]->attr('mode'));
+        $t->same('citation', $authorInText->type);
+        $t->same('doe2020', $authorInText->attr('id'));
+    },
     'maps upstream markdown writer inline escaping and generated reference labels' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $link = static fn (string $url, string $label): AstNode => new AstNode('link', [
