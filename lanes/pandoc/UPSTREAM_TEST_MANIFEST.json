@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3563,
-        "latestSlice": "pandoc-docx-openxml-relationship-source-kind-matrix maps six DOCX/OpenXML relationship source-kind package ingestion cases after rebase onto current main 7b31ff5b90. DocxOpenXmlReader now preserves relationship source kind, source directory/content-type/role buckets, root-level part relationship sidecars, content-types item sidecars, missing-source, relationship-part, and invalid-source relationship provenance without invoking Pandoc, Word, LibreOffice, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3599 -> 3600, phpFail remains 0, mapped upstream cases move 3557 -> 3563, mappedDocxOpenXmlRelationshipSourceKindMatrixCases = 6, and docxOpenXmlRelationshipSourceKindMatrixAssertions = 46. Verification passed php -l for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php; focused DocxOpenXmlReaderTest.php passed 1 file, 2890 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84486 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+        "mapped": 3568,
+        "latestSlice": "pandoc-csl-direct-authority-list-aliases maps five direct CSL citation/bibliography alias cases after rebase onto current main 6a256f20e5. CitationCslProcessor normalizes institution/organization/school list forms plus authority-list and issuing-authority aliases into publisher/authority metadata, preserving scalar and literal-list rendering through CSL citation, bibliography, and WordPress bibliography output without invoking Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3600 -> 3605, phpFail remains 0, mapped upstream cases move 3563 -> 3568, mappedCslDirectPublisherAuthorityListAliasCases = 3, cslDirectPublisherAuthorityListAliasAssertions = 27, mappedCslDirectAuthorityAliasCases = 2, and cslDirectAuthorityAliasAssertions = 21. Verification passed php -l for CitationCslProcessor.php and CitationCslProcessorTest.php; focused CitationCslProcessorTest.php passed 1 file, 5792 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84534 assertions, 0 failures; jq empty; git diff --check; and conflict-marker scan.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "DOCX/OpenXML relationship source-kind package ingestion matrix is verified after rebase onto current main 7b31ff5b90; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-15 DOCX/OpenXML relationship source-kind package ingestion matrix verified after rebase onto current main 7b31ff5b90; focused DocxOpenXmlReaderTest.php passed 1 file, 2890 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84486 assertions, 0 failures.",
+        "status": "Pandoc CSL direct publisher authority list aliases are verified after rebase onto current main 6a256f20e5; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-15 Pandoc CSL direct publisher authority list aliases verified after rebase onto current main 6a256f20e5; focused CitationCslProcessorTest.php passed 1 file, 5792 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84534 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -457,7 +457,11 @@
         "mappedOpcZipManifestOverrideDeclarationMatrixCases": 10,
         "opcZipManifestOverrideDeclarationMatrixAssertions": 46,
         "mappedDocxOpenXmlRelationshipSourceKindMatrixCases": 6,
-        "docxOpenXmlRelationshipSourceKindMatrixAssertions": 46
+        "docxOpenXmlRelationshipSourceKindMatrixAssertions": 46,
+        "mappedCslDirectPublisherAuthorityListAliasCases": 3,
+        "cslDirectPublisherAuthorityListAliasAssertions": 27,
+        "mappedCslDirectAuthorityAliasCases": 2,
+        "cslDirectAuthorityAliasAssertions": 21
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -2066,5 +2070,9 @@
     "mappedOpcZipManifestOverrideDeclarationMatrixCases": 10,
     "opcZipManifestOverrideDeclarationMatrixAssertions": 46,
     "mappedDocxOpenXmlRelationshipSourceKindMatrixCases": 6,
-    "docxOpenXmlRelationshipSourceKindMatrixAssertions": 46
+    "docxOpenXmlRelationshipSourceKindMatrixAssertions": 46,
+    "mappedCslDirectPublisherAuthorityListAliasCases": null,
+    "cslDirectPublisherAuthorityListAliasAssertions": null,
+    "mappedCslDirectAuthorityAliasCases": null,
+    "cslDirectAuthorityAliasAssertions": null
 }

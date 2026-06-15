@@ -27953,6 +27953,346 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Institution Publisher Packet :: Archive Institute :: Archive Institute</dd>', $blocks);
         $t->contains('<dt>Kim 2024</dt><dd>School Publisher Packet :: Source University :: Source University</dd>', $blocks);
     },
+    'normalizes bounded direct csl json institution list publisher aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-institution-list',
+                'type' => 'report',
+                'title' => 'Institution List Publisher Packet',
+                'author' => [
+                    ['family' => 'Ives', 'given' => 'Ira'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'institution-list' => ['Archive Institute', 'Review Bureau'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-institution-list');
+        $t->same('Archive Institute; Review Bureau', $item['publisher'] ?? null);
+        $t->same(['Archive Institute', 'Review Bureau'], $item['publisherList'] ?? null);
+        $t->same('institution-list', array_key_exists('institution-list', $item['raw'] ?? []) ? 'institution-list' : null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Institution List Publisher Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-institution-list-publisher-alias-review</id>
+    <updated>2026-06-15T00:31:56+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="institution"/>
+        <text variable="institution-list"/>
+        <text variable="institutionList"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="institution-list"/>
+      <text variable="publisher"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $children = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Institution List Publisher Alias Review', $summary['title'] ?? null);
+        $t->same('institutionList', $children[3]['variable'] ?? null);
+        $t->same('[Ives | Archive Institute; Review Bureau | Archive Institute; Review Bureau | Archive Institute; Review Bureau]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-institution-list', 'text' => '[@direct-institution-list]']),
+        ]));
+        $t->same('Institution List Publisher Packet :: Archive Institute; Review Bureau :: Archive Institute; Review Bureau', $styled->renderBibliographyEntry('direct-institution-list'));
+
+        $document = (new MarkdownReader())->read('Institution list aliases [@direct-institution-list] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Institution list aliases [Ives | Archive Institute; Review Bureau | Archive Institute; Review Bureau | Archive Institute; Review Bureau] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ives 2026</dt><dd>Institution List Publisher Packet :: Archive Institute; Review Bureau :: Archive Institute; Review Bureau</dd>', $blocks);
+    },
+    'normalizes bounded direct csl json organization list publisher aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-organization-list',
+                'type' => 'book',
+                'title' => 'Organization List Publisher Packet',
+                'author' => [
+                    ['family' => 'Orr', 'given' => 'Ola'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'organizationList' => 'Migration Review Desk; Audit Office',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-organization-list');
+        $t->same('Migration Review Desk; Audit Office', $item['publisher'] ?? null);
+        $t->same(['Migration Review Desk', 'Audit Office'], $item['publisherList'] ?? null);
+        $t->same('organizationList', array_key_exists('organizationList', $item['raw'] ?? []) ? 'organizationList' : null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Organization List Publisher Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-organization-list-publisher-alias-review</id>
+    <updated>2026-06-15T00:31:56+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="organization"/>
+        <text variable="organization-list"/>
+        <text variable="organizationList"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="organization-list"/>
+      <text variable="publisher-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $children = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Organization List Publisher Alias Review', $summary['title'] ?? null);
+        $t->same('organizationList', $children[3]['variable'] ?? null);
+        $t->same('[Orr | Migration Review Desk; Audit Office | Migration Review Desk; Audit Office | Migration Review Desk; Audit Office]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-organization-list', 'text' => '[@direct-organization-list]']),
+        ]));
+        $t->same('Organization List Publisher Packet :: Migration Review Desk; Audit Office :: Migration Review Desk; Audit Office', $styled->renderBibliographyEntry('direct-organization-list'));
+
+        $document = (new MarkdownReader())->read('Organization list aliases [@direct-organization-list] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Organization list aliases [Orr | Migration Review Desk; Audit Office | Migration Review Desk; Audit Office | Migration Review Desk; Audit Office] stay visible.</p>', $blocks);
+        $t->contains('<dt>Orr 2025</dt><dd>Organization List Publisher Packet :: Migration Review Desk; Audit Office :: Migration Review Desk; Audit Office</dd>', $blocks);
+    },
+    'normalizes bounded direct csl json school list publisher aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-school-list',
+                'type' => 'thesis',
+                'title' => 'School List Publisher Packet',
+                'author' => [
+                    ['family' => 'Skye', 'given' => 'Sam'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'schoollist' => 'Source University, Field Lab',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-school-list');
+        $t->same('Source University; Field Lab', $item['publisher'] ?? null);
+        $t->same(['Source University', 'Field Lab'], $item['publisherList'] ?? null);
+        $t->same('schoollist', array_key_exists('schoollist', $item['raw'] ?? []) ? 'schoollist' : null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL School List Publisher Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-school-list-publisher-alias-review</id>
+    <updated>2026-06-15T00:31:56+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="school"/>
+        <text variable="school-list"/>
+        <text variable="schoollist"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="school-list"/>
+      <text variable="publisher"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $children = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL School List Publisher Alias Review', $summary['title'] ?? null);
+        $t->same('schoollist', $children[3]['variable'] ?? null);
+        $t->same('[Skye | Source University; Field Lab | Source University; Field Lab | Source University; Field Lab]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-school-list', 'text' => '[@direct-school-list]']),
+        ]));
+        $t->same('School List Publisher Packet :: Source University; Field Lab :: Source University; Field Lab', $styled->renderBibliographyEntry('direct-school-list'));
+
+        $document = (new MarkdownReader())->read('School list aliases [@direct-school-list] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>School list aliases [Skye | Source University; Field Lab | Source University; Field Lab | Source University; Field Lab] stay visible.</p>', $blocks);
+        $t->contains('<dt>Skye 2024</dt><dd>School List Publisher Packet :: Source University; Field Lab :: Source University; Field Lab</dd>', $blocks);
+    },
+    'normalizes bounded direct csl json authority list aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-authority-list',
+                'type' => 'report',
+                'title' => 'Authority List Packet',
+                'author' => [
+                    ['family' => 'Park', 'given' => 'Pia'],
+                ],
+                'issued' => ['date-parts' => [[2023]]],
+                'authority-list' => ['Patent Office', 'Appeals Board'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-authority-list');
+        $t->same('Patent Office; Appeals Board', $item['authority'] ?? null);
+        $t->same('Patent Office', $item['authorities'][0]['literal'] ?? null);
+        $t->same('Appeals Board', $item['authorities'][1]['literal'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Authority List Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-authority-list-alias-review</id>
+    <updated>2026-06-15T00:31:56+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <choose>
+        <if variable="authority-list">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="authority-list"/>
+            <text variable="authorityList"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-authority-list"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="authority-list"/>
+      <text variable="authoritylist"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded Direct CSL Authority List Alias Review', $summary['title'] ?? null);
+        $t->same(['authority-list'], $branch['variables'] ?? null);
+        $t->same('[Park | Patent Office; Appeals Board | Patent Office; Appeals Board]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-authority-list', 'text' => '[@direct-authority-list]']),
+        ]));
+        $t->same('Authority List Packet :: Patent Office; Appeals Board :: Patent Office; Appeals Board', $styled->renderBibliographyEntry('direct-authority-list'));
+
+        $document = (new MarkdownReader())->read('Authority list aliases [@direct-authority-list] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Authority list aliases [Park | Patent Office; Appeals Board | Patent Office; Appeals Board] stay visible.</p>', $blocks);
+        $t->contains('<dt>Park 2023</dt><dd>Authority List Packet :: Patent Office; Appeals Board :: Patent Office; Appeals Board</dd>', $blocks);
+    },
+    'normalizes bounded direct csl json issuing authority aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-issuing-authority-camel',
+                'type' => 'report',
+                'title' => 'Issuing Authority Camel Packet',
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Viv'],
+                ],
+                'issued' => ['date-parts' => [[2022]]],
+                'issuingAuthority' => 'Standards Council',
+            ],
+            [
+                'id' => 'direct-issuing-authority-list',
+                'type' => 'report',
+                'title' => 'Issuing Authority List Packet',
+                'author' => [
+                    ['family' => 'Wong', 'given' => 'Wai'],
+                ],
+                'issued' => ['date-parts' => [[2021]]],
+                'issuing-authority-list' => [
+                    ['literal' => 'Health Board'],
+                    ['literal' => 'Safety Office'],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-issuing-authority-camel');
+        $list = $processor->item('direct-issuing-authority-list');
+        $t->same('Standards Council', $camel['authority'] ?? null);
+        $t->same('Standards Council', $camel['authorities'][0]['literal'] ?? null);
+        $t->same('Health Board; Safety Office', $list['authority'] ?? null);
+        $t->same('Safety Office', $list['authorities'][1]['literal'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Issuing Authority Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-issuing-authority-alias-review</id>
+    <updated>2026-06-15T00:31:56+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if variable="issuing-authority">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="issuingAuthority"/>
+            <text variable="issuing-authority-list"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-issuing-authority"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="issuing-authority"/>
+      <text variable="issuingauthoritylist"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded Direct CSL Issuing Authority Alias Review', $summary['title'] ?? null);
+        $t->same(['issuing-authority'], $branch['variables'] ?? null);
+        $t->same('[Vale | Standards Council | Standards Council; Wong | Health Board; Safety Office | Health Board; Safety Office]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-issuing-authority-camel', 'text' => '[@direct-issuing-authority-camel]']),
+            new AstNode('citation', ['id' => 'direct-issuing-authority-list', 'text' => '[@direct-issuing-authority-list]']),
+        ]));
+        $t->same('Issuing Authority Camel Packet :: Standards Council :: Standards Council', $styled->renderBibliographyEntry('direct-issuing-authority-camel'));
+        $t->same('Issuing Authority List Packet :: Health Board; Safety Office :: Health Board; Safety Office', $styled->renderBibliographyEntry('direct-issuing-authority-list'));
+
+        $document = (new MarkdownReader())->read('Issuing authority aliases [@direct-issuing-authority-camel; @direct-issuing-authority-list] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Issuing authority aliases [Vale | Standards Council | Standards Council; Wong | Health Board; Safety Office | Health Board; Safety Office] stay visible.</p>', $blocks);
+        $t->contains('<dt>Vale 2022</dt><dd>Issuing Authority Camel Packet :: Standards Council :: Standards Council</dd>', $blocks);
+        $t->contains('<dt>Wong 2021</dt><dd>Issuing Authority List Packet :: Health Board; Safety Office :: Health Board; Safety Office</dd>', $blocks);
+    },
     'normalizes bounded direct csl json status and taxonomy aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [
