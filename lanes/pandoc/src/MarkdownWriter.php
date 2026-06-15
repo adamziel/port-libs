@@ -4190,7 +4190,7 @@ final class MarkdownWriter
 
     private function escapeAttributeToken(string $value): string
     {
-        return str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
+        return str_replace(['\\', '"', '{', '}'], ['\\\\', '\\"', '\\{', '\\}'], $value);
     }
 
     private function escapeLinkTitle(string $title): string

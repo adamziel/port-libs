@@ -8033,11 +8033,11 @@ final class MarkdownReader
             }
 
             if ($token[0] === '#') {
-                $id = substr($token, 1);
+                $id = $this->decodeMarkdownAttributeToken(substr($token, 1));
                 continue;
             }
             if ($token[0] === '.') {
-                $classes[] = substr($token, 1);
+                $classes[] = $this->decodeMarkdownAttributeToken(substr($token, 1));
             }
         }
 
@@ -8053,6 +8053,11 @@ final class MarkdownReader
         }
 
         return substr($source, $start, $offset - $start);
+    }
+
+    private function decodeMarkdownAttributeToken(string $token): string
+    {
+        return $this->decodeHtmlEntities($this->unescapeLinkComponent($token));
     }
 
     /**
