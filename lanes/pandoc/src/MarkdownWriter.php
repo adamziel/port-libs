@@ -1617,7 +1617,7 @@ final class MarkdownWriter
                 $hasFirstLine = true;
             }
 
-            if ($child->type === 'paragraph' || $child->type === 'plain') {
+            if ($this->isInlineListItemBlock($child)) {
                 if (count($lines) === 1 && rtrim($lines[0]) === rtrim($prefix)) {
                     $lines = [];
                     $lines = $this->appendInlineListItemLines(
@@ -1724,6 +1724,11 @@ final class MarkdownWriter
         }
 
         return $lines;
+    }
+
+    private function isInlineListItemBlock(AstNode $node): bool
+    {
+        return $node->type === 'paragraph' || $node->type === 'plain';
     }
 
     /**
