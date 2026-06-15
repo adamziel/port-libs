@@ -380,6 +380,7 @@ final class OpenDocumentPackage
             'packageConfigurations' => $packageConfigurations,
             'packageFonts' => $packageFonts,
             'rdfMetadata' => $this->rdfMetadata,
+            'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
             'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries, $this->manifestRootAttributes),
             'packageInventory' => $packageInventory,
             'metadata' => $this->metadata,
@@ -3460,6 +3461,7 @@ final class OpenDocumentPackage
         }
         $summary['manifestPartReferenceSuffixCount'] = count($summary['manifestPartReferenceSuffixItems']);
         $summary['preferredViewModes'] = self::manifestPreferredViewModeSummary($entries);
+        $summary['manifestEncryption'] = self::manifestEncryptionSummary($entries);
         $summary['diagnosticCount'] = count($summary['diagnostics']);
         $summary['declaredSizeItemCount'] = count($summary['declaredSizeItems']);
         $summary['largestDeclaredSizeItems'] = self::largestDeclaredSizeItems(
@@ -3474,6 +3476,181 @@ final class OpenDocumentPackage
         ksort($summary['diagnosticCodeCounts'], SORT_STRING);
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, mixed>
+     */
+    private static function manifestEncryptionSummary(array $entries): array
+    {
+        $items = [];
+        $encryptedParts = [];
+        $checksumTypeCounts = [];
+        $algorithmNameCounts = [];
+        $keyDerivationNameCounts = [];
+        $startKeyGenerationNameCounts = [];
+        $unknownChildNameCounts = [];
+        $issueCodeCounts = [];
+        $recordCount = 0;
+        $unknownChildCount = 0;
+        $issueItemCount = 0;
+
+        foreach ($entries as $entry) {
+            if (($entry['encrypted'] ?? false) !== true) {
+                continue;
+            }
+
+            $encryption = is_array($entry['encryption'] ?? null) ? $entry['encryption'] : [];
+            $records = is_array($encryption['records'] ?? null) ? $encryption['records'] : [];
+            if ($records === [] && $encryption !== []) {
+                $records = [$encryption];
+            }
+
+            $recordCount += count($records);
+            $checksumTypes = [];
+            $algorithmNames = [];
+            $keyDerivationNames = [];
+            $startKeyGenerationNames = [];
+            $unknownChildNames = [];
+            $issueCodes = [];
+
+            foreach ($records as $record) {
+                if (!is_array($record)) {
+                    continue;
+                }
+
+                $checksumType = $record['checksumType'] ?? null;
+                if (is_string($checksumType) && $checksumType !== '') {
+                    $checksumTypes[] = $checksumType;
+                    $checksumTypeCounts[$checksumType] = ($checksumTypeCounts[$checksumType] ?? 0) + 1;
+                }
+
+                foreach (self::encryptionNamedRecords($record, 'algorithm', 'algorithms') as $algorithm) {
+                    $name = $algorithm['name'] ?? null;
+                    if (is_string($name) && $name !== '') {
+                        $algorithmNames[] = $name;
+                        $algorithmNameCounts[$name] = ($algorithmNameCounts[$name] ?? 0) + 1;
+                    }
+                }
+
+                foreach (self::encryptionNamedRecords($record, 'keyDerivation', 'keyDerivations') as $keyDerivation) {
+                    $name = $keyDerivation['name'] ?? null;
+                    if (is_string($name) && $name !== '') {
+                        $keyDerivationNames[] = $name;
+                        $keyDerivationNameCounts[$name] = ($keyDerivationNameCounts[$name] ?? 0) + 1;
+                    }
+                }
+
+                foreach (self::encryptionNamedRecords($record, 'startKeyGeneration', 'startKeyGenerations') as $startKeyGeneration) {
+                    $name = $startKeyGeneration['name'] ?? null;
+                    if (is_string($name) && $name !== '') {
+                        $startKeyGenerationNames[] = $name;
+                        $startKeyGenerationNameCounts[$name] = ($startKeyGenerationNameCounts[$name] ?? 0) + 1;
+                    }
+                }
+
+                foreach (is_array($record['unknownChildren'] ?? null) ? $record['unknownChildren'] : [] as $unknownChild) {
+                    if (!is_array($unknownChild)) {
+                        continue;
+                    }
+
+                    $name = $unknownChild['name'] ?? null;
+                    if (is_string($name) && $name !== '') {
+                        $unknownChildNames[] = $name;
+                        $unknownChildNameCounts[$name] = ($unknownChildNameCounts[$name] ?? 0) + 1;
+                        ++$unknownChildCount;
+                    }
+                }
+
+                foreach (is_array($record['issueCodes'] ?? null) ? $record['issueCodes'] : [] as $issueCode) {
+                    if (is_string($issueCode) && $issueCode !== '') {
+                        $issueCodes[] = $issueCode;
+                    }
+                }
+            }
+
+            foreach (is_array($encryption['issueCodes'] ?? null) ? $encryption['issueCodes'] : [] as $issueCode) {
+                if (is_string($issueCode) && $issueCode !== '') {
+                    $issueCodes[] = $issueCode;
+                }
+            }
+
+            $issueCodes = array_values(array_unique($issueCodes));
+            if ($issueCodes !== []) {
+                ++$issueItemCount;
+                foreach ($issueCodes as $issueCode) {
+                    $issueCodeCounts[$issueCode] = ($issueCodeCounts[$issueCode] ?? 0) + 1;
+                }
+            }
+
+            $path = (string) ($entry['path'] ?? $entry['fullPath'] ?? '');
+            $part = $entry['packagePath'] ?? $entry['part'] ?? null;
+            if (is_string($part) && $part !== '') {
+                $encryptedParts[] = $part;
+            }
+
+            $items[] = self::withoutEmptyValues([
+                'manifestIndex' => $entry['manifestIndex'] ?? null,
+                'fullPath' => $path,
+                'path' => $path,
+                'part' => $part,
+                'packagePath' => $part,
+                'mediaType' => $entry['mediaType'] ?? null,
+                'encryptionRecordCount' => count($records),
+                'checksumTypes' => array_values(array_unique($checksumTypes)),
+                'algorithmNames' => array_values(array_unique($algorithmNames)),
+                'keyDerivationNames' => array_values(array_unique($keyDerivationNames)),
+                'startKeyGenerationNames' => array_values(array_unique($startKeyGenerationNames)),
+                'unknownChildNames' => array_values(array_unique($unknownChildNames)),
+                'issueCodes' => $issueCodes,
+                'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
+            ]);
+        }
+
+        ksort($checksumTypeCounts, SORT_STRING);
+        ksort($algorithmNameCounts, SORT_STRING);
+        ksort($keyDerivationNameCounts, SORT_STRING);
+        ksort($startKeyGenerationNameCounts, SORT_STRING);
+        ksort($unknownChildNameCounts, SORT_STRING);
+        ksort($issueCodeCounts, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'encryptedItemCount' => count($items),
+            'recordCount' => $recordCount,
+            'encryptedParts' => $encryptedParts,
+            'checksumTypeCounts' => $checksumTypeCounts,
+            'algorithmNameCounts' => $algorithmNameCounts,
+            'keyDerivationNameCounts' => $keyDerivationNameCounts,
+            'startKeyGenerationNameCounts' => $startKeyGenerationNameCounts,
+            'unknownChildCount' => $unknownChildCount,
+            'unknownChildNameCounts' => $unknownChildNameCounts,
+            'issueItemCount' => $issueItemCount,
+            'issueCodeCounts' => $issueCodeCounts,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<array<string, mixed>>
+     */
+    private static function encryptionNamedRecords(array $record, string $singleKey, string $pluralKey): array
+    {
+        $items = [];
+        if (is_array($record[$pluralKey] ?? null)) {
+            foreach ($record[$pluralKey] as $item) {
+                if (is_array($item)) {
+                    $items[] = $item;
+                }
+            }
+        } elseif (is_array($record[$singleKey] ?? null)) {
+            $items[] = $record[$singleKey];
+        }
+
+        return $items;
     }
 
     /**

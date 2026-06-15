@@ -4,7 +4,7 @@ Updated: 2026-06-15 UTC
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 
-ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
+ODF/ODT is marked ship-ready: 80 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
 
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest EPUB3 evidence: `EpubPackageReader` reports OPF package-root authoring provenance, including id/version, unique-identifier binding, `xml:lang`, `dir`, `xml:base`, prefix diagnostics, custom attributes, base-resolution policy, package prefix reports, package/manifest/spine authoring reports, and package identity diagnostics.
+Latest ODF/ODT evidence: `OpenDocumentPackage` and `OdfReader` aggregate manifest encryption review provenance, including unknown child element-name buckets, across compact summaries, rich import reports, document manifest metadata, and package provenance while keeping encrypted package bytes blocked.
 
-Current Pandoc counters: 3,647 PHP passes / 0 failures and 3,684 mapped upstream cases. Verification passed after rebasing the EPUB package root authoring report slice onto current main `559492548e`: `php -l` for `EpubPackageReader.php` and `EpubPackageReaderTest.php`; focused `EpubPackageReaderTest.php` (`1` file, `1,138` assertions, `0` failures); focused `OdfOdtShipReadinessStatusTest.php` (`1` file, `24` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,915` assertions, `0` failures); `jq empty`; conflict-marker scan; and `git diff --check`.
+Current Pandoc counters: 3,650 PHP passes / 0 failures and 3,687 mapped upstream cases. Verification passed `php -l` for `OpenDocumentPackage.php`, `OdfReader.php`, `OpenDocumentPackageTest.php`, and `OdfReaderTest.php`; focused `OpenDocumentPackageTest.php` + `OdfReaderTest.php` (`2` files, `6,393` assertions, `0` failures); focused ODF/ODT readiness (`5` files, `6,693` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `86,002` assertions, `0` failures); `jq empty`; and `git diff --check`.
