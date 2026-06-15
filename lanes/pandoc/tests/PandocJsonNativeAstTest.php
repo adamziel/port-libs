@@ -10756,6 +10756,165 @@ return [
             }
         }
     },
+    'preserves single wrapped table section helper constructors through rebuilt writers' => static function (TestRunner $t): void {
+        $headCell = ['t' => 'Cell', 'c' => [[
+            ['head-cell', ['section'], [['data-kind', 'head']]],
+            ['t' => 'AlignCenter', 'reviewQueue' => 'head-cell-align-source'],
+            ['t' => 'RowSpan', 'c' => [1], 'reviewQueue' => 'head-cell-rowspan-source'],
+            ['t' => 'ColSpan', 'c' => [1], 'reviewQueue' => 'head-cell-colspan-source'],
+            [['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Head'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'cell'],
+            ]]],
+        ]], 'reviewQueue' => 'head-cell-wrapper-source'];
+        $headRow = ['t' => 'Row', 'c' => [[
+            ['head-row', ['section-row'], []],
+            [$headCell],
+        ]], 'reviewQueue' => 'head-row-wrapper-source'];
+        $tableHead = ['t' => 'TableHead', 'c' => [[
+            ['head-section', ['thead'], [['data-scope', 'header']]],
+            [$headRow],
+        ]], 'reviewQueue' => 'head-section-wrapper-source'];
+
+        $rowHeadColumns = ['t' => 'RowHeadColumns', 'c' => [1], 'reviewQueue' => 'body-row-head-source'];
+        $bodyCell = ['t' => 'Cell', 'c' => [[
+            ['body-cell', ['section'], [['data-kind', 'body']]],
+            ['t' => 'AlignLeft', 'reviewQueue' => 'body-cell-align-source'],
+            ['t' => 'RowSpan', 'c' => [2], 'reviewQueue' => 'body-cell-rowspan-source'],
+            ['t' => 'ColSpan', 'c' => [1], 'reviewQueue' => 'body-cell-colspan-source'],
+            [['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Body'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'cell'],
+            ]]],
+        ]], 'reviewQueue' => 'body-cell-wrapper-source'];
+        $bodyRow = ['t' => 'Row', 'c' => [[
+            ['body-row', ['section-row'], []],
+            [$bodyCell],
+        ]], 'reviewQueue' => 'body-row-wrapper-source'];
+        $tableBody = ['t' => 'TableBody', 'c' => [[
+            ['body-section', ['tbody'], [['data-scope', 'body']]],
+            $rowHeadColumns,
+            [],
+            [$bodyRow],
+        ]], 'reviewQueue' => 'body-section-wrapper-source'];
+
+        $footCell = ['t' => 'Cell', 'c' => [[
+            ['foot-cell', ['section'], [['data-kind', 'foot']]],
+            ['t' => 'AlignRight', 'reviewQueue' => 'foot-cell-align-source'],
+            ['t' => 'RowSpan', 'c' => [1], 'reviewQueue' => 'foot-cell-rowspan-source'],
+            ['t' => 'ColSpan', 'c' => [1], 'reviewQueue' => 'foot-cell-colspan-source'],
+            [['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Foot'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'cell'],
+            ]]],
+        ]], 'reviewQueue' => 'foot-cell-wrapper-source'];
+        $footRow = ['t' => 'Row', 'c' => [[
+            ['foot-row', ['section-row'], []],
+            [$footCell],
+        ]], 'reviewQueue' => 'foot-row-wrapper-source'];
+        $tableFoot = ['t' => 'TableFoot', 'c' => [[
+            ['foot-section', ['tfoot'], [['data-scope', 'footer']]],
+            [$footRow],
+        ]], 'reviewQueue' => 'foot-section-wrapper-source'];
+
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [[
+                't' => 'Table',
+                'c' => [
+                    ['section-table', ['json-native'], [['data-source', 'single-wrap']]],
+                    ['t' => 'Caption', 'c' => [null, []]],
+                    [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                    $tableHead,
+                    [$tableBody],
+                    $tableFoot,
+                ],
+                'reviewQueue' => 'table-wrapper-source',
+            ]],
+        ];
+        $stripBlockWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+        $bodyPayload = static fn (array $encoded): array => $encoded['blocks'][0]['c'][4][0];
+        $cellPayload = static function (array $body): array {
+            $bodyContent = $body['c'] ?? $body;
+            $row = $bodyContent[3][0];
+            $rowContent = $row['c'] ?? $row;
+            $cell = $rowContent[1][0];
+
+            return $cell['c'] ?? $cell;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $table = $document->children[0];
+            $head = $table->children[0];
+            $body = $table->children[1];
+            $foot = $table->children[2];
+            $bodyRowNode = $body->children[0];
+            $bodyCellNode = $bodyRowNode->children[0];
+
+            $t->same('head-section', $head->attr('id'), "{$source} reads single wrapped TableHead attr");
+            $t->same($tableHead, $head->attr('native'), "{$source} preserves TableHead native wrapper");
+            $t->same($headRow, $head->children[0]->attr('native'), "{$source} preserves head Row native wrapper");
+            $t->same($headCell, $head->children[0]->children[0]->attr('native'), "{$source} preserves head Cell native wrapper");
+            $t->same(1, $body->attr('rowHeadColumns'), "{$source} reads single wrapped TableBody row head columns");
+            $t->same($rowHeadColumns, $body->attr('rowHeadColumnsNative'), "{$source} preserves body RowHeadColumns helper");
+            $t->same(2, $bodyCellNode->attr('rowspan'), "{$source} reads single wrapped Cell RowSpan");
+            $t->same('Body cell', $bodyCellNode->attr('text'), "{$source} reads body cell text");
+            $t->same($tableFoot, $foot->attr('native'), "{$source} preserves TableFoot native wrapper");
+
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('table', $stripBlockWrapper($table), [$head, $body, $foot]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $tableParts = $encoded['blocks'][0]['c'];
+
+                $t->same($tableHead, $tableParts[3], "{$source} {$writer} writer preserves single wrapped TableHead wrapper");
+                $t->same($tableBody, $tableParts[4][0], "{$source} {$writer} writer preserves single wrapped TableBody wrapper");
+                $t->same($tableFoot, $tableParts[5], "{$source} {$writer} writer preserves single wrapped TableFoot wrapper");
+            }
+
+            $editedBodyCell = new AstNode('table_cell', $bodyCellNode->attrs, [
+                new AstNode('text', ['text' => 'Edited']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'body']),
+            ]);
+            $editedBodyRow = new AstNode('table_row', $bodyRowNode->attrs, [$editedBodyCell]);
+            $editedBody = new AstNode('table_body', $body->attrs, [$editedBodyRow]);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('table', $stripBlockWrapper($table), [$head, $editedBody, $foot]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $tableParts = $encoded['blocks'][0]['c'];
+                $editedBodyPayload = $bodyPayload($encoded);
+                $editedCellPayload = $cellPayload($editedBodyPayload);
+
+                $t->same($tableHead, $tableParts[3], "{$source} {$writer} edited writer keeps unchanged head wrapper");
+                $t->same('TableBody', $editedBodyPayload['t'] ?? null, "{$source} {$writer} edited writer regenerates changed body constructor");
+                $t->same(false, array_key_exists('reviewQueue', $editedBodyPayload), "{$source} {$writer} edited writer drops stale body wrapper sidecar");
+                $t->same('Edited', $editedCellPayload[4][0]['c'][0]['c'], "{$source} {$writer} edited writer regenerates changed cell text");
+                $t->same($tableFoot, $tableParts[5], "{$source} {$writer} edited writer keeps unchanged foot wrapper");
+            }
+        }
+    },
     'preserves single wrapped table wrapper tuple constructors through regenerated table shells' => static function (TestRunner $t): void {
         $headCell = ['t' => 'Cell', 'c' => [[
             ['head-cell', ['cell'], [['data-kind', 'head']]],
