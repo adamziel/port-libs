@@ -94,6 +94,87 @@ BIB;
         $t->same('Import note attached', $item['note']);
         $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
     },
+    'carries biblatex annotations separately from abstracts in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@misc{annotated-source,
+  author     = {Roe, Pat},
+  title      = {Annotated Legacy Packet},
+  date       = {2026},
+  abstract   = {Public summary for migration review.},
+  annotation = {Internal reviewer annotation.},
+  annote     = {Legacy catalog fallback note.},
+  url        = {https://example.test/annotated-legacy}
+}
+
+@misc{annote-only-source,
+  author = {Ng, Nia},
+  title  = {Legacy Annote Packet},
+  date   = {2025},
+  annote = {Legacy annote preserved as annotation.}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $bibliography = $processor->renderBibliographyText($items['annotated-source']);
+
+        $t->same('Public summary for migration review.', $items['annotated-source']['abstract']);
+        $t->same('Internal reviewer annotation.', $items['annotated-source']['annotation']);
+        $t->same('Legacy annote preserved as annotation.', $items['annote-only-source']['abstract']);
+        $t->same('Legacy annote preserved as annotation.', $items['annote-only-source']['annotation']);
+        $t->same('Internal reviewer annotation.', $items['annotated-source']['rawBibtex']['fields']['annotation']);
+        $t->same('Legacy catalog fallback note.', $items['annotated-source']['rawBibtex']['fields']['annote']);
+        $t->same(
+            'Pat Roe. Annotated Legacy Packet. 2026. Annotation: Internal reviewer annotation. https://example.test/annotated-legacy.',
+            $bibliography
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Annote Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-annote-review</id>
+    <updated>2026-06-15T12:44:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="abstract"/>
+        <text variable="annote"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="abstract"/>
+      <text variable="annotation"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('Bounded Legacy BibLaTeX Annote Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same(
+            '[Annotated Legacy Packet | Public summary for migration review. | Internal reviewer annotation.; Legacy Annote Packet | Legacy annote preserved as annotation. | Legacy annote preserved as annotation.]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'annotated-source', 'text' => '[@annotated-source]']),
+                new AstNode('citation', ['id' => 'annote-only-source', 'text' => '[@annote-only-source]']),
+            ])
+        );
+        $t->same('Annotated Legacy Packet :: Public summary for migration review. :: Internal reviewer annotation.', $styled->renderBibliographyEntry('annotated-source'));
+
+        $document = (new MarkdownReader())->read('Legacy annote source @annotated-source keeps annotation metadata visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['annotated-source'], $handoff['citedKeys']);
+        $t->same('Internal reviewer annotation.', $handoff['items'][0]['annotation']);
+        $t->contains('Annotation: Internal reviewer annotation', $blocks);
+    },
     'maps obscure biblatex entry aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @software{tool,
@@ -628,6 +709,118 @@ XML);
         $t->contains('<p>Translation review (Garcia | Manual de Migracion: Apendice de Archivo | 2026; Roe | Paquete de Capitulo: Anexo | 2025) keeps translated title metadata visible.</p>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Chapter Packet :: Paquete de Capitulo: Anexo :: Anexo</dd>', $blocks);
     },
+    'carries biblatex title family aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@incollection{legacy-title-family,
+  author          = {Ng, Nia},
+  title           = {Source Chapter},
+  booktitle       = {Migration Handbook},
+  maintitle       = {Migration Source Corpus},
+  mainsubtitle    = {Archive Desk},
+  maintitleaddon  = {source addendum},
+  volumetitle     = {Review Volume},
+  volumesubtitle  = {Appendix},
+  shortvolumetitle = {RV},
+  parttitle       = {Part Ledger},
+  partsubtitle    = {Field Notes},
+  issuetitle      = {Special Issue},
+  issuesubtitle   = {Source Reports},
+  issuetitleaddon = {editorial packet},
+  pages           = {21--23},
+  date            = {2026}
+}
+
+@book{legacy-title-family-compact,
+  author             = {Roe, Rae},
+  title              = {Compact Title Family Packet},
+  main-title-text    = {Compact Main Text},
+  volume-title-text  = {Compact Volume Text},
+  part-title-text    = {Alpha Compact Part},
+  issue-title-text   = {Compact Issue},
+  date               = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $legacy = $items['legacy-title-family'];
+        $compact = $items['legacy-title-family-compact'];
+
+        $t->same('Migration Source Corpus: Archive Desk', $legacy['main-title']);
+        $t->same('source addendum', $legacy['main-title-addon']);
+        $t->same('Review Volume: Appendix', $legacy['volume-title']);
+        $t->same('RV', $legacy['volume-title-short']);
+        $t->same('Part Ledger: Field Notes', $legacy['part-title']);
+        $t->same('Special Issue: Source Reports', $legacy['issue-title']);
+        $t->same('editorial packet', $legacy['issue-title-addon']);
+        $t->same('Migration Source Corpus', $legacy['rawBibtex']['fields']['maintitle']);
+        $t->same('RV', $legacy['rawBibtex']['fields']['shortvolumetitle']);
+        $t->same('Special Issue', $legacy['rawBibtex']['fields']['issuetitle']);
+        $t->same('Compact Main Text', $compact['main-title']);
+        $t->same('Compact Volume Text', $compact['volume-title']);
+        $t->same('Alpha Compact Part', $compact['part-title']);
+        $t->same('Compact Issue', $compact['issue-title']);
+        $t->contains('Main title: Migration Source Corpus: Archive Desk', $processor->renderBibliographyText($legacy));
+        $t->contains('Issue title addendum: editorial packet', $processor->renderBibliographyText($legacy));
+
+        $document = (new MarkdownReader())->read('Legacy title family [@legacy-title-family; @legacy-title-family-compact] keeps imported title metadata visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $t->same(['legacy-title-family', 'legacy-title-family-compact'], $handoff['citedKeys']);
+        $t->same('Part Ledger: Field Notes', $handoff['bibliography']->children[0]->attr('cslItem')['part-title'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Title Family Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-title-family-review</id>
+    <updated>2026-06-15T10:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="main-title"/>
+        <text variable="main-title-addon"/>
+        <text variable="volume-title-short"/>
+        <text variable="part-title"/>
+        <text variable="issue-title"/>
+        <text variable="issue-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="main-title"/>
+      <text variable="main-title-addon"/>
+      <text variable="volume-title"/>
+      <text variable="volume-title-short"/>
+      <text variable="part-title"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Legacy BibLaTeX Title Family Review', $summary['title'] ?? null);
+        $t->same('main-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('volume-title-short', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Ng | Migration Source Corpus: Archive Desk | source addendum | RV | Part Ledger: Field Notes | Special Issue: Source Reports | editorial packet; Roe | Compact Main Text | Alpha Compact Part | Compact Issue]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-title-family', 'text' => '[@legacy-title-family]']),
+            new AstNode('citation', ['id' => 'legacy-title-family-compact', 'text' => '[@legacy-title-family-compact]']),
+        ]));
+        $t->same('Source Chapter :: Migration Handbook :: Migration Source Corpus: Archive Desk :: source addendum :: Review Volume: Appendix :: RV :: Part Ledger: Field Notes :: Special Issue: Source Reports :: editorial packet', $styled->renderBibliographyEntry('legacy-title-family'));
+        $t->same('Compact Title Family Packet :: Compact Main Text :: Compact Volume Text :: Alpha Compact Part :: Compact Issue', $styled->renderBibliographyEntry('legacy-title-family-compact'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legacy title family [Ng | Migration Source Corpus: Archive Desk | source addendum | RV | Part Ledger: Field Notes | Special Issue: Source Reports | editorial packet; Roe | Compact Main Text | Alpha Compact Part | Compact Issue] keeps imported title metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Source Chapter :: Migration Handbook :: Migration Source Corpus: Archive Desk :: source addendum :: Review Volume: Appendix :: RV :: Part Ledger: Field Notes :: Special Issue: Source Reports :: editorial packet</dd>', $blocks);
+    },
     'carries biblatex status taxonomy aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-status-hyphen,
@@ -762,6 +955,93 @@ BIB;
         $t->same('320', $item['number-of-pages']);
         $t->same('Casey Chapter. Extent Review Chapter. Migration Extent Handbook 2. 2026. 101-120.', $bibliography);
     },
+    'carries legacy biblatex journal abbreviation and article number metadata' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-journal-id,
+  author       = {Roe, Pat},
+  title        = {Electronic Article Packet},
+  journaltitle = {Journal of Legacy Imports},
+  shortjournal = {J. Legacy Import.},
+  date         = {2026},
+  eid          = {e2026-42},
+  doi          = {10.5555/legacy-eid}
+}
+
+@article{legacy-short-alias,
+  author              = {Ng, Nia},
+  title               = {Explicit Article Number Packet},
+  journal             = {Migration Review Quarterly},
+  journalabbreviation = {Migr. Rev. Q.},
+  year                = {2025},
+  article-number      = {A-77}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $journal = $items['legacy-journal-id'];
+        $alias = $items['legacy-short-alias'];
+
+        $t->same('J. Legacy Import.', $journal['container-title-short']);
+        $t->same('J. Legacy Import.', $journal['journal-abbreviation']);
+        $t->same('e2026-42', $journal['article-number']);
+        $t->same('e2026-42', $journal['rawBibtex']['fields']['eid']);
+        $t->same('Migr. Rev. Q.', $alias['container-title-short']);
+        $t->same('Migr. Rev. Q.', $alias['journal-abbreviation']);
+        $t->same('A-77', $alias['article-number']);
+        $t->same('A-77', $alias['rawBibtex']['fields']['article-number']);
+        $t->same(
+            'Pat Roe. Electronic Article Packet. Journal of Legacy Imports. 2026. Journal abbreviation: J. Legacy Import. Article number: e2026-42. doi:10.5555/legacy-eid.',
+            $processor->renderBibliographyText($journal)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Legacy BibLaTeX Journal Identifier Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-journal-identifier-review</id>
+    <updated>2026-06-15T12:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="container-title-short"/>
+        <text variable="journal-abbreviation"/>
+        <text variable="article-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title-short"/>
+      <text variable="article-number"/>
+      <text variable="DOI"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Journal Identifier Review', $summary['title'] ?? null);
+        $t->same('container-title-short', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+        $t->same(
+            'Electronic Article Packet | J. Legacy Import. | J. Legacy Import. | e2026-42; Explicit Article Number Packet | Migr. Rev. Q. | Migr. Rev. Q. | A-77',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'legacy-journal-id', 'text' => '[@legacy-journal-id]']),
+                new AstNode('citation', ['id' => 'legacy-short-alias', 'text' => '[@legacy-short-alias]']),
+            ])
+        );
+        $t->same('Electronic Article Packet :: J. Legacy Import. :: e2026-42 :: 10.5555/legacy-eid', $styled->renderBibliographyEntry('legacy-journal-id'));
+        $t->same('Explicit Article Number Packet :: Migr. Rev. Q. :: A-77', $styled->renderBibliographyEntry('legacy-short-alias'));
+
+        $document = (new MarkdownReader())->read('Legacy journal identifiers [@legacy-journal-id; @legacy-short-alias] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legacy journal identifiers Electronic Article Packet | J. Legacy Import. | J. Legacy Import. | e2026-42; Explicit Article Number Packet | Migr. Rev. Q. | Migr. Rev. Q. | A-77 stay visible.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Electronic Article Packet :: J. Legacy Import. :: e2026-42 :: 10.5555/legacy-eid</dd>', $blocks);
+    },
     'carries biblatex source locator metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @misc{source-locator,
@@ -851,6 +1131,482 @@ BIB;
         $t->same('Reading Room Shelf B/12', $handoff['bibliography']->children[1]->attr('cslItem')['call-number'] ?? null);
         $t->contains('Call number: MS 42 Box 4', $markdown);
         $t->contains('Call number: Reading Room Shelf B/12', $blocks);
+    },
+    'carries biblatex thesis school and type aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@phdthesis{doctoral-review,
+  author = {Smith, Ada},
+  title  = {Doctoral Import Study},
+  school = {Migration University},
+  type   = {Doctoral dissertation},
+  date   = {2026},
+  url    = {https://example.test/doctoral-review}
+}
+
+@mathesis{masters-review,
+  author = {Ng, Nia},
+  title  = {Masters Import Study},
+  school = {Source University},
+  date   = {2025}
+}
+
+@thesis{explicit-thesis,
+  author     = {Roe, Pat},
+  title      = {Explicit Thesis Packet},
+  institution = {Archive Institute},
+  thesistype = {Licentiate thesis},
+  year       = {2024}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $doctoral = $items['doctoral-review'];
+        $masters = $items['masters-review'];
+        $explicit = $items['explicit-thesis'];
+
+        $t->same(['doctoral-review', 'masters-review', 'explicit-thesis'], array_keys($items));
+        $t->same('thesis', $doctoral['type']);
+        $t->same('Migration University', $doctoral['publisher']);
+        $t->same('Doctoral dissertation', $doctoral['thesis-type']);
+        $t->same('Doctoral dissertation', $doctoral['genre']);
+        $t->same('Migration University', $doctoral['rawBibtex']['fields']['school']);
+        $t->same('thesis', $masters['type']);
+        $t->same('mathesis', $masters['thesis-type']);
+        $t->same('Source University', $masters['publisher']);
+        $t->same('Licentiate thesis', $explicit['thesis-type']);
+        $t->same('Archive Institute', $explicit['publisher']);
+        $t->same('Licentiate thesis', $explicit['rawBibtex']['fields']['thesistype']);
+        $t->same('Ada Smith. Doctoral Import Study. Migration University. 2026. Thesis type: Doctoral dissertation. https://example.test/doctoral-review.', $processor->renderBibliographyText($doctoral));
+        $t->same('Nia Ng. Masters Import Study. Source University. 2025. Thesis type: mathesis.', $processor->renderBibliographyText($masters));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Legacy BibLaTeX Thesis Alias Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-thesis-alias-review</id>
+    <updated>2026-06-15T09:50:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="school"/>
+        <text variable="thesis-type"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="school"/>
+      <text variable="thesistype"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Thesis Alias Review', $summary['title'] ?? null);
+        $t->same('thesis-type', $summary['citationRendering'][0]['children'][2]['variable'] ?? null);
+        $t->same('(Smith | Migration University | Doctoral dissertation; Ng | Source University | mathesis)', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'doctoral-review', 'text' => '[@doctoral-review]']),
+            new AstNode('citation', ['id' => 'masters-review', 'text' => '[@masters-review]']),
+        ]));
+        $t->same('Explicit Thesis Packet :: Archive Institute :: Licentiate thesis', $styled->renderBibliographyEntry('explicit-thesis'));
+
+        $document = (new MarkdownReader())->read('Thesis aliases [@doctoral-review; @masters-review; @explicit-thesis] stay visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['doctoral-review', 'masters-review', 'explicit-thesis'], $handoff['citedKeys']);
+        $t->same('Doctoral dissertation', $handoff['bibliography']->children[0]->attr('cslItem')['thesis-type'] ?? null);
+        $t->contains('<p>Thesis aliases (Smith | Migration University | Doctoral dissertation; Ng | Source University | mathesis; Roe | Archive Institute | Licentiate thesis) stay visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Doctoral Import Study :: Migration University :: Doctoral dissertation</dd>', $blocks);
+        $t->contains('<dt>Roe 2024</dt><dd>Explicit Thesis Packet :: Archive Institute :: Licentiate thesis</dd>', $blocks);
+    },
+    'carries biblatex review title hierarchy aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@review{review-handoff,
+  author            = {Critic, Casey},
+  title             = {Legacy Review Packet},
+  reviewed-title    = {Source Manual},
+  reviewed-subtitle = {Field Appendix},
+  reviewed-genre    = {migration handbook},
+  maintitle         = {Collected Review Set},
+  mainsubtitle      = {Legacy Volume},
+  maintitleaddon    = {archive set},
+  volume-title      = {Volume Packet},
+  volume-subtitle   = {Review Notes},
+  short-volume-title = {Vol. Pkt.},
+  parttitle         = {Part Source},
+  partsubtitle      = {Chapter Notes},
+  issue-title       = {Special Issue},
+  issue-subtitle    = {Audit Week},
+  issue-title-addon = {guest-edited dossier},
+  journaltitle      = {Review Journal},
+  volume            = {7},
+  number            = {2},
+  date              = {2026}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['review-handoff'];
+
+        $t->same('article', $item['type']);
+        $t->same('Source Manual: Field Appendix', $item['reviewed-title']);
+        $t->same('migration handbook', $item['reviewed-genre']);
+        $t->same('Collected Review Set: Legacy Volume', $item['main-title']);
+        $t->same('archive set', $item['main-title-addon']);
+        $t->same('Volume Packet: Review Notes', $item['volume-title']);
+        $t->same('Vol. Pkt.', $item['volume-title-short']);
+        $t->same('Part Source: Chapter Notes', $item['part-title']);
+        $t->same('Special Issue: Audit Week', $item['issue-title']);
+        $t->same('guest-edited dossier', $item['issue-title-addon']);
+        $t->same('Source Manual', $item['rawBibtex']['fields']['reviewed-title']);
+        $t->same('Review Notes', $item['rawBibtex']['fields']['volume-subtitle']);
+        $t->same('Casey Critic. Legacy Review Packet. Review Journal 7(2). Issue title: Special Issue: Audit Week. Issue title addendum: guest-edited dossier. 2026. Reviewed title: Source Manual: Field Appendix. Reviewed genre: migration handbook. Main title: Collected Review Set: Legacy Volume. Main title addendum: archive set. Volume title: Volume Packet: Review Notes. Volume title abbreviation: Vol. Pkt. Part title: Part Source: Chapter Notes.', $processor->renderBibliographyText($item));
+
+        $document = (new MarkdownReader())->read('Review hierarchy [@review-handoff] stays visible.');
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Review Title Hierarchy</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-review-title-hierarchy</id>
+    <updated>2026-06-15T11:12:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="reviewed-title"/>
+        <text variable="reviewed-genre"/>
+        <text variable="main-title"/>
+        <text variable="main-title-addon"/>
+        <text variable="volume-title"/>
+        <text variable="volume-title-short"/>
+        <text variable="part-title"/>
+        <text variable="issue-title"/>
+        <text variable="issue-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="reviewed-title"/>
+      <text variable="reviewed-genre"/>
+      <text variable="main-title"/>
+      <text variable="main-title-addon"/>
+      <text variable="volume-title"/>
+      <text variable="volume-title-short"/>
+      <text variable="part-title"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Review Title Hierarchy', $summary['title'] ?? null);
+        $t->same('reviewed-title', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+        $t->same('[Critic | Source Manual: Field Appendix | migration handbook | Collected Review Set: Legacy Volume | archive set | Volume Packet: Review Notes | Vol. Pkt. | Part Source: Chapter Notes | Special Issue: Audit Week | guest-edited dossier]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'review-handoff', 'text' => '[@review-handoff]']),
+        ]));
+        $t->same('Legacy Review Packet :: Source Manual: Field Appendix :: migration handbook :: Collected Review Set: Legacy Volume :: archive set :: Volume Packet: Review Notes :: Vol. Pkt. :: Part Source: Chapter Notes :: Special Issue: Audit Week :: guest-edited dossier', $styled->renderBibliographyEntry('review-handoff'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review hierarchy [Critic | Source Manual: Field Appendix | migration handbook | Collected Review Set: Legacy Volume | archive set | Volume Packet: Review Notes | Vol. Pkt. | Part Source: Chapter Notes | Special Issue: Audit Week | guest-edited dossier] stays visible.</p>', $blocks);
+        $t->contains('<dt>Critic 2026</dt><dd>Legacy Review Packet :: Source Manual: Field Appendix :: migration handbook :: Collected Review Set: Legacy Volume :: archive set :: Volume Packet: Review Notes :: Vol. Pkt. :: Part Source: Chapter Notes :: Special Issue: Audit Week :: guest-edited dossier</dd>', $blocks);
+    },
+    'inherits legacy biblatex crossref and xdata metadata into csl items' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@xdata{shared-review-source,
+  publisher = {Review Press},
+  location  = {Portland},
+  rights    = {Internal review only},
+  keywords  = {source packet; inheritance}
+}
+
+@proceedings{review-proceedings,
+  title      = {Source Review Proceedings},
+  subtitle   = {Package Track},
+  year       = {2026},
+  eventtitle = {Open Source Review Summit},
+  venue      = {Berlin},
+  xdata      = {shared-review-source}
+}
+
+@inproceedings{crossref-paper,
+  author   = {Ng, Nia},
+  title    = {Packet Audit Trails},
+  pages    = {12--18},
+  crossref = {review-proceedings}
+}
+
+@periodical{journal-parent,
+  title    = {Journal of Import Packets},
+  subtitle = {Audit Notes},
+  year     = {2025}
+}
+
+@article{crossref-article,
+  author   = {Roe, Pat},
+  title    = {Journal Child Packet},
+  pages    = {7--9},
+  crossref = {journal-parent}
+}
+
+@online{xdata-child,
+  author = {Desk, Archive},
+  title  = {Inherited Source Packet},
+  url    = {https://example.test/source-packet},
+  xdata  = {shared-review-source}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $paper = $items['crossref-paper'];
+        $article = $items['crossref-article'];
+        $xdataChild = $items['xdata-child'];
+
+        $t->same('paper-conference', $paper['type']);
+        $t->same('Source Review Proceedings: Package Track', $paper['container-title']);
+        $t->same('Open Source Review Summit', $paper['event']);
+        $t->same('Berlin', $paper['event-place']);
+        $t->same('Review Press', $paper['publisher']);
+        $t->same('Portland', $paper['publisher-place']);
+        $t->same('Internal review only', $paper['rights']);
+        $t->same(['source packet', 'inheritance'], $paper['keyword']);
+        $t->same([2026], $paper['issued']['date-parts'][0]);
+        $t->same('12-18', $paper['page']);
+        $t->same('review-proceedings', $paper['rawBibtex']['fields']['crossref']);
+        $t->same('Source Review Proceedings', $paper['rawBibtex']['fields']['booktitle']);
+        $t->same('Package Track', $paper['rawBibtex']['fields']['booksubtitle']);
+        $t->same('Journal of Import Packets: Audit Notes', $article['container-title']);
+        $t->same([2025], $article['issued']['date-parts'][0]);
+        $t->same('Review Press', $xdataChild['publisher']);
+        $t->same('Portland', $xdataChild['publisher-place']);
+        $t->same('Internal review only', $xdataChild['rights']);
+        $t->same('shared-review-source', $xdataChild['rawBibtex']['fields']['xdata']);
+        $t->same(
+            'Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only.',
+            $processor->renderBibliographyText($paper)
+        );
+        $t->same(
+            'Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. https://example.test/source-packet.',
+            $processor->renderBibliographyText($xdataChild)
+        );
+
+        $document = (new MarkdownReader())->read('Inherited metadata cites @crossref-paper and [@xdata-child].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['crossref-paper', 'xdata-child'], $handoff['citedKeys']);
+        $t->same([], $handoff['missingKeys']);
+        $t->same('Source Review Proceedings: Package Track', $handoff['items'][0]['container-title']);
+        $t->same('Review Press', $handoff['items'][1]['publisher']);
+        $t->contains('<dt>crossref-paper</dt><dd>Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only.</dd>', $blocks);
+        $t->contains('<dt>xdata-child</dt><dd>Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. https://example.test/source-packet.</dd>', $blocks);
+    },
+    'carries biblatex citation aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{canonical-source,
+  ids    = {legacy-source, alt-source},
+  author = {Ng, Nia},
+  title  = {Alias Source Manual},
+  date   = {2026}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['canonical-source'];
+
+        $t->same(['canonical-source'], array_keys($items));
+        $t->same(['legacy-source', 'alt-source'], $item['citation-aliases']);
+        $t->same('Nia Ng. Alias Source Manual. Citation aliases: legacy-source; alt-source. 2026.', $processor->renderBibliographyText($item));
+
+        $document = (new MarkdownReader())->read('Alias review cites @legacy-source, [@alt-source], and @canonical-source.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $markdown = (new MarkdownWriter())->write($bibliographyDocument);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['legacy-source', 'alt-source', 'canonical-source'], $handoff['citedKeys']);
+        $t->same([], $handoff['missingKeys']);
+        $t->same(['canonical-source'], array_map(static fn (array $item): string => (string) $item['id'], $handoff['items']));
+        $t->same(['legacy-source', 'alt-source'], $handoff['bibliography']->children[0]->attr('cslItem')['citation-aliases'] ?? null);
+        $t->contains('Citation aliases: legacy-source; alt-source', $markdown);
+        $t->contains('<dt>canonical-source</dt>', $blocks);
+        $t->contains('Citation aliases: legacy-source; alt-source', $blocks);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items));
+        $t->same('Alias Source Manual', $styled->item('legacy-source')['title'] ?? null);
+        $t->same('(Ng 2026)', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'alt-source', 'text' => '[@alt-source]']),
+        ]));
+    },
+    'carries biblatex issue title aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-issue-title,
+  author          = {Doe, Jane},
+  title           = {Source Packet Study},
+  journaltitle    = {Journal of Imports},
+  issuetitle      = {Migration Special Issue},
+  issuesubtitle   = {Import Desk Reports},
+  issuetitleaddon = {Editorial packet supplement},
+  date            = {2026},
+  pages           = {30--35}
+}
+
+@article{legacy-issue-text,
+  author            = {Roe, Pat},
+  title             = {Issue Text Packet},
+  journal           = {Migration Notes},
+  issue-title-text  = {Hyphen Issue Text},
+  issue-subtitle    = {Source Reports},
+  issue-title-addon = {queue note},
+  year              = {2025},
+  pages             = {7--9}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $special = $items['legacy-issue-title'];
+        $hyphen = $items['legacy-issue-text'];
+
+        $t->same('article-journal', $special['type']);
+        $t->same('Migration Special Issue: Import Desk Reports', $special['issue-title']);
+        $t->same('Editorial packet supplement', $special['issue-title-addon']);
+        $t->same('Hyphen Issue Text: Source Reports', $hyphen['issue-title']);
+        $t->same('queue note', $hyphen['issue-title-addon']);
+        $t->same('Hyphen Issue Text', $hyphen['rawBibtex']['fields']['issue-title-text']);
+        $t->same(
+            'Jane Doe. Source Packet Study. Journal of Imports. Issue title: Migration Special Issue: Import Desk Reports. Issue title addendum: Editorial packet supplement. 2026. 30-35.',
+            $processor->renderBibliographyText($special)
+        );
+
+        $document = (new MarkdownReader())->read('Special issue @legacy-issue-title and archive issue [@legacy-issue-text] keep issue metadata visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $t->same(['legacy-issue-title', 'legacy-issue-text'], $handoff['citedKeys']);
+        $t->same('Migration Special Issue: Import Desk Reports', $handoff['bibliography']->children[0]->attr('cslItem')['issue-title'] ?? null);
+        $t->same('queue note', $handoff['bibliography']->children[1]->attr('cslItem')['issue-title-addon'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Issue Title Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-issue-title-review</id>
+    <updated>2026-06-15T11:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="issue-title"/>
+        <text variable="issue-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Issue Title Review', $summary['title'] ?? null);
+        $t->same('[Doe | Migration Special Issue: Import Desk Reports | Editorial packet supplement; Roe | Hyphen Issue Text: Source Reports | queue note]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-issue-title', 'text' => '[@legacy-issue-title]']),
+            new AstNode('citation', ['id' => 'legacy-issue-text', 'text' => '[@legacy-issue-text]']),
+        ]));
+        $t->same('Source Packet Study :: Migration Special Issue: Import Desk Reports :: Editorial packet supplement', $styled->renderBibliographyEntry('legacy-issue-title'));
+        $t->same('Issue Text Packet :: Hyphen Issue Text: Source Reports :: queue note', $styled->renderBibliographyEntry('legacy-issue-text'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Special issue Doe (2026) and archive issue [Roe | Hyphen Issue Text: Source Reports | queue note] keep issue metadata visible.</p>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>Source Packet Study :: Migration Special Issue: Import Desk Reports :: Editorial packet supplement</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Issue Text Packet :: Hyphen Issue Text: Source Reports :: queue note</dd>', $blocks);
+    },
+    'carries biblatex shorthand sort and label metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-labels,
+  author         = {Smith, Ada},
+  title          = {Legacy Label Manual},
+  date           = {2026},
+  shorthand      = {LLM},
+  shorthandintro = {cited as Legacy Label Manual},
+  sortshorthand  = {010 legacy label},
+  presort        = {aa},
+  sortkey        = {900-smith},
+  sortname       = {Archive Desk},
+  sorttitle      = {Label Manual Legacy},
+  sortyear       = {2025},
+  labelprefix    = {WP},
+  labelalpha     = {Smi26},
+  labeltitle     = {legacy label},
+  extraalpha     = {b}
+}
+
+@book{fallback-shorthand,
+  title     = {Fallback Shorthand Manual},
+  date      = {2025},
+  shorthand = {FSH}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $labels = $items['legacy-labels'];
+        $fallback = $items['fallback-shorthand'];
+
+        $t->same('LLM', $labels['citation-label']);
+        $t->same('LLM', $labels['shorthand']);
+        $t->same('cited as Legacy Label Manual', $labels['shorthand-intro']);
+        $t->same('010 legacy label', $labels['sort-shorthand']);
+        $t->same('010 legacy label', $labels['shorthand-list-sort-key']);
+        $t->same('aa', $labels['presort']);
+        $t->same('900-smith', $labels['sort-key']);
+        $t->same('Archive Desk', $labels['sort-name']);
+        $t->same('Label Manual Legacy', $labels['sort-title']);
+        $t->same('2025', $labels['sort-year']);
+        $t->same('WP', $labels['label-prefix']);
+        $t->same('Smi26', $labels['label-alpha']);
+        $t->same('legacy label', $labels['label-title']);
+        $t->same('b', $labels['extra-alpha']);
+        $t->same('LLM', $labels['rawBibtex']['fields']['shorthand']);
+        $t->same('010 legacy label', $labels['rawBibtex']['fields']['sortshorthand']);
+        $t->same('FSH', $fallback['citation-label']);
+        $t->same('FSH', $fallback['shorthand-list-sort-key']);
+        $t->same(
+            'Ada Smith. Legacy Label Manual. 2026. Citation label: LLM. Shorthand intro: cited as Legacy Label Manual. Sort shorthand: 010 legacy label. Presort: aa. Sort key: 900-smith. Label prefix: WP. Extra alpha: b.',
+            $processor->renderBibliographyText($labels)
+        );
+
+        $document = (new MarkdownReader())->read('Legacy label source @legacy-labels and [@fallback-shorthand] keep shorthand review metadata.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['legacy-labels', 'fallback-shorthand'], $handoff['citedKeys']);
+        $t->same('010 legacy label', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
+        $t->same('FSH', $handoff['bibliography']->children[1]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
+        $t->contains('Citation label: LLM', $blocks);
+        $t->contains('Fallback Shorthand Manual', $blocks);
     },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');

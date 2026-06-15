@@ -27,7 +27,7 @@ final class BibtexCslProcessor
      */
     public function parseBibtex(string $source): array
     {
-        $entries = [];
+        $rawEntries = [];
         $macros = self::MONTH_MACROS;
         $offset = 0;
 
@@ -73,11 +73,21 @@ final class BibtexCslProcessor
                 continue;
             }
 
-            $entries[$key] = [
+            $rawEntries[$key] = [
                 'id' => $key,
                 'type' => $type,
                 'fields' => $fields,
-                'csl' => $this->toCslItem($key, $type, $fields),
+            ];
+        }
+
+        $entries = [];
+        foreach ($rawEntries as $key => $entry) {
+            $fields = $this->resolveInheritedFields($entry, $rawEntries);
+            $entries[$key] = [
+                'id' => $entry['id'],
+                'type' => $entry['type'],
+                'fields' => $fields,
+                'csl' => $this->toCslItem($key, $entry['type'], $fields),
             ];
         }
 
@@ -136,17 +146,28 @@ final class BibtexCslProcessor
     public function citationHandoff(AstNode $document, string $bibtex): array
     {
         $itemsByKey = $this->cslItems($bibtex);
+        $itemsByCitationKey = $this->itemsByCitationKey($itemsByKey);
         $citedKeys = $this->citedKeys($document);
         $items = [];
         $missing = [];
+        $includedItemIds = [];
 
         foreach ($citedKeys as $key) {
-            if (!isset($itemsByKey[$key])) {
+            if (!isset($itemsByCitationKey[$key])) {
                 $missing[] = $key;
                 continue;
             }
 
-            $items[] = $itemsByKey[$key];
+            $item = $itemsByCitationKey[$key];
+            $itemId = (string) ($item['id'] ?? '');
+            if ($itemId !== '' && isset($includedItemIds[$itemId])) {
+                continue;
+            }
+
+            if ($itemId !== '') {
+                $includedItemIds[$itemId] = true;
+            }
+            $items[] = $item;
         }
 
         return [
@@ -218,6 +239,10 @@ final class BibtexCslProcessor
         if (($item['title'] ?? '') !== '') {
             $parts[] = (string) $item['title'];
         }
+        $citationAliases = $item['citation-aliases'] ?? [];
+        if (is_array($citationAliases) && $citationAliases !== []) {
+            $parts[] = 'Citation aliases: ' . implode('; ', array_map('strval', $citationAliases));
+        }
         $translatedTitle = (string) ($item['translated-title'] ?? '');
         if ($translatedTitle !== '') {
             $translatedSubtitle = (string) ($item['translated-subtitle'] ?? '');
@@ -243,12 +268,29 @@ final class BibtexCslProcessor
             $parts[] = (string) $item['publisher'];
         }
 
+        if (($item['issue-title'] ?? '') !== '') {
+            $parts[] = 'Issue title: ' . (string) $item['issue-title'];
+        }
+        if (($item['issue-title-addon'] ?? '') !== '') {
+            $parts[] = 'Issue title addendum: ' . (string) $item['issue-title-addon'];
+        }
+
         $year = $this->issuedYear($item);
         if ($year !== '') {
             $parts[] = $year;
         }
         if (($item['page'] ?? '') !== '') {
             $parts[] = (string) $item['page'];
+        }
+        $containerTitleShort = (string) ($item['container-title-short'] ?? $item['journal-abbreviation'] ?? '');
+        if ($containerTitleShort !== '') {
+            $parts[] = 'Journal abbreviation: ' . rtrim($containerTitleShort, '.');
+        }
+        if (($item['article-number'] ?? '') !== '') {
+            $parts[] = 'Article number: ' . (string) $item['article-number'];
+        }
+        if (($item['thesis-type'] ?? '') !== '') {
+            $parts[] = 'Thesis type: ' . (string) $item['thesis-type'];
         }
         if (($item['source'] ?? '') !== '') {
             $parts[] = 'Source: ' . (string) $item['source'];
@@ -259,8 +301,28 @@ final class BibtexCslProcessor
         if (($item['supplement'] ?? '') !== '') {
             $parts[] = 'Supplement: ' . (string) $item['supplement'];
         }
+        foreach ([
+            'citation-label' => 'Citation label',
+            'shorthand-intro' => 'Shorthand intro',
+            'sort-shorthand' => 'Sort shorthand',
+            'presort' => 'Presort',
+            'sort-key' => 'Sort key',
+            'label-prefix' => 'Label prefix',
+            'extra-alpha' => 'Extra alpha',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $value = (string) $item[$field];
+                if ($field === 'volume-title-short') {
+                    $value = rtrim($value, '.');
+                }
+                $parts[] = $label . ': ' . $value;
+            }
+        }
         if (($item['rights'] ?? '') !== '') {
             $parts[] = 'Rights: ' . (string) $item['rights'];
+        }
+        if (($item['annotation'] ?? '') !== '') {
+            $parts[] = 'Annotation: ' . rtrim((string) $item['annotation'], '.');
         }
         if (($item['call-number'] ?? '') !== '') {
             $parts[] = 'Call number: ' . (string) $item['call-number'];
@@ -270,6 +332,23 @@ final class BibtexCslProcessor
         }
         if (($item['URL'] ?? '') !== '') {
             $parts[] = (string) $item['URL'];
+        }
+        foreach ([
+            'reviewed-title' => 'Reviewed title',
+            'reviewed-genre' => 'Reviewed genre',
+            'main-title' => 'Main title',
+            'main-title-addon' => 'Main title addendum',
+            'volume-title' => 'Volume title',
+            'volume-title-short' => 'Volume title abbreviation',
+            'part-title' => 'Part title',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $value = (string) $item[$field];
+                if ($field === 'volume-title-short') {
+                    $value = rtrim($value, '.');
+                }
+                $parts[] = $label . ': ' . $value;
+            }
         }
 
         return implode('. ', $parts) . ($parts === [] ? '' : '.');
@@ -428,6 +507,31 @@ final class BibtexCslProcessor
             $item['container-title'] = $containerTitle;
         }
 
+        $reviewedTitle = $this->composedTitle($fields, ['reviewedtitle', 'reviewed-title'], ['reviewedsubtitle', 'reviewed-subtitle']);
+        if ($reviewedTitle !== null && $reviewedTitle !== '') {
+            $item['reviewed-title'] = $reviewedTitle;
+        }
+
+        $mainTitle = $this->composedTitle($fields, ['maintitle', 'main-title', 'maintitletext', 'main-title-text'], ['mainsubtitle', 'main-subtitle']);
+        if ($mainTitle !== null && $mainTitle !== '') {
+            $item['main-title'] = $mainTitle;
+        }
+
+        $volumeTitle = $this->composedTitle($fields, ['volumetitle', 'volume-title', 'volumetitletext', 'volume-title-text'], ['volumesubtitle', 'volume-subtitle']);
+        if ($volumeTitle !== null && $volumeTitle !== '') {
+            $item['volume-title'] = $volumeTitle;
+        }
+
+        $partTitle = $this->composedTitle($fields, ['parttitle', 'part-title', 'parttitletext', 'part-title-text'], ['partsubtitle', 'part-subtitle']);
+        if ($partTitle !== null && $partTitle !== '') {
+            $item['part-title'] = $partTitle;
+        }
+
+        $issueTitle = $this->composedTitle($fields, ['issuetitle', 'issue-title', 'issuetitletext', 'issue-title-text'], ['issuesubtitle', 'issue-subtitle']);
+        if ($issueTitle !== null && $issueTitle !== '') {
+            $item['issue-title'] = $issueTitle;
+        }
+
         $originalTitle = $this->composedTitle($fields, ['origtitle', 'original-title'], ['origsubtitle', 'original-subtitle']);
         if ($originalTitle !== null && $originalTitle !== '') {
             $item['original-title'] = $originalTitle;
@@ -452,9 +556,50 @@ final class BibtexCslProcessor
         }
 
         $stringFields = [
+            'citation-label' => ['shorthand', 'label'],
+            'shorthand' => ['shorthand'],
+            'shorthand-intro' => ['shorthandintro', 'shorthand-intro'],
+            'sort-shorthand' => ['sortshorthand', 'sort-shorthand'],
+            'presort' => ['presort'],
+            'sort-key' => ['sortkey', 'sort-key'],
+            'sort-name' => ['sortname', 'sort-name'],
+            'sort-title' => ['sorttitle', 'sort-title'],
+            'sort-year' => ['sortyear', 'sort-year'],
+            'sort-initial' => ['sortinit', 'sort-initial', 'sortinitial', 'sort-initials'],
+            'sort-initial-hash' => ['sortinithash', 'sort-initial-hash'],
+            'label-prefix' => ['labelprefix', 'label-prefix'],
+            'label-alpha' => ['labelalpha', 'label-alpha'],
+            'label-title' => ['labeltitle', 'label-title'],
+            'extra-alpha' => ['extraalpha', 'extra-alpha'],
+            'extra-date' => ['extradate', 'extra-date'],
+            'extra-title' => ['extratitle', 'extra-title'],
             'short-title' => ['shorttitle'],
             'title-addon' => ['titleaddon'],
             'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
+            'main-title-addon' => ['maintitleaddon', 'main-title-addon'],
+            'reviewed-genre' => ['reviewedgenre', 'reviewed-genre', 'reviewgenre', 'review-genre'],
+            'volume-title-short' => ['shortvolumetitle', 'short-volume-title', 'volumetitleshort', 'volume-title-short'],
+            'issue-title-addon' => ['issuetitleaddon', 'issue-title-addon', 'issuetitle-addon'],
+            'container-title-short' => [
+                'shortjournal',
+                'shortjournaltitle',
+                'shortjournal-title',
+                'journaltitle-short',
+                'journalabbreviation',
+                'journal-abbreviation',
+                'container-title-short',
+                'containertitleshort',
+            ],
+            'journal-abbreviation' => [
+                'shortjournal',
+                'shortjournaltitle',
+                'shortjournal-title',
+                'journaltitle-short',
+                'journalabbreviation',
+                'journal-abbreviation',
+                'container-title-short',
+                'containertitleshort',
+            ],
             'event' => ['eventtitle', 'event-title', 'event'],
             'event-title-addon' => ['eventtitleaddon', 'event-title-addon'],
             'event-place' => ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'],
@@ -464,6 +609,7 @@ final class BibtexCslProcessor
             'number-of-volumes' => ['volumes'],
             'issue' => ['number', 'issue'],
             'page' => ['pages', 'page'],
+            'article-number' => ['eid', 'article-number', 'articlenumber'],
             'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
             'chapter-number' => ['chapter'],
             'source' => ['source', 'sourcetitle', 'source-title'],
@@ -473,7 +619,7 @@ final class BibtexCslProcessor
             'URL' => ['url'],
             'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label'],
             'rights' => ['rights', 'copyright', 'license', 'licence'],
-            'publisher' => ['publisher', 'institution', 'organization'],
+            'publisher' => ['publisher', 'institution', 'school', 'organization'],
             'publisher-place' => ['address', 'location', 'publisher-place'],
             'collection-title' => ['series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext', 'collection-title', 'collectiontitle'],
             'collection-title-short' => ['shortseries', 'short-series', 'series-short', 'series-title-short', 'seriestitleshort', 'shortcollection', 'collection-title-short', 'collectiontitleshort'],
@@ -494,6 +640,7 @@ final class BibtexCslProcessor
             'original-publisher-place' => ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'],
             'original-language' => ['origlanguage', 'originallanguage', 'original-language'],
             'abstract' => ['abstract', 'annotation', 'annote'],
+            'annotation' => ['annotation', 'annote'],
             'note' => ['note', 'addendum'],
             'genre' => ['type', 'entrysubtype'],
         ];
@@ -504,6 +651,19 @@ final class BibtexCslProcessor
                 continue;
             }
             $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
+        }
+
+        $thesisType = $this->thesisTypeForEntry($type, $fields);
+        if ($thesisType !== null && $thesisType !== '') {
+            $item['thesis-type'] = $thesisType;
+        }
+
+        $shorthandListSortKey = $this->firstField($fields, ['sortshorthand', 'sort-shorthand']);
+        if ($shorthandListSortKey === null || $shorthandListSortKey === '') {
+            $shorthandListSortKey = $this->firstField($fields, ['shorthand']);
+        }
+        if ($shorthandListSortKey !== null && $shorthandListSortKey !== '') {
+            $item['shorthand-list-sort-key'] = $shorthandListSortKey;
         }
 
         $nameFields = [
@@ -554,6 +714,11 @@ final class BibtexCslProcessor
             }
         }
 
+        $citationAliases = $this->citationAliases($fields);
+        if ($citationAliases !== []) {
+            $item['citation-aliases'] = $citationAliases;
+        }
+
         $date = $this->dateParts($fields);
         if ($date !== null) {
             $item['issued'] = ['date-parts' => [$date]];
@@ -595,6 +760,217 @@ final class BibtexCslProcessor
         }
 
         return $item;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $itemsByKey
+     * @return array<string, array<string, mixed>>
+     */
+    private function itemsByCitationKey(array $itemsByKey): array
+    {
+        $itemsByCitationKey = $itemsByKey;
+        foreach ($itemsByKey as $key => $item) {
+            $aliases = $item['citation-aliases'] ?? [];
+            if (!is_array($aliases)) {
+                continue;
+            }
+
+            foreach ($aliases as $alias) {
+                if (!is_scalar($alias)) {
+                    continue;
+                }
+
+                $alias = trim((string) $alias);
+                if ($alias === '' || $alias === $key || isset($itemsByCitationKey[$alias])) {
+                    continue;
+                }
+
+                $itemsByCitationKey[$alias] = $item;
+            }
+        }
+
+        return $itemsByCitationKey;
+    }
+
+    /**
+     * @param array{id:string, type:string, fields:array<string, string>} $entry
+     * @param array<string, array{id:string, type:string, fields:array<string, string>}> $entriesByKey
+     * @param list<string> $stack
+     * @return array<string, string>
+     */
+    private function resolveInheritedFields(array $entry, array $entriesByKey, array $stack = []): array
+    {
+        if (in_array($entry['id'], $stack, true)) {
+            throw new \InvalidArgumentException('BibTeX inheritance cycle involving entry: ' . $entry['id']);
+        }
+
+        $stack[] = $entry['id'];
+        $fields = $this->resolveXdataFields($entry, $entriesByKey, $stack);
+        $crossref = trim($fields['crossref'] ?? '');
+        if ($crossref === '' || !isset($entriesByKey[$crossref])) {
+            return $fields;
+        }
+
+        $parentFields = $this->resolveInheritedFields($entriesByKey[$crossref], $entriesByKey, $stack);
+        foreach ($this->crossrefInheritedFields($entry['type'], $fields, $parentFields) as $field => $value) {
+            if (($fields[$field] ?? '') === '') {
+                $fields[$field] = $value;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array{id:string, type:string, fields:array<string, string>} $entry
+     * @param array<string, array{id:string, type:string, fields:array<string, string>}> $entriesByKey
+     * @param list<string> $stack
+     * @return array<string, string>
+     */
+    private function resolveXdataFields(array $entry, array $entriesByKey, array $stack): array
+    {
+        $fields = $entry['fields'];
+        foreach ($this->fieldKeyList($fields['xdata'] ?? '') as $key) {
+            $parent = $entriesByKey[$key] ?? null;
+            if ($parent === null || $parent['type'] !== 'xdata') {
+                continue;
+            }
+
+            $parentFields = $this->resolveInheritedFields($parent, $entriesByKey, $stack);
+            unset($parentFields['crossref'], $parentFields['xdata']);
+            foreach ($parentFields as $field => $value) {
+                if (($fields[$field] ?? '') === '') {
+                    $fields[$field] = $value;
+                }
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<string, string> $childFields
+     * @param array<string, string> $parentFields
+     * @return array<string, string>
+     */
+    private function crossrefInheritedFields(string $childType, array $childFields, array $parentFields): array
+    {
+        $inherited = $parentFields;
+        unset($inherited['crossref']);
+
+        $containerField = $this->crossrefTitleContainerField($childType);
+        if ($containerField !== null && !$this->hasAnyField($childFields, ['booktitle', 'journaltitle', 'journal'])) {
+            $containerParts = $this->crossrefParentContainerTitleParts($containerField, $parentFields);
+            if ($containerParts['title'] !== '') {
+                $inherited[$containerField] = $containerParts['title'];
+            }
+
+            $subtitleField = $this->crossrefContainerSubtitleField($containerField);
+            if ($containerParts['subtitle'] !== '' && !$this->hasAnyField($childFields, [$subtitleField])) {
+                $inherited[$subtitleField] = $containerParts['subtitle'];
+            }
+
+            $titleAddonField = $this->crossrefContainerTitleAddonField($containerField);
+            if ($containerParts['titleAddon'] !== '' && !$this->hasAnyField($childFields, [$titleAddonField])) {
+                $inherited[$titleAddonField] = $containerParts['titleAddon'];
+            }
+        }
+
+        unset($inherited['title'], $inherited['subtitle'], $inherited['titleaddon']);
+
+        return $inherited;
+    }
+
+    private function crossrefTitleContainerField(string $childType): ?string
+    {
+        return match (strtolower($childType)) {
+            'article' => 'journal',
+            'bookinbook',
+            'conference',
+            'inbook',
+            'incollection',
+            'inproceedings',
+            'inreference',
+            'suppbook',
+            'suppcollection' => 'booktitle',
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, string> $parentFields
+     * @return array{title:string, subtitle:string, titleAddon:string}
+     */
+    private function crossrefParentContainerTitleParts(string $containerField, array $parentFields): array
+    {
+        $subtitleFields = $containerField === 'journal'
+            ? ['journalsubtitle', 'booksubtitle', 'subtitle']
+            : ['booksubtitle', 'journalsubtitle', 'subtitle'];
+        $titleAddonFields = $containerField === 'journal'
+            ? ['journaltitleaddon', 'booktitleaddon', 'titleaddon']
+            : ['booktitleaddon', 'journaltitleaddon', 'titleaddon'];
+
+        return [
+            'title' => $this->firstRawField($parentFields, ['booktitle', 'journaltitle', 'journal', 'title']),
+            'subtitle' => $this->firstRawField($parentFields, $subtitleFields),
+            'titleAddon' => $this->firstRawField($parentFields, $titleAddonFields),
+        ];
+    }
+
+    private function crossrefContainerSubtitleField(string $containerField): string
+    {
+        return $containerField === 'journal' ? 'journalsubtitle' : 'booksubtitle';
+    }
+
+    private function crossrefContainerTitleAddonField(string $containerField): string
+    {
+        return $containerField === 'journal' ? 'journaltitleaddon' : 'booktitleaddon';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fieldKeyList(string $value): array
+    {
+        $keys = [];
+        foreach (preg_split('/[,;]+/', $value) ?: [] as $key) {
+            $key = trim($key);
+            if ($key !== '') {
+                $keys[] = $key;
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $names
+     */
+    private function firstRawField(array $fields, array $names): string
+    {
+        foreach ($names as $name) {
+            if (($fields[$name] ?? '') !== '') {
+                return $fields[$name];
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $names
+     */
+    private function hasAnyField(array $fields, array $names): bool
+    {
+        foreach ($names as $name) {
+            if (($fields[$name] ?? '') !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -652,8 +1028,34 @@ final class BibtexCslProcessor
             'presentation' => 'speech',
             'inproceedings', 'conference', 'proceedings' => 'paper-conference',
             'phdthesis', 'mastersthesis', 'thesis' => 'thesis',
+            'mathesis' => 'thesis',
             'online', 'electronic', 'www' => 'webpage',
             default => 'article',
+        };
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private function thesisTypeForEntry(string $type, array $fields): ?string
+    {
+        $explicit = $this->firstField($fields, ['thesistype', 'thesis-type']);
+        if ($explicit !== null && $explicit !== '') {
+            return $explicit;
+        }
+
+        $entryType = strtolower($type);
+        if (in_array($entryType, ['thesis', 'phdthesis', 'mastersthesis', 'mathesis'], true)) {
+            $fieldType = $this->firstField($fields, ['type']);
+            if ($fieldType !== null && $fieldType !== '') {
+                return $fieldType;
+            }
+        }
+
+        return match ($entryType) {
+            'phdthesis' => 'phdthesis',
+            'mastersthesis', 'mathesis' => 'mathesis',
+            default => null,
         };
     }
 
@@ -766,6 +1168,23 @@ final class BibtexCslProcessor
         }
 
         return $keywords;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<string>
+     */
+    private function citationAliases(array $fields): array
+    {
+        $value = $this->firstField($fields, ['ids', 'citation-aliases', 'citationaliases', 'citation-alias', 'citationalias']);
+        if ($value === null || trim($value) === '') {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(static fn (string $alias): string => trim($alias), preg_split('/[,;]+/', $value) ?: []),
+            static fn (string $alias): bool => $alias !== ''
+        ));
     }
 
     /**

@@ -27682,7 +27682,7 @@ XML);
   </info>
   <citation>
     <sort>
-      <key variable="container"/>
+      <key variable="collectionTitleShort"/>
     </sort>
     <layout prefix="[" suffix="]" delimiter="; ">
       <group delimiter=" | ">
@@ -27690,16 +27690,19 @@ XML);
         <text variable="container-title"/>
         <text variable="container" form="short"/>
         <text variable="collection-title"/>
-        <text variable="collection" form="short"/>
+        <text variable="collectionTitleShort"/>
       </group>
     </layout>
   </citation>
   <bibliography>
+    <sort>
+      <key variable="collectiontitleshort"/>
+    </sort>
     <layout delimiter=" :: ">
       <text variable="title"/>
       <text variable="container-title-text"/>
       <text variable="collection-title-text"/>
-      <text variable="collection-title" form="short"/>
+      <text variable="collectiontitleshort"/>
     </layout>
   </bibliography>
 </style>
@@ -27707,13 +27710,16 @@ XML);
 
         $summary = $styled->cslStyleSummary();
         $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
         $t->same('Bounded Direct CSL Container Collection Alias Review', $summary['title'] ?? null);
-        $t->same('container', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('collectionTitleShort', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('collectiontitleshort', $summary['bibliographySort'][0]['variable'] ?? null);
         $t->same('container-title', $citationChildren[1]['variable'] ?? null);
         $t->same('short', $citationChildren[2]['form'] ?? null);
         $t->same('collection-title', $citationChildren[3]['variable'] ?? null);
-        $t->same('collection', $citationChildren[4]['variable'] ?? null);
-        $t->same('[Chen | Compact Container Ledger | CCL | Compact Collection Ledger | C-Series; Ames | Migration Container Review | MCR | Reviewer Series | RS; Bell | Source Container Journal | SCJ | Archive Collection | AC]', $styled->renderCitationCluster([
+        $t->same('collectionTitleShort', $citationChildren[4]['variable'] ?? null);
+        $t->same('collectiontitleshort', $bibliographyChildren[3]['variable'] ?? null);
+        $t->same('[Bell | Source Container Journal | SCJ | Archive Collection | AC; Chen | Compact Container Ledger | CCL | Compact Collection Ledger | C-Series; Ames | Migration Container Review | MCR | Reviewer Series | RS]', $styled->renderCitationCluster([
             $citation('direct-container-compact', '[@direct-container-compact]'),
             $citation('direct-container-text', '[@direct-container-text]'),
             $citation('direct-container-flat', '[@direct-container-flat]'),
@@ -27724,9 +27730,97 @@ XML);
 
         $document = (new MarkdownReader())->read('Direct container aliases [@direct-container-compact; @direct-container-text; @direct-container-flat] keep imported source families visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
-        $t->contains('<p>Direct container aliases [Chen | Compact Container Ledger | CCL | Compact Collection Ledger | C-Series; Ames | Migration Container Review | MCR | Reviewer Series | RS; Bell | Source Container Journal | SCJ | Archive Collection | AC] keep imported source families visible.</p>', $blocks);
+        $t->contains('<p>Direct container aliases [Bell | Source Container Journal | SCJ | Archive Collection | AC; Chen | Compact Container Ledger | CCL | Compact Collection Ledger | C-Series; Ames | Migration Container Review | MCR | Reviewer Series | RS] keep imported source families visible.</p>', $blocks);
         $t->contains('<dt>Ames 2026</dt><dd>Direct Container Alias Packet :: Migration Container Review :: Reviewer Series :: RS</dd>', $blocks);
+        $t->contains('<dt>Bell 2025</dt><dd>Direct Container Text Alias Packet :: Source Container Journal :: Archive Collection :: AC</dd>', $blocks);
         $t->contains('<dt>Chen 2024</dt><dd>Direct Container Flat Alias Packet :: Compact Container Ledger :: Compact Collection Ledger :: C-Series</dd>', $blocks);
+    },
+    'renders bounded direct csl json collection title short variable aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-collection-short-camel',
+                'type' => 'book',
+                'title' => 'Camel Collection Short Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'collectionTitle' => 'Migration Review Series',
+                'collectionTitleShort' => 'MRS',
+            ],
+            [
+                'id' => 'direct-collection-short-compact',
+                'type' => 'book',
+                'title' => 'Compact Collection Short Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'collectiontitle' => 'Archive Source Library',
+                'collectiontitleshort' => 'ASL',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-collection-short-camel');
+        $compact = $processor->item('direct-collection-short-compact');
+        $t->same('MRS', $camel['collectionTitleShort'] ?? null);
+        $t->same('ASL', $compact['collectionTitleShort'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Collection Title Short Variable Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-collection-title-short-variable-review</id>
+    <updated>2026-06-15T10:20:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="collectionTitleShort"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="collectionTitleShort"/>
+        <text variable="collectiontitleshort"/>
+        <text variable="collection-title-short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="collectiontitleshort"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="collectionTitleShort"/>
+      <text variable="collectiontitleshort"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Collection Title Short Variable Review', $summary['title'] ?? null);
+        $t->same('collectionTitleShort', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('collectiontitleshort', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same('collectionTitleShort', $citationChildren[1]['variable'] ?? null);
+        $t->same('collectiontitleshort', $citationChildren[2]['variable'] ?? null);
+        $t->same('collection-title-short', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Bell | ASL | ASL | ASL; Ames | MRS | MRS | MRS]', $styled->renderCitationCluster([
+            $citation('direct-collection-short-camel', '[@direct-collection-short-camel]'),
+            $citation('direct-collection-short-compact', '[@direct-collection-short-compact]'),
+        ]));
+        $t->same('Camel Collection Short Packet :: MRS :: MRS', $styled->renderBibliographyEntry('direct-collection-short-camel'));
+        $t->same('Compact Collection Short Packet :: ASL :: ASL', $styled->renderBibliographyEntry('direct-collection-short-compact'));
+
+        $document = (new MarkdownReader())->read('Collection abbreviations [@direct-collection-short-camel; @direct-collection-short-compact] stay addressable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Collection abbreviations [Bell | ASL | ASL | ASL; Ames | MRS | MRS | MRS] stay addressable.</p>', $blocks);
+        $t->contains('<dt>Bell 2025</dt><dd>Compact Collection Short Packet :: ASL :: ASL</dd>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Camel Collection Short Packet :: MRS :: MRS</dd>', $blocks);
     },
     'normalizes bounded direct csl json compact citation metadata aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -30194,6 +30288,62 @@ XML);
         $t->contains('<p>Literal spacing source [Ng  --  2026] keeps CSL separators visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Spacing Packet  /  Ng, Nia  2026</dd>', $blocks);
     },
+    'preserves explicit empty csl text value literals without macro fallback' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([[
+            'id' => 'empty-literal',
+            'type' => 'book',
+            'title' => 'Empty Literal Packet',
+            'author' => [
+                ['family' => 'Ishikawa', 'given' => 'Ira'],
+            ],
+            'issued' => ['date-parts' => [[2026]]],
+        ]]);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded CSL Empty Literal Review</title>
+    <id>https://example.test/styles/bounded-csl-empty-literal-review</id>
+    <updated>2026-06-15T12:18:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter="">
+        <names variable="author"/>
+        <text value="" prefix="{" suffix="}"/>
+        <text value=" "/>
+        <date variable="issued" date-parts="year"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter="">
+      <text variable="title"/>
+      <text value=""/>
+      <text value=" "/>
+      <names variable="author"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationRendering = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyRendering = $summary['bibliographyRendering'] ?? [];
+        $t->same('', $citationRendering[1]['value'] ?? null);
+        $t->same(false, array_key_exists('macro', $citationRendering[1] ?? []));
+        $t->same('', $bibliographyRendering[1]['value'] ?? null);
+        $t->same('[Ishikawa 2026]', $styled->renderCitationCluster([
+            $citation('empty-literal', '[@empty-literal]'),
+        ]));
+        $t->same('Empty Literal Packet Ishikawa, Ira', $styled->renderBibliographyEntry('empty-literal'));
+
+        $document = (new MarkdownReader())->read('Empty literal source [@empty-literal] should not resolve a blank macro.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Empty literal source [Ishikawa 2026] should not resolve a blank macro.</p>', $blocks);
+        $t->contains('<dt>Ishikawa 2026</dt><dd>Empty Literal Packet Ishikawa, Ira</dd>', $blocks);
+    },
     'normalizes bounded direct csl json camel orig aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
@@ -31592,6 +31742,96 @@ XML);
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>RIS attachments [RIS Attachment Packet | RIS L1: attachments/report.pdf; RIS L4: images/chart.png | remote-uri; path-traversal] remain reviewable.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>RIS Attachment Packet :: RIS L1; RIS L4 :: attachments/report.pdf; images/chart.png :: RIS L2: remote-uri (https://example.test/report.pdf); RIS L3: path-traversal (../private/report.pdf)</dd>', $blocks);
+    },
+    'maps bounded ris user and custom fields into csl custom variables' => static function (TestRunner $t) use ($citation): void {
+        $ris = <<<'RIS'
+TY  - RPRT
+ID  - ris-user-fields
+AU  - Migration Review Desk
+TI  - RIS User Field Packet
+PY  - 2026
+U1  - review channel
+U2  - source lane
+U3  - migration priority
+U4  - editorial note
+U5  - export trace
+C1  - verbatim brace {review}
+C2  - raw separator ::
+C3  - preserved code `@source`
+C4  - retained raw only
+ER  -
+RIS;
+
+        $items = CitationCslProcessor::risItems($ris);
+        $t->same(1, count($items));
+        $t->same([
+            'usera' => 'review channel',
+            'userb' => 'source lane',
+            'userc' => 'migration priority',
+            'userd' => 'editorial note',
+            'usere' => 'export trace',
+            'verba' => 'verbatim brace {review}',
+            'verbb' => 'raw separator ::',
+            'verbc' => 'preserved code `@source`',
+        ], $items[0]['biblatex-custom-fields']);
+        $t->same('retained raw only', $items[0]['rawRis']['fields']['C4'][0] ?? null);
+        $t->same('usera<=U1; userb<=U2; userc<=U3; userd<=U4; usere<=U5; verba<=C1; verbb<=C2; verbc<=C3', $items[0]['risFieldProvenanceSummary']);
+
+        $processor = CitationCslProcessor::fromRis($ris);
+        $item = $processor->item('ris-user-fields');
+        $t->same('review channel', $item['biblatexCustomFields']['usera'] ?? null);
+        $t->same('preserved code `@source`', $item['biblatexCustomFields']['verbc'] ?? null);
+        $t->same('usera: review channel; userb: source lane; userc: migration priority; userd: editorial note; usere: export trace; verba: verbatim brace {review}; verbb: raw separator ::; verbc: preserved code `@source`', $item['biblatexCustomFieldSummary'] ?? null);
+        $t->same('usera<=U1; userb<=U2; userc<=U3; userd<=U4; usere<=U5; verba<=C1; verbb<=C2; verbc<=C3', $item['risFieldProvenanceSummary'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded RIS User Field Review</title>
+    <id>https://example.test/styles/bounded-ris-user-field-review</id>
+    <updated>2026-06-15T11:52:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="usera"/>
+        <text variable="userb"/>
+        <text variable="userc"/>
+        <text variable="userd"/>
+        <text variable="usere"/>
+        <text variable="verba"/>
+        <text variable="verbb"/>
+        <text variable="verbc"/>
+        <text variable="biblatex-custom-field-summary"/>
+        <text variable="ris-field-provenance"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="usera"/>
+      <text variable="verbc"/>
+      <text variable="biblatex-custom-field-summary"/>
+      <text variable="ris-field-provenance"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $expectedCustomSummary = 'usera: review channel; userb: source lane; userc: migration priority; userd: editorial note; usere: export trace; verba: verbatim brace {review}; verbb: raw separator ::; verbc: preserved code `@source`';
+        $expectedProvenance = 'usera<=U1; userb<=U2; userc<=U3; userd<=U4; usere<=U5; verba<=C1; verbb<=C2; verbc<=C3';
+        $t->same('[review channel | source lane | migration priority | editorial note | export trace | verbatim brace {review} | raw separator :: | preserved code `@source` | ' . $expectedCustomSummary . ' | ' . $expectedProvenance . ']', $styled->renderCitationCluster([
+            $citation('ris-user-fields', '[@ris-user-fields]'),
+        ]));
+        $t->same('RIS User Field Packet :: review channel :: preserved code `@source` :: ' . $expectedCustomSummary . ' :: ' . $expectedProvenance, $styled->renderBibliographyEntry('ris-user-fields'));
+
+        $document = (new MarkdownReader())->read('RIS user fields [@ris-user-fields] remain style-visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $expectedProvenanceHtml = 'usera&lt;=U1; userb&lt;=U2; userc&lt;=U3; userd&lt;=U4; usere&lt;=U5; verba&lt;=C1; verbb&lt;=C2; verbc&lt;=C3';
+        $t->contains('<p>RIS user fields [review channel | source lane | migration priority | editorial note | export trace | verbatim brace {review} | raw separator :: | preserved code `@source` | ' . $expectedCustomSummary . ' | ' . $expectedProvenanceHtml . '] remain style-visible.</p>', $blocks);
+        $t->contains('<dt>Migration Review Desk 2026</dt><dd>RIS User Field Packet :: review channel :: preserved code `@source` :: ' . $expectedCustomSummary . ' :: ' . $expectedProvenanceHtml . '</dd>', $blocks);
     },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));

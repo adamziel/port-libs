@@ -1470,12 +1470,13 @@ final class CslStyle
     {
         $variable = trim($text->getAttribute('variable'));
         $term = trim($text->getAttribute('term'));
-        $value = $text->hasAttribute('value') ? $text->getAttribute('value') : '';
+        $hasValue = $text->hasAttribute('value');
+        $value = $hasValue ? $text->getAttribute('value') : '';
         $macro = trim($text->getAttribute('macro'));
         $declared = array_filter([
             $variable !== '',
             $term !== '',
-            $text->hasAttribute('value'),
+            $hasValue,
             $macro !== '',
         ]);
         if (count($declared) !== 1) {
@@ -1501,7 +1502,7 @@ final class CslStyle
             $element['variable'] = $variable;
         } elseif ($term !== '') {
             $element['term'] = $term;
-        } elseif ($value !== '') {
+        } elseif ($hasValue) {
             $element['value'] = $value;
         } else {
             $element['macro'] = $macro;
