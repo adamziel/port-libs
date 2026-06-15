@@ -2540,15 +2540,21 @@ final class MarkdownWriter
     private function renderBlockCollection(array $nodes, bool $sectionBoundaries = false): string
     {
         $blocks = [];
+        $previous = null;
         foreach ($nodes as $node) {
             if ($sectionBoundaries && $this->referenceLocation() === 'end_of_section' && $node->type === 'heading' && $blocks !== []) {
                 $this->appendPendingDefinitions($blocks);
+            }
+
+            if ($previous instanceof AstNode && $this->needsListSeparator($previous, $node)) {
+                $blocks[] = '<!-- -->';
             }
 
             $lines = $this->renderBlock($node, 0);
             if ($lines !== []) {
                 $blocks[] = implode("\n", $lines);
             }
+            $previous = $node;
         }
 
         if ($sectionBoundaries && $this->referenceLocation() === 'end_of_section') {

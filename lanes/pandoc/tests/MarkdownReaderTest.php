@@ -11179,6 +11179,75 @@ MD;
         $t->same("- foo\n  - bar\n- baz", $writer->write($tightSublist));
         $t->same('*f **d*** l', $writer->write($emphStrongSpacing));
     },
+    'maps upstream markdown writer nested list separator boundaries' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
+        $bullet = static fn (string $value): AstNode => new AstNode('bullet_list', [], [
+            new AstNode('list_item', [], [$paragraph($value)]),
+        ]);
+        $ordered = static fn (string $value, int $start = 1): AstNode => new AstNode('ordered_list', [
+            'start' => $start,
+            'style' => 'decimal',
+            'delimiter' => 'period',
+        ], [
+            new AstNode('list_item', [], [$paragraph($value)]),
+        ]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('div', ['classes' => ['review-nesting']], [
+                $bullet('first nested bullet'),
+                $bullet('second nested bullet'),
+                $ordered('first nested ordered'),
+                $ordered('second nested ordered', 2),
+                new AstNode('code_block', ['text' => 'literal nested code']),
+            ]),
+            new AstNode('paragraph', [], [
+                $text('Nested note'),
+                new AstNode('note', [], [
+                    $bullet('first note bullet'),
+                    $bullet('second note bullet'),
+                    new AstNode('code_block', ['text' => 'note literal code']),
+                ]),
+                $text('.'),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(implode("\n", [
+            '::: {.review-nesting}',
+            '- first nested bullet',
+            '',
+            '<!-- -->',
+            '',
+            '- second nested bullet',
+            '',
+            '1.  first nested ordered',
+            '',
+            '<!-- -->',
+            '',
+            '2.  second nested ordered',
+            '',
+            '<!-- -->',
+            '',
+            '    literal nested code',
+            ':::',
+            '',
+            'Nested note[^1].',
+            '',
+            '[^1]: - first note bullet',
+            '',
+            '    <!-- -->',
+            '',
+            '    - second note bullet',
+            '',
+            '    <!-- -->',
+            '',
+            '        note literal code',
+        ]), $markdown);
+        $t->same(5, substr_count($markdown, '<!-- -->'));
+        $t->true(strpos($markdown, '<!-- -->') < strpos($markdown, '- second nested bullet'), 'Nested list separator should appear before the second bullet list');
+    },
     'maps upstream markdown reader more indented code at beginning of list items' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             '-     code',
