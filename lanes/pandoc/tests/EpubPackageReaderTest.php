@@ -143,15 +143,23 @@ XML);
 
             $t->same('Container Rootfiles', $meta['title']);
             $t->same('EPUB/package.opf', $epub['containerRootfile']);
+            $t->same(1, $epub['containerSelectedRootfileIndex']);
+            $t->same($report, $epub['containerReport']);
+            $t->same($report['diagnostics'], $epub['containerDiagnostics']);
+            $t->same($report['diagnostics'], $epub['containerRootfileDiagnostics']);
+            $t->same('EPUB/package.opf', $report['opfPart']);
             $t->same('EPUB/package.opf', $report['selectedRootfile']);
             $t->same(1, $report['selectedIndex']);
+            $t->same(1, $report['selectedRootfileIndex']);
             $t->same('media-type-opf', $report['selectedBy']);
             $t->same(6, $report['rootfileCount']);
             $t->same(5, $report['opfRootfileCount']);
+            $t->same(5, $report['alternateRootfileCount']);
             $t->same(1, $report['nonOpfRootfileCount']);
             $t->same(4, $report['localRootfileCount']);
             $t->same(1, $report['externalRootfileCount']);
             $t->same(1, $report['unsafeRootfileCount']);
+            $t->same(1, $report['missingRootfileCount']);
             $t->same(1, $report['missingPackagePartCount']);
             $t->same(1, $report['suffixRootfileCount']);
             $t->same(1, $report['mediaTypeParameterRootfileCount']);
@@ -186,18 +194,148 @@ XML);
             $t->same([
                 'selectedRootfile' => 'EPUB/package.opf',
                 'selectedIndex' => 1,
+                'selectedRootfileIndex' => 1,
                 'selectedBy' => 'media-type-opf',
                 'rootfileCount' => 6,
                 'opfRootfileCount' => 5,
+                'alternateRootfileCount' => 5,
                 'nonOpfRootfileCount' => 1,
                 'localRootfileCount' => 4,
                 'externalRootfileCount' => 1,
                 'unsafeRootfileCount' => 1,
+                'missingRootfileCount' => 1,
                 'missingPackagePartCount' => 1,
                 'suffixRootfileCount' => 1,
                 'diagnosticCount' => 4,
                 'valid' => false,
             ], $report['summary']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
+    'reports directory package container rootfile authoring fields for review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-container-rootfile-authoring-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:review="https://example.invalid/epub-review" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/preview.xml" media-type="application/xml" data-review-state="ignored"/>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml; profile=&quot;primary-opf&quot;" xml:lang="en" dir="ltr" review:profile="primary" data-review-state="selected"/>
+    <rootfile full-path="EPUB/fixed/package.opf" media-type="application/oebps-package+xml" review:profile="fixed-layout" data-review-state="alternate"/>
+    <rootfile full-path="EPUB/missing/package.opf?review=1#rendition" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/preview.xml', '<preview>not an OPF package</preview>');
+            $writePackageFile($root, 'EPUB/fixed/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="fixedid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="fixedid">urn:uuid:container-fixed-rendition</dc:identifier>
+    <dc:title>Fixed Rendition</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest/>
+  <spine/>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:container-rootfile-report</dc:identifier>
+    <dc:title>Container Rootfile Report</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable container rootfile report.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $container = $epub['containerReport'];
+            $rootfiles = $container['rootfiles'];
+
+            $t->same('EPUB/package.opf', $epub['containerRootfile']);
+            $t->same(1, $epub['containerSelectedRootfileIndex']);
+            $t->same($container, $epub['containerRootfileReport']);
+            $t->same($container['diagnostics'], $epub['containerDiagnostics']);
+            $t->same('EPUB/package.opf', $container['opfPart']);
+            $t->same('EPUB/package.opf', $container['selectedRootfile']);
+            $t->same(1, $container['selectedRootfileIndex']);
+            $t->same(4, $container['rootfileCount']);
+            $t->same(3, $container['opfRootfileCount']);
+            $t->same(3, $container['alternateRootfileCount']);
+            $t->same(1, $container['missingRootfileCount']);
+            $t->same(2, $container['diagnosticCount']);
+            $t->same(['missing-rootfile-package-part', 'rootfile-full-path-suffix'], array_column($container['diagnostics'], 'type'));
+
+            $t->same('EPUB/preview.xml', $rootfiles[0]['path']);
+            $t->same('application/xml', $rootfiles[0]['mediaType']);
+            $t->same(false, $rootfiles[0]['opfPackageCandidate']);
+            $t->same(false, $rootfiles[0]['selected']);
+            $t->same(true, $rootfiles[0]['exists']);
+            $t->same(['data-review-state' => 'ignored'], $rootfiles[0]['customAttributes']);
+
+            $t->same('EPUB/package.opf', $rootfiles[1]['fullPath']);
+            $t->same('EPUB/package.opf', $rootfiles[1]['target']);
+            $t->same('application/oebps-package+xml; profile="primary-opf"', $rootfiles[1]['mediaType']);
+            $t->same('application/oebps-package+xml', $rootfiles[1]['baseMediaType']);
+            $t->same('application/oebps-package+xml; profile=primary-opf', $rootfiles[1]['normalizedMediaType']);
+            $t->same(true, $rootfiles[1]['mediaTypeHasParameters']);
+            $t->same(['profile' => 'primary-opf'], $rootfiles[1]['mediaTypeParameterMap']);
+            $t->same(['profile'], $rootfiles[1]['mediaTypeParameterNames']);
+            $t->same(1, $rootfiles[1]['mediaTypeParameterCount']);
+            $t->same('en', $rootfiles[1]['language']);
+            $t->same('ltr', $rootfiles[1]['direction']);
+            $t->same([
+                'full-path' => 'EPUB/package.opf',
+                'media-type' => 'application/oebps-package+xml; profile="primary-opf"',
+                'xml:lang' => 'en',
+                'dir' => 'ltr',
+                'review:profile' => 'primary',
+                'data-review-state' => 'selected',
+            ], $rootfiles[1]['attributes']);
+            $t->same([
+                'xml:lang' => 'en',
+                'dir' => 'ltr',
+                'review:profile' => 'primary',
+                'data-review-state' => 'selected',
+            ], $rootfiles[1]['customAttributes']);
+            $t->same(true, $rootfiles[1]['selected']);
+            $t->same([], $rootfiles[1]['diagnostics']);
+
+            $t->same('EPUB/fixed/package.opf', $rootfiles[2]['path']);
+            $t->same(true, $rootfiles[2]['exists']);
+            $t->same(false, $rootfiles[2]['selected']);
+            $t->same(['review:profile' => 'fixed-layout', 'data-review-state' => 'alternate'], $rootfiles[2]['customAttributes']);
+
+            $t->same('EPUB/missing/package.opf?review=1#rendition', $rootfiles[3]['target']);
+            $t->same('EPUB/missing/package.opf', $rootfiles[3]['path']);
+            $t->same(false, $rootfiles[3]['exists']);
+            $t->same(true, $rootfiles[3]['fullPathHasQuery']);
+            $t->same('review=1', $rootfiles[3]['fullPathQuery']);
+            $t->same(true, $rootfiles[3]['fullPathHasFragment']);
+            $t->same('rendition', $rootfiles[3]['fullPathFragment']);
+            $t->same(['missing-rootfile-package-part', 'rootfile-full-path-suffix'], array_column($rootfiles[3]['diagnostics'], 'type'));
+            $t->same('EPUB/chapter.xhtml', $epub['manifestById']['chapter']['path']);
         } finally {
             $removeDirectory($root);
         }

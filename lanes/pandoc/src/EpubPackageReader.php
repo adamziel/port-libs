@@ -8,6 +8,10 @@ final class EpubPackageReader
 {
     private const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     private const EPUB_TYPE_NS = 'http://www.idpf.org/2007/ops';
+    private const OCF_ROOTFILE_STRUCTURAL_ATTRIBUTES = [
+        'full-path' => true,
+        'media-type' => true,
+    ];
     private const OPF_PACKAGE_STRUCTURAL_ATTRIBUTES = [
         'dir' => true,
         'id' => true,
@@ -74,8 +78,11 @@ final class EpubPackageReader
             'meta' => $package['metadata'],
             'epub' => [
                 'containerRootfile' => $rootfile,
+                'containerSelectedRootfileIndex' => $containerRootfileReport['selectedRootfileIndex'],
                 'containerRootfiles' => $containerRootfileReport['rootfiles'],
+                'containerReport' => $containerRootfileReport,
                 'containerRootfileReport' => $containerRootfileReport,
+                'containerDiagnostics' => $containerRootfileReport['diagnostics'],
                 'containerRootfileDiagnostics' => $containerRootfileReport['diagnostics'],
                 'packageVersion' => $package['version'],
                 'uniqueIdentifierId' => $package['uniqueIdentifierId'],
@@ -151,7 +158,8 @@ final class EpubPackageReader
             $index = count($rootfiles);
             $fullPath = trim($node->getAttribute('full-path'));
             $mediaType = trim($node->getAttribute('media-type'));
-            $mediaTypeBase = $this->mediaTypeBase($mediaType);
+            $mediaTypeReport = $this->mediaTypeReport($mediaType);
+            $mediaTypeBase = $mediaTypeReport['mediaTypeBase'];
             $pathPart = $this->hrefPathPart($fullPath);
             $suffix = $this->hrefSuffix($fullPath);
             $itemDiagnostics = [];
@@ -169,7 +177,7 @@ final class EpubPackageReader
                     'type' => 'missing-rootfile-media-type',
                     'message' => 'EPUB container rootfile is missing media-type',
                 ];
-            } elseif (str_contains($mediaType, ';')) {
+            } elseif ($mediaTypeReport['mediaTypeHasParameters']) {
                 ++$mediaTypeParameterRootfileCount;
             }
 
@@ -242,13 +250,26 @@ final class EpubPackageReader
                 ++$suffixRootfileCount;
             }
 
+            $attributes = $this->elementAttributes($node);
+            $customAttributes = $this->customAttributes($attributes, self::OCF_ROOTFILE_STRUCTURAL_ATTRIBUTES);
+            $language = $this->elementLanguage($node);
             $item = [
                 'index' => $index,
                 'fullPath' => $fullPath,
+                'target' => $external ? $fullPath : $this->targetWithSuffix($packagePath, $suffix),
                 'path' => $packagePath,
+                'rawMediaType' => $mediaType,
                 'mediaType' => $mediaType,
                 'mediaTypeBase' => $mediaTypeBase,
-                'mediaTypeHasParameters' => str_contains($mediaType, ';'),
+                'baseMediaType' => $mediaTypeBase,
+                'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'mediaTypeParameterNames' => array_keys($mediaTypeReport['mediaTypeParameterMap']),
+                'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
+                'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
                 'opfPackageCandidate' => $mediaTypeBase === self::OPF_MEDIA_TYPE,
                 'external' => $external,
                 'unsafe' => $unsafe,
@@ -257,6 +278,16 @@ final class EpubPackageReader
                 'query' => $suffix['query'],
                 'hasFragment' => $suffix['hasFragment'],
                 'fragment' => $suffix['fragment'],
+                'fullPathHasQuery' => $suffix['hasQuery'],
+                'fullPathQuery' => $suffix['query'],
+                'fullPathHasFragment' => $suffix['hasFragment'],
+                'fullPathFragment' => $suffix['fragment'],
+                'language' => $language === '' ? null : $language,
+                'direction' => $this->nullableAttribute($node, 'dir'),
+                'attributes' => $attributes,
+                'attributeCount' => count($attributes),
+                'customAttributes' => $customAttributes,
+                'customAttributeCount' => count($customAttributes),
                 'selected' => false,
                 'diagnosticCount' => count($itemDiagnostics),
                 'diagnostics' => $itemDiagnostics,
@@ -316,17 +347,21 @@ final class EpubPackageReader
         return [
             'present' => true,
             'path' => 'META-INF/container.xml',
+            'opfPart' => $selectedRootfile,
             'selectedRootfile' => $selectedRootfile,
             'selectedIndex' => $selectedIndex,
+            'selectedRootfileIndex' => $selectedIndex,
             'selectedMediaType' => (string) $rootfiles[$selectedIndex]['mediaType'],
             'selectedMediaTypeBase' => $selectedMediaTypeBase,
             'selectedBy' => $selectedBy,
             'rootfileCount' => count($rootfiles),
             'opfRootfileCount' => $opfRootfileCount,
+            'alternateRootfileCount' => max(0, count($rootfiles) - 1),
             'nonOpfRootfileCount' => count($rootfiles) - $opfRootfileCount,
             'localRootfileCount' => $localRootfileCount,
             'externalRootfileCount' => $externalRootfileCount,
             'unsafeRootfileCount' => $unsafeRootfileCount,
+            'missingRootfileCount' => $missingPackagePartCount,
             'missingPackagePartCount' => $missingPackagePartCount,
             'suffixRootfileCount' => $suffixRootfileCount,
             'mediaTypeParameterRootfileCount' => $mediaTypeParameterRootfileCount,
@@ -339,13 +374,16 @@ final class EpubPackageReader
             'summary' => [
                 'selectedRootfile' => $selectedRootfile,
                 'selectedIndex' => $selectedIndex,
+                'selectedRootfileIndex' => $selectedIndex,
                 'selectedBy' => $selectedBy,
                 'rootfileCount' => count($rootfiles),
                 'opfRootfileCount' => $opfRootfileCount,
+                'alternateRootfileCount' => max(0, count($rootfiles) - 1),
                 'nonOpfRootfileCount' => count($rootfiles) - $opfRootfileCount,
                 'localRootfileCount' => $localRootfileCount,
                 'externalRootfileCount' => $externalRootfileCount,
                 'unsafeRootfileCount' => $unsafeRootfileCount,
+                'missingRootfileCount' => $missingPackagePartCount,
                 'missingPackagePartCount' => $missingPackagePartCount,
                 'suffixRootfileCount' => $suffixRootfileCount,
                 'diagnosticCount' => count($diagnostics),
