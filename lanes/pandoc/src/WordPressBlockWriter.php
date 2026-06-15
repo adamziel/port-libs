@@ -2372,12 +2372,24 @@ final class WordPressBlockWriter
 
     private function isHtmlRawFormat(string $format): bool
     {
-        return in_array(strtolower($format), ['html', 'html4', 'html5', 'xhtml'], true);
+        $baseFormat = $this->rawFormatBase($format);
+
+        return in_array($baseFormat, ['html', 'html4', 'html5', 'xhtml'], true);
     }
 
     private function isTexRawFormat(string $format): bool
     {
-        return in_array(strtolower($format), ['tex', 'latex', 'context'], true);
+        $baseFormat = $this->rawFormatBase($format);
+
+        return in_array($baseFormat, ['tex', 'latex', 'context'], true);
+    }
+
+    private function rawFormatBase(string $format): string
+    {
+        $format = strtolower($format);
+        $format = str_replace('-', '+', $format);
+
+        return explode('+', $format, 2)[0];
     }
 
     private function rawHtmlText(AstNode $node): string

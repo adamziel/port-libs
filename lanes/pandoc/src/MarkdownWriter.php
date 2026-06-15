@@ -2292,7 +2292,7 @@ final class MarkdownWriter
             $text = (string) $node->attr('text', $node->attr('html', ''));
         } elseif ($node->type === 'raw_markdown' || $this->isMarkdownRawFormat($format)) {
             $text = (string) $node->attr('text', $node->attr('markdown', ''));
-        } elseif ($node->type === 'raw_tex' || in_array($format, ['tex', 'latex', 'context'], true)) {
+        } elseif ($node->type === 'raw_tex' || $this->isTexRawFormat($format)) {
             $text = (string) $node->attr('text', $node->attr('tex', ''));
         } else {
             return [];
@@ -2319,7 +2319,7 @@ final class MarkdownWriter
             return (string) $node->attr('text', $node->attr('html', ''));
         }
 
-        if ($node->type === 'raw_tex' || in_array($format, ['tex', 'latex', 'context'], true)) {
+        if ($node->type === 'raw_tex' || $this->isTexRawFormat($format)) {
             return (string) $node->attr('text', $node->attr('tex', ''));
         }
 
@@ -2361,6 +2361,15 @@ final class MarkdownWriter
 
         return in_array($format, ['html', 'html4', 'html5', 'xhtml'], true)
             || in_array($baseFormat, ['html', 'html4', 'html5', 'xhtml'], true);
+    }
+
+    private function isTexRawFormat(string $format): bool
+    {
+        $baseFormat = str_replace('-', '+', $format);
+        $baseFormat = explode('+', $baseFormat, 2)[0];
+
+        return in_array($format, ['tex', 'latex', 'context'], true)
+            || in_array($baseFormat, ['tex', 'latex', 'context'], true);
     }
 
     /**
