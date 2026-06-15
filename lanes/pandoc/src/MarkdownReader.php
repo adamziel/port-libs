@@ -8767,7 +8767,8 @@ final class MarkdownReader
     private function tryReadDivBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<div(?:\s+[^>]*)?>/i', $line, $m, PREG_OFFSET_CAPTURE) !== 1) {
+        $opening = $this->tryReadHtmlDivOpeningTag($line);
+        if ($opening === null) {
             return null;
         }
 
@@ -8776,7 +8777,7 @@ final class MarkdownReader
         $openingIndex = $index;
         $cursor = $index;
         $count = count($lines);
-        $firstLineOffset = $m[0][1] + strlen($m[0][0]);
+        $firstLineOffset = $opening['offset'] + $opening['length'];
 
         while ($cursor < $count) {
             $segment = $cursor === $index ? substr($lines[$cursor], $firstLineOffset) : $lines[$cursor];
@@ -8809,7 +8810,7 @@ final class MarkdownReader
                     $closedOnOpeningLine = $cursor === $openingIndex;
                     $index = $cursor;
 
-                    return $this->buildDivBlock($content, $closedOnOpeningLine);
+                    return $this->buildDivBlock($content, $closedOnOpeningLine, $opening['attrs']);
                 }
 
                 $lineContent .= substr($segment, $offset, $nextClose['offset'] + $nextClose['length'] - $offset);
@@ -8823,10 +8824,51 @@ final class MarkdownReader
         if ($this->divBlockContentIsBlank($content)) {
             $index = max($openingIndex, $count - 1);
 
-            return new AstNode('div');
+            return new AstNode('div', $opening['attrs']);
         }
 
         return null;
+    }
+
+    /**
+     * @return array{offset:int, length:int, attrs:array<string, mixed>}|null
+     */
+    private function tryReadHtmlDivOpeningTag(string $line): ?array
+    {
+        if (preg_match('/^ {0,3}<div(?=\s|>|\/>)/i', $line, $m, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        $offset = $m[0][1];
+        $source = $this->readRawHtmlInlineTagSource($line, $offset);
+        if ($source === null || preg_match('~^<div(?=\s|>|/>).*?>$~is', $source) !== 1) {
+            return null;
+        }
+
+        return [
+            'offset' => $offset,
+            'length' => strlen($source),
+            'attrs' => $this->htmlElementPandocAttrsFromOpeningTag($source, 'div'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlElementPandocAttrsFromOpeningTag(string $openingTag, string $elementName): array
+    {
+        $body = XmlHtml5Dom::parseHtmlFragmentBody($openingTag . '</' . $elementName . '>');
+        if (!$body instanceof \DOMElement) {
+            return [];
+        }
+
+        foreach ($body->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower($child->localName) === strtolower($elementName)) {
+                return $this->htmlElementPandocAttrs($child);
+            }
+        }
+
+        return [];
     }
 
     /**
@@ -8862,7 +8904,7 @@ final class MarkdownReader
     /**
      * @param list<string> $content
      */
-    private function buildDivBlock(array $content, bool $closedOnOpeningLine): AstNode
+    private function buildDivBlock(array $content, bool $closedOnOpeningLine, array $attrs = []): AstNode
     {
         while ($content !== [] && trim($content[0]) === '') {
             array_shift($content);
@@ -8879,14 +8921,14 @@ final class MarkdownReader
         ) {
             $text = trim($content[0]);
 
-            return new AstNode('div', [], [
+            return new AstNode('div', $attrs, [
                 new AstNode('plain', ['text' => $text], $this->parseInlines($text)),
             ]);
         }
 
         $inner = $this->read(implode("\n", $content));
 
-        return new AstNode('div', [], $inner->children);
+        return new AstNode('div', $attrs, $inner->children);
     }
 
     /**
