@@ -1174,6 +1174,63 @@ return [
         $t->same('markdown+tex_math_dollars', $children[12]->attr('format'));
         $t->same('source-span', $children[15]->attr('id'));
     },
+    'preserves styled inline constructor sidecars through json and native readers' => static function (TestRunner $t): void {
+        $cases = [
+            ['type' => 'emph', 'text' => 'emphasis', 'native' => ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'emphasis']], 'reviewQueue' => 'emphasis-source']],
+            ['type' => 'strong', 'text' => 'strong', 'native' => ['t' => 'Strong', 'c' => [['t' => 'Str', 'c' => 'strong']], 'reviewQueue' => 'strong-source']],
+            ['type' => 'underline', 'text' => 'underline', 'native' => ['t' => 'Underline', 'c' => [['t' => 'Str', 'c' => 'underline']], 'reviewQueue' => 'underline-source']],
+            ['type' => 'strikeout', 'text' => 'strikeout', 'native' => ['t' => 'Strikeout', 'c' => [['t' => 'Str', 'c' => 'strikeout']], 'reviewQueue' => 'strikeout-source']],
+            ['type' => 'superscript', 'text' => 'super', 'native' => ['t' => 'Superscript', 'c' => [['t' => 'Str', 'c' => 'super']], 'reviewQueue' => 'superscript-source']],
+            ['type' => 'subscript', 'text' => 'sub', 'native' => ['t' => 'Subscript', 'c' => [['t' => 'Str', 'c' => 'sub']], 'reviewQueue' => 'subscript-source']],
+            ['type' => 'small_caps', 'text' => 'caps', 'native' => ['t' => 'SmallCaps', 'c' => [['t' => 'Str', 'c' => 'caps']], 'reviewQueue' => 'small-caps-source']],
+        ];
+        $sourceInlines = array_map(static fn (array $case): array => $case['native'], $cases);
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => $sourceInlines, 'reviewQueue' => 'styled-paragraph-source'],
+            ],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $paragraph = $document->children[0];
+
+            $t->same(array_column($cases, 'type'), array_map(static fn (AstNode $node): string => $node->type, $paragraph->children), "{$source} styled inline node types");
+            foreach ($cases as $index => $case) {
+                $node = $paragraph->children[$index];
+                $text = $node->children[0] ?? null;
+
+                $t->same($case['native']['t'], $node->attr('constructor'), "{$source} {$case['type']} constructor");
+                $t->same($case['native'], $node->attr('native'), "{$source} {$case['type']} native payload");
+                $t->same('text', $text instanceof AstNode ? $text->type : null, "{$source} {$case['type']} child type");
+                $t->same($case['text'], $text instanceof AstNode ? $text->attr('text') : null, "{$source} {$case['type']} child text");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($packet['blocks'], $encoded['blocks'], "{$source} {$writer} writer preserves styled paragraph wrapper");
+            }
+
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], $paragraph->children),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same('Para', $encoded['blocks'][0]['t'], "{$source} {$writer} writer regenerates rebuilt paragraph constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} {$writer} writer drops stale rebuilt paragraph sidecar");
+                $t->same($sourceInlines, $encoded['blocks'][0]['c'], "{$source} {$writer} writer preserves rebuilt styled inline sidecars");
+            }
+        }
+    },
     'round trips core block constructors through pandoc json' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('blockquote', [], [
