@@ -1403,6 +1403,76 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * Summarize package-level ZIP/OPC blockers after the ZIP package can be instantiated.
+     *
+     * @return array<string, mixed>
+     */
+    public static function preflightZipPackageCoreReadiness(
+        ZipPackage $package,
+        ?int $maxTotalUncompressedBytes = null,
+        ?float $maxExpansionRatio = null,
+        ?int $maxEntryUncompressedBytes = null
+    ): array {
+        $strictImport = $package->strictImportPreflight(
+            $maxTotalUncompressedBytes,
+            $maxExpansionRatio,
+            $maxEntryUncompressedBytes
+        );
+        $manifest = self::preflightZipEntryManifest($package);
+
+        return self::zipPackageCoreReadinessSummary(
+            'package',
+            $manifest,
+            null,
+            $strictImport['isValid'],
+            $strictImport['diagnostics'],
+            $strictImport['entryCount'],
+            true,
+            null,
+            $strictImport,
+        );
+    }
+
+    /**
+     * Summarize package-level ZIP/OPC blockers from raw ZIP bytes, including
+     * central-directory-only evidence when local headers prevent instantiation.
+     *
+     * @return array<string, mixed>
+     */
+    public static function preflightRawZipPackageCoreReadiness(
+        string $bytes,
+        ?int $maxTotalUncompressedBytes = null,
+        ?float $maxExpansionRatio = null,
+        ?int $maxEntryUncompressedBytes = null
+    ): array {
+        $rawStrict = ZipPackage::rawStrictImportPreflight(
+            $bytes,
+            $maxTotalUncompressedBytes,
+            $maxExpansionRatio,
+            $maxEntryUncompressedBytes
+        );
+        $manifest = null;
+        $manifestError = null;
+        try {
+            $manifest = self::preflightZipCentralDirectoryManifest($bytes);
+        } catch (\Throwable $exception) {
+            $manifestError = $exception->getMessage();
+        }
+
+        return self::zipPackageCoreReadinessSummary(
+            'raw-central-directory',
+            $manifest,
+            $manifestError,
+            $rawStrict['isValid'],
+            $rawStrict['diagnostics'],
+            $rawStrict['entryCount'],
+            $rawStrict['canInstantiate'],
+            $rawStrict['instantiationError'],
+            $rawStrict,
+        );
+    }
+
+    /**
      * @return list<array{partName:string, equivalenceKey:string, equivalentPartNames:list<string>, valid:bool, issues:list<string>}>
      */
     public static function preflightPackagePartNameEquivalence(ZipPackage $package): array
@@ -7642,6 +7712,317 @@ final class OpcRelationshipGraph
             'xml-part' => 'xml',
             default => self::isXmlLikePartName($partName) ? 'xml' : 'binary',
         };
+    }
+
+    private static function zipPackageCoreReadinessSummary(
+        string $source,
+        ?array $manifest,
+        ?string $manifestError,
+        bool $zipStrictImportValid,
+        array $zipStrictImportDiagnostics,
+        int $entryCount,
+        ?bool $canInstantiate,
+        ?string $instantiationError,
+        ?array $zipStrictImport,
+    ): array {
+        $checks = [];
+        self::appendZipPackageReadinessCheck(
+            $checks,
+            'zip-strict-import',
+            $zipStrictImportValid ? 'pass' : 'blocked',
+            $zipStrictImportDiagnostics,
+        );
+
+        if ($manifest === null) {
+            self::appendZipPackageReadinessCheck(
+                $checks,
+                'opc-entry-manifest',
+                'blocked',
+                ['opc-entry-manifest-unavailable'],
+            );
+        } else {
+            self::appendZipPackageReadinessCheck(
+                $checks,
+                'opc-entry-manifest',
+                $manifest['valid'] ? 'pass' : 'blocked',
+                $manifest['issues'],
+                $manifest['entryNamesByIssue'],
+                $manifest['partNamesByIssue'],
+            );
+            self::appendZipPackageReadinessCheck(
+                $checks,
+                'content-types-item',
+                self::zipPackageContentTypesItemReadinessStatus($manifest),
+                self::zipPackageContentTypesItemReadinessIssues($manifest),
+                $manifest['entryNamesByIssue'],
+                $manifest['partNamesByIssue'],
+            );
+            self::appendZipPackageReadinessCheck(
+                $checks,
+                'content-type-resolution',
+                self::zipPackageManifestCount($manifest, 'missingContentTypePartCount') > 0 ? 'blocked' : 'pass',
+                self::zipPackageReadinessIssuesByCounts($manifest['issueCounts'], [
+                    'missing-content-type',
+                    'missing-content-type-default',
+                    'missing-content-type-extension',
+                ]),
+                $manifest['entryNamesByIssue'],
+                $manifest['partNamesByIssue'],
+            );
+            self::appendZipPackageReadinessCheck(
+                $checks,
+                'content-type-overrides',
+                self::zipPackageManifestCount($manifest, 'contentTypeInvalidOverrideDeclarationCount') > 0 ? 'blocked' : 'pass',
+                self::zipPackageReadinessIssuesByCounts($manifest['issueCounts'], [
+                    'content-types-override-target',
+                    'invalid-relationship-content-type',
+                    'override-target-missing-part',
+                    'relationship-content-type-on-non-relationship-part',
+                    'relationship-override-source-missing',
+                    'reserved-relationship-directory-override',
+                ]),
+                $manifest['entryNamesByIssue'],
+                $manifest['partNamesByIssue'],
+            );
+            self::appendZipPackageReadinessCheck(
+                $checks,
+                'part-name-equivalence',
+                self::zipPackageManifestCount($manifest, 'equivalentPackagePartNameGroupCount') > 0 ? 'blocked' : 'pass',
+                self::zipPackageReadinessIssuesByCounts($manifest['issueCounts'], [
+                    'equivalent-part-name-case-collision',
+                ]),
+                $manifest['entryNamesByIssue'],
+                $manifest['partNamesByIssue'],
+            );
+            self::appendZipPackageReadinessCheck(
+                $checks,
+                'relationship-parts',
+                self::zipPackageRelationshipPartsReadinessStatus($manifest),
+                self::zipPackageReadinessIssuesByCounts($manifest['issueCounts'], [
+                    'content-types-item-source',
+                    'invalid-relationship-part-name',
+                    'orphan-relationship-part',
+                    'relationship-part-source',
+                    'reserved-relationship-directory-part',
+                ]),
+                $manifest['entryNamesByIssue'],
+                $manifest['partNamesByIssue'],
+            );
+            $blockedHandoffCount = (int) ($manifest['byteCountsByHandoffKind']['blocked']['entryCount'] ?? 0);
+            self::appendZipPackageReadinessCheck(
+                $checks,
+                'payload-handoff',
+                $blockedHandoffCount > 0 ? 'blocked' : 'pass',
+                $blockedHandoffCount > 0 ? ['blocked-handoff-entry'] : [],
+            );
+            $localHeaderOrderIssues = self::zipPackageManifestLocalHeaderOrderIssues($manifest, $zipStrictImportDiagnostics);
+            self::appendZipPackageReadinessCheck(
+                $checks,
+                'local-header-order',
+                $localHeaderOrderIssues === [] ? 'pass' : 'blocked',
+                $localHeaderOrderIssues,
+            );
+        }
+
+        if ($manifestError !== null) {
+            self::appendZipPackageReadinessCheck(
+                $checks,
+                'opc-entry-manifest-error',
+                'blocked',
+                ['opc-entry-manifest-error'],
+            );
+        }
+
+        $blockers = [];
+        $issueCounts = [];
+        $entryNamesByIssue = [];
+        $partNamesByIssue = [];
+        $blockedChecks = [];
+        $checkStatusCounts = [];
+        foreach ($checks as $check) {
+            $checkStatusCounts[$check['status']] = ($checkStatusCounts[$check['status']] ?? 0) + 1;
+            if ($check['status'] !== 'blocked') {
+                continue;
+            }
+
+            $blockedChecks[] = $check['name'];
+            foreach ($check['issues'] as $issue) {
+                self::appendUniqueString($blockers, $issue);
+                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                foreach ($check['entryNamesByIssue'][$issue] ?? [] as $entryName) {
+                    $entryNamesByIssue[$issue] ??= [];
+                    self::appendUniqueString($entryNamesByIssue[$issue], $entryName);
+                }
+                foreach ($check['partNamesByIssue'][$issue] ?? [] as $partName) {
+                    $partNamesByIssue[$issue] ??= [];
+                    self::appendUniqueString($partNamesByIssue[$issue], $partName);
+                }
+            }
+        }
+
+        sort($blockers, SORT_STRING);
+        sort($blockedChecks, SORT_STRING);
+        ksort($issueCounts, SORT_STRING);
+        ksort($checkStatusCounts, SORT_STRING);
+        self::sortZipManifestIssueProvenance($entryNamesByIssue);
+        self::sortZipManifestIssueProvenance($partNamesByIssue);
+
+        return [
+            'source' => $source,
+            'ready' => $blockers === [],
+            'valid' => $blockers === [],
+            'isSupportedByBoundedReader' => $blockers === [],
+            'entryCount' => $manifest['entryCount'] ?? $entryCount,
+            'canInstantiate' => $canInstantiate,
+            'instantiationError' => $instantiationError,
+            'manifestAvailable' => $manifest !== null,
+            'manifestError' => $manifestError,
+            'manifestValid' => $manifest['valid'] ?? false,
+            'zipStrictImportValid' => $zipStrictImportValid,
+            'checkCount' => count($checks),
+            'blockedCheckCount' => count($blockedChecks),
+            'blockedChecks' => $blockedChecks,
+            'checkStatusCounts' => $checkStatusCounts,
+            'blockerCount' => count($blockers),
+            'blockers' => $blockers,
+            'issueCounts' => $issueCounts,
+            'entryNamesByIssue' => $entryNamesByIssue,
+            'partNamesByIssue' => $partNamesByIssue,
+            'checks' => $checks,
+            'manifest' => $manifest,
+            'zipStrictImport' => $zipStrictImport,
+        ];
+    }
+
+    private static function appendZipPackageReadinessCheck(
+        array &$checks,
+        string $name,
+        string $status,
+        array $issues = [],
+        array $entryNamesByIssue = [],
+        array $partNamesByIssue = []
+    ): void {
+        $issues = array_values(array_unique(array_filter(
+            $issues,
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== '',
+        )));
+        sort($issues, SORT_STRING);
+
+        $checkEntryNamesByIssue = [];
+        $checkPartNamesByIssue = [];
+        foreach ($issues as $issue) {
+            foreach ($entryNamesByIssue[$issue] ?? [] as $entryName) {
+                if (!is_string($entryName)) {
+                    continue;
+                }
+                $checkEntryNamesByIssue[$issue] ??= [];
+                self::appendUniqueString($checkEntryNamesByIssue[$issue], $entryName);
+            }
+            foreach ($partNamesByIssue[$issue] ?? [] as $partName) {
+                if (!is_string($partName)) {
+                    continue;
+                }
+                $checkPartNamesByIssue[$issue] ??= [];
+                self::appendUniqueString($checkPartNamesByIssue[$issue], $partName);
+            }
+        }
+        self::sortZipManifestIssueProvenance($checkEntryNamesByIssue);
+        self::sortZipManifestIssueProvenance($checkPartNamesByIssue);
+
+        if ($status !== 'blocked' && $issues !== []) {
+            $status = 'blocked';
+        }
+
+        $checks[] = [
+            'name' => $name,
+            'status' => $status,
+            'valid' => $status === 'pass',
+            'issues' => $issues,
+            'entryNamesByIssue' => $checkEntryNamesByIssue,
+            'partNamesByIssue' => $checkPartNamesByIssue,
+        ];
+    }
+
+    private static function zipPackageContentTypesItemReadinessStatus(array $manifest): string
+    {
+        return self::zipPackageContentTypesItemReadinessIssues($manifest) === [] ? 'pass' : 'blocked';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function zipPackageContentTypesItemReadinessIssues(array $manifest): array
+    {
+        $issues = self::zipPackageReadinessIssuesByCounts($manifest['issueCounts'], [
+            'duplicate-content-types-item',
+            'missing-content-types-item',
+        ]);
+        if (
+            self::zipPackageManifestCount($manifest, 'contentTypesItemCount') === 1
+            && array_key_exists('contentTypeDeclarationAvailable', $manifest)
+            && $manifest['contentTypeDeclarationAvailable'] === false
+        ) {
+            $issues[] = 'content-types-parse-error';
+        }
+
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return $issues;
+    }
+
+    private static function zipPackageRelationshipPartsReadinessStatus(array $manifest): string
+    {
+        foreach ([
+            'contentTypesItemRelationshipSourceCount',
+            'invalidRelationshipPartCount',
+            'orphanRelationshipPartCount',
+            'relationshipPartSourceCount',
+            'reservedRelationshipDirectoryPartCount',
+        ] as $key) {
+            if (self::zipPackageManifestCount($manifest, $key) > 0) {
+                return 'blocked';
+            }
+        }
+
+        return 'pass';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function zipPackageManifestLocalHeaderOrderIssues(array $manifest, array $zipStrictImportDiagnostics): array
+    {
+        $hasOrderMismatch = (bool) ($manifest['localHeaderOrder']['hasCentralDirectoryOrderMismatch'] ?? false);
+        if (!$hasOrderMismatch && !in_array('central-directory-local-header-order-mismatch', $zipStrictImportDiagnostics, true)) {
+            return [];
+        }
+
+        return ['central-directory-local-header-order-mismatch'];
+    }
+
+    /**
+     * @param array<string, int> $issueCounts
+     * @param list<string> $issues
+     * @return list<string>
+     */
+    private static function zipPackageReadinessIssuesByCounts(array $issueCounts, array $issues): array
+    {
+        $matched = [];
+        foreach ($issues as $issue) {
+            if (($issueCounts[$issue] ?? 0) > 0) {
+                $matched[] = $issue;
+            }
+        }
+
+        return $matched;
+    }
+
+    private static function zipPackageManifestCount(array $manifest, string $key): int
+    {
+        $value = $manifest[$key] ?? 0;
+
+        return is_int($value) ? $value : 0;
     }
 
     private static function zipCompressionMethodName(int $method): string

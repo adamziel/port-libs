@@ -1352,6 +1352,165 @@ XML;
             'relationship-override-source-missing',
         ], $overrides['/word/_rels/missing.xml.rels']['issues']);
     },
+    'preflights shared OPC package core readiness across blocker matrix' => static function (TestRunner $t) use ($buildOpcZipPackage): void {
+        $documentContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+        $relationshipsContentType = 'application/vnd.openxmlformats-package.relationships+xml';
+        $contentTypesXml = <<<XML
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="{$relationshipsContentType}"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="{$documentContentType}"/>
+</Types>
+XML;
+        $contentTypesWithoutPngXml = <<<XML
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="{$relationshipsContentType}"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="{$documentContentType}"/>
+</Types>
+XML;
+        $overrideProblemContentTypesXml = <<<XML
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="{$relationshipsContentType}"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="{$documentContentType}"/>
+  <Override PartName="/WORD/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/missing.xml" ContentType="application/xml"/>
+  <Override PartName="/word/_rels/missing.xml.rels" ContentType="{$relationshipsContentType}"/>
+</Types>
+XML;
+        $rootRelationshipsXml = '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdDocument" Type="' . OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE . '" Target="word/document.xml"/></Relationships>';
+        $documentXml = '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+
+        $baseParts = [
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+        ];
+        $orderedZip = $buildOpcZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'centralIndex' => 2],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'centralIndex' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'centralIndex' => 1],
+        ]);
+
+        $cases = [
+            'ready' => [
+                'package' => ZipPackage::fromParts($baseParts),
+                'ready' => true,
+                'blockedChecks' => [],
+                'blockers' => [],
+            ],
+            'missing-content-types-item' => [
+                'package' => ZipPackage::fromParts(array_slice($baseParts, 1)),
+                'ready' => false,
+                'blockedChecks' => ['content-types-item', 'opc-entry-manifest'],
+                'blockers' => ['missing-content-types-item'],
+            ],
+            'content-types-parse-error' => [
+                'package' => ZipPackage::fromParts([
+                    ['name' => '[Content_Types].xml', 'data' => '<Types/>', 'compressionMethod' => 0],
+                    ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+                    ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+                ]),
+                'ready' => false,
+                'blockedChecks' => ['content-types-item'],
+                'blockers' => ['content-types-parse-error'],
+            ],
+            'missing-content-type-default' => [
+                'package' => ZipPackage::fromParts([
+                    ['name' => '[Content_Types].xml', 'data' => $contentTypesWithoutPngXml, 'compressionMethod' => 0],
+                    ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+                    ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+                    ['name' => 'word/media/review.png', 'data' => 'PNG', 'compressionMethod' => 0],
+                ]),
+                'ready' => false,
+                'blockedChecks' => ['content-type-resolution', 'opc-entry-manifest'],
+                'blockers' => ['missing-content-type', 'missing-content-type-default'],
+            ],
+            'content-type-override-targets' => [
+                'package' => ZipPackage::fromParts([
+                    ['name' => '[Content_Types].xml', 'data' => $overrideProblemContentTypesXml, 'compressionMethod' => 0],
+                    ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+                    ['name' => 'word/styles.xml', 'data' => '<w:styles/>', 'compressionMethod' => 0],
+                ]),
+                'ready' => false,
+                'blockedChecks' => ['content-type-overrides', 'opc-entry-manifest'],
+                'blockers' => ['override-target-missing-part', 'relationship-override-source-missing'],
+            ],
+            'relationship-part-sources' => [
+                'package' => ZipPackage::fromParts([
+                    ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+                    ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+                    ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+                    ['name' => 'word/_rels/document.xml.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>', 'compressionMethod' => 0],
+                    ['name' => 'word/_rels/orphan.xml.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>', 'compressionMethod' => 0],
+                    ['name' => 'word/_rels/media/document.xml.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>', 'compressionMethod' => 0],
+                    ['name' => 'word/_rels/_rels/document.xml.rels.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>', 'compressionMethod' => 0],
+                    ['name' => '_rels/[Content_Types].xml.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>', 'compressionMethod' => 0],
+                ]),
+                'ready' => false,
+                'blockedChecks' => ['opc-entry-manifest', 'payload-handoff', 'relationship-parts'],
+                'blockers' => [
+                    'blocked-handoff-entry',
+                    'content-types-item-source',
+                    'invalid-relationship-part-name',
+                    'orphan-relationship-part',
+                    'relationship-part-source',
+                ],
+            ],
+            'equivalent-part-name-collision' => [
+                'package' => ZipPackage::fromParts([
+                    ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+                    ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+                    ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+                    ['name' => 'word/Document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+                ]),
+                'ready' => false,
+                'blockedChecks' => ['opc-entry-manifest', 'part-name-equivalence', 'zip-strict-import'],
+                'blockers' => ['case-insensitive-name-collisions', 'equivalent-part-name-case-collision'],
+            ],
+            'zip-comment-strict-import' => [
+                'package' => ZipPackage::fromParts($baseParts, 'review-comment'),
+                'ready' => false,
+                'blockedChecks' => ['zip-strict-import'],
+                'blockers' => ['package-or-entry-comments'],
+            ],
+            'local-header-order-mismatch' => [
+                'package' => ZipPackage::fromString($orderedZip),
+                'ready' => false,
+                'blockedChecks' => ['local-header-order', 'zip-strict-import'],
+                'blockers' => ['central-directory-local-header-order-mismatch'],
+            ],
+        ];
+
+        $summaries = [];
+        foreach ($cases as $name => $case) {
+            $summary = OpcRelationshipGraph::preflightZipPackageCoreReadiness($case['package'], 4096, 100.0, 4096);
+            $summaries[$name] = $summary;
+            $t->same($case['ready'], $summary['ready'], $name . ' readiness');
+            $t->same($case['blockedChecks'], $summary['blockedChecks'], $name . ' blocked checks');
+            foreach ($case['blockers'] as $blocker) {
+                $t->true(in_array($blocker, $summary['blockers'], true), $name . ' missing blocker ' . $blocker);
+            }
+        }
+
+        $t->same(9, $summaries['ready']['checkCount']);
+        $t->same(['pass' => 9], $summaries['ready']['checkStatusCounts']);
+        $t->same(true, $summaries['ready']['manifestValid']);
+        $t->same(true, $summaries['ready']['zipStrictImportValid']);
+        $t->same(0, $summaries['ready']['blockerCount']);
+        $t->same(1, $summaries['content-types-parse-error']['blockerCount']);
+        $t->same('content-types-item', $summaries['content-types-parse-error']['checks'][2]['name']);
+        $t->same(['content-types-parse-error'], $summaries['content-types-parse-error']['checks'][2]['issues']);
+        $t->same(['/word/media/review.png'], $summaries['missing-content-type-default']['partNamesByIssue']['missing-content-type']);
+        $t->same(['word/_rels/media/document.xml.rels'], $summaries['relationship-part-sources']['entryNamesByIssue']['invalid-relationship-part-name']);
+        $t->same(['word/_rels/orphan.xml.rels'], $summaries['relationship-part-sources']['entryNamesByIssue']['orphan-relationship-part']);
+        $t->same(2, $summaries['equivalent-part-name-collision']['issueCounts']['equivalent-part-name-case-collision']);
+        $t->same(true, $summaries['zip-comment-strict-import']['manifestValid']);
+        $t->same(true, $summaries['local-header-order-mismatch']['manifest']['localHeaderOrder']['hasCentralDirectoryOrderMismatch']);
+        $t->same(3, $summaries['local-header-order-mismatch']['manifest']['localHeaderOrder']['mismatchedEntryCount']);
+    },
     'classifies generic OPC ZIP payload handoff roles from content types' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
