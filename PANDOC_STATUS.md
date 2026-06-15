@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 2,547 | 1,096 |
+| Markdown / CommonMark / GFM | 2,717 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not a current upstream Pandoc input token) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` preserves attributed native HTML div blocks, URL control-byte normalization, explicit figure captions, raw HTML block boundaries, bundled reader surge coverage, and existing emoji alias coverage; `MarkdownWriter` preserves hardened delimiter and inline/link/escape output, numbered-example references, validated block/list/code marker output, automatic HTML table fallback coverage, table completion coverage, and definition-list bodies that start with code blocks, headings, line blocks, or pipe tables.
+Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` preserves attributed table and figure caption source metadata across Markdown caption lines, table review packets, Markdown writeback, WordPress handoff, automatic HTML table caption output, attributed native HTML div blocks, URL control-byte normalization, explicit figure captions, raw HTML block boundaries, bundled reader surge coverage, and existing emoji alias coverage; `MarkdownWriter` preserves hardened delimiter and inline/link/escape output, numbered-example references, validated block/list/code marker output, automatic HTML table fallback coverage, table completion coverage, and definition-list bodies that start with code blocks, headings, line blocks, or pipe tables.
 
-Current Pandoc counters: 6,886 PHP passes / 0 failures and 6,706 mapped upstream cases. Markdown writer definition-body validation passed after rebase onto current main `8885a4f223`: `php -l` for `MarkdownWriter.php`, `MarkdownWriterBlockListCodeSurgeTest.php`, and `MarkdownReaderTest.php`; focused `MarkdownWriterBlockListCodeSurgeTest.php` (`1` file, `619` assertions, `0` failures); focused `MarkdownReaderTest.php` (`1` file, `7,019` assertions, `0` failures); focused Markdown writer block/list/inline cluster (`6` files, `1,447` assertions, `0` failures); full `lanes/pandoc/tests` (`81` files, `108,154` assertions, `0` failures); `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 6,886 PHP passes / 0 failures and 6,706 mapped upstream cases. Markdown writer definition-body validation passed after rebase onto current main `8885a4f223`, and the Markdown reader caption source completion slice remains represented for final bundle validation; local gates will be rerun after the bundle rebase completes.

@@ -1065,7 +1065,8 @@ foreach ($tableCaptionSurgeCases as $case) {
             $blocks
         );
         $t->contains(
-            '<figcaption class="wp-element-caption">Review <em>caption</em> '
+            '<figcaption id="' . $case['id'] . '" class="wp-element-caption surge ' . $case['caseClass']
+                . '" ' . $case['htmlAttributeFragment'] . '>Review <em>caption</em> '
                 . str_pad((string) $case['number'], 3, '0', STR_PAD_LEFT)
                 . '</figcaption>',
             $blocks

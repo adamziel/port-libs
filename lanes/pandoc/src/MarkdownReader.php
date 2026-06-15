@@ -15055,6 +15055,9 @@ final class MarkdownReader
             ],
             'renderCaptionInlines' => true,
         ];
+        if ($figureAttrs !== []) {
+            $record['captionSource']['sourceAttributes'] = $figureAttrs;
+        }
         if ($captionInlines !== []) {
             $record['captionInlines'] = $captionInlines;
         }
@@ -15289,6 +15292,9 @@ final class MarkdownReader
                 'captionSideSource' => 'markdown-table-caption-position',
             ],
         ];
+        if ($tableAttrs !== []) {
+            $record['captionSource']['sourceAttributes'] = $tableAttrs;
+        }
         if ($longCaption !== '') {
             $record['captionInlines'] = $this->parseInlines($longCaption);
         }
