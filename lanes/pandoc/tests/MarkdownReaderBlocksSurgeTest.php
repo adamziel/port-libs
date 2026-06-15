@@ -507,6 +507,435 @@ foreach ($cases as $name => $case) {
     };
 }
 
+$blockText = static function (AstNode $node) use (&$blockText): string {
+    if ($node->type === 'text' || $node->type === 'code') {
+        return (string) $node->attr('text', '');
+    }
+    if ($node->type === 'softbreak' || $node->type === 'linebreak') {
+        return ' ';
+    }
+    if ($node->type === 'raw_html') {
+        return (string) $node->attr('html', '');
+    }
+    if ($node->type === 'raw_block') {
+        return (string) $node->attr('text', '');
+    }
+    if (($node->children ?? []) === [] && is_scalar($node->attr('text', null))) {
+        return (string) $node->attr('text');
+    }
+
+    $text = '';
+    foreach ($node->children as $child) {
+        $text .= $blockText($child);
+    }
+
+    return trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+};
+
+$continuationCases = [
+    '01 bullet blockquote continuation' => [
+        'markdown' => "- item\n  > quoted review",
+        'childTypes' => ['text', 'blockquote'],
+        'blockType' => 'blockquote',
+        'blockText' => 'quoted review',
+    ],
+    '02 ordered blockquote continuation' => [
+        'markdown' => "1. item\n   > ordered quote",
+        'listType' => 'ordered_list',
+        'childTypes' => ['text', 'blockquote'],
+        'blockType' => 'blockquote',
+        'blockText' => 'ordered quote',
+    ],
+    '03 task blockquote continuation' => [
+        'markdown' => "- [x] item\n  > task quote",
+        'childTypes' => ['text', 'blockquote'],
+        'blockType' => 'blockquote',
+        'blockText' => 'task quote',
+        'taskChecked' => true,
+        'taskList' => true,
+    ],
+    '04 plus blockquote nested bullet continuation' => [
+        'markdown' => "+ item\n  > quote\n  > - nested",
+        'childTypes' => ['text', 'blockquote'],
+        'blockType' => 'blockquote',
+        'blockText' => 'quotenested',
+    ],
+    '05 ordered paren blockquote nested ordered continuation' => [
+        'markdown' => "1) item\n   > quote\n   > 1. nested",
+        'listType' => 'ordered_list',
+        'childTypes' => ['text', 'blockquote'],
+        'blockType' => 'blockquote',
+        'blockText' => 'quotenested',
+    ],
+    '06 parenthesized marker blockquote continuation' => [
+        'markdown' => "(1) item\n    > parenthesized quote",
+        'listType' => 'ordered_list',
+        'childTypes' => ['text', 'blockquote'],
+        'blockType' => 'blockquote',
+        'blockText' => 'parenthesized quote',
+    ],
+    '07 blockquote continuation preserves sibling item' => [
+        'markdown' => "- item\n  > quote\n- next",
+        'childTypes' => ['text', 'blockquote'],
+        'blockType' => 'blockquote',
+        'blockText' => 'quote',
+        'itemCount' => 2,
+        'siblingText' => 'next',
+    ],
+    '08 blank blockquote continuation makes loose list item' => [
+        'markdown' => "- item\n\n  > loose quote",
+        'childTypes' => ['paragraph', 'blockquote'],
+        'blockType' => 'blockquote',
+        'blockText' => 'loose quote',
+        'loose' => true,
+    ],
+    '09 bullet fenced code continuation' => [
+        'markdown' => "- item\n  ```\n  code\n  ```",
+        'childTypes' => ['text', 'code_block'],
+        'blockType' => 'code_block',
+        'blockText' => 'code',
+    ],
+    '10 bullet tilde fenced code continuation' => [
+        'markdown' => "- item\n  ~~~\n  tilde\n  ~~~",
+        'childTypes' => ['text', 'code_block'],
+        'blockType' => 'code_block',
+        'blockText' => 'tilde',
+    ],
+    '11 ordered fenced code class continuation' => [
+        'markdown' => "1. item\n   ``` php\n   echo 1;\n   ```",
+        'listType' => 'ordered_list',
+        'childTypes' => ['text', 'code_block'],
+        'blockType' => 'code_block',
+        'blockText' => 'echo 1;',
+        'blockAttrs' => ['classes' => ['php']],
+    ],
+    '12 task fenced code continuation' => [
+        'markdown' => "- [ ] item\n  ```\n  task code\n  ```",
+        'childTypes' => ['text', 'code_block'],
+        'blockType' => 'code_block',
+        'blockText' => 'task code',
+        'taskChecked' => false,
+        'taskList' => true,
+    ],
+    '13 fenced code continuation preserves sibling item' => [
+        'markdown' => "- item\n  ```\n  code\n  ```\n- next",
+        'childTypes' => ['text', 'code_block'],
+        'blockType' => 'code_block',
+        'blockText' => 'code',
+        'itemCount' => 2,
+        'siblingText' => 'next',
+    ],
+    '14 indented marker fenced code continuation' => [
+        'markdown' => "  - item\n    ```\n    indented marker code\n    ```",
+        'childTypes' => ['text', 'code_block'],
+        'blockType' => 'code_block',
+        'blockText' => 'indented marker code',
+    ],
+    '15 raw attribute fenced code continuation' => [
+        'markdown' => "- item\n  ```{=html}\n  <span>raw</span>\n  ```",
+        'childTypes' => ['text', 'raw_block'],
+        'blockType' => 'raw_block',
+        'blockText' => '<span>raw</span>',
+        'blockAttrs' => ['format' => 'html'],
+    ],
+    '16 bullet indented code continuation' => [
+        'markdown' => "- item\n      echo alpha",
+        'childTypes' => ['text', 'code_block'],
+        'blockType' => 'code_block',
+        'blockText' => 'echo alpha',
+    ],
+    '17 ordered indented code continuation' => [
+        'markdown' => "1. item\n       echo beta",
+        'listType' => 'ordered_list',
+        'childTypes' => ['text', 'code_block'],
+        'blockType' => 'code_block',
+        'blockText' => 'echo beta',
+    ],
+    '18 task indented code continuation' => [
+        'markdown' => "- [ ] item\n      echo task",
+        'childTypes' => ['text', 'code_block'],
+        'blockType' => 'code_block',
+        'blockText' => 'echo task',
+        'taskChecked' => false,
+        'taskList' => true,
+    ],
+    '19 multi-line indented code continuation' => [
+        'markdown' => "+ item\n      alpha\n      beta",
+        'childTypes' => ['text', 'code_block'],
+        'blockType' => 'code_block',
+        'blockText' => "alpha\nbeta",
+    ],
+    '20 indented code continuation preserves sibling item' => [
+        'markdown' => "- item\n      code\n- next",
+        'childTypes' => ['text', 'code_block'],
+        'blockType' => 'code_block',
+        'blockText' => 'code',
+        'itemCount' => 2,
+        'siblingText' => 'next',
+    ],
+    '21 blank indented code continuation makes loose item' => [
+        'markdown' => "- item\n\n      loose code",
+        'childTypes' => ['paragraph', 'code_block'],
+        'blockType' => 'code_block',
+        'blockText' => 'loose code',
+        'loose' => true,
+    ],
+    '22 bullet thematic break continuation' => [
+        'markdown' => "- item\n  ***",
+        'childTypes' => ['text', 'horizontal_rule'],
+        'blockType' => 'horizontal_rule',
+    ],
+    '23 ordered thematic break continuation' => [
+        'markdown' => "1. item\n   ---",
+        'listType' => 'ordered_list',
+        'childTypes' => ['text', 'horizontal_rule'],
+        'blockType' => 'horizontal_rule',
+    ],
+    '24 indented marker thematic break continuation' => [
+        'markdown' => "  - item\n    ___",
+        'childTypes' => ['text', 'horizontal_rule'],
+        'blockType' => 'horizontal_rule',
+    ],
+    '25 thematic break continuation preserves sibling item' => [
+        'markdown' => "- item\n  ---\n- next",
+        'childTypes' => ['text', 'horizontal_rule'],
+        'blockType' => 'horizontal_rule',
+        'itemCount' => 2,
+        'siblingText' => 'next',
+    ],
+    '26 task thematic break continuation' => [
+        'markdown' => "- [x] item\n  * * *",
+        'childTypes' => ['text', 'horizontal_rule'],
+        'blockType' => 'horizontal_rule',
+        'taskChecked' => true,
+        'taskList' => true,
+    ],
+    '27 bullet atx heading continuation' => [
+        'markdown' => "- item\n  # Child heading",
+        'childTypes' => ['text', 'heading'],
+        'blockType' => 'heading',
+        'blockText' => 'Child heading',
+        'blockAttrs' => ['level' => 1],
+    ],
+    '28 ordered attributed heading continuation' => [
+        'markdown' => "1. item\n   ## Review {#child .queue}",
+        'listType' => 'ordered_list',
+        'childTypes' => ['text', 'heading'],
+        'blockType' => 'heading',
+        'blockText' => 'Review',
+        'blockAttrs' => ['level' => 2, 'id' => 'child', 'classes' => ['queue']],
+    ],
+    '29 plus empty heading continuation' => [
+        'markdown' => "+ item\n  #",
+        'childTypes' => ['text', 'heading'],
+        'blockType' => 'heading',
+        'blockText' => '',
+        'blockAttrs' => ['level' => 1],
+    ],
+    '30 parenthesized marker heading continuation' => [
+        'markdown' => "(1) item\n    ### Parent child",
+        'listType' => 'ordered_list',
+        'childTypes' => ['text', 'heading'],
+        'blockType' => 'heading',
+        'blockText' => 'Parent child',
+        'blockAttrs' => ['level' => 3],
+    ],
+    '31 heading continuation preserves sibling item' => [
+        'markdown' => "- item\n  ## Child\n- next",
+        'childTypes' => ['text', 'heading'],
+        'blockType' => 'heading',
+        'blockText' => 'Child',
+        'itemCount' => 2,
+        'siblingText' => 'next',
+    ],
+    '32 blank heading continuation makes loose item' => [
+        'markdown' => "- item\n\n  ## Loose child",
+        'childTypes' => ['paragraph', 'heading'],
+        'blockType' => 'heading',
+        'blockText' => 'Loose child',
+        'loose' => true,
+    ],
+    '33 section raw html continuation' => [
+        'markdown' => "- item\n  <section>\n  html\n  </section>",
+        'childTypes' => ['text', 'raw_html'],
+        'blockType' => 'raw_html',
+        'blockText' => "<section>\nhtml\n</section>",
+    ],
+    '34 div raw html continuation' => [
+        'markdown' => "- item\n  <div class=\"note\">\n  body\n  </div>",
+        'childTypes' => ['text', 'div'],
+        'blockType' => 'div',
+        'blockText' => 'body',
+    ],
+    '35 html comment continuation' => [
+        'markdown' => "- item\n  <!-- review -->",
+        'childTypes' => ['text', 'raw_html'],
+        'blockType' => 'raw_html',
+        'blockText' => '<!-- review -->',
+    ],
+    '36 pre raw html continuation' => [
+        'markdown' => "- item\n  <pre>\n  code\n  </pre>",
+        'childTypes' => ['text', 'raw_html'],
+        'blockType' => 'raw_html',
+        'blockText' => "<pre>\ncode\n</pre>",
+    ],
+    '37 ordered raw html continuation' => [
+        'markdown' => "1. item\n   <aside>\n   note\n   </aside>",
+        'listType' => 'ordered_list',
+        'childTypes' => ['text', 'raw_html'],
+        'blockType' => 'raw_html',
+        'blockText' => "<aside>\nnote\n</aside>",
+    ],
+    '38 raw html continuation preserves sibling item' => [
+        'markdown' => "- item\n  <section>one</section>\n- next",
+        'childTypes' => ['text', 'raw_html'],
+        'blockType' => 'raw_html',
+        'blockText' => '<section>one</section>',
+        'itemCount' => 2,
+        'siblingText' => 'next',
+    ],
+    '39 bullet line block continuation' => [
+        'markdown' => "- item\n  | one",
+        'childTypes' => ['text', 'line_block'],
+        'blockType' => 'line_block',
+        'blockText' => 'one',
+    ],
+    '40 multi-line line block continuation' => [
+        'markdown' => "- item\n  | one\n  | two",
+        'childTypes' => ['text', 'line_block'],
+        'blockType' => 'line_block',
+        'blockText' => 'onetwo',
+    ],
+    '41 ordered line block continuation' => [
+        'markdown' => "1. item\n   | ordered line",
+        'listType' => 'ordered_list',
+        'childTypes' => ['text', 'line_block'],
+        'blockType' => 'line_block',
+        'blockText' => 'ordered line',
+    ],
+    '42 task line block continuation' => [
+        'markdown' => "- [ ] item\n  | task line",
+        'childTypes' => ['text', 'line_block'],
+        'blockType' => 'line_block',
+        'blockText' => 'task line',
+        'taskChecked' => false,
+        'taskList' => true,
+    ],
+    '43 line block continuation preserves sibling item' => [
+        'markdown' => "- item\n  | line\n- next",
+        'childTypes' => ['text', 'line_block'],
+        'blockType' => 'line_block',
+        'blockText' => 'line',
+        'itemCount' => 2,
+        'siblingText' => 'next',
+    ],
+    '44 simple fenced div continuation' => [
+        'markdown' => "- item\n  :::\n  body\n  :::",
+        'childTypes' => ['text', 'div'],
+        'blockType' => 'div',
+        'blockText' => 'body',
+    ],
+    '45 classed fenced div continuation' => [
+        'markdown' => "- item\n  ::: {.review}\n  body\n  :::",
+        'childTypes' => ['text', 'div'],
+        'blockType' => 'div',
+        'blockText' => 'body',
+        'blockAttrs' => ['classes' => ['review']],
+    ],
+    '46 fenced div with nested list continuation' => [
+        'markdown' => "- item\n  ::: {.review}\n  - nested\n  :::",
+        'childTypes' => ['text', 'div'],
+        'blockType' => 'div',
+        'blockText' => 'nested',
+        'blockAttrs' => ['classes' => ['review']],
+    ],
+    '47 ordered fenced div continuation' => [
+        'markdown' => "1. item\n   ::: {.ordered}\n   body\n   :::",
+        'listType' => 'ordered_list',
+        'childTypes' => ['text', 'div'],
+        'blockType' => 'div',
+        'blockText' => 'body',
+        'blockAttrs' => ['classes' => ['ordered']],
+    ],
+    '48 task fenced div continuation' => [
+        'markdown' => "- [x] item\n  ::: {.task}\n  body\n  :::",
+        'childTypes' => ['text', 'div'],
+        'blockType' => 'div',
+        'blockText' => 'body',
+        'blockAttrs' => ['classes' => ['task']],
+        'taskChecked' => true,
+        'taskList' => true,
+    ],
+    '49 fenced div continuation preserves sibling item' => [
+        'markdown' => "- item\n  ::: {.one}\n  body\n  :::\n- next",
+        'childTypes' => ['text', 'div'],
+        'blockType' => 'div',
+        'blockText' => 'body',
+        'blockAttrs' => ['classes' => ['one']],
+        'itemCount' => 2,
+        'siblingText' => 'next',
+    ],
+    '50 long fenced div continuation' => [
+        'markdown' => "- item\n  :::: {.long}\n  body ::: marker\n  ::::",
+        'childTypes' => ['text', 'div'],
+        'blockType' => 'div',
+        'blockText' => 'body ::: marker',
+        'blockAttrs' => ['classes' => ['long']],
+    ],
+];
+
+foreach ($continuationCases as $name => $case) {
+    $tests['maps upstream markdown reader block/list continuation completion surge ' . $name] =
+        static function (TestRunner $t) use ($case, $blockText, $name): void {
+            $document = (new MarkdownReader())->read($case['markdown']);
+            $list = $document->children[0] ?? new AstNode('missing');
+            $item = $list->children[0] ?? new AstNode('missing');
+            $block = null;
+            foreach ($item->children as $child) {
+                if ($child->type === $case['blockType']) {
+                    $block = $child;
+                    break;
+                }
+            }
+
+            $t->same($case['listType'] ?? 'bullet_list', $list->type, $name);
+            $t->same($case['childTypes'], array_map(static fn (AstNode $node): string => $node->type, $item->children), $name);
+            $t->true($block instanceof AstNode, 'Expected continuation block for ' . $name);
+            if ($block instanceof AstNode) {
+                $t->same($case['blockType'], $block->type, $name);
+                if (array_key_exists('blockText', $case)) {
+                    $t->same($case['blockText'], $blockText($block), $name);
+                }
+                foreach (($case['blockAttrs'] ?? []) as $attr => $expected) {
+                    $t->same($expected, $block->attr($attr), $name . ' attr ' . $attr);
+                }
+            }
+
+            if (isset($case['taskChecked'])) {
+                $t->same($case['taskChecked'], $item->attr('taskChecked', null), $name);
+            }
+            if (isset($case['taskList'])) {
+                $t->same($case['taskList'], (bool) $list->attr('taskList'), $name);
+            }
+            if (isset($case['loose'])) {
+                $t->same($case['loose'], (bool) $list->attr('loose'), $name);
+                $t->same($case['loose'], (bool) $item->attr('loose'), $name);
+            }
+            if (isset($case['itemCount'])) {
+                $t->same($case['itemCount'], count($list->children), $name);
+            }
+            if (isset($case['siblingText'])) {
+                $sibling = $list->children[1] ?? new AstNode('missing');
+                $t->same($case['siblingText'], trim($blockText($sibling)), $name);
+            }
+        };
+}
+
+$tests['records upstream markdown reader block/list continuation completion mapped-case count'] =
+    static function (TestRunner $t) use ($continuationCases): void {
+        $t->same(50, count($continuationCases));
+    };
+
 $makeTableCaptionSurgeTable = static function (string $syntax, int $tableCaptionSurgeCaseNumber): string {
     $rowLabel = 'A' . str_pad((string) $tableCaptionSurgeCaseNumber, 3, '0', STR_PAD_LEFT);
 
