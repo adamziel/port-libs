@@ -8674,6 +8674,103 @@ return [
             }
         }
 
+        $inlineHelperPacket = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [
+                        ['t' => 'SingleQuote'],
+                        [['t' => 'Str', 'c' => 'single']],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Quoted', 'c' => [
+                        ['t' => 'DoubleQuote'],
+                        [['t' => 'Str', 'c' => 'double']],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [
+                        ['t' => 'InlineMath'],
+                        'x + 1',
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [
+                        ['t' => 'DisplayMath'],
+                        'y = 2',
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Cite', 'c' => [
+                        [
+                            [
+                                'citationId' => 'helper-normal',
+                                'citationPrefix' => [],
+                                'citationSuffix' => [],
+                                'citationMode' => ['t' => 'NormalCitation'],
+                                'citationNoteNum' => 1,
+                                'citationHash' => 101,
+                            ],
+                            [
+                                'citationId' => 'helper-author',
+                                'citationPrefix' => [],
+                                'citationSuffix' => [],
+                                'citationMode' => ['t' => 'AuthorInText'],
+                                'citationNoteNum' => 2,
+                                'citationHash' => 202,
+                            ],
+                            [
+                                'citationId' => 'helper-suppress',
+                                'citationPrefix' => [],
+                                'citationSuffix' => [],
+                                'citationMode' => ['t' => 'SuppressAuthor'],
+                                'citationNoteNum' => 3,
+                                'citationHash' => 303,
+                            ],
+                        ],
+                        [
+                            ['t' => 'Str', 'c' => '@helper-normal'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '@helper-author'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '@helper-suppress'],
+                        ],
+                    ]],
+                ]],
+            ],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($inlineHelperPacket),
+            'native' => (new NativeReader())->read(json_encode($inlineHelperPacket, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $paragraph = $document->children[0];
+            $singleQuote = $paragraph->children[0];
+            $doubleQuote = $paragraph->children[2];
+            $inlineMath = $paragraph->children[4];
+            $displayMath = $paragraph->children[6];
+            $citationGroup = $paragraph->children[8];
+            $citations = $citationGroup->children;
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+            $separatorType = $source === 'native' ? 'text' : 'space';
+
+            $t->same(['quoted', $separatorType, 'quoted', $separatorType, 'math', $separatorType, 'math', $separatorType, 'citation_group'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children), "{$source} inline helper variant shared AST types");
+            $t->same(['single', 'double'], [$singleQuote->attr('kind'), $doubleQuote->attr('kind')], "{$source} quote helper variant values");
+            $t->same(['SingleQuote', 'DoubleQuote'], [$singleQuote->attr('quoteTypeConstructor'), $doubleQuote->attr('quoteTypeConstructor')], "{$source} quote helper variant constructors");
+            $t->same([['t' => 'SingleQuote'], ['t' => 'DoubleQuote']], [$singleQuote->attr('quoteTypeNative'), $doubleQuote->attr('quoteTypeNative')], "{$source} quote helper variant native payloads");
+            $t->same([false, true], [$inlineMath->attr('display'), $displayMath->attr('display')], "{$source} math helper variant values");
+            $t->same(['InlineMath', 'DisplayMath'], [$inlineMath->attr('mathTypeConstructor'), $displayMath->attr('mathTypeConstructor')], "{$source} math helper variant constructors");
+            $t->same([['t' => 'InlineMath'], ['t' => 'DisplayMath']], [$inlineMath->attr('mathTypeNative'), $displayMath->attr('mathTypeNative')], "{$source} math helper variant native payloads");
+            $t->same(['normal', 'author_in_text', 'suppress_author'], array_map(static fn (AstNode $citation): string => $citation->attr('mode'), $citations), "{$source} citation mode helper variant values");
+            $t->same(['NormalCitation', 'AuthorInText', 'SuppressAuthor'], array_map(static fn (AstNode $citation): string => $citation->attr('citationModeConstructor'), $citations), "{$source} citation mode helper variant constructors");
+            $t->same([
+                ['t' => 'NormalCitation'],
+                ['t' => 'AuthorInText'],
+                ['t' => 'SuppressAuthor'],
+            ], array_map(static fn (AstNode $citation): array => $citation->attr('citationModeNative'), $citations), "{$source} citation mode helper variant native payloads");
+            $t->same($inlineHelperPacket['blocks'], $jsonPacket['blocks'], "{$source} JSON writer preserves inline helper variants");
+            $t->same($inlineHelperPacket['blocks'], $nativePacket['blocks'], "{$source} native writer preserves inline helper variants");
+        }
+
         $tablePacket = [
             'pandoc-api-version' => [1, 23, 1],
             'meta' => [],
