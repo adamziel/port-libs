@@ -18008,7 +18008,154 @@ final class MarkdownReader
             }
         }
 
+        $special = $this->tryParseSpecialRawHtmlInline($text, $offset);
+        if ($special !== null) {
+            return $special;
+        }
+
+        $tag = $this->tryParseRawHtmlInlineTag($text, $offset);
+        if ($tag !== null) {
+            return $tag;
+        }
+
         return null;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseSpecialRawHtmlInline(string $text, int $offset): ?array
+    {
+        $markers = [
+            '<!--' => '-->',
+            '<![CDATA[' => ']]>',
+            '<?' => '?>',
+        ];
+        foreach ($markers as $open => $close) {
+            if (substr($text, $offset, strlen($open)) !== $open) {
+                continue;
+            }
+
+            $end = strpos($text, $close, $offset + strlen($open));
+            if ($end === false) {
+                return null;
+            }
+
+            $html = substr($text, $offset, $end + strlen($close) - $offset);
+
+            return [
+                'node' => new AstNode('raw_html_inline', ['html' => $html]),
+                'next' => $offset + strlen($html),
+            ];
+        }
+
+        if (preg_match('/\G<![A-Za-z]/', $text, $m, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $end = strpos($text, '>', $offset + 2);
+        if ($end === false) {
+            return null;
+        }
+
+        $html = substr($text, $offset, $end - $offset + 1);
+        if (str_contains($html, "\n") || str_contains($html, "\r")) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode('raw_html_inline', ['html' => $html]),
+            'next' => $end + 1,
+        ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseRawHtmlInlineTag(string $text, int $offset): ?array
+    {
+        $html = $this->readRawHtmlInlineTagSource($text, $offset);
+        if ($html === null || !$this->isRawHtmlInlineTagSource($html)) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode('raw_html_inline', ['html' => $html]),
+            'next' => $offset + strlen($html),
+        ];
+    }
+
+    private function readRawHtmlInlineTagSource(string $text, int $offset): ?string
+    {
+        if (($text[$offset] ?? '') !== '<') {
+            return null;
+        }
+
+        $quote = null;
+        $length = strlen($text);
+        for ($cursor = $offset + 1; $cursor < $length; $cursor++) {
+            $char = $text[$cursor];
+            if ($char === "\n" || $char === "\r") {
+                return null;
+            }
+
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '>') {
+                return substr($text, $offset, $cursor - $offset + 1);
+            }
+        }
+
+        return null;
+    }
+
+    private function isRawHtmlInlineTagSource(string $html): bool
+    {
+        if (preg_match('~^</([A-Za-z][A-Za-z0-9-]*)[ \t]*>$~', $html, $closing) === 1) {
+            return $this->isKnownRawHtmlInlineTagName($closing[1]);
+        }
+
+        if (
+            preg_match(
+                '~^<([A-Za-z][A-Za-z0-9-]*)(?:[ \t]+[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t]*=[ \t]*(?:"[^"]*"|\'[^\']*\'|[^ \t"\'=<>`]+))?)*[ \t]*/?>$~u',
+                $html,
+                $opening
+            ) !== 1
+        ) {
+            return false;
+        }
+
+        return $this->isKnownRawHtmlInlineTagName($opening[1]);
+    }
+
+    private function isKnownRawHtmlInlineTagName(string $name): bool
+    {
+        return in_array(strtolower($name), [
+            'a', 'abbr', 'address', 'area', 'article', 'aside', 'audio',
+            'b', 'base', 'bdi', 'bdo', 'blockquote', 'br', 'button',
+            'canvas', 'cite', 'code', 'col', 'data', 'datalist', 'del',
+            'details', 'dfn', 'dialog', 'div', 'em', 'embed', 'fieldset',
+            'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3',
+            'h4', 'h5', 'h6', 'header', 'hgroup', 'hr', 'i', 'iframe',
+            'img', 'input', 'ins', 'kbd', 'label', 'legend', 'li', 'link',
+            'main', 'map', 'mark', 'menu', 'meta', 'meter', 'nav', 'object',
+            'ol', 'optgroup', 'option', 'output', 'p', 'param', 'picture',
+            'pre', 'progress', 'q', 'rp', 'rt', 'ruby', 's', 'samp',
+            'script', 'search', 'section', 'select', 'slot', 'small',
+            'source', 'span', 'strong', 'style', 'sub', 'summary', 'sup',
+            'table', 'tbody', 'td', 'template', 'textarea', 'tfoot', 'th',
+            'thead', 'time', 'tr', 'track', 'u', 'ul', 'var', 'video', 'wbr',
+        ], true);
     }
 
     /**

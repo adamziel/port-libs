@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 912 | 1,096 |
+| Markdown / CommonMark / GFM | 962 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` decodes named HTML5 references and normalizes remaining CommonMark numeric character references, including U+0000, surrogate, and out-of-range replacement-character cases, while preserving literal references in code spans and overlong/missing-semicolon contexts.
+Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` recognizes CommonMark raw HTML inline comments, processing instructions, declarations, CDATA, and standard inline open/close tags while preserving autolink priority and keeping arbitrary custom tags escaped for WordPress safety.
 
-Current Pandoc counters: 4,337 PHP passes / 0 failures and 4,327 mapped upstream cases. Verification passed `php -l` for `MarkdownReader.php`, `MarkdownReaderEntitySurgeTest.php`, and `MarkdownReaderTest.php`; focused `MarkdownReaderEntitySurgeTest.php` (`1` file, `68` assertions, `0` failures); focused Markdown reader coverage (`2` files, `7,087` assertions, `0` failures); full `lanes/pandoc/tests` (`54` files, `93,044` assertions, `0` failures); `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 4,387 PHP passes / 0 failures and 4,377 mapped upstream cases. Verification passed `php -l` for `MarkdownReader.php`, `MarkdownReaderInlineSurgeTest.php`, and `MarkdownReaderTest.php`; focused Markdown reader coverage (`2` files, `7,317` assertions, `0` failures); full `lanes/pandoc/tests` (`55` files, `93,342` assertions, `0` failures); `jq empty`; `git diff --check`; and exact conflict-marker scan.
