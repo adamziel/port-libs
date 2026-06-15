@@ -250,6 +250,9 @@ final class BibtexCslProcessor
         if (($item['page'] ?? '') !== '') {
             $parts[] = (string) $item['page'];
         }
+        if (($item['thesis-type'] ?? '') !== '') {
+            $parts[] = 'Thesis type: ' . (string) $item['thesis-type'];
+        }
         if (($item['source'] ?? '') !== '') {
             $parts[] = 'Source: ' . (string) $item['source'];
         }
@@ -473,7 +476,7 @@ final class BibtexCslProcessor
             'URL' => ['url'],
             'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label'],
             'rights' => ['rights', 'copyright', 'license', 'licence'],
-            'publisher' => ['publisher', 'institution', 'organization'],
+            'publisher' => ['publisher', 'institution', 'school', 'organization'],
             'publisher-place' => ['address', 'location', 'publisher-place'],
             'collection-title' => ['series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext', 'collection-title', 'collectiontitle'],
             'collection-title-short' => ['shortseries', 'short-series', 'series-short', 'series-title-short', 'seriestitleshort', 'shortcollection', 'collection-title-short', 'collectiontitleshort'],
@@ -504,6 +507,11 @@ final class BibtexCslProcessor
                 continue;
             }
             $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
+        }
+
+        $thesisType = $this->thesisTypeForEntry($type, $fields);
+        if ($thesisType !== null && $thesisType !== '') {
+            $item['thesis-type'] = $thesisType;
         }
 
         $nameFields = [
@@ -652,8 +660,34 @@ final class BibtexCslProcessor
             'presentation' => 'speech',
             'inproceedings', 'conference', 'proceedings' => 'paper-conference',
             'phdthesis', 'mastersthesis', 'thesis' => 'thesis',
+            'mathesis' => 'thesis',
             'online', 'electronic', 'www' => 'webpage',
             default => 'article',
+        };
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private function thesisTypeForEntry(string $type, array $fields): ?string
+    {
+        $explicit = $this->firstField($fields, ['thesistype', 'thesis-type']);
+        if ($explicit !== null && $explicit !== '') {
+            return $explicit;
+        }
+
+        $entryType = strtolower($type);
+        if (in_array($entryType, ['thesis', 'phdthesis', 'mastersthesis', 'mathesis'], true)) {
+            $fieldType = $this->firstField($fields, ['type']);
+            if ($fieldType !== null && $fieldType !== '') {
+                return $fieldType;
+            }
+        }
+
+        return match ($entryType) {
+            'phdthesis' => 'phdthesis',
+            'mastersthesis', 'mathesis' => 'mathesis',
+            default => null,
         };
     }
 

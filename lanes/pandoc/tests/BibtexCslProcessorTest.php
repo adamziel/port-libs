@@ -852,6 +852,100 @@ BIB;
         $t->contains('Call number: MS 42 Box 4', $markdown);
         $t->contains('Call number: Reading Room Shelf B/12', $blocks);
     },
+    'carries biblatex thesis school and type aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@phdthesis{doctoral-review,
+  author = {Smith, Ada},
+  title  = {Doctoral Import Study},
+  school = {Migration University},
+  type   = {Doctoral dissertation},
+  date   = {2026},
+  url    = {https://example.test/doctoral-review}
+}
+
+@mathesis{masters-review,
+  author = {Ng, Nia},
+  title  = {Masters Import Study},
+  school = {Source University},
+  date   = {2025}
+}
+
+@thesis{explicit-thesis,
+  author     = {Roe, Pat},
+  title      = {Explicit Thesis Packet},
+  institution = {Archive Institute},
+  thesistype = {Licentiate thesis},
+  year       = {2024}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $doctoral = $items['doctoral-review'];
+        $masters = $items['masters-review'];
+        $explicit = $items['explicit-thesis'];
+
+        $t->same(['doctoral-review', 'masters-review', 'explicit-thesis'], array_keys($items));
+        $t->same('thesis', $doctoral['type']);
+        $t->same('Migration University', $doctoral['publisher']);
+        $t->same('Doctoral dissertation', $doctoral['thesis-type']);
+        $t->same('Doctoral dissertation', $doctoral['genre']);
+        $t->same('Migration University', $doctoral['rawBibtex']['fields']['school']);
+        $t->same('thesis', $masters['type']);
+        $t->same('mathesis', $masters['thesis-type']);
+        $t->same('Source University', $masters['publisher']);
+        $t->same('Licentiate thesis', $explicit['thesis-type']);
+        $t->same('Archive Institute', $explicit['publisher']);
+        $t->same('Licentiate thesis', $explicit['rawBibtex']['fields']['thesistype']);
+        $t->same('Ada Smith. Doctoral Import Study. Migration University. 2026. Thesis type: Doctoral dissertation. https://example.test/doctoral-review.', $processor->renderBibliographyText($doctoral));
+        $t->same('Nia Ng. Masters Import Study. Source University. 2025. Thesis type: mathesis.', $processor->renderBibliographyText($masters));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Legacy BibLaTeX Thesis Alias Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-thesis-alias-review</id>
+    <updated>2026-06-15T09:50:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="school"/>
+        <text variable="thesis-type"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="school"/>
+      <text variable="thesistype"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Thesis Alias Review', $summary['title'] ?? null);
+        $t->same('thesis-type', $summary['citationRendering'][0]['children'][2]['variable'] ?? null);
+        $t->same('(Smith | Migration University | Doctoral dissertation; Ng | Source University | mathesis)', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'doctoral-review', 'text' => '[@doctoral-review]']),
+            new AstNode('citation', ['id' => 'masters-review', 'text' => '[@masters-review]']),
+        ]));
+        $t->same('Explicit Thesis Packet :: Archive Institute :: Licentiate thesis', $styled->renderBibliographyEntry('explicit-thesis'));
+
+        $document = (new MarkdownReader())->read('Thesis aliases [@doctoral-review; @masters-review; @explicit-thesis] stay visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['doctoral-review', 'masters-review', 'explicit-thesis'], $handoff['citedKeys']);
+        $t->same('Doctoral dissertation', $handoff['bibliography']->children[0]->attr('cslItem')['thesis-type'] ?? null);
+        $t->contains('<p>Thesis aliases (Smith | Migration University | Doctoral dissertation; Ng | Source University | mathesis; Roe | Archive Institute | Licentiate thesis) stay visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Doctoral Import Study :: Migration University :: Doctoral dissertation</dd>', $blocks);
+        $t->contains('<dt>Roe 2024</dt><dd>Explicit Thesis Packet :: Archive Institute :: Licentiate thesis</dd>', $blocks);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');
