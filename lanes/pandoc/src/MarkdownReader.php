@@ -14274,12 +14274,8 @@ final class MarkdownReader
         $children[] = new AstNode('table_body', [], $bodyChildren);
 
         $attrs = [
-            'caption' => $caption,
             'alignments' => $alignments,
-        ];
-        if ($caption !== '') {
-            $attrs['captionInlines'] = $this->parseInlines($caption);
-        }
+        ] + $this->tableCaptionAttrs($caption);
         if ($widths !== null) {
             $attrs['widths'] = $widths;
         }
@@ -14316,12 +14312,8 @@ final class MarkdownReader
         $children[] = new AstNode('table_body', [], $bodyRows);
 
         $attrs = [
-            'caption' => $caption,
             'alignments' => $alignments,
-        ];
-        if ($caption !== '') {
-            $attrs['captionInlines'] = $this->parseInlines($caption);
-        }
+        ] + $this->tableCaptionAttrs($caption);
         if ($widths !== null) {
             $attrs['widths'] = $widths;
         }
@@ -14366,6 +14358,58 @@ final class MarkdownReader
         }
 
         return new AstNode('table_row', ['header' => $header], $children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableCaptionAttrs(string $caption): array
+    {
+        $shortCaption = $caption === '' ? null : $this->parseShortTableCaption($caption);
+        if ($shortCaption !== null) {
+            $attrs = [
+                'caption' => $shortCaption['caption'],
+                'shortCaption' => $shortCaption['shortCaption'],
+                'shortCaptionInlines' => $shortCaption['shortCaptionInlines'],
+            ];
+            if ($shortCaption['caption'] !== '') {
+                $attrs['captionInlines'] = $this->parseInlines($shortCaption['caption']);
+            }
+
+            return $attrs;
+        }
+
+        $attrs = ['caption' => $caption];
+        if ($caption !== '') {
+            $attrs['captionInlines'] = $this->parseInlines($caption);
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array{caption:string, shortCaption:string, shortCaptionInlines:list<AstNode>}|null
+     */
+    private function parseShortTableCaption(string $caption): ?array
+    {
+        $label = $this->parseBracketedLabel($caption, 0);
+        if ($label === null) {
+            return null;
+        }
+
+        $next = $label['next'];
+        $nextByte = $caption[$next] ?? '';
+        if ($nextByte !== '' && !ctype_space($nextByte)) {
+            return null;
+        }
+
+        $shortCaptionInlines = $this->parseInlines($label['text']);
+
+        return [
+            'caption' => trim(substr($caption, $next)),
+            'shortCaption' => $this->plainTextFromInlines($shortCaptionInlines),
+            'shortCaptionInlines' => $shortCaptionInlines,
+        ];
     }
 
     /**
@@ -14471,12 +14515,8 @@ final class MarkdownReader
         $children[] = new AstNode('table_body', [], $bodyChildren);
 
         $attrs = [
-            'caption' => $caption,
             'alignments' => $delimiter['alignments'],
-        ];
-        if ($caption !== '') {
-            $attrs['captionInlines'] = $this->parseInlines($caption);
-        }
+        ] + $this->tableCaptionAttrs($caption);
         if ($delimiter['widths'] !== null) {
             $attrs['widths'] = $delimiter['widths'];
         }

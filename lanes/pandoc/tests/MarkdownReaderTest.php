@@ -14101,6 +14101,63 @@ HTML;
         $t->contains("1987\u{2013}1999.", $captionInlines[5]->attr('text'));
         $t->contains('<figcaption class="wp-element-caption"><strong>Migration</strong> <a href="https://example.test/audit" title="Audit">audit</a> uses <code>batch</code> 1987–1999.</figcaption>', $blocks);
     },
+    'maps upstream markdown reader short table caption prefixes' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '| Item | Status |',
+            '| :--- | :----- |',
+            '| Posts | ready |',
+            '',
+            ': [review **queue**] long *caption*',
+            '',
+            '    Label Value',
+            '  ------- -----',
+            '       1 ready',
+            '',
+            '  : [fallback short] fallback long',
+            '',
+            '| Short only |',
+            '| ---------- |',
+            '| queued     |',
+            '',
+            ': [Review **queue**]',
+            '',
+            '| Link caption |',
+            '| ------------ |',
+            '| kept         |',
+            '',
+            ': [linked caption](https://example.test/caption) stays long.',
+        ]));
+        $pipe = $document->children[0];
+        $simple = $document->children[1];
+        $shortOnly = $document->children[2];
+        $linkCaption = $document->children[3];
+        $pipeShortInlines = $pipe->attr('shortCaptionInlines');
+        $pipeCaptionInlines = $pipe->attr('captionInlines');
+        $simpleShortInlines = $simple->attr('shortCaptionInlines');
+        $shortOnlyInlines = $shortOnly->attr('shortCaptionInlines');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $pipe->type);
+        $t->same('review queue', $pipe->attr('shortCaption'));
+        $t->same('long *caption*', $pipe->attr('caption'));
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $pipeShortInlines));
+        $t->same('queue', $pipeShortInlines[1]->children[0]->attr('text'));
+        $t->same(['text', 'emph'], array_map(static fn (AstNode $node): string => $node->type, $pipeCaptionInlines));
+        $t->same('caption', $pipeCaptionInlines[1]->children[0]->attr('text'));
+        $t->same('fallback short', $simple->attr('shortCaption'));
+        $t->same('fallback long', $simple->attr('caption'));
+        $t->same('fallback short', $simpleShortInlines[0]->attr('text'));
+        $t->same('Review queue', $shortOnly->attr('shortCaption'));
+        $t->same('', $shortOnly->attr('caption'));
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $shortOnlyInlines));
+        $t->same(null, $linkCaption->attr('shortCaption'));
+        $t->same('[linked caption](https://example.test/caption) stays long.', $linkCaption->attr('caption'));
+        $t->contains('data-pandoc-short-caption="review queue"', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">long <em>caption</em></figcaption>', $blocks);
+        $t->contains('data-pandoc-short-caption="fallback short"', $blocks);
+        $t->contains('data-pandoc-short-caption="Review queue"', $blocks);
+        $t->contains('<figcaption class="wp-element-caption"><a href="https://example.test/caption">linked caption</a> stays long.</figcaption>', $blocks);
+    },
     'maps upstream command short caption latex table shape' => static function (TestRunner $t): void {
         $latex = <<<'LATEX'
 \begin{table}
