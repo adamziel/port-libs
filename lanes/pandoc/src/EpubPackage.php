@@ -552,6 +552,9 @@ final class EpubPackage
         $metadataRefinementTargets = is_array($this->metadata['refinementTargets'] ?? null)
             ? $this->metadata['refinementTargets']
             : self::metadataRefinementTargetReport([], [], [], [], []);
+        $collectionMembership = is_array($this->metadata['collectionMembership'] ?? null)
+            ? $this->metadata['collectionMembership']
+            : self::metadataCollectionMembershipReport($this->metadata, $this->packageLinks);
         $collectionLinkVocabulary = self::collectionLinkVocabularySummary($this->collections);
         $collectionRoleVocabulary = self::collectionRoleVocabularySummary($this->collections);
         $collectionHierarchy = self::collectionHierarchyReport($this->collections);
@@ -621,6 +624,7 @@ final class EpubPackage
             'metadataAuthoring' => $metadataAuthoring,
             'metaPropertyVocabulary' => $metaPropertyVocabulary,
             'metadataRefinementTargets' => $metadataRefinementTargets,
+            'collectionMembership' => $collectionMembership,
             'packageLinks' => $this->packageLinks,
             'packageLinksByRel' => $packageLinkReport['linksByRel'],
             'packageLinkRelCounts' => $packageLinkReport['relCounts'],
@@ -712,6 +716,7 @@ final class EpubPackage
                     'bibliographicDetails' => $this->metadata['bibliographicDetails'] ?? [],
                     'bibliographicDetailsByKind' => $this->metadata['bibliographicDetailsByKind'] ?? [],
                     'bibliographicSummary' => $this->metadata['bibliographicSummary'] ?? [],
+                    'collectionMembership' => $collectionMembership,
                     'meta' => $this->metadata['meta'] ?? [],
                     'metaPropertyVocabulary' => $metaPropertyVocabulary,
                     'metaPropertyDiagnostics' => $metaPropertyVocabulary['diagnostics'],
@@ -724,6 +729,8 @@ final class EpubPackage
                 'metadataPropertyDiagnostics' => $metaPropertyVocabulary['diagnostics'],
                 'metadataRefinementTargets' => $metadataRefinementTargets,
                 'metadataRefinementTargetDiagnostics' => $metadataRefinementTargets['diagnostics'],
+                'metadataCollectionMembership' => $collectionMembership,
+                'metadataCollectionMembershipDiagnostics' => $collectionMembership['diagnostics'],
                 'readingOrderParts' => $assetSummary['readingOrderParts'],
                 'renditions' => $this->renditions,
                 'renditionDiagnostics' => $this->renditions['diagnostics'],
@@ -933,6 +940,27 @@ final class EpubPackage
                 'targetCount' => count($refinementsById),
                 'targetIds' => array_keys($refinementsById),
                 'packageLinkCount' => count($packageLinks),
+            ],
+        );
+
+        $collectionMembership = is_array($metadata['collectionMembership'] ?? null)
+            ? $metadata['collectionMembership']
+            : self::metadataCollectionMembershipReport($metadata, $packageLinks);
+        $appendCase(
+            'metadata-collection-membership',
+            'metadata',
+            'OPF belongs-to-collection metadata',
+            (int) ($collectionMembership['count'] ?? 0),
+            self::compactDiagnosticList($collectionMembership['diagnostics'] ?? []),
+            [
+                'types' => is_array($collectionMembership['types'] ?? null) ? array_values($collectionMembership['types']) : [],
+                'typedCount' => (int) ($collectionMembership['typedCount'] ?? 0),
+                'positionedCount' => (int) ($collectionMembership['positionedCount'] ?? 0),
+                'invalidGroupPositionCount' => (int) ($collectionMembership['invalidGroupPositionCount'] ?? 0),
+                'linkedResourceCount' => (int) ($collectionMembership['linkedResourceCount'] ?? 0),
+                'localLinkedResourceCount' => (int) ($collectionMembership['localLinkedResourceCount'] ?? 0),
+                'externalLinkedResourceCount' => (int) ($collectionMembership['externalLinkedResourceCount'] ?? 0),
+                'missingLinkedResourceCount' => (int) ($collectionMembership['missingLinkedResourceCount'] ?? 0),
             ],
         );
 
@@ -3796,6 +3824,7 @@ final class EpubPackage
         $metadata['linkDiagnostics'] = $packageLinkReport['diagnostics'];
         $metadata['linkVocabulary'] = self::metadataLinkVocabularySummary($packageLinks);
         $metadata = self::attachPackageLinksToMetadata($metadata, $packageLinks);
+        $metadata['collectionMembership'] = self::metadataCollectionMembershipReport($metadata, $packageLinks);
         $metadata['accessibility'] = self::accessibilityMetadataReport($metadata, $packageLinks);
         $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
         $spineMetadata = self::parseSpineMetadata($spineElement);
@@ -5504,6 +5533,20 @@ final class EpubPackage
         return (int) $displaySeq;
     }
 
+    private static function metadataNumericValue(?string $value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '' || preg_match('/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/', $trimmed) !== 1) {
+            return null;
+        }
+
+        return (float) $trimmed;
+    }
+
     /**
      * @param list<array<string, mixed>> $entries
      *
@@ -6039,6 +6082,165 @@ final class EpubPackage
             'missingLinkedResourceCount' => $missingLinkedResourceCount,
             'linkedResourceRelCounts' => $relCounts,
             'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @param list<array<string, mixed>> $packageLinks
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataCollectionMembershipReport(array $metadata, array $packageLinks = []): array
+    {
+        $metaProperties = is_array($metadata['metaProperties'] ?? null) ? $metadata['metaProperties'] : [];
+        $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
+        $entries = is_array($metaProperties['belongs-to-collection'] ?? null)
+            ? $metaProperties['belongs-to-collection']
+            : [];
+        $linksBySubjectId = [];
+        foreach ($packageLinks as $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+
+            $subjectId = is_string($link['subjectId'] ?? null) ? trim($link['subjectId']) : '';
+            if ($subjectId === '') {
+                continue;
+            }
+
+            $linksBySubjectId[$subjectId][] = $link;
+        }
+
+        $items = [];
+        $byType = [];
+        $types = [];
+        $diagnostics = [];
+        $typedCount = 0;
+        $positionedCount = 0;
+        $invalidGroupPositionCount = 0;
+        $linkedResourceCount = 0;
+        $localLinkedResourceCount = 0;
+        $externalLinkedResourceCount = 0;
+        $missingLinkedResourceCount = 0;
+
+        foreach ($entries as $entryIndex => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $id = is_string($entry['id'] ?? null) ? $entry['id'] : null;
+            $refinements = $id !== null && is_array($refinementsById[$id] ?? null) ? $refinementsById[$id] : [];
+            $collectionTypes = self::metadataRefinementEntries($refinements, 'collection-type');
+            $groupPositions = self::metadataRefinementEntries($refinements, 'group-position');
+            $collectionType = is_array($collectionTypes[0] ?? null) ? (string) $collectionTypes[0]['value'] : null;
+            $groupPosition = is_array($groupPositions[0] ?? null) ? (string) $groupPositions[0]['value'] : null;
+            $groupPositionNumber = self::metadataNumericValue($groupPosition);
+            $linkedResources = $id !== null && is_array($linksBySubjectId[$id] ?? null)
+                ? array_values($linksBySubjectId[$id])
+                : [];
+            $itemDiagnostics = [];
+
+            if (self::metadataEntryValue($entry) === '') {
+                $itemDiagnostics[] = [
+                    'type' => 'empty-belongs-to-collection',
+                    'id' => $id,
+                    'index' => (int) $entryIndex,
+                    'message' => 'EPUB OPF belongs-to-collection metadata is empty',
+                ];
+            }
+            if ($groupPosition !== null && $groupPosition !== '' && $groupPositionNumber === null) {
+                $itemDiagnostics[] = [
+                    'type' => 'invalid-collection-group-position',
+                    'id' => $id,
+                    'index' => (int) $entryIndex,
+                    'value' => $groupPosition,
+                    'message' => 'EPUB OPF collection group-position metadata should be numeric',
+                ];
+            }
+
+            $itemLocalLinkedResourceCount = 0;
+            $itemExternalLinkedResourceCount = 0;
+            $itemMissingLinkedResourceCount = 0;
+            foreach ($linkedResources as $link) {
+                if (!is_array($link)) {
+                    continue;
+                }
+
+                if (($link['external'] ?? false) === true) {
+                    ++$itemExternalLinkedResourceCount;
+                } elseif (is_string($link['partName'] ?? null)) {
+                    ++$itemLocalLinkedResourceCount;
+                }
+
+                if (($link['external'] ?? false) !== true && ($link['exists'] ?? false) !== true) {
+                    ++$itemMissingLinkedResourceCount;
+                }
+            }
+
+            $item = [
+                'index' => (int) $entryIndex,
+                'id' => $id,
+                'title' => self::metadataEntryValue($entry),
+                'value' => self::metadataEntryValue($entry),
+                'text' => is_string($entry['text'] ?? null) ? $entry['text'] : '',
+                'content' => is_string($entry['content'] ?? null) ? $entry['content'] : null,
+                'collectionType' => $collectionType,
+                'collectionTypes' => $collectionTypes,
+                'groupPosition' => $groupPosition,
+                'groupPositionNumber' => $groupPositionNumber,
+                'groupPositions' => $groupPositions,
+                'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
+                'fileAs' => self::firstMetadataRefinementValue($refinements, 'file-as'),
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'propertyVocabulary' => is_array($entry['propertyVocabulary'] ?? null) ? $entry['propertyVocabulary'] : null,
+                'linkedResources' => $linkedResources,
+                'linkedResourceCount' => count($linkedResources),
+                'localLinkedResourceCount' => $itemLocalLinkedResourceCount,
+                'externalLinkedResourceCount' => $itemExternalLinkedResourceCount,
+                'missingLinkedResourceCount' => $itemMissingLinkedResourceCount,
+                'refinements' => $refinements,
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            if ($collectionType !== null && $collectionType !== '') {
+                ++$typedCount;
+                $types[$collectionType] = $collectionType;
+                $byType[$collectionType][] = $item;
+            }
+            if ($groupPositionNumber !== null) {
+                ++$positionedCount;
+            }
+
+            $linkedResourceCount += count($linkedResources);
+            $localLinkedResourceCount += $itemLocalLinkedResourceCount;
+            $externalLinkedResourceCount += $itemExternalLinkedResourceCount;
+            $missingLinkedResourceCount += $itemMissingLinkedResourceCount;
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+                if (($diagnostic['type'] ?? null) === 'invalid-collection-group-position') {
+                    ++$invalidGroupPositionCount;
+                }
+            }
+
+            $items[] = $item;
+        }
+
+        return [
+            'present' => $items !== [],
+            'count' => count($items),
+            'typedCount' => $typedCount,
+            'positionedCount' => $positionedCount,
+            'invalidGroupPositionCount' => $invalidGroupPositionCount,
+            'linkedResourceCount' => $linkedResourceCount,
+            'localLinkedResourceCount' => $localLinkedResourceCount,
+            'externalLinkedResourceCount' => $externalLinkedResourceCount,
+            'missingLinkedResourceCount' => $missingLinkedResourceCount,
+            'types' => array_values($types),
+            'items' => $items,
+            'byType' => $byType,
             'diagnostics' => $diagnostics,
         ];
     }

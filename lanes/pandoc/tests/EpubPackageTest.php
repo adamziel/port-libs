@@ -1717,6 +1717,99 @@ XML;
         $t->same($metadata['sourceSummary'], $summary['wordpressImport']['metadataDetails']['sourceSummary']);
     },
 
+    'summarizes OPF belongs to collection metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithCollectionMembership = str_replace(
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
+    <meta id="series-membership" property="belongs-to-collection" xml:lang="en" dir="ltr">Migration Series</meta>
+    <meta refines="#series-membership" property="collection-type">series</meta>
+    <meta refines="#series-membership" property="group-position">3</meta>
+    <meta refines="#series-membership" property="display-seq">1</meta>
+    <meta refines="#series-membership" property="file-as">Migration Series</meta>
+    <meta id="set-membership" property="belongs-to-collection" content="Reviewer Set"/>
+    <meta refines="#set-membership" property="collection-type">set</meta>
+    <meta refines="#set-membership" property="group-position">appendix</meta>
+    <link id="series-record" rel="record" refines="#series-membership" href="meta/series.json" media-type="application/ld+json"/>
+    <link id="remote-set-record" rel="record" refines="#set-membership" href="https://example.invalid/set.json" media-type="application/json"/>',
+            $epub3OpfXml
+        );
+        $opfWithCollectionMembership = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="series-record" href="meta/series.json" media-type="application/ld+json"/>',
+            $opfWithCollectionMembership
+        );
+
+        $seriesRecord = '{"name":"Migration Series","source":"compact-epub"}';
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithCollectionMembership],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/series.json', 'data' => $seriesRecord],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $membership = $metadata['collectionMembership'];
+
+        $t->same(true, $membership['present']);
+        $t->same(2, $membership['count']);
+        $t->same(['series', 'set'], $membership['types']);
+        $t->same(2, $membership['typedCount']);
+        $t->same(1, $membership['positionedCount']);
+        $t->same(1, $membership['invalidGroupPositionCount']);
+        $t->same(['invalid-collection-group-position'], array_column($membership['diagnostics'], 'type'));
+
+        $series = $membership['items'][0];
+        $t->same('series-membership', $series['id']);
+        $t->same('Migration Series', $series['title']);
+        $t->same('Migration Series', $series['text']);
+        $t->same('Migration Series', $series['content']);
+        $t->same('series', $series['collectionType']);
+        $t->same('3', $series['groupPosition']);
+        $t->same(3.0, $series['groupPositionNumber']);
+        $t->same('1', $series['displaySeq']);
+        $t->same('Migration Series', $series['fileAs']);
+        $t->same('en', $series['language']);
+        $t->same('ltr', $series['direction']);
+        $t->same(1, $series['linkedResourceCount']);
+        $t->same(1, $series['localLinkedResourceCount']);
+        $t->same('series-record', $series['linkedResources'][0]['id']);
+        $t->same('/EPUB/meta/series.json', $series['linkedResources'][0]['partName']);
+        $t->same(strlen($seriesRecord), $series['linkedResources'][0]['byteLength']);
+
+        $set = $membership['items'][1];
+        $t->same('set-membership', $set['id']);
+        $t->same('Reviewer Set', $set['title']);
+        $t->same('', $set['text']);
+        $t->same('Reviewer Set', $set['content']);
+        $t->same('set', $set['collectionType']);
+        $t->same('appendix', $set['groupPosition']);
+        $t->same(null, $set['groupPositionNumber']);
+        $t->same('invalid-collection-group-position', $set['diagnostics'][0]['type']);
+        $t->same(1, $set['linkedResourceCount']);
+        $t->same(1, $set['externalLinkedResourceCount']);
+        $t->same('remote-set-record', $set['linkedResources'][0]['id']);
+        $t->same('external-package-link-target', $set['linkedResources'][0]['diagnostics'][0]['type']);
+
+        $case = $summary['compactPackageReport']['casesById']['metadata-collection-membership'];
+        $t->same(2, $case['itemCount']);
+        $t->same(['series', 'set'], $case['types']);
+        $t->same(1, $case['positionedCount']);
+        $t->same(1, $case['invalidGroupPositionCount']);
+        $t->same(2, $case['linkedResourceCount']);
+        $t->same(['invalid-collection-group-position'], $case['diagnosticTypes']);
+        $t->same($membership, $summary['collectionMembership']);
+        $t->same($membership, $summary['wordpressImport']['metadataDetails']['collectionMembership']);
+        $t->same($membership, $summary['wordpressImport']['metadataCollectionMembership']);
+        $t->same($membership['diagnostics'], $summary['wordpressImport']['metadataCollectionMembershipDiagnostics']);
+    },
+
     'summarizes OPF subject authority metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $subjectRecord = '{"@context":"https://schema.org","about":"subject review"}';
         $opfWithSubjects = str_replace(
@@ -4537,11 +4630,24 @@ XML;
         $report = $summary['compactPackageReport'];
         $casesById = $report['casesById'];
 
-        $t->same(10, $report['caseCount']);
+        $t->same(11, $report['caseCount']);
         $t->same(10, $report['presentCaseCount']);
         $t->same(0, $report['diagnosticCaseCount']);
         $t->same(0, $report['diagnosticCount']);
         $t->same([], $report['diagnosticTypes']);
+        $t->same([
+            'metadata-refinements',
+            'metadata-collection-membership',
+            'navigation-sections',
+            'guide-references',
+            'collections',
+            'media-overlays',
+            'manifest-fallbacks',
+            'manifest-resource-kinds',
+            'manifest-resource-properties',
+            'encrypted-resources',
+            'ocf-sidecars',
+        ], $report['caseIds']);
         $t->same([
             'metadata-refinements',
             'navigation-sections',
@@ -4553,10 +4659,10 @@ XML;
             'manifest-resource-properties',
             'encrypted-resources',
             'ocf-sidecars',
-        ], $report['caseIds']);
-        $t->same($report['caseIds'], $report['presentCaseIds']);
+        ], $report['presentCaseIds']);
         $t->same([
             'metadata-refinements' => 2,
+            'metadata-collection-membership' => 0,
             'navigation-sections' => 2,
             'guide-references' => 2,
             'collections' => 1,
@@ -4580,6 +4686,8 @@ XML;
 
         $t->same(['title-main', 'creator'], $casesById['metadata-refinements']['targetIds']);
         $t->same(1, $casesById['metadata-refinements']['packageLinkCount']);
+        $t->same(0, $casesById['metadata-collection-membership']['itemCount']);
+        $t->same([], $casesById['metadata-collection-membership']['types']);
         $t->same('nav', $casesById['navigation-sections']['navigationType']);
         $t->same(['toc', 'page-list'], $casesById['navigation-sections']['sectionTypes']);
         $t->same(3, $casesById['navigation-sections']['entryCount']);
