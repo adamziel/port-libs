@@ -15287,7 +15287,10 @@ final class MarkdownReader
 
     private function isListItemBlockHtmlStart(string $text): bool
     {
-        return preg_match('/^<(?:div|button)(?:\s+[^>]*)?>/i', $text) === 1;
+        $lines = [$text];
+        $index = 0;
+
+        return $this->tryReadRawHtmlBlock($lines, $index) !== null;
     }
 
     /**

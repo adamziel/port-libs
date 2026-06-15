@@ -11244,6 +11244,39 @@ MD;
         $t->same('with this div too.', $item->children[4]->children[0]->attr('text'));
         $t->contains('<ul><li><div><p>first div breaks</p></div><button>if this button exists</button><div><p>with this div too.</p></div></li></ul>', $blocks);
     },
+    'maps upstream markdown list item containing generic raw html blocks' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '- <section data-source="commonmark-list">',
+            '    *raw markdown* stays raw.',
+            '  </section>',
+            '',
+            '  <figure data-review="image">',
+            '    <img src="chart.png" alt="Chart">',
+            '    <figcaption>Chart caption</figcaption>',
+            '  </figure>',
+            '- next item',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $list = $document->children[0];
+        $item = $list->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('bullet_list', $list->type);
+        $t->true((bool) $list->attr('loose'));
+        $t->same(2, count($list->children));
+        $t->same(['raw_html', 'raw_html'], array_map(static fn (AstNode $node): string => $node->type, $item->children));
+        $t->contains('<section data-source="commonmark-list">', $item->children[0]->attr('html'));
+        $t->contains('*raw markdown* stays raw.', $item->children[0]->attr('html'));
+        $t->contains('<figure data-review="image">', $item->children[1]->attr('html'));
+        $t->contains('<figcaption>Chart caption</figcaption>', $item->children[1]->attr('html'));
+        $t->same('paragraph', $list->children[1]->children[0]->type);
+        $t->same('next item', $list->children[1]->children[0]->attr('text'));
+        $t->contains('<ul><li><section data-source="commonmark-list">', $blocks);
+        $t->contains('*raw markdown* stays raw.', $blocks);
+        $t->contains('<figure data-review="image">', $blocks);
+        $t->contains('<figcaption>Chart caption</figcaption>', $blocks);
+        $t->true(!str_contains($blocks, '&lt;section'), 'Generic raw HTML blocks in list items should not escape as paragraph text');
+    },
     'maps upstream testsuite list continuation lines indented with tabs and spaces' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             "+\tthis is a list item",

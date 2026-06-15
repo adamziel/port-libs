@@ -8,7 +8,7 @@
     "commit": "pandoc-epub-repeated-spine-idref-inventory-445e193d3",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 3734,
+    "mapped": 3735,
     "latestSlice": "pandoc-epub-compact-manifest-dependency-report maps one EPUB3 compact package report row after rebase onto current main a088c813c. EpubPackage carries manifestDependencyInventory into compactPackageReport and WordPress mirrors for fallback, fallback-style, and media-overlay dependency edges, including relation counts, target ids, byte exposure policy counts, and dependency diagnostics without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3710 -> 3711, phpFail remains 0, mapped upstream cases move 3733 -> 3734, mappedEpubCompactPackageReportMatrixCases moves 12 -> 13, and epubCompactPackageReportMatrixAssertions moves 66 -> 73. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 3197 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 87899 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
     "mappedOdfPackageFontFormatProvenanceCases": 6,
     "odfPackageFontFormatProvenanceAssertions": 56,
@@ -2023,7 +2023,7 @@
   "xmlHtmlDomDocBookStructureReviewAssertions": 214,
   "mappedCsvTsvFormatInferenceCases": 2,
   "csvTsvFormatInferenceAssertions": 15,
-  "currentSlice": "EpubPackage carries manifestDependencyInventory into compactPackageReport and WordPress import mirrors with fallback/fallback-style/media-overlay dependency edge policy rollups.",
+  "currentSlice": "pandoc-markdown-generic-raw-html-list-items maps one Markdown/CommonMark reader list-item raw HTML case after rebase onto current main 47b8d05417. MarkdownReader now lets list items that begin with any recognized raw HTML block start reuse the same native raw-block parser as top-level Markdown, preserving section and figure raw HTML blocks inside one list item and WordPress handoff without escaping reviewer markup, without invoking Pandoc, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3711 -> 3712, phpFail remains 0, mapped upstream manifest cases move 3734 -> 3735, mappedMarkdownGenericRawHtmlListItemCases = 1, and markdownGenericRawHtmlListItemAssertions = 15. Verification passed php -l for MarkdownReader.php and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6793 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 87914 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
   "mappedPandocFormatReaderEvidenceBatchCases": 6,
   "pandocFormatReaderEvidenceBatchAssertions": 200,
   "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -2273,5 +2273,7 @@
   "mappedEpubCompactRootfileAuthoringCases": 1,
   "epubCompactRootfileAuthoringAssertions": 30,
   "mappedEpubRepeatedSpineIdrefInventoryCases": 1,
-  "epubRepeatedSpineIdrefInventoryAssertions": 34
+  "epubRepeatedSpineIdrefInventoryAssertions": 34,
+  "mappedMarkdownGenericRawHtmlListItemCases": 1,
+  "markdownGenericRawHtmlListItemAssertions": 15
 }
