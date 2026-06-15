@@ -7626,6 +7626,13 @@ return [
             ['t' => 'Format', 'c' => 'latex'],
             '\\alpha',
         ]];
+        $breakBlock = ['t' => 'Para', 'c' => [
+            ['t' => 'Str', 'c' => 'Soft'],
+            ['t' => 'SoftBreak'],
+            ['t' => 'Str', 'c' => 'line'],
+            ['t' => 'LineBreak'],
+            ['t' => 'Str', 'c' => 'hard'],
+        ]];
         $linkInline = ['t' => 'Link', 'c' => [
             ['constructor-link', ['source'], [['data-kind', 'link']]],
             [['t' => 'Str', 'c' => 'source']],
@@ -7750,6 +7757,21 @@ return [
                 'assert' => static function (TestRunner $t, AstNode $node, string $label) use ($rawInline): void {
                     $t->same('latex', $node->attr('format'), "{$label} raw inline format");
                     $t->same($rawInline['c'][0], $node->attr('formatNative'), "{$label} raw inline format native");
+                },
+            ],
+            'inline break summary constructors' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [$breakBlock]],
+                'path' => [0],
+                'type' => 'paragraph',
+                'constructor' => 'Para',
+                'native' => $breakBlock,
+                'text' => "Soft line\nhard",
+                'assert' => static function (TestRunner $t, AstNode $node, string $label) use ($breakBlock): void {
+                    $t->same(['text', 'softbreak', 'text', 'linebreak', 'text'], array_map(static fn (AstNode $child): string => $child->type, $node->children), "{$label} inline break child types");
+                    $t->same('SoftBreak', $node->children[1]->attr('constructor'), "{$label} softbreak constructor");
+                    $t->same($breakBlock['c'][1], $node->children[1]->attr('native'), "{$label} softbreak native");
+                    $t->same('LineBreak', $node->children[3]->attr('constructor'), "{$label} linebreak constructor");
+                    $t->same($breakBlock['c'][3], $node->children[3]->attr('native'), "{$label} linebreak native");
                 },
             ],
             'target attr inline helper' => [

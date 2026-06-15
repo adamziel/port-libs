@@ -1961,7 +1961,8 @@ final class PandocJsonReader
                 'raw_markdown',
                 'raw_inline',
                 'raw_tex' => (string) $node->attr('text', ''),
-                'space', 'softbreak', 'linebreak' => ' ',
+                'space', 'softbreak' => ' ',
+                'linebreak' => "\n",
                 default => $this->plainText($node->children),
             };
         }
