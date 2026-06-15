@@ -18306,30 +18306,80 @@ final class MarkdownReader
                 $m,
                 0,
                 $offset
-            ) !== 1
+            ) === 1
         ) {
-            return null;
+            $candidate = $this->trimBareUriAutolinkCandidate($m[0]);
+            if ($candidate === '') {
+                return null;
+            }
+
+            $url = $this->normalizeBareUriDestination($candidate);
+            $display = $this->decodeHtmlEntities($this->unescapeLinkComponent($candidate));
+
+            return [
+                'node' => new AstNode(
+                    'link',
+                    [
+                        'url' => $url,
+                        'classes' => ['uri'],
+                    ],
+                    [new AstNode('text', ['text' => $display])]
+                ),
+                'next' => $offset + strlen($candidate),
+            ];
         }
 
-        $candidate = $this->trimBareUriAutolinkCandidate($m[0]);
-        if ($candidate === '') {
-            return null;
+        if (preg_match('~\Gwww\.[^\s<>"\']+~iu', $text, $m, 0, $offset) === 1) {
+            $candidate = $this->trimBareUriAutolinkCandidate($m[0]);
+            if (strlen($candidate) <= 4) {
+                return null;
+            }
+
+            $display = $this->decodeHtmlEntities($this->unescapeLinkComponent($candidate));
+
+            return [
+                'node' => new AstNode(
+                    'link',
+                    [
+                        'url' => 'http://' . $this->normalizeBareUriDestination($candidate),
+                        'classes' => ['uri'],
+                    ],
+                    [new AstNode('text', ['text' => $display])]
+                ),
+                'next' => $offset + strlen($candidate),
+            ];
         }
 
-        $url = $this->normalizeBareUriDestination($candidate);
-        $display = $this->decodeHtmlEntities($this->unescapeLinkComponent($candidate));
+        if (
+            preg_match(
+                '~\G[A-Za-z0-9.!#$%&\'*+/=?^_`{|}\~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+~u',
+                $text,
+                $m,
+                0,
+                $offset
+            ) === 1
+        ) {
+            $candidate = $this->trimBareUriAutolinkCandidate($m[0]);
+            if ($candidate === '') {
+                return null;
+            }
 
-        return [
-            'node' => new AstNode(
-                'link',
-                [
-                    'url' => $url,
-                    'classes' => ['uri'],
-                ],
-                [new AstNode('text', ['text' => $display])]
-            ),
-            'next' => $offset + strlen($candidate),
-        ];
+            $address = $this->decodeHtmlEntities($this->unescapeLinkComponent($candidate));
+
+            return [
+                'node' => new AstNode(
+                    'link',
+                    [
+                        'url' => 'mailto:' . $address,
+                        'classes' => ['email'],
+                    ],
+                    [new AstNode('text', ['text' => $address])]
+                ),
+                'next' => $offset + strlen($candidate),
+            ];
+        }
+
+        return null;
     }
 
     private function trimBareUriAutolinkCandidate(string $candidate): string
