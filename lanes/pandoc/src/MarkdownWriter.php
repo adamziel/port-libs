@@ -2832,7 +2832,7 @@ final class MarkdownWriter
     private function sourceNoteLabel(AstNode $node): ?string
     {
         $label = trim((string) $node->attr('label', ''));
-        if ($label === '' || preg_match('/[\]\s]/u', $label) === 1) {
+        if ($label === '' || preg_match('/[\[\]\s]/u', $label) === 1) {
             return null;
         }
 
@@ -3137,7 +3137,7 @@ final class MarkdownWriter
 
     private function renderMath(AstNode $node): string
     {
-        $text = (string) $node->attr('text', '');
+        $text = $this->escapeMathText((string) $node->attr('text', ''));
         if ($node->attr('display') === true) {
             return '$$' . $text . '$$' . $this->renderLinkAttributes($node);
         }
@@ -3405,6 +3405,11 @@ final class MarkdownWriter
         $delimited = $this->delimitInlineContent($delimiter, $delimiter, str_replace(' ', '\\ ', $content));
 
         return str_replace("\xC2\xA0", '\\ ', $delimited);
+    }
+
+    private function escapeMathText(string $text): string
+    {
+        return preg_replace('/(?<!\\\\)\$/', '\\\$', $text) ?? $text;
     }
 
     private function escapeText(string $text, bool $escapeDefinitionMarker = true): string
@@ -3878,6 +3883,9 @@ final class MarkdownWriter
 
         $label = (string) $node->children[0]->attr('text', '');
         $suffix = $this->autolinkText($node);
+        if (!$this->isSafeAutolinkText($node, $suffix)) {
+            return false;
+        }
 
         return $this->canRenderAutolinkText($suffix)
             && ($label === $suffix || $this->escapeUri($label) === $suffix);
@@ -3894,6 +3902,20 @@ final class MarkdownWriter
     {
         return $text !== ''
             && preg_match('/[\s\x00-\x1F\x7F<>]/u', $text) !== 1;
+    }
+
+    private function isSafeAutolinkText(AstNode $node, string $text): bool
+    {
+        if (!$this->canRenderAutolinkText($text)) {
+            return false;
+        }
+
+        $url = strtolower((string) $node->attr('url', ''));
+        if (str_starts_with($url, 'mailto:')) {
+            return filter_var($text, FILTER_VALIDATE_EMAIL) !== false;
+        }
+
+        return preg_match('/\A[A-Za-z][A-Za-z0-9+.-]*:[^\s<>]*\z/u', $text) === 1;
     }
 
     /**
