@@ -274,6 +274,7 @@ final class DocxOpenXmlReader
             'comment' => $comments['nodes'],
         ];
         $glossaryDocument = $this->readGlossaryDocument(
+            $parts,
             $glossaryDocumentPart['xml'],
             $glossaryDocumentPart['partName'],
             $glossaryDocumentPart['exists'],
@@ -470,6 +471,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['glossaryDocumentRelationshipId'] = $glossaryDocumentPart['relationship']['id'] ?? null;
         $packageProvenance['glossaryDocument'] = $glossaryDocument;
         $packageProvenance['summary']['glossaryDocumentRelationshipCount'] = $glossaryDocument['relationshipCount'];
+        $packageProvenance['summary']['glossaryDocumentReferencedRelationshipCount'] = $glossaryDocument['referencedRelationshipCount'];
+        $packageProvenance['summary']['glossaryDocumentKnownReferencedRelationshipCount'] = $glossaryDocument['knownReferencedRelationshipCount'];
+        $packageProvenance['summary']['glossaryDocumentUnreferencedRelationshipCount'] = $glossaryDocument['unreferencedRelationshipCount'];
+        $packageProvenance['summary']['glossaryDocumentMissingReferencedRelationshipCount'] = $glossaryDocument['missingReferencedRelationshipCount'];
+        $packageProvenance['summary']['glossaryDocumentRelationshipIssueCount'] = $glossaryDocument['relationshipIssueCount'];
+        $packageProvenance['summary']['glossaryDocumentRelationshipIssueCodes'] = $glossaryDocument['relationshipIssueCodes'];
         $packageProvenance['summary']['glossaryDocumentBuildingBlockCount'] = $glossaryDocument['count'];
         $packageProvenance['summary']['glossaryDocumentBodyBlockCount'] = $glossaryDocument['bodyBlockCount'];
         $packageProvenance['summary']['glossaryDocumentIssueCount'] = $glossaryDocument['issueCount'];
@@ -10957,6 +10964,7 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, string> $parts
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
@@ -10965,6 +10973,7 @@ final class DocxOpenXmlReader
      * @return array<string, mixed>
      */
     private function readGlossaryDocument(
+        array $parts,
         string $xml,
         string $partName,
         bool $exists,
@@ -10975,11 +10984,18 @@ final class DocxOpenXmlReader
         array $numbering,
         array $referencedNotes
     ): array {
+        $relationshipDiagnostics = $this->relatedPartRelationshipDiagnostics(
+            $parts,
+            $relationships,
+            $partName,
+            $relationshipsPart,
+            $contentTypes,
+        );
+        $relationshipReview = $this->glossaryDocumentRelationshipReview([], $relationshipDiagnostics);
         $summary = [
             'partName' => $partName,
             'exists' => $exists,
             'relationshipsPart' => $relationshipsPart,
-            'relationshipCount' => count($relationships),
             'validXml' => null,
             'xmlParseError' => null,
             'validRoot' => null,
@@ -10999,6 +11015,11 @@ final class DocxOpenXmlReader
             'issueCodes' => [],
             'reviewPolicy' => 'glossary-document-metadata-only',
         ];
+        foreach ($relationshipReview as $key => $value) {
+            if ($key !== 'items' && $key !== 'byName') {
+                $summary[$key] = $value;
+            }
+        }
 
         if (!$exists || $xml === '') {
             return $summary;
@@ -11060,18 +11081,220 @@ final class DocxOpenXmlReader
             foreach ($item['issues'] as $issue) {
                 $issueCodes[$issue] = true;
             }
-
-            if (is_string($item['name']) && $item['name'] !== '' && !isset($summary['byName'][$item['name']])) {
-                $summary['byName'][$item['name']] = $item;
-            }
         }
 
+        $relationshipReview = $this->glossaryDocumentRelationshipReview($summary['items'], $relationshipDiagnostics);
+        $summary['items'] = $relationshipReview['items'];
+        $summary['byName'] = $relationshipReview['byName'];
+        foreach ($relationshipReview as $key => $value) {
+            if ($key !== 'items' && $key !== 'byName') {
+                $summary[$key] = $value;
+            }
+        }
         ksort($issueCodes, SORT_STRING);
         $summary['count'] = count($summary['items']);
         $summary['issueCount'] = count(array_filter($summary['items'], static fn (array $item): bool => $item['issues'] !== []));
         $summary['issueCodes'] = array_keys($issueCodes);
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param array<string, mixed> $relationshipDiagnostics
+     * @return array<string, mixed>
+     */
+    private function glossaryDocumentRelationshipReview(array $items, array $relationshipDiagnostics): array
+    {
+        $relationships = is_array($relationshipDiagnostics['byId'] ?? null) ? $relationshipDiagnostics['byId'] : [];
+        $allRelationshipIds = is_array($relationshipDiagnostics['relationshipIds'] ?? null)
+            ? array_values(array_filter(
+                array_map('strval', $relationshipDiagnostics['relationshipIds']),
+                static fn (string $value): bool => $value !== '',
+            ))
+            : [];
+        sort($allRelationshipIds, SORT_STRING);
+        $relationshipRecords = is_array($relationshipDiagnostics['relationshipRecords'] ?? null)
+            ? $relationshipDiagnostics['relationshipRecords']
+            : [];
+        $relationshipRecordsById = [];
+        foreach ($relationshipRecords as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $recordId = is_string($record['id'] ?? null) ? $record['id'] : '';
+            if ($recordId === '') {
+                continue;
+            }
+
+            $relationshipRecordsById[$recordId][] = $record;
+        }
+
+        $duplicateRelationshipIds = is_array($relationshipDiagnostics['duplicateRelationshipIds'] ?? null)
+            ? array_values(array_filter(
+                array_map('strval', $relationshipDiagnostics['duplicateRelationshipIds']),
+                static fn (string $value): bool => $value !== '',
+            ))
+            : [];
+        $duplicateRelationshipIdSet = array_fill_keys($duplicateRelationshipIds, true);
+        $relationshipBacklinks = [];
+        $referencedRelationshipIds = [];
+        $knownReferencedRelationshipIds = [];
+        $missingReferencedRelationshipIds = [];
+        $reconciledItems = [];
+        $reconciledByName = [];
+
+        foreach ($items as $itemIndex => $item) {
+            $relationshipIds = is_array($item['relationshipIds'] ?? null) ? $item['relationshipIds'] : [];
+            $knownRelationshipIds = [];
+            $itemDuplicateRelationshipIds = [];
+            $itemReferencedRelationships = [];
+            $itemReferencedRelationshipItems = [];
+            $itemReferencedRelationshipRecords = [];
+            $itemRelationshipBacklinks = [];
+            $itemRelationshipIssueCodes = [];
+
+            foreach ($relationshipIds as $relationshipId) {
+                if (!is_string($relationshipId) || $relationshipId === '') {
+                    continue;
+                }
+
+                $itemName = is_string($item['name'] ?? null) ? $item['name'] : null;
+                $backlink = [
+                    'relationshipId' => $relationshipId,
+                    'itemIndex' => $itemIndex,
+                    'itemName' => $itemName,
+                    'known' => isset($relationships[$relationshipId]),
+                ];
+                $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                if (isset($relationships[$relationshipId])) {
+                    $this->appendUniqueString($knownRelationshipIds, $relationshipId);
+                    $this->appendUniqueString($knownReferencedRelationshipIds, $relationshipId);
+                    $itemReferencedRelationships[$relationshipId] = $relationships[$relationshipId];
+                    $itemReferencedRelationshipItems[] = $relationships[$relationshipId];
+                    foreach (($relationships[$relationshipId]['issues'] ?? []) as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $itemRelationshipIssueCodes[$issue] = true;
+                        }
+                    }
+                } else {
+                    $this->appendUniqueString($missingReferencedRelationshipIds, $relationshipId);
+                    $itemRelationshipIssueCodes['missing-relationship'] = true;
+                }
+                if (isset($duplicateRelationshipIdSet[$relationshipId])) {
+                    $this->appendUniqueString($itemDuplicateRelationshipIds, $relationshipId);
+                }
+                foreach ($relationshipRecordsById[$relationshipId] ?? [] as $record) {
+                    $itemReferencedRelationshipRecords[] = $record;
+                }
+
+                $relationshipBacklinks[$relationshipId] ??= [];
+                $relationshipBacklinks[$relationshipId][] = $backlink;
+                $itemRelationshipBacklinks[] = $backlink;
+            }
+
+            ksort($itemRelationshipIssueCodes, SORT_STRING);
+            $item['knownRelationshipIds'] = $knownRelationshipIds;
+            $item['knownRelationshipCount'] = count($knownRelationshipIds);
+            $item['referencedRelationshipIds'] = $knownRelationshipIds;
+            $item['referencedRelationshipCount'] = count($knownRelationshipIds);
+            $item['missingRelationshipIds'] = $this->missingRelationshipIds($relationshipIds, $relationships);
+            $item['missingRelationshipCount'] = count($item['missingRelationshipIds']);
+            $item['referencedDuplicateRelationshipIds'] = $itemDuplicateRelationshipIds;
+            $item['duplicateRelationshipIds'] = $itemDuplicateRelationshipIds;
+            $item['duplicateRelationshipCount'] = count($itemDuplicateRelationshipIds);
+            $item['referencedRelationships'] = $itemReferencedRelationships;
+            $item['referencedRelationshipItems'] = $itemReferencedRelationshipItems;
+            $item['referencedRelationshipRecordCount'] = count($itemReferencedRelationshipRecords);
+            $item['referencedRelationshipRecords'] = $itemReferencedRelationshipRecords;
+            $item['relationshipIssueCount'] = count($itemRelationshipIssueCodes);
+            $item['relationshipIssueCodes'] = array_keys($itemRelationshipIssueCodes);
+            $item['relationshipBacklinks'] = $itemRelationshipBacklinks;
+
+            $reconciledItems[] = $item;
+            if (is_string($item['name'] ?? null) && $item['name'] !== '' && !isset($reconciledByName[$item['name']])) {
+                $reconciledByName[$item['name']] = $item;
+            }
+        }
+
+        $unreferencedRelationshipIds = [];
+        foreach (($relationshipDiagnostics['relationshipIds'] ?? []) as $relationshipId) {
+            if (!is_string($relationshipId) || $relationshipId === '') {
+                continue;
+            }
+
+            $referenced = in_array($relationshipId, $referencedRelationshipIds, true);
+            if (!$referenced) {
+                $unreferencedRelationshipIds[] = $relationshipId;
+            }
+
+            if (isset($relationships[$relationshipId])) {
+                $relationships[$relationshipId]['referenced'] = $referenced;
+                $relationships[$relationshipId]['orphaned'] = !$referenced;
+                $relationships[$relationshipId]['referencedItemNames'] = array_values(array_filter(array_unique(array_map(
+                    static fn (array $backlink): string => is_string($backlink['itemName'] ?? null) ? $backlink['itemName'] : '',
+                    $relationshipBacklinks[$relationshipId] ?? [],
+                )), static fn (string $value): bool => $value !== ''));
+                $relationships[$relationshipId]['referencedItemIndexes'] = array_values(array_unique(array_map(
+                    static fn (array $backlink): int => (int) ($backlink['itemIndex'] ?? 0),
+                    $relationshipBacklinks[$relationshipId] ?? [],
+                )));
+                $relationships[$relationshipId]['referencedItemCount'] = count($relationships[$relationshipId]['referencedItemNames']);
+                $relationships[$relationshipId]['referenceBacklinks'] = $relationshipBacklinks[$relationshipId] ?? [];
+            }
+        }
+
+        $relationshipDiagnostics['referencedRelationshipIds'] = $referencedRelationshipIds;
+        $relationshipDiagnostics['knownReferencedRelationshipIds'] = $knownReferencedRelationshipIds;
+        $relationshipDiagnostics['unreferencedRelationshipIds'] = $unreferencedRelationshipIds;
+        $relationshipDiagnostics['orphanedRelationshipIds'] = $unreferencedRelationshipIds;
+        $relationshipDiagnostics['missingReferencedRelationshipIds'] = $missingReferencedRelationshipIds;
+        $relationshipDiagnostics['relationshipBacklinks'] = $relationshipBacklinks;
+        $relationshipDiagnostics['byId'] = $relationships;
+        $relationshipDiagnostics['items'] = array_values($relationships);
+
+        return [
+            'items' => $reconciledItems,
+            'byName' => $reconciledByName,
+            'relationshipsPart' => $relationshipDiagnostics['relationshipsPart'],
+            'relationshipCount' => $relationshipDiagnostics['relationshipCount'],
+            'relationshipRecordCount' => $relationshipDiagnostics['relationshipRecordCount'],
+            'duplicateRelationshipIdCount' => $relationshipDiagnostics['duplicateRelationshipIdCount'],
+            'duplicateRelationshipRecordCount' => $relationshipDiagnostics['duplicateRelationshipRecordCount'],
+            'duplicateRelationshipIds' => $relationshipDiagnostics['duplicateRelationshipIds'],
+            'duplicateRelationshipIdItems' => $relationshipDiagnostics['duplicateRelationshipIdItems'],
+            'invalidRelationshipRecordCount' => $relationshipDiagnostics['invalidRelationshipRecordCount'],
+            'relationshipRecordIssueCount' => $relationshipDiagnostics['relationshipRecordIssueCount'],
+            'relationshipRecordIssueCodes' => $relationshipDiagnostics['relationshipRecordIssueCodes'],
+            'invalidRelationshipRecords' => $relationshipDiagnostics['invalidRelationshipRecords'],
+            'internalRelationshipCount' => $relationshipDiagnostics['internalRelationshipCount'],
+            'externalRelationshipCount' => $relationshipDiagnostics['externalRelationshipCount'],
+            'existingRelationshipTargetCount' => $relationshipDiagnostics['existingTargetCount'],
+            'missingRelationshipTargetCount' => $relationshipDiagnostics['missingTargetCount'],
+            'missingRelationshipContentTypeCount' => $relationshipDiagnostics['missingContentTypeCount'],
+            'relationshipTargetReferenceSuffixCount' => $relationshipDiagnostics['targetReferenceSuffixCount'],
+            'relationshipIds' => $allRelationshipIds,
+            'referencedRelationshipIds' => $referencedRelationshipIds,
+            'knownReferencedRelationshipIds' => $knownReferencedRelationshipIds,
+            'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'orphanedRelationshipIds' => $unreferencedRelationshipIds,
+            'missingReferencedRelationshipIds' => $missingReferencedRelationshipIds,
+            'referencedRelationshipCount' => count($referencedRelationshipIds),
+            'knownReferencedRelationshipCount' => count($knownReferencedRelationshipIds),
+            'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
+            'orphanedRelationshipCount' => count($unreferencedRelationshipIds),
+            'missingReferencedRelationshipCount' => count($missingReferencedRelationshipIds),
+            'relationshipTargetParts' => $relationshipDiagnostics['targetParts'],
+            'relationshipExternalTargets' => $relationshipDiagnostics['externalTargets'],
+            'relationshipTargetReferenceSuffixes' => $relationshipDiagnostics['targetReferenceSuffixes'],
+            'relationshipIssueCount' => $relationshipDiagnostics['issueCount'],
+            'relationshipIssueCodes' => $relationshipDiagnostics['issueCodes'],
+            'relationshipRecords' => $relationshipRecords,
+            'relationshipBacklinks' => $relationshipBacklinks,
+            'relationships' => $relationships,
+            'relationshipDiagnostics' => $relationshipDiagnostics,
+        ];
     }
 
     /**
@@ -11107,6 +11330,7 @@ final class DocxOpenXmlReader
 
         return [
             'index' => $index,
+            'sourceType' => 'glossaryDocument',
             'name' => $this->glossaryDocPartValue('name', $properties),
             'styleId' => $this->glossaryDocPartValue('style', $properties),
             'category' => $this->glossaryDocPartNestedValue('category', 'name', $properties),
@@ -11115,6 +11339,7 @@ final class DocxOpenXmlReader
             'guid' => $this->glossaryDocPartValue('guid', $properties),
             'types' => $types,
             'behaviors' => $behaviors,
+            'relationshipCount' => count($relationshipIds),
             'relationshipIds' => $relationshipIds,
             'bodyBlockCount' => count($blocks),
             'text' => $this->plainBlockText($blocks),

@@ -5229,6 +5229,114 @@ XML;
         $t->same(0, $summary['glossaryDocumentIssueCount']);
         $t->same([], $summary['glossaryDocumentIssueCodes']);
     },
+    'resolves docx glossary building block local relationships for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rGlossary" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument" Target="glossary/document.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/glossary/document.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:docParts>
+    <w:docPart>
+      <w:docPartPr>
+        <w:name w:val="Relationship Boilerplate"/>
+        <w:category><w:name w:val="Review"/><w:gallery w:val="quickParts"/></w:category>
+      </w:docPartPr>
+      <w:docPartBody>
+        <w:p>
+          <w:r><w:t xml:space="preserve">Use </w:t></w:r>
+          <w:hyperlink r:id="rGlossaryExternal"><w:r><w:t>external source</w:t></w:r></w:hyperlink>
+          <w:r><w:t xml:space="preserve"> with logo </w:t></w:r>
+          <w:r><w:drawing><wp:inline><wp:docPr id="10" name="Glossary logo" descr="Glossary logo"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rGlossaryLogo"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>
+          <w:r><w:drawing r:id="rGlossaryMissing"/></w:r>
+          <w:r><w:drawing r:id="rGlossaryUnknown"/></w:r>
+        </w:p>
+      </w:docPartBody>
+    </w:docPart>
+    <w:docPart>
+      <w:docPartPr>
+        <w:name w:val="Plain Boilerplate"/>
+      </w:docPartPr>
+      <w:docPartBody>
+        <w:p><w:r><w:t>No relationships here.</w:t></w:r></w:p>
+      </w:docPartBody>
+    </w:docPart>
+  </w:docParts>
+</w:glossaryDocument>
+XML;
+        $parts['word/glossary/_rels/document.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rGlossaryExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/glossary-source?review=1#source" TargetMode="External"/>
+  <Relationship Id="rGlossaryLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/glossary-logo.png?slot=logo#asset"/>
+  <Relationship Id="rGlossaryMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-logo.bin?missing=1#asset"/>
+  <Relationship Id="rGlossaryOrphan" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/glossary-orphan" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/glossary/media/glossary-logo.png'] = 'GLOSSARYPNG';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $glossary = $document->attr('docx')['glossaryDocument'];
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $boilerplate = $glossary['byName']['Relationship Boilerplate'];
+        $plain = $glossary['byName']['Plain Boilerplate'];
+        $relationships = $glossary['relationships'];
+
+        $t->same(4, $glossary['relationshipCount']);
+        $t->same(2, $glossary['internalRelationshipCount']);
+        $t->same(2, $glossary['externalRelationshipCount']);
+        $t->same(1, $glossary['existingRelationshipTargetCount']);
+        $t->same(1, $glossary['missingRelationshipTargetCount']);
+        $t->same(1, $glossary['missingRelationshipContentTypeCount']);
+        $t->same(3, $glossary['relationshipTargetReferenceSuffixCount']);
+        $t->same(['rGlossaryExternal', 'rGlossaryLogo', 'rGlossaryMissing', 'rGlossaryUnknown'], $glossary['referencedRelationshipIds']);
+        $t->same(['rGlossaryExternal', 'rGlossaryLogo', 'rGlossaryMissing'], $glossary['knownReferencedRelationshipIds']);
+        $t->same(['rGlossaryUnknown'], $glossary['missingReferencedRelationshipIds']);
+        $t->same(['rGlossaryOrphan'], $glossary['unreferencedRelationshipIds']);
+        $t->same(['missing-target-content-type', 'missing-target-part'], $glossary['relationshipIssueCodes']);
+        $t->same('word/glossary/media/missing-logo.bin', $glossary['relationshipTargetParts'][1]);
+        $t->same('https://example.test/glossary-orphan', $glossary['relationshipExternalTargets'][1]);
+
+        $t->same(['rGlossaryExternal', 'rGlossaryLogo', 'rGlossaryMissing', 'rGlossaryUnknown'], $boilerplate['relationshipIds']);
+        $t->same(4, $boilerplate['relationshipCount']);
+        $t->same(['rGlossaryExternal', 'rGlossaryLogo', 'rGlossaryMissing'], $boilerplate['knownRelationshipIds']);
+        $t->same(3, $boilerplate['knownRelationshipCount']);
+        $t->same(['rGlossaryUnknown'], $boilerplate['missingRelationshipIds']);
+        $t->same(1, $boilerplate['missingRelationshipCount']);
+        $t->same(['missing-relationship', 'missing-target-content-type', 'missing-target-part'], $boilerplate['relationshipIssueCodes']);
+        $t->same(3, $boilerplate['relationshipIssueCount']);
+        $t->same('word/glossary/media/glossary-logo.png', $boilerplate['referencedRelationships']['rGlossaryLogo']['targetPart']);
+        $t->same('slot=logo', $boilerplate['referencedRelationships']['rGlossaryLogo']['targetQuery']);
+        $t->same('asset', $boilerplate['referencedRelationships']['rGlossaryLogo']['targetFragment']);
+        $t->same(true, $boilerplate['referencedRelationships']['rGlossaryExternal']['external']);
+        $t->same('https://example.test/glossary-source?review=1#source', $boilerplate['referencedRelationships']['rGlossaryExternal']['target']);
+        $t->same(['missing-target-part', 'missing-target-content-type'], $boilerplate['referencedRelationships']['rGlossaryMissing']['issues']);
+        $t->same(3, $boilerplate['referencedRelationshipRecordCount']);
+        $t->same([0, 1, 2], array_column($boilerplate['referencedRelationshipRecords'], 'ordinal'));
+
+        $t->same([], $plain['relationshipIds']);
+        $t->same(0, $plain['knownRelationshipCount']);
+        $t->same([], $plain['relationshipIssueCodes']);
+        $t->same(true, $relationships['rGlossaryLogo']['referenced']);
+        $t->same(false, $relationships['rGlossaryLogo']['orphaned']);
+        $t->same(['Relationship Boilerplate'], $relationships['rGlossaryLogo']['referencedItemNames']);
+        $t->same(false, $relationships['rGlossaryOrphan']['referenced']);
+        $t->same(true, $relationships['rGlossaryOrphan']['orphaned']);
+        $t->same([], $relationships['rGlossaryOrphan']['referencedItemNames']);
+        $t->same($glossary['relationshipCount'], $summary['glossaryDocumentRelationshipCount']);
+        $t->same($glossary['relationshipIssueCount'], $summary['glossaryDocumentRelationshipIssueCount']);
+        $t->same($glossary['missingReferencedRelationshipCount'], $summary['glossaryDocumentMissingReferencedRelationshipCount']);
+    },
     'reports malformed docx selected xml sidecars without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
