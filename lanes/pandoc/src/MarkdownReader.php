@@ -14714,11 +14714,11 @@ final class MarkdownReader
 
     private function matchFigureCaptionLine(string $line): ?string
     {
-        if (preg_match('/^ {0,3}(?:(?:Figure|Fig\.?|Image|Caption):|:)\s*(.*)$/iu', $line, $m) !== 1) {
+        if (preg_match($this->captionMarkerRegex(['Figure', 'Figures?', 'Fig\\.?', 'Figs\\.?', 'Image', 'Img\\.?', 'Caption']), $line, $m) !== 1) {
             return null;
         }
 
-        return $m[1];
+        return $m[2];
     }
 
     private function figureFromStandaloneImageLine(string $line): ?AstNode
@@ -14848,7 +14848,7 @@ final class MarkdownReader
      */
     private function matchTableCaptionLine(string $line): ?array
     {
-        if (preg_match('/^ {0,3}((?:Table|Caption):|:)\s*(.*)$/iu', $line, $m) !== 1) {
+        if (preg_match($this->captionMarkerRegex(['Table', 'Tbl\\.?', 'Tab\\.?', 'Caption']), $line, $m) !== 1) {
             return null;
         }
 
@@ -14856,6 +14856,17 @@ final class MarkdownReader
             'marker' => $m[1],
             'text' => $m[2],
         ];
+    }
+
+    /**
+     * @param list<string> $markerWords
+     */
+    private function captionMarkerRegex(array $markerWords): string
+    {
+        $wordPattern = implode('|', $markerWords);
+        $labelPattern = '(?:[A-Z]?\d+(?:[.\-]\d+)*|[A-Z]|[IVXLCDM]+)';
+
+        return '/^ {0,3}((?:(?:' . $wordPattern . '):|(?:' . $wordPattern . ')[ \t]+' . $labelPattern . '[.:]|:))\s*(.*)$/iu';
     }
 
     /**
