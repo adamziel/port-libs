@@ -501,4 +501,293 @@ foreach ($nativeSpanCases as $case) {
         };
 }
 
+$nativeDivCases = [
+    [
+        'name' => 'id class data review',
+        'attrs' => 'id="div-alpha" class="review primary" data-review="alpha"',
+        'content' => 'native alpha',
+        'text' => 'native alpha',
+        'id' => 'div-alpha',
+        'classes' => ['review', 'primary'],
+        'attributes' => ['review' => 'alpha'],
+        'htmlAttributes' => ['id' => 'div-alpha', 'class' => 'review primary', 'data-review' => 'alpha'],
+    ],
+    [
+        'name' => 'language class',
+        'attrs' => 'class="locale" lang="pl"',
+        'content' => 'Zrodlo',
+        'text' => 'Zrodlo',
+        'classes' => ['locale'],
+        'attributes' => ['lang' => 'pl'],
+        'htmlAttributes' => ['class' => 'locale', 'lang' => 'pl'],
+    ],
+    [
+        'name' => 'title data index',
+        'attrs' => 'title="Review title" data-index="7"',
+        'content' => 'indexed title',
+        'text' => 'indexed title',
+        'attributes' => ['title' => 'Review title', 'index' => '7'],
+        'htmlAttributes' => ['title' => 'Review title', 'data-index' => '7'],
+    ],
+    [
+        'name' => 'direction aria label',
+        'attrs' => 'dir="rtl" aria-label="Direction review"',
+        'content' => 'directional',
+        'text' => 'directional',
+        'attributes' => ['dir' => 'rtl', 'aria-label' => 'Direction review'],
+        'htmlAttributes' => ['dir' => 'rtl', 'aria-label' => 'Direction review'],
+    ],
+    [
+        'name' => 'role data kind',
+        'attrs' => 'role="note" data-kind="role"',
+        'content' => 'role note',
+        'text' => 'role note',
+        'attributes' => ['role' => 'note', 'kind' => 'role'],
+        'htmlAttributes' => ['role' => 'note', 'data-kind' => 'role'],
+    ],
+    [
+        'name' => 'entity attribute text',
+        'attrs' => 'title="AT&amp;T packet" data-origin="html"',
+        'content' => 'entity packet',
+        'text' => 'entity packet',
+        'attributes' => ['title' => 'AT&T packet', 'origin' => 'html'],
+        'htmlAttributes' => ['title' => 'AT&T packet', 'data-origin' => 'html'],
+    ],
+    [
+        'name' => 'compressed classes',
+        'attrs' => 'class="primary   secondary" data-kind="classes"',
+        'content' => 'class normalization',
+        'text' => 'class normalization',
+        'classes' => ['primary', 'secondary'],
+        'attributes' => ['kind' => 'classes'],
+        'htmlAttributes' => ['class' => 'primary secondary', 'data-kind' => 'classes'],
+    ],
+    [
+        'name' => 'data source hyphen',
+        'attrs' => 'data-source-path="markdown-reader" data-kind="source"',
+        'content' => 'source path',
+        'text' => 'source path',
+        'attributes' => ['source-path' => 'markdown-reader', 'kind' => 'source'],
+        'htmlAttributes' => ['data-source-path' => 'markdown-reader', 'data-kind' => 'source'],
+    ],
+    [
+        'name' => 'aria describedby',
+        'attrs' => 'aria-describedby="note-a note-b" data-kind="aria"',
+        'content' => 'aria described',
+        'text' => 'aria described',
+        'attributes' => ['aria-describedby' => 'note-a note-b', 'kind' => 'aria'],
+        'htmlAttributes' => ['aria-describedby' => 'note-a note-b', 'data-kind' => 'aria'],
+    ],
+    [
+        'name' => 'translate no',
+        'attrs' => 'translate="no" data-kind="translate"',
+        'content' => 'literal token',
+        'text' => 'literal token',
+        'attributes' => ['translate' => 'no', 'kind' => 'translate'],
+        'htmlAttributes' => ['translate' => 'no', 'data-kind' => 'translate'],
+    ],
+    [
+        'name' => 'two data attrs',
+        'attrs' => 'data-lane="pandoc" data-case="native-div"',
+        'content' => 'two data attrs',
+        'text' => 'two data attrs',
+        'attributes' => ['lane' => 'pandoc', 'case' => 'native-div'],
+        'htmlAttributes' => ['data-lane' => 'pandoc', 'data-case' => 'native-div'],
+    ],
+    [
+        'name' => 'quoted greater than attribute',
+        'attrs' => 'title="2 > 1" data-kind="angle"',
+        'content' => 'greater than attr',
+        'text' => 'greater than attr',
+        'attributes' => ['title' => '2 > 1', 'kind' => 'angle'],
+        'htmlAttributes' => ['title' => '2 > 1', 'data-kind' => 'angle'],
+    ],
+    [
+        'name' => 'xml language',
+        'attrs' => 'xml:lang="en-US" data-kind="xml-lang"',
+        'content' => 'xml language',
+        'text' => 'xml language',
+        'attributes' => ['xml:lang' => 'en-US', 'kind' => 'xml-lang'],
+        'htmlAttributes' => ['xml:lang' => 'en-US', 'data-kind' => 'xml-lang'],
+    ],
+    [
+        'name' => 'direction language pair',
+        'attrs' => 'dir="ltr" lang="en" data-kind="language"',
+        'content' => 'language direction',
+        'text' => 'language direction',
+        'attributes' => ['dir' => 'ltr', 'lang' => 'en', 'kind' => 'language'],
+        'htmlAttributes' => ['dir' => 'ltr', 'lang' => 'en', 'data-kind' => 'language'],
+    ],
+    [
+        'name' => 'id data slug',
+        'attrs' => 'id="slugged-div" data-slug="source-review"',
+        'content' => 'slugged div',
+        'text' => 'slugged div',
+        'id' => 'slugged-div',
+        'attributes' => ['slug' => 'source-review'],
+        'htmlAttributes' => ['id' => 'slugged-div', 'data-slug' => 'source-review'],
+    ],
+    [
+        'name' => 'class only',
+        'attrs' => 'class="callout"',
+        'content' => 'class only',
+        'text' => 'class only',
+        'classes' => ['callout'],
+        'htmlAttributes' => ['class' => 'callout'],
+    ],
+    [
+        'name' => 'single quoted attribute',
+        'attrs' => 'data-title=\'single quoted\' data-kind="quote"',
+        'content' => 'single quote attr',
+        'text' => 'single quote attr',
+        'attributes' => ['title' => 'single quoted', 'kind' => 'quote'],
+        'htmlAttributes' => ['data-title' => 'single quoted', 'data-kind' => 'quote'],
+    ],
+    [
+        'name' => 'unquoted data token',
+        'attrs' => 'data-token=packet-1 data-kind=token',
+        'content' => 'token attr',
+        'text' => 'token attr',
+        'attributes' => ['token' => 'packet-1', 'kind' => 'token'],
+        'htmlAttributes' => ['data-token' => 'packet-1', 'data-kind' => 'token'],
+    ],
+    [
+        'name' => 'uppercase attribute source',
+        'attrs' => 'ID="CaseDiv" CLASS="Upper Review" DATA-KIND="upper"',
+        'content' => 'uppercase attr',
+        'text' => 'uppercase attr',
+        'id' => 'CaseDiv',
+        'classes' => ['Upper', 'Review'],
+        'attributes' => ['kind' => 'upper'],
+        'htmlAttributes' => ['id' => 'CaseDiv', 'class' => 'Upper Review', 'data-kind' => 'upper'],
+    ],
+    [
+        'name' => 'aria labelledby',
+        'attrs' => 'role="group" aria-labelledby="heading-a" data-kind="labelled"',
+        'content' => 'labelled group',
+        'text' => 'labelled group',
+        'attributes' => ['role' => 'group', 'aria-labelledby' => 'heading-a', 'kind' => 'labelled'],
+        'htmlAttributes' => ['role' => 'group', 'aria-labelledby' => 'heading-a', 'data-kind' => 'labelled'],
+    ],
+    [
+        'name' => 'source case pair',
+        'attrs' => 'data-source="upstream" data-case="div-attrs"',
+        'content' => 'source case',
+        'text' => 'source case',
+        'attributes' => ['source' => 'upstream', 'case' => 'div-attrs'],
+        'htmlAttributes' => ['data-source' => 'upstream', 'data-case' => 'div-attrs'],
+    ],
+    [
+        'name' => 'title ampersand',
+        'attrs' => 'title="AT&amp;T review" data-kind="ampersand"',
+        'content' => 'ampersand title',
+        'text' => 'ampersand title',
+        'attributes' => ['title' => 'AT&T review', 'kind' => 'ampersand'],
+        'htmlAttributes' => ['title' => 'AT&T review', 'data-kind' => 'ampersand'],
+    ],
+    [
+        'name' => 'article section',
+        'attrs' => 'id="article-review" class="section level1" lang="en" data-section="article"',
+        'content' => 'article section',
+        'text' => 'article section',
+        'id' => 'article-review',
+        'classes' => ['section', 'level1'],
+        'attributes' => ['lang' => 'en', 'section' => 'article'],
+        'htmlAttributes' => ['id' => 'article-review', 'class' => 'section level1', 'lang' => 'en', 'data-section' => 'article'],
+    ],
+    [
+        'name' => 'doc chapter role',
+        'attrs' => 'role="doc-chapter" aria-label="Chapter" data-kind="chapter"',
+        'content' => 'chapter block',
+        'text' => 'chapter block',
+        'attributes' => ['role' => 'doc-chapter', 'aria-label' => 'Chapter', 'kind' => 'chapter'],
+        'htmlAttributes' => ['role' => 'doc-chapter', 'aria-label' => 'Chapter', 'data-kind' => 'chapter'],
+    ],
+    [
+        'name' => 'format extension pair',
+        'attrs' => 'data-format="markdown" data-extension="native_divs"',
+        'content' => 'format extension',
+        'text' => 'format extension',
+        'attributes' => ['format' => 'markdown', 'extension' => 'native_divs'],
+        'htmlAttributes' => ['data-format' => 'markdown', 'data-extension' => 'native_divs'],
+    ],
+    [
+        'name' => 'review packet',
+        'attrs' => 'id="packet-div" class="review-packet" data-format="markdown" data-extension="native_divs" lang="en"',
+        'content' => 'packet div',
+        'text' => 'packet div',
+        'id' => 'packet-div',
+        'classes' => ['review-packet'],
+        'attributes' => ['format' => 'markdown', 'extension' => 'native_divs', 'lang' => 'en'],
+        'htmlAttributes' => ['id' => 'packet-div', 'class' => 'review-packet', 'data-format' => 'markdown', 'data-extension' => 'native_divs', 'lang' => 'en'],
+    ],
+];
+
+foreach ($nativeDivCases as $case) {
+    $tests['maps upstream markdown native div extension ' . $case['name'] . ' with metadata'] =
+        static function (TestRunner $t) use ($case): void {
+            $document = (new MarkdownReader())->read(implode("\n", [
+                '---',
+                'title: Native div **Packet**',
+                'review: {extension: native_divs, family: html, kind: block, name: "' . $case['name'] . '"}',
+                '...',
+                '',
+                '<div ' . $case['attrs'] . '>' . $case['content'] . '</div>',
+                '',
+                'After native div.',
+            ]));
+
+            $meta = $document->attr('meta');
+            $div = $document->children[0] ?? new AstNode('missing');
+            $paragraph = $document->children[1] ?? new AstNode('missing');
+            $attributes = $div->attr('attributes', []);
+            $htmlAttributes = $div->attr('htmlAttributes', []);
+
+            $t->same('native_divs', $meta['review']['extension'] ?? null);
+            $t->same('html', $meta['review']['family'] ?? null);
+            $t->same('block', $meta['review']['kind'] ?? null);
+            $t->same($case['name'], $meta['review']['name'] ?? null);
+            $t->same('div', $div->type);
+            $t->same($case['id'] ?? '', $div->attr('id', ''));
+            $t->same($case['classes'] ?? [], $div->attr('classes', []));
+            $t->same('plain', $div->children[0]->type ?? 'missing');
+            $t->same($case['text'], $div->children[0]->attr('text', ''));
+            $t->same('paragraph', $paragraph->type);
+            $t->same('After native div.', $paragraph->attr('text'));
+
+            foreach ($case['attributes'] ?? [] as $name => $value) {
+                $t->same($value, $attributes[$name] ?? null, $case['name'] . ' attribute ' . $name);
+            }
+            foreach ($case['htmlAttributes'] ?? [] as $name => $value) {
+                $t->same($value, $htmlAttributes[$name] ?? null, $case['name'] . ' HTML attribute ' . $name);
+            }
+        };
+
+    $tests['round trips upstream markdown native div extension ' . $case['name'] . ' through writers'] =
+        static function (TestRunner $t) use ($case): void {
+            $document = (new MarkdownReader())->read(
+                '<div ' . $case['attrs'] . '>' . $case['content'] . '</div>'
+            );
+            $markdown = (new MarkdownWriter())->write($document);
+            $roundTrip = (new MarkdownReader())->read($markdown);
+            $roundTripDiv = $roundTrip->children[0] ?? new AstNode('missing');
+            $blocks = (new WordPressBlockWriter())->write($document);
+
+            $t->same('div', $roundTripDiv->type);
+            $t->same($case['id'] ?? '', $roundTripDiv->attr('id', ''));
+            $t->same($case['classes'] ?? [], $roundTripDiv->attr('classes', []));
+            foreach ($case['classes'] ?? [] as $class) {
+                $t->contains('.' . $class, $markdown, $case['name'] . ' Markdown class ' . $class);
+            }
+            foreach ($case['attributes'] ?? [] as $name => $value) {
+                $t->contains($name . '="' . $value . '"', $markdown, $case['name'] . ' Markdown attribute ' . $name);
+                $t->same($value, $roundTripDiv->attr('attributes', [])[$name] ?? null, $case['name'] . ' round-trip attribute ' . $name);
+            }
+            foreach ($case['htmlAttributes'] ?? [] as $name => $value) {
+                $t->contains($name . '="' . htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"', $blocks, $case['name'] . ' WordPress attribute ' . $name);
+            }
+            $t->contains('>' . htmlspecialchars($case['text'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div>', $blocks);
+        };
+}
+
 return $tests;
