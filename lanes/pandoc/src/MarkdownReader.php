@@ -16389,16 +16389,26 @@ final class MarkdownReader
 
     private function canLineContinueBlockQuoteParagraphLazily(string $line): bool
     {
+        return $this->canLineContinueParagraphLazily($line);
+    }
+
+    private function canLineContinueParagraphLazily(string $line, bool $allowHtmlComment = false): bool
+    {
         $expanded = $this->expandTabsToSpaces($line);
         if (trim($expanded) === '' || $this->countIndentColumns($expanded) >= 4) {
             return false;
         }
 
+        $htmlBlockStartPattern = $allowHtmlComment
+            ? '/^ {0,3}(?:<\?|<!(?!--)|<\/?[A-Za-z])/'
+            : '/^ {0,3}(?:<!--|<\?|<!|<\/?[A-Za-z])/';
+
         if (
             preg_match('/^ {0,3}(?:#{1,6}\s+|`{3,}|~{3,}|:{3,})/', $expanded) === 1
-            || preg_match('/^ {0,3}(?:<!--|<\?|<!|<\/?[A-Za-z])/', $expanded) === 1
+            || preg_match($htmlBlockStartPattern, $expanded) === 1
             || preg_match('/^ {0,3}[:~]\s+/', $expanded) === 1
             || preg_match('/^ {0,3}\|/', $expanded) === 1
+            || $this->isRawTexBlockStart($expanded)
             || $this->isHorizontalRule($expanded)
         ) {
             return false;
@@ -17460,11 +17470,8 @@ final class MarkdownReader
 
     private function isLazyListContinuation(string $line): bool
     {
-        return trim($line) !== ''
-            && !$this->isHorizontalRule($line)
-            && !$this->isBlockQuoteLine($line)
-            && !$this->isDefinitionMarker($line)
-            && preg_match('/^(#{1,6})\s+/', $line) !== 1;
+        return $this->canLineContinueParagraphLazily($line, true)
+            && !$this->isDefinitionMarker($line);
     }
 
     /**
