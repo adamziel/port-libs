@@ -741,6 +741,8 @@ final class EpubPackage
                 'packageInventoryUndeclaredEntryReport' => $packageInventory['undeclaredEntryReport'],
                 'packageInventoryUndeclaredPackageEntries' => $packageInventory['undeclaredPackageEntries'],
                 'packageInventoryUndeclaredPackageEntryDiagnostics' => $packageInventory['undeclaredPackageEntryDiagnostics'],
+                'packageInventoryDuplicateManifestIdItems' => $packageInventory['duplicateManifestIdItems'],
+                'packageInventoryDuplicateManifestIdPartNames' => $packageInventory['duplicateManifestIdPartNames'],
                 'readingOrderInventory' => $readingOrderInventory,
                 'manifestDependencyInventory' => $manifestDependencyInventory,
                 'manifestDependencyEdges' => $manifestDependencyInventory['edges'],
@@ -8381,6 +8383,8 @@ final class EpubPackage
         $missingManifestDeclaredRoleCounts = [];
         $missingManifestDeclaredResourceKindCounts = [];
         $missingManifestDeclaredByteExposurePolicyCounts = [];
+        $missingDuplicateManifestIdPartNames = [];
+        $missingDuplicateManifestIdItems = [];
         foreach ($manifestItems as $index => $item) {
             $packagePath = self::packageInventoryEntryName($item['partName'] ?? null);
             if ($packagePath === null) {
@@ -8403,6 +8407,11 @@ final class EpubPackage
                 if ($resourceKind !== null) {
                     $roles[] = 'resource-kind-' . $resourceKind;
                     $missingManifestDeclaredResourceKindCounts[$resourceKind] = ($missingManifestDeclaredResourceKindCounts[$resourceKind] ?? 0) + 1;
+                }
+                $duplicateManifestId = ($item['duplicateManifestId'] ?? false) === true;
+                if ($duplicateManifestId) {
+                    $roles[] = 'duplicate-opf-manifest-id';
+                    $missingDuplicateManifestIdPartNames[$partName] = true;
                 }
                 foreach ($roles as $role) {
                     $missingManifestDeclaredRoleCounts[$role] = ($missingManifestDeclaredRoleCounts[$role] ?? 0) + 1;
@@ -8435,12 +8444,21 @@ final class EpubPackage
                     'declaredInOpfManifest' => true,
                     'canExposeBytes' => false,
                     'byteExposurePolicy' => $byteExposurePolicy,
+                    'duplicateManifestId' => $duplicateManifestId,
+                    'duplicateManifestIdIndexes' => is_array($item['duplicateManifestIdIndexes'] ?? null)
+                        ? array_values(array_map('intval', $item['duplicateManifestIdIndexes']))
+                        : [],
+                    'duplicateManifestIdOrdinal' => is_int($item['duplicateManifestIdOrdinal'] ?? null) ? $item['duplicateManifestIdOrdinal'] : null,
+                    'duplicateManifestIdSelected' => ($item['duplicateManifestIdSelected'] ?? false) === true,
                     'diagnosticCount' => 1,
                     'diagnostics' => [$diagnostic],
                 ] + self::zipEntryProvenance(null);
                 $missingManifestDeclaredItems[] = $missingItem;
                 $missingManifestDeclaredItemsByPartName[$partName][] = $missingItem;
                 $missingManifestDeclaredDiagnostics[] = $diagnostic;
+                if ($duplicateManifestId) {
+                    $missingDuplicateManifestIdItems[] = $missingItem;
+                }
             }
         }
 
@@ -8522,6 +8540,9 @@ final class EpubPackage
         $mediaOverlaySourcePartNames = [];
         $mediaOverlayTextTargetPartNames = [];
         $mediaOverlayAudioTargetPartNames = [];
+        $duplicateManifestIdPartNames = [];
+        $duplicateManifestIdPackagePaths = [];
+        $duplicateManifestIdItems = [];
         $opfManifestDeclaredEntryCount = 0;
         $spineEntryCount = 0;
         $encryptedEntryCount = 0;
@@ -8563,6 +8584,32 @@ final class EpubPackage
                 ),
                 static fn (?string $id): bool => $id !== null
             ));
+            $duplicateManifestIds = [];
+            $duplicateManifestIdIndexes = [];
+            $duplicateManifestIdOrdinalsById = [];
+            $duplicateManifestIdSelected = false;
+            foreach ($manifestMatches as $match) {
+                if (($match['duplicateManifestId'] ?? false) !== true) {
+                    continue;
+                }
+
+                if (is_string($match['id'] ?? null) && $match['id'] !== '' && !in_array($match['id'], $duplicateManifestIds, true)) {
+                    $duplicateManifestIds[] = $match['id'];
+                }
+                foreach (is_array($match['duplicateManifestIdIndexes'] ?? null) ? $match['duplicateManifestIdIndexes'] : [] as $duplicateIndex) {
+                    if (is_int($duplicateIndex) && !in_array($duplicateIndex, $duplicateManifestIdIndexes, true)) {
+                        $duplicateManifestIdIndexes[] = $duplicateIndex;
+                    }
+                }
+                if (is_string($match['id'] ?? null) && is_int($match['duplicateManifestIdOrdinal'] ?? null)) {
+                    $duplicateManifestIdOrdinalsById[$match['id']] ??= [];
+                    $duplicateManifestIdOrdinalsById[$match['id']][] = $match['duplicateManifestIdOrdinal'];
+                }
+                if (($match['duplicateManifestIdSelected'] ?? false) === true) {
+                    $duplicateManifestIdSelected = true;
+                }
+            }
+            sort($duplicateManifestIdIndexes, SORT_NUMERIC);
             $spineIndexes = array_map(
                 static fn (array $item): int => (int) ($item['index'] ?? 0),
                 $spineMatches
@@ -8638,6 +8685,11 @@ final class EpubPackage
             if ($declaredInOpfManifest) {
                 $addRole('opf-manifest-declared');
                 ++$opfManifestDeclaredEntryCount;
+            }
+            if ($duplicateManifestIds !== []) {
+                $addRole('duplicate-opf-manifest-id');
+                $duplicateManifestIdPartNames[$partName] = true;
+                $duplicateManifestIdPackagePaths[$packagePath] = true;
             }
             if ($resourceKind !== null) {
                 $addRole('resource-kind-' . $resourceKind);
@@ -8729,6 +8781,11 @@ final class EpubPackage
                 'declaredInOpfManifest' => $declaredInOpfManifest,
                 'manifestIds' => $manifestIds,
                 'manifestItemCount' => count($manifestMatches),
+                'duplicateManifestId' => $duplicateManifestIds !== [],
+                'duplicateManifestIds' => $duplicateManifestIds,
+                'duplicateManifestIdIndexes' => $duplicateManifestIdIndexes,
+                'duplicateManifestIdSelected' => $duplicateManifestIdSelected,
+                'duplicateManifestIdOrdinalsById' => $duplicateManifestIdOrdinalsById,
                 'inSpine' => $inSpine,
                 'spineIndexes' => $spineIndexes,
                 'rootfile' => $isRootfile,
@@ -8789,6 +8846,18 @@ final class EpubPackage
                 $blockedByteLength += $entry->uncompressedSize;
                 $blockedCompressedByteLength += $entry->compressedSize;
             }
+            if ($duplicateManifestIds !== []) {
+                $duplicateManifestIdItems[] = [
+                    'packagePath' => $packagePath,
+                    'partName' => $partName,
+                    'manifestIds' => $duplicateManifestIds,
+                    'manifestItemCount' => count($duplicateManifestIdIndexes),
+                    'manifestItemIndexes' => $duplicateManifestIdIndexes,
+                    'selected' => $duplicateManifestIdSelected,
+                    'byteExposurePolicy' => $byteExposurePolicy,
+                    'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                ];
+            }
 
             $entries[] = $item;
             $byPackagePath[$packagePath] = $item;
@@ -8825,6 +8894,8 @@ final class EpubPackage
             'missingOpfManifestDeclaredItemCount' => count($missingManifestDeclaredItems),
             'opfManifestDeclaredPartCount' => count($manifestDeclaredPartNames),
             'missingOpfManifestDeclaredPartCount' => count($missingManifestDeclaredPartNames),
+            'duplicateManifestIdEntryCount' => count($duplicateManifestIdPackagePaths),
+            'duplicateManifestIdMissingItemCount' => count($missingDuplicateManifestIdItems),
             'undeclaredEntryCount' => count($undeclaredPartNames),
             'spineEntryCount' => $spineEntryCount,
             'encryptedEntryCount' => $encryptedEntryCount,
@@ -8867,6 +8938,11 @@ final class EpubPackage
             'missingOpfManifestDeclaredItemsByPartName' => $missingManifestDeclaredItemsByPartName,
             'missingOpfManifestDeclaredDiagnosticCount' => count($missingManifestDeclaredDiagnostics),
             'missingOpfManifestDeclaredDiagnostics' => $missingManifestDeclaredDiagnostics,
+            'duplicateManifestIdPartNames' => array_keys($duplicateManifestIdPartNames),
+            'duplicateManifestIdPackagePaths' => array_keys($duplicateManifestIdPackagePaths),
+            'duplicateManifestIdItems' => $duplicateManifestIdItems,
+            'duplicateManifestIdMissingPartNames' => array_keys($missingDuplicateManifestIdPartNames),
+            'duplicateManifestIdMissingItems' => $missingDuplicateManifestIdItems,
             'undeclaredPartNames' => array_keys($undeclaredPartNames),
             'undeclaredEntryReport' => $undeclaredEntryReport,
             'undeclaredPackageEntries' => $undeclaredEntryReport['items'],

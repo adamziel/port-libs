@@ -7212,6 +7212,77 @@ XML;
         $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
     },
 
+    'preserves duplicate OPF manifest id package inventory roles for review' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $duplicateIdOpf = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:duplicate-manifest-inventory</dc:identifier>
+    <dc:title>Duplicate manifest inventory</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-15T10:10:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter" href="chapter-review.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="chapter.xhtml">Package review</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $duplicateIdOpf],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html/>'],
+            ['name' => 'EPUB/chapter-review.xhtml', 'data' => '<html/>'],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $byPath = $inventory['byPackagePath'];
+        $chapter = $byPath['EPUB/chapter.xhtml'];
+        $review = $byPath['EPUB/chapter-review.xhtml'];
+        $items = $inventory['duplicateManifestIdItems'];
+
+        $t->same(2, $inventory['duplicateManifestIdEntryCount']);
+        $t->same(['/EPUB/chapter.xhtml', '/EPUB/chapter-review.xhtml'], $inventory['duplicateManifestIdPartNames']);
+        $t->same(['EPUB/chapter.xhtml', 'EPUB/chapter-review.xhtml'], $inventory['duplicateManifestIdPackagePaths']);
+        $t->same(2, $inventory['roleCounts']['duplicate-opf-manifest-id']);
+        $t->same($items, $summary['wordpressImport']['packageInventoryDuplicateManifestIdItems']);
+        $t->same($inventory['duplicateManifestIdPartNames'], $summary['wordpressImport']['packageInventoryDuplicateManifestIdPartNames']);
+        $t->true(in_array('duplicate-opf-manifest-id', $chapter['roles'], true), 'chapter duplicate-id inventory role missing');
+        $t->true(in_array('duplicate-opf-manifest-id', $review['roles'], true), 'review duplicate-id inventory role missing');
+        $t->same(true, $chapter['duplicateManifestId']);
+        $t->same(true, $review['duplicateManifestId']);
+        $t->same(['chapter'], $chapter['duplicateManifestIds']);
+        $t->same(['chapter'], $review['duplicateManifestIds']);
+        $t->same([1, 2], $chapter['duplicateManifestIdIndexes']);
+        $t->same([1, 2], $review['duplicateManifestIdIndexes']);
+        $t->same(true, $chapter['duplicateManifestIdSelected']);
+        $t->same(false, $review['duplicateManifestIdSelected']);
+        $t->same(['chapter' => [0]], $chapter['duplicateManifestIdOrdinalsById']);
+        $t->same(['chapter' => [1]], $review['duplicateManifestIdOrdinalsById']);
+        $t->same('EPUB/chapter.xhtml', $items[0]['packagePath']);
+        $t->same('EPUB/chapter-review.xhtml', $items[1]['packagePath']);
+        $t->same(2, $items[0]['manifestItemCount']);
+        $t->same(2, $items[1]['manifestItemCount']);
+        $t->same(true, $items[0]['selected']);
+        $t->same(false, $items[1]['selected']);
+        $t->same([1, 2], $items[0]['manifestItemIndexes']);
+        $t->same([1, 2], $items[1]['manifestItemIndexes']);
+    },
+
     'reports OPF manifest href targets missing from the package' => static function (TestRunner $t) use ($epubContainerXml): void {
         $missingPartOpf = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
