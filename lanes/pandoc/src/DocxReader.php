@@ -792,14 +792,22 @@ final class DocxReader
      */
     private function packageRelationshipMetadataItem(array $relationship): array
     {
+        $target = is_string($relationship['target'] ?? null) ? $relationship['target'] : null;
+        $targetSuffix = $target === null
+            ? ['query' => null, 'fragment' => null]
+            : self::relationshipTargetQueryAndFragment($target);
+
         return [
             'source' => is_string($relationship['source'] ?? null) ? $relationship['source'] : null,
             'sourceContentType' => is_string($relationship['sourceContentType'] ?? null) ? $relationship['sourceContentType'] : null,
             'id' => is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
             'role' => is_string($relationship['role'] ?? null) ? $relationship['role'] : null,
             'type' => is_string($relationship['type'] ?? null) ? $relationship['type'] : null,
-            'target' => is_string($relationship['target'] ?? null) ? $relationship['target'] : null,
+            'target' => $target,
             'targetPart' => is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : null,
+            'targetReferenceSuffix' => $target === null ? '' : substr($target, strcspn($target, '?#')),
+            'targetQuery' => $targetSuffix['query'],
+            'targetFragment' => $targetSuffix['fragment'],
             'contentType' => is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : null,
             'expectedContentType' => is_string($relationship['expectedContentType'] ?? null) ? $relationship['expectedContentType'] : null,
             'expectedContentTypes' => is_array($relationship['expectedContentTypes'] ?? null) ? array_values(array_filter(

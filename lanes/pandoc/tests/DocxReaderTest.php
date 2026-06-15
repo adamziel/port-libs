@@ -13702,6 +13702,81 @@ XML;
         $t->same(true, $recordsById['rIdEncrypted']['sourceAllowed']);
         $t->same([], $recordsById['rIdEncrypted']['issues']);
     },
+    'preserves DOCX package-root relationship target suffix provenance in metadata' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/EncryptedPackage" ContentType="application/vnd.openxmlformats-package.encrypted-package"/>
+</Types>
+XML;
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml?revision=approved#body"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml?profile=review#meta"/>
+  <Relationship Id="rIdThumbnail" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="docProps/thumbnail.png?size=small#preview"/>
+  <Relationship Id="rIdEncrypted" Type="http://schemas.openxmlformats.org/package/2006/relationships/encrypted-package" Target="EncryptedPackage?slot=main#payload"/>
+</Relationships>
+XML;
+        $documentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>Package suffix packet.</w:t></w:r></w:p></w:body>
+</w:document>
+XML;
+
+        $result = (new DocxReader())->readPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => $documentXml],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"/>'],
+            ['name' => 'docProps/thumbnail.png', 'data' => 'PNG'],
+            ['name' => 'EncryptedPackage', 'data' => 'encrypted'],
+        ]));
+        $summary = $result['metadata']['docxPackageRelationships'];
+        $report = $result['importReport']['packageRelationships'];
+        $recordsById = [];
+        $reportById = [];
+        foreach ($summary['relationships'] as $relationship) {
+            $recordsById[$relationship['id']] = $relationship;
+        }
+        foreach ($report['relationships'] as $relationship) {
+            $reportById[$relationship['id']] = $relationship;
+        }
+
+        $t->same('Package suffix packet.', $result['document']->children[0]->children[0]->attr('text'));
+        $t->same(true, $summary['valid']);
+        $t->same(4, $summary['roleTargetCount']);
+        $t->same(4, $summary['relationshipCount']);
+        $t->same(4, $report['roleTargetCount']);
+
+        $t->same('/word/document.xml?revision=approved#body', $recordsById['rIdDocument']['target']);
+        $t->same('/word/document.xml', $recordsById['rIdDocument']['targetPart']);
+        $t->same('?revision=approved#body', $recordsById['rIdDocument']['targetReferenceSuffix']);
+        $t->same('revision=approved', $recordsById['rIdDocument']['targetQuery']);
+        $t->same('body', $recordsById['rIdDocument']['targetFragment']);
+        $t->same($recordsById['rIdDocument']['targetReferenceSuffix'], $reportById['rIdDocument']['targetReferenceSuffix']);
+        $t->same($recordsById['rIdDocument']['targetQuery'], $reportById['rIdDocument']['targetQuery']);
+        $t->same($recordsById['rIdDocument']['targetFragment'], $reportById['rIdDocument']['targetFragment']);
+
+        $t->same('/docProps/core.xml', $recordsById['rIdCore']['targetPart']);
+        $t->same('?profile=review#meta', $recordsById['rIdCore']['targetReferenceSuffix']);
+        $t->same('profile=review', $recordsById['rIdCore']['targetQuery']);
+        $t->same('meta', $recordsById['rIdCore']['targetFragment']);
+
+        $t->same('/docProps/thumbnail.png', $recordsById['rIdThumbnail']['targetPart']);
+        $t->same('?size=small#preview', $recordsById['rIdThumbnail']['targetReferenceSuffix']);
+        $t->same('size=small', $recordsById['rIdThumbnail']['targetQuery']);
+        $t->same('preview', $recordsById['rIdThumbnail']['targetFragment']);
+
+        $t->same('/EncryptedPackage', $recordsById['rIdEncrypted']['targetPart']);
+        $t->same('?slot=main#payload', $recordsById['rIdEncrypted']['targetReferenceSuffix']);
+        $t->same('slot=main', $recordsById['rIdEncrypted']['targetQuery']);
+        $t->same('payload', $recordsById['rIdEncrypted']['targetFragment']);
+        $t->same([], $recordsById['rIdEncrypted']['issues']);
+    },
     'reports DOCX encrypted package relationship boundaries without decrypting payloads' => static function (TestRunner $t): void {
         $encryptedBytes = 'opaque encrypted package bytes';
         $contentTypesXml = <<<'XML'

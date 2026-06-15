@@ -4274,6 +4274,8 @@ final class OpcRelationshipGraph
             foreach ($rows as $row) {
                 $source = (string) ($row['source'] ?? $extra['source'] ?? '/');
                 $role = (string) ($roleOverride ?? $row['role'] ?? $row['kind'] ?? $extra['role'] ?? 'relationship');
+                $target = (string) $row['target'];
+                $targetSuffix = self::targetQueryAndFragment($target);
                 $relationships[] = [
                     'source' => $source,
                     'sourceContentType' => $row['sourceContentType'] ?? (
@@ -4282,8 +4284,11 @@ final class OpcRelationshipGraph
                     'id' => (string) $row['id'],
                     'role' => $role,
                     'type' => (string) $row['type'],
-                    'target' => (string) $row['target'],
+                    'target' => $target,
                     'targetPart' => $row['targetPart'] ?? null,
+                    'targetReferenceSuffix' => substr($target, strcspn($target, '?#')),
+                    'targetQuery' => $targetSuffix['query'],
+                    'targetFragment' => $targetSuffix['fragment'],
                     'contentType' => $row['contentType'] ?? null,
                     'expectedContentType' => $row['expectedContentType'] ?? $extra['expectedContentType'] ?? null,
                     'expectedContentTypes' => $row['expectedContentTypes'] ?? $extra['expectedContentTypes'] ?? null,
