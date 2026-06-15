@@ -1181,7 +1181,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            $marker = $ordered ? $this->orderedListMarker($node, $start + $index, $item) : $this->bulletListMarker();
+            $marker = $ordered ? $this->orderedListMarker($node, $item, $start + $index, $index) : $this->bulletListMarker();
             $itemLoose = $listLoose || (bool) $item->attr('loose', false);
             if ($itemLoose && $lines !== [] && end($lines) !== '') {
                 $lines[] = '';
@@ -1201,17 +1201,13 @@ final class MarkdownWriter
         return $this->renderDivBlock(new AstNode('div', $item->attrs, $item->children), $indent);
     }
 
-    private function orderedListMarker(AstNode $node, int $number, ?AstNode $item = null): string
+    private function orderedListMarker(AstNode $node, AstNode $item, int $number, int $index): string
     {
         $style = (string) $node->attr('style', 'decimal');
         $delimiter = (string) $node->attr('delimiter', 'period');
-        if ($style === 'example') {
-            $marker = '(@' . $this->numberedExampleLabel($item) . ')';
-
-            return $marker . ' ';
-        }
-
         $label = match ($style) {
+            'default' => '#',
+            'example' => '@' . $this->orderedExampleLabel($node, $item, $index),
             'lower_alpha' => $this->alphaListLabel(max(1, $number), false),
             'upper_alpha' => $this->alphaListLabel(max(1, $number), true),
             'lower_roman' => strtolower($this->romanNumeral(max(1, $number))),
@@ -1219,11 +1215,17 @@ final class MarkdownWriter
             default => (string) max(0, $number),
         };
 
-        $marker = match ($delimiter) {
-            'one_paren' => $label . ')',
-            'two_parens' => '(' . $label . ')',
-            default => $label . '.',
-        };
+        if ($style === 'example') {
+            $marker = '(' . $label . ')';
+        } elseif ($style === 'default') {
+            $marker = $delimiter === 'one_paren' ? '#)' : '#.';
+        } else {
+            $marker = match ($delimiter) {
+                'one_paren' => $label . ')',
+                'two_parens' => '(' . $label . ')',
+                default => $label . '.',
+            };
+        }
 
         if (strlen($marker) < 3) {
             $marker .= str_repeat(' ', 3 - strlen($marker));
@@ -1232,20 +1234,28 @@ final class MarkdownWriter
         return $marker . ' ';
     }
 
-    private function numberedExampleLabel(?AstNode $item): string
+    private function orderedExampleLabel(AstNode $node, AstNode $item, int $index): string
     {
-        if (!$item instanceof AstNode) {
-            return '';
+        $label = $item->attr('exampleLabel', null);
+        if (!is_string($label) || $label === '') {
+            $label = $item->attr('label', null);
         }
-
-        foreach (['exampleLabel', 'label'] as $name) {
-            $label = trim((string) $item->attr($name, ''));
-            if (preg_match('/\A[A-Za-z0-9_-]+\z/', $label) === 1) {
-                return $label;
+        if (!is_string($label) || $label === '') {
+            $labels = $node->attr('exampleLabels', []);
+            if (is_array($labels)) {
+                $label = $labels[$index] ?? $labels[(string) $index] ?? null;
             }
         }
 
-        return '';
+        if (is_string($label)) {
+            $label = trim($label);
+        }
+
+        if (!is_string($label) || preg_match('/\A[A-Za-z0-9_-]+\z/', $label) !== 1) {
+            return '';
+        }
+
+        return $label;
     }
 
     private function bulletListMarker(): string
@@ -4175,11 +4185,19 @@ final class MarkdownWriter
     {
         $style = (string) $node->attr('style', 'decimal');
 
-        return $style === '' || $style === 'default' ? 'decimal' : $style;
+        return $style === '' ? 'decimal' : $style;
     }
 
     private function orderedListMarkerDelimiter(AstNode $node): string
     {
+        $style = $this->orderedListMarkerStyle($node);
+        if ($style === 'default') {
+            return 'default';
+        }
+        if ($style === 'example') {
+            return 'two_parens';
+        }
+
         $delimiter = (string) $node->attr('delimiter', 'period');
 
         return $delimiter === '' || $delimiter === 'default' ? 'period' : $delimiter;

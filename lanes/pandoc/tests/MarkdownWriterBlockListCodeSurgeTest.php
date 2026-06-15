@@ -328,6 +328,13 @@ foreach ($tabCodeCases as $name => $case) {
 
 $codeBlock = static fn (string $text, array $attrs = []): AstNode => new AstNode('code_block', array_merge(['text' => $text], $attrs));
 $document = static fn (AstNode ...$blocks): AstNode => new AstNode('document', [], $blocks);
+$text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+$paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
+$listItem = static fn (array $children, array $attrs = []): AstNode => new AstNode('list_item', $attrs, $children);
+$textItem = static fn (string $value, array $attrs = []): AstNode => $listItem([$text($value)], $attrs);
+$bulletList = static fn (array $items, array $attrs = []): AstNode => new AstNode('bullet_list', $attrs, $items);
+$orderedList = static fn (array $items, array $attrs = []): AstNode => new AstNode('ordered_list', $attrs, $items);
+$blockquote = static fn (array $children): AstNode => new AstNode('blockquote', [], $children);
 
 $writerCases = [
     '01 plain code can be emitted as backtick fence' => [
@@ -470,6 +477,305 @@ foreach ($writerCases as $name => $case) {
             $t->same($case['classes'], $code->attr('classes'));
         }
     };
+}
+
+$collectOrderedListStyles = null;
+$collectOrderedListStyles = static function (AstNode $node) use (&$collectOrderedListStyles): array {
+    $styles = $node->type === 'ordered_list' ? [(string) $node->attr('style', 'decimal')] : [];
+    foreach ($node->children as $child) {
+        $styles = array_merge($styles, $collectOrderedListStyles($child));
+    }
+
+    return $styles;
+};
+
+$pandocOrderedMarkerCases = [
+    '01 default period single item' => [
+        $document($orderedList([$textItem('alpha')], ['style' => 'default'])),
+        '#.  alpha',
+        ['default'],
+    ],
+    '02 default paren single item' => [
+        $document($orderedList([$textItem('alpha')], ['style' => 'default', 'delimiter' => 'one_paren'])),
+        '#)  alpha',
+        ['default'],
+    ],
+    '03 default delimiter attribute stays period marker' => [
+        $document($orderedList([$textItem('alpha')], ['style' => 'default', 'delimiter' => 'default'])),
+        '#.  alpha',
+        ['default'],
+    ],
+    '04 default two item list' => [
+        $document($orderedList([$textItem('alpha'), $textItem('beta')], ['style' => 'default'])),
+        "#.  alpha\n#.  beta",
+        ['default'],
+    ],
+    '05 default ignores numeric start offset' => [
+        $document($orderedList([$textItem('alpha')], ['style' => 'default', 'start' => 7])),
+        '#.  alpha',
+        ['default'],
+    ],
+    '06 default paragraph continuation' => [
+        $document($orderedList([$listItem([$paragraph('alpha'), $paragraph('beta')])], ['style' => 'default'])),
+        "#.  alpha\n\n    beta",
+        ['default'],
+    ],
+    '07 default loose list spacing' => [
+        $document($orderedList([$textItem('one'), $textItem('two')], ['style' => 'default', 'loose' => true])),
+        "#.  one\n\n#.  two",
+        ['default'],
+    ],
+    '08 default unchecked task item' => [
+        $document($orderedList([$textItem('todo', ['taskChecked' => false])], ['style' => 'default'])),
+        '#.  [ ] todo',
+        ['default'],
+    ],
+    '09 default checked task item' => [
+        $document($orderedList([$textItem('done', ['taskChecked' => true])], ['style' => 'default'])),
+        '#.  [x] done',
+        ['default'],
+    ],
+    '10 default nested bullet list' => [
+        $document($orderedList([$listItem([$text('alpha'), $bulletList([$textItem('beta')])])], ['style' => 'default'])),
+        "#.  alpha\n    - beta",
+        ['default'],
+    ],
+    '11 default nested decimal list' => [
+        $document($orderedList([$listItem([$text('alpha'), $orderedList([$textItem('beta')])])], ['style' => 'default'])),
+        "#.  alpha\n    1.  beta",
+        ['default', 'decimal'],
+    ],
+    '12 default nested default list' => [
+        $document($orderedList([$listItem([$text('alpha'), $orderedList([$textItem('beta')], ['style' => 'default'])])], ['style' => 'default'])),
+        "#.  alpha\n    #.  beta",
+        ['default', 'default'],
+    ],
+    '13 default nested example list' => [
+        $document($orderedList([$listItem([$text('alpha'), $orderedList([$textItem('beta')], ['style' => 'example'])])], ['style' => 'default'])),
+        "#.  alpha\n    (@) beta",
+        ['default', 'example'],
+    ],
+    '14 default indented code continuation' => [
+        $document($orderedList([$listItem([$text('alpha'), $codeBlock('code')])], ['style' => 'default'])),
+        "#.  alpha\n        code",
+        ['default'],
+    ],
+    '15 default fenced code continuation' => [
+        $document($orderedList([$listItem([$text('alpha'), $codeBlock('echo', ['classes' => ['php']])])], ['style' => 'default'])),
+        "#.  alpha\n    ```php\n    echo\n    ```",
+        ['default'],
+    ],
+    '16 default blockquote continuation' => [
+        $document($orderedList([$listItem([$text('alpha'), $blockquote([$paragraph('quote')])])], ['style' => 'default'])),
+        "#.  alpha\n    > quote",
+        ['default'],
+    ],
+    '17 default followed by decimal needs no separator' => [
+        $document(
+            $orderedList([$textItem('default')], ['style' => 'default']),
+            $orderedList([$textItem('decimal')])
+        ),
+        "#.  default\n\n1.  decimal",
+        ['default', 'decimal'],
+    ],
+    '18 decimal followed by default needs no separator' => [
+        $document(
+            $orderedList([$textItem('decimal')]),
+            $orderedList([$textItem('default')], ['style' => 'default'])
+        ),
+        "1.  decimal\n\n#.  default",
+        ['decimal', 'default'],
+    ],
+    '19 adjacent default lists keep html separator' => [
+        $document(
+            $orderedList([$textItem('one')], ['style' => 'default']),
+            $orderedList([$textItem('two')], ['style' => 'default'])
+        ),
+        "#.  one\n\n<!-- -->\n\n#.  two",
+        ['default', 'default'],
+    ],
+    '20 default paren followed by default keeps separator' => [
+        $document(
+            $orderedList([$textItem('one')], ['style' => 'default', 'delimiter' => 'one_paren']),
+            $orderedList([$textItem('two')], ['style' => 'default'])
+        ),
+        "#)  one\n\n<!-- -->\n\n#.  two",
+        ['default', 'default'],
+    ],
+    '21 bullet followed by default ordered list' => [
+        $document(
+            $bulletList([$textItem('bullet')]),
+            $orderedList([$textItem('default')], ['style' => 'default'])
+        ),
+        "- bullet\n\n#.  default",
+        ['default'],
+    ],
+    '22 default list inside bullet item' => [
+        $document($bulletList([$listItem([$text('outer'), $orderedList([$textItem('inner')], ['style' => 'default'])])])),
+        "- outer\n  #.  inner",
+        ['default'],
+    ],
+    '23 example single item' => [
+        $document($orderedList([$textItem('alpha')], ['style' => 'example'])),
+        '(@) alpha',
+        ['example'],
+    ],
+    '24 example two item list' => [
+        $document($orderedList([$textItem('alpha'), $textItem('beta')], ['style' => 'example'])),
+        "(@) alpha\n(@) beta",
+        ['example'],
+    ],
+    '25 example labeled item attribute' => [
+        $document($orderedList([$textItem('alpha', ['exampleLabel' => 'review'])], ['style' => 'example'])),
+        '(@review) alpha',
+        ['example'],
+    ],
+    '26 example list label attribute' => [
+        $document($orderedList([$textItem('alpha')], ['style' => 'example', 'exampleLabels' => ['review']])),
+        '(@review) alpha',
+        ['example'],
+    ],
+    '27 example sparse list label attribute' => [
+        $document($orderedList([$textItem('alpha'), $textItem('beta')], ['style' => 'example', 'exampleLabels' => [1 => 'second']])),
+        "(@) alpha\n(@second) beta",
+        ['example'],
+    ],
+    '28 example unsafe label falls back to unlabeled marker' => [
+        $document($orderedList([$textItem('alpha', ['exampleLabel' => 'bad label'])], ['style' => 'example'])),
+        '(@) alpha',
+        ['example'],
+    ],
+    '29 example checked task item' => [
+        $document($orderedList([$textItem('done', ['taskChecked' => true])], ['style' => 'example'])),
+        '(@) [x] done',
+        ['example'],
+    ],
+    '30 example unchecked task item' => [
+        $document($orderedList([$textItem('todo', ['taskChecked' => false])], ['style' => 'example'])),
+        '(@) [ ] todo',
+        ['example'],
+    ],
+    '31 example loose list spacing' => [
+        $document($orderedList([$textItem('one'), $textItem('two')], ['style' => 'example', 'loose' => true])),
+        "(@) one\n\n(@) two",
+        ['example'],
+    ],
+    '32 example paragraph continuation' => [
+        $document($orderedList([$listItem([$paragraph('alpha'), $paragraph('beta')])], ['style' => 'example'])),
+        "(@) alpha\n\n    beta",
+        ['example'],
+    ],
+    '33 example nested bullet list' => [
+        $document($orderedList([$listItem([$text('alpha'), $bulletList([$textItem('beta')])])], ['style' => 'example'])),
+        "(@) alpha\n    - beta",
+        ['example'],
+    ],
+    '34 example nested decimal list' => [
+        $document($orderedList([$listItem([$text('alpha'), $orderedList([$textItem('beta')])])], ['style' => 'example'])),
+        "(@) alpha\n    1.  beta",
+        ['example', 'decimal'],
+    ],
+    '35 example nested default list' => [
+        $document($orderedList([$listItem([$text('alpha'), $orderedList([$textItem('beta')], ['style' => 'default'])])], ['style' => 'example'])),
+        "(@) alpha\n    #.  beta",
+        ['example', 'default'],
+    ],
+    '36 example nested labeled example list' => [
+        $document($orderedList([$listItem([$text('alpha'), $orderedList([$textItem('beta', ['exampleLabel' => 'inner'])], ['style' => 'example'])])], ['style' => 'example'])),
+        "(@) alpha\n    (@inner) beta",
+        ['example', 'example'],
+    ],
+    '37 example indented code continuation' => [
+        $document($orderedList([$listItem([$text('alpha'), $codeBlock('code')])], ['style' => 'example'])),
+        "(@) alpha\n        code",
+        ['example'],
+    ],
+    '38 labeled example indented code continuation' => [
+        $document($orderedList([$listItem([$text('alpha'), $codeBlock('code')], ['exampleLabel' => 'review'])], ['style' => 'example'])),
+        '(@review) alpha' . "\n" . str_repeat(' ', 14) . 'code',
+        ['example'],
+    ],
+    '39 example fenced code continuation' => [
+        $document($orderedList([$listItem([$text('alpha'), $codeBlock('echo', ['classes' => ['php']])])], ['style' => 'example'])),
+        "(@) alpha\n    ```php\n    echo\n    ```",
+        ['example'],
+    ],
+    '40 example blockquote continuation' => [
+        $document($orderedList([$listItem([$text('alpha'), $blockquote([$paragraph('quote')])])], ['style' => 'example'])),
+        "(@) alpha\n    > quote",
+        ['example'],
+    ],
+    '41 adjacent example lists keep separator' => [
+        $document(
+            $orderedList([$textItem('one')], ['style' => 'example']),
+            $orderedList([$textItem('two')], ['style' => 'example'])
+        ),
+        "(@) one\n\n<!-- -->\n\n(@) two",
+        ['example', 'example'],
+    ],
+    '42 example followed by default needs no separator' => [
+        $document(
+            $orderedList([$textItem('example')], ['style' => 'example']),
+            $orderedList([$textItem('default')], ['style' => 'default'])
+        ),
+        "(@) example\n\n#.  default",
+        ['example', 'default'],
+    ],
+    '43 default followed by example needs no separator' => [
+        $document(
+            $orderedList([$textItem('default')], ['style' => 'default']),
+            $orderedList([$textItem('example')], ['style' => 'example'])
+        ),
+        "#.  default\n\n(@) example",
+        ['default', 'example'],
+    ],
+    '44 example list inside bullet item' => [
+        $document($bulletList([$listItem([$text('outer'), $orderedList([$textItem('inner')], ['style' => 'example'])])])),
+        "- outer\n  (@) inner",
+        ['example'],
+    ],
+    '45 labeled example list inside bullet item' => [
+        $document($bulletList([$listItem([$text('outer'), $orderedList([$textItem('inner', ['exampleLabel' => 'review'])], ['style' => 'example'])])])),
+        "- outer\n  (@review) inner",
+        ['example'],
+    ],
+    '46 example list inside decimal item' => [
+        $document($orderedList([$listItem([$text('outer'), $orderedList([$textItem('inner')], ['style' => 'example'])])])),
+        "1.  outer\n    (@) inner",
+        ['decimal', 'example'],
+    ],
+    '47 default list inside example item' => [
+        $document($orderedList([$listItem([$text('outer'), $orderedList([$textItem('inner')], ['style' => 'default'])])], ['style' => 'example'])),
+        "(@) outer\n    #.  inner",
+        ['example', 'default'],
+    ],
+    '48 labeled example list inside default item' => [
+        $document($orderedList([$listItem([$text('outer'), $orderedList([$textItem('inner', ['exampleLabel' => 'review'])], ['style' => 'example'])])], ['style' => 'default'])),
+        "#.  outer\n    (@review) inner",
+        ['default', 'example'],
+    ],
+    '49 default list inside blockquote' => [
+        $document($blockquote([$orderedList([$textItem('quote')], ['style' => 'default'])])),
+        '> #.  quote',
+        ['default'],
+    ],
+    '50 example list inside blockquote' => [
+        $document($blockquote([$orderedList([$textItem('quote')], ['style' => 'example'])])),
+        '> (@) quote',
+        ['example'],
+    ],
+];
+
+foreach ($pandocOrderedMarkerCases as $name => $case) {
+    $tests['maps upstream markdown writer pandoc ordered marker completion ' . $name] =
+        static function (TestRunner $t) use ($case, $collectOrderedListStyles): void {
+            [$documentNode, $expected, $styles] = $case;
+            $markdown = (new MarkdownWriter())->write($documentNode);
+
+            $t->same($expected, $markdown);
+            $roundTrip = (new MarkdownReader())->read($markdown);
+            $t->same($styles, $collectOrderedListStyles($roundTrip), $markdown);
+        };
 }
 
 return $tests;
