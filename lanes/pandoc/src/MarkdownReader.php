@@ -20256,45 +20256,57 @@ final class MarkdownReader
                 $offset
             ) === 1
         ) {
-            $candidate = $this->trimBareUriAutolinkCandidate($m[0]);
+            [$candidate, $attribute, $next] = $this->splitBareAutolinkCandidateAndTrailingAttributes(
+                $text,
+                $offset,
+                $m[0]
+            );
+            $candidate = $this->trimBareUriAutolinkCandidate($candidate);
             if ($candidate === '') {
                 return null;
             }
 
             $url = $this->normalizeBareUriDestination($candidate);
             $display = $this->decodeHtmlEntities($this->unescapeLinkComponent($candidate));
+            $attrs = $this->bareAutolinkAttrs([
+                'url' => $url,
+                'classes' => ['uri'],
+            ], $attribute);
 
             return [
                 'node' => new AstNode(
                     'link',
-                    [
-                        'url' => $url,
-                        'classes' => ['uri'],
-                    ],
+                    $attrs,
                     [new AstNode('text', ['text' => $display])]
                 ),
-                'next' => $offset + strlen($candidate),
+                'next' => $attribute === null ? $offset + strlen($candidate) : $next,
             ];
         }
 
         if (preg_match('~\Gwww\.[^\s<>"\']+~iu', $text, $m, 0, $offset) === 1) {
-            $candidate = $this->trimBareUriAutolinkCandidate($m[0]);
+            [$candidate, $attribute, $next] = $this->splitBareAutolinkCandidateAndTrailingAttributes(
+                $text,
+                $offset,
+                $m[0]
+            );
+            $candidate = $this->trimBareUriAutolinkCandidate($candidate);
             if (strlen($candidate) <= 4) {
                 return null;
             }
 
             $display = $this->decodeHtmlEntities($this->unescapeLinkComponent($candidate));
+            $attrs = $this->bareAutolinkAttrs([
+                'url' => 'http://' . $this->normalizeBareUriDestination($candidate),
+                'classes' => ['uri'],
+            ], $attribute);
 
             return [
                 'node' => new AstNode(
                     'link',
-                    [
-                        'url' => 'http://' . $this->normalizeBareUriDestination($candidate),
-                        'classes' => ['uri'],
-                    ],
+                    $attrs,
                     [new AstNode('text', ['text' => $display])]
                 ),
-                'next' => $offset + strlen($candidate),
+                'next' => $attribute === null ? $offset + strlen($candidate) : $next,
             ];
         }
 
@@ -20307,23 +20319,29 @@ final class MarkdownReader
                 $offset
             ) === 1
         ) {
-            $candidate = $this->trimBareUriAutolinkCandidate($m[0]);
+            [$candidate, $attribute, $next] = $this->splitBareAutolinkCandidateAndTrailingAttributes(
+                $text,
+                $offset,
+                $m[0]
+            );
+            $candidate = $this->trimBareUriAutolinkCandidate($candidate);
             if ($candidate === '') {
                 return null;
             }
 
             $address = $this->decodeHtmlEntities($this->unescapeLinkComponent($candidate));
+            $attrs = $this->bareAutolinkAttrs([
+                'url' => 'mailto:' . $address,
+                'classes' => ['email'],
+            ], $attribute);
 
             return [
                 'node' => new AstNode(
                     'link',
-                    [
-                        'url' => 'mailto:' . $address,
-                        'classes' => ['email'],
-                    ],
+                    $attrs,
                     [new AstNode('text', ['text' => $address])]
                 ),
-                'next' => $offset + strlen($candidate),
+                'next' => $attribute === null ? $offset + strlen($candidate) : $next,
             ];
         }
 
@@ -20355,6 +20373,74 @@ final class MarkdownReader
         $candidatePrefix = substr($text, $open + 1, $offset - $open - 1);
 
         return $candidatePrefix !== '' && preg_match('/\s/u', $candidatePrefix) !== 1;
+    }
+
+    /**
+     * @return array{0:string, 1:array{attrs:array<string, mixed>, next:int}|null, 2:int}
+     */
+    private function splitBareAutolinkCandidateAndTrailingAttributes(string $source, int $offset, string $candidate): array
+    {
+        foreach (array_reverse($this->unescapedOpeningBraceOffsets($candidate)) as $attributeOffset) {
+            if ($attributeOffset === 0) {
+                continue;
+            }
+
+            $attribute = $this->tryParseInlineAttributeSpec($source, $offset + $attributeOffset);
+            if ($attribute === null) {
+                continue;
+            }
+
+            $linkCandidate = substr($candidate, 0, $attributeOffset);
+            if ($linkCandidate === '') {
+                continue;
+            }
+
+            return [$linkCandidate, $attribute, $attribute['next']];
+        }
+
+        $attribute = $this->tryParseInlineAttributeSpec($source, $offset + strlen($candidate));
+        if ($attribute !== null) {
+            return [$candidate, $attribute, $attribute['next']];
+        }
+
+        return [$candidate, null, $offset + strlen($candidate)];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function unescapedOpeningBraceOffsets(string $candidate): array
+    {
+        $offsets = [];
+        $length = strlen($candidate);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($candidate[$offset] !== '{' || $this->isEscapedInlinePosition($candidate, $offset)) {
+                continue;
+            }
+
+            $offsets[] = $offset;
+        }
+
+        return $offsets;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param array{attrs:array<string, mixed>, next:int}|null $attribute
+     * @return array<string, mixed>
+     */
+    private function bareAutolinkAttrs(array $attrs, ?array $attribute): array
+    {
+        if ($attribute === null) {
+            return $attrs;
+        }
+
+        $merged = array_replace($attrs, $attribute['attrs']);
+        if (isset($attrs['classes']) && !array_key_exists('classes', $attribute['attrs'])) {
+            unset($merged['classes']);
+        }
+
+        return $merged;
     }
 
     private function trimBareUriAutolinkCandidate(string $candidate): string

@@ -1267,5 +1267,7 @@
   "mappedMarkdownReaderFootnoteLabelBalanceSurgeCases": 75,
   "markdownReaderFootnoteLabelBalanceSurgeAssertions": 451,
   "mappedMarkdownReaderRawHtmlContainerSurgeCases": 60,
-  "markdownReaderRawHtmlContainerSurgeAssertions": 487
+  "markdownReaderRawHtmlContainerSurgeAssertions": 487,
+  "mappedMarkdownReaderBareAutolinkAttributeSurgeCases": 50,
+  "markdownReaderBareAutolinkAttributeSurgeAssertions": 538
 }
