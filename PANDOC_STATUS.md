@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 672 | 1,096 |
+| Markdown / CommonMark / GFM | 912 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown evidence: `MarkdownReader` normalizes escaped punctuation and decoded HTML entities in reference labels before lookup, preserving resolved link targets and titles through WordPress handoff.
+Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` decodes named HTML5 references and normalizes remaining CommonMark numeric character references, including U+0000, surrogate, and out-of-range replacement-character cases, while preserving literal references in code spans and overlong/missing-semicolon contexts.
 
-Current Pandoc counters: 4,023 PHP passes / 0 failures and 4,013 mapped upstream cases. Verification passed `php -l` for `MarkdownReader.php`, `MarkdownReaderInlineLinkEntitySurgeTest.php`, and `MarkdownReaderTest.php`; focused Markdown tests (`2` files, `7,221` assertions, `0` failures); full `lanes/pandoc/tests` (`50` files, `91,571` assertions, `0` failures); `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 4,337 PHP passes / 0 failures and 4,327 mapped upstream cases. Verification passed `php -l` for `MarkdownReader.php`, `MarkdownReaderEntitySurgeTest.php`, and `MarkdownReaderTest.php`; focused `MarkdownReaderEntitySurgeTest.php` (`1` file, `68` assertions, `0` failures); focused Markdown reader coverage (`2` files, `7,087` assertions, `0` failures); full `lanes/pandoc/tests` (`54` files, `93,044` assertions, `0` failures); `jq empty`; `git diff --check`; and exact conflict-marker scan.

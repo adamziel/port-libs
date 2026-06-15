@@ -19389,6 +19389,54 @@ final class MarkdownReader
 
     private function decodeHtmlEntities(string $text): string
     {
-        return html_entity_decode($text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+
+        return preg_replace_callback(
+            '/&#(?:([0-9]{1,7})|[xX]([0-9A-Fa-f]{1,6}));/',
+            function (array $matches): string {
+                $codePoint = ($matches[1] ?? '') !== ''
+                    ? (int) $matches[1]
+                    : hexdec((string) $matches[2]);
+
+                return $this->commonMarkCharacterReference($codePoint);
+            },
+            $text
+        ) ?? $text;
+    }
+
+    private function commonMarkCharacterReference(int $codePoint): string
+    {
+        if (
+            $codePoint === 0
+            || $codePoint > 0x10FFFF
+            || ($codePoint >= 0xD800 && $codePoint <= 0xDFFF)
+        ) {
+            return "\u{FFFD}";
+        }
+
+        return $this->utf8FromCodePoint($codePoint);
+    }
+
+    private function utf8FromCodePoint(int $codePoint): string
+    {
+        if ($codePoint <= 0x7F) {
+            return chr($codePoint);
+        }
+
+        if ($codePoint <= 0x7FF) {
+            return chr(0xC0 | ($codePoint >> 6))
+                . chr(0x80 | ($codePoint & 0x3F));
+        }
+
+        if ($codePoint <= 0xFFFF) {
+            return chr(0xE0 | ($codePoint >> 12))
+                . chr(0x80 | (($codePoint >> 6) & 0x3F))
+                . chr(0x80 | ($codePoint & 0x3F));
+        }
+
+        return chr(0xF0 | ($codePoint >> 18))
+            . chr(0x80 | (($codePoint >> 12) & 0x3F))
+            . chr(0x80 | (($codePoint >> 6) & 0x3F))
+            . chr(0x80 | ($codePoint & 0x3F));
     }
 }
