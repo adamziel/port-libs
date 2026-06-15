@@ -6425,6 +6425,81 @@ XML;
         $t->same($validation, $summary['wordpressImport']['packageValidation']);
     },
 
+    'reports duplicate OPF spine idrefs without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $duplicateSpineOpf = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:duplicate-spine-idref-review</dc:identifier>
+    <dc:title>Duplicate spine idref review</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-15T06:50:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref id="chapter-spine-a" idref="chapter"/>
+    <itemref id="chapter-spine-b" idref="chapter" linear="no"/>
+  </spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="chapter.xhtml">Duplicate spine review</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $duplicateSpineOpf],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Chapter</body></html>'],
+        ]));
+        $spine = $epub->spine();
+        $validation = $epub->validationReport();
+        $spineValidation = $validation['spine'];
+        $summary = $epub->summary();
+        $duplicate = $spineValidation['duplicateIdrefItems'][0];
+
+        $t->same(false, $validation['valid']);
+        $t->same(['duplicate-spine-itemref-idref'], array_column($validation['diagnostics'], 'type'));
+        $t->same(false, $spineValidation['valid']);
+        $t->same(2, $spineValidation['itemCount']);
+        $t->same(1, $spineValidation['linearCount']);
+        $t->same(1, $spineValidation['nonLinearCount']);
+        $t->same(1, $spineValidation['duplicateIdrefCount']);
+        $t->same(1, $spineValidation['duplicateSpineIdrefCount']);
+        $t->same('chapter', $duplicate['idref']);
+        $t->same([0, 1], $duplicate['indexes']);
+        $t->same(['chapter-spine-a', 'chapter-spine-b'], $duplicate['ids']);
+        $t->same(['/EPUB/chapter.xhtml'], $duplicate['partNames']);
+        $t->same(['application/xhtml+xml'], $duplicate['mediaTypes']);
+        $t->same([true, false], $duplicate['linearValues']);
+        $t->same(0, $duplicate['selectedIndex']);
+        $t->same('/EPUB/chapter.xhtml', $duplicate['selectedPartName']);
+        $t->same('duplicate-spine-itemref-idref', $spineValidation['diagnostics'][0]['type']);
+        $t->same('chapter', $spineValidation['diagnostics'][0]['idref']);
+        $t->same([0, 1], $spineValidation['diagnostics'][0]['indexes']);
+        $t->same('/EPUB/chapter.xhtml', $spine[0]['partName']);
+        $t->same('/EPUB/chapter.xhtml', $spine[1]['partName']);
+        $t->same(true, $spine[0]['linear']);
+        $t->same(false, $spine[1]['linear']);
+        $t->same($spineValidation['duplicateIdrefItems'], $spineValidation['duplicateSpineIdrefItems']);
+        $t->same($spineValidation['duplicateIdrefItems'], $summary['wordpressImport']['spineDuplicateIdrefItems']);
+        $t->same($spineValidation['duplicateSpineIdrefItems'], $summary['wordpressImport']['spineDuplicateItemrefIdrefItems']);
+        $t->same(1, $summary['wordpressImport']['spineDuplicateIdrefCount']);
+        $t->same(1, $summary['wordpressImport']['spineDuplicateItemrefIdrefCount']);
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+        $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'reports malformed OPF manifest item attributes without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml): void {
         $malformedManifestOpf = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">

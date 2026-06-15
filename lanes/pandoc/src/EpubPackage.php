@@ -760,6 +760,10 @@ final class EpubPackage
                 'spineItemDiagnostics' => $validationReport['spine']['itemDiagnostics'],
                 'spineMissingRequiredAttributeItems' => $validationReport['spine']['missingRequiredAttributeItems'],
                 'spineMissingRequiredAttributeNames' => $validationReport['spine']['missingRequiredAttributeNames'],
+                'spineDuplicateIdrefCount' => $validationReport['spine']['duplicateIdrefCount'],
+                'spineDuplicateIdrefItems' => $validationReport['spine']['duplicateIdrefItems'],
+                'spineDuplicateItemrefIdrefCount' => $validationReport['spine']['duplicateSpineIdrefCount'],
+                'spineDuplicateItemrefIdrefItems' => $validationReport['spine']['duplicateSpineIdrefItems'],
                 'navigationLabels' => array_values(array_map(
                     static fn (array $entry): string => $entry['label'],
                     $navigationEntries,
@@ -2147,6 +2151,7 @@ final class EpubPackage
             'right' => 0,
             'center' => 0,
         ];
+        $idrefs = [];
         $itemDiagnostics = [];
         $missingRequiredAttributeItems = [];
         $missingRequiredAttributeNames = [];
@@ -2156,6 +2161,18 @@ final class EpubPackage
             : [];
 
         foreach ($spine as $index => $item) {
+            $idref = (string) ($item['idref'] ?? '');
+            if (trim($idref) !== '') {
+                $idrefs[$idref][] = [
+                    'index' => $index,
+                    'id' => is_string($item['id'] ?? null) ? $item['id'] : null,
+                    'idref' => $idref,
+                    'partName' => (string) ($item['partName'] ?? ''),
+                    'mediaType' => self::mediaTypeBase((string) ($item['mediaType'] ?? '')),
+                    'linear' => ($item['linear'] ?? true) !== false,
+                ];
+            }
+
             if (($item['linear'] ?? true) === false) {
                 ++$nonLinearCount;
             } else {
@@ -2275,6 +2292,34 @@ final class EpubPackage
             ];
         }
 
+        $duplicateIdrefItems = [];
+        foreach ($idrefs as $idref => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $duplicate = [
+                'idref' => $idref,
+                'indexes' => array_column($items, 'index'),
+                'ids' => array_column($items, 'id'),
+                'partNames' => array_values(array_unique(array_column($items, 'partName'))),
+                'mediaTypes' => array_values(array_unique(array_column($items, 'mediaType'))),
+                'linearValues' => array_column($items, 'linear'),
+                'selectedIndex' => $items[0]['index'],
+                'selectedPartName' => $items[0]['partName'],
+            ];
+            $duplicateIdrefItems[] = $duplicate;
+            $diagnostics[] = [
+                'type' => 'duplicate-spine-itemref-idref',
+                'idref' => $idref,
+                'indexes' => $duplicate['indexes'],
+                'partNames' => $duplicate['partNames'],
+                'selectedIndex' => $duplicate['selectedIndex'],
+                'selectedPartName' => $duplicate['selectedPartName'],
+                'message' => 'EPUB OPF spine repeats an itemref idref; compact package ingestion preserves every occurrence for reading-order review',
+            ];
+        }
+
         return [
             'valid' => $diagnostics === [],
             'itemCount' => count($spine),
@@ -2285,6 +2330,8 @@ final class EpubPackage
             'missingManifestItemCount' => count($missingManifestItems),
             'missingPackagePartCount' => count($missingPackagePartItems),
             'nonContentDocumentCount' => count($nonContentDocumentItems),
+            'duplicateIdrefCount' => count($duplicateIdrefItems),
+            'duplicateSpineIdrefCount' => count($duplicateIdrefItems),
             'missingRequiredAttributeItemCount' => count($missingRequiredAttributeItems),
             'missingRequiredAttributeCount' => $missingRequiredAttributeCount,
             'missingRequiredAttributeNames' => array_keys($missingRequiredAttributeNames),
@@ -2296,6 +2343,8 @@ final class EpubPackage
             'missingManifestItems' => $missingManifestItems,
             'missingPackagePartItems' => $missingPackagePartItems,
             'nonContentDocumentItems' => $nonContentDocumentItems,
+            'duplicateIdrefItems' => $duplicateIdrefItems,
+            'duplicateSpineIdrefItems' => $duplicateIdrefItems,
             'missingRequiredAttributeItems' => $missingRequiredAttributeItems,
             'itemDiagnosticCount' => count($itemDiagnostics),
             'itemDiagnostics' => $itemDiagnostics,
