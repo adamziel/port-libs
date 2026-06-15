@@ -1415,6 +1415,10 @@ final class MarkdownWriter
             return [];
         }
 
+        if ($this->shouldRenderHtmlTable($node, $columnCount)) {
+            return $this->renderHtmlTable($node, $indent, $columnCount);
+        }
+
         $hasBodyHeadRows = false;
         foreach ($bodyGroups as $group) {
             if ($group['headRows'] !== []) {
@@ -1466,6 +1470,725 @@ final class MarkdownWriter
         }
 
         return $lines;
+    }
+
+    private function shouldRenderHtmlTable(AstNode $node, int $columnCount): bool
+    {
+        return $columnCount > 0 && $this->tableRequestsHtmlFallback($node);
+    }
+
+    private function tableRequestsHtmlFallback(AstNode $node): bool
+    {
+        $format = strtolower(trim((string) $node->attr('markdownTableFormat', '')));
+        if (in_array($format, ['html', 'raw_html', 'raw-html'], true)) {
+            return true;
+        }
+
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (is_array($htmlAttributes) && strtolower((string) ($htmlAttributes['data-pandoc-writer'] ?? '')) === 'html') {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableSectionRowsWithBodyHeads(AstNode $section): array
+    {
+        $rows = [];
+        if ($section->type === 'table_body') {
+            array_push($rows, ...$this->tableBodyHeadRows($section));
+        }
+
+        foreach ($section->children as $row) {
+            if ($row->type === 'table_row') {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderHtmlTable(AstNode $node, int $indent, int $columnCount): array
+    {
+        $prefix = str_repeat(' ', $indent);
+        $innerPrefix = str_repeat(' ', $indent + 2);
+        $lines = [$prefix . '<table' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'];
+        array_push($lines, ...$this->renderHtmlTableColgroup($node, $columnCount, $indent + 2));
+
+        $caption = $this->renderHtmlTableCaption($node, $indent + 2);
+        if ($caption !== '') {
+            $lines[] = $caption;
+        }
+
+        $head = null;
+        $bodies = [];
+        $foot = null;
+        foreach ($node->children as $child) {
+            if ($child->type === 'table_head') {
+                $head = $child;
+                continue;
+            }
+
+            if ($child->type === 'table_body') {
+                $bodies[] = $child;
+                continue;
+            }
+
+            if ($child->type === 'table_foot') {
+                $foot = $child;
+            }
+        }
+
+        if ($head instanceof AstNode && $this->tableSectionRowsWithBodyHeads($head) !== []) {
+            $lines[] = $innerPrefix . '<thead' . $this->renderHtmlAttributes($this->htmlAttributeMap($head)) . '>';
+            array_push($lines, ...$this->renderHtmlTableRows(
+                $this->tableRowEntries($head, true),
+                $node,
+                $columnCount,
+                $indent + 4
+            ));
+            $lines[] = $innerPrefix . '</thead>';
+        }
+
+        foreach ($bodies as $body) {
+            if ($this->tableSectionRowsWithBodyHeads($body) === []) {
+                continue;
+            }
+
+            $lines[] = $innerPrefix . '<tbody' . $this->renderHtmlAttributes($this->htmlAttributeMap($body)) . '>';
+            array_push($lines, ...$this->renderHtmlTableRows(
+                $this->tableBodyRowEntries($body, $columnCount),
+                $node,
+                $columnCount,
+                $indent + 4
+            ));
+            $lines[] = $innerPrefix . '</tbody>';
+        }
+
+        if ($foot instanceof AstNode && $this->tableSectionRowsWithBodyHeads($foot) !== []) {
+            $lines[] = $innerPrefix . '<tfoot' . $this->renderHtmlAttributes($this->htmlAttributeMap($foot)) . '>';
+            array_push($lines, ...$this->renderHtmlTableRows(
+                $this->tableRowEntries($foot, false),
+                $node,
+                $columnCount,
+                $indent + 4
+            ));
+            $lines[] = $innerPrefix . '</tfoot>';
+        }
+
+        $lines[] = $prefix . '</table>';
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderHtmlTableColgroup(AstNode $node, int $columnCount, int $indent): array
+    {
+        $widths = $node->attr('widths', []);
+        if (!is_array($widths) || $widths === []) {
+            return [];
+        }
+
+        $specs = TableGeometry::columnSpecs($node, $columnCount);
+        $cols = [];
+        foreach ($specs as $spec) {
+            if (!is_numeric($spec['width'] ?? null)) {
+                return [];
+            }
+
+            $attrs = [
+                'style' => 'width:' . $this->formatHtmlTableWidth((float) $spec['width']),
+            ];
+            $alignment = (string) ($spec['alignment'] ?? 'default');
+            if (in_array($alignment, ['left', 'right', 'center'], true)) {
+                $attrs['data-pandoc-align'] = $alignment;
+            }
+
+            $cols[] = str_repeat(' ', $indent + 2) . '<col' . $this->renderHtmlAttributes($attrs) . ' />';
+        }
+
+        if ($cols === []) {
+            return [];
+        }
+
+        return [
+            str_repeat(' ', $indent) . '<colgroup>',
+            ...$cols,
+            str_repeat(' ', $indent) . '</colgroup>',
+        ];
+    }
+
+    private function formatHtmlTableWidth(float $width): string
+    {
+        $formatted = rtrim(rtrim(number_format(max(0.0, $width) * 100, 4, '.', ''), '0'), '.');
+
+        return ($formatted === '' ? '0' : $formatted) . '%';
+    }
+
+    private function renderHtmlTableCaption(AstNode $node, int $indent): string
+    {
+        $content = $this->renderHtmlTableCaptionContent($node);
+        $attrs = $this->htmlCaptionAttributeMap($node);
+        $shortCaption = $this->plainHtmlTableShortCaption($node);
+        if ($shortCaption !== '') {
+            $attrs['data-pandoc-short-caption'] = $shortCaption;
+        }
+
+        if ($content === '' && $attrs === []) {
+            return '';
+        }
+
+        return str_repeat(' ', $indent)
+            . '<caption' . $this->renderHtmlAttributes($attrs) . '>'
+            . $content
+            . '</caption>';
+    }
+
+    private function renderHtmlTableCaptionContent(AstNode $node): string
+    {
+        $captionBlocks = $this->htmlTableCaptionBlocks($node->attr('captionBlocks', []));
+        if ($captionBlocks !== []) {
+            return $this->renderHtmlBlocks($captionBlocks);
+        }
+
+        $captionInlines = $node->attr('captionInlines', []);
+        if (is_array($captionInlines) && $captionInlines !== [] && $this->allAstNodes($captionInlines)) {
+            return $this->renderHtmlInlines($captionInlines);
+        }
+
+        return $this->escapeHtml((string) $node->attr('caption', ''));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function htmlTableCaptionBlocks(mixed $blocks): array
+    {
+        if (!is_array($blocks)) {
+            return [];
+        }
+
+        return array_values(array_filter($blocks, static fn (mixed $block): bool => $block instanceof AstNode));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function htmlCaptionAttributeMap(AstNode $node): array
+    {
+        $captionSource = $node->attr('captionSource', []);
+        if (!is_array($captionSource)) {
+            return [];
+        }
+
+        $sourceAttributes = $captionSource['sourceAttributes'] ?? [];
+        if (!is_array($sourceAttributes)) {
+            return [];
+        }
+
+        return $this->htmlAttributeMapFromSource($sourceAttributes);
+    }
+
+    private function plainHtmlTableShortCaption(AstNode $node): string
+    {
+        $shortCaptionBlocks = $this->htmlTableCaptionBlocks($node->attr('shortCaptionBlocks', []));
+        if ($shortCaptionBlocks !== []) {
+            return trim($this->plainInlineText($this->flattenPlainHtmlBlockInlines($shortCaptionBlocks)));
+        }
+
+        $shortCaptionInlines = $node->attr('shortCaptionInlines', []);
+        if (is_array($shortCaptionInlines) && $shortCaptionInlines !== [] && $this->allAstNodes($shortCaptionInlines)) {
+            return $this->plainInlineText($shortCaptionInlines);
+        }
+
+        return trim((string) $node->attr('shortCaption', ''));
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function flattenPlainHtmlBlockInlines(array $blocks): array
+    {
+        $inlines = [];
+        foreach ($blocks as $block) {
+            if (in_array($block->type, ['plain', 'paragraph'], true)) {
+                array_push($inlines, ...$block->children);
+            }
+        }
+
+        return $inlines;
+    }
+
+    /**
+     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
+     */
+    private function tableRowEntries(AstNode $section, bool $header): array
+    {
+        $entries = [];
+        foreach ($section->children as $row) {
+            if ($row->type === 'table_row') {
+                $entries[] = [
+                    'row' => $row,
+                    'header' => $header,
+                    'rowHeadColumns' => 0,
+                ];
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
+     */
+    private function tableBodyRowEntries(AstNode $body, int $columnCount): array
+    {
+        $entries = [];
+        foreach ($this->tableBodyHeadRows($body) as $row) {
+            $entries[] = [
+                'row' => $row,
+                'header' => true,
+                'rowHeadColumns' => 0,
+            ];
+        }
+
+        $rowHeadColumns = TableGeometry::rowHeadColumns($body, $columnCount);
+        foreach ($body->children as $row) {
+            if ($row->type === 'table_row') {
+                $entries[] = [
+                    'row' => $row,
+                    'header' => false,
+                    'rowHeadColumns' => $rowHeadColumns,
+                ];
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array{row:AstNode,header:bool,rowHeadColumns:int}> $rowEntries
+     * @return list<string>
+     */
+    private function renderHtmlTableRows(array $rowEntries, AstNode $table, int $columnCount, int $indent): array
+    {
+        $rows = array_map(static fn (array $entry): AstNode => $entry['row'], $rowEntries);
+        $lines = [];
+        foreach (TableGeometry::layoutRows($rows, $columnCount) as $rowIndex => $layoutRow) {
+            $entry = $rowEntries[$rowIndex] ?? ['header' => false, 'rowHeadColumns' => 0];
+            $lines[] = $this->renderHtmlTableRow(
+                $layoutRow,
+                $table,
+                (bool) ($entry['header'] ?? false),
+                (int) ($entry['rowHeadColumns'] ?? 0),
+                $indent
+            );
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int}>} $layoutRow
+     */
+    private function renderHtmlTableRow(array $layoutRow, AstNode $table, bool $header, int $rowHeadColumns, int $indent): string
+    {
+        $row = $layoutRow['row'];
+        $html = str_repeat(' ', $indent) . '<tr' . $this->renderHtmlAttributes($this->htmlAttributeMap($row)) . '>';
+        foreach ($layoutRow['cells'] as $layoutCell) {
+            $cell = $layoutCell['node'];
+            $column = (int) $layoutCell['column'];
+            $isHeaderCell = TableGeometry::isHeaderCell($header, $rowHeadColumns, $column, $cell);
+            $tag = $isHeaderCell ? 'th' : 'td';
+            $scope = $isHeaderCell ? ($header ? 'col' : 'row') : '';
+            $html .= '<' . $tag . $this->renderHtmlTableCellAttributes($table, $column, $layoutCell, $cell, $scope) . '>'
+                . $this->renderHtmlTableCellContent($cell)
+                . '</' . $tag . '>';
+        }
+
+        return $html . '</tr>';
+    }
+
+    /**
+     * @param array{colspan:int,rowspan:int} $layoutCell
+     */
+    private function renderHtmlTableCellAttributes(AstNode $table, int $column, array $layoutCell, AstNode $cell, string $headerScope): string
+    {
+        $attrs = $this->htmlAttributeMap($cell);
+        if ($headerScope !== '' && !isset($attrs['scope'])) {
+            $attrs['scope'] = $headerScope;
+        }
+
+        $colspan = max(1, (int) $layoutCell['colspan']);
+        $rowspan = max(1, (int) $layoutCell['rowspan']);
+        if ($colspan > 1) {
+            $attrs['colspan'] = (string) $colspan;
+        }
+
+        if ($rowspan > 1) {
+            $attrs['rowspan'] = (string) $rowspan;
+        }
+
+        $styles = [];
+        $sourceStyle = (string) ($attrs['style'] ?? '');
+        if ($sourceStyle !== '') {
+            $styles[] = rtrim($sourceStyle, ';');
+        }
+
+        $alignment = TableGeometry::cellAlignment($table, $column, $cell);
+        if (
+            in_array($alignment, ['left', 'right', 'center'], true)
+            && preg_match('/(?:^|;)\s*text-align\s*:/i', $sourceStyle) !== 1
+        ) {
+            $styles[] = 'text-align:' . $alignment;
+        }
+
+        $verticalAlignment = TableGeometry::cellVerticalAlignment($cell);
+        if (
+            in_array($verticalAlignment, ['baseline', 'top', 'middle', 'bottom'], true)
+            && preg_match('/(?:^|;)\s*vertical-align\s*:/i', $sourceStyle) !== 1
+        ) {
+            $styles[] = 'vertical-align:' . $verticalAlignment;
+        }
+
+        if ($styles !== []) {
+            $attrs['style'] = implode('; ', $styles);
+        }
+
+        return $this->renderHtmlAttributes($attrs);
+    }
+
+    private function renderHtmlTableCellContent(AstNode $cell): string
+    {
+        if ($cell->children === []) {
+            return $this->escapeHtml((string) $cell->attr('text', ''));
+        }
+
+        $hasOnlyInlines = true;
+        foreach ($cell->children as $child) {
+            if (!$this->isInlineNode($child)) {
+                $hasOnlyInlines = false;
+                break;
+            }
+        }
+
+        return $hasOnlyInlines ? $this->renderHtmlInlines($cell->children) : $this->renderHtmlBlocks($cell->children);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function renderHtmlBlocks(array $blocks): string
+    {
+        $html = '';
+        foreach ($blocks as $block) {
+            $html .= $this->renderHtmlBlock($block);
+        }
+
+        return $html;
+    }
+
+    private function renderHtmlBlock(AstNode $node): string
+    {
+        return match ($node->type) {
+            'paragraph', 'plain' => '<p>' . $this->renderHtmlInlines($node->children) . '</p>',
+            'heading' => $this->renderHtmlHeading($node),
+            'bullet_list' => $this->renderHtmlList($node, 'ul'),
+            'ordered_list' => $this->renderHtmlList($node, 'ol'),
+            'blockquote' => '<blockquote>' . $this->renderHtmlBlocks($node->children) . '</blockquote>',
+            'code_block' => '<pre><code' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
+                . $this->escapeHtml((string) $node->attr('text', ''))
+                . '</code></pre>',
+            'horizontal_rule' => '<hr />',
+            'div' => '<div' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
+                . $this->renderHtmlBlocks($node->children)
+                . '</div>',
+            'table' => implode("\n", $this->renderHtmlTable($node, 0, TableGeometry::columnCount($node))),
+            'raw_html', 'raw_block' => (string) $node->attr('text', $node->attr('html', '')),
+            default => $this->isInlineNode($node)
+                ? $this->renderHtmlInline($node)
+                : $this->renderHtmlBlocks($node->children),
+        };
+    }
+
+    private function renderHtmlHeading(AstNode $node): string
+    {
+        $level = max(1, min(6, (int) $node->attr('level', 1)));
+
+        return '<h' . $level . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
+            . $this->renderHtmlInlines($node->children)
+            . '</h' . $level . '>';
+    }
+
+    private function renderHtmlList(AstNode $node, string $tag): string
+    {
+        $attrs = $this->htmlAttributeMap($node);
+        if ($tag === 'ol' && (int) $node->attr('start', 1) !== 1) {
+            $attrs['start'] = (string) (int) $node->attr('start', 1);
+        }
+
+        $html = '<' . $tag . $this->renderHtmlAttributes($attrs) . '>';
+        foreach ($node->children as $item) {
+            if ($item->type !== 'list_item') {
+                continue;
+            }
+
+            $html .= '<li' . $this->renderHtmlAttributes($this->htmlAttributeMap($item)) . '>'
+                . $this->renderHtmlBlocks($item->children)
+                . '</li>';
+        }
+
+        return $html . '</' . $tag . '>';
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderHtmlInlines(array $nodes): string
+    {
+        $html = '';
+        foreach ($nodes as $node) {
+            $html .= $this->renderHtmlInline($node);
+        }
+
+        return $html;
+    }
+
+    private function renderHtmlInline(AstNode $node): string
+    {
+        return match ($node->type) {
+            'text' => $this->escapeHtml((string) $node->attr('text', '')),
+            'space' => ' ',
+            'softbreak', 'linebreak' => '<br />',
+            'code' => '<code' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
+                . $this->escapeHtml((string) $node->attr('text', ''))
+                . '</code>',
+            'emph' => '<em>' . $this->renderHtmlInlines($node->children) . '</em>',
+            'strong' => '<strong>' . $this->renderHtmlInlines($node->children) . '</strong>',
+            'strikeout' => '<del' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
+                . $this->renderHtmlInlines($node->children)
+                . '</del>',
+            'superscript' => '<sup' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
+                . $this->renderHtmlInlines($node->children)
+                . '</sup>',
+            'subscript' => '<sub' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
+                . $this->renderHtmlInlines($node->children)
+                . '</sub>',
+            'small_caps' => $this->renderHtmlSemanticSpan($node, 'smallcaps'),
+            'underline' => $this->renderHtmlSemanticSpan($node, 'underline'),
+            'span' => '<span' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
+                . $this->renderHtmlInlines($node->children)
+                . '</span>',
+            'quoted' => ((string) $node->attr('kind', 'double') === 'single' ? '&lsquo;' : '&ldquo;')
+                . $this->renderHtmlInlines($node->children)
+                . ((string) $node->attr('kind', 'double') === 'single' ? '&rsquo;' : '&rdquo;'),
+            'link' => $this->renderHtmlLink($node),
+            'image' => $this->renderHtmlImage($node),
+            'math' => '<span class="math ' . ($node->attr('display') === true ? 'display' : 'inline') . '">'
+                . $this->escapeHtml((string) $node->attr('text', ''))
+                . '</span>',
+            'citation', 'citation_group', 'note' => $this->escapeHtml($this->renderInline($node)),
+            'raw_html_inline' => (string) $node->attr('text', $node->attr('html', '')),
+            'raw_inline' => $this->isHtmlRawFormat(strtolower((string) $node->attr('format', '')))
+                ? (string) $node->attr('text', $node->attr('html', ''))
+                : $this->escapeHtml($this->renderRawInline($node)),
+            'raw_markdown', 'raw_tex' => $this->escapeHtml($this->renderRawInline($node)),
+            default => $this->renderHtmlInlines($node->children),
+        };
+    }
+
+    private function renderHtmlSemanticSpan(AstNode $node, string $class): string
+    {
+        $attrs = $this->htmlAttributeMap($node);
+        $this->appendHtmlClass($attrs, $class);
+
+        return '<span' . $this->renderHtmlAttributes($attrs) . '>'
+            . $this->renderHtmlInlines($node->children)
+            . '</span>';
+    }
+
+    private function renderHtmlLink(AstNode $node): string
+    {
+        $attrs = $this->htmlAttributeMap($node);
+        $attrs['href'] = (string) $node->attr('url', '');
+        $title = (string) $node->attr('title', '');
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        return '<a' . $this->renderHtmlAttributes($attrs) . '>'
+            . $this->renderHtmlInlines($node->children)
+            . '</a>';
+    }
+
+    private function renderHtmlImage(AstNode $node): string
+    {
+        $attrs = $this->htmlAttributeMap($node);
+        $attrs['src'] = (string) $node->attr('url', '');
+        $attrs['alt'] = (string) $node->attr('alt', $this->plainInlineText($node->children));
+        $title = (string) $node->attr('title', '');
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        return '<img' . $this->renderHtmlAttributes($attrs) . ' />';
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function appendHtmlClass(array &$attrs, string $class): void
+    {
+        $classes = preg_split('/\s+/', trim((string) ($attrs['class'] ?? '')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        array_unshift($classes, $class);
+        $attrs['class'] = implode(' ', array_values(array_unique($classes)));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function htmlAttributeMap(AstNode $node): array
+    {
+        return $this->htmlAttributeMapFromSource($node->attrs);
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     * @return array<string, string>
+     */
+    private function htmlAttributeMapFromSource(array $source): array
+    {
+        $attrs = [];
+        $htmlAttributes = $source['htmlAttributes'] ?? [];
+        if (is_array($htmlAttributes)) {
+            foreach ($htmlAttributes as $name => $value) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+
+                $name = strtolower(trim((string) $name));
+                if ($name !== '') {
+                    $attrs[$name] = (string) $value;
+                }
+            }
+        }
+
+        if (isset($source['id']) && is_scalar($source['id']) && trim((string) $source['id']) !== '' && !isset($attrs['id'])) {
+            $attrs['id'] = trim((string) $source['id']);
+        }
+
+        $classes = [];
+        if (isset($attrs['class'])) {
+            $classes = preg_split('/\s+/', trim($attrs['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+        if (isset($source['classes']) && is_array($source['classes'])) {
+            foreach ($source['classes'] as $class) {
+                if (is_scalar($class) && trim((string) $class) !== '') {
+                    $classes[] = trim((string) $class);
+                }
+            }
+        }
+        if ($classes !== []) {
+            $attrs['class'] = implode(' ', array_values(array_unique($classes)));
+        }
+
+        $attributes = $source['attributes'] ?? [];
+        if (is_array($attributes)) {
+            foreach ($attributes as $name => $value) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+
+                $name = strtolower(trim((string) $name));
+                if ($name !== '' && !isset($attrs[$name])) {
+                    $attrs[$name] = (string) $value;
+                }
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function renderHtmlAttributes(array $attrs): string
+    {
+        $rendered = '';
+        foreach (['id', 'class'] as $priority) {
+            if (isset($attrs[$priority]) && $this->isAllowedHtmlAttribute($priority, $attrs[$priority])) {
+                $rendered .= ' ' . $priority . '="' . $this->escapeHtml($attrs[$priority]) . '"';
+                unset($attrs[$priority]);
+            }
+        }
+
+        foreach ($attrs as $name => $value) {
+            $name = strtolower(trim((string) $name));
+            if (!$this->isAllowedHtmlAttribute($name, $value)) {
+                continue;
+            }
+
+            $rendered .= ' ' . $name . '="' . $this->escapeHtml($value) . '"';
+        }
+
+        return $rendered;
+    }
+
+    private function isAllowedHtmlAttribute(string $name, string $value): bool
+    {
+        if ($name === '' || $value === '' || preg_match('/\A[a-z][a-z0-9:._-]*\z/', $name) !== 1) {
+            return false;
+        }
+
+        if (str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        if ($name === 'style' && preg_match('/(?:expression|url\s*\()/i', $value) === 1) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, [
+                'abbr',
+                'align',
+                'alt',
+                'class',
+                'colspan',
+                'datetime',
+                'dir',
+                'headers',
+                'height',
+                'href',
+                'id',
+                'lang',
+                'role',
+                'rowspan',
+                'scope',
+                'src',
+                'start',
+                'style',
+                'summary',
+                'title',
+                'valign',
+                'width',
+                'xml:lang',
+            ], true);
+    }
+
+    private function escapeHtml(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     /**
@@ -2754,7 +3477,7 @@ final class MarkdownWriter
         foreach ($nodes as $node) {
             $text .= match ($node->type) {
                 'text', 'code' => (string) $node->attr('text', ''),
-                'softbreak', 'linebreak' => ' ',
+                'space', 'softbreak', 'linebreak' => ' ',
                 default => $this->plainInlineText($node->children),
             };
         }
