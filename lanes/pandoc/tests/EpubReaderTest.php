@@ -7473,6 +7473,74 @@ CSS;
         $t->same($css, $result['importReport']['cssResourceReport']);
         $t->same($css, $result['document']->attr('cssResourceReport'));
     },
+    'reports EPUB stylesheet page rule diagnostics for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithPagedCss = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/page-diagnostics.css" media-type="text/css"/>',
+            $opfXml
+        );
+        $pagedCss = <<<'CSS'
+@page 123bad:left:4 {
+  size: 5in 8in;
+  @top-left { content: "review"; }
+}
+@page review:weird(state) {
+  margin: 1in;
+}
+CSS;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithPagedCss,
+            null,
+            [
+                ['name' => 'OEBPS/styles/page-diagnostics.css', 'data' => $pagedCss],
+            ]
+        ));
+
+        $css = $result['cssResourceReport'];
+        $style = $css['itemsByPart']['/OEBPS/styles/page-diagnostics.css'];
+        $policy = $style['exportPolicy'];
+
+        $t->same(2, $css['pageRuleCount']);
+        $t->same(2, $css['namedPageRuleCount']);
+        $t->same(3, $css['pagePseudoClassCount']);
+        $t->same(1, $css['pageMarginBoxCount']);
+        $t->same(3, $css['pageRuleDiagnosticCount']);
+        $t->same(['123bad', 'review'], $css['pageRuleNames']);
+        $t->same(['left', '4', 'weird(state)'], $css['pagePseudoClasses']);
+        $t->same(['invalid-css-page-name', 'invalid-css-page-pseudo-class', 'invalid-css-page-pseudo-class'], array_column($css['pageRuleDiagnostics'], 'type'));
+        $t->same(['paged-media', 'page-rule-diagnostics'], $style['reviewFlags']);
+        $t->same(3, $style['pageRuleDiagnosticCount']);
+        $t->same('/OEBPS/styles/page-diagnostics.css', $css['pageRuleDiagnostics'][0]['part']);
+        $t->same($style['pageRuleDiagnostics'][0]['type'], $css['pageRuleDiagnostics'][0]['type']);
+        $t->same(3, count($style['diagnostics']));
+        $t->same('/OEBPS/styles/page-diagnostics.css', $css['diagnostics'][0]['part']);
+        $t->same(array_column($style['diagnostics'], 'type'), array_column($css['diagnostics'], 'type'));
+
+        $first = $style['pageRules'][0];
+        $t->same('123bad:left:4', $first['selector']);
+        $t->same('123bad', $first['name']);
+        $t->same(['left', '4'], $first['pseudoClasses']);
+        $t->same(['invalid-css-page-name', 'invalid-css-page-pseudo-class'], array_column($first['diagnostics'], 'type'));
+        $t->same('123bad', $first['diagnostics'][0]['name']);
+        $t->same('4', $first['diagnostics'][1]['pseudoClass']);
+        $t->same('top-left', $first['marginBoxes'][0]['name']);
+
+        $second = $style['pageRules'][1];
+        $t->same('review:weird(state)', $second['selector']);
+        $t->same('review', $second['name']);
+        $t->same(['weird(state)'], $second['pseudoClasses']);
+        $t->same('invalid-css-page-pseudo-class', $second['diagnostics'][0]['type']);
+        $t->same(0, $style['pageRuleDiagnostics'][0]['pageRuleIndex']);
+        $t->same('123bad:left:4', $style['pageRuleDiagnostics'][0]['selector']);
+        $t->same('review:weird(state)', $style['pageRuleDiagnostics'][2]['selector']);
+
+        $t->same('review-required', $policy['status']);
+        $t->same(['paged-media', 'page-rule-diagnostics'], $policy['reviewReasons']);
+        $t->same(3, $policy['diagnosticCount']);
+        $t->same($css, $result['importReport']['cssResourceReport']);
+        $t->same($css, $result['document']->attr('cssResourceReport'));
+    },
     'flags EPUB switch XHTML content for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $switchXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">

@@ -15586,6 +15586,7 @@ final class EpubReader
         $supportsConditions = [];
         $importConditions = [];
         $pageRules = [];
+        $pageRuleDiagnostics = [];
         $pageRuleNames = [];
         $pagePseudoClasses = [];
         $pageMarginBoxNames = [];
@@ -15644,6 +15645,8 @@ final class EpubReader
                     'supportsConditions' => [],
                     'importConditions' => [],
                     'pageRules' => [],
+                    'pageRuleDiagnostics' => [],
+                    'pageRuleDiagnosticCount' => 0,
                     'pageRuleNames' => [],
                     'pagePseudoClasses' => [],
                     'pageMarginBoxNames' => [],
@@ -15711,6 +15714,20 @@ final class EpubReader
             $assetMediaConditions = self::cssConditionalRuleConditions($assetMediaRules);
             $assetSupportsConditions = self::cssConditionalRuleConditions($assetSupportsRules);
             $assetPageRules = self::cssPageAtRuleReports($css);
+            $assetPageRuleDiagnostics = [];
+            foreach ($assetPageRules as $pageRule) {
+                foreach (is_array($pageRule['diagnostics'] ?? null) ? $pageRule['diagnostics'] : [] as $diagnostic) {
+                    if (!is_array($diagnostic)) {
+                        continue;
+                    }
+
+                    $assetPageRuleDiagnostics[] = [
+                        'pageRuleIndex' => is_int($pageRule['index'] ?? null) ? $pageRule['index'] : null,
+                        'selector' => is_string($pageRule['selector'] ?? null) ? $pageRule['selector'] : null,
+                    ] + $diagnostic;
+                }
+            }
+            array_push($assetDiagnostics, ...$assetPageRuleDiagnostics);
             $assetPageRuleNames = self::cssPageRuleNames($assetPageRules);
             $assetPagePseudoClasses = self::cssPageRulePseudoClasses($assetPageRules);
             $assetPageMarginBoxNames = self::cssPageRuleMarginBoxNames($assetPageRules);
@@ -15787,6 +15804,8 @@ final class EpubReader
                 'supportsConditions' => $assetSupportsConditions,
                 'importConditions' => $assetImportConditions,
                 'pageRules' => $assetPageRules,
+                'pageRuleDiagnostics' => $assetPageRuleDiagnostics,
+                'pageRuleDiagnosticCount' => count($assetPageRuleDiagnostics),
                 'pageRuleNames' => $assetPageRuleNames,
                 'pagePseudoClasses' => $assetPagePseudoClasses,
                 'pageMarginBoxNames' => $assetPageMarginBoxNames,
@@ -15817,6 +15836,9 @@ final class EpubReader
             array_push($fontFaceItems, ...$fontFaces);
             array_push($conditionalRules, ...$assetConditionalRules);
             array_push($pageRules, ...$assetPageRules);
+            foreach ($assetPageRuleDiagnostics as $diagnostic) {
+                $pageRuleDiagnostics[] = ['part' => $part] + $diagnostic;
+            }
             foreach ($assetFontFaceFamilies as $family) {
                 if (!in_array($family, $fontFaceFamilies, true)) {
                     $fontFaceFamilies[] = $family;
@@ -15870,6 +15892,8 @@ final class EpubReader
             'supportsConditions' => $supportsConditions,
             'importConditions' => $importConditions,
             'pageRules' => $pageRules,
+            'pageRuleDiagnostics' => $pageRuleDiagnostics,
+            'pageRuleDiagnosticCount' => count($pageRuleDiagnostics),
             'pageRuleNames' => $pageRuleNames,
             'pagePseudoClasses' => $pagePseudoClasses,
             'pageMarginBoxNames' => $pageMarginBoxNames,
@@ -17237,6 +17261,12 @@ final class EpubReader
         }
         if ($pageRules !== []) {
             $flags['paged-media'] = true;
+            foreach ($pageRules as $pageRule) {
+                if (is_array($pageRule['diagnostics'] ?? null) && $pageRule['diagnostics'] !== []) {
+                    $flags['page-rule-diagnostics'] = true;
+                    break;
+                }
+            }
         }
 
         return array_keys($flags);
