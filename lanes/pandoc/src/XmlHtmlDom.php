@@ -16110,6 +16110,35 @@ final class XmlHtmlDom
             'attributionText' => $footer instanceof \DOMElement ? self::normalizedText($footer) : null,
             'citationTexts' => $citationTexts,
             'citationCount' => count($citationTexts),
+        ] + self::quoteCiteReviewSummary($cite);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function quoteCiteReviewSummary(?string $cite): array
+    {
+        $url = self::hyperlinkUrlReviewSummary($cite);
+        $issues = [];
+        if (($url['unsafe'] ?? false) === true) {
+            $issues[] = [
+                'code' => 'unsafe-quote-cite',
+                'cite' => $cite,
+                'scheme' => $url['scheme'],
+            ];
+        }
+
+        return [
+            'quoteCitationUrlReview' => 'quote-cite',
+            'quoteCitePresent' => $cite !== null && trim($cite) !== '',
+            'quoteCiteKind' => $url['kind'],
+            'quoteCiteScheme' => $url['scheme'],
+            'quoteCiteUnsafe' => $url['unsafe'],
+            'quoteCiteIssues' => $issues,
+            'quoteCiteIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            )),
         ];
     }
 

@@ -6196,6 +6196,58 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(['review' => 'work'], $standaloneCitation['dataset']);
         $t->same('<blockquote cite=" https://example.test/review#source " id="packet-quote"><p>Imported <q cite=" ./inline.html ">inline <cite>Manual</cite></q> note.</p><footer>Source <cite>Reviewer Handbook</cite></footer></blockquote><p>Standalone <cite data-review="work">Packet Guide</cite></p>', $html);
     },
+    'summarizes html quote cite url review provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<blockquote cite=" https://example.test/source#quote "><p>Quoted source</p></blockquote>'
+                . '<p><q cite="javascript:alert(1)">Unsafe citation</q><q cite="./notes.html#claim">Relative citation</q><q>Missing citation</q></p>',
+            'quote cite URL review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/quote-cite-url-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $blockquote = $summary[0];
+        $unsafeQuote = $summary[1]['children'][0];
+        $relativeQuote = $summary[1]['children'][1];
+        $missingQuote = $summary[1]['children'][2];
+
+        $t->same('quote-cite', $blockquote['quoteCitationUrlReview']);
+        $t->same(true, $blockquote['quoteCitePresent']);
+        $t->same('absolute', $blockquote['quoteCiteKind']);
+        $t->same('https', $blockquote['quoteCiteScheme']);
+        $t->same(false, $blockquote['quoteCiteUnsafe']);
+        $t->same([], $blockquote['quoteCiteIssueCodes']);
+        $t->same('https://example.test/source#quote', $blockquote['quoteCiteNormalized']);
+
+        $t->same('q', $unsafeQuote['name']);
+        $t->same(true, $unsafeQuote['quoteCitePresent']);
+        $t->same('absolute', $unsafeQuote['quoteCiteKind']);
+        $t->same('javascript', $unsafeQuote['quoteCiteScheme']);
+        $t->same(true, $unsafeQuote['quoteCiteUnsafe']);
+        $t->same(['unsafe-quote-cite'], $unsafeQuote['quoteCiteIssueCodes']);
+        $t->same([
+            ['code' => 'unsafe-quote-cite', 'cite' => 'javascript:alert(1)', 'scheme' => 'javascript'],
+        ], $unsafeQuote['quoteCiteIssues']);
+
+        $t->same('relative', $relativeQuote['quoteCiteKind']);
+        $t->same(null, $relativeQuote['quoteCiteScheme']);
+        $t->same(false, $relativeQuote['quoteCiteUnsafe']);
+        $t->same([], $relativeQuote['quoteCiteIssueCodes']);
+        $t->same('./notes.html#claim', $relativeQuote['quoteCiteNormalized']);
+
+        $t->same(false, $missingQuote['quoteCitePresent']);
+        $t->same('missing', $missingQuote['quoteCiteKind']);
+        $t->same(null, $missingQuote['quoteCiteScheme']);
+        $t->same(false, $missingQuote['quoteCiteUnsafe']);
+        $t->same([], $missingQuote['quoteCiteIssues']);
+
+        $t->same('<blockquote cite=" https://example.test/source#quote "><p>Quoted source</p></blockquote><p><q cite="javascript:alert(1)">Unsafe citation</q><q cite="./notes.html#claim">Relative citation</q><q>Missing citation</q></p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/quote-cite-url-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html media resource state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<video id="preview" controls muted loop poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source src="movie.mp4" type="video/mp4" media="(min-width: 40em)"><track default kind="captions" label="English" srclang="en" src="captions.vtt">Fallback <a href="movie.mp4">download</a></video>'
