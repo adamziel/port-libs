@@ -43,6 +43,8 @@ final class MarkdownWriter
 
     private int $lastReferenceIndex = 0;
 
+    private int $fancyOrderedMarkerEscapeSuppression = 0;
+
     /**
      * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool} $options
      */
@@ -69,6 +71,7 @@ final class MarkdownWriter
         $this->yamlMetadataTrailingCommentsByPath = [];
         $this->nextNoteNumber = 1;
         $this->lastReferenceIndex = 0;
+        $this->fancyOrderedMarkerEscapeSuppression = 0;
 
         $blocks = [];
         if ((bool) ($this->options['yamlMetadata'] ?? false)) {
@@ -2592,6 +2595,19 @@ final class MarkdownWriter
     }
 
     /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderInlineLabelInlines(array $nodes): string
+    {
+        $this->fancyOrderedMarkerEscapeSuppression++;
+        try {
+            return $this->renderInlines($nodes);
+        } finally {
+            $this->fancyOrderedMarkerEscapeSuppression--;
+        }
+    }
+
+    /**
      * @param list<AstNode> $following
      */
     private function renderInline(AstNode $node, array $following = [], bool $escapeDefinitionMarker = false): string
@@ -2602,8 +2618,8 @@ final class MarkdownWriter
             'softbreak' => $this->softBreakMarkdown(),
             'linebreak' => "\\\n",
             'code' => $this->renderCode($node),
-            'emph' => $this->delimitInlineContent('*', '*', $this->renderInlines($node->children)),
-            'strong' => $this->delimitInlineContent('**', '**', $this->renderInlines($node->children)),
+            'emph' => $this->delimitInlineContent('*', '*', $this->renderInlineLabelInlines($node->children)),
+            'strong' => $this->delimitInlineContent('**', '**', $this->renderInlineLabelInlines($node->children)),
             'strikeout' => $this->renderStrikeout($node),
             'superscript' => $this->renderScript($node, 'superscript', '^'),
             'subscript' => $this->renderScript($node, 'subscript', '~'),
@@ -2638,7 +2654,7 @@ final class MarkdownWriter
         $title = (string) $node->attr('title', '');
         $titleMarkdown = $title === '' ? '' : ' "' . $this->escapeLinkTitle($title) . '"';
 
-        return '[' . $this->renderInlines($node->children) . ']('
+        return '[' . $this->renderInlineLabelInlines($node->children) . ']('
             . $this->renderLinkDestination((string) $node->attr('url', ''))
             . $titleMarkdown
             . ')'
@@ -2873,7 +2889,7 @@ final class MarkdownWriter
 
     private function renderSpan(AstNode $node): string
     {
-        $content = $this->renderInlines($node->children);
+        $content = $this->renderInlineLabelInlines($node->children);
         $emojiAlias = $this->markdownEmojiAlias($node, $content);
         if ($emojiAlias !== null) {
             return ':' . $emojiAlias . ':';
@@ -2944,7 +2960,7 @@ final class MarkdownWriter
         $attrs = $this->linkAttrTuple($node);
         array_unshift($attrs['classes'], 'smallcaps');
 
-        return '[' . $this->renderInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+        return '[' . $this->renderInlineLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
     }
 
     private function renderUnderline(AstNode $node): string
@@ -2952,7 +2968,7 @@ final class MarkdownWriter
         $attrs = $this->linkAttrTuple($node);
         array_unshift($attrs['classes'], 'underline');
 
-        return '[' . $this->renderInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+        return '[' . $this->renderInlineLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
     }
 
     private function renderStrikeout(AstNode $node): string
@@ -2961,7 +2977,7 @@ final class MarkdownWriter
             return $this->renderAttributedSemanticSpan($node, 'strikeout');
         }
 
-        return $this->delimitInlineContent('~~', '~~', $this->renderInlines($node->children));
+        return $this->delimitInlineContent('~~', '~~', $this->renderInlineLabelInlines($node->children));
     }
 
     private function renderScript(AstNode $node, string $semanticClass, string $delimiter): string
@@ -2970,7 +2986,7 @@ final class MarkdownWriter
             return $this->renderAttributedSemanticSpan($node, $semanticClass);
         }
 
-        return $this->delimitScriptContent($delimiter, $this->renderInlines($node->children));
+        return $this->delimitScriptContent($delimiter, $this->renderInlineLabelInlines($node->children));
     }
 
     private function renderAttributedSemanticSpan(AstNode $node, string $semanticClass): string
@@ -2978,7 +2994,7 @@ final class MarkdownWriter
         $attrs = $this->linkAttrTuple($node);
         array_unshift($attrs['classes'], $semanticClass);
 
-        return '[' . $this->renderInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+        return '[' . $this->renderInlineLabelInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
     }
 
     private function markdownEmojiAlias(AstNode $node, string $content): ?string
@@ -3007,10 +3023,10 @@ final class MarkdownWriter
     private function renderQuoted(AstNode $node): string
     {
         if ((string) $node->attr('kind', 'double') === 'single') {
-            return "\u{2018}" . $this->renderInlines($node->children) . "\u{2019}";
+            return "\u{2018}" . $this->renderInlineLabelInlines($node->children) . "\u{2019}";
         }
 
-        return "\u{201C}" . $this->renderInlines($node->children) . "\u{201D}";
+        return "\u{201C}" . $this->renderInlineLabelInlines($node->children) . "\u{201D}";
     }
 
     private function renderMath(AstNode $node): string
@@ -3318,6 +3334,28 @@ final class MarkdownWriter
                 continue;
             }
 
+            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && preg_match('/^#([.)])(?=[ \t]|$)/', $tail) === 1) {
+                $escaped .= '\\#';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->startsWithParenthesizedOrderedListMarker($tail)) {
+                $escaped .= '\\(';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->matchFancyOrderedListMarker($tail, $match)) {
+                $escaped .= $match[1] . '\\' . $match[2];
+                $i += strlen($match[1]);
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
             if ($lineStart && $this->startsWithBulletListMarker($tail)) {
                 $escaped .= '\\' . $char;
                 $lineStart = false;
@@ -3450,6 +3488,55 @@ final class MarkdownWriter
     private function startsWithBulletListMarker(string $text): bool
     {
         return preg_match('/^[*+-](?:[ \t]|$)/', $text) === 1;
+    }
+
+    /**
+     * @param array<int, string> $match
+     */
+    private function matchFancyOrderedListMarker(string $text, array &$match): bool
+    {
+        if (preg_match('/^([A-Za-z]+)([.)])(?=[ \t]|$)/', $text, $match) !== 1) {
+            return false;
+        }
+
+        $spacesAfterMarker = strspn($text, " \t", strlen($match[1]) + 1);
+
+        return $this->isFancyOrderedListMarkerToken($match[1], $match[2], $spacesAfterMarker);
+    }
+
+    private function startsWithParenthesizedOrderedListMarker(string $text): bool
+    {
+        if (preg_match('/^\(@[A-Za-z0-9_-]*\)(?=[ \t]|$)/', $text) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^\(([0-9]{1,9}|[A-Za-z]+)\)([ \t]*)/', $text, $match) !== 1) {
+            return false;
+        }
+
+        if (($match[2] ?? '') === '' && strlen($match[0]) < strlen($text)) {
+            return false;
+        }
+
+        if (ctype_digit($match[1])) {
+            return true;
+        }
+
+        return strlen($match[1]) === 1 && strlen($match[2]) >= 2;
+    }
+
+    private function isFancyOrderedListMarkerToken(string $token, string $delimiter, int $spacesAfterMarker): bool
+    {
+        if ($delimiter === '.' && $this->isRomanNumeralMarker($token)) {
+            return strlen($token) > 1 || $spacesAfterMarker >= 2;
+        }
+
+        return strlen($token) === 1 && $spacesAfterMarker >= 2;
+    }
+
+    private function isRomanNumeralMarker(string $token): bool
+    {
+        return preg_match('/^(?=[MDCLXVI]+$)M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/', strtoupper($token)) === 1;
     }
 
     private function startsWithDefinitionMarker(string $text): bool

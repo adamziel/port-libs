@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 1,303 | 1,096 |
+| Markdown / CommonMark / GFM | 1,367 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,4 +26,4 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` preserves block-level list-item continuation payloads for headings, blockquotes, fenced and indented code, thematic breaks, fenced divs, raw HTML, line blocks, pipe tables, definition lists, task-list block payloads, nested list block starts, and ordered-marker variants.\n\nCurrent Pandoc counters: 4,954 PHP passes / 0 failures and 4,944 mapped upstream cases. Verification passed: `php -l` for `MarkdownReader.php`, `MarkdownReaderBlocksSurgeTest.php`, and `MarkdownReaderTest.php`; focused `MarkdownReaderBlocksSurgeTest.php` plus `MarkdownReaderTest.php` passed 2 files, 8969 assertions, 0 failures; full `lanes/pandoc/tests` passed 62 files, 96198 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.\n
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownWriter` escapes literal paragraph-start Pandoc fancy ordered markers before they can roundtrip as ordered lists, while preserving bracketed inline labels and spans.\n\nCurrent Pandoc counters: 5,018 PHP passes / 0 failures and 5,008 mapped upstream cases. Verification passed: `php -l` for `MarkdownWriter.php` and `MarkdownWriterInlineLinkEscapeSurgeTest.php`; dedicated `MarkdownWriterInlineLinkEscapeSurgeTest.php` passed 1 file, 256 assertions, 0 failures; focused Markdown writer inline/link/escape tests passed 4 files, 9946 assertions, 0 failures; full `lanes/pandoc/tests` passed 63 files, 96454 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.\n
