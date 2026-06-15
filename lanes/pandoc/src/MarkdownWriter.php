@@ -1176,6 +1176,13 @@ final class MarkdownWriter
             if ($child->type === 'image') {
                 return [str_repeat(' ', $indent) . $this->renderImage($this->imageWithFigureAttrs($node, $child), [])];
             }
+            if (
+                in_array($child->type, ['paragraph', 'plain'], true)
+                && count($child->children) === 1
+                && $child->children[0]->type === 'image'
+            ) {
+                return [str_repeat(' ', $indent) . $this->renderImage($this->imageWithFigureAttrs($node, $child->children[0]), [])];
+            }
         }
 
         $body = $this->renderBlockCollection($node->children);
