@@ -1279,5 +1279,7 @@
   "mappedMarkdownWriterInlineAliasHandoffSurgeCases": 56,
   "markdownWriterInlineAliasHandoffSurgeAssertions": 57,
   "mappedMarkdownWriterInlineSmartRunCompletionSurgeCases": 61,
-  "markdownWriterInlineSmartRunCompletionSurgeAssertions": 93
+  "markdownWriterInlineSmartRunCompletionSurgeAssertions": 93,
+  "mappedMarkdownWriterInlineAttributeCompletionSurgeCases": 60,
+  "markdownWriterInlineAttributeCompletionSurgeAssertions": 241
 }

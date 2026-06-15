@@ -6361,8 +6361,7 @@ final class MarkdownWriter
      */
     private function linkAttrTuple(AstNode $node): array
     {
-        $id = trim($this->scalarAttr($node, ['id', 'identifier', 'anchor']));
-
+        $id = $this->normalizeAttributeIdentifierToken($this->scalarAttr($node, ['id', 'identifier', 'anchor']));
         $classes = [];
         foreach (['classes', 'class', 'className'] as $name) {
             if (array_key_exists($name, $node->attrs)) {
@@ -6406,6 +6405,7 @@ final class MarkdownWriter
     {
         if (is_string($value)) {
             foreach (preg_split('/\s+/u', trim($value)) ?: [] as $class) {
+                $class = $this->normalizeAttributeIdentifierToken($class);
                 if ($class !== '') {
                     $classes[] = $class;
                 }
@@ -6415,7 +6415,7 @@ final class MarkdownWriter
 
         if (!is_array($value)) {
             if (is_scalar($value)) {
-                $class = trim((string) $value);
+                $class = $this->normalizeAttributeIdentifierToken((string) $value);
                 if ($class !== '') {
                     $classes[] = $class;
                 }
@@ -6424,13 +6424,11 @@ final class MarkdownWriter
         }
 
         foreach ($value as $class) {
-            if (!is_scalar($class)) {
-                continue;
-            }
-
-            $class = trim((string) $class);
-            if ($class !== '') {
-                $classes[] = $class;
+            if (is_scalar($class)) {
+                $class = $this->normalizeAttributeIdentifierToken((string) $class);
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
             }
         }
     }
@@ -6477,8 +6475,8 @@ final class MarkdownWriter
      */
     private function appendNormalizedAttribute(array &$attributes, string $name, mixed $value): void
     {
-        $name = trim($name);
-        if ($name === '' || !is_scalar($value) || (string) $value === '') {
+        $name = $this->normalizeAttributeIdentifierToken($name);
+        if ($name === '' || !is_scalar($value)) {
             return;
         }
 
@@ -6527,13 +6525,16 @@ final class MarkdownWriter
 
     private function escapeAttributeIdentifierToken(string $value): string
     {
-        $value = trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value);
-
         return preg_replace_callback(
             '/[\\\\`"\'\s{}\[\]()=]/u',
             static fn (array $match): string => '\\' . $match[0],
-            $value
+            $this->normalizeAttributeIdentifierToken($value)
         ) ?? $value;
+    }
+
+    private function normalizeAttributeIdentifierToken(string $value): string
+    {
+        return trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value);
     }
 
     private function escapeAttributeValue(string $value): string
