@@ -11365,6 +11365,106 @@ return [
             }
         }
     },
+    'preserves scalar table integer helpers through rebuilt json and native table wrappers' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['scalar-integer-table', ['json-native'], [['data-source', 'constructor-completeness']]],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [[['t' => 'AlignLeft'], ['t' => 'ColWidthDefault']]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        1,
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignRight'],
+                                        2,
+                                        [3],
+                                        [['t' => 'Plain', 'c' => [
+                                            ['t' => 'Str', 'c' => 'Scalar'],
+                                            ['t' => 'Space'],
+                                            ['t' => 'Str', 'c' => 'cell'],
+                                        ]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'scalar-table-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+        $stripWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+        $tableBodyPayload = static fn (array $encoded): array => $encoded['blocks'][0]['c'][4][0];
+        $tableCellPayload = static function (array $encoded): array {
+            $body = $encoded['blocks'][0]['c'][4][0];
+            $bodyPayload = $body['c'] ?? $body;
+            $row = $bodyPayload[3][0];
+            $rowPayload = $row['c'] ?? $row;
+            $cell = $rowPayload[1][0];
+
+            return $cell['c'] ?? $cell;
+        };
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $body = $table->children[0];
+            $row = $body->children[0];
+            $cell = $row->children[0];
+
+            $t->same(1, $body->attr('rowHeadColumns'), "{$source} scalar row head columns value");
+            $t->same(1, $body->attr('rowHeadColumnsNative'), "{$source} scalar row head native payload");
+            $t->same(2, $cell->attr('rowspan'), "{$source} scalar row span value");
+            $t->same(2, $cell->attr('rowSpanNative'), "{$source} scalar row span native payload");
+            $t->same(3, $cell->attr('colspan'), "{$source} single wrapped scalar col span value");
+            $t->same([3], $cell->attr('colSpanNative'), "{$source} single wrapped scalar col span native payload");
+
+            $rebuiltCell = new AstNode('table_cell', $stripWrapper($cell), $cell->children);
+            $rebuiltRow = new AstNode('table_row', $stripWrapper($row), [$rebuiltCell]);
+            $rebuiltBody = new AstNode('table_body', $stripWrapper($body), [$rebuiltRow]);
+            $rebuiltTable = new AstNode('table', array_replace($stripWrapper($table), [
+                'id' => 'rebuilt-scalar-integer-table',
+            ]), [$rebuiltBody]);
+            $rebuiltDocument = new AstNode('document', $document->attrs, [$rebuiltTable]);
+
+            foreach ([
+                "{$source} json" => (new PandocJsonWriter())->toArray($rebuiltDocument),
+                "{$source} native" => json_decode((new NativeWriter())->write($rebuiltDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $bodyPayload = $tableBodyPayload($encoded);
+                $bodyContent = $bodyPayload['c'] ?? $bodyPayload;
+                $cellPayload = $tableCellPayload($encoded);
+
+                $t->same('rebuilt-scalar-integer-table', $encoded['blocks'][0]['c'][0][0], "{$writer} writer rebuilds edited table attr");
+                $t->same(1, $bodyContent[1], "{$writer} writer preserves scalar row head helper");
+                $t->same(2, $cellPayload[2], "{$writer} writer preserves scalar row span helper");
+                $t->same([3], $cellPayload[3], "{$writer} writer preserves single wrapped scalar col span helper");
+            }
+        }
+    },
     'accepts single wrapped table helper tuples through rebuilt json and native writers' => static function (TestRunner $t): void {
         $headCell = ['t' => 'Cell', 'c' => [[
             ['head-cell', ['header'], [['data-role', 'column']]],

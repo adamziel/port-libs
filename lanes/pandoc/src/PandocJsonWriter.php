@@ -2030,11 +2030,16 @@ final class PandocJsonWriter
         return abs((float) $content - (float) $width) < 0.000000000001 ? $native : null;
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function integerConstructorNative(mixed $native, string $constructor, int $integer): ?array
+    private function integerConstructorNative(mixed $native, string $constructor, int $integer): mixed
     {
+        if (is_int($native)) {
+            return $native === $integer ? $native : null;
+        }
+
+        if (is_array($native) && array_is_list($native) && count($native) === 1 && is_int($native[0])) {
+            return $native[0] === $integer ? $native : null;
+        }
+
         $tagged = $this->taggedNative($native, $constructor);
         if ($tagged === null) {
             return null;
