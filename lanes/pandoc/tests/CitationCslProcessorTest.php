@@ -29110,6 +29110,84 @@ XML);
         ]));
         $t->same('Review Volume Alias Packet :: Collected Migration Reviews: Source Appendix :: CMR :: Source Corpus :: review essay', $styled->renderBibliographyEntry('review-volume-alias'));
     },
+    'renders volume title text aliases with csl short forms' => static function (TestRunner $t) use ($citation): void {
+        $styleXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded CSL Volume Title Text Short Alias Review</title>
+    <id>https://example.test/styles/bounded-csl-volume-title-text-short-alias-review</id>
+    <updated>2026-06-15T14:05:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="volume-title-text" form="short"/>
+        <text variable="volumetitletext" form="short"/>
+        <text variable="volumetitle" form="short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="volume-title-text" form="short"/>
+      <text variable="volume-title-text"/>
+    </layout>
+  </bibliography>
+</style>
+XML;
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-volume-short',
+            'type' => 'book',
+            'title' => 'Direct Volume Source',
+            'volume-title-text' => 'Long Direct Volume',
+            'volume-title-short' => 'LDV',
+            'issued' => ['date-parts' => [[2026]]],
+        ]])->withCslStyle($styleXml);
+        $directItem = $direct->item('direct-volume-short');
+
+        $t->same('Long Direct Volume', $directItem['volumeTitle'] ?? null);
+        $t->same('LDV', $directItem['volumeTitleShort'] ?? null);
+        $summary = $direct->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded CSL Volume Title Text Short Alias Review', $summary['title'] ?? null);
+        $t->same('volume-title-text', $citationChildren[1]['variable'] ?? null);
+        $t->same('short', $citationChildren[1]['form'] ?? null);
+        $t->same('volumetitletext', $citationChildren[2]['variable'] ?? null);
+        $t->same('volumetitle', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Direct Volume Source | LDV | LDV | LDV]', $direct->renderCitationCluster([
+            $citation('direct-volume-short', '[@direct-volume-short]'),
+        ]));
+        $t->same('Direct Volume Source :: LDV :: Long Direct Volume', $direct->renderBibliographyEntry('direct-volume-short'));
+
+        $bibtex = <<<'BIB'
+@book{biblatex-volume-short,
+  title            = {BibLaTeX Volume Source},
+  volumetitletext  = {BibLaTeX Alias Volume},
+  shortvolumetitle = {BAV},
+  date             = {2025}
+}
+BIB;
+
+        $bibtexProcessor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle($styleXml);
+        $bibtexItem = $bibtexProcessor->item('biblatex-volume-short');
+        $t->same('BibLaTeX Alias Volume', $bibtexItem['volumeTitle'] ?? null);
+        $t->same('BAV', $bibtexItem['volumeTitleShort'] ?? null);
+        $t->same('BibLaTeX Alias Volume', $bibtexItem['raw']['rawBibtex']['fields']['volumetitletext'] ?? null);
+        $t->same('BAV', $bibtexItem['raw']['rawBibtex']['fields']['shortvolumetitle'] ?? null);
+        $t->same('[BibLaTeX Volume Source | BAV | BAV | BAV]', $bibtexProcessor->renderCitationCluster([
+            $citation('biblatex-volume-short', '[@biblatex-volume-short]'),
+        ]));
+        $t->same('BibLaTeX Volume Source :: BAV :: BibLaTeX Alias Volume', $bibtexProcessor->renderBibliographyEntry('biblatex-volume-short'));
+
+        $document = (new MarkdownReader())->read('Volume short alias [@biblatex-volume-short] stays reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($bibtexProcessor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Volume short alias [BibLaTeX Volume Source | BAV | BAV | BAV] stays reviewable.</p>', $blocks);
+        $t->contains('<dt>BibLaTeX Volume Source 2025</dt><dd>BibLaTeX Volume Source :: BAV :: BibLaTeX Alias Volume</dd>', $blocks);
+    },
     'maps bounded biblatex volume subtitle aliases into csl volume titles' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{compact-volume-subtitle,

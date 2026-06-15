@@ -11098,7 +11098,7 @@ final class CitationCslProcessor
             'title' => (string) ($item['shortTitle'] ?? ''),
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext', 'book-title', 'booktitle', 'journal-title', 'journaltitle', 'journal', 'publication-title', 'publicationtitle' => (string) ($item['containerTitleShort'] ?? ''),
             'collection-title', 'collectiontitle', 'collection', 'collection-title-text', 'collectiontitletext', 'series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext' => (string) ($item['collectionTitleShort'] ?? ''),
-            'volume-title' => (string) ($item['volumeTitleShort'] ?? ''),
+            'volume-title', 'volumetitle', 'volume-title-text', 'volumetitletext' => (string) ($item['volumeTitleShort'] ?? ''),
             default => '',
         };
         if ($directShort !== '') {
