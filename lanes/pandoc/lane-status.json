@@ -1283,5 +1283,7 @@
   "mappedMarkdownWriterInlineAttributeCompletionSurgeCases": 60,
   "markdownWriterInlineAttributeCompletionSurgeAssertions": 241,
   "mappedMarkdownWriterTaskListContinuationSurgeCases": 50,
-  "markdownWriterTaskListContinuationSurgeAssertions": 251
+  "markdownWriterTaskListContinuationSurgeAssertions": 251,
+  "mappedMarkdownWriterPlainListItemSurgeCases": 60,
+  "markdownWriterPlainListItemSurgeAssertions": 358
 }
