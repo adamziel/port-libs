@@ -765,6 +765,79 @@ return [
         $t->true(!str_contains($html, 'Hidden token'), 'Expected hidden input values to stay hidden from review text');
         $t->true(!str_contains($html, 'javascript:'), 'Expected image input src URL to be stripped with the control');
     },
+    'preserves label control associations as inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<form id="labels">'
+            . '<label for="title" data-pandoc-label-text="source-spoof">Title <span>required</span></label><input id="title" name="title" type="rating" value="Draft">'
+            . '<label>Subscribe <input id="subscribe" name="subscribe" type="checkbox" checked value="yes"></label>'
+            . '<label for="missing">Missing</label>'
+            . '<label for="bad id">Bad</label>'
+            . '<label for="note">Not control</label><span id="note">Note text</span>'
+            . '<label><input type="hidden" id="secret" name="secret" value="hidden"> Hidden</label>'
+            . '</form>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/label-association-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $diagnosticCounts = array_count_values($fragment->diagnosticCodes());
+
+        $expected = '<label data-pandoc-label-text="Title required" data-pandoc-label-for="title" data-pandoc-label-control-source="for-attribute" data-pandoc-label-control="input" data-pandoc-label-control-id="title" data-pandoc-label-control-name="title" data-pandoc-label-control-type="text">Title <span>required</span></label>'
+            . '<label data-pandoc-label-text="Subscribe" data-pandoc-label-control-source="descendant" data-pandoc-label-control="input" data-pandoc-label-control-id="subscribe" data-pandoc-label-control-name="subscribe" data-pandoc-label-control-type="checkbox">Subscribe </label>'
+            . '<label data-pandoc-label-text="Missing" data-pandoc-label-for="missing" data-pandoc-label-control-source="missing-for-target">Missing</label>'
+            . '<label data-pandoc-label-text="Bad">Bad</label>'
+            . '<label data-pandoc-label-text="Not control" data-pandoc-label-for="note" data-pandoc-label-control-source="non-labelable-for-target">Not control</label><span id="note">Note text</span>'
+            . '<label data-pandoc-label-text="Hidden"> Hidden</label>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Title requiredSubscribe MissingBadNot controlNote text Hidden', $fragment->textContent());
+        $t->same(['label', 'span'], $summary['elementNames']);
+        $t->same(['form', 'input'], $summary['blockedTags']);
+        $t->same(['control', 'data-pandoc-label-text', 'for', 'text'], $summary['filteredAttributes']);
+        $t->same(28, $summary['diagnostics']);
+        $t->same(21, $diagnosticCounts['label-metadata-review'] ?? 0);
+        $t->same(4, $diagnosticCounts['blocked-tag'] ?? 0);
+        $t->same(3, $diagnosticCounts['unsafe-attribute'] ?? 0);
+        $t->same('label', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-label-text' => 'Title required',
+            'data-pandoc-label-for' => 'title',
+            'data-pandoc-label-control-source' => 'for-attribute',
+            'data-pandoc-label-control' => 'input',
+            'data-pandoc-label-control-id' => 'title',
+            'data-pandoc-label-control-name' => 'title',
+            'data-pandoc-label-control-type' => 'text',
+        ], $nodes[0]['attrs']);
+        $t->same([
+            'data-pandoc-label-text' => 'Subscribe',
+            'data-pandoc-label-control-source' => 'descendant',
+            'data-pandoc-label-control' => 'input',
+            'data-pandoc-label-control-id' => 'subscribe',
+            'data-pandoc-label-control-name' => 'subscribe',
+            'data-pandoc-label-control-type' => 'checkbox',
+        ], $nodes[1]['attrs']);
+        $t->same([
+            'data-pandoc-label-text' => 'Missing',
+            'data-pandoc-label-for' => 'missing',
+            'data-pandoc-label-control-source' => 'missing-for-target',
+        ], $nodes[2]['attrs']);
+        $t->same(['data-pandoc-label-text' => 'Bad'], $nodes[3]['attrs']);
+        $t->same([
+            'data-pandoc-label-text' => 'Not control',
+            'data-pandoc-label-for' => 'note',
+            'data-pandoc-label-control-source' => 'non-labelable-for-target',
+        ], $nodes[4]['attrs']);
+        $t->same(['data-pandoc-label-text' => 'Hidden'], $nodes[6]['attrs']);
+        $t->same('/migration/label-association-review.html', $document->children[0]->attr('part'));
+        foreach (['<form', '<input', ' for=', 'source-spoof', 'value=', 'Draft', 'yes', 'hidden', 'bad id'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected label association handoff to strip live or unsafe source content: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to strip live or unsafe source content: ' . $blocked);
+        }
+    },
     'converts button submit metadata into inert reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'
@@ -3094,7 +3167,7 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<article><label>Subtotal </label>'
+        $expected = '<article><label data-pandoc-label-text="Subtotal" data-pandoc-label-control-source="descendant" data-pandoc-label-control="input" data-pandoc-label-control-id="subtotal" data-pandoc-label-control-type="text">Subtotal </label>'
             . '<output data-pandoc-output-for="subtotal tax" data-pandoc-output-form="calc" data-pandoc-output-name="total">Total due</output>'
             . '<output data-pandoc-output-for="missing">Bad output</output>'
             . '</article>';
@@ -3109,10 +3182,15 @@ return [
         $t->same('Subtotal Total dueBad output', $fragment->textContent());
         $t->same(['article', 'label', 'output'], $summary['elementNames']);
         $t->same(['form', 'input'], $summary['blockedTags']);
-        $t->same(['data-pandoc-output-name', 'for', 'form', 'name'], $summary['filteredAttributes']);
+        $t->same(['control', 'data-pandoc-output-name', 'for', 'form', 'name', 'text'], $summary['filteredAttributes']);
         $t->same([
             'blocked-tag',
             'blocked-tag',
+            'label-metadata-review',
+            'label-metadata-review',
+            'label-metadata-review',
+            'label-metadata-review',
+            'label-metadata-review',
             'unsafe-attribute',
             'output-metadata-review',
             'output-metadata-review',
@@ -3124,6 +3202,13 @@ return [
         ], $policyDiagnostics);
         $children = $nodes[0]['children'];
         $t->same('label', $children[0]['name']);
+        $t->same([
+            'data-pandoc-label-text' => 'Subtotal',
+            'data-pandoc-label-control-source' => 'descendant',
+            'data-pandoc-label-control' => 'input',
+            'data-pandoc-label-control-id' => 'subtotal',
+            'data-pandoc-label-control-type' => 'text',
+        ], $children[0]['attrs']);
         $t->same([
             'data-pandoc-output-for' => 'subtotal tax',
             'data-pandoc-output-form' => 'calc',
