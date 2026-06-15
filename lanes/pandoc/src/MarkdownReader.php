@@ -13995,7 +13995,7 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
-    private function gridTableCellNeedsBlockParsing(array $lines): bool
+    private function tableCellNeedsBlockParsing(array $lines): bool
     {
         $sawContent = false;
         $sawBlankAfterContent = false;
@@ -14009,7 +14009,7 @@ final class MarkdownReader
                 continue;
             }
 
-            if (preg_match('/^(?:#{1,6}\s+|[-*+]\s+|\d{1,9}[.)]\s+)/', $line) === 1) {
+            if ($this->tableCellLineStartsBlock($line)) {
                 return true;
             }
 
@@ -14023,11 +14023,40 @@ final class MarkdownReader
         return false;
     }
 
+    private function tableCellLineStartsBlock(string $line): bool
+    {
+        if (preg_match('/^(?:#{1,6}\s+|[-*+]\s+|\d{1,9}[.)]\s+|#\.\s+|>\s*)/', $line) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^(?:`{3,}|~{3,}|:{3,})/', $line) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^(?:[-*_][ \t]*){3,}$/', $line) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^\|(?:\s|$)/', $line) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^:\s+\S/', $line) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^<(?:blockquote|div|dl|figure|h[1-6]|ol|p|pre|table|ul)\b/i', $line) === 1) {
+            return true;
+        }
+
+        return false;
+    }
+
     /**
      * @param list<string> $lines
      * @return list<AstNode>
      */
-    private function readGridTableCellBlocks(array $lines): array
+    private function readTableCellBlocks(array $lines): array
     {
         while ($lines !== [] && trim($lines[0]) === '') {
             array_shift($lines);
@@ -14131,15 +14160,17 @@ final class MarkdownReader
 
         $cursor = $index + 2;
         $bodyRows = [];
+        $current = null;
         $count = count($lines);
         while ($cursor < $count && trim($lines[$cursor]) !== '') {
             if ($this->parseSimpleTableDelimiter($lines[$cursor]) !== null) {
                 break;
             }
 
-            $bodyRows[] = $this->splitSimpleTableLine($lines[$cursor], $columns);
+            $this->appendSimpleTableBodyLine($lines[$cursor], $columns, $current, $bodyRows);
             $cursor++;
         }
+        $this->flushSimpleTableRow($current, $bodyRows);
 
         if ($bodyRows === []) {
             return null;
@@ -14560,8 +14591,8 @@ final class MarkdownReader
         return new AstNode(
             'table_cell',
             $attrs,
-            $this->gridTableCellNeedsBlockParsing($cellLines)
-                ? $this->readGridTableCellBlocks($cellLines)
+            $this->tableCellNeedsBlockParsing($cellLines)
+                ? $this->readTableCellBlocks($cellLines)
                 : $this->parseInlines($text)
         );
     }
@@ -15242,14 +15273,23 @@ final class MarkdownReader
     {
         $children = [];
         foreach ($cells as $cell) {
-            $children[] = new AstNode(
-                'table_cell',
-                ['text' => $cell, 'header' => $header],
-                $this->parseInlines($cell)
-            );
+            $children[] = $this->buildTableCell($cell, $header);
         }
 
         return new AstNode('table_row', ['header' => $header], $children);
+    }
+
+    private function buildTableCell(string $cell, bool $header): AstNode
+    {
+        $lines = explode("\n", $cell);
+
+        return new AstNode(
+            'table_cell',
+            ['text' => $cell, 'header' => $header],
+            $this->tableCellNeedsBlockParsing($lines)
+                ? $this->readTableCellBlocks($lines)
+                : $this->parseInlines($cell)
+        );
     }
 
     /**

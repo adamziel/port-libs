@@ -192,4 +192,143 @@ foreach ($tableFixtures as $tableName => $fixture) {
     }
 }
 
+$blockCellPayloads = [
+    'paragraph bullet list' => static function (string $caseId): array {
+        return [
+            'lines' => ['Intro ' . $caseId, '- item ' . $caseId, '- done ' . $caseId],
+            'types' => ['paragraph', 'bullet_list'],
+            'html' => '<ul><li>item ' . $caseId . '</li><li>done ' . $caseId . '</li></ul>',
+        ];
+    },
+    'ordered list' => static function (string $caseId): array {
+        return [
+            'lines' => ['1. first ' . $caseId, '2. second ' . $caseId],
+            'types' => ['ordered_list'],
+            'html' => '<ol><li>first ' . $caseId . '</li><li>second ' . $caseId . '</li></ol>',
+        ];
+    },
+    'numbered example list' => static function (string $caseId): array {
+        return [
+            'lines' => ['#. first ' . $caseId, '#. second ' . $caseId],
+            'types' => ['ordered_list'],
+            'html' => '<ol><li>first ' . $caseId . '</li><li>second ' . $caseId . '</li></ol>',
+        ];
+    },
+    'heading block' => static function (string $caseId): array {
+        return [
+            'lines' => ['### Head ' . $caseId],
+            'types' => ['heading'],
+            'html' => '<h3 id="head-' . $caseId . '">Head ' . $caseId . '</h3>',
+        ];
+    },
+    'blockquote block' => static function (string $caseId): array {
+        return [
+            'lines' => ['> quoted ' . $caseId],
+            'types' => ['blockquote'],
+            'html' => '<blockquote><p>quoted ' . $caseId . '</p></blockquote>',
+        ];
+    },
+    'fenced code block' => static function (string $caseId): array {
+        return [
+            'lines' => ['```', 'code ' . $caseId, '```'],
+            'types' => ['code_block'],
+            'html' => '<code>code ' . $caseId . '</code>',
+        ];
+    },
+    'definition list block' => static function (string $caseId): array {
+        return [
+            'lines' => ['Term ' . $caseId, ': detail ' . $caseId],
+            'types' => ['definition_list'],
+            'html' => '<dl><dt>Term ' . $caseId . '</dt><dd>detail ' . $caseId . '</dd></dl>',
+        ];
+    },
+    'line block' => static function (string $caseId): array {
+        return [
+            'lines' => ['| first ' . $caseId, '| second ' . $caseId],
+            'types' => ['line_block'],
+            'html' => 'first ' . $caseId . '<br/>second ' . $caseId,
+        ];
+    },
+    'horizontal rule block' => static function (string $caseId): array {
+        return [
+            'lines' => ['***'],
+            'types' => ['horizontal_rule'],
+            'html' => '<hr',
+        ];
+    },
+    'fenced div block' => static function (string $caseId): array {
+        return [
+            'lines' => ['::: {.note}', 'Div ' . $caseId, ':::'],
+            'types' => ['div'],
+            'html' => '<div class="note"><p>Div ' . $caseId . '</p></div>',
+        ];
+    },
+];
+
+$simpleBlockTable = static function (string $shape, array $payloadLines): string {
+    $firstPayload = array_shift($payloadLines);
+    $body = [str_pad('Alpha', 10) . $firstPayload];
+    foreach ($payloadLines as $line) {
+        $body[] = str_repeat(' ', 10) . $line;
+    }
+
+    $header = str_pad('Item', 10) . 'Notes';
+    $delimiter = '--------  ------------------------------------------------';
+    $boundary = str_repeat('-', 62);
+
+    return match ($shape) {
+        'with-header' => implode("\n", [$header, $delimiter, ...$body]),
+        'without-header' => implode("\n", [$delimiter, ...$body, $delimiter]),
+        'multiline-header' => implode("\n", [$boundary, $header, $delimiter, ...$body, $boundary]),
+    };
+};
+
+$secondBodyCell = static function (AstNode $table): AstNode {
+    $body = null;
+    foreach ($table->children as $child) {
+        if ($child->type === 'table_body') {
+            $body = $child;
+            break;
+        }
+    }
+
+    return $body?->children[0]?->children[1] ?? new AstNode('missing');
+};
+
+$blockCellCaseCount = 0;
+foreach (['with-header', 'without-header', 'multiline-header'] as $shape) {
+    foreach (['before-table' => 'Table:', 'after-table' => ':'] as $position => $marker) {
+        foreach ($blockCellPayloads as $label => $payloadBuilder) {
+            $blockCellCaseCount++;
+            $caseId = str_pad((string) $blockCellCaseCount, 3, '0', STR_PAD_LEFT);
+            $tests["maps upstream markdown reader simple table block cell {$shape} {$position} {$label}"] =
+                static function (TestRunner $t) use ($payloadBuilder, $simpleBlockTable, $captionedMarkdown, $firstTable, $secondBodyCell, $shape, $position, $marker, $caseId): void {
+                    $payload = $payloadBuilder($caseId);
+                    $caption = "[Cell {$caseId}] Block cell caption {$caseId} {#block-cell-{$caseId} .block-cell data-case=\"{$caseId}\"}";
+                    $markdown = $captionedMarkdown($simpleBlockTable($shape, $payload['lines']), $position, $marker, $caption);
+                    $document = (new MarkdownReader())->read($markdown);
+                    $table = $firstTable($document);
+                    $cell = $secondBodyCell($table);
+                    $blocks = (new WordPressBlockWriter())->write($document);
+                    $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+
+                    $t->same('table_cell', $cell->type);
+                    $t->same($payload['types'], array_map(static fn (AstNode $node): string => $node->type, $cell->children));
+                    $t->same("Block cell caption {$caseId}", $table->attr('caption'));
+                    $t->same("Cell {$caseId}", $table->attr('shortCaption'));
+                    $t->same('block-cell-' . $caseId, $table->attr('id'));
+                    $t->same(['block-cell'], $table->attr('classes'));
+                    $t->same($caseId, $table->attr('attributes')['data-case'] ?? null);
+                    $t->same($position === 'before-table' ? 'before-table' : 'after-table', $packet['summary']['captionPlacement'] ?? null);
+                    $t->contains($payload['html'], $blocks);
+                    $t->contains('data-pandoc-short-caption="Cell ' . $caseId . '"', $blocks);
+                };
+        }
+    }
+}
+
+$tests['records upstream markdown reader simple table block cell mapped-case count'] = static function (TestRunner $t) use ($blockCellCaseCount): void {
+    $t->same(60, $blockCellCaseCount);
+};
+
 return $tests;
