@@ -29280,6 +29280,141 @@ XML);
         $t->contains('<dt>Alias 2026</dt><dd>Migration Manual :: Manual Alias :: source addendum</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Issue Alias Packet :: J. Alias Import. :: review annex :: Special Alias Issue: Source Reports :: editorial packet</dd>', $blocks);
     },
+    'maps bounded biblatex title text aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@incollection{biblatex-title-text-hyphen,
+  author                 = {Ng, Nia},
+  title                  = {Source Chapter},
+  date                   = {2026},
+  book-title             = {Migration Handbook},
+  main-title-text        = {Main Hyphen Corpus},
+  main-subtitle          = {Source Desk},
+  volume-title-text      = {Volume Hyphen Review},
+  volume-subtitle        = {Appendix},
+  part-title-text        = {Part Hyphen Ledger},
+  part-subtitle          = {Field Notes},
+  collection-title-text  = {Collection Hyphen Series},
+  collection-number      = {7},
+  issue-title-text       = {Issue Hyphen Packet},
+  issue-title-addon      = {queue note}
+}
+
+@book{biblatex-title-text-compact,
+  author              = {Roe, Pat},
+  title               = {Compact Title Text Packet},
+  date                = {2025},
+  containertitletext  = {Compact Container Journal},
+  maintitletext       = {Compact Main Corpus},
+  volumetitletext     = {Compact Volume Review},
+  parttitletext       = {Alpha Compact Part},
+  collectiontitletext = {Compact Collection},
+  collectionnumber    = {3},
+  issuetitletext      = {Compact Issue}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Migration Handbook', $items[0]['container-title'] ?? null);
+        $t->same('Main Hyphen Corpus: Source Desk', $items[0]['main-title'] ?? null);
+        $t->same('Volume Hyphen Review: Appendix', $items[0]['volume-title'] ?? null);
+        $t->same('Part Hyphen Ledger: Field Notes', $items[0]['part-title'] ?? null);
+        $t->same('Collection Hyphen Series', $items[0]['collection-title'] ?? null);
+        $t->same('7', $items[0]['collection-number'] ?? null);
+        $t->same('Issue Hyphen Packet', $items[0]['issue-title'] ?? null);
+        $t->same('queue note', $items[0]['issue-title-addon'] ?? null);
+        $t->same('Compact Container Journal', $items[1]['container-title'] ?? null);
+        $t->same('Compact Main Corpus', $items[1]['main-title'] ?? null);
+        $t->same('Compact Volume Review', $items[1]['volume-title'] ?? null);
+        $t->same('Alpha Compact Part', $items[1]['part-title'] ?? null);
+        $t->same('Compact Collection', $items[1]['collection-title'] ?? null);
+        $t->same('3', $items[1]['collection-number'] ?? null);
+        $t->same('Compact Issue', $items[1]['issue-title'] ?? null);
+        $t->same('Main Hyphen Corpus', $items[0]['rawBibtex']['fields']['main-title-text'] ?? null);
+        $t->same('Alpha Compact Part', $items[1]['rawBibtex']['fields']['parttitletext'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $hyphen = $processor->item('biblatex-title-text-hyphen');
+        $compact = $processor->item('biblatex-title-text-compact');
+        $t->same('Migration Handbook', $hyphen['containerTitle'] ?? null);
+        $t->same('Main Hyphen Corpus: Source Desk', $hyphen['mainTitle'] ?? null);
+        $t->same('Volume Hyphen Review: Appendix', $hyphen['volumeTitle'] ?? null);
+        $t->same('Part Hyphen Ledger: Field Notes', $hyphen['partTitle'] ?? null);
+        $t->same('Collection Hyphen Series', $hyphen['collectionTitle'] ?? null);
+        $t->same('Issue Hyphen Packet', $hyphen['issueTitle'] ?? null);
+        $t->same('Compact Container Journal', $compact['containerTitle'] ?? null);
+        $t->same('Compact Main Corpus', $compact['mainTitle'] ?? null);
+        $t->same('Compact Volume Review', $compact['volumeTitle'] ?? null);
+        $t->same('Alpha Compact Part', $compact['partTitle'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Title Text Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-title-text-alias-review</id>
+    <updated>2026-06-15T03:58:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="part-title-text"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="container-title-text"/>
+        <text variable="main-title-text"/>
+        <text variable="volume-title-text"/>
+        <text variable="part-title-text"/>
+        <text variable="collection-title-text"/>
+        <text variable="collection-number"/>
+        <text variable="issue-title-text"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="part-title-text"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="main-title"/>
+      <text variable="volume-title"/>
+      <text variable="part-title"/>
+      <text variable="collection-title"/>
+      <text variable="collection-number"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded BibLaTeX Title Text Alias Review', $summary['title'] ?? null);
+        $t->same('part-title-text', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('part-title-text', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same('container-title-text', $citationChildren[1]['variable'] ?? null);
+        $t->same('main-title-text', $citationChildren[2]['variable'] ?? null);
+        $t->same('volume-title-text', $citationChildren[3]['variable'] ?? null);
+        $t->same('part-title-text', $citationChildren[4]['variable'] ?? null);
+        $t->same('[Roe | Compact Container Journal | Compact Main Corpus | Compact Volume Review | Alpha Compact Part | Compact Collection | 3 | Compact Issue; Ng | Migration Handbook | Main Hyphen Corpus: Source Desk | Volume Hyphen Review: Appendix | Part Hyphen Ledger: Field Notes | Collection Hyphen Series | 7 | Issue Hyphen Packet]', $styled->renderCitationCluster([
+            $citation('biblatex-title-text-hyphen', '[@biblatex-title-text-hyphen]'),
+            $citation('biblatex-title-text-compact', '[@biblatex-title-text-compact]'),
+        ]));
+        $t->same('Source Chapter :: Migration Handbook :: Main Hyphen Corpus: Source Desk :: Volume Hyphen Review: Appendix :: Part Hyphen Ledger: Field Notes :: Collection Hyphen Series :: 7 :: Issue Hyphen Packet :: queue note', $styled->renderBibliographyEntry('biblatex-title-text-hyphen'));
+        $t->same('Compact Title Text Packet :: Compact Container Journal :: Compact Main Corpus :: Compact Volume Review :: Alpha Compact Part :: Compact Collection :: 3 :: Compact Issue', $styled->renderBibliographyEntry('biblatex-title-text-compact'));
+
+        $document = (new MarkdownReader())->read('BibLaTeX title-text aliases [@biblatex-title-text-hyphen; @biblatex-title-text-compact] remain sortable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>BibLaTeX title-text aliases [Roe | Compact Container Journal | Compact Main Corpus | Compact Volume Review | Alpha Compact Part | Compact Collection | 3 | Compact Issue; Ng | Migration Handbook | Main Hyphen Corpus: Source Desk | Volume Hyphen Review: Appendix | Part Hyphen Ledger: Field Notes | Collection Hyphen Series | 7 | Issue Hyphen Packet] remain sortable.</p>', $blocks);
+        $compactPosition = strpos($blocks, '<dt>Roe 2025</dt><dd>Compact Title Text Packet :: Compact Container Journal :: Compact Main Corpus :: Compact Volume Review :: Alpha Compact Part :: Compact Collection :: 3 :: Compact Issue</dd>');
+        $hyphenPosition = strpos($blocks, '<dt>Ng 2026</dt><dd>Source Chapter :: Migration Handbook :: Main Hyphen Corpus: Source Desk :: Volume Hyphen Review: Appendix :: Part Hyphen Ledger: Field Notes :: Collection Hyphen Series :: 7 :: Issue Hyphen Packet :: queue note</dd>');
+        $t->true($compactPosition !== false && $hyphenPosition !== false);
+        $t->true($compactPosition < $hyphenPosition, 'Part-title text sort order is not reflected in WordPress bibliography output');
+    },
     'normalizes bounded direct csl json compact title family aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
