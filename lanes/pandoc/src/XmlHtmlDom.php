@@ -110,6 +110,9 @@ final class XmlHtmlDom
         'required' => true,
         'reversed' => true,
         'selected' => true,
+        'shadowrootclonable' => true,
+        'shadowrootdelegatesfocus' => true,
+        'shadowrootserializable' => true,
         'typemustmatch' => true,
     ];
 
@@ -135,6 +138,36 @@ final class XmlHtmlDom
         'close' => true,
         'request-close' => true,
         'show-modal' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const HTML_IFRAME_SANDBOX_TOKENS = [
+        'allow-downloads' => true,
+        'allow-forms' => true,
+        'allow-modals' => true,
+        'allow-orientation-lock' => true,
+        'allow-pointer-lock' => true,
+        'allow-popups' => true,
+        'allow-popups-to-escape-sandbox' => true,
+        'allow-presentation' => true,
+        'allow-same-origin' => true,
+        'allow-scripts' => true,
+        'allow-storage-access-by-user-activation' => true,
+        'allow-top-navigation' => true,
+        'allow-top-navigation-by-user-activation' => true,
+        'allow-top-navigation-to-custom-protocols' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const HTML_REFERRER_POLICIES = [
+        'no-referrer' => true,
+        'no-referrer-when-downgrade' => true,
+        'origin' => true,
+        'origin-when-cross-origin' => true,
+        'same-origin' => true,
+        'strict-origin' => true,
+        'strict-origin-when-cross-origin' => true,
+        'unsafe-url' => true,
     ];
 
     /** @var array<string, bool> true when the ARIA attribute accepts an ID reference list */
@@ -14533,6 +14566,9 @@ final class XmlHtmlDom
         if ($name === 'hgroup') {
             $summary += self::headingGroupSummary($node);
         }
+        if ($name === 'slot') {
+            $summary += self::slotElementSummary($node);
+        }
         if (self::isHtmlOutlineElementName($name)) {
             $summary += self::outlineSummary($node, $name);
         }
@@ -14541,6 +14577,9 @@ final class XmlHtmlDom
         }
         if ($name === 'address') {
             $summary += self::addressSummary($node);
+        }
+        if ($name === 'slot') {
+            $summary += self::slotElementSummary($node);
         }
         if (in_array($name, ['caption', 'col', 'td', 'th'], true)) {
             $summary += self::tableElementSummary($node, $name);
@@ -14689,6 +14728,15 @@ final class XmlHtmlDom
         }
         if ($name === 'template') {
             $summary += self::templateSummary($node);
+            if (self::isDeclarativeShadowRootTemplate($node)) {
+                $summary += self::templateShadowRootSummary($node);
+            }
+        }
+        if ($name === 'slot') {
+            $summary += self::slotSummary($node);
+        }
+        if ($name === 'slot') {
+            $summary += self::slotElementSummary($node);
         }
         if ($name === 'noscript') {
             $summary += self::noscriptSummary($node);
@@ -14698,6 +14746,10 @@ final class XmlHtmlDom
         }
         if ($name === 'data') {
             $summary += self::dataElementSummary($node);
+        }
+        if ($name === 'pre') {
+            $summary += self::preformattedBlockSummary($node);
+            $summary += self::preformattedSummary($node);
         }
         if (in_array($name, ['ruby', 'rb', 'rt', 'rp', 'rtc'], true)) {
             $summary += self::rubySummary($node, $name);
@@ -14936,6 +14988,103 @@ final class XmlHtmlDom
             'contactEmailHrefs' => array_values(array_filter(
                 array_map(static fn (array $link): ?string => $link['href'], $links),
                 static fn (?string $href): bool => $href !== null && str_starts_with(strtolower($href), 'mailto:')
+            )),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function slotElementSummary(\DOMElement $slot): array
+    {
+        $nameRaw = self::attributeOrNull($slot, 'name');
+        $name = $nameRaw === null ? '' : trim($nameRaw);
+        $defaultSlot = $name === '';
+        $nameValid = $defaultSlot || self::isHtmlReferenceToken($name);
+        $fallbackText = self::normalizedText($slot);
+        $assignedElements = $nameValid ? self::slotAssignedElementSummaries($slot, $name) : [];
+        $scope = $slot->parentNode instanceof \DOMElement ? $slot->parentNode : null;
+        $topLevelElementNames = [];
+        foreach ($slot->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $topLevelElementNames[] = self::htmlElementName($child);
+            }
+        }
+
+        $descendantElementNames = [];
+        foreach ($slot->getElementsByTagName('*') as $descendant) {
+            if ($descendant instanceof \DOMElement) {
+                $descendantElementNames[] = self::htmlElementName($descendant);
+            }
+        }
+
+        $fallbackControls = [];
+        foreach (['button', 'input', 'output', 'select', 'textarea'] as $controlName) {
+            foreach (self::descendantHtmlElements($slot, $controlName) as $control) {
+                $fallbackControls[] = [
+                    'control' => $controlName,
+                    'id' => self::attributeOrNull($control, 'id'),
+                    'controlName' => self::attributeOrNull($control, 'name'),
+                    'text' => self::normalizedText($control),
+                    'value' => self::attributeOrNull($control, 'value'),
+                ];
+            }
+        }
+
+        $issues = [];
+        if (!$nameValid) {
+            $issues[] = [
+                'code' => 'invalid-slot-name',
+                'slotNameRaw' => $nameRaw,
+            ];
+        }
+
+        return [
+            'slotElement' => 'slot',
+            'slotNameRaw' => $nameRaw,
+            'slotName' => $name,
+            'slotDefault' => $defaultSlot,
+            'slotNameValid' => $nameValid,
+            'slotReviewPolicy' => 'flat-parent-slot-assignment-review',
+            'slotElementNameRaw' => $nameRaw,
+            'slotElementName' => $name,
+            'slotElementNameValid' => $nameValid,
+            'slotAssignmentScope' => $scope instanceof \DOMElement ? self::htmlElementName($scope) : null,
+            'slotAssignmentScopeId' => $scope instanceof \DOMElement ? self::attributeOrNull($scope, 'id') : null,
+            'slotAssignedElementCount' => count($assignedElements),
+            'slotAssignedElementNames' => array_values(array_map(
+                static fn (array $element): string => (string) $element['tag'],
+                $assignedElements
+            )),
+            'slotAssignedElementIds' => array_values(array_filter(
+                array_map(static fn (array $element): ?string => $element['id'] ?? null, $assignedElements),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'slotAssignedElements' => $assignedElements,
+            'slotHasAssignments' => $assignedElements !== [],
+            'slotFallbackReviewPolicy' => 'slot-fallback-content-review',
+            'slotFallbackText' => $fallbackText,
+            'slotFallbackTextLength' => strlen($fallbackText),
+            'slotFallbackTextSha256' => hash('sha256', $fallbackText),
+            'slotFallbackElementNames' => $topLevelElementNames,
+            'slotFallbackElementCount' => count($topLevelElementNames),
+            'slotFallbackTopLevelElementNames' => $topLevelElementNames,
+            'slotFallbackTopLevelElementCount' => count($topLevelElementNames),
+            'slotFallbackDescendantElementNames' => $descendantElementNames,
+            'slotFallbackDescendantElementCount' => count($descendantElementNames),
+            'slotHasFallback' => $fallbackText !== '' || $topLevelElementNames !== [],
+            'slotFallbackActive' => $assignedElements === [] && ($fallbackText !== '' || $topLevelElementNames !== []),
+            'slotFallbackLinkHrefs' => self::inertHtmlFragmentAttributeValues($slot, ['a', 'area'], 'href'),
+            'slotFallbackImageSources' => self::inertHtmlFragmentAttributeValues($slot, ['img'], 'src'),
+            'slotFallbackControls' => $fallbackControls,
+            'slotFallbackControlNames' => array_values(array_filter(
+                array_map(static fn (array $control): ?string => $control['controlName'], $fallbackControls),
+                static fn (?string $name): bool => $name !== null && $name !== ''
+            )),
+            'slotIssues' => $issues,
+            'slotIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
             )),
         ];
     }
@@ -15243,6 +15392,149 @@ final class XmlHtmlDom
             ],
             default => [],
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function preformattedBlockSummary(\DOMElement $element): array
+    {
+        $text = $element->textContent;
+        $code = self::primaryPreformattedCodeElement($element);
+        $codeText = $code instanceof \DOMElement ? $code->textContent : null;
+        $contentText = $codeText ?? $text;
+        $language = self::preformattedLanguageSummary($element, $code);
+        $preClasses = self::spaceSeparatedTokens((string) self::attributeOrNull($element, 'class'));
+        $codeClasses = $code instanceof \DOMElement
+            ? self::spaceSeparatedTokens((string) self::attributeOrNull($code, 'class'))
+            : [];
+
+        return [
+            'preformattedBlock' => 'pre',
+            'preformattedReviewPolicy' => 'html-pre-code-block-review',
+            'preformattedContentSource' => $code instanceof \DOMElement ? 'nested-code' : 'pre-text',
+            'preformattedText' => $text,
+            'preformattedTextLength' => strlen($text),
+            'preformattedTextSha256' => hash('sha256', $text),
+            'preformattedLineCount' => self::sourceLineCount($text),
+            'preformattedTrailingNewline' => self::hasTrailingSourceNewline($text),
+            'preformattedClasses' => $preClasses,
+            'preformattedCodeBlock' => $code instanceof \DOMElement,
+            'preformattedCodeElementCount' => count(self::childHtmlElements($element, 'code')),
+            'preformattedCodeText' => $codeText,
+            'preformattedCodeTextLength' => $codeText === null ? null : strlen($codeText),
+            'preformattedCodeTextSha256' => $codeText === null ? null : hash('sha256', $codeText),
+            'preformattedCodeLineCount' => $codeText === null ? null : self::sourceLineCount($codeText),
+            'preformattedCodeTrailingNewline' => $codeText === null ? null : self::hasTrailingSourceNewline($codeText),
+            'preformattedCodeClasses' => $codeClasses,
+            'preformattedContentLineCount' => self::sourceLineCount($contentText),
+            'preformattedNumberedLines' => in_array('numberLines', $preClasses, true)
+                || in_array('numberLines', $codeClasses, true),
+        ] + $language;
+    }
+
+    private static function primaryPreformattedCodeElement(\DOMElement $element): ?\DOMElement
+    {
+        foreach (self::childHtmlElements($element, 'code') as $code) {
+            return $code;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{
+     *     preformattedLanguage:?string,
+     *     preformattedLanguageToken:?string,
+     *     preformattedLanguageSource:?string
+     * }
+     */
+    private static function preformattedLanguageSummary(\DOMElement $pre, ?\DOMElement $code): array
+    {
+        $codeClasses = $code instanceof \DOMElement
+            ? self::spaceSeparatedTokens((string) self::attributeOrNull($code, 'class'))
+            : [];
+        $preClasses = self::spaceSeparatedTokens((string) self::attributeOrNull($pre, 'class'));
+        foreach ([
+            ['classes' => $codeClasses, 'source' => 'code-class'],
+            ['classes' => $preClasses, 'source' => 'pre-class'],
+        ] as $candidate) {
+            $language = self::languageFromClassTokens($candidate['classes'], $candidate['source']);
+            if ($language['preformattedLanguage'] !== null) {
+                return $language;
+            }
+        }
+
+        return [
+            'preformattedLanguage' => null,
+            'preformattedLanguageToken' => null,
+            'preformattedLanguageSource' => null,
+        ];
+    }
+
+    /**
+     * @param list<string> $classes
+     * @return array{
+     *     preformattedLanguage:?string,
+     *     preformattedLanguageToken:?string,
+     *     preformattedLanguageSource:?string
+     * }
+     */
+    private static function languageFromClassTokens(array $classes, string $source): array
+    {
+        foreach ($classes as $token) {
+            $lower = strtolower($token);
+            if (str_starts_with($lower, 'language-') && strlen($token) > 9) {
+                return [
+                    'preformattedLanguage' => substr($token, 9),
+                    'preformattedLanguageToken' => $token,
+                    'preformattedLanguageSource' => $source . '-language-prefix',
+                ];
+            }
+        }
+
+        $sourceCodeIndex = array_search('sourceCode', $classes, true);
+        if ($sourceCodeIndex === false) {
+            $sourceCodeIndex = array_search('sourcecode', array_map('strtolower', $classes), true);
+        }
+        if ($sourceCodeIndex !== false) {
+            foreach (array_slice($classes, (int) $sourceCodeIndex + 1) as $token) {
+                if (in_array($token, ['numberSource', 'numberLines', 'lineAnchors'], true)) {
+                    continue;
+                }
+
+                return [
+                    'preformattedLanguage' => $token,
+                    'preformattedLanguageToken' => $token,
+                    'preformattedLanguageSource' => $source . '-sourcecode-token',
+                ];
+            }
+        }
+
+        return [
+            'preformattedLanguage' => null,
+            'preformattedLanguageToken' => null,
+            'preformattedLanguageSource' => null,
+        ];
+    }
+
+    private static function sourceLineCount(string $text): int
+    {
+        $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+        if ($normalized === '') {
+            return 0;
+        }
+
+        if (str_ends_with($normalized, "\n")) {
+            $normalized = substr($normalized, 0, -1);
+        }
+
+        return $normalized === '' ? 1 : substr_count($normalized, "\n") + 1;
+    }
+
+    private static function hasTrailingSourceNewline(string $text): bool
+    {
+        return str_ends_with($text, "\n") || str_ends_with($text, "\r");
     }
 
     /**
@@ -15671,7 +15963,325 @@ final class XmlHtmlDom
             'templateReviewPolicy' => 'template-inert-escaped-source',
         ];
 
-        return $summary + self::templateContentReviewSummary($text);
+        return $summary
+            + self::templateContentReviewSummary($text)
+            + self::declarativeShadowRootSummary($element, $text);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function declarativeShadowRootSummary(\DOMElement $template, string $source): array
+    {
+        $modeRaw = self::attributeOrNull($template, 'shadowrootmode');
+        if ($modeRaw === null) {
+            return [];
+        }
+
+        $mode = strtolower(trim($modeRaw));
+        $modeValid = in_array($mode, ['open', 'closed'], true);
+        $host = $template->parentNode instanceof \DOMElement ? $template->parentNode : null;
+        $slotReview = self::declarativeShadowRootSlotReview($source);
+        $slots = $slotReview['slots'];
+        $slotNames = [];
+        $namedSlotNames = [];
+        $fallbackTexts = [];
+        $invalidSlotNames = [];
+        $defaultSlotCount = 0;
+
+        foreach ($slots as $slot) {
+            $name = (string) ($slot['slotName'] ?? '');
+            if (($slot['slotDefault'] ?? false) === true) {
+                ++$defaultSlotCount;
+            } else {
+                self::appendUniqueString($namedSlotNames, $name);
+            }
+            if (($slot['slotNameValid'] ?? true) !== true) {
+                $invalidSlotNames[] = (string) ($slot['slotNameRaw'] ?? '');
+            }
+            $slotNames[] = $name;
+            $fallbackTexts[] = (string) ($slot['slotFallbackText'] ?? '');
+        }
+
+        $diagnostics = $slotReview['diagnostics'];
+        if (!$modeValid) {
+            array_unshift($diagnostics, 'invalid-shadowrootmode');
+        }
+        if ($invalidSlotNames !== []) {
+            $diagnostics[] = 'invalid-shadow-slot-name';
+        }
+        $diagnostics = array_values(array_unique($diagnostics));
+
+        return [
+            'declarativeShadowRoot' => true,
+            'shadowRootReviewPolicy' => 'declarative-shadow-root-template-review',
+            'shadowRootModeRaw' => $modeRaw,
+            'shadowRootMode' => $modeValid ? $mode : null,
+            'shadowRootModeValid' => $modeValid,
+            'shadowRootDelegatesFocus' => $template->hasAttribute('shadowrootdelegatesfocus'),
+            'shadowRootClonable' => $template->hasAttribute('shadowrootclonable'),
+            'shadowRootSerializable' => $template->hasAttribute('shadowrootserializable'),
+            'shadowRootHostTag' => $host instanceof \DOMElement ? self::htmlElementName($host) : null,
+            'shadowRootHostId' => $host instanceof \DOMElement ? self::attributeOrNull($host, 'id') : null,
+            'shadowRootSlotCount' => count($slots),
+            'shadowRootDefaultSlotCount' => $defaultSlotCount,
+            'shadowRootNamedSlotCount' => count($slots) - $defaultSlotCount,
+            'shadowRootSlotNames' => $slotNames,
+            'shadowRootNamedSlotNames' => $namedSlotNames,
+            'invalidShadowSlotNames' => $invalidSlotNames,
+            'shadowRootSlotFallbackTexts' => $fallbackTexts,
+            'shadowRootSlots' => $slots,
+            'shadowRootDiagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{slots:list<array<string, mixed>>, diagnostics:list<string>}
+     */
+    private static function declarativeShadowRootSlotReview(string $source): array
+    {
+        if (strlen($source) > self::TEMPLATE_CONTENT_REVIEW_MAX_BYTES) {
+            return [
+                'slots' => [],
+                'diagnostics' => ['shadow-root-content-review-limit-exceeded'],
+            ];
+        }
+
+        try {
+            $fragment = self::loadHtmlFragment($source, 'declarative shadow root template content');
+        } catch (\InvalidArgumentException) {
+            return [
+                'slots' => [],
+                'diagnostics' => ['shadow-root-content-unsafe-or-unparseable'],
+            ];
+        }
+
+        $root = self::requireFragmentRoot($fragment);
+        $slots = [];
+        foreach (self::descendantHtmlElements($root, 'slot') as $index => $slot) {
+            $slots[] = ['index' => $index] + self::slotElementSummary($slot);
+        }
+
+        return [
+            'slots' => $slots,
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @return array{raw:?string, name:string, default:bool, valid:bool}
+     */
+    private static function slotElementNameSummary(?string $value): array
+    {
+        $name = $value === null ? '' : trim($value);
+
+        return [
+            'raw' => $value,
+            'name' => $name,
+            'default' => $name === '',
+            'valid' => $name === '' || self::isHtmlIdReferenceToken($name),
+        ];
+    }
+
+    private static function isDeclarativeShadowRootTemplate(\DOMElement $element): bool
+    {
+        return $element->hasAttribute('shadowrootmode')
+            || $element->hasAttribute('shadowrootdelegatesfocus')
+            || $element->hasAttribute('shadowrootclonable')
+            || $element->hasAttribute('shadowrootserializable');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function templateShadowRootSummary(\DOMElement $template): array
+    {
+        $modeRaw = self::attributeOrNull($template, 'shadowrootmode');
+        $mode = $modeRaw === null ? null : strtolower(trim($modeRaw));
+        $modeValid = in_array($mode, ['open', 'closed'], true);
+        $diagnostics = [];
+        if (!$modeValid) {
+            $diagnostics[] = [
+                'code' => 'invalid-shadowroot-mode',
+                'attribute' => 'shadowrootmode',
+                'value' => $modeRaw,
+            ];
+        }
+
+        $slots = [];
+        $namedSlotNames = [];
+        $defaultSlotCount = 0;
+        $source = $template->textContent;
+        $contentSlots = [];
+        try {
+            $contentDom = self::loadHtmlFragment($source, 'declarative shadow root template content');
+            $contentRoot = self::requireFragmentRoot($contentDom);
+            $contentSlots = self::descendantHtmlElements($contentRoot, 'slot');
+        } catch (\InvalidArgumentException $exception) {
+            $diagnostics[] = [
+                'code' => 'shadowroot-template-content-unparseable',
+                'message' => $exception->getMessage(),
+            ];
+        }
+
+        foreach ($contentSlots as $slot) {
+            $slotSummary = self::slotSummary($slot);
+            $slots[] = [
+                'nameRaw' => $slotSummary['slotNameRaw'],
+                'name' => $slotSummary['slotName'],
+                'nameValid' => $slotSummary['slotNameValid'],
+                'fallbackText' => $slotSummary['slotFallbackText'],
+                'fallbackElementNames' => $slotSummary['slotFallbackElementNames'],
+            ];
+
+            if (($slotSummary['slotNameRaw'] ?? null) === null) {
+                ++$defaultSlotCount;
+            }
+            if (($slotSummary['slotName'] ?? null) !== null) {
+                $namedSlotNames[] = (string) $slotSummary['slotName'];
+            }
+            foreach ($slotSummary['slotDiagnostics'] as $diagnostic) {
+                $diagnostics[] = [
+                    'code' => (string) ($diagnostic['code'] ?? ''),
+                    'element' => 'slot',
+                    'attribute' => $diagnostic['attribute'] ?? null,
+                    'value' => $diagnostic['value'] ?? null,
+                ];
+            }
+        }
+
+        $aria = [];
+        foreach (['aria-label', 'aria-description'] as $attribute) {
+            if (!$template->hasAttribute($attribute)) {
+                continue;
+            }
+
+            $value = self::safeHtmlReviewTextAttribute($template->getAttribute($attribute));
+            $aria[$attribute] = [
+                'raw' => $template->getAttribute($attribute),
+                'value' => $value,
+                'valid' => $value !== null,
+            ];
+            if ($value === null) {
+                $diagnostics[] = [
+                    'code' => 'invalid-shadowroot-accessibility-text',
+                    'attribute' => $attribute,
+                ];
+            }
+        }
+
+        foreach (['aria-describedby', 'aria-labelledby'] as $attribute) {
+            if (!$template->hasAttribute($attribute)) {
+                continue;
+            }
+
+            $summary = self::idReferenceTokenSummary($template->getAttribute($attribute));
+            $aria[$attribute] = $summary;
+            if (!$summary['valid']) {
+                $diagnostics[] = [
+                    'code' => 'invalid-shadowroot-accessibility-idref',
+                    'attribute' => $attribute,
+                    'invalidTokens' => $summary['invalid'],
+                ];
+            }
+        }
+
+        return [
+            'declarativeShadowRoot' => true,
+            'shadowRootReviewPolicy' => 'declarative-shadow-root-review',
+            'shadowRootModeRaw' => $modeRaw,
+            'shadowRootMode' => $modeValid ? $mode : null,
+            'shadowRootModeValid' => $modeValid,
+            'shadowRootDelegatesFocus' => $template->hasAttribute('shadowrootdelegatesfocus'),
+            'shadowRootClonable' => $template->hasAttribute('shadowrootclonable'),
+            'shadowRootSerializable' => $template->hasAttribute('shadowrootserializable'),
+            'shadowRootAccessibility' => $aria,
+            'shadowRootSlotCount' => count($slots),
+            'shadowRootDefaultSlotCount' => $defaultSlotCount,
+            'shadowRootNamedSlotNames' => array_values(array_unique($namedSlotNames)),
+            'shadowRootSlots' => $slots,
+            'shadowRootDiagnostics' => $diagnostics,
+            'shadowRootDiagnosticCodes' => array_values(array_unique(array_map(
+                static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
+                $diagnostics
+            ))),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function slotSummary(\DOMElement $slot): array
+    {
+        $nameRaw = self::attributeOrNull($slot, 'name');
+        $name = $nameRaw === null ? null : self::normalizeHtmlSlotName($nameRaw);
+        $diagnostics = [];
+        if ($nameRaw !== null && $name === null) {
+            $diagnostics[] = [
+                'code' => 'invalid-slot-name',
+                'attribute' => 'name',
+                'value' => $nameRaw,
+            ];
+        }
+
+        $fallbackElementNames = [];
+        foreach ($slot->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $fallbackElementNames[] = self::htmlElementName($child);
+            }
+        }
+
+        return [
+            'slot' => 'slot',
+            'slotReviewPolicy' => 'slot-fallback-review',
+            'slotNameRaw' => $nameRaw,
+            'slotName' => $name,
+            'slotNamed' => $nameRaw !== null,
+            'slotNameValid' => $nameRaw === null ? null : $name !== null,
+            'slotFallbackText' => self::normalizedText($slot),
+            'slotFallbackElementNames' => $fallbackElementNames,
+            'slotFallbackElementCount' => count($fallbackElementNames),
+            'slotFallbackLinkHrefs' => array_values(array_filter(
+                array_map(static fn (\DOMElement $link): ?string => self::attributeOrNull($link, 'href'), self::descendantHtmlElements($slot, 'a')),
+                static fn (?string $href): bool => $href !== null && $href !== ''
+            )),
+            'slotFallbackImageSources' => array_values(array_filter(
+                array_map(static fn (\DOMElement $image): ?string => self::attributeOrNull($image, 'src'), self::descendantHtmlElements($slot, 'img')),
+                static fn (?string $src): bool => $src !== null && $src !== ''
+            )),
+            'slotDiagnostics' => $diagnostics,
+            'slotDiagnosticCodes' => array_values(array_unique(array_map(
+                static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
+                $diagnostics
+            ))),
+        ];
+    }
+
+    private static function normalizeHtmlSlotName(string $name): ?string
+    {
+        $name = self::safeHtmlReviewTextAttribute($name);
+        if ($name === null || strlen($name) > 128) {
+            return null;
+        }
+        if (preg_match('/[\s<>"\'`{}\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $name) === 1) {
+            return null;
+        }
+
+        return $name;
+    }
+
+    private static function safeHtmlReviewTextAttribute(string $value): ?string
+    {
+        $value = preg_replace('/[ \t\r\n\f]+/u', ' ', $value) ?? $value;
+        $value = trim($value);
+        if ($value === '' || strlen($value) > 512) {
+            return null;
+        }
+        if (preg_match('/[<>{}`\p{Cc}\p{Zl}\p{Zp}]/u', $value) === 1) {
+            return null;
+        }
+
+        return $value;
     }
 
     /**
@@ -15918,6 +16528,83 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    private static function preformattedSummary(\DOMElement $pre): array
+    {
+        $code = self::firstChildHtmlElement($pre, 'code');
+        $source = $code instanceof \DOMElement ? $code : $pre;
+        $text = $source->textContent;
+
+        return [
+            'preformatted' => 'pre',
+            'codeBlock' => $code instanceof \DOMElement ? 'pre-code' : 'pre',
+            'codeBlockSourceElement' => self::htmlElementName($source),
+            'codeText' => $text,
+            'codeTextLength' => strlen($text),
+            'codeTextSha256' => hash('sha256', $text),
+            'codeStartsWithNewline' => str_starts_with($text, "\n") || str_starts_with($text, "\r"),
+            'codeEndsWithNewline' => str_ends_with($text, "\n") || str_ends_with($text, "\r"),
+            'codeLineCount' => self::preformattedLineCount($text),
+        ] + self::codeLanguageSummary($source);
+    }
+
+    /**
+     * @return array{codeLanguage:?string, codeLanguageSource:string, codeLanguageToken:?string, codeClassTokens:list<string>}
+     */
+    private static function codeLanguageSummary(\DOMElement $element): array
+    {
+        $classRaw = self::attributeOrNull($element, 'class');
+        $classTokens = $classRaw === null ? [] : self::spaceSeparatedTokens($classRaw);
+        foreach ($classTokens as $token) {
+            if (preg_match('/^(?:language|lang)-(.+)$/i', $token, $matches) !== 1) {
+                continue;
+            }
+
+            $language = strtolower((string) $matches[1]);
+            if (!self::isSafeHtmlSemanticMetadataToken($language)) {
+                continue;
+            }
+
+            return [
+                'codeLanguage' => $language,
+                'codeLanguageSource' => 'class-token',
+                'codeLanguageToken' => $token,
+                'codeClassTokens' => $classTokens,
+            ];
+        }
+
+        $dataLanguage = self::attributeOrNull($element, 'data-language');
+        $language = $dataLanguage === null ? null : strtolower(trim($dataLanguage));
+        if ($language !== null && $language !== '' && self::isSafeHtmlSemanticMetadataToken($language)) {
+            return [
+                'codeLanguage' => $language,
+                'codeLanguageSource' => 'data-language',
+                'codeLanguageToken' => null,
+                'codeClassTokens' => $classTokens,
+            ];
+        }
+
+        return [
+            'codeLanguage' => null,
+            'codeLanguageSource' => 'missing',
+            'codeLanguageToken' => null,
+            'codeClassTokens' => $classTokens,
+        ];
+    }
+
+    private static function preformattedLineCount(string $text): int
+    {
+        $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+        $trimmed = rtrim($normalized, "\n");
+        if ($trimmed === '') {
+            return 0;
+        }
+
+        return substr_count($trimmed, "\n") + 1;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private static function dataElementSummary(\DOMElement $element): array
     {
         $value = self::attributeOrNull($element, 'value');
@@ -16110,6 +16797,35 @@ final class XmlHtmlDom
             'attributionText' => $footer instanceof \DOMElement ? self::normalizedText($footer) : null,
             'citationTexts' => $citationTexts,
             'citationCount' => count($citationTexts),
+        ] + self::quoteCiteReviewSummary($cite);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function quoteCiteReviewSummary(?string $cite): array
+    {
+        $url = self::hyperlinkUrlReviewSummary($cite);
+        $issues = [];
+        if (($url['unsafe'] ?? false) === true) {
+            $issues[] = [
+                'code' => 'unsafe-quote-cite',
+                'cite' => $cite,
+                'scheme' => $url['scheme'],
+            ];
+        }
+
+        return [
+            'quoteCitationUrlReview' => 'quote-cite',
+            'quoteCitePresent' => $cite !== null && trim($cite) !== '',
+            'quoteCiteKind' => $url['kind'],
+            'quoteCiteScheme' => $url['scheme'],
+            'quoteCiteUnsafe' => $url['unsafe'],
+            'quoteCiteIssues' => $issues,
+            'quoteCiteIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            )),
         ];
     }
 
@@ -16839,11 +17555,15 @@ final class XmlHtmlDom
             $summary['language'] = trim($attributes['xml:lang']);
         }
 
+        $summary += self::effectiveLanguageSummary($element, $attributes);
+
         if (array_key_exists('dir', $attributes)) {
-            $dir = strtolower(trim($attributes['dir']));
+            $dir = self::htmlDirectionState($attributes['dir']);
             $summary['dirRaw'] = $attributes['dir'];
-            $summary['direction'] = in_array($dir, ['ltr', 'rtl', 'auto'], true) ? $dir : null;
+            $summary['direction'] = $dir;
         }
+
+        $summary += self::effectiveDirectionSummary($element, $attributes);
 
         if (array_key_exists('title', $attributes)) {
             $summary['titleAttribute'] = $attributes['title'];
@@ -16851,8 +17571,16 @@ final class XmlHtmlDom
 
         if (array_key_exists('hidden', $attributes)) {
             $hidden = strtolower(trim($attributes['hidden']));
+            $hiddenKeyword = match ($hidden) {
+                '', 'hidden' => 'hidden',
+                'until-found' => 'until-found',
+                default => null,
+            };
             $summary['hiddenRaw'] = $attributes['hidden'];
-            $summary['hiddenState'] = $hidden === 'until-found' ? 'until-found' : 'hidden';
+            $summary['hiddenKeyword'] = $hiddenKeyword;
+            $summary['hiddenState'] = $hiddenKeyword ?? 'hidden';
+            $summary['hiddenValid'] = $hiddenKeyword !== null;
+            $summary['hiddenInvalidValueDefaulted'] = $hiddenKeyword === null;
         }
 
         if (array_key_exists('inert', $attributes)) {
@@ -17020,6 +17748,125 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveLanguageSummary(\DOMElement $element, array $attributes): array
+    {
+        foreach (['lang', 'xml:lang'] as $attribute) {
+            if (array_key_exists($attribute, $attributes) && trim($attributes[$attribute]) !== '') {
+                return self::languageProvenanceSummary(
+                    $element,
+                    $attributes[$attribute],
+                    'self-' . $attribute,
+                    false
+                );
+            }
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            foreach (['lang', 'xml:lang'] as $attribute) {
+                if (array_key_exists($attribute, $ancestorAttributes) && trim($ancestorAttributes[$attribute]) !== '') {
+                    return self::languageProvenanceSummary(
+                        $ancestor,
+                        $ancestorAttributes[$attribute],
+                        'ancestor-' . $attribute,
+                        true
+                    );
+                }
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function languageProvenanceSummary(
+        \DOMElement $source,
+        string $raw,
+        string $sourceKind,
+        bool $inherited
+    ): array {
+        $summary = [
+            'effectiveLanguageRaw' => $raw,
+            'effectiveLanguage' => trim($raw),
+            'languageInherited' => $inherited,
+            'languageSource' => $sourceKind,
+            'languageSourceElement' => self::htmlElementName($source),
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['languageSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveDirectionSummary(\DOMElement $element, array $attributes): array
+    {
+        if (array_key_exists('dir', $attributes)) {
+            $direction = self::htmlDirectionState($attributes['dir']);
+            if ($direction !== null) {
+                return self::directionProvenanceSummary($element, $attributes['dir'], $direction, false);
+            }
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (!array_key_exists('dir', $ancestorAttributes)) {
+                continue;
+            }
+
+            $direction = self::htmlDirectionState($ancestorAttributes['dir']);
+            if ($direction !== null) {
+                return self::directionProvenanceSummary($ancestor, $ancestorAttributes['dir'], $direction, true);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function directionProvenanceSummary(
+        \DOMElement $source,
+        string $raw,
+        string $direction,
+        bool $inherited
+    ): array {
+        $summary = [
+            'effectiveDirectionRaw' => $raw,
+            'effectiveDirection' => $direction,
+            'directionInherited' => $inherited,
+            'directionSource' => $inherited ? 'ancestor-dir' : 'self-dir',
+            'directionSourceElement' => self::htmlElementName($source),
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['directionSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
+    }
+
+    private static function htmlDirectionState(string $value): ?string
+    {
+        $direction = strtolower(trim($value));
+
+        return in_array($direction, ['ltr', 'rtl', 'auto'], true) ? $direction : null;
     }
 
     /**
@@ -17585,6 +18432,80 @@ final class XmlHtmlDom
                 && preg_match('/^[a-z][.0-9_a-z-]*-[.0-9_a-z-]*$/', $name) === 1
                 && self::isHtmlReferenceToken($name),
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function slotAssignedElementSummaries(\DOMElement $slot, string $slotName): array
+    {
+        $parent = $slot->parentNode;
+        if (!$parent instanceof \DOMElement) {
+            return [];
+        }
+
+        $assigned = [];
+        foreach ($parent->childNodes as $candidate) {
+            if (!$candidate instanceof \DOMElement || $candidate->isSameNode($slot)) {
+                continue;
+            }
+            if (self::htmlElementName($candidate) === 'slot') {
+                continue;
+            }
+
+            $candidateSlotRaw = self::attributeOrNull($candidate, 'slot');
+            if ($slotName === '') {
+                if ($candidateSlotRaw !== null && trim($candidateSlotRaw) !== '') {
+                    continue;
+                }
+            } else {
+                if ($candidateSlotRaw === null) {
+                    continue;
+                }
+                $candidateSlot = self::slotAttributeSummary($candidateSlotRaw);
+                if (!$candidateSlot['valid'] || $candidateSlot['name'] !== $slotName) {
+                    continue;
+                }
+            }
+
+            $assigned[] = self::slotAssignedElementSummary($candidate, $candidateSlotRaw);
+        }
+
+        return $assigned;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function slotAssignedElementSummary(\DOMElement $element, ?string $slotRaw): array
+    {
+        $slot = $slotRaw === null
+            ? ['name' => null, 'valid' => true]
+            : self::slotAttributeSummary($slotRaw);
+
+        return [
+            'tag' => self::htmlElementName($element),
+            'id' => self::attributeOrNull($element, 'id'),
+            'slotRaw' => $slotRaw,
+            'slotName' => $slot['name'],
+            'slotValid' => $slot['valid'],
+            'text' => self::normalizedText($element),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function slotFallbackElementNames(\DOMElement $slot): array
+    {
+        $names = [];
+        foreach ($slot->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $names[] = self::htmlElementName($child);
+            }
+        }
+
+        return $names;
     }
 
     private static function isHtmlReferenceToken(string $token): bool
@@ -20435,7 +21356,210 @@ final class XmlHtmlDom
             $summary += self::iframeSrcdocReviewSummary($srcdoc);
         }
 
+        $summary += self::iframePolicyReviewSummary($iframe);
+
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframePolicyReviewSummary(\DOMElement $iframe): array
+    {
+        $summary = [
+            'iframePolicyReview' => 'iframe-policy-metadata-review',
+            'iframePolicyIssueCodes' => [],
+        ];
+
+        if ($iframe->hasAttribute('sandbox')) {
+            $sandbox = self::iframeSandboxPolicySummary($iframe->getAttribute('sandbox'));
+            $summary += $sandbox;
+            if (($sandbox['invalidSandboxTokens'] ?? []) !== []) {
+                $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-sandbox-token';
+            }
+            if (($sandbox['duplicateSandboxTokens'] ?? []) !== []) {
+                $summary['iframePolicyIssueCodes'][] = 'duplicate-iframe-sandbox-token';
+            }
+            if (($sandbox['sandboxAllowsScriptsAndSameOrigin'] ?? false) === true) {
+                $summary['iframePolicyIssueCodes'][] = 'iframe-sandbox-allows-scripts-same-origin';
+            }
+        }
+
+        if ($iframe->hasAttribute('allow')) {
+            $allow = self::iframeAllowPolicySummary($iframe->getAttribute('allow'));
+            $summary += $allow;
+            if (($allow['invalidAllowDirectiveCount'] ?? 0) > 0) {
+                $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-allow-directive';
+            }
+        }
+
+        if ($iframe->hasAttribute('referrerpolicy')) {
+            $referrerPolicy = self::iframeReferrerPolicySummary($iframe->getAttribute('referrerpolicy'));
+            $summary += $referrerPolicy;
+            if (($referrerPolicy['referrerPolicyValid'] ?? true) !== true) {
+                $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-referrer-policy';
+            }
+        }
+
+        if ($iframe->hasAttribute('loading')) {
+            $loading = self::iframeLoadingPolicySummary($iframe->getAttribute('loading'));
+            $summary += $loading;
+            if (($loading['loadingValid'] ?? true) !== true) {
+                $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-loading-state';
+            }
+        }
+
+        $summary['allowFullscreen'] = $iframe->hasAttribute('allowfullscreen');
+
+        return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeSandboxPolicySummary(string $value): array
+    {
+        $tokens = array_map(
+            static fn (string $token): string => strtolower(trim($token)),
+            self::spaceSeparatedTokens($value)
+        );
+        $valid = [];
+        $invalid = [];
+        $duplicates = [];
+        $seen = [];
+
+        foreach ($tokens as $token) {
+            if ($token === '') {
+                continue;
+            }
+
+            if (!isset(self::HTML_IFRAME_SANDBOX_TOKENS[$token])) {
+                $invalid[] = $token;
+                continue;
+            }
+
+            if (isset($seen[$token])) {
+                if (!in_array($token, $duplicates, true)) {
+                    $duplicates[] = $token;
+                }
+                continue;
+            }
+
+            $seen[$token] = true;
+            $valid[] = $token;
+        }
+
+        return [
+            'sandboxRaw' => $value,
+            'sandboxTokens' => $tokens,
+            'sandboxValidTokens' => $valid,
+            'invalidSandboxTokens' => $invalid,
+            'duplicateSandboxTokens' => $duplicates,
+            'sandboxTokenCount' => count($tokens),
+            'sandboxValidTokenCount' => count($valid),
+            'sandboxAllTokensValid' => $invalid === [],
+            'sandboxAllowsScripts' => in_array('allow-scripts', $valid, true),
+            'sandboxAllowsSameOrigin' => in_array('allow-same-origin', $valid, true),
+            'sandboxAllowsScriptsAndSameOrigin' => in_array('allow-scripts', $valid, true)
+                && in_array('allow-same-origin', $valid, true),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeAllowPolicySummary(string $value): array
+    {
+        $directives = [];
+        $features = [];
+        $invalid = [];
+
+        foreach (explode(';', $value) as $rawDirective) {
+            $raw = trim($rawDirective);
+            if ($raw === '') {
+                continue;
+            }
+
+            $tokens = self::spaceSeparatedTokens($raw);
+            $featureRaw = $tokens[0] ?? null;
+            $feature = is_string($featureRaw) ? strtolower($featureRaw) : null;
+            $allowList = array_slice($tokens, 1);
+            $featureValid = $feature !== null && self::isIframeAllowFeatureToken($feature);
+            $allowListValid = true;
+            foreach ($allowList as $allowListToken) {
+                if (!self::isIframeAllowListToken($allowListToken)) {
+                    $allowListValid = false;
+                    break;
+                }
+            }
+            $valid = $featureValid && $allowListValid;
+            if (!$valid) {
+                $invalid[] = $raw;
+            } elseif (!in_array($feature, $features, true)) {
+                $features[] = $feature;
+            }
+
+            $directives[] = [
+                'raw' => $raw,
+                'featureRaw' => $featureRaw,
+                'feature' => $featureValid ? $feature : null,
+                'allowList' => $allowList,
+                'valid' => $valid,
+            ];
+        }
+
+        return [
+            'allowRaw' => $value,
+            'allowDirectiveCount' => count($directives),
+            'allowDirectives' => $directives,
+            'allowFeatures' => $features,
+            'invalidAllowDirectiveCount' => count($invalid),
+            'invalidAllowDirectives' => $invalid,
+            'allowPolicyValid' => $directives !== [] && $invalid === [],
+        ];
+    }
+
+    private static function isIframeAllowFeatureToken(string $token): bool
+    {
+        return preg_match('/^[a-z][a-z0-9-]*$/', $token) === 1;
+    }
+
+    private static function isIframeAllowListToken(string $token): bool
+    {
+        if ($token === '*' || in_array($token, ["'self'", "'src'", "'none'"], true)) {
+            return true;
+        }
+
+        return $token !== '' && preg_match('/[\s<>"`\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $token) === 0;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeReferrerPolicySummary(string $value): array
+    {
+        $policy = strtolower(trim($value));
+
+        return [
+            'referrerPolicyRaw' => $value,
+            'referrerPolicy' => isset(self::HTML_REFERRER_POLICIES[$policy]) ? $policy : null,
+            'referrerPolicyValid' => isset(self::HTML_REFERRER_POLICIES[$policy]),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeLoadingPolicySummary(string $value): array
+    {
+        $loading = strtolower(trim($value));
+        $valid = in_array($loading, ['eager', 'lazy'], true);
+
+        return [
+            'loadingRaw' => $value,
+            'loadingState' => $valid ? $loading : null,
+            'loadingValid' => $valid,
+        ];
     }
 
     /**

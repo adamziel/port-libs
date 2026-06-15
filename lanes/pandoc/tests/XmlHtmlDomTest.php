@@ -3709,6 +3709,142 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             $html
         );
     },
+    'summarizes inherited html language and direction for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="root" lang="en-US" dir="LTR"><section id="chapter"><p id="body" dir="sideways">Body <span id="quote" lang="fr-CA" dir="auto">Citation</span></p></section></article>'
+                . '<aside id="bad-dir" dir="sideways"><span id="neutral">No inherited direction</span></aside>'
+                . '<div id="xml-scope" xml:lang="de-DE"><em id="term">Begriff</em></div>',
+            'language direction inheritance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/language-direction-inheritance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $section = $article['children'][0];
+        $paragraph = $section['children'][0];
+        $quote = $paragraph['children'][1];
+        $aside = $summary[1];
+        $neutral = $aside['children'][0];
+        $xmlScope = $summary[2];
+        $term = $xmlScope['children'][0];
+
+        $t->same('article', $article['name']);
+        $t->same('en-US', $article['effectiveLanguageRaw']);
+        $t->same('en-US', $article['effectiveLanguage']);
+        $t->same(false, $article['languageInherited']);
+        $t->same('self-lang', $article['languageSource']);
+        $t->same('LTR', $article['effectiveDirectionRaw']);
+        $t->same('ltr', $article['effectiveDirection']);
+        $t->same(false, $article['directionInherited']);
+
+        $t->same('section', $section['name']);
+        $t->same('en-US', $section['effectiveLanguage']);
+        $t->same(true, $section['languageInherited']);
+        $t->same('ancestor-lang', $section['languageSource']);
+        $t->same('article', $section['languageSourceElement']);
+        $t->same('root', $section['languageSourceElementId']);
+        $t->same('ltr', $section['effectiveDirection']);
+        $t->same(true, $section['directionInherited']);
+        $t->same('article', $section['directionSourceElement']);
+
+        $t->same('p', $paragraph['name']);
+        $t->same('sideways', $paragraph['dirRaw']);
+        $t->same(null, $paragraph['direction']);
+        $t->same('ltr', $paragraph['effectiveDirection']);
+        $t->same(true, $paragraph['directionInherited']);
+        $t->same('root', $paragraph['directionSourceElementId']);
+        $t->same('en-US', $paragraph['effectiveLanguage']);
+
+        $t->same('span', $quote['name']);
+        $t->same('fr-CA', $quote['effectiveLanguage']);
+        $t->same(false, $quote['languageInherited']);
+        $t->same('auto', $quote['effectiveDirection']);
+        $t->same(false, $quote['directionInherited']);
+        $t->same('self-dir', $quote['directionSource']);
+
+        $t->same('aside', $aside['name']);
+        $t->same('sideways', $aside['dirRaw']);
+        $t->same(null, $aside['direction']);
+        $t->true(!array_key_exists('effectiveDirection', $aside));
+        $t->same('span', $neutral['name']);
+        $t->true(!array_key_exists('effectiveDirection', $neutral));
+        $t->true(!array_key_exists('effectiveLanguage', $neutral));
+
+        $t->same('de-DE', $xmlScope['effectiveLanguage']);
+        $t->same('self-xml:lang', $xmlScope['languageSource']);
+        $t->same('de-DE', $term['effectiveLanguage']);
+        $t->same(true, $term['languageInherited']);
+        $t->same('div', $term['languageSourceElement']);
+        $t->same('xml-scope', $term['languageSourceElementId']);
+        $t->contains('<article dir="LTR" id="root" lang="en-US">', $html);
+        $t->contains('xml:lang="de-DE"', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/language-direction-inheritance-review.html', $document->children[0]->attr('part'));
+    },
+    'summarizes html hidden token provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="bare" hidden>Bare</section>'
+                . '<section id="keyword" hidden="hidden">Keyword</section>'
+                . '<section id="found" hidden="until-found">Found</section>'
+                . '<section id="case" hidden="UNTIL-FOUND">Case</section>'
+                . '<section id="invalid" hidden="collapse">Invalid</section>',
+            'hidden token provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/hidden-token-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $bare = $summary[0];
+        $keyword = $summary[1];
+        $found = $summary[2];
+        $case = $summary[3];
+        $invalid = $summary[4];
+
+        $t->same('', $bare['hiddenRaw']);
+        $t->same('hidden', $bare['hiddenKeyword']);
+        $t->same('hidden', $bare['hiddenState']);
+        $t->same(true, $bare['hiddenValid']);
+        $t->same(false, $bare['hiddenInvalidValueDefaulted']);
+
+        $t->same('hidden', $keyword['hiddenRaw']);
+        $t->same('hidden', $keyword['hiddenKeyword']);
+        $t->same('hidden', $keyword['hiddenState']);
+        $t->same(true, $keyword['hiddenValid']);
+
+        $t->same('until-found', $found['hiddenRaw']);
+        $t->same('until-found', $found['hiddenKeyword']);
+        $t->same('until-found', $found['hiddenState']);
+        $t->same(true, $found['hiddenValid']);
+        $t->same(false, $found['hiddenInvalidValueDefaulted']);
+
+        $t->same('UNTIL-FOUND', $case['hiddenRaw']);
+        $t->same('until-found', $case['hiddenKeyword']);
+        $t->same('until-found', $case['hiddenState']);
+        $t->same(true, $case['hiddenValid']);
+
+        $t->same('collapse', $invalid['hiddenRaw']);
+        $t->same(null, $invalid['hiddenKeyword']);
+        $t->same('hidden', $invalid['hiddenState']);
+        $t->same(false, $invalid['hiddenValid']);
+        $t->same(true, $invalid['hiddenInvalidValueDefaulted']);
+        $t->same(
+            '<section hidden id="bare">Bare</section>'
+                . '<section hidden id="keyword">Keyword</section>'
+                . '<section hidden="until-found" id="found">Found</section>'
+                . '<section hidden="UNTIL-FOUND" id="case">Case</section>'
+                . '<section hidden="collapse" id="invalid">Invalid</section>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/hidden-token-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html writing assistance attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="editor" contenteditable autocorrect="off" writingsuggestions="false" virtualkeyboardpolicy="manual">Draft</section>'
@@ -4103,6 +4239,83 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('<section exportparts="title:review-title, icon, bad:mapping:extra, invalid name:alias" id="widget-host" inert is="review-widget" part="card title card" slot="primary-panel"><button inert part="action primary" slot="controls">Save</button></section><p is="InvalidWidget" part="valid invalid=name" slot="bad slot">Fallback</p>', $html);
         $t->contains($html, $blocks);
         $t->same('/migration/custom-element-attributes-review.html', $document->children[0]->attr('part'));
+    },
+    'summarizes html slot assignment and fallback review metadata' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="host"><slot name="headline"><strong>Fallback headline</strong></slot><slot name="actions"></slot><slot><em>Default fallback</em></slot><slot name="missing"><span>Missing fallback</span></slot><h2 id="title" slot="headline">Review <em>headline</em></h2><button id="save" slot="actions">Save</button><button id="cancel" slot="actions">Cancel</button><p id="default">Default body</p><p id="invalid-slot" slot="bad slot">Invalid</p></section>',
+            'slot assignment review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/slot-assignment-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $host = $summary[0];
+        $headline = $host['children'][0];
+        $actions = $host['children'][1];
+        $default = $host['children'][2];
+        $missing = $host['children'][3];
+        $title = $host['children'][4];
+        $invalid = $host['children'][8];
+
+        $t->same('host', $host['elementId']);
+        $t->same('slot', $headline['name']);
+        $t->same('slot', $headline['slotElement']);
+        $t->same('flat-parent-slot-assignment-review', $headline['slotReviewPolicy']);
+        $t->same('headline', $headline['slotElementNameRaw']);
+        $t->same('headline', $headline['slotElementName']);
+        $t->same(false, $headline['slotDefault']);
+        $t->same(true, $headline['slotElementNameValid']);
+        $t->same('section', $headline['slotAssignmentScope']);
+        $t->same('host', $headline['slotAssignmentScopeId']);
+        $t->same(1, $headline['slotAssignedElementCount']);
+        $t->same(['h2'], $headline['slotAssignedElementNames']);
+        $t->same(['title'], $headline['slotAssignedElementIds']);
+        $t->same([
+            'tag' => 'h2',
+            'id' => 'title',
+            'slotRaw' => 'headline',
+            'slotName' => 'headline',
+            'slotValid' => true,
+            'text' => 'Review headline',
+        ], $headline['slotAssignedElements'][0]);
+        $t->same('Fallback headline', $headline['slotFallbackText']);
+        $t->same(['strong'], $headline['slotFallbackElementNames']);
+        $t->same(true, $headline['slotHasFallback']);
+        $t->same(false, $headline['slotFallbackActive']);
+
+        $t->same('actions', $actions['slotElementName']);
+        $t->same(2, $actions['slotAssignedElementCount']);
+        $t->same(['button', 'button'], $actions['slotAssignedElementNames']);
+        $t->same(['save', 'cancel'], $actions['slotAssignedElementIds']);
+        $t->same(false, $actions['slotHasFallback']);
+
+        $t->same(null, $default['slotElementNameRaw']);
+        $t->same('', $default['slotElementName']);
+        $t->same(true, $default['slotDefault']);
+        $t->same(1, $default['slotAssignedElementCount']);
+        $t->same(['p'], $default['slotAssignedElementNames']);
+        $t->same(['default'], $default['slotAssignedElementIds']);
+        $t->same('Default body', $default['slotAssignedElements'][0]['text'] ?? null);
+        $t->same('Default fallback', $default['slotFallbackText']);
+        $t->same(false, $default['slotFallbackActive']);
+
+        $t->same('missing', $missing['slotElementName']);
+        $t->same(0, $missing['slotAssignedElementCount']);
+        $t->same('Missing fallback', $missing['slotFallbackText']);
+        $t->same(true, $missing['slotFallbackActive']);
+
+        $t->same('headline', $title['slotRaw']);
+        $t->same('headline', $title['slotName']);
+        $t->same(true, $title['slotValid']);
+        $t->same('bad slot', $invalid['slotRaw']);
+        $t->same(false, $invalid['slotValid']);
+
+        $t->same('<section id="host"><slot name="headline"><strong>Fallback headline</strong></slot><slot name="actions"></slot><slot><em>Default fallback</em></slot><slot name="missing"><span>Missing fallback</span></slot><h2 id="title" slot="headline">Review <em>headline</em></h2><button id="save" slot="actions">Save</button><button id="cancel" slot="actions">Cancel</button><p id="default">Default body</p><p id="invalid-slot" slot="bad slot">Invalid</p></section>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/slot-assignment-review.html', $document->children[0]->attr('part'));
     },
     'summarizes html input hint attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
@@ -4680,6 +4893,66 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/data-element-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html pre code block provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $codeText = "echo <review> & status;\nreturn true;\n";
+        $plainText = "plain\ntext";
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<pre id="snippet" class="sourceCode numberSource php numberLines" data-startfrom="7"><code class="language-php">'
+                . htmlspecialchars($codeText, ENT_QUOTES | ENT_HTML5, 'UTF-8')
+                . '</code></pre><pre data-note="plain">' . $plainText . '</pre>',
+            'pre code block review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/pre-code-block-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $pre = $summary[0];
+        $code = $pre['children'][0];
+        $plain = $summary[1];
+
+        $t->same('pre', $pre['name']);
+        $t->same('pre', $pre['preformattedBlock']);
+        $t->same('html-pre-code-block-review', $pre['preformattedReviewPolicy']);
+        $t->same('nested-code', $pre['preformattedContentSource']);
+        $t->same($codeText, $pre['preformattedText']);
+        $t->same(strlen($codeText), $pre['preformattedTextLength']);
+        $t->same(hash('sha256', $codeText), $pre['preformattedTextSha256']);
+        $t->same(2, $pre['preformattedLineCount']);
+        $t->same(true, $pre['preformattedTrailingNewline']);
+        $t->same(['sourceCode', 'numberSource', 'php', 'numberLines'], $pre['preformattedClasses']);
+        $t->same(true, $pre['preformattedCodeBlock']);
+        $t->same(1, $pre['preformattedCodeElementCount']);
+        $t->same($codeText, $pre['preformattedCodeText']);
+        $t->same(2, $pre['preformattedCodeLineCount']);
+        $t->same(true, $pre['preformattedCodeTrailingNewline']);
+        $t->same(['language-php'], $pre['preformattedCodeClasses']);
+        $t->same(2, $pre['preformattedContentLineCount']);
+        $t->same(true, $pre['preformattedNumberedLines']);
+        $t->same('php', $pre['preformattedLanguage']);
+        $t->same('language-php', $pre['preformattedLanguageToken']);
+        $t->same('code-class-language-prefix', $pre['preformattedLanguageSource']);
+        $t->same('code', $code['name']);
+        $t->same('code', $code['textSemantic']);
+        $t->same('echo <review> & status; return true;', $code['semanticText']);
+
+        $t->same('pre', $plain['name']);
+        $t->same('pre-text', $plain['preformattedContentSource']);
+        $t->same($plainText, $plain['preformattedText']);
+        $t->same(2, $plain['preformattedLineCount']);
+        $t->same(false, $plain['preformattedTrailingNewline']);
+        $t->same(false, $plain['preformattedCodeBlock']);
+        $t->same(0, $plain['preformattedCodeElementCount']);
+        $t->same(null, $plain['preformattedCodeText']);
+        $t->same(2, $plain['preformattedContentLineCount']);
+        $t->same(null, $plain['preformattedLanguage']);
+        $t->same(false, $plain['preformattedNumberedLines']);
+        $t->same('<pre class="sourceCode numberSource php numberLines" data-startfrom="7" id="snippet"><code class="language-php">echo &lt;review&gt; &amp; status;' . "\n" . 'return true;' . "\n" . '</code></pre><pre data-note="plain">plain' . "\n" . 'text</pre>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/pre-code-block-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html time datetime provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article><time datetime=" 2026-06-11 ">June 11</time>'
@@ -4748,6 +5021,59 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('<article><time datetime=" 2026-06-11 ">June 11</time><time datetime="2026-06-11 18:45:30Z">Published</time><time datetime="2026-06-11T12:30">Local</time><time datetime="2026-W24">Week 24</time><time datetime="PT2H30M">Duration</time><time>2026-06</time><time datetime="2026-02-30">Bad date</time><time></time></article>', $html);
         $t->contains($html, $blocks);
         $t->same('/migration/time-datetime-review.html', $document->children[0]->attr('part'));
+    },
+    'summarizes html preformatted code block provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<pre id="snippet"><code class="language-php reviewer-snippet">echo &quot;Hi&quot;' . "\n" . 'return $value' . "\n" . '</code></pre>'
+                . '<pre data-language="mermaid">graph LR' . "\n" . 'A--&gt;B</pre>',
+            'preformatted code review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/preformatted-code-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $codeText = "echo \"Hi\"\nreturn \$value\n";
+        $mermaidText = "graph LR\nA-->B";
+        $pre = $summary[0];
+        $code = $pre['children'][0];
+        $plainPre = $summary[1];
+
+        $t->same('pre', $pre['name']);
+        $t->same('pre', $pre['preformatted']);
+        $t->same('pre-code', $pre['codeBlock']);
+        $t->same('code', $pre['codeBlockSourceElement']);
+        $t->same($codeText, $pre['codeText']);
+        $t->same(strlen($codeText), $pre['codeTextLength']);
+        $t->same(hash('sha256', $codeText), $pre['codeTextSha256']);
+        $t->same(false, $pre['codeStartsWithNewline']);
+        $t->same(true, $pre['codeEndsWithNewline']);
+        $t->same(2, $pre['codeLineCount']);
+        $t->same('php', $pre['codeLanguage']);
+        $t->same('class-token', $pre['codeLanguageSource']);
+        $t->same('language-php', $pre['codeLanguageToken']);
+        $t->same(['language-php', 'reviewer-snippet'], $pre['codeClassTokens']);
+
+        $t->same('code', $code['name']);
+        $t->same('code', $code['textSemantic']);
+        $t->same('echo "Hi" return $value', $code['semanticText']);
+
+        $t->same('pre', $plainPre['name']);
+        $t->same('pre', $plainPre['codeBlock']);
+        $t->same('pre', $plainPre['codeBlockSourceElement']);
+        $t->same($mermaidText, $plainPre['codeText']);
+        $t->same(2, $plainPre['codeLineCount']);
+        $t->same('mermaid', $plainPre['codeLanguage']);
+        $t->same('data-language', $plainPre['codeLanguageSource']);
+        $t->same(null, $plainPre['codeLanguageToken']);
+        $t->same([], $plainPre['codeClassTokens']);
+
+        $t->contains("<code class=\"language-php reviewer-snippet\">{$codeText}</code>", $html);
+        $t->contains('<pre data-language="mermaid">graph LR' . "\n" . 'A--&gt;B</pre>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/preformatted-code-review.html', $document->children[0]->attr('part'));
     },
     'serializes entities comments and boolean attributes for HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
@@ -6196,6 +6522,58 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(['review' => 'work'], $standaloneCitation['dataset']);
         $t->same('<blockquote cite=" https://example.test/review#source " id="packet-quote"><p>Imported <q cite=" ./inline.html ">inline <cite>Manual</cite></q> note.</p><footer>Source <cite>Reviewer Handbook</cite></footer></blockquote><p>Standalone <cite data-review="work">Packet Guide</cite></p>', $html);
     },
+    'summarizes html quote cite url review provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<blockquote cite=" https://example.test/source#quote "><p>Quoted source</p></blockquote>'
+                . '<p><q cite="javascript:alert(1)">Unsafe citation</q><q cite="./notes.html#claim">Relative citation</q><q>Missing citation</q></p>',
+            'quote cite URL review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/quote-cite-url-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $blockquote = $summary[0];
+        $unsafeQuote = $summary[1]['children'][0];
+        $relativeQuote = $summary[1]['children'][1];
+        $missingQuote = $summary[1]['children'][2];
+
+        $t->same('quote-cite', $blockquote['quoteCitationUrlReview']);
+        $t->same(true, $blockquote['quoteCitePresent']);
+        $t->same('absolute', $blockquote['quoteCiteKind']);
+        $t->same('https', $blockquote['quoteCiteScheme']);
+        $t->same(false, $blockquote['quoteCiteUnsafe']);
+        $t->same([], $blockquote['quoteCiteIssueCodes']);
+        $t->same('https://example.test/source#quote', $blockquote['quoteCiteNormalized']);
+
+        $t->same('q', $unsafeQuote['name']);
+        $t->same(true, $unsafeQuote['quoteCitePresent']);
+        $t->same('absolute', $unsafeQuote['quoteCiteKind']);
+        $t->same('javascript', $unsafeQuote['quoteCiteScheme']);
+        $t->same(true, $unsafeQuote['quoteCiteUnsafe']);
+        $t->same(['unsafe-quote-cite'], $unsafeQuote['quoteCiteIssueCodes']);
+        $t->same([
+            ['code' => 'unsafe-quote-cite', 'cite' => 'javascript:alert(1)', 'scheme' => 'javascript'],
+        ], $unsafeQuote['quoteCiteIssues']);
+
+        $t->same('relative', $relativeQuote['quoteCiteKind']);
+        $t->same(null, $relativeQuote['quoteCiteScheme']);
+        $t->same(false, $relativeQuote['quoteCiteUnsafe']);
+        $t->same([], $relativeQuote['quoteCiteIssueCodes']);
+        $t->same('./notes.html#claim', $relativeQuote['quoteCiteNormalized']);
+
+        $t->same(false, $missingQuote['quoteCitePresent']);
+        $t->same('missing', $missingQuote['quoteCiteKind']);
+        $t->same(null, $missingQuote['quoteCiteScheme']);
+        $t->same(false, $missingQuote['quoteCiteUnsafe']);
+        $t->same([], $missingQuote['quoteCiteIssues']);
+
+        $t->same('<blockquote cite=" https://example.test/source#quote "><p>Quoted source</p></blockquote><p><q cite="javascript:alert(1)">Unsafe citation</q><q cite="./notes.html#claim">Relative citation</q><q>Missing citation</q></p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/quote-cite-url-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html media resource state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<video id="preview" controls muted loop poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source src="movie.mp4" type="video/mp4" media="(min-width: 40em)"><track default kind="captions" label="English" srclang="en" src="captions.vtt">Fallback <a href="movie.mp4">download</a></video>'
@@ -6677,6 +7055,86 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains('document type', $unsafeIframe['srcdocError']);
         $t->same('Unsafe fallback', $unsafeIframe['fallbackText']);
         $t->contains('srcdoc="&lt;article data-review=&quot;srcdoc&quot;&gt;', $html);
+    },
+    'summarizes iframe sandbox and permissions policy for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<iframe id="trusted-frame" src="frame.html" sandbox="allow-scripts allow-same-origin allow-popups allow-scripts bad-token" allow="fullscreen *; clipboard-write &#039;self&#039;; geolocation https://maps.example.test; bad&lt;feature *; camera" referrerpolicy="Strict-Origin-When-Cross-Origin" loading="Lazy" allowfullscreen>Frame fallback</iframe>'
+                . '<iframe id="bad-frame" src="bad.html" sandbox="" allow="midi &#039;none&#039;; broken&lt;directive" referrerpolicy="unsafe-policy" loading="soon"></iframe>',
+            'iframe policy review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/iframe-policy-summary-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $trusted = $summary[0];
+        $invalid = $summary[1];
+
+        $t->same('iframe-policy-metadata-review', $trusted['iframePolicyReview']);
+        $t->same([
+            'allow-scripts',
+            'allow-same-origin',
+            'allow-popups',
+            'allow-scripts',
+            'bad-token',
+        ], $trusted['sandboxTokens']);
+        $t->same(['allow-scripts', 'allow-same-origin', 'allow-popups'], $trusted['sandboxValidTokens']);
+        $t->same(['bad-token'], $trusted['invalidSandboxTokens']);
+        $t->same(['allow-scripts'], $trusted['duplicateSandboxTokens']);
+        $t->same(false, $trusted['sandboxAllTokensValid']);
+        $t->same(true, $trusted['sandboxAllowsScripts']);
+        $t->same(true, $trusted['sandboxAllowsSameOrigin']);
+        $t->same(true, $trusted['sandboxAllowsScriptsAndSameOrigin']);
+        $t->same([
+            'invalid-iframe-sandbox-token',
+            'duplicate-iframe-sandbox-token',
+            'iframe-sandbox-allows-scripts-same-origin',
+            'invalid-iframe-allow-directive',
+        ], $trusted['iframePolicyIssueCodes']);
+
+        $t->same(5, $trusted['allowDirectiveCount']);
+        $t->same([
+            'fullscreen',
+            'clipboard-write',
+            'geolocation',
+            'camera',
+        ], $trusted['allowFeatures']);
+        $t->same(['bad<feature *'], $trusted['invalidAllowDirectives']);
+        $t->same(false, $trusted['allowPolicyValid']);
+        $t->same(['*'], $trusted['allowDirectives'][0]['allowList']);
+        $t->same(["'self'"], $trusted['allowDirectives'][1]['allowList']);
+        $t->same(['https://maps.example.test'], $trusted['allowDirectives'][2]['allowList']);
+        $t->same(false, $trusted['allowDirectives'][3]['valid']);
+        $t->same([], $trusted['allowDirectives'][4]['allowList']);
+        $t->same('strict-origin-when-cross-origin', $trusted['referrerPolicy']);
+        $t->same(true, $trusted['referrerPolicyValid']);
+        $t->same('lazy', $trusted['loadingState']);
+        $t->same(true, $trusted['loadingValid']);
+        $t->same(true, $trusted['allowFullscreen']);
+        $t->same('Frame fallback', $trusted['fallbackText']);
+
+        $t->same([], $invalid['sandboxTokens']);
+        $t->same([], $invalid['sandboxValidTokens']);
+        $t->same(true, $invalid['sandboxAllTokensValid']);
+        $t->same(2, $invalid['allowDirectiveCount']);
+        $t->same(['midi'], $invalid['allowFeatures']);
+        $t->same(["'none'"], $invalid['allowDirectives'][0]['allowList']);
+        $t->same(['broken<directive'], $invalid['invalidAllowDirectives']);
+        $t->same(null, $invalid['referrerPolicy']);
+        $t->same(false, $invalid['referrerPolicyValid']);
+        $t->same(null, $invalid['loadingState']);
+        $t->same(false, $invalid['loadingValid']);
+        $t->same(false, $invalid['allowFullscreen']);
+        $t->same([
+            'invalid-iframe-allow-directive',
+            'invalid-iframe-referrer-policy',
+            'invalid-iframe-loading-state',
+        ], $invalid['iframePolicyIssueCodes']);
+        $t->contains('allowfullscreen', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/iframe-policy-summary-review.html', $document->children[0]->attr('part'));
     },
     'summarizes html hyperlinks and image-map areas for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
@@ -7724,6 +8182,81 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(false, $unsafe['templateContentParsed']);
         $t->same(['template-content-unsafe-or-unparseable'], $unsafe['templateContentDiagnostics']);
         $t->contains('document type', $unsafe['templateContentError']);
+    },
+    'summarizes declarative shadow root slot metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $templateSource = '<style>:host{display:block}</style>'
+            . '<h2><slot name="title"><span>Untitled</span></slot></h2>'
+            . '<slot><p>Body fallback</p></slot>';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="card" part="review-card">'
+                . '<template shadowrootmode="open" shadowrootdelegatesfocus shadowrootclonable>' . $templateSource . '</template>'
+                . '<h2 slot="title">Review title</h2><p>Light DOM body</p>'
+                . '</article>',
+            'declarative shadow root review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/declarative-shadow-root-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $template = $article['children'][0];
+        $lightTitle = $article['children'][1];
+        $namedSlot = $template['shadowRootSlots'][0];
+        $defaultSlot = $template['shadowRootSlots'][1];
+
+        $t->same('article', $article['name']);
+        $t->same(['id' => 'card', 'part' => 'review-card'], $article['attributes']);
+        $t->same(['review-card'], $article['partNames']);
+        $t->same('template', $template['name']);
+        $t->same($templateSource, $template['templateText']);
+        $t->same(true, $template['templateContentParsed']);
+        $t->same(['style', 'h2', 'slot'], $template['templateContentTopLevelElementNames']);
+        $t->same(['style'], $template['templateContentActiveElementNames']);
+        $t->same(true, $template['declarativeShadowRoot']);
+        $t->same('declarative-shadow-root-template-review', $template['shadowRootReviewPolicy']);
+        $t->same('open', $template['shadowRootModeRaw']);
+        $t->same('open', $template['shadowRootMode']);
+        $t->same(true, $template['shadowRootModeValid']);
+        $t->same(true, $template['shadowRootDelegatesFocus']);
+        $t->same(true, $template['shadowRootClonable']);
+        $t->same(false, $template['shadowRootSerializable']);
+        $t->same('article', $template['shadowRootHostTag']);
+        $t->same('card', $template['shadowRootHostId']);
+        $t->same(2, $template['shadowRootSlotCount']);
+        $t->same(1, $template['shadowRootDefaultSlotCount']);
+        $t->same(1, $template['shadowRootNamedSlotCount']);
+        $t->same(['title', ''], $template['shadowRootSlotNames']);
+        $t->same(['title'], $template['shadowRootNamedSlotNames']);
+        $t->same(['Untitled', 'Body fallback'], $template['shadowRootSlotFallbackTexts']);
+        $t->same([], $template['shadowRootDiagnostics']);
+
+        $t->same(0, $namedSlot['index']);
+        $t->same('slot', $namedSlot['slotElement']);
+        $t->same('title', $namedSlot['slotNameRaw']);
+        $t->same('title', $namedSlot['slotName']);
+        $t->same(false, $namedSlot['slotDefault']);
+        $t->same(true, $namedSlot['slotNameValid']);
+        $t->same('Untitled', $namedSlot['slotFallbackText']);
+        $t->same(['span'], $namedSlot['slotFallbackElementNames']);
+
+        $t->same(1, $defaultSlot['index']);
+        $t->same(null, $defaultSlot['slotNameRaw']);
+        $t->same('', $defaultSlot['slotName']);
+        $t->same(true, $defaultSlot['slotDefault']);
+        $t->same(true, $defaultSlot['slotNameValid']);
+        $t->same('Body fallback', $defaultSlot['slotFallbackText']);
+        $t->same(['p'], $defaultSlot['slotFallbackElementNames']);
+
+        $t->same('title', $lightTitle['slotRaw']);
+        $t->same('title', $lightTitle['slotName']);
+        $t->same(true, $lightTitle['slotValid']);
+        $t->contains('<template shadowrootclonable shadowrootdelegatesfocus shadowrootmode="open">', $html);
+        $t->true(!str_contains($html, '<slot name="title">'), 'Expected shadow-root slot source to stay escaped in raw handoff');
+        $t->contains($html, $blocks);
+        $t->same('/migration/declarative-shadow-root-review.html', $document->children[0]->attr('part'));
     },
     'summarizes html template content across nested template and raw text sentinels' => static function (TestRunner $t): void {
         $templateSource = '<template data-inner="1"><p>Inner</p></template>'

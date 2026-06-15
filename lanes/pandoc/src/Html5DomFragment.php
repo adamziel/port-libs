@@ -249,7 +249,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-srcdoc-review', 'link-browsing-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'label-metadata-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-srcdoc-review', 'link-browsing-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -617,6 +617,9 @@ final class Html5DomFragment
         }
         if ($mode === 'html' && $name === 'fieldset') {
             self::markHtmlFieldsetReviewMetadata($node, $attrs, $children, $diagnostics);
+        }
+        if ($mode === 'html' && $name === 'label') {
+            self::markHtmlLabelReviewMetadata($node, $attrs, $children, $diagnostics);
         }
         if ($mode === 'html' && $elementForeignContext === null && self::isHtmlCustomElementName($name)) {
             $name = self::markHtmlCustomElementReviewMetadata($node, $name, $attrs, $children, $diagnostics);
@@ -1647,6 +1650,262 @@ final class Html5DomFragment
         $text = preg_replace('/[\t\r\n\f ]+/u', ' ', $text) ?? $text;
 
         return trim($text);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlLabelReviewMetadata(
+        \DOMElement $element,
+        array &$attrs,
+        array $children,
+        array &$diagnostics
+    ): void {
+        foreach ($element->attributes as $attribute) {
+            $attributeName = strtolower($attribute->name);
+            if (!str_starts_with($attributeName, 'data-pandoc-label-')) {
+                continue;
+            }
+
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'label',
+                'attribute' => $attributeName,
+                'reason' => 'reserved-review-metadata-source-spoof',
+            ], $element);
+        }
+
+        $labelText = self::normalizeHtmlLabelMetadataText(self::textFromNormalizedNodes($children));
+        if ($labelText !== null) {
+            $attrs['data-pandoc-label-text'] = $labelText;
+            self::addHtmlLabelMetadataDiagnostic($diagnostics, $element, 'text', 'data-pandoc-label-text');
+        }
+
+        if ($element->hasAttribute('for')) {
+            unset($attrs['for']);
+            $forId = self::normalizeHtmlLabelForAttribute($element->getAttribute('for'));
+            if ($forId === null) {
+                self::addHtmlInvalidLabelMetadataDiagnostic($diagnostics, $element, 'for');
+
+                return;
+            }
+
+            $attrs['data-pandoc-label-for'] = $forId;
+            self::addHtmlLabelMetadataDiagnostic($diagnostics, $element, 'for', 'data-pandoc-label-for');
+            $control = self::htmlElementById($element, $forId);
+            if (!$control instanceof \DOMElement) {
+                $attrs['data-pandoc-label-control-source'] = 'missing-for-target';
+                self::addHtmlLabelMetadataDiagnostic($diagnostics, $element, 'for', 'data-pandoc-label-control-source');
+
+                return;
+            }
+
+            if (!self::isHtmlLabelableElement($control)) {
+                $attrs['data-pandoc-label-control-source'] = 'non-labelable-for-target';
+                self::addHtmlLabelMetadataDiagnostic($diagnostics, $element, 'for', 'data-pandoc-label-control-source');
+
+                return;
+            }
+
+            self::addHtmlLabelControlMetadata($attrs, $diagnostics, $element, $control, 'for-attribute');
+
+            return;
+        }
+
+        $control = self::firstHtmlLabelableDescendant($element);
+        if (!$control instanceof \DOMElement) {
+            return;
+        }
+
+        self::addHtmlLabelControlMetadata($attrs, $diagnostics, $element, $control, 'descendant');
+    }
+
+    private static function normalizeHtmlLabelMetadataText(string $value): ?string
+    {
+        $text = self::cleanHtmlMetadataAttribute($value);
+        if ($text === '' || strlen($text) > 256 || preg_match('/[<>{}`]/u', $text) === 1) {
+            return null;
+        }
+
+        return $text;
+    }
+
+    private static function normalizeHtmlLabelForAttribute(string $value): ?string
+    {
+        $forId = self::cleanHtmlMetadataAttribute($value);
+        if ($forId === '' || strlen($forId) > 128 || !self::isSafeHtmlAriaIdToken($forId)) {
+            return null;
+        }
+
+        return $forId;
+    }
+
+    private static function htmlElementById(\DOMElement $context, string $id): ?\DOMElement
+    {
+        $document = $context->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return null;
+        }
+
+        foreach ($document->getElementsByTagName('*') as $element) {
+            if ($element instanceof \DOMElement && $element->getAttribute('id') === $id) {
+                return $element;
+            }
+        }
+
+        return null;
+    }
+
+    private static function firstHtmlLabelableDescendant(\DOMElement $element): ?\DOMElement
+    {
+        foreach ($element->getElementsByTagName('*') as $descendant) {
+            if (!$descendant instanceof \DOMElement || !self::isHtmlLabelableElement($descendant)) {
+                continue;
+            }
+
+            return $descendant;
+        }
+
+        return null;
+    }
+
+    private static function isHtmlLabelableElement(\DOMElement $element): bool
+    {
+        $name = self::htmlNormalizedElementName($element);
+        if ($name === 'input' && self::htmlInputType($element) === 'hidden') {
+            return false;
+        }
+
+        return in_array($name, ['button', 'input', 'meter', 'output', 'progress', 'select', 'textarea'], true);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlLabelControlMetadata(
+        array &$attrs,
+        array &$diagnostics,
+        \DOMElement $label,
+        \DOMElement $control,
+        string $source
+    ): void {
+        $tagName = self::htmlNormalizedElementName($control);
+        $attrs['data-pandoc-label-control-source'] = $source;
+        $attrs['data-pandoc-label-control'] = $tagName;
+        self::addHtmlLabelMetadataDiagnostic($diagnostics, $label, 'control', 'data-pandoc-label-control-source');
+        self::addHtmlLabelMetadataDiagnostic($diagnostics, $label, 'control', 'data-pandoc-label-control');
+
+        $id = self::cleanHtmlMetadataAttribute($control->getAttribute('id'));
+        if ($id !== '' && strlen($id) <= 128 && self::isSafeHtmlAriaIdToken($id)) {
+            $attrs['data-pandoc-label-control-id'] = $id;
+            self::addHtmlLabelMetadataDiagnostic($diagnostics, $label, 'control', 'data-pandoc-label-control-id');
+        }
+
+        $name = self::normalizeHtmlLabelControlName($control->getAttribute('name'));
+        if ($name !== null) {
+            $attrs['data-pandoc-label-control-name'] = $name;
+            self::addHtmlLabelMetadataDiagnostic($diagnostics, $label, 'control', 'data-pandoc-label-control-name');
+        }
+
+        if ($tagName === 'input') {
+            $attrs['data-pandoc-label-control-type'] = self::htmlInputType($control);
+            self::addHtmlLabelMetadataDiagnostic($diagnostics, $label, 'control', 'data-pandoc-label-control-type');
+        } elseif ($tagName === 'button') {
+            $attrs['data-pandoc-label-control-type'] = self::htmlButtonType($control);
+            self::addHtmlLabelMetadataDiagnostic($diagnostics, $label, 'control', 'data-pandoc-label-control-type');
+        }
+    }
+
+    private static function normalizeHtmlLabelControlName(string $value): ?string
+    {
+        $name = self::cleanHtmlMetadataAttribute($value);
+        if ($name === '' || strlen($name) > 128 || preg_match('/[<>"\'`{}]/u', $name) === 1) {
+            return null;
+        }
+
+        return $name;
+    }
+
+    private static function htmlInputType(\DOMElement $element): string
+    {
+        $type = strtolower(self::cleanHtmlMetadataAttribute($element->getAttribute('type')));
+
+        return in_array($type, [
+            'button',
+            'checkbox',
+            'color',
+            'date',
+            'datetime-local',
+            'email',
+            'file',
+            'hidden',
+            'image',
+            'month',
+            'number',
+            'password',
+            'radio',
+            'range',
+            'reset',
+            'search',
+            'submit',
+            'tel',
+            'text',
+            'time',
+            'url',
+            'week',
+        ], true) ? $type : 'text';
+    }
+
+    private static function htmlButtonType(\DOMElement $element): string
+    {
+        $type = strtolower(self::cleanHtmlMetadataAttribute($element->getAttribute('type')));
+
+        return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    private static function htmlNormalizedElementName(\DOMElement $element): string
+    {
+        $rawName = self::rawElementName($element, 'html');
+        $foreignContext = self::elementForeignContext($element, $rawName, 'html', null);
+
+        return self::normalizedElementName($rawName, $foreignContext);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlLabelMetadataDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $attributeName,
+        string $metadataAttribute
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'label-metadata-review',
+            'tag' => 'label',
+            'attribute' => $attributeName,
+            'metadataAttribute' => $metadataAttribute,
+            'reason' => 'label-control-association-preserved-as-review-metadata',
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlInvalidLabelMetadataDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $attributeName
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'unsafe-attribute',
+            'tag' => 'label',
+            'attribute' => $attributeName,
+            'reason' => 'invalid-label-control-metadata',
+        ], $element);
     }
 
     /**
