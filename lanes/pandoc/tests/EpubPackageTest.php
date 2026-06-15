@@ -3100,6 +3100,103 @@ XML;
         $t->same(['/EPUB/text/chapter1.xhtml?view=review#install'], $summary['wordpressImport']['collectionLinkTargets']);
     },
 
+    'summarizes EPUB link href suffixes across package link sources' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $containerMetadataXml = <<<'XML'
+<metadata xmlns="http://www.idpf.org/2013/metadata">
+  <link id="container-suffix" rel="record" href="EPUB/meta/container-record.json?profile=ocf#record" media-type="application/ld+json"/>
+</metadata>
+XML;
+        $opfWithSuffixedLinks = str_replace(
+            '</metadata>',
+            '    <link id="package-suffix" rel="record" href="meta/package-record.json?edition=review#package" media-type="application/ld+json"/>
+  </metadata>',
+            $epub3OpfXml
+        );
+        $opfWithSuffixedLinks = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="container-record" href="meta/container-record.json" media-type="application/ld+json"/>
+    <item id="package-record" href="meta/package-record.json" media-type="application/ld+json"/>',
+            $opfWithSuffixedLinks
+        );
+        $opfWithSuffixedLinks = str_replace(
+            '</spine>',
+            '</spine>
+  <collection id="review-links" role="review">
+    <link id="collection-local" rel="first" href="text/chapter1.xhtml?view=review#install" media-type="application/xhtml+xml"/>
+    <link id="collection-missing" rel="review" href="meta/missing-record.json#missing" media-type="application/json"/>
+    <collection id="external-records" role="supplement">
+      <link id="collection-remote" rel="alternate" href="https://example.invalid/review.json?source=collection#packet" media-type="application/json"/>
+    </collection>
+  </collection>',
+            $opfWithSuffixedLinks
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/metadata.xml', 'data' => $containerMetadataXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithSuffixedLinks],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="install">Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/container-record.json', 'data' => '{"name":"container"}'],
+            ['name' => 'EPUB/meta/package-record.json', 'data' => '{"name":"package"}'],
+        ]));
+
+        $summary = $epub->summary();
+        $report = $summary['linkHrefSuffixes'];
+
+        $t->same(true, $report['present']);
+        $t->same(5, $report['itemCount']);
+        $t->same(1, $report['containerLinkCount']);
+        $t->same(1, $report['packageLinkCount']);
+        $t->same(3, $report['collectionLinkCount']);
+        $t->same(4, $report['queryCount']);
+        $t->same(5, $report['fragmentCount']);
+        $t->same(3, $report['localTargetCount']);
+        $t->same(1, $report['externalTargetCount']);
+        $t->same(1, $report['missingTargetCount']);
+        $t->same(['container-link' => 1, 'package-link' => 1, 'collection-link' => 3], $report['sourceCounts']);
+        $t->same(['profile=ocf', 'edition=review', 'view=review', 'source=collection'], $report['queryValues']);
+        $t->same(['record', 'package', 'install', 'missing', 'packet'], $report['fragmentValues']);
+        $t->same([
+            '/EPUB/meta/container-record.json?profile=ocf#record',
+            '/EPUB/meta/package-record.json?edition=review#package',
+            '/EPUB/text/chapter1.xhtml?view=review#install',
+            '/EPUB/meta/missing-record.json#missing',
+            'https://example.invalid/review.json?source=collection#packet',
+        ], $report['targets']);
+        $t->same([
+            '/EPUB/meta/container-record.json',
+            '/EPUB/meta/package-record.json',
+            '/EPUB/text/chapter1.xhtml',
+            '/EPUB/meta/missing-record.json',
+        ], $report['partNames']);
+
+        $t->same('container-link', $report['items'][0]['source']);
+        $t->same('container-suffix', $report['items'][0]['id']);
+        $t->same('package-link', $report['items'][1]['source']);
+        $t->same('package-suffix', $report['items'][1]['id']);
+        $t->same('collection-link', $report['items'][2]['source']);
+        $t->same([0], $report['items'][2]['collectionPath']);
+        $t->same('review-links', $report['items'][2]['collectionId']);
+        $t->same(true, $report['items'][2]['exists']);
+        $t->same('collection-missing', $report['items'][3]['id']);
+        $t->same(false, $report['items'][3]['exists']);
+        $t->same('missing-collection-link-target', $report['items'][3]['diagnostics'][0]['type']);
+        $t->same('collection-remote', $report['items'][4]['id']);
+        $t->same([0, 0], $report['items'][4]['collectionPath']);
+        $t->same('external-records', $report['items'][4]['collectionId']);
+        $t->same('supplement', $report['items'][4]['collectionRole']);
+        $t->same(true, $report['items'][4]['external']);
+        $t->same('collection-remote', $report['itemsBySource']['collection-link'][2]['id']);
+        $t->same($report, $summary['wordpressImport']['linkHrefSuffixes']);
+        $t->same($report['items'], $summary['wordpressImport']['linkHrefSuffixItems']);
+    },
+
     'summarizes OPF accessibility metadata for compact package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $a11yRecord = '{"@context":"https://schema.org","accessibilitySummary":"Compact package accessibility record"}';
         $opfWithAccessibility = str_replace(

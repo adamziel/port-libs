@@ -559,6 +559,11 @@ final class EpubPackage
         $collectionRoleVocabulary = self::collectionRoleVocabularySummary($this->collections);
         $collectionHierarchy = self::collectionHierarchyReport($this->collections);
         $remoteResourcePolicy = $this->remoteResourcePolicy();
+        $linkHrefSuffixes = self::linkHrefSuffixReport(
+            $this->containerLinks,
+            $this->packageLinks,
+            $this->collections,
+        );
         $mediaOverlayDiagnostics = self::mediaOverlayDiagnostics($this->mediaOverlays);
         $manifestFallbacks = $this->manifestFallbacks();
         $resourceProperties = $this->resourceProperties();
@@ -664,6 +669,7 @@ final class EpubPackage
             'auxiliaryNavigation' => $auxiliaryNavigation,
             'assets' => $assetSummary,
             'remoteResourcePolicy' => $remoteResourcePolicy,
+            'linkHrefSuffixes' => $linkHrefSuffixes,
             'validation' => $validationReport,
             'ncxNavigationSelection' => $ncxNavigationSelection,
             'compactPackageReport' => $compactPackageReport,
@@ -799,6 +805,8 @@ final class EpubPackage
                 'remoteResourcePolicy' => $remoteResourcePolicy,
                 'remoteResourceExternalTargets' => $remoteResourcePolicy['externalTargets'],
                 'remoteResourcePolicyDiagnostics' => $remoteResourcePolicy['diagnostics'],
+                'linkHrefSuffixes' => $linkHrefSuffixes,
+                'linkHrefSuffixItems' => $linkHrefSuffixes['items'],
                 'mediaTypeBindings' => $this->bindings['items'],
                 'mediaTypeBindingDiagnostics' => $this->bindings['diagnostics'],
                 'mediaOverlays' => $this->mediaOverlays,
@@ -10806,6 +10814,175 @@ final class EpubPackage
         }
 
         return $targets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $containerLinks
+     * @param list<array<string, mixed>> $packageLinks
+     * @param list<array<string, mixed>> $collections
+     *
+     * @return array<string, mixed>
+     */
+    private static function linkHrefSuffixReport(array $containerLinks, array $packageLinks, array $collections): array
+    {
+        $items = [];
+        foreach ($containerLinks as $linkIndex => $link) {
+            $item = self::linkHrefSuffixItem($link, 'container-link', $linkIndex, null, []);
+            if ($item !== null) {
+                $items[] = $item;
+            }
+        }
+
+        foreach ($packageLinks as $linkIndex => $link) {
+            $item = self::linkHrefSuffixItem($link, 'package-link', $linkIndex, null, []);
+            if ($item !== null) {
+                $items[] = $item;
+            }
+        }
+
+        self::appendCollectionLinkHrefSuffixItems($collections, [], $items);
+
+        $sourceCounts = [];
+        $itemsBySource = [];
+        $queryValues = [];
+        $fragmentValues = [];
+        $targets = [];
+        $partNames = [];
+        $localTargetCount = 0;
+        $externalTargetCount = 0;
+        $missingTargetCount = 0;
+
+        foreach ($items as $item) {
+            $source = (string) $item['source'];
+            $sourceCounts[$source] = ($sourceCounts[$source] ?? 0) + 1;
+            $itemsBySource[$source][] = $item;
+
+            if (($item['hasQuery'] ?? false) === true && is_string($item['query'] ?? null)) {
+                $queryValues[] = $item['query'];
+            }
+
+            if (($item['hasFragment'] ?? false) === true && is_string($item['fragment'] ?? null)) {
+                $fragmentValues[] = $item['fragment'];
+            }
+
+            if (is_string($item['target'] ?? null) && $item['target'] !== '') {
+                $targets[] = $item['target'];
+            }
+
+            if (is_string($item['partName'] ?? null) && $item['partName'] !== '') {
+                $partNames[] = $item['partName'];
+            }
+
+            if (($item['external'] ?? false) === true) {
+                ++$externalTargetCount;
+            } elseif (($item['exists'] ?? false) === true) {
+                ++$localTargetCount;
+            } else {
+                ++$missingTargetCount;
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'containerLinkCount' => $sourceCounts['container-link'] ?? 0,
+            'packageLinkCount' => $sourceCounts['package-link'] ?? 0,
+            'collectionLinkCount' => $sourceCounts['collection-link'] ?? 0,
+            'queryCount' => count($queryValues),
+            'fragmentCount' => count($fragmentValues),
+            'localTargetCount' => $localTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'missingTargetCount' => $missingTargetCount,
+            'sourceCounts' => $sourceCounts,
+            'queryValues' => $queryValues,
+            'fragmentValues' => $fragmentValues,
+            'targets' => $targets,
+            'partNames' => array_values(array_unique($partNames)),
+            'itemsBySource' => $itemsBySource,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     * @param list<int> $collectionPath
+     * @param list<array<string, mixed>> $items
+     */
+    private static function appendCollectionLinkHrefSuffixItems(
+        array $collections,
+        array $collectionPath,
+        array &$items
+    ): void {
+        foreach ($collections as $collectionIndex => $collection) {
+            if (!is_array($collection)) {
+                continue;
+            }
+
+            $currentPath = array_merge($collectionPath, [$collectionIndex]);
+            foreach (is_array($collection['links'] ?? null) ? $collection['links'] : [] as $linkIndex => $link) {
+                if (!is_array($link)) {
+                    continue;
+                }
+
+                $item = self::linkHrefSuffixItem($link, 'collection-link', $linkIndex, $collection, $currentPath);
+                if ($item !== null) {
+                    $items[] = $item;
+                }
+            }
+
+            self::appendCollectionLinkHrefSuffixItems(
+                is_array($collection['children'] ?? null) ? $collection['children'] : [],
+                $currentPath,
+                $items,
+            );
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $link
+     * @param array<string, mixed>|null $collection
+     * @param list<int> $collectionPath
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function linkHrefSuffixItem(
+        array $link,
+        string $source,
+        int $sourceIndex,
+        ?array $collection,
+        array $collectionPath
+    ): ?array {
+        $hasQuery = ($link['hrefHasQuery'] ?? false) === true;
+        $hasFragment = ($link['hrefHasFragment'] ?? false) === true;
+        if (!$hasQuery && !$hasFragment) {
+            return null;
+        }
+
+        return [
+            'source' => $source,
+            'sourceIndex' => $sourceIndex,
+            'collectionPath' => $source === 'collection-link' ? $collectionPath : null,
+            'collectionId' => is_array($collection) && is_string($collection['id'] ?? null)
+                ? $collection['id']
+                : null,
+            'collectionRole' => is_array($collection) && is_string($collection['role'] ?? null)
+                ? $collection['role']
+                : null,
+            'id' => is_string($link['id'] ?? null) ? $link['id'] : null,
+            'rel' => is_array($link['rel'] ?? null) ? array_values($link['rel']) : [],
+            'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+            'target' => is_string($link['target'] ?? null) ? $link['target'] : null,
+            'partName' => is_string($link['partName'] ?? null) ? $link['partName'] : null,
+            'external' => ($link['external'] ?? false) === true,
+            'exists' => ($link['exists'] ?? false) === true,
+            'mediaType' => is_string($link['mediaType'] ?? null) ? $link['mediaType'] : null,
+            'manifestId' => is_string($link['manifestId'] ?? null) ? $link['manifestId'] : null,
+            'hasQuery' => $hasQuery,
+            'query' => is_string($link['hrefQuery'] ?? null) ? $link['hrefQuery'] : null,
+            'hasFragment' => $hasFragment,
+            'fragment' => is_string($link['hrefFragment'] ?? null) ? $link['hrefFragment'] : null,
+            'diagnostics' => is_array($link['diagnostics'] ?? null) ? array_values($link['diagnostics']) : [],
+        ];
     }
 
     /**
