@@ -7960,6 +7960,11 @@ final class MarkdownReader
         return preg_match('/^ {0,3}(?:`{3,}|~{3,}|>|<\/?[A-Za-z]|<!--|<\?|<!)/', $line) !== 1;
     }
 
+    private function isSetextHeadingUnderline(string $line): bool
+    {
+        return preg_match('/^ {0,3}=+[ \t]*$/', $this->expandTabsToSpaces($line)) === 1;
+    }
+
     private function stripClosingAtxHeadingFence(string $text): string
     {
         if (preg_match('/^#+$/', $text) === 1) {
@@ -15927,7 +15932,8 @@ final class MarkdownReader
                     $continuesDefinitionList = $paragraph !== []
                         && $this->isDefinitionMarker($stripped)
                         && !$this->isListItemBlockStartLine($stripped);
-                    if ($paragraph !== [] && $continuesDefinitionList) {
+                    $continuesSetextHeading = $paragraph !== [] && $this->isSetextHeadingUnderline($stripped);
+                    if ($paragraph !== [] && ($continuesDefinitionList || $continuesSetextHeading)) {
                         $seedLines = $paragraph;
                         $paragraph = [];
                     } else {
@@ -16002,7 +16008,15 @@ final class MarkdownReader
         int $baseIndent,
         int $contentIndent
     ): bool {
-        if ($this->isListItemBlockStartLine($line)
+        if ($paragraph !== []
+            && !$this->isSetextHeadingUnderline($line)
+            && $this->isListItemSetextHeadingContinuationLine($line, $lines, $cursor, $contentIndent)
+        ) {
+            return false;
+        }
+
+        if (($paragraph !== [] && $this->isSetextHeadingUnderline($line))
+            || $this->isListItemBlockStartLine($line)
             || $this->isListItemContinuationSimpleTableStartAt($lines, $cursor, $contentIndent)
             || $this->isListItemContinuationDefinitionListStartAt($lines, $cursor, $contentIndent)
         ) {
@@ -16011,6 +16025,27 @@ final class MarkdownReader
 
         return ($paragraph !== [] && $this->isDefinitionMarker($line))
             || ($paragraph === [] && $this->canStartListItemDefinitionBlock($line, $lines, $cursor + 1, $baseIndent, $contentIndent));
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function isListItemSetextHeadingContinuationLine(
+        string $line,
+        array $lines,
+        int $cursor,
+        int $contentIndent
+    ): bool {
+        if (!$this->canBeSetextHeadingContentLine($line)) {
+            return false;
+        }
+
+        $next = $cursor + 1;
+        if (!isset($lines[$next]) || $this->countIndentColumns($lines[$next]) < $contentIndent) {
+            return false;
+        }
+
+        return $this->isSetextHeadingUnderline($this->stripIndentColumns($lines[$next], $contentIndent));
     }
 
     private function isListItemBlockStartLine(string $line): bool
@@ -16140,7 +16175,9 @@ final class MarkdownReader
             }
 
             if ($this->isNestedListMarker($marker, $baseIndent, $contentIndent)) {
-                return rtrim($this->stripIndentColumns($line, $baseIndent));
+                $stripColumns = $marker['indent'] >= $contentIndent ? $contentIndent : $baseIndent;
+
+                return rtrim($this->stripIndentColumns($line, $stripColumns));
             }
         }
 
