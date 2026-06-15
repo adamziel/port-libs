@@ -7128,6 +7128,9 @@ final class EpubPackage
         $resourceKindCounts = [];
         $resourceKindByteLengths = [];
         $resourceKindCompressedByteLengths = [];
+        $byteExposurePolicyCounts = [];
+        $byteExposurePolicyByteLengths = [];
+        $byteExposurePolicyCompressedByteLengths = [];
         $undeclaredPartNames = [];
         $unsupportedCompressionPartNames = [];
         $encryptedPartNames = [];
@@ -7323,6 +7326,8 @@ final class EpubPackage
                 $item['byteExposurePolicy'] = $obfuscatedFont
                     ? 'obfuscated-font-bytes-blocked'
                     : 'encrypted-resource-bytes-blocked';
+            } elseif (($provenance['compressionSupported'] ?? false) !== true) {
+                $item['byteExposurePolicy'] = 'unsupported-compression-metadata-only';
             }
 
             foreach ($roles as $role) {
@@ -7330,6 +7335,10 @@ final class EpubPackage
                 $roleByteLengths[$role] = ($roleByteLengths[$role] ?? 0) + $entry->uncompressedSize;
                 $roleCompressedByteLengths[$role] = ($roleCompressedByteLengths[$role] ?? 0) + $entry->compressedSize;
             }
+            $byteExposurePolicy = (string) $item['byteExposurePolicy'];
+            $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+            $byteExposurePolicyByteLengths[$byteExposurePolicy] = ($byteExposurePolicyByteLengths[$byteExposurePolicy] ?? 0) + $entry->uncompressedSize;
+            $byteExposurePolicyCompressedByteLengths[$byteExposurePolicy] = ($byteExposurePolicyCompressedByteLengths[$byteExposurePolicy] ?? 0) + $entry->compressedSize;
             if (($item['canExposeBytes'] ?? false) === true) {
                 ++$exposableEntryCount;
                 $exposableByteLength += $entry->uncompressedSize;
@@ -7353,6 +7362,9 @@ final class EpubPackage
         ksort($resourceKindCounts, SORT_STRING);
         ksort($resourceKindByteLengths, SORT_STRING);
         ksort($resourceKindCompressedByteLengths, SORT_STRING);
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+        ksort($byteExposurePolicyByteLengths, SORT_STRING);
+        ksort($byteExposurePolicyCompressedByteLengths, SORT_STRING);
 
         return [
             'entryCount' => count($entries),
@@ -7385,6 +7397,9 @@ final class EpubPackage
             'resourceKindCounts' => $resourceKindCounts,
             'resourceKindByteLengths' => $resourceKindByteLengths,
             'resourceKindCompressedByteLengths' => $resourceKindCompressedByteLengths,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'byteExposurePolicyByteLengths' => $byteExposurePolicyByteLengths,
+            'byteExposurePolicyCompressedByteLengths' => $byteExposurePolicyCompressedByteLengths,
             'directoryCount' => count($directorySummaries),
             'directorySummaries' => $directorySummaries,
             'directories' => array_column($directorySummaries, 'directory'),
@@ -7804,6 +7819,9 @@ final class EpubPackage
             'blockedEntryCount' => 0,
             'roleCounts' => [],
             'resourceKindCounts' => [],
+            'byteExposurePolicyCounts' => [],
+            'byteExposurePolicyByteLengths' => [],
+            'byteExposurePolicyCompressedByteLengths' => [],
             'packagePaths' => [],
             'partNames' => [],
         ];
@@ -7861,6 +7879,15 @@ final class EpubPackage
         if ($resourceKind !== null && $resourceKind !== '') {
             $summary['resourceKindCounts'][$resourceKind] = ($summary['resourceKindCounts'][$resourceKind] ?? 0) + 1;
         }
+
+        $byteExposurePolicy = is_string($entry['byteExposurePolicy'] ?? null) && $entry['byteExposurePolicy'] !== ''
+            ? $entry['byteExposurePolicy']
+            : 'unknown';
+        $summary['byteExposurePolicyCounts'][$byteExposurePolicy] = ($summary['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+        $summary['byteExposurePolicyByteLengths'][$byteExposurePolicy] = ($summary['byteExposurePolicyByteLengths'][$byteExposurePolicy] ?? 0)
+            + (int) ($entry['byteLength'] ?? 0);
+        $summary['byteExposurePolicyCompressedByteLengths'][$byteExposurePolicy] = ($summary['byteExposurePolicyCompressedByteLengths'][$byteExposurePolicy] ?? 0)
+            + (int) ($entry['compressedByteLength'] ?? 0);
     }
 
     /**
@@ -7874,6 +7901,9 @@ final class EpubPackage
         foreach ($summaries as $key => $summary) {
             ksort($summary['roleCounts'], SORT_STRING);
             ksort($summary['resourceKindCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyByteLengths'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCompressedByteLengths'], SORT_STRING);
             $summaries[$key] = $summary;
         }
 

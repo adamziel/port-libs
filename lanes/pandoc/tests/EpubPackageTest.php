@@ -6400,6 +6400,111 @@ XML;
         $t->same('audio', $inventory['byPackagePath']['EPUB/audio/theme.mp3']['resourceKind']);
     },
 
+    'summarizes EPUB package inventory byte exposure policy buckets for review handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $chapter = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Policy buckets</h1></body></html>';
+        $navXml = '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><h1>Contents</h1><ol><li><a href="text/chapter.xhtml">Policy buckets</a></li></ol></nav></body></html>';
+        $audio = 'AUDIO-UNSUPPORTED-COMPRESSION';
+        $font = 'OBFUSCATED-FONT-PAYLOAD';
+        $note = 'undeclared reviewer note';
+        $opfWithPolicies = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:package-policy-buckets</dc:identifier>
+    <dc:title>Package Policy Buckets</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-15T05:09:22Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="audio" href="audio/theme.mp3" media-type="audio/mpeg"/>
+    <item id="font" href="fonts/source.otf" media-type="font/otf"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <CipherData><CipherReference URI="EPUB/fonts/source.otf"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml, 'method' => 8],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml, 'method' => 8],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithPolicies, 'method' => 8],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml, 'method' => 8],
+            ['name' => 'EPUB/text/chapter.xhtml', 'data' => $chapter, 'method' => 8],
+            ['name' => 'EPUB/audio/theme.mp3', 'data' => $audio, 'method' => 12],
+            ['name' => 'EPUB/fonts/source.otf', 'data' => $font, 'method' => 8],
+            ['name' => 'EPUB/notes/source.txt', 'data' => $note, 'method' => 0],
+        ]));
+
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $byDirectory = [];
+        foreach ($inventory['directorySummaries'] as $directory) {
+            $byDirectory[$directory['directory']] = $directory;
+        }
+        $byExtension = [];
+        foreach ($inventory['extensionSummaries'] as $extension) {
+            $byExtension[$extension['extension'] ?? '(none)'] = $extension;
+        }
+
+        $metadataOnlyBytes = strlen(EpubPackage::EPUB_MIMETYPE)
+            + strlen($epubContainerXml)
+            + strlen($encryptionXml)
+            + strlen($opfWithPolicies)
+            + strlen($navXml)
+            + strlen($chapter)
+            + strlen($note);
+        $metadataOnlyCompressedBytes = strlen(EpubPackage::EPUB_MIMETYPE)
+            + strlen(gzdeflate($epubContainerXml))
+            + strlen(gzdeflate($encryptionXml))
+            + strlen(gzdeflate($opfWithPolicies))
+            + strlen(gzdeflate($navXml))
+            + strlen(gzdeflate($chapter))
+            + strlen($note);
+
+        $t->same($inventory, $summary['wordpressImport']['packageInventory']);
+        $t->same([
+            'epub-package-entry-metadata-only' => 7,
+            'obfuscated-font-bytes-blocked' => 1,
+            'unsupported-compression-metadata-only' => 1,
+        ], $inventory['byteExposurePolicyCounts']);
+        $t->same([
+            'epub-package-entry-metadata-only' => $metadataOnlyBytes,
+            'obfuscated-font-bytes-blocked' => strlen($font),
+            'unsupported-compression-metadata-only' => strlen($audio),
+        ], $inventory['byteExposurePolicyByteLengths']);
+        $t->same([
+            'epub-package-entry-metadata-only' => $metadataOnlyCompressedBytes,
+            'obfuscated-font-bytes-blocked' => strlen(gzdeflate($font)),
+            'unsupported-compression-metadata-only' => strlen($audio),
+        ], $inventory['byteExposurePolicyCompressedByteLengths']);
+
+        $audioEntry = $inventory['byPackagePath']['EPUB/audio/theme.mp3'];
+        $fontEntry = $inventory['byPackagePath']['EPUB/fonts/source.otf'];
+        $t->same(false, $audioEntry['canExposeBytes']);
+        $t->same('unsupported-compression-metadata-only', $audioEntry['byteExposurePolicy']);
+        $t->same(false, $fontEntry['canExposeBytes']);
+        $t->same(true, $fontEntry['obfuscatedFont']);
+        $t->same('obfuscated-font-bytes-blocked', $fontEntry['byteExposurePolicy']);
+
+        $t->same(['unsupported-compression-metadata-only' => 1], $byDirectory['EPUB/audio']['byteExposurePolicyCounts']);
+        $t->same(strlen($audio), $byDirectory['EPUB/audio']['byteExposurePolicyByteLengths']['unsupported-compression-metadata-only']);
+        $t->same(['obfuscated-font-bytes-blocked' => 1], $byDirectory['EPUB/fonts']['byteExposurePolicyCounts']);
+        $t->same(strlen($font), $byDirectory['EPUB/fonts']['byteExposurePolicyByteLengths']['obfuscated-font-bytes-blocked']);
+        $t->same(['unsupported-compression-metadata-only' => 1], $byExtension['mp3']['byteExposurePolicyCounts']);
+        $t->same(strlen($audio), $byExtension['mp3']['byteExposurePolicyCompressedByteLengths']['unsupported-compression-metadata-only']);
+        $t->same(['obfuscated-font-bytes-blocked' => 1], $byExtension['otf']['byteExposurePolicyCounts']);
+        $t->same(strlen(gzdeflate($font)), $byExtension['otf']['byteExposurePolicyCompressedByteLengths']['obfuscated-font-bytes-blocked']);
+    },
+
     'summarizes EPUB reading order ZIP byte provenance for compact handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
         $chapter = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Readable</h1></body></html>';
         $locked = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Locked</h1></body></html>';
