@@ -44,7 +44,7 @@ final class MarkdownWriter
     private int $lastReferenceIndex = 0;
 
     /**
-     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string} $options
+     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -1734,7 +1734,7 @@ final class MarkdownWriter
     private function renderCodeBlock(AstNode $node, int $indent): array
     {
         $attrs = $this->renderCodeBlockAttributes($node);
-        if ($attrs !== '') {
+        if ($attrs !== '' || (bool) ($this->options['fencedCodeBlocks'] ?? false)) {
             return $this->renderFencedCodeBlock($node, $attrs, $indent);
         }
 

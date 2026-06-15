@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 1,183 | 1,096 |
+| Markdown / CommonMark / GFM | 1,253 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence: `MarkdownWriter` hardens inline/link/escape output for break-aware marker continuations, guarded autolinks, control-byte link destinations, one-line titles, reference target reuse, and inline branch regressions while retaining bare-autolink reader coverage.
+Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` recognizes EOL list markers, blank-marker nesting/looseness, and tab-expanded indented code blocks while `MarkdownWriter` can force adaptive fenced code blocks and retains inline/link/escape hardening.
 
-Current Pandoc counters: 4,608 PHP passes / 0 failures and 4,598 mapped upstream cases. Verification passed after rebase: `php -l` for `MarkdownWriter.php`, `MarkdownWriterInlinesSurgeTest.php`, `MarkdownWriterInlineSurgeTest.php`, `MarkdownWriterTablesSurgeTest.php`, `MarkdownReaderTest.php`, and `LegacyDocReaderTest.php`; focused Markdown writer coverage passed 5 files, 9818 assertions, 0 failures; full `lanes/pandoc/tests` passed 58 files, 94284 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 4,678 PHP passes / 0 failures and 4,668 mapped upstream cases. Verification passed after rebase: `php -l` for `MarkdownReader.php`, `MarkdownWriter.php`, `MarkdownWriterBlockListCodeSurgeTest.php`, `MarkdownWriterBlocksSurgeTest.php`, `MarkdownWriterInlinesSurgeTest.php`, `MarkdownWriterInlineSurgeTest.php`, `MarkdownReaderBlocksSurgeTest.php`, `MarkdownReaderMetadataRawExtensionSurgeTest.php`, and `MarkdownReaderTest.php`; focused Markdown block/list/code writer coverage passed 7 files, 9917 assertions, 0 failures; full `lanes/pandoc/tests` passed 59 files, 94599 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
