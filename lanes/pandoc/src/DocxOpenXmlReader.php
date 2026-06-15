@@ -51,6 +51,7 @@ final class DocxOpenXmlReader
     private const COMMENTS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
     private const COMMENTS_EXTENDED_REL = 'http://schemas.microsoft.com/office/2011/relationships/commentsExtended';
     private const COMMENTS_IDS_REL = 'http://schemas.microsoft.com/office/2016/09/relationships/commentsIds';
+    private const PEOPLE_REL = 'http://schemas.microsoft.com/office/2011/relationships/people';
     private const HEADER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
     private const FOOTER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     private const SUBDOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument';
@@ -106,6 +107,7 @@ final class DocxOpenXmlReader
     private const CT_WORD_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
     private const CT_WORD_COMMENTS_EXTENDED = 'application/vnd.ms-word.commentsext+xml';
     private const CT_WORD_COMMENTS_IDS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.commentsids+xml';
+    private const CT_WORD_PEOPLE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.people+xml';
     private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
     private const CT_PACKAGE_RELATIONSHIPS = 'application/vnd.openxmlformats-package.relationships+xml';
     private const CT_CHART = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
@@ -285,6 +287,14 @@ final class DocxOpenXmlReader
         $commentsExtended = $this->readCommentsExtended($commentsExtendedPart['xml'], $commentsExtendedPart['partName']);
         $commentsIdsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::COMMENTS_IDS_REL, 'commentsIds.xml');
         $commentsIds = $this->readCommentsIds($commentsIdsPart['xml'], $commentsIdsPart['partName']);
+        $peoplePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::PEOPLE_REL, 'people.xml');
+        $people = $this->readPeoplePart(
+            $peoplePart['xml'],
+            $peoplePart['partName'],
+            $peoplePart['exists'],
+            $peoplePart['relationship'],
+            $contentTypes,
+        );
         $comments = $this->readComments(
             $parts,
             $commentsPart['xml'],
@@ -538,6 +548,17 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['commentsIdsDuplicateParaIdCount'] = $commentsIds['summary']['duplicateParaIdCount'];
         $packageProvenance['summary']['commentsIdsIssueCount'] = $commentsIds['summary']['issueCount'];
         $packageProvenance['summary']['commentsIdsIssueCodes'] = $commentsIds['summary']['issueCodes'];
+        $packageProvenance['people'] = $people;
+        $packageProvenance['summary']['peoplePart'] = $people['partName'];
+        $packageProvenance['summary']['peopleExists'] = $people['exists'];
+        $packageProvenance['summary']['peopleRelationshipId'] = $people['relationshipId'];
+        $packageProvenance['summary']['peopleCount'] = $people['count'];
+        $packageProvenance['summary']['peoplePresenceInfoCount'] = $people['presenceInfoCount'];
+        $packageProvenance['summary']['peopleAuthorCount'] = $people['authorCount'];
+        $packageProvenance['summary']['peopleProviderIdCount'] = $people['providerIdCount'];
+        $packageProvenance['summary']['peopleUserIdCount'] = $people['userIdCount'];
+        $packageProvenance['summary']['peopleIssueCount'] = $people['issueCount'];
+        $packageProvenance['summary']['peopleIssueCodes'] = $people['issueCodes'];
         $packageProvenance['summary']['glossaryDocumentPart'] = $glossaryDocumentPart['partName'];
         $packageProvenance['summary']['glossaryDocumentExists'] = $glossaryDocumentPart['exists'];
         $packageProvenance['summary']['glossaryDocumentRelationshipId'] = $glossaryDocumentPart['relationship']['id'] ?? null;
@@ -724,6 +745,8 @@ final class DocxOpenXmlReader
                 'commentsExtended' => $commentsExtended['summary'],
                 'commentsIdsPart' => $commentsIdsPart['partName'],
                 'commentsIds' => $commentsIds['summary'],
+                'peoplePart' => $peoplePart['partName'],
+                'people' => $people,
                 'headers' => $headers,
                 'footers' => $footers,
                 'sections' => $sectionProperties,
@@ -901,6 +924,16 @@ final class DocxOpenXmlReader
                 $this->relationshipsPartFor($documentPart),
                 $commentsIdsPart['partName'],
                 $commentsIdsPart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($peoplePart['relationship'] !== null) {
+            $attrs['docx']['peopleRelationship'] = $this->relationshipSummary(
+                $peoplePart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $peoplePart['partName'],
+                $peoplePart['exists'],
                 $contentTypes,
             );
         }
@@ -10339,6 +10372,7 @@ final class DocxOpenXmlReader
             self::COMMENTS_REL => 'comments',
             self::COMMENTS_EXTENDED_REL => 'comments-extended',
             self::COMMENTS_IDS_REL => 'comments-ids',
+            self::PEOPLE_REL => 'people',
             self::SETTINGS_REL => 'settings',
             self::MAIL_MERGE_SOURCE_REL => 'mail-merge-source',
             self::MAIL_MERGE_HEADER_SOURCE_REL => 'mail-merge-header-source',
@@ -12836,6 +12870,142 @@ final class DocxOpenXmlReader
         return [
             'summary' => $this->noteCollectionSummary($items, $byId, $relationshipDiagnostics),
             'nodes' => $nodes,
+        ];
+    }
+
+    /**
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readPeoplePart(
+        string $xml,
+        string $partName,
+        bool $exists,
+        ?array $relationship,
+        array $contentTypes
+    ): array {
+        $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
+        $items = [];
+        $authors = [];
+        $providerIds = [];
+        $userIds = [];
+        $presenceInfoCount = 0;
+        $issues = [];
+        $validXml = null;
+        $xmlParseError = null;
+        $rootNamespace = null;
+        $rootLocalName = null;
+        $validRoot = null;
+
+        if ($relationship !== null && !$exists) {
+            $issues[] = 'missing-people-part';
+        }
+        if ($exists) {
+            if (($contentTypeResolution['contentTypeSource'] ?? '') === 'missing') {
+                $issues[] = 'missing-people-content-type';
+            } elseif (($contentTypeResolution['contentTypeBase'] ?? '') !== self::CT_WORD_PEOPLE) {
+                $issues[] = 'unexpected-people-content-type';
+            }
+
+            $dom = $this->loadXmlForProvenance($xml, $partName);
+            if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
+                $validXml = false;
+                $xmlParseError = $this->lastXmlPreflightError($xml, $partName);
+                $validRoot = false;
+                $issues[] = 'invalid-people-xml';
+            } else {
+                $root = $dom->documentElement;
+                $validXml = true;
+                $rootNamespace = $root->namespaceURI;
+                $rootLocalName = $root->localName;
+                $validRoot = $rootNamespace === self::NS_W15 && $rootLocalName === 'people';
+                if (!$validRoot) {
+                    $issues[] = 'unexpected-people-root';
+                } else {
+                    foreach ($root->childNodes as $person) {
+                        if (!$person instanceof \DOMElement || $person->namespaceURI !== self::NS_W15 || $person->localName !== 'person') {
+                            continue;
+                        }
+
+                        $author = $this->emptyStringToNull($person->getAttributeNS(self::NS_W15, 'author'));
+                        if ($author !== null) {
+                            $author = $this->boundedMetadataString($author);
+                            $this->appendUniqueString($authors, $author);
+                        }
+
+                        $presenceInfo = [];
+                        foreach ($person->childNodes as $presence) {
+                            if (!$presence instanceof \DOMElement || $presence->namespaceURI !== self::NS_W15 || $presence->localName !== 'presenceInfo') {
+                                continue;
+                            }
+
+                            ++$presenceInfoCount;
+                            $providerId = $this->emptyStringToNull($presence->getAttributeNS(self::NS_W15, 'providerId'));
+                            $userId = $this->emptyStringToNull($presence->getAttributeNS(self::NS_W15, 'userId'));
+                            if ($providerId !== null) {
+                                $providerId = $this->boundedMetadataString($providerId);
+                                $this->appendUniqueString($providerIds, $providerId);
+                            }
+                            if ($userId !== null) {
+                                $userId = $this->boundedMetadataString($userId);
+                                $this->appendUniqueString($userIds, $userId);
+                            }
+
+                            $presenceInfo[] = [
+                                'providerId' => $providerId,
+                                'userId' => $userId,
+                            ];
+                        }
+
+                        $items[] = [
+                            'index' => count($items),
+                            'author' => $author,
+                            'presenceInfoCount' => count($presenceInfo),
+                            'presenceInfo' => $presenceInfo,
+                        ];
+                    }
+                }
+            }
+        }
+
+        $issueCodes = array_values(array_unique($issues));
+        sort($issueCodes, SORT_STRING);
+
+        return [
+            'partName' => $partName,
+            'exists' => $exists,
+            'relationshipId' => $relationship['id'] ?? null,
+            'validXml' => $validXml,
+            'xmlParseError' => $xmlParseError,
+            'rootNamespace' => $rootNamespace,
+            'rootLocalName' => $rootLocalName,
+            'validRoot' => $validRoot,
+            'contentType' => $contentTypeResolution['contentType'],
+            'contentTypeBase' => $contentTypeResolution['contentTypeBase'],
+            'contentTypeHasParameters' => $contentTypeResolution['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $contentTypeResolution['contentTypeParameterCount'],
+            'contentTypeParameters' => $contentTypeResolution['contentTypeParameters'],
+            'contentTypeParameterMap' => $contentTypeResolution['contentTypeParameterMap'],
+            'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
+            'defaultExtension' => $contentTypeResolution['defaultExtension'],
+            'overridePartName' => $contentTypeResolution['overridePartName'],
+            'expectedContentTypeBase' => self::CT_WORD_PEOPLE,
+            'contentTypeMatchesExpected' => ($contentTypeResolution['contentTypeBase'] ?? '') === self::CT_WORD_PEOPLE,
+            'count' => count($items),
+            'presenceInfoCount' => $presenceInfoCount,
+            'authorCount' => count($authors),
+            'authors' => $authors,
+            'providerIdCount' => count($providerIds),
+            'providerIds' => $providerIds,
+            'userIdCount' => count($userIds),
+            'userIds' => $userIds,
+            'items' => $items,
+            'byteExposurePolicy' => 'people-part-bytes-blocked',
+            'reviewPolicy' => 'people-part-metadata-only',
+            'issueCount' => count($issueCodes),
+            'issueCodes' => $issueCodes,
+            'issues' => $issueCodes,
         ];
     }
 

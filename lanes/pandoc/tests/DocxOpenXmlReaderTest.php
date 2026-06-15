@@ -7053,6 +7053,118 @@ XML;
         $t->same('DUPLICATE-PARA', $note->attr('commentDurableId'));
         $t->same('word/comments/review-comments-ids.xml', $note->attr('commentsIdsPart'));
     },
+    'summarizes docx people part package metadata for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $peopleRel = 'http://schemas.microsoft.com/office/2011/relationships/people';
+        $peopleContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.people+xml';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/people.xml" ContentType="' . $peopleContentType . '; profile=review-people"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rPeople" Type="' . $peopleRel . '" Target="people.xml?presence=review#people"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/people.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w15:people xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w15:person w15:author="Review Lead">
+    <w15:presenceInfo w15:providerId="sip" w15:userId="review.lead@example.test"/>
+  </w15:person>
+  <w15:person w15:author="Revision Owner">
+    <w15:presenceInfo w15:providerId="aad" w15:userId="owner@example.test"/>
+    <w15:presenceInfo w15:providerId="sip" w15:userId="owner-sip@example.test"/>
+  </w15:person>
+  <w15:person/>
+</w15:people>
+XML;
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $package = $docx['packageProvenance'];
+        $people = $docx['people'];
+        $relationship = $docx['peopleRelationship'];
+        $relationshipType = $package['relationshipTypes'][$peopleRel];
+        $inventory = $package['parts']['word/people.xml'];
+        $summary = $package['summary'];
+
+        $t->same('word/people.xml', $docx['peoplePart']);
+        $t->same($people, $package['people']);
+        $t->same('rPeople', $relationship['id']);
+        $t->same($peopleRel, $relationship['type']);
+        $t->same('people.xml?presence=review#people', $relationship['target']);
+        $t->same('word/people.xml?presence=review#people', $relationship['resolvedTarget']);
+        $t->same('word/people.xml', $relationship['targetPart']);
+        $t->same('presence=review', $relationship['targetQuery']);
+        $t->same('people', $relationship['targetFragment']);
+        $t->same('?presence=review#people', $relationship['targetReferenceSuffix']);
+        $t->same(true, $relationship['exists']);
+        $t->same($peopleContentType . '; profile=review-people', $relationship['contentType']);
+        $t->same($peopleContentType, $relationship['contentTypeBase']);
+        $t->same(['profile' => 'review-people'], $relationship['contentTypeParameterMap']);
+
+        $t->same('word/people.xml', $people['partName']);
+        $t->same(true, $people['exists']);
+        $t->same('rPeople', $people['relationshipId']);
+        $t->same(true, $people['validXml']);
+        $t->same(null, $people['xmlParseError']);
+        $t->same('http://schemas.microsoft.com/office/word/2012/wordml', $people['rootNamespace']);
+        $t->same('people', $people['rootLocalName']);
+        $t->same(true, $people['validRoot']);
+        $t->same($peopleContentType . '; profile=review-people', $people['contentType']);
+        $t->same($peopleContentType, $people['contentTypeBase']);
+        $t->same(true, $people['contentTypeMatchesExpected']);
+        $t->same('override', $people['contentTypeSource']);
+        $t->same(3, $people['count']);
+        $t->same(3, $people['presenceInfoCount']);
+        $t->same(2, $people['authorCount']);
+        $t->same(['Review Lead', 'Revision Owner'], $people['authors']);
+        $t->same(2, $people['providerIdCount']);
+        $t->same(['sip', 'aad'], $people['providerIds']);
+        $t->same(3, $people['userIdCount']);
+        $t->same(['review.lead@example.test', 'owner@example.test', 'owner-sip@example.test'], $people['userIds']);
+        $t->same('Review Lead', $people['items'][0]['author']);
+        $t->same(1, $people['items'][0]['presenceInfoCount']);
+        $t->same('sip', $people['items'][0]['presenceInfo'][0]['providerId']);
+        $t->same('owner-sip@example.test', $people['items'][1]['presenceInfo'][1]['userId']);
+        $t->same(null, $people['items'][2]['author']);
+        $t->same(0, $people['items'][2]['presenceInfoCount']);
+        $t->same('people-part-bytes-blocked', $people['byteExposurePolicy']);
+        $t->same('people-part-metadata-only', $people['reviewPolicy']);
+        $t->same(0, $people['issueCount']);
+        $t->same([], $people['issueCodes']);
+
+        $t->same('word/people.xml', $summary['peoplePart']);
+        $t->same(true, $summary['peopleExists']);
+        $t->same('rPeople', $summary['peopleRelationshipId']);
+        $t->same(3, $summary['peopleCount']);
+        $t->same(3, $summary['peoplePresenceInfoCount']);
+        $t->same(2, $summary['peopleAuthorCount']);
+        $t->same(2, $summary['peopleProviderIdCount']);
+        $t->same(3, $summary['peopleUserIdCount']);
+        $t->same(0, $summary['peopleIssueCount']);
+        $t->same([], $summary['peopleIssueCodes']);
+
+        $t->same('people', $relationshipType['label']);
+        $t->same(1, $relationshipType['count']);
+        $t->same(1, $relationshipType['internalCount']);
+        $t->same(0, $relationshipType['externalCount']);
+        $t->same(['word/people.xml'], $relationshipType['targetParts']);
+        $t->same(['word/people.xml'], $relationshipType['existingTargetParts']);
+        $t->same([$peopleContentType . '; profile=review-people'], $relationshipType['contentTypes']);
+        $t->same(1, $relationshipType['targetRoleCounts']['people']);
+        $t->same(1, $relationshipType['targetRoleCounts']['document-relationship-target']);
+
+        $t->same($peopleContentType . '; profile=review-people', $inventory['contentType']);
+        $t->same($peopleContentType, $inventory['contentTypeBase']);
+        $t->same(['profile' => 'review-people'], $inventory['contentTypeParameterMap']);
+        $t->true(in_array('people', $inventory['roles'], true), 'people inventory role missing');
+        $t->true(in_array('document-relationship-target', $inventory['roles'], true), 'people document relationship target role missing');
+        $t->same(1, $package['summary']['roleCounts']['people']);
+    },
     'classifies docx note package inventory roles from document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
