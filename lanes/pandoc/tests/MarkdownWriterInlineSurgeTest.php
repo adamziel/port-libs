@@ -99,7 +99,9 @@ function markdown_writer_inline_surge_cases(): array
         'escapes en dash trigger' => $textCase('range 5--7 stays literal', 'range 5\\--7 stays literal'),
         'escapes em dash trigger' => [
             'document' => markdown_writer_surge_inline_doc([markdown_writer_surge_text('dash a---b stays literal')]),
-            'expected' => 'dash a\\---b stays literal',
+            'expected' => 'dash a\\-\\-\\-b stays literal',
+            'roundTripTypes' => ['paragraph'],
+            'roundTripText' => 'dash a---b stays literal',
         ],
         'escapes fenced div colon run' => $textCase('::: imported div fence literal', '\\::: imported div fence literal'),
         'escapes image opener in text' => $textCase('![not an image]', '\\![not an image\\]'),

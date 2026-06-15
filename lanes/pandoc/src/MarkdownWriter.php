@@ -3540,8 +3540,24 @@ final class MarkdownWriter
                 continue;
             }
 
+            if ($lineStart && $char === '=' && $this->startsWithSetextHeadingUnderline($tail)) {
+                $escaped .= '\\=';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
             if ($i === 0 && $char === '@' && isset($text[$i + 1]) && preg_match('/[A-Za-z0-9_{]/', $text[$i + 1]) === 1) {
                 $escaped .= '\\@';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if (str_starts_with($tail, '....')) {
+                $dotRun = strspn($tail, '.');
+                $escaped .= str_repeat('\\.', $dotRun);
+                $i += $dotRun - 1;
                 $lineStart = false;
                 $definitionLineStart = false;
                 continue;
@@ -3550,6 +3566,15 @@ final class MarkdownWriter
             if (str_starts_with($tail, '...')) {
                 $escaped .= '\\...';
                 $i += 2;
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if (str_starts_with($tail, '---')) {
+                $hyphenRun = strspn($tail, '-');
+                $escaped .= str_repeat('\\-', $hyphenRun);
+                $i += $hyphenRun - 1;
                 $lineStart = false;
                 $definitionLineStart = false;
                 continue;
@@ -3653,6 +3678,11 @@ final class MarkdownWriter
         $offset = strspn($text, '#');
 
         return $offset > 0 && ($offset === strlen($text) || $text[$offset] === ' ' || $text[$offset] === "\t");
+    }
+
+    private function startsWithSetextHeadingUnderline(string $text): bool
+    {
+        return preg_match('/^=+[ \t]*(?:\n|$)/', $text) === 1;
     }
 
     private function startsWithBulletListMarker(string $text): bool
