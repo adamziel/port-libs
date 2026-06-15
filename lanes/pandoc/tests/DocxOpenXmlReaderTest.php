@@ -3068,6 +3068,111 @@ XML;
         $t->same(1, $relationshipTypes[$oleRel]['externalCount']);
         $t->same(['word/embeddings/missing.bin'], $relationshipTypes[$oleRel]['missingTargetParts']);
     },
+    'summarizes docx embedded object sidecar relationships for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $workbookBytes = 'fake embedded workbook bytes';
+        $previewBytes = 'embedded preview image bytes';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/embeddings/review.xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; profile=embedded-workbook"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rEmbeddedWorkbook" Type="' . $packageRel . '" Target="embeddings/review.xlsx?sheet=1#ole"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:o="urn:schemas-microsoft-com:office:office"',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '    <w:tbl>',
+            '    <w:p><w:r><w:object><o:OLEObject r:id="rEmbeddedWorkbook" ProgID="Excel.Sheet.12"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:tbl>',
+            $parts['word/document.xml']
+        );
+        $parts['word/embeddings/review.xlsx'] = $workbookBytes;
+        $parts['word/media/embedded-preview.png'] = $previewBytes;
+        $parts['word/embeddings/_rels/review.xlsx.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPreviewImage" Type="{$imageRel}" Target="../media/embedded-preview.png?view=ole#preview"/>
+  <Relationship Id="rMissingPackage" Type="{$packageRel}" Target="missing-preview.bin?slot=missing#embed"/>
+  <Relationship Id="rRemoteHelp" Type="{$hyperlinkRel}" Target="https://example.test/embedded-help?remote=1#help" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $embedded = $package['embeddedObjects'];
+        $workbook = $embedded['byRelationshipId']['rEmbeddedWorkbook'];
+        $relationshipPart = $package['relationshipParts']['word/embeddings/_rels/review.xlsx.rels'];
+        $preview = $workbook['relationships']['rPreviewImage'];
+        $missing = $workbook['relationships']['rMissingPackage'];
+        $remote = $workbook['relationships']['rRemoteHelp'];
+        $records = $workbook['relationshipRecords'];
+
+        $t->same('word/embeddings/_rels/review.xlsx.rels', $workbook['relationshipsPart']);
+        $t->same(true, $workbook['relationshipsPartExists']);
+        $t->same(strlen($parts['word/embeddings/_rels/review.xlsx.rels']), $workbook['relationshipsPartBytes']);
+        $t->same(3, $workbook['relationshipCount']);
+        $t->same(3, $workbook['relationshipRecordCount']);
+        $t->same(0, $workbook['duplicateRelationshipIdCount']);
+        $t->same(0, $workbook['duplicateRelationshipRecordCount']);
+        $t->same(0, $workbook['invalidRelationshipRecordCount']);
+        $t->same(0, $workbook['relationshipRecordIssueCount']);
+        $t->same([], $workbook['relationshipRecordIssueCodes']);
+        $t->same(['rPreviewImage', 'rMissingPackage', 'rRemoteHelp'], array_keys($workbook['relationships']));
+        $t->same(['rPreviewImage', 'rMissingPackage', 'rRemoteHelp'], array_column($records, 'id'));
+        $t->same(array_keys($relationshipPart['relationships']), array_keys($workbook['relationships']));
+        $t->same($relationshipPart['relationshipRecordCount'], $workbook['relationshipRecordCount']);
+
+        $t->same('word/embeddings/review.xlsx', $preview['sourcePart']);
+        $t->same('word/embeddings/_rels/review.xlsx.rels', $preview['relationshipsPart']);
+        $t->same($imageRel, $preview['type']);
+        $t->same('../media/embedded-preview.png?view=ole#preview', $preview['target']);
+        $t->same('word/media/embedded-preview.png?view=ole#preview', $preview['resolvedTarget']);
+        $t->same('word/media/embedded-preview.png', $preview['targetPart']);
+        $t->same('view=ole', $preview['targetQuery']);
+        $t->same('preview', $preview['targetFragment']);
+        $t->same('?view=ole#preview', $preview['targetReferenceSuffix']);
+        $t->same(1, $preview['targetParentTraversalCount']);
+        $t->same(true, $preview['targetHasParentTraversal']);
+        $t->same(true, $preview['exists']);
+        $t->same('image/png', $preview['contentTypeBase']);
+        $t->same('default', $preview['contentTypeSource']);
+        $t->same('png', $preview['defaultExtension']);
+
+        $t->same($packageRel, $missing['type']);
+        $t->same('word/embeddings/missing-preview.bin', $missing['targetPart']);
+        $t->same('slot=missing', $missing['targetQuery']);
+        $t->same('embed', $missing['targetFragment']);
+        $t->same('?slot=missing#embed', $missing['targetReferenceSuffix']);
+        $t->same(false, $missing['exists']);
+        $t->same('missing', $missing['contentTypeSource']);
+        $t->same('bin', $missing['defaultExtension']);
+
+        $t->same($hyperlinkRel, $remote['type']);
+        $t->same(true, $remote['external']);
+        $t->same('https://example.test/embedded-help?remote=1#help', $remote['target']);
+        $t->same(null, $remote['targetPart']);
+        $t->same('remote=1', $remote['targetQuery']);
+        $t->same('help', $remote['targetFragment']);
+        $t->same('?remote=1#help', $remote['targetReferenceSuffix']);
+        $t->same(false, $remote['exists']);
+
+        $t->same(0, $records[0]['ordinal']);
+        $t->same(true, $records[0]['valid']);
+        $t->same([], $records[0]['issues']);
+    },
     'carries docx altchunk and embedded object imports into package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $altChunkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';

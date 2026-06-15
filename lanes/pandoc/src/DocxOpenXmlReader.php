@@ -2552,7 +2552,20 @@ final class DocxOpenXmlReader
             'defaultExtension' => null,
             'overridePartName' => null,
             'relationshipsPart' => null,
+            'relationshipsPartExists' => false,
+            'relationshipsPartBytes' => 0,
             'relationshipCount' => 0,
+            'relationshipRecordCount' => 0,
+            'duplicateRelationshipIdCount' => 0,
+            'duplicateRelationshipRecordCount' => 0,
+            'duplicateRelationshipIds' => [],
+            'duplicateRelationshipIdItems' => [],
+            'invalidRelationshipRecordCount' => 0,
+            'relationshipRecordIssueCount' => 0,
+            'relationshipRecordIssueCodes' => [],
+            'invalidRelationshipRecords' => [],
+            'relationships' => [],
+            'relationshipRecords' => [],
             'relationship' => null,
             'byteExposurePolicy' => 'embedded-object-bytes-blocked',
             'reviewPolicy' => 'embedded-object-metadata-only',
@@ -2574,6 +2587,9 @@ final class DocxOpenXmlReader
         $exists = (bool) $summary['exists'];
         $partRelationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
         $partRelationships = $partRelationshipsPart === null ? [] : $this->readRelationshipsPart($parts, $partRelationshipsPart);
+        $partRelationshipProvenance = $partRelationshipsPart === null
+            ? null
+            : $this->relationshipPartProvenance($parts, $partRelationshipsPart, $targetPart ?? '', $partRelationships, $contentTypes);
 
         $item['relationshipType'] = $summary['type'];
         $item['target'] = $summary['target'];
@@ -2600,6 +2616,21 @@ final class DocxOpenXmlReader
         $item['overridePartName'] = $summary['overridePartName'];
         $item['relationshipsPart'] = $partRelationshipsPart;
         $item['relationshipCount'] = count($partRelationships);
+        if ($partRelationshipProvenance !== null) {
+            $item['relationshipsPartExists'] = (bool) $partRelationshipProvenance['exists'];
+            $item['relationshipsPartBytes'] = (int) $partRelationshipProvenance['bytes'];
+            $item['relationshipRecordCount'] = (int) $partRelationshipProvenance['relationshipRecordCount'];
+            $item['duplicateRelationshipIdCount'] = (int) $partRelationshipProvenance['duplicateRelationshipIdCount'];
+            $item['duplicateRelationshipRecordCount'] = (int) $partRelationshipProvenance['duplicateRelationshipRecordCount'];
+            $item['duplicateRelationshipIds'] = $partRelationshipProvenance['duplicateRelationshipIds'];
+            $item['duplicateRelationshipIdItems'] = $partRelationshipProvenance['duplicateRelationshipIdItems'];
+            $item['invalidRelationshipRecordCount'] = (int) $partRelationshipProvenance['invalidRelationshipRecordCount'];
+            $item['relationshipRecordIssueCount'] = (int) $partRelationshipProvenance['relationshipRecordIssueCount'];
+            $item['relationshipRecordIssueCodes'] = $partRelationshipProvenance['relationshipRecordIssueCodes'];
+            $item['invalidRelationshipRecords'] = $partRelationshipProvenance['invalidRelationshipRecords'];
+            $item['relationships'] = $partRelationshipProvenance['relationships'];
+            $item['relationshipRecords'] = $partRelationshipProvenance['relationshipRecords'];
+        }
         $item['relationship'] = $summary;
 
         if (!$this->isEmbeddedObjectRelationshipType($relationship['type'])) {
