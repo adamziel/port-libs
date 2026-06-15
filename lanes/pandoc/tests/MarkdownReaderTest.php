@@ -10353,6 +10353,31 @@ MD;
         $t->same(['mixed'], $ordinaryParagraph->children[2]->attr('classes'));
         $t->same(null, $ordinaryParagraph->children[2]->attr('format'));
     },
+    'maps upstream markdown fenced code block attributes with quoted values' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '```{#snippet-attrs .php .numberLines data-startfrom="7" title="Escaped \"review\" snippet" aria-label="Source snippet"}',
+            'echo esc_html($title);',
+            '```',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $code = $document->children[0] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('code_block', $code->type);
+        $t->same('snippet-attrs', $code->attr('id'));
+        $t->same(['php', 'numberLines'], $code->attr('classes'));
+        $t->same([
+            'data-startfrom' => '7',
+            'title' => 'Escaped "review" snippet',
+            'aria-label' => 'Source snippet',
+        ], $code->attr('attributes'));
+        $t->same('echo esc_html($title);', $code->attr('text'));
+        $t->same($markdown, (new MarkdownWriter())->write($document));
+        $t->contains(
+            '<pre class="wp-block-code php numberLines" id="snippet-attrs" data-startfrom="7" title="Escaped &quot;review&quot; snippet" aria-label="Source snippet"><code class="language-php">echo esc_html($title);</code></pre>',
+            $blocks
+        );
+    },
     'maps upstream markdown writer markdown family raw formats' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [
