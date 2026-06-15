@@ -17413,6 +17413,13 @@ final class EpubReader
             $diagnostics = is_array($reference['diagnostics'] ?? null)
                 ? array_values($reference['diagnostics'])
                 : [];
+            $authoring = is_array($reference['embeddedAuthoring'] ?? null)
+                ? $reference['embeddedAuthoring']
+                : null;
+            $authoringDiagnostics = is_array($authoring['diagnostics'] ?? null)
+                ? array_values($authoring['diagnostics'])
+                : [];
+            array_push($diagnostics, ...$authoringDiagnostics);
             $external = ($reference['external'] ?? false) === true;
             $missing = ($reference['exists'] ?? true) !== true && !$external;
             $encrypted = ($reference['encrypted'] ?? false) === true;
@@ -17427,8 +17434,13 @@ final class EpubReader
                     || $external
                     || $missing
                     || $encrypted
+                    || $authoringDiagnostics !== []
                     || $diagnostics !== [],
                 'element' => strtolower((string) ($reference['element'] ?? '')),
+                'elementId' => is_string($reference['elementId'] ?? null) ? $reference['elementId'] : null,
+                'elementClass' => is_string($reference['elementClass'] ?? null) ? $reference['elementClass'] : null,
+                'elementClasses' => is_array($reference['elementClasses'] ?? null) ? array_values($reference['elementClasses']) : [],
+                'elementAttributes' => is_array($reference['elementAttributes'] ?? null) ? $reference['elementAttributes'] : [],
                 'attribute' => (string) ($reference['attribute'] ?? ''),
                 'href' => is_string($reference['href'] ?? null) ? $reference['href'] : null,
                 'target' => is_string($reference['target'] ?? null) ? $reference['target'] : null,
@@ -17445,6 +17457,8 @@ final class EpubReader
                 'mediaType' => is_string($reference['mediaType'] ?? null) ? $reference['mediaType'] : null,
                 'encrypted' => $encrypted,
                 'canExposeBytes' => (bool) ($reference['canExposeBytes'] ?? false),
+                'authoring' => $authoring,
+                'authoringDiagnostics' => $authoringDiagnostics,
                 'diagnostics' => $diagnostics,
             ];
 
@@ -19312,7 +19326,7 @@ final class EpubReader
             $reference = $this->xhtmlContentReference(
                 $package,
                 $part,
-                $element->localName,
+                $element,
                 $attribute['attribute'],
                 $href,
                 $manifestByPart,
@@ -21301,7 +21315,7 @@ final class EpubReader
     private function xhtmlContentReference(
         ZipPackage $package,
         string $part,
-        string $element,
+        \DOMElement $element,
         string $attribute,
         string $href,
         array $manifestByPart,
@@ -21309,6 +21323,7 @@ final class EpubReader
         array &$flags
     ): array {
         $reference = $this->packageReference($package, $part, $href, $manifestByPart, 'xhtml-content');
+        $elementName = strtolower($element->localName);
         $diagnostics = $reference['diagnostics'];
         if (($reference['external'] ?? false) === true) {
             $flags['remoteResources'] = true;
@@ -21327,7 +21342,11 @@ final class EpubReader
 
         return [
             'index' => $index,
-            'element' => $element,
+            'element' => $elementName,
+            'elementId' => self::nullableAttribute($element, 'id'),
+            'elementClass' => self::nullableAttribute($element, 'class'),
+            'elementClasses' => self::spaceDelimited($element->getAttribute('class')),
+            'elementAttributes' => self::elementAttributes($element),
             'attribute' => $attribute,
             'href' => $href,
             'target' => $reference['target'],
@@ -21344,8 +21363,109 @@ final class EpubReader
             'mediaType' => $reference['mediaType'],
             'encrypted' => $reference['encrypted'],
             'canExposeBytes' => $reference['canExposeBytes'],
+            'embeddedAuthoring' => self::xhtmlEmbeddedResourceAuthoringReport($element, $attribute),
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function xhtmlEmbeddedResourceAuthoringReport(\DOMElement $element, string $attribute): ?array
+    {
+        $elementName = strtolower($element->localName);
+        $kind = self::xhtmlEmbeddedResourceKind([
+            'element' => $elementName,
+            'attribute' => $attribute,
+        ]);
+        if ($kind === null) {
+            return null;
+        }
+
+        $diagnostics = [];
+        $report = [
+            'kind' => $kind,
+            'element' => $elementName,
+            'attribute' => $attribute,
+            'id' => self::nullableAttribute($element, 'id'),
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'language' => self::xmlLang($element),
+            'direction' => self::direction($element),
+            'attributes' => self::elementAttributes($element),
+        ];
+
+        if ($elementName === 'audio' || $elementName === 'video') {
+            $autoplay = $element->hasAttribute('autoplay');
+            $report += [
+                'controls' => $element->hasAttribute('controls'),
+                'autoplay' => $autoplay,
+                'loop' => $element->hasAttribute('loop'),
+                'muted' => $element->hasAttribute('muted'),
+                'preload' => self::nullableAttribute($element, 'preload'),
+            ];
+            if ($elementName === 'video') {
+                $report += [
+                    'playsInline' => $element->hasAttribute('playsinline'),
+                    'width' => self::nullableAttribute($element, 'width'),
+                    'height' => self::nullableAttribute($element, 'height'),
+                ];
+            }
+            if ($autoplay) {
+                $diagnostics[] = [
+                    'type' => 'autoplay-xhtml-media-resource',
+                    'element' => $elementName,
+                    'id' => self::nullableAttribute($element, 'id'),
+                    'message' => 'EPUB XHTML embedded media declares autoplay; playback remains inert and requires review',
+                ];
+            }
+        } elseif ($elementName === 'source') {
+            $report += [
+                'type' => self::nullableAttribute($element, 'type'),
+                'media' => self::nullableAttribute($element, 'media'),
+                'sizes' => self::nullableAttribute($element, 'sizes'),
+            ];
+        } elseif ($elementName === 'track') {
+            $report += [
+                'trackKind' => self::nullableAttribute($element, 'kind'),
+                'srclang' => self::nullableAttribute($element, 'srclang'),
+                'label' => self::nullableAttribute($element, 'label'),
+                'default' => $element->hasAttribute('default'),
+            ];
+        } elseif ($elementName === 'object') {
+            $report += [
+                'type' => self::nullableAttribute($element, 'type'),
+                'name' => self::nullableAttribute($element, 'name'),
+                'width' => self::nullableAttribute($element, 'width'),
+                'height' => self::nullableAttribute($element, 'height'),
+                'form' => self::nullableAttribute($element, 'form'),
+                'typeMustMatch' => $element->hasAttribute('typemustmatch'),
+            ];
+        } elseif ($elementName === 'embed') {
+            $report += [
+                'type' => self::nullableAttribute($element, 'type'),
+                'width' => self::nullableAttribute($element, 'width'),
+                'height' => self::nullableAttribute($element, 'height'),
+            ];
+        } elseif ($elementName === 'iframe') {
+            $srcdoc = self::nullableAttribute($element, 'srcdoc');
+            $report += [
+                'name' => self::nullableAttribute($element, 'name'),
+                'sandbox' => self::nullableAttribute($element, 'sandbox'),
+                'sandboxTokens' => self::spaceDelimited($element->getAttribute('sandbox')),
+                'allow' => self::nullableAttribute($element, 'allow'),
+                'allowFullscreen' => $element->hasAttribute('allowfullscreen'),
+                'referrerPolicy' => self::nullableAttribute($element, 'referrerpolicy'),
+                'loading' => self::nullableAttribute($element, 'loading'),
+                'srcdocPresent' => $srcdoc !== null,
+                'srcdocLength' => $srcdoc === null ? 0 : strlen($srcdoc),
+                'srcdocSha256' => $srcdoc === null ? null : hash('sha256', $srcdoc),
+            ];
+        }
+
+        $report['diagnostics'] = $diagnostics;
+
+        return $report;
     }
 
     /**

@@ -8274,6 +8274,105 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'preserves EPUB XHTML embedded media authoring controls for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $iframeSrcdoc = '<p>Inline frame</p>';
+        $embeddedXhtml = sprintf(<<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <audio id="auto-audio" class="media urgent" src="../audio/intro.mp3" controls="controls" autoplay="autoplay" loop="loop" preload="metadata"/>
+    <video id="inline-video" src="../video/review.mp4" poster="../images/poster.png" controls="controls" muted="muted" playsinline="playsinline" preload="none" width="640" height="360">
+      <source id="narrow-source" src="../video/mobile.mp4" type="video/mp4" media="(max-width: 600px)"/>
+      <track id="french-track" src="../captions/fr.vtt" kind="subtitles" srclang="fr" label="French" default="default"/>
+    </video>
+    <iframe id="review-frame" class="review-frame" src="../frames/review.xhtml" sandbox="allow-same-origin allow-scripts" allow="fullscreen" referrerpolicy="no-referrer" loading="lazy" srcdoc="%s"></iframe>
+  </body>
+</html>
+XML, htmlspecialchars($iframeSrcdoc, ENT_QUOTES | ENT_XML1));
+        $opfWithEmbeddedResources = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>'
+            . '<item id="embedded-authoring" href="text/embedded-authoring.xhtml" media-type="application/xhtml+xml"/>'
+            . '<item id="intro-audio" href="audio/intro.mp3" media-type="audio/mpeg"/>'
+            . '<item id="review-video" href="video/review.mp4" media-type="video/mp4"/>'
+            . '<item id="review-video-mobile" href="video/mobile.mp4" media-type="video/mp4"/>'
+            . '<item id="poster-image" href="images/poster.png" media-type="image/png"/>'
+            . '<item id="french-captions" href="captions/fr.vtt" media-type="text/vtt"/>'
+            . '<item id="review-frame" href="frames/review.xhtml" media-type="application/xhtml+xml"/>',
+            $opfXml
+        );
+        $opfWithEmbeddedResources = str_replace(
+            '</spine>',
+            '<itemref idref="embedded-authoring"/></spine>',
+            $opfWithEmbeddedResources
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithEmbeddedResources,
+            null,
+            [
+                ['name' => 'OEBPS/text/embedded-authoring.xhtml', 'data' => $embeddedXhtml],
+                ['name' => 'OEBPS/audio/intro.mp3', 'data' => 'INTRO-MP3'],
+                ['name' => 'OEBPS/video/review.mp4', 'data' => 'VIDEO-MP4'],
+                ['name' => 'OEBPS/video/mobile.mp4', 'data' => 'MOBILE-MP4'],
+                ['name' => 'OEBPS/images/poster.png', 'data' => 'POSTER-PNG'],
+                ['name' => 'OEBPS/captions/fr.vtt', 'data' => "WEBVTT\n\n00:00.000 --> 00:01.000\nBonjour"],
+                ['name' => 'OEBPS/frames/review.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Frame review</p></body></html>'],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/embedded-authoring.xhtml'];
+
+        $t->same(6, $asset['embeddedResourceCount']);
+        $t->same(['audio', 'video', 'poster', 'source', 'track', 'iframe'], $asset['embeddedResourceKinds']);
+        $t->same(1, $asset['embeddedResourceDiagnosticCount']);
+        $t->same('autoplay-xhtml-media-resource', $asset['embeddedResourceDiagnostics'][0]['type']);
+        $t->same(1, count($report['embeddedResourceDiagnostics']));
+        $t->same('autoplay-xhtml-media-resource', $report['embeddedResourceDiagnostics'][0]['type']);
+
+        $audio = $asset['embeddedResourcesByKind']['audio'][0];
+        $t->same('auto-audio', $audio['elementId']);
+        $t->same(['media', 'urgent'], $audio['elementClasses']);
+        $t->same(true, $audio['requiresReview']);
+        $t->same(true, $audio['authoring']['controls']);
+        $t->same(true, $audio['authoring']['autoplay']);
+        $t->same(true, $audio['authoring']['loop']);
+        $t->same('metadata', $audio['authoring']['preload']);
+        $t->same('autoplay-xhtml-media-resource', $audio['authoringDiagnostics'][0]['type']);
+
+        $video = $asset['embeddedResourcesByKind']['video'][0];
+        $t->same('inline-video', $video['elementId']);
+        $t->same(true, $video['authoring']['controls']);
+        $t->same(true, $video['authoring']['muted']);
+        $t->same(true, $video['authoring']['playsInline']);
+        $t->same('none', $video['authoring']['preload']);
+        $t->same('640', $video['authoring']['width']);
+        $t->same('360', $video['authoring']['height']);
+
+        $source = $asset['embeddedResourcesByKind']['source'][0];
+        $t->same('narrow-source', $source['elementId']);
+        $t->same('video/mp4', $source['authoring']['type']);
+        $t->same('(max-width: 600px)', $source['authoring']['media']);
+
+        $track = $asset['embeddedResourcesByKind']['track'][0];
+        $t->same('french-track', $track['elementId']);
+        $t->same('subtitles', $track['authoring']['trackKind']);
+        $t->same('fr', $track['authoring']['srclang']);
+        $t->same('French', $track['authoring']['label']);
+        $t->same(true, $track['authoring']['default']);
+
+        $iframe = $asset['embeddedResourcesByKind']['iframe'][0];
+        $t->same('review-frame', $iframe['elementId']);
+        $t->same(true, $iframe['requiresReview']);
+        $t->same(['allow-same-origin', 'allow-scripts'], $iframe['authoring']['sandboxTokens']);
+        $t->same('fullscreen', $iframe['authoring']['allow']);
+        $t->same('no-referrer', $iframe['authoring']['referrerPolicy']);
+        $t->same('lazy', $iframe['authoring']['loading']);
+        $t->same(true, $iframe['authoring']['srcdocPresent']);
+        $t->same(strlen($iframeSrcdoc), $iframe['authoring']['srcdocLength']);
+        $t->same(hash('sha256', $iframeSrcdoc), $iframe['authoring']['srcdocSha256']);
+        $t->same($asset['embeddedResources'], $result['document']->children[2]->attr('contentEmbeddedResources'));
+    },
     'reports cover image attachment candidates and unmanifested package assets' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage(
             null,
