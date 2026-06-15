@@ -59,8 +59,8 @@ final class PandocJsonReader
         $meta = $this->normalizeMeta($rawMeta, $apiVersion, $legacyTuplePacket);
         if ($meta !== []) {
             $attrs['meta'] = $this->withStandardMetaHelpers($this->readMetaMap($meta));
-            $attrs = array_replace($attrs, $this->metaConstructorAttrs($rawMeta, $meta));
         }
+        $attrs = array_replace($attrs, $this->metaConstructorAttrs($rawMeta, $meta));
         if ($metaConstructorProvenance !== []) {
             $attrs['metaConstructorProvenance'] = $metaConstructorProvenance;
         }

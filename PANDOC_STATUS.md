@@ -10,7 +10,7 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
 | Markdown / CommonMark / GFM | 452 | 1,096 |
-| JSON / native AST | 86 | 252 |
+| JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
 | Wiki / roff / text markup readers | 0 | 20 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest EPUB3 evidence: `EpubPackage` reports manifest resource-property ZIP provenance with existence, external/encrypted state, byte-exposure policy, byte/compressed-byte lengths, compression method/support, and CRC32 for flagged resources.
+Latest JSON/native evidence: `PandocJsonReader` records top-level empty `MetaMap` constructor and native payload provenance while JSON/native writers keep empty metadata output canonical.
 
-Current Pandoc counters: 3,630 PHP passes / 0 failures and 3,668 mapped upstream cases. Verification passed `php -l` for `EpubPackage.php` and `EpubPackageTest.php`; focused `EpubPackageTest.php` (`1` file, `2,580` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,417` assertions, `0` failures); `jq empty`; and `git diff --check`.
+Current Pandoc counters: 3,631 PHP passes / 0 failures and 3,669 mapped upstream cases. Verification passed `php -l` for `PandocJsonReader.php`, `NativeReader.php`, and `PandocJsonNativeAstTest.php`; focused `PandocJsonNativeAstTest.php` (`1` file, `4,143` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,429` assertions, `0` failures); `jq empty`; and `git diff --check`.

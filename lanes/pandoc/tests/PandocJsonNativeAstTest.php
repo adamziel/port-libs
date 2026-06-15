@@ -2551,6 +2551,31 @@ return [
         $t->same($packet['meta']['c'], $jsonPacket['meta']);
         $t->same($packet['meta']['c'], $nativePacket['meta']);
     },
+    'records empty pandoc MetaMap constructor envelopes on json and native ast documents' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => ['t' => 'MetaMap', 'c' => []],
+            'blocks' => [],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $provenance = $document->attr('metaConstructorProvenance');
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('MetaMap', $document->attr('metaConstructor'), "{$source} records top-level empty MetaMap constructor");
+            $t->same($packet['meta'], $document->attr('metaNative'), "{$source} records top-level empty MetaMap native payload");
+            $t->same('MetaMap', $provenance['/']['constructor'], "{$source} indexes root MetaMap constructor provenance");
+            $t->same($packet['meta'], $provenance['/']['native'], "{$source} indexes root MetaMap native payload");
+            $t->same([], $jsonPacket['meta'], "{$source} json writer canonicalizes empty metadata map");
+            $t->same([], $nativePacket['meta'], "{$source} native writer canonicalizes empty metadata map");
+        }
+    },
     'preserves metadata native value payloads through json and native writers until edited' => static function (TestRunner $t): void {
         $titleNative = ['t' => 'MetaString', 'c' => 'Source title', 'reviewQueue' => 'title-source'];
         $reviewNative = ['t' => 'MetaMap', 'c' => [
