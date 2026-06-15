@@ -16650,7 +16650,9 @@ final class MarkdownReader
     {
         $blankBeforeNextDefinition = false;
         $marker = $this->matchDefinitionMarker($lines[$cursor]);
-        $blocks = $marker === null ? [] : $this->parseDefinitionBlocks(trim($marker['content']));
+        $blocks = $marker === null
+            ? []
+            : $this->parseDefinitionMarkerBlocks(trim($marker['content']), $lines, $cursor);
         $cursor++;
         $count = count($lines);
 
@@ -16689,6 +16691,48 @@ final class MarkdownReader
         }
 
         return new AstNode('definition', ['loose' => $loose], $blocks);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<AstNode>
+     */
+    private function parseDefinitionMarkerBlocks(string $content, array $lines, int &$cursor): array
+    {
+        if (!$this->shouldParseDefinitionMarkerContentAsBlocks($content)) {
+            return $this->parseDefinitionBlocks($content);
+        }
+
+        $contentLines = [$content];
+        $count = count($lines);
+        $lookahead = $cursor + 1;
+        while ($lookahead < $count) {
+            $line = $lines[$lookahead];
+            if (trim($line) === '') {
+                $next = $lookahead + 1;
+                if ($next < $count && $this->isIndentedDefinitionContinuation($lines[$next])) {
+                    $contentLines[] = '';
+                    $lookahead = $next;
+                    continue;
+                }
+                break;
+            }
+
+            if (!$this->isIndentedDefinitionContinuation($line)) {
+                break;
+            }
+
+            $contentLines[] = $this->stripDefinitionContinuationIndent($line);
+            $lookahead++;
+        }
+
+        while ($contentLines !== [] && trim($contentLines[array_key_last($contentLines)]) === '') {
+            array_pop($contentLines);
+        }
+
+        $cursor = $lookahead - 1;
+
+        return $this->read(implode("\n", $contentLines))->children;
     }
 
     /**
@@ -16775,11 +16819,21 @@ final class MarkdownReader
             return [];
         }
 
-        if (preg_match('/^(?:[-*+]|\d{1,9}[.)]|#\.|>)\s+/', $content) === 1) {
+        if ($this->shouldParseDefinitionMarkerContentAsBlocks($content)) {
             return $this->read($content)->children;
         }
 
         return [new AstNode('paragraph', ['text' => $content], $this->parseInlines($content))];
+    }
+
+    private function shouldParseDefinitionMarkerContentAsBlocks(string $content): bool
+    {
+        if ($content === '') {
+            return false;
+        }
+
+        return $this->isListItemBlockStartLine($content)
+            || $this->matchListMarker($content) !== null;
     }
 
     /**
