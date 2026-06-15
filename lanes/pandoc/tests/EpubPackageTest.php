@@ -3083,6 +3083,88 @@ XML, strlen($chapter1Xhtml), strlen($unmanifestedBytes));
         $t->same('creator-voicing', $summary['wordpressImport']['packageLinksByRel']['voicing'][0]['id']);
     },
 
+    'preserves OPF metadata link media-type parameters for compact package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithLinkMediaTypes = str_replace(
+            '</metadata>',
+            '    <link id="review-record" rel="record" href="meta/review-record.json" media-type="application/ld+json; profile=&quot;review;packet&quot;; charset=UTF-8"/>
+    <link id="creator-voicing" rel="voicing" href="audio/creator-name.mp3"/>
+    <link id="broken-media-type" rel="record" href="meta/broken.json" media-type="application/json; charset=UTF-8; bad-param; charset=latin1"/>
+  </metadata>',
+            $epub3OpfXml
+        );
+        $opfWithLinkMediaTypes = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="review-record-item" href="meta/review-record.json" media-type="application/ld+json"/>
+    <item id="creator-audio" href="audio/creator-name.mp3" media-type="audio/mpeg; codecs=mp3"/>
+    <item id="broken-record" href="meta/broken.json" media-type="application/json"/>',
+            $opfWithLinkMediaTypes
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithLinkMediaTypes],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/review-record.json', 'data' => '{"name":"review"}'],
+            ['name' => 'EPUB/audio/creator-name.mp3', 'data' => 'MP3'],
+            ['name' => 'EPUB/meta/broken.json', 'data' => '{"name":"broken"}'],
+        ]));
+        $links = $epub->packageLinks();
+        $summary = $epub->summary();
+        $report = $summary['packageLinkMediaTypes'];
+
+        $review = $links[0];
+        $t->same('application/ld+json; profile="review;packet"; charset=UTF-8', $review['declaredMediaType']);
+        $t->same($review['declaredMediaType'], $review['effectiveMediaType']);
+        $t->same('link', $review['mediaTypeSource']);
+        $t->same('application/ld+json', $review['baseMediaType']);
+        $t->same('application/ld+json; profile=review;packet; charset=utf-8', $review['normalizedMediaType']);
+        $t->same(['profile', 'charset'], $review['mediaTypeParameterNames']);
+        $t->same(['profile' => 'review;packet', 'charset' => 'UTF-8'], $review['mediaTypeParameterMap']);
+        $t->same(true, $review['mediaTypeSyntaxValid']);
+        $t->same([], $review['mediaTypeDiagnostics']);
+
+        $creator = $links[1];
+        $t->same(null, $creator['declaredMediaType']);
+        $t->same('audio/mpeg; codecs=mp3', $creator['effectiveMediaType']);
+        $t->same('manifest', $creator['mediaTypeSource']);
+        $t->same('creator-audio', $creator['manifestId']);
+        $t->same('audio/mpeg', $creator['baseMediaType']);
+        $t->same(['codecs' => 'mp3'], $creator['mediaTypeParameterMap']);
+
+        $broken = $links[2];
+        $t->same('application/json; charset=UTF-8; bad-param; charset=latin1', $broken['declaredMediaType']);
+        $t->same('application/json; charset=latin1', $broken['normalizedMediaType']);
+        $t->same(['charset' => 'latin1'], $broken['mediaTypeParameterMap']);
+        $t->same(false, $broken['mediaTypeSyntaxValid']);
+        $t->same(['invalid-package-link-media-type-parameter', 'duplicate-package-link-media-type-parameter'], array_column($broken['mediaTypeDiagnostics'], 'type'));
+
+        $t->same(true, $report['present']);
+        $t->same(3, $report['linkCount']);
+        $t->same(3, $report['itemCount']);
+        $t->same(2, $report['declaredCount']);
+        $t->same(1, $report['manifestInheritedCount']);
+        $t->same(3, $report['parameterLinkCount']);
+        $t->same(5, $report['parameterCount']);
+        $t->same(['charset', 'codecs', 'profile'], $report['parameterNames']);
+        $t->same(2, $report['diagnosticCount']);
+        $t->same('review-record', $report['items'][0]['id']);
+        $t->same('creator-voicing', $report['items'][1]['id']);
+        $t->same('manifest', $report['items'][1]['mediaTypeSource']);
+        $t->same('broken-media-type', $report['parameterItems'][2]['id']);
+        $t->same(['invalid-package-link-media-type-parameter', 'duplicate-package-link-media-type-parameter'], array_column($report['diagnostics'], 'type'));
+        $t->same($report, $summary['metadata']['linkMediaTypes']);
+        $t->same($report, $summary['wordpressImport']['packageLinkMediaTypes']);
+        $t->same($report['parameterItems'], $summary['wordpressImport']['packageLinkMediaTypeParameterItems']);
+        $t->same($report['parameterNames'], $summary['wordpressImport']['packageLinkMediaTypeParameterNames']);
+        $t->same($report['diagnostics'], $summary['wordpressImport']['packageLinkMediaTypeDiagnostics']);
+    },
+
     'preserves EPUB package link href suffix provenance for preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $containerMetadataXml = <<<'XML'
 <metadata xmlns="http://www.idpf.org/2013/metadata">
