@@ -4446,13 +4446,13 @@ final class MarkdownWriter
      */
     private function linkAttrTuple(AstNode $node): array
     {
-        $id = (string) $node->attr('id', '');
+        $id = $this->normalizeAttributeIdentifierToken((string) $node->attr('id', ''));
         $classes = $node->attr('classes', []);
         if (!is_array($classes)) {
             $classes = [];
         }
         $classes = array_values(array_filter(
-            array_map(static fn (mixed $class): string => (string) $class, $classes),
+            array_map(fn (mixed $class): string => $this->normalizeAttributeIdentifierToken((string) $class), $classes),
             static fn (string $class): bool => $class !== ''
         ));
 
@@ -4460,15 +4460,20 @@ final class MarkdownWriter
         if (!is_array($attributes)) {
             $attributes = [];
         }
-        $attributes = array_filter(
-            array_map(static fn (mixed $value): string => (string) $value, $attributes),
-            static fn (string $value): bool => $value !== ''
-        );
+        $normalizedAttributes = [];
+        foreach ($attributes as $name => $value) {
+            $name = $this->normalizeAttributeIdentifierToken((string) $name);
+            if ($name === '') {
+                continue;
+            }
+
+            $normalizedAttributes[$name] = (string) $value;
+        }
 
         return [
             'id' => $id,
             'classes' => $classes,
-            'attributes' => $attributes,
+            'attributes' => $normalizedAttributes,
         ];
     }
 
@@ -4514,13 +4519,16 @@ final class MarkdownWriter
 
     private function escapeAttributeIdentifierToken(string $value): string
     {
-        $value = trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value);
-
         return preg_replace_callback(
             '/[\\\\`"\'\s{}\[\]()=]/u',
             static fn (array $match): string => '\\' . $match[0],
-            $value
+            $this->normalizeAttributeIdentifierToken($value)
         ) ?? $value;
+    }
+
+    private function normalizeAttributeIdentifierToken(string $value): string
+    {
+        return trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value);
     }
 
     private function escapeAttributeValue(string $value): string
