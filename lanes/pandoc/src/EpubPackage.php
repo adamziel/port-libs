@@ -638,6 +638,7 @@ final class EpubPackage
             $this->spine,
             $ocfSidecars,
             $this->encryption,
+            $this->mediaOverlays,
             $manifestFallbacks,
         );
         $readingOrderInventory = self::readingOrderInventoryReport($this->spine, $packageInventory);
@@ -8355,6 +8356,7 @@ final class EpubPackage
      * @param list<array<string, mixed>> $spine
      * @param array<string, mixed> $ocfSidecars
      * @param array<string, mixed> $encryption
+     * @param array<string, mixed> $mediaOverlays
      * @param array<string, mixed> $manifestFallbacks
      *
      * @return array<string, mixed>
@@ -8367,6 +8369,7 @@ final class EpubPackage
         array $spine,
         array $ocfSidecars,
         array $encryption,
+        array $mediaOverlays,
         array $manifestFallbacks
     ): array {
         $manifestByPackagePath = [];
@@ -8485,6 +8488,7 @@ final class EpubPackage
         }
 
         $fallbackRolesByPackagePath = self::packageInventoryFallbackRoles($manifestFallbacks);
+        $mediaOverlayRolesByPackagePath = self::packageInventoryMediaOverlayRoles($mediaOverlays);
         $opfPackagePath = self::packageInventoryEntryName($opfPartName);
         $localOrderByName = [];
         foreach ($package->localNames() as $index => $name) {
@@ -8513,6 +8517,11 @@ final class EpubPackage
         $manifestFallbackMissingSourcePartNames = [];
         $manifestFallbackTerminalPartNames = [];
         $manifestFallbackStyleTerminalPartNames = [];
+        $mediaOverlayPartNames = [];
+        $mediaOverlayDocumentPartNames = [];
+        $mediaOverlaySourcePartNames = [];
+        $mediaOverlayTextTargetPartNames = [];
+        $mediaOverlayAudioTargetPartNames = [];
         $opfManifestDeclaredEntryCount = 0;
         $spineEntryCount = 0;
         $encryptedEntryCount = 0;
@@ -8580,6 +8589,7 @@ final class EpubPackage
             $isEncryptionSidecar = $encryptionPackagePath !== null && $packagePath === $encryptionPackagePath;
             $isSidecar = $sidecarMatches !== [];
             $fallbackRoles = $fallbackRolesByPackagePath[$packagePath] ?? self::emptyPackageInventoryFallbackRoles();
+            $mediaOverlayRoles = $mediaOverlayRolesByPackagePath[$packagePath] ?? self::emptyPackageInventoryMediaOverlayRoles();
             $declaredPackageEntry = $isMimetype
                 || $isContainer
                 || $isRootfile
@@ -8657,6 +8667,9 @@ final class EpubPackage
             foreach ($fallbackRoles['roles'] as $fallbackRole) {
                 $addRole($fallbackRole);
             }
+            foreach ($mediaOverlayRoles['roles'] as $mediaOverlayRole) {
+                $addRole($mediaOverlayRole);
+            }
             if ($fallbackRoles['roles'] !== []) {
                 $manifestFallbackPartNames[$partName] = true;
             }
@@ -8674,6 +8687,21 @@ final class EpubPackage
             }
             if ($fallbackRoles['styleTerminalForIds'] !== []) {
                 $manifestFallbackStyleTerminalPartNames[$partName] = true;
+            }
+            if ($mediaOverlayRoles['roles'] !== []) {
+                $mediaOverlayPartNames[$partName] = true;
+            }
+            if ($mediaOverlayRoles['overlayIds'] !== []) {
+                $mediaOverlayDocumentPartNames[$partName] = true;
+            }
+            if ($mediaOverlayRoles['sourceForIds'] !== []) {
+                $mediaOverlaySourcePartNames[$partName] = true;
+            }
+            if ($mediaOverlayRoles['textTargetForIds'] !== []) {
+                $mediaOverlayTextTargetPartNames[$partName] = true;
+            }
+            if ($mediaOverlayRoles['audioTargetForIds'] !== []) {
+                $mediaOverlayAudioTargetPartNames[$partName] = true;
             }
 
             $provenance = self::zipEntryProvenance($entry);
@@ -8726,6 +8754,12 @@ final class EpubPackage
                 'manifestFallbackMissingSourceIds' => $fallbackRoles['missingSourceIds'],
                 'manifestFallbackStyleChainForIds' => $fallbackRoles['styleChainForIds'],
                 'manifestFallbackStyleTerminalForIds' => $fallbackRoles['styleTerminalForIds'],
+                'mediaOverlayRoles' => $mediaOverlayRoles['roles'],
+                'mediaOverlayIds' => $mediaOverlayRoles['overlayIds'],
+                'mediaOverlayReferencedByIds' => $mediaOverlayRoles['referencedByIds'],
+                'mediaOverlaySourceForIds' => $mediaOverlayRoles['sourceForIds'],
+                'mediaOverlayTextTargetForIds' => $mediaOverlayRoles['textTargetForIds'],
+                'mediaOverlayAudioTargetForIds' => $mediaOverlayRoles['audioTargetForIds'],
             ] + $provenance;
             $item['byteExposurePolicy'] = 'epub-package-entry-metadata-only';
             if ($encrypted) {
@@ -8848,6 +8882,11 @@ final class EpubPackage
             'manifestFallbackMissingSourcePartNames' => array_keys($manifestFallbackMissingSourcePartNames),
             'manifestFallbackTerminalPartNames' => array_keys($manifestFallbackTerminalPartNames),
             'manifestFallbackStyleTerminalPartNames' => array_keys($manifestFallbackStyleTerminalPartNames),
+            'mediaOverlayPartNames' => array_keys($mediaOverlayPartNames),
+            'mediaOverlayDocumentPartNames' => array_keys($mediaOverlayDocumentPartNames),
+            'mediaOverlaySourcePartNames' => array_keys($mediaOverlaySourcePartNames),
+            'mediaOverlayTextTargetPartNames' => array_keys($mediaOverlayTextTargetPartNames),
+            'mediaOverlayAudioTargetPartNames' => array_keys($mediaOverlayAudioTargetPartNames),
             'localPackagePaths' => $package->localNames(),
             'centralPackagePaths' => $package->names(),
             'localHeaderOrder' => $localHeaderOrder,
@@ -9253,6 +9292,62 @@ final class EpubPackage
     }
 
     /**
+     * @param array<string, mixed> $mediaOverlays
+     *
+     * @return array<string, array<string, list<string>>>
+     */
+    private static function packageInventoryMediaOverlayRoles(array $mediaOverlays): array
+    {
+        $byPackagePath = [];
+        $add = static function (mixed $partName, string $role, string $field, string $id) use (&$byPackagePath): void {
+            $packagePath = self::packageInventoryEntryName($partName);
+            if ($packagePath === null) {
+                return;
+            }
+
+            if (!isset($byPackagePath[$packagePath])) {
+                $byPackagePath[$packagePath] = self::emptyPackageInventoryMediaOverlayRoles();
+            }
+            if (!in_array($role, $byPackagePath[$packagePath]['roles'], true)) {
+                $byPackagePath[$packagePath]['roles'][] = $role;
+            }
+            if ($id !== '' && !in_array($id, $byPackagePath[$packagePath][$field], true)) {
+                $byPackagePath[$packagePath][$field][] = $id;
+            }
+        };
+
+        foreach (is_array($mediaOverlays['items'] ?? null) ? $mediaOverlays['items'] : [] as $overlay) {
+            if (!is_array($overlay)) {
+                continue;
+            }
+
+            $overlayId = is_string($overlay['id'] ?? null) ? $overlay['id'] : '';
+            $add($overlay['partName'] ?? null, 'media-overlay-document', 'overlayIds', $overlayId);
+
+            foreach (is_array($overlay['referencedBy'] ?? null) ? $overlay['referencedBy'] : [] as $reference) {
+                if (!is_array($reference)) {
+                    continue;
+                }
+
+                $referenceId = is_string($reference['id'] ?? null) ? $reference['id'] : '';
+                $add($reference['partName'] ?? null, 'media-overlay-source', 'sourceForIds', $overlayId);
+                $add($overlay['partName'] ?? null, 'media-overlay-document', 'referencedByIds', $referenceId);
+            }
+
+            foreach (is_array($overlay['items'] ?? null) ? $overlay['items'] : [] as $timelineItem) {
+                if (!is_array($timelineItem)) {
+                    continue;
+                }
+
+                $add($timelineItem['textPartName'] ?? null, 'media-overlay-text-target', 'textTargetForIds', $overlayId);
+                $add($timelineItem['audioPartName'] ?? null, 'media-overlay-audio-target', 'audioTargetForIds', $overlayId);
+            }
+        }
+
+        return $byPackagePath;
+    }
+
+    /**
      * @return array<string, list<string>>
      */
     private static function emptyPackageInventoryFallbackRoles(): array
@@ -9266,6 +9361,21 @@ final class EpubPackage
             'missingSourceIds' => [],
             'styleChainForIds' => [],
             'styleTerminalForIds' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private static function emptyPackageInventoryMediaOverlayRoles(): array
+    {
+        return [
+            'roles' => [],
+            'overlayIds' => [],
+            'referencedByIds' => [],
+            'sourceForIds' => [],
+            'textTargetForIds' => [],
+            'audioTargetForIds' => [],
         ];
     }
 

@@ -7950,6 +7950,95 @@ XML;
         $t->same('missing-media-overlay-manifest-item', $missingOverlay['diagnostics'][1]['type']);
     },
 
+    'marks EPUB media overlay package inventory roles for compact handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $chapter = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="intro">Overlay chapter</h1></body></html>';
+        $audio = 'AUDIO-OVERLAY-PAYLOAD';
+        $overlay = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL">
+  <body>
+    <seq id="chapter-seq">
+      <par id="intro-audio">
+        <text src="../text/chapter.xhtml#intro"/>
+        <audio src="../audio/chapter.mp3?clip=main#t=1,4" clipBegin="0:00:01.000" clipEnd="0:00:04.000"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML;
+        $opfWithOverlayInventory = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:media-overlay-package-inventory</dc:identifier>
+    <dc:title>Media Overlay Package Inventory</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" media-overlay="mo"/>
+    <item id="mo" href="overlays/chapter.smil" media-type="application/smil+xml"/>
+    <item id="audio" href="audio/chapter.mp3" media-type="audio/mpeg"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithOverlayInventory],
+            ['name' => 'EPUB/nav.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="text/chapter.xhtml">Overlay chapter</a></li></ol></nav></body></html>'],
+            ['name' => 'EPUB/text/chapter.xhtml', 'data' => $chapter],
+            ['name' => 'EPUB/overlays/chapter.smil', 'data' => $overlay],
+            ['name' => 'EPUB/audio/chapter.mp3', 'data' => $audio],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $byPath = $inventory['byPackagePath'];
+        $dependencies = $summary['manifestDependencyInventory'];
+        $audioDirectory = null;
+        foreach ($inventory['directorySummaries'] as $directory) {
+            if (($directory['directory'] ?? null) === 'EPUB/audio') {
+                $audioDirectory = $directory;
+                break;
+            }
+        }
+
+        $t->same($inventory, $summary['wordpressImport']['packageInventory']);
+        $t->same(['/EPUB/text/chapter.xhtml', '/EPUB/overlays/chapter.smil', '/EPUB/audio/chapter.mp3'], $inventory['mediaOverlayPartNames']);
+        $t->same(['/EPUB/overlays/chapter.smil'], $inventory['mediaOverlayDocumentPartNames']);
+        $t->same(['/EPUB/text/chapter.xhtml'], $inventory['mediaOverlaySourcePartNames']);
+        $t->same(['/EPUB/text/chapter.xhtml'], $inventory['mediaOverlayTextTargetPartNames']);
+        $t->same(['/EPUB/audio/chapter.mp3'], $inventory['mediaOverlayAudioTargetPartNames']);
+        $t->same(1, $inventory['roleCounts']['media-overlay-document']);
+        $t->same(1, $inventory['roleCounts']['media-overlay-source']);
+        $t->same(1, $inventory['roleCounts']['media-overlay-text-target']);
+        $t->same(1, $inventory['roleCounts']['media-overlay-audio-target']);
+
+        $chapterEntry = $byPath['EPUB/text/chapter.xhtml'];
+        $overlayEntry = $byPath['EPUB/overlays/chapter.smil'];
+        $audioEntry = $byPath['EPUB/audio/chapter.mp3'];
+        $t->same(['media-overlay-source', 'media-overlay-text-target'], $chapterEntry['mediaOverlayRoles']);
+        $t->same(['mo'], $chapterEntry['mediaOverlaySourceForIds']);
+        $t->same(['mo'], $chapterEntry['mediaOverlayTextTargetForIds']);
+        $t->same(['media-overlay-document'], $overlayEntry['mediaOverlayRoles']);
+        $t->same(['mo'], $overlayEntry['mediaOverlayIds']);
+        $t->same(['chapter'], $overlayEntry['mediaOverlayReferencedByIds']);
+        $t->same(['media-overlay-audio-target'], $audioEntry['mediaOverlayRoles']);
+        $t->same(['mo'], $audioEntry['mediaOverlayAudioTargetForIds']);
+        $t->true(in_array('media-overlay-source', $chapterEntry['roles'], true), 'media overlay source package role missing');
+        $t->true(in_array('media-overlay-text-target', $chapterEntry['roles'], true), 'media overlay text target package role missing');
+        $t->true(in_array('media-overlay-document', $overlayEntry['roles'], true), 'media overlay document package role missing');
+        $t->true(in_array('media-overlay-audio-target', $audioEntry['roles'], true), 'media overlay audio target package role missing');
+        $t->same('media-overlay', $overlayEntry['resourceKind']);
+        $t->same('audio', $audioEntry['resourceKind']);
+        $t->same(1, $dependencies['mediaOverlayEdgeCount']);
+        $t->same('mo', $dependencies['edgesBySourceId']['chapter'][0]['targetId']);
+        $t->same(1, $audioDirectory['roleCounts']['media-overlay-audio-target']);
+        $t->same(strlen($audio), $audioDirectory['byteLength']);
+    },
+
     'reports OPF metadata meta property vocabulary diagnostics for package review' => static function (TestRunner $t) use ($epubContainerXml): void {
         $opfWithMetaVocabulary = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" prefix="review: https://example.invalid/epub-review#">
