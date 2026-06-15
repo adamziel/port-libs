@@ -1149,6 +1149,10 @@ final class MarkdownWriter
      */
     private function renderHeading(AstNode $node, int $indent): array
     {
+        if (!$this->markdownExtensionEnabled('header_attributes') && $this->hasMarkdownAttributeTuple($node)) {
+            return $this->renderHtmlBlockFallback($node, $indent);
+        }
+
         $level = max(1, min(6, (int) $node->attr('level', 1)));
         $text = $this->renderInlines($node->children);
         $attrs = $this->renderLinkAttributes($node);
@@ -1195,6 +1199,10 @@ final class MarkdownWriter
      */
     private function renderLineBlock(AstNode $node, int $indent): array
     {
+        if (!$this->markdownExtensionEnabled('line_blocks')) {
+            return $this->renderHtmlBlockFallback($node, $indent);
+        }
+
         $prefix = str_repeat(' ', $indent) . '|';
         $lines = [];
 
@@ -2952,8 +2960,9 @@ final class MarkdownWriter
     private function renderHtmlLink(AstNode $node): string
     {
         $attrs = $this->htmlAttributeMap($node);
-        $attrs['href'] = (string) $node->attr('url', '');
         $title = (string) $node->attr('title', '');
+        unset($attrs['href'], $attrs['title']);
+        $attrs['href'] = (string) $node->attr('url', '');
         if ($title !== '') {
             $attrs['title'] = $title;
         }
@@ -2966,9 +2975,10 @@ final class MarkdownWriter
     private function renderHtmlImage(AstNode $node): string
     {
         $attrs = $this->htmlAttributeMap($node);
+        $title = (string) $node->attr('title', '');
+        unset($attrs['src'], $attrs['alt'], $attrs['title']);
         $attrs['src'] = (string) $node->attr('url', '');
         $attrs['alt'] = (string) $node->attr('alt', $this->plainInlineText($node->children));
-        $title = (string) $node->attr('title', '');
         if ($title !== '') {
             $attrs['title'] = $title;
         }
@@ -3031,6 +3041,15 @@ final class MarkdownWriter
             foreach ($this->normalizedAttributePairs($attributes) as $name => $value) {
                 $name = strtolower($name);
                 if ($name !== '' && !isset($attrs[$name])) {
+                    $attrs[$name] = $value;
+                }
+            }
+        }
+
+        foreach (['dir', 'lang', 'role', 'title', 'xml:lang'] as $name) {
+            if (!isset($attrs[$name]) && isset($source[$name]) && is_scalar($source[$name])) {
+                $value = trim((string) $source[$name]);
+                if ($value !== '') {
                     $attrs[$name] = $value;
                 }
             }
@@ -4055,6 +4074,13 @@ final class MarkdownWriter
      */
     private function renderCodeBlock(AstNode $node, int $indent): array
     {
+        if (
+            !$this->markdownExtensionEnabled('fenced_code_attributes')
+            && $this->codeBlockRequiresFencedCodeAttributes($node)
+        ) {
+            return $this->renderHtmlBlockFallback($node, $indent);
+        }
+
         $attrs = $this->renderCodeBlockAttributes($node);
         if ($attrs !== '' || (bool) ($this->options['fencedCodeBlocks'] ?? false)) {
             return $this->renderFencedCodeBlock($node, $attrs, $indent);
@@ -4094,6 +4120,20 @@ final class MarkdownWriter
         return preg_match('/\A[A-Za-z0-9][A-Za-z0-9_+.#-]*\z/u', $class) === 1;
     }
 
+    private function codeBlockRequiresFencedCodeAttributes(AstNode $node): bool
+    {
+        $attrs = $this->linkAttrTuple($node);
+        if ($attrs['id'] !== '' || $attrs['attributes'] !== []) {
+            return true;
+        }
+
+        if ($attrs['classes'] === []) {
+            return false;
+        }
+
+        return count($attrs['classes']) !== 1 || !$this->isCodeBlockInfoString($attrs['classes'][0]);
+    }
+
     private function codeBlockInfo(AstNode $node): string
     {
         $info = $node->attr('info', '');
@@ -4130,6 +4170,10 @@ final class MarkdownWriter
      */
     private function renderDivBlock(AstNode $node, int $indent): array
     {
+        if (!$this->markdownExtensionEnabled('fenced_divs')) {
+            return $this->renderHtmlBlockFallback($node, $indent);
+        }
+
         $alertType = $this->alertDivType($node);
         if ($alertType !== null) {
             return $this->renderAlertDivBlock($node, $alertType, $indent);
@@ -4961,8 +5005,12 @@ final class MarkdownWriter
                 'abbreviations',
                 'bracketed_spans',
                 'emoji',
+                'fenced_code_attributes',
+                'fenced_divs',
+                'header_attributes',
                 'inline_code_attributes',
                 'link_attributes',
+                'line_blocks',
                 'mark',
                 'raw_tex',
                 'strikeout',
@@ -4978,8 +5026,12 @@ final class MarkdownWriter
             return !in_array($extension, [
                 'abbreviations',
                 'bracketed_spans',
+                'fenced_code_attributes',
+                'fenced_divs',
+                'header_attributes',
                 'inline_code_attributes',
                 'link_attributes',
+                'line_blocks',
                 'mark',
                 'raw_tex',
                 'subscript',
@@ -4987,6 +5039,22 @@ final class MarkdownWriter
                 'tex_math_dollars',
                 'underline',
                 'wikilinks',
+            ], true);
+        }
+
+        if ($format === 'markdown_strict') {
+            return !in_array($extension, [
+                'fenced_code_attributes',
+                'fenced_divs',
+                'header_attributes',
+                'line_blocks',
+            ], true);
+        }
+
+        if ($format === 'markdown_mmd' || $format === 'markdown_phpextra') {
+            return !in_array($extension, [
+                'fenced_divs',
+                'line_blocks',
             ], true);
         }
 
@@ -5000,8 +5068,18 @@ final class MarkdownWriter
 
         return match ($extension) {
             'attributes', 'native_spans', 'span_attributes' => 'bracketed_spans',
+            'block_code_attributes',
+            'code_block_attributes',
+            'codeblock_attributes',
+            'fenced_code_attribute' => 'fenced_code_attributes',
             'code_attributes' => 'inline_code_attributes',
+            'div_attributes',
+            'native_div',
+            'native_divs' => 'fenced_divs',
             'emoji_shortcode', 'emoji_shortcodes' => 'emoji',
+            'heading_attributes',
+            'heading_attrs',
+            'header_attribute' => 'header_attributes',
             'link_attribute', 'link_attrs', 'image_attributes' => 'link_attributes',
             'raw_latex', 'latex_macros' => 'raw_tex',
             'tex_math', 'math_dollars' => 'tex_math_dollars',
@@ -6551,6 +6629,15 @@ final class MarkdownWriter
             'classes' => $classes,
             'attributes' => $attributes,
         ];
+    }
+
+    private function hasMarkdownAttributeTuple(AstNode $node): bool
+    {
+        $attrs = $this->linkAttrTuple($node);
+
+        return $attrs['id'] !== ''
+            || $attrs['classes'] !== []
+            || $attrs['attributes'] !== [];
     }
 
     /**
