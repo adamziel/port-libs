@@ -10,7 +10,7 @@ use PortLibs\Pandoc\TableGeometry;
 $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
 $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
 $document = static fn (array $children): AstNode => new AstNode('document', [], $children);
-$row = static fn (array $cells): AstNode => new AstNode('table_row', [], $cells);
+$row = static fn (array $cells, array $attrs = []): AstNode => new AstNode('table_row', $attrs, $cells);
 $cell = static fn (array $children, array $attrs = []): AstNode => new AstNode('table_cell', $attrs, $children);
 $textCell = static fn (string $value, array $attrs = []) => new AstNode('table_cell', array_replace(['text' => $value], $attrs), [$text($value)]);
 $emptyTextCell = static fn (string $value, array $attrs = []) => new AstNode('table_cell', array_replace(['text' => $value], $attrs));
@@ -32,6 +32,31 @@ $table = static function (array $attrs = [], ?AstNode $valueCell = null, bool $b
 
 $writeTable = static fn (AstNode $table): string => (new MarkdownWriter())->write($document([$table]));
 $topCaption = static fn (array $attrs): array => array_replace_recursive(['captionSource' => ['captionSide' => 'top']], $attrs);
+$autoHtmlTable = static function (
+    ?AstNode $valueCell = null,
+    array $attrs = [],
+    array $headAttrs = [],
+    array $bodyAttrs = [],
+    array $headRowAttrs = [],
+    array $bodyRowAttrs = [],
+    ?AstNode $footRow = null,
+    array $footAttrs = []
+) use ($row, $textCell): AstNode {
+    $sections = [
+        new AstNode('table_head', $headAttrs, [
+            $row([$textCell('Metric'), $textCell('Value')], $headRowAttrs),
+        ]),
+        new AstNode('table_body', $bodyAttrs, [
+            $row([$textCell('Probe'), $valueCell ?? $textCell('Ready')], $bodyRowAttrs),
+        ]),
+    ];
+    if ($footRow instanceof AstNode) {
+        $sections[] = new AstNode('table_foot', $footAttrs, [$footRow]);
+    }
+
+    return new AstNode('table', array_replace(['alignments' => ['left', 'right'], 'markdownTableFormat' => 'auto'], $attrs), $sections);
+};
+
 $readFirstTable = static function (string $markdown): AstNode {
     $document = (new MarkdownReader())->read($markdown);
     foreach ($document->children as $node) {
@@ -666,9 +691,236 @@ foreach ($readerTableFixtures as $tableName => $tableMarkdown) {
     }
 }
 
+$autoHtmlFallbackCases = [
+    'colspan cell' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Merged', ['colspan' => 2])),
+        'contains' => ['<table>', 'colspan="2"', '>Merged</td>'],
+    ],
+    'rowspan cell' => [
+        'table' => static fn () => new AstNode('table', ['alignments' => ['left', 'right'], 'markdownTableFormat' => 'auto'], [
+            new AstNode('table_body', [], [
+                $row([$textCell('Group', ['rowspan' => 2]), $textCell('One')]),
+                $row([$textCell('Two')]),
+            ]),
+        ]),
+        'contains' => ['rowspan="2"', '>Group</td>', '>Two</td>'],
+    ],
+    'rowspan zero cell' => [
+        'table' => static fn () => new AstNode('table', ['alignments' => ['left', 'right'], 'markdownTableFormat' => 'auto'], [
+            new AstNode('table_body', [], [
+                $row([$textCell('All', ['rowspan' => '0']), $textCell('One')]),
+                $row([$textCell('Two')]),
+                $row([$textCell('Three')]),
+            ]),
+        ]),
+        'contains' => ['rowspan="3"', '>All</td>', '>Three</td>'],
+    ],
+    'explicit header cell' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Ready', ['header' => true])),
+        'contains' => ['<th scope="row" style="text-align:right">Ready</th>'],
+    ],
+    'body row head columns' => [
+        'table' => static fn () => $autoHtmlTable(null, [], [], ['rowHeadColumns' => 1]),
+        'contains' => ['<th scope="row" style="text-align:left">Probe</th>', '<td style="text-align:right">Ready</td>'],
+    ],
+    'cell center alignment' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Centered', ['align' => 'center'])),
+        'contains' => ['<td style="text-align:center">Centered</td>'],
+    ],
+    'cell vertical top alignment' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Top', ['valign' => 'top'])),
+        'contains' => ['vertical-align:top'],
+    ],
+    'cell style merges computed alignment' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Styled', ['htmlAttributes' => ['style' => 'font-weight:bold']])),
+        'contains' => ['style="font-weight:bold; text-align:right"'],
+    ],
+    'cell id attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Cell', ['id' => 'value-cell'])),
+        'contains' => ['<td id="value-cell" style="text-align:right">Cell</td>'],
+    ],
+    'cell class attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Cell', ['classes' => ['review-cell']])),
+        'contains' => ['<td class="review-cell" style="text-align:right">Cell</td>'],
+    ],
+    'cell data attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Cell', ['attributes' => ['data-kind' => 'value']])),
+        'contains' => ['data-kind="value"'],
+    ],
+    'cell aria attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Cell', ['attributes' => ['aria-label' => 'Reviewed value']])),
+        'contains' => ['aria-label="Reviewed value"'],
+    ],
+    'cell role attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Term', ['attributes' => ['role' => 'term']])),
+        'contains' => ['role="term"'],
+    ],
+    'cell headers attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Cell', ['attributes' => ['headers' => 'metric value']])),
+        'contains' => ['headers="metric value"'],
+    ],
+    'cell source scope attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Cell', ['attributes' => ['scope' => 'row']])),
+        'contains' => ['scope="row"'],
+    ],
+    'cell abbreviation attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Value', ['attributes' => ['abbr' => 'Val']])),
+        'contains' => ['abbr="Val"'],
+    ],
+    'cell language attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Texto', ['attributes' => ['lang' => 'es']])),
+        'contains' => ['lang="es"'],
+    ],
+    'cell direction attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('RTL', ['attributes' => ['dir' => 'rtl']])),
+        'contains' => ['dir="rtl"'],
+    ],
+    'cell title attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Titled', ['attributes' => ['title' => 'Review title']])),
+        'contains' => ['title="Review title"'],
+    ],
+    'cell width attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Wide', ['attributes' => ['width' => '40%']])),
+        'contains' => ['width="40%"'],
+    ],
+    'cell height attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Tall', ['attributes' => ['height' => '2em']])),
+        'contains' => ['height="2em"'],
+    ],
+    'cell html data attribute' => [
+        'table' => static fn () => $autoHtmlTable($textCell('Cell', ['htmlAttributes' => ['data-html' => 'kept']])),
+        'contains' => ['data-html="kept"'],
+    ],
+    'row id attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], [], [], [], ['id' => 'body-row']),
+        'contains' => ['<tr id="body-row">'],
+    ],
+    'row class attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], [], [], [], ['classes' => ['review-row']]),
+        'contains' => ['<tr class="review-row">'],
+    ],
+    'row data attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], [], [], [], ['attributes' => ['data-row' => 'kept']]),
+        'contains' => ['<tr data-row="kept">'],
+    ],
+    'row html style attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], [], [], [], ['htmlAttributes' => ['style' => 'vertical-align:top']]),
+        'contains' => ['<tr style="vertical-align:top">'],
+    ],
+    'thead id attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], ['id' => 'head-section']),
+        'contains' => ['<thead id="head-section">'],
+    ],
+    'thead class attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], ['classes' => ['head-section']]),
+        'contains' => ['<thead class="head-section">'],
+    ],
+    'thead data attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], ['attributes' => ['data-head' => 'kept']]),
+        'contains' => ['<thead data-head="kept">'],
+    ],
+    'tbody id attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], [], ['id' => 'body-section']),
+        'contains' => ['<tbody id="body-section">'],
+    ],
+    'tbody class attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], [], ['classes' => ['body-section']]),
+        'contains' => ['<tbody class="body-section">'],
+    ],
+    'tbody data attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], [], ['attributes' => ['data-body' => 'kept']]),
+        'contains' => ['<tbody data-body="kept">'],
+    ],
+    'tfoot id attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], [], [], [], [], $row([$textCell('Total'), $textCell('Ready')]), ['id' => 'foot-section']),
+        'contains' => ['<tfoot id="foot-section">'],
+    ],
+    'tfoot class attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], [], [], [], [], $row([$textCell('Total'), $textCell('Ready')]), ['classes' => ['foot-section']]),
+        'contains' => ['<tfoot class="foot-section">'],
+    ],
+    'tfoot data attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, [], [], [], [], [], $row([$textCell('Total'), $textCell('Ready')]), ['attributes' => ['data-foot' => 'kept']]),
+        'contains' => ['<tfoot data-foot="kept">'],
+    ],
+    'table summary html attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, ['htmlAttributes' => ['summary' => 'Migration inventory']]),
+        'contains' => ['<table summary="Migration inventory">'],
+    ],
+    'table html data attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, ['htmlAttributes' => ['data-table' => 'kept']]),
+        'contains' => ['<table data-table="kept">'],
+    ],
+    'table html language attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, ['htmlAttributes' => ['lang' => 'en']]),
+        'contains' => ['<table lang="en">'],
+    ],
+    'table html direction attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, ['htmlAttributes' => ['dir' => 'ltr']]),
+        'contains' => ['<table dir="ltr">'],
+    ],
+    'caption source id attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['id' => 'caption-id']]]),
+        'contains' => ['<caption id="caption-id">Caption</caption>'],
+    ],
+    'caption source class attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['classes' => ['review-caption']]]]),
+        'contains' => ['<caption class="review-caption">Caption</caption>'],
+    ],
+    'caption source data attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-caption' => 'kept']]]]),
+        'contains' => ['<caption data-caption="kept">Caption</caption>'],
+    ],
+    'caption source html class merge' => [
+        'table' => static fn () => $autoHtmlTable(null, ['caption' => 'Caption', 'captionSource' => ['sourceAttributes' => ['htmlAttributes' => ['class' => 'source'], 'classes' => ['review']]]]),
+        'contains' => ['<caption class="source review">Caption</caption>'],
+    ],
+    'caption source language attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, ['caption' => 'Resumen', 'captionSource' => ['sourceAttributes' => ['attributes' => ['lang' => 'es']]]]),
+        'contains' => ['<caption lang="es">Resumen</caption>'],
+    ],
+    'caption short text data attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, ['shortCaption' => 'Short', 'caption' => 'Long', 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-caption' => 'kept']]]]),
+        'contains' => ['data-caption="kept"', 'data-pandoc-short-caption="Short"', '>Long</caption>'],
+    ],
+    'caption inline strong content' => [
+        'table' => static fn () => $autoHtmlTable(null, ['captionInlines' => [$text('Table '), new AstNode('strong', [], [$text('caption')])], 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-caption' => 'kept']]]]),
+        'contains' => ['<caption data-caption="kept">Table <strong>caption</strong></caption>'],
+    ],
+    'caption short inline data attribute' => [
+        'table' => static fn () => $autoHtmlTable(null, ['shortCaptionInlines' => [$text('Short '), new AstNode('emph', [], [$text('label')])], 'caption' => 'Long', 'captionSource' => ['sourceAttributes' => ['attributes' => ['data-caption' => 'kept']]]]),
+        'contains' => ['data-pandoc-short-caption="Short label"', '>Long</caption>'],
+    ],
+    'link inline in attributed cell' => [
+        'table' => static fn () => $autoHtmlTable($cell([new AstNode('link', ['url' => 'https://example.test/review'], [$text('Review')])], ['id' => 'link-cell'])),
+        'contains' => ['<a href="https://example.test/review">Review</a>'],
+    ],
+    'image inline in attributed cell' => [
+        'table' => static fn () => $autoHtmlTable($cell([new AstNode('image', ['url' => 'media/review.png', 'alt' => 'Review image'])], ['id' => 'image-cell'])),
+        'contains' => ['<img src="media/review.png" alt="Review image" />'],
+    ],
+    'span inline in attributed cell' => [
+        'table' => static fn () => $autoHtmlTable($cell([new AstNode('span', ['classes' => ['review']], [$text('Label')])], ['id' => 'span-cell'])),
+        'contains' => ['<span class="review">Label</span>'],
+    ],
+];
+
+foreach ($autoHtmlFallbackCases as $label => $case) {
+    $tests["maps upstream markdown writer automatic html table fallback {$label}"] =
+        static function (TestRunner $t) use ($case, $writeTable): void {
+            $markdown = $writeTable($case['table']());
+
+            $t->contains('<table', $markdown);
+            foreach ($case['contains'] as $expected) {
+                $t->contains($expected, $markdown);
+            }
+        };
+}
+
+
 $tests['records markdown writer table caption span completion mapped-case count'] =
     static function (TestRunner $t): void {
-        $t->same(166, 30 + 10 + 40 + 10 + 10 + 54 + 12);
+        $t->same(216, 30 + 10 + 40 + 10 + 10 + 54 + 12 + 50);
     };
 
 
