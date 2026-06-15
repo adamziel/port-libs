@@ -10537,6 +10537,106 @@ XML);
         $t->contains('<p>Label fields Smith (2026) and (Ng 2025) keep imported label disambiguation metadata visible.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Label Packet. Review Press, 2026. Label alpha: Smi26. Label title: migration label packet. Extra date: 2. Extra title: a.</dd>', $blocks);
     },
+    'maps bounded biblatex label dates into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{label-date-source,
+  author     = {Smith, Ada},
+  title      = {Label Date Packet},
+  date       = {2026},
+  labeldate  = {2026-04?},
+  publisher  = {Review Press}
+}
+
+@online{split-label-date-source,
+  author      = {Ng, Nia},
+  title       = {Split Label Date Packet},
+  date        = {2025},
+  labelyear   = {2025},
+  labelmonth  = {21},
+  url         = {https://example.test/split-label-date}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same(['date-parts' => [[2026, 4]], 'uncertain' => true, 'raw' => '2026-04?'], $items[0]['label-date'] ?? null);
+        $t->same(['date-parts' => [[2025]], 'season' => 1], $items[1]['label-date'] ?? null);
+        $t->same('2026-04?', $items[0]['rawBibtex']['fields']['labeldate'] ?? null);
+        $t->same('21', $items[1]['rawBibtex']['fields']['labelmonth'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $labelDate = $processor->item('label-date-source');
+        $split = $processor->item('split-label-date-source');
+        $t->same([2026, 4], $labelDate['labelDate']['parts'] ?? null);
+        $t->same('2026-04', $labelDate['labelDate']['display'] ?? null);
+        $t->same(true, $labelDate['labelDate']['uncertain'] ?? null);
+        $t->same('Date markers: label-date uncertain (2026-04?)', $labelDate['dateMarkerSummary'] ?? null);
+        $t->same([2025], $split['labelDate']['parts'] ?? null);
+        $t->same('Spring 2025', $split['labelDate']['display'] ?? null);
+        $t->same('Spring', $split['labelDate']['seasonName'] ?? null);
+        $t->same('Date seasons: label-date Spring', $split['dateSeasonSummary'] ?? null);
+        $t->same(
+            'Smith, Ada. Label Date Packet. Review Press, 2026. Label date: 2026-04. Date markers: label-date uncertain (2026-04?).',
+            $processor->renderBibliographyEntry('label-date-source')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <sort>
+      <key variable="label-date"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="label-date"/>
+        <text variable="label-date-status"/>
+        <text variable="label-date-season-name"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="label-date"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="label-date"/>
+      <text variable="label-date-status"/>
+      <text variable="label-date-season-name"/>
+      <text variable="date-marker-summary"/>
+      <text variable="date-season-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $summary = $styled->cslStyleSummary();
+        $t->same('label-date', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('label-date', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same('[Ng | Spring 2025 | Spring; Smith | 2026-04 | uncertain]', $styled->renderCitationCluster([
+            $citation('label-date-source', '[@label-date-source]'),
+            $citation('split-label-date-source', '[@split-label-date-source]'),
+        ]));
+        $t->same('Split Label Date Packet :: Spring 2025 :: Spring :: Date seasons: label-date Spring', $styled->renderBibliographyEntry('split-label-date-source'));
+        $t->same('Label Date Packet :: 2026-04 :: uncertain :: Date markers: label-date uncertain (2026-04?)', $styled->renderBibliographyEntry('label-date-source'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-label-date',
+            'title' => 'Manual Label Date',
+            'labelDate' => ['date-parts' => [[2024, 12, 31]]],
+        ]]);
+        $manualItem = $manual->item('manual-label-date');
+        $t->same([2024, 12, 31], $manualItem['labelDate']['parts'] ?? null);
+        $t->same('2024-12-31', $manualItem['labelDate']['display'] ?? null);
+        $t->same('Manual Label Date. Label date: 2024-12-31.', $manual->renderBibliographyEntry('manual-label-date'));
+
+        $document = (new MarkdownReader())->read('Label dates [@label-date-source; @split-label-date-source] keep imported label-date metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Label dates [Ng | Spring 2025 | Spring; Smith | 2026-04 | uncertain] keep imported label-date metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Split Label Date Packet :: Spring 2025 :: Spring :: Date seasons: label-date Spring</dd>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Label Date Packet :: 2026-04 :: uncertain :: Date markers: label-date uncertain (2026-04?)</dd>', $blocks);
+    },
     'maps bounded biblatex others name sentinel into csl et al metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{truncated-review,
