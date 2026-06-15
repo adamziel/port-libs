@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 2,717 | 1,096 |
+| Markdown / CommonMark / GFM | 3,867 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not a current upstream Pandoc input token) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` preserves attributed table and figure caption source metadata across Markdown caption lines, table review packets, Markdown writeback, WordPress handoff, automatic HTML table caption output, attributed native HTML div blocks, URL control-byte normalization, explicit figure captions, raw HTML block boundaries, bundled reader surge coverage, and existing emoji alias coverage; `MarkdownWriter` preserves hardened delimiter and inline/link/escape output, numbered-example references, validated block/list/code marker output, automatic HTML table fallback coverage, table completion coverage, and definition-list bodies that start with code blocks, headings, line blocks, or pipe tables.
+Latest Markdown/CommonMark/GFM evidence: bundled Markdown reader remainder coverage preserves list/setext, list padding/marker provenance, lazy block quote termination, inline/link/entity/reference normalization, metadata/raw/native-span enablement, table/figure/caption source metadata, implicit figures, and wrapped figure captions.
 
-Current Pandoc counters: 6,886 PHP passes / 0 failures and 6,706 mapped upstream cases. Markdown writer definition-body validation passed after rebase onto current main `8885a4f223`, and the Markdown reader caption source completion slice remains represented for final bundle validation; local gates will be rerun after the bundle rebase completes.
+Current Pandoc counters: 8,146 PHP passes / 0 failures and 7,966 mapped upstream cases. Markdown reader remainder bundle adds 1,210 mapped Markdown/CommonMark/GFM cases across 22 bundled singleton candidates on top of current main plus the writer definition-body slice; validation evidence will be rerun after this rebase and recorded in lane status JSON.
