@@ -28065,6 +28065,142 @@ XML);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Status Hyphen Packet :: in press :: dataset, audit :: direct; json</dd>', $blocks);
         $t->contains('<dt>Kim 2024</dt><dd>Direct Status Pubstate Packet :: preprint :: conference, source packet :: handoff; review</dd>', $blocks);
     },
+    'renders bounded direct csl json import aliases as csl variables' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-alias-variable-flat',
+                'type' => 'paper-conference',
+                'title' => 'Direct Alias Variable Flat Packet',
+                'author' => [
+                    ['family' => 'Chen', 'given' => 'Cy'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'pubstate' => 'preprint',
+                'keywordlist' => 'conference, source packet',
+                'categorylist' => 'legacy; compact',
+                'citationalias' => 'direct-alias-variable-flat-alt',
+            ],
+            [
+                'id' => 'direct-alias-variable-hyphen',
+                'type' => 'report',
+                'title' => 'Direct Alias Variable Hyphen Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'publication-status' => 'in press',
+                'keyword-list' => 'dataset; audit',
+                'category-list' => ['handoff', 'review'],
+                'citation-alias' => 'direct-alias-variable-hyphen-alt',
+            ],
+            [
+                'id' => 'direct-alias-variable-camel',
+                'type' => 'article-journal',
+                'title' => 'Direct Alias Variable Camel Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publicationStatus' => 'accepted',
+                'keywordList' => ['review queue', 'source audit'],
+                'categoryList' => 'direct, csl',
+                'citationAliases' => ['direct-alias-variable-camel-alt', 'direct-alias-variable-camel-legacy'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $flat = $processor->item('direct-alias-variable-flat');
+        $hyphen = $processor->item('direct-alias-variable-hyphen');
+        $camel = $processor->item('direct-alias-variable-camel');
+        $camelAlias = $processor->item('direct-alias-variable-camel-alt');
+        $t->same('preprint', $flat['status'] ?? null);
+        $t->same(['conference', 'source packet'], $flat['keywords'] ?? null);
+        $t->same(['legacy', 'compact'], $flat['categories'] ?? null);
+        $t->same('in press', $hyphen['status'] ?? null);
+        $t->same(['dataset', 'audit'], $hyphen['keywords'] ?? null);
+        $t->same(['handoff', 'review'], $hyphen['categories'] ?? null);
+        $t->same('accepted', $camel['status'] ?? null);
+        $t->same(['review queue', 'source audit'], $camel['keywords'] ?? null);
+        $t->same(['direct', 'csl'], $camel['categories'] ?? null);
+        $t->same(['direct-alias-variable-camel-alt', 'direct-alias-variable-camel-legacy'], $camel['citationAliases'] ?? null);
+        $t->same('direct-alias-variable-camel', $camelAlias['id'] ?? null);
+        $t->same('direct-alias-variable-camel-alt', $camelAlias['citationAlias'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Import Alias Variable Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-import-alias-variable-review</id>
+    <updated>2026-06-12T04:11:21+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="publicationStatus"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if variable="publicationStatus keywordList categoryList citationAliasSummary" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="publicationStatus"/>
+            <text variable="publication-status"/>
+            <text variable="pubstate"/>
+            <text variable="keywordList"/>
+            <text variable="keyword-list"/>
+            <text variable="keywordlist"/>
+            <text variable="categoryList"/>
+            <text variable="category-list"/>
+            <text variable="categorylist"/>
+            <text variable="citationAliases"/>
+            <text variable="citationAlias"/>
+            <text variable="citationAliasSummary"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-import-alias-variable"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="publicationStatus"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publication-status"/>
+      <text variable="keyword-list"/>
+      <text variable="category-list"/>
+      <text variable="citationAliasSummary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $sortKey = $summary['citationSort'][0] ?? [];
+        $t->same('Bounded Direct CSL Import Alias Variable Review', $summary['title'] ?? null);
+        $t->same('publicationStatus', $sortKey['variable'] ?? null);
+        $t->same(['publicationStatus', 'keywordList', 'categoryList', 'citationAliasSummary'], $branch['variables'] ?? null);
+        $t->same('citationAliasSummary', $branch['children'][0]['children'][12]['variable'] ?? null);
+
+        $t->same('[Ames | accepted | accepted | accepted | review queue; source audit | review queue; source audit | review queue; source audit | direct; csl | direct; csl | direct; csl | direct-alias-variable-camel-alt, direct-alias-variable-camel-legacy | direct-alias-variable-camel-alt, direct-alias-variable-camel-legacy | direct-alias-variable-camel-alt; direct-alias-variable-camel-legacy; Bell | in press | in press | in press | dataset; audit | dataset; audit | dataset; audit | handoff; review | handoff; review | handoff; review | direct-alias-variable-hyphen-alt | direct-alias-variable-hyphen-alt | direct-alias-variable-hyphen-alt; Chen | preprint | preprint | preprint | conference; source packet | conference; source packet | conference; source packet | legacy; compact | legacy; compact | legacy; compact | direct-alias-variable-flat-alt | direct-alias-variable-flat-alt | direct-alias-variable-flat-alt]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-alias-variable-flat-alt', 'text' => '[@direct-alias-variable-flat-alt]']),
+            new AstNode('citation', ['id' => 'direct-alias-variable-hyphen-alt', 'text' => '[@direct-alias-variable-hyphen-alt]']),
+            new AstNode('citation', ['id' => 'direct-alias-variable-camel-alt', 'text' => '[@direct-alias-variable-camel-alt]']),
+        ]));
+        $t->same('Direct Alias Variable Camel Packet :: accepted :: review queue; source audit :: direct; csl :: direct-alias-variable-camel-alt; direct-alias-variable-camel-legacy', $styled->renderBibliographyEntry('direct-alias-variable-camel'));
+        $t->same('Direct Alias Variable Hyphen Packet :: in press :: dataset; audit :: handoff; review :: direct-alias-variable-hyphen-alt', $styled->renderBibliographyEntry('direct-alias-variable-hyphen'));
+        $t->same('Direct Alias Variable Flat Packet :: preprint :: conference; source packet :: legacy; compact :: direct-alias-variable-flat-alt', $styled->renderBibliographyEntry('direct-alias-variable-flat'));
+
+        $document = (new MarkdownReader())->read('Import alias variables [@direct-alias-variable-flat-alt; @direct-alias-variable-hyphen-alt; @direct-alias-variable-camel-alt] stay sortable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Import alias variables [Ames | accepted | accepted | accepted | review queue; source audit | review queue; source audit | review queue; source audit | direct; csl | direct; csl | direct; csl | direct-alias-variable-camel-alt, direct-alias-variable-camel-legacy | direct-alias-variable-camel-alt, direct-alias-variable-camel-legacy | direct-alias-variable-camel-alt; direct-alias-variable-camel-legacy; Bell | in press | in press | in press | dataset; audit | dataset; audit | dataset; audit | handoff; review | handoff; review | handoff; review | direct-alias-variable-hyphen-alt | direct-alias-variable-hyphen-alt | direct-alias-variable-hyphen-alt; Chen | preprint | preprint | preprint | conference; source packet | conference; source packet | conference; source packet | legacy; compact | legacy; compact | legacy; compact | direct-alias-variable-flat-alt | direct-alias-variable-flat-alt | direct-alias-variable-flat-alt] stay sortable.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Direct Alias Variable Camel Packet :: accepted :: review queue; source audit :: direct; csl :: direct-alias-variable-camel-alt; direct-alias-variable-camel-legacy</dd>', $blocks);
+        $t->contains('<dt>Chen 2024</dt><dd>Direct Alias Variable Flat Packet :: preprint :: conference; source packet :: legacy; compact :: direct-alias-variable-flat-alt</dd>', $blocks);
+    },
     'normalizes bounded direct csl json abstract note aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [
