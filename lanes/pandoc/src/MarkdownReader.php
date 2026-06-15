@@ -15730,7 +15730,7 @@ final class MarkdownReader
     }
 
     /**
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null} $marker
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null} $marker
      */
     private function canListMarkerInterruptParagraph(array $marker): bool
     {
@@ -15743,7 +15743,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null} $firstMarker
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null} $firstMarker
      * @return array{node: AstNode, next: int}|null
      */
     private function parseList(array $lines, int $cursor, array $firstMarker): ?array
@@ -15756,10 +15756,11 @@ final class MarkdownReader
         $ordered = $firstMarker['ordered'];
         $style = $firstMarker['style'];
         $delimiter = $firstMarker['delimiter'];
+        $bulletMarker = $firstMarker['bulletMarker'];
 
         while ($cursor < $count) {
             $marker = $this->matchListMarker($lines[$cursor], $cursor);
-            if (!$this->isSameListMarker($marker, $baseIndent, $ordered, $style, $delimiter)) {
+            if (!$this->isSameListMarker($marker, $baseIndent, $ordered, $style, $delimiter, $bulletMarker)) {
                 break;
             }
 
@@ -15776,7 +15777,7 @@ final class MarkdownReader
 
             if ($blankCursor > $cursor) {
                 $nextMarker = $blankCursor < $count ? $this->matchListMarker($lines[$blankCursor], $blankCursor) : null;
-                if ($this->isSameListMarker($nextMarker, $baseIndent, $ordered, $style, $delimiter)) {
+                if ($this->isSameListMarker($nextMarker, $baseIndent, $ordered, $style, $delimiter, $bulletMarker)) {
                     $listLoose = true;
                     $cursor = $blankCursor;
                     continue;
@@ -15810,7 +15811,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null} $marker
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null} $marker
      * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null}
      */
     private function parseListItem(
@@ -15899,7 +15900,7 @@ final class MarkdownReader
 
             $lineMarker = $this->matchListMarker($line, $cursor);
             if ($lineMarker !== null) {
-                if ($this->isSameListMarker($lineMarker, $baseIndent, $ordered, $style, $delimiter)) {
+                if ($this->isSameListMarker($lineMarker, $baseIndent, $ordered, $style, $delimiter, $marker['bulletMarker'])) {
                     break;
                 }
 
@@ -16201,7 +16202,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null} $marker
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null} $marker
      * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null}
      */
     private function parseBlockHtmlListItem(array $lines, int $cursor, array $marker): array
@@ -16434,7 +16435,7 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null}|null
+     * @return array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null}|null
      */
     private function matchListMarker(string $line, ?int $lineIndex = null): ?array
     {
@@ -16454,95 +16455,119 @@ final class MarkdownReader
                 'padding' => $example['padding'],
                 'style' => 'example',
                 'delimiter' => 'two_parens',
+                'bulletMarker' => null,
             ];
         }
 
-        if (preg_match('/^( *)([-*+])(?: +(.*)|$)/', $expanded, $m) === 1) {
-            $padding = isset($m[3]) ? strlen($m[0]) - strlen($m[1]) - 1 - strlen($m[3]) : 1;
-            $text = $m[3] ?? '';
+        if (preg_match('/^( *)([-*+])(.*)$/', $expanded, $m) === 1) {
+            $tail = $this->splitListMarkerTail($m[3]);
+            if ($tail === null) {
+                return null;
+            }
+            $indent = strlen($m[1]);
 
             return [
-                'indent' => strlen($m[1]),
+                'indent' => $indent,
                 'ordered' => false,
                 'start' => null,
-                'text' => $text,
-                'contentIndent' => strlen($m[1]) + 1 + $padding,
-                'padding' => $padding,
+                'text' => $tail['text'],
+                'contentIndent' => $this->listMarkerContentIndent($indent, 1, $tail['padding']),
+                'padding' => $tail['padding'],
                 'style' => null,
                 'delimiter' => null,
+                'bulletMarker' => $m[2],
             ];
         }
 
-        if (preg_match('/^( *)#([.)])(?: +(.*)|$)/', $expanded, $m) === 1) {
-            $padding = isset($m[3]) ? strlen($m[0]) - strlen($m[1]) - 2 - strlen($m[3]) : 1;
-            $text = $m[3] ?? '';
+        if (preg_match('/^( *)#([.)])(.*)$/', $expanded, $m) === 1) {
+            $tail = $this->splitListMarkerTail($m[3]);
+            if ($tail === null) {
+                return null;
+            }
+            $indent = strlen($m[1]);
 
             return [
-                'indent' => strlen($m[1]),
+                'indent' => $indent,
                 'ordered' => true,
                 'start' => 1,
-                'text' => $text,
-                'contentIndent' => strlen($m[1]) + 2 + $padding,
-                'padding' => $padding,
+                'text' => $tail['text'],
+                'contentIndent' => $this->listMarkerContentIndent($indent, 2, $tail['padding']),
+                'padding' => $tail['padding'],
                 'style' => 'default',
                 'delimiter' => 'default',
+                'bulletMarker' => null,
             ];
         }
 
-        if (preg_match('/^( *)\(([0-9]{1,9}|[A-Za-z]+)\)(?: +(.*)|$)/', $expanded, $m) === 1) {
-            $padding = isset($m[3]) ? strlen($m[0]) - strlen($m[1]) - strlen($m[2]) - 2 - strlen($m[3]) : 0;
-            $text = $m[3] ?? '';
-            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], 'two_parens', $padding, strlen($m[1]));
+        if (preg_match('/^( *)\(([0-9]{1,9}|[A-Za-z]+)\)(.*)$/', $expanded, $m) === 1) {
+            $tail = $this->splitListMarkerTail($m[3]);
+            if ($tail === null) {
+                return null;
+            }
+            $indent = strlen($m[1]);
+            $markerWidth = strlen($m[2]) + 2;
+            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], 'two_parens', $tail['padding'], $indent);
             if ($ordinal === null) {
                 return null;
             }
 
             return [
-                'indent' => strlen($m[1]),
+                'indent' => $indent,
                 'ordered' => true,
                 'start' => $ordinal['start'],
-                'text' => $text,
-                'contentIndent' => strlen($m[1]) + strlen($m[2]) + 2 + max(1, $padding),
-                'padding' => max(1, $padding),
+                'text' => $tail['text'],
+                'contentIndent' => $this->listMarkerContentIndent($indent, $markerWidth, $tail['padding']),
+                'padding' => $tail['padding'],
                 'style' => $ordinal['style'],
                 'delimiter' => 'two_parens',
+                'bulletMarker' => null,
             ];
         }
 
-        if (preg_match('/^( *)(\d{1,9})([.)])(?: +(.*)|$)/', $expanded, $m) === 1) {
-            $padding = isset($m[4]) ? strlen($m[0]) - strlen($m[1]) - strlen($m[2]) - 1 - strlen($m[4]) : 1;
-            $text = $m[4] ?? '';
+        if (preg_match('/^( *)(\d{1,9})([.)])(.*)$/', $expanded, $m) === 1) {
+            $tail = $this->splitListMarkerTail($m[4]);
+            if ($tail === null) {
+                return null;
+            }
+            $indent = strlen($m[1]);
+            $markerWidth = strlen($m[2]) + 1;
 
             return [
-                'indent' => strlen($m[1]),
+                'indent' => $indent,
                 'ordered' => true,
                 'start' => (int) $m[2],
-                'text' => $text,
-                'contentIndent' => strlen($m[1]) + strlen($m[2]) + 1 + $padding,
-                'padding' => $padding,
+                'text' => $tail['text'],
+                'contentIndent' => $this->listMarkerContentIndent($indent, $markerWidth, $tail['padding']),
+                'padding' => $tail['padding'],
                 'style' => 'decimal',
                 'delimiter' => $m[3] === ')' ? 'one_paren' : 'period',
+                'bulletMarker' => null,
             ];
         }
 
-        if (preg_match('/^( *)([A-Za-z]+)([.)])(?: +(.*)|$)/', $expanded, $m) === 1) {
+        if (preg_match('/^( *)([A-Za-z]+)([.)])(.*)$/', $expanded, $m) === 1) {
+            $tail = $this->splitListMarkerTail($m[4]);
+            if ($tail === null) {
+                return null;
+            }
+            $indent = strlen($m[1]);
+            $markerWidth = strlen($m[2]) + 1;
             $delimiter = $m[3] === ')' ? 'one_paren' : 'period';
-            $padding = isset($m[4]) ? strlen($m[0]) - strlen($m[1]) - strlen($m[2]) - 1 - strlen($m[4]) : 0;
-            $text = $m[4] ?? '';
-            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], $delimiter, $padding, strlen($m[1]));
+            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], $delimiter, $tail['padding'], $indent);
             if ($ordinal === null) {
                 return null;
             }
 
             return [
-                'indent' => strlen($m[1]),
+                'indent' => $indent,
                 'ordered' => true,
                 'start' => $ordinal['start'],
-                'text' => $text,
-                'contentIndent' => strlen($m[1]) + strlen($m[2]) + 1 + max(1, $padding),
-                'padding' => max(1, $padding),
+                'text' => $tail['text'],
+                'contentIndent' => $this->listMarkerContentIndent($indent, $markerWidth, $tail['padding']),
+                'padding' => $tail['padding'],
                 'style' => $ordinal['style'],
                 'delimiter' => $delimiter,
+                'bulletMarker' => null,
             ];
         }
 
@@ -16555,18 +16580,44 @@ final class MarkdownReader
     private function matchNumberedExampleMarker(string $line): ?array
     {
         $expanded = $this->expandTabsToSpaces($line);
-        if (preg_match('/^( *)\(@([A-Za-z0-9_-]*)\)(?: +(.*)|$)/', $expanded, $m) !== 1) {
+        if (preg_match('/^( *)\(@([A-Za-z0-9_-]*)\)(.*)$/', $expanded, $m) !== 1) {
             return null;
         }
-        $padding = isset($m[3]) ? strlen($m[0]) - strlen($m[1]) - strlen($m[2]) - 3 - strlen($m[3]) : 1;
+        $tail = $this->splitListMarkerTail($m[3]);
+        if ($tail === null) {
+            return null;
+        }
+        $indent = strlen($m[1]);
+        $markerWidth = strlen($m[2]) + 3;
 
         return [
-            'indent' => strlen($m[1]),
+            'indent' => $indent,
             'label' => $m[2],
-            'text' => $m[3] ?? '',
-            'contentIndent' => strlen($m[1]) + strlen($m[2]) + 3 + $padding,
-            'padding' => $padding,
+            'text' => $tail['text'],
+            'contentIndent' => $this->listMarkerContentIndent($indent, $markerWidth, $tail['padding']),
+            'padding' => $tail['padding'],
         ];
+    }
+
+    /**
+     * @return array{padding:int, text:string}|null
+     */
+    private function splitListMarkerTail(string $tail): ?array
+    {
+        if ($tail === '') {
+            return ['padding' => 0, 'text' => ''];
+        }
+
+        if (preg_match('/^( +)(.*)$/', $tail, $m) !== 1) {
+            return null;
+        }
+
+        return ['padding' => strlen($m[1]), 'text' => $m[2]];
+    }
+
+    private function listMarkerContentIndent(int $indent, int $markerWidth, int $padding): int
+    {
+        return $indent + $markerWidth + max(1, $padding);
     }
 
     private function isSameListMarker(
@@ -16574,13 +16625,15 @@ final class MarkdownReader
         int $baseIndent,
         bool $ordered,
         ?string $style,
-        ?string $delimiter
+        ?string $delimiter,
+        ?string $bulletMarker
     ): bool {
         return $marker !== null
             && $marker['indent'] === $baseIndent
             && $marker['ordered'] === $ordered
             && $marker['style'] === $style
-            && $marker['delimiter'] === $delimiter;
+            && $marker['delimiter'] === $delimiter
+            && $marker['bulletMarker'] === $bulletMarker;
     }
 
     private function isNestedListMarker(?array $marker, int $baseIndent, int $contentIndent): bool

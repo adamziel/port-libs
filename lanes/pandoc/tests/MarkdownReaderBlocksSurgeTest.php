@@ -1787,4 +1787,135 @@ foreach ($markers as $label => $case) {
     };
 }
 
+$assertListAttrs = static function (TestRunner $t, AstNode $list, array $case): void {
+    if (isset($case['start'])) {
+        $t->same($case['start'], $list->attr('start'));
+    }
+    if (isset($case['style'])) {
+        $t->same($case['style'], $list->attr('style'));
+    }
+    if (isset($case['delimiter'])) {
+        $t->same($case['delimiter'], $list->attr('delimiter'));
+    }
+};
+
+$emptyMarkerCases = [
+    'dash bullet' => ['marker' => '-', 'next' => '- next', 'indent' => '  ', 'list' => 'bullet_list'],
+    'plus bullet' => ['marker' => '+', 'next' => '+ next', 'indent' => '  ', 'list' => 'bullet_list'],
+    'star bullet' => ['marker' => '*', 'next' => '* next', 'indent' => '  ', 'list' => 'bullet_list'],
+    'decimal period' => ['marker' => '1.', 'next' => '2. next', 'indent' => '   ', 'list' => 'ordered_list', 'start' => 1, 'style' => 'decimal', 'delimiter' => 'period'],
+    'decimal paren' => ['marker' => '1)', 'next' => '2) next', 'indent' => '   ', 'list' => 'ordered_list', 'start' => 1, 'style' => 'decimal', 'delimiter' => 'one_paren'],
+    'zero padded decimal' => ['marker' => '001.', 'next' => '002. next', 'indent' => '     ', 'list' => 'ordered_list', 'start' => 1, 'style' => 'decimal', 'delimiter' => 'period'],
+    'default period' => ['marker' => '#.', 'next' => '#. next', 'indent' => '   ', 'list' => 'ordered_list', 'start' => 1, 'style' => 'default', 'delimiter' => 'default'],
+    'default paren' => ['marker' => '#)', 'next' => '#) next', 'indent' => '   ', 'list' => 'ordered_list', 'start' => 1, 'style' => 'default', 'delimiter' => 'default'],
+    'two paren decimal' => ['marker' => '(1)', 'next' => '(2) next', 'indent' => '    ', 'list' => 'ordered_list', 'start' => 1, 'style' => 'decimal', 'delimiter' => 'two_parens'],
+    'numbered example' => ['marker' => '(@)', 'next' => '(@) next', 'indent' => '    ', 'list' => 'ordered_list', 'start' => 1, 'style' => 'example', 'delimiter' => 'two_parens'],
+    'labeled numbered example' => ['marker' => '(@review)', 'next' => '(@next) next', 'indent' => '          ', 'list' => 'ordered_list', 'start' => 1, 'style' => 'example', 'delimiter' => 'two_parens'],
+    'upper roman period' => ['marker' => 'IV.', 'next' => 'V.  next', 'indent' => '    ', 'list' => 'ordered_list', 'start' => 4, 'style' => 'upper_roman', 'delimiter' => 'period'],
+    'lower roman period' => ['marker' => 'iv.', 'next' => 'v.  next', 'indent' => '    ', 'list' => 'ordered_list', 'start' => 4, 'style' => 'lower_roman', 'delimiter' => 'period'],
+    'indented upper alpha period' => ['marker' => '  A.', 'next' => '  B.  next', 'indent' => '     ', 'list' => 'ordered_list', 'start' => 1, 'style' => 'upper_alpha', 'delimiter' => 'period'],
+    'indented lower alpha paren' => ['marker' => '  a)', 'next' => '  b)  next', 'indent' => '     ', 'list' => 'ordered_list', 'start' => 1, 'style' => 'lower_alpha', 'delimiter' => 'one_paren'],
+    'indented parenthesized alpha' => ['marker' => '  (A)', 'next' => '  (B)  next', 'indent' => '      ', 'list' => 'ordered_list', 'start' => 1, 'style' => 'upper_alpha', 'delimiter' => 'two_parens'],
+];
+
+foreach ($emptyMarkerCases as $label => $case) {
+    $tests["maps commonmark block list empty marker continuation {$label}"] = static function (TestRunner $t) use ($read, $listItemText, $assertListAttrs, $case): void {
+        $document = $read($case['marker'] . "\n" . $case['indent'] . 'continued' . "\n" . $case['next']);
+        $list = $document->children[0] ?? new AstNode('missing');
+        $first = $list->children[0] ?? new AstNode('missing');
+        $second = $list->children[1] ?? new AstNode('missing');
+
+        $t->same([$case['list']], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same($case['list'], $list->type);
+        $assertListAttrs($t, $list, $case);
+        $t->same('', $first->attr('text'));
+        $t->same('continued', $listItemText($first));
+        $t->same('next', $listItemText($second));
+    };
+
+    $tests["maps commonmark block list empty marker item {$label}"] = static function (TestRunner $t) use ($read, $listItemText, $assertListAttrs, $case): void {
+        $document = $read($case['marker'] . "\n" . $case['next']);
+        $list = $document->children[0] ?? new AstNode('missing');
+        $first = $list->children[0] ?? new AstNode('missing');
+        $second = $list->children[1] ?? new AstNode('missing');
+
+        $t->same([$case['list']], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same($case['list'], $list->type);
+        $assertListAttrs($t, $list, $case);
+        $t->same('', $first->attr('text'));
+        $t->same([], $first->children);
+        $t->same('next', $listItemText($second));
+    };
+}
+
+$bulletBoundaryCases = [];
+foreach ([
+    'dash' => '-',
+    'plus' => '+',
+    'star' => '*',
+] as $leftName => $leftMarker) {
+    foreach ([
+        'dash' => '-',
+        'plus' => '+',
+        'star' => '*',
+    ] as $rightName => $rightMarker) {
+        if ($leftMarker === $rightMarker) {
+            continue;
+        }
+        $bulletBoundaryCases["{$leftName} then {$rightName}"] = [$leftMarker, $rightMarker];
+    }
+}
+
+foreach ($bulletBoundaryCases as $label => [$leftMarker, $rightMarker]) {
+    $tests["maps commonmark block list bullet marker boundary {$label}"] = static function (TestRunner $t) use ($read, $listItemText, $leftMarker, $rightMarker): void {
+        $document = $read($leftMarker . ' first' . "\n" . $rightMarker . ' second');
+        $t->same(['bullet_list', 'bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('first', $listItemText($document->children[0]->children[0]));
+        $t->same('second', $listItemText($document->children[1]->children[0]));
+    };
+
+    $tests["maps commonmark block list blank bullet marker boundary {$label}"] = static function (TestRunner $t) use ($read, $listItemText, $leftMarker, $rightMarker): void {
+        $document = $read($leftMarker . ' first' . "\n\n" . $rightMarker . ' second');
+        $t->same(['bullet_list', 'bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same(false, (bool) $document->children[0]->attr('loose'));
+        $t->same(false, (bool) $document->children[1]->attr('loose'));
+        $t->same('first', $listItemText($document->children[0]->children[0]));
+        $t->same('second', $listItemText($document->children[1]->children[0]));
+    };
+}
+
+$emptyMarkerBlockCases = [
+    'dash blockquote' => ['markdown' => "-\n  > quoted\n- next", 'list' => 'bullet_list', 'child' => 'blockquote', 'text' => 'quoted'],
+    'plus fenced code' => ['markdown' => "+\n  ``` php\n  echo 1;\n  ```\n+ next", 'list' => 'bullet_list', 'child' => 'code_block', 'code' => 'echo 1;', 'classes' => ['php']],
+    'star heading' => ['markdown' => "*\n  # Nested\n* next", 'list' => 'bullet_list', 'child' => 'heading', 'text' => 'Nested'],
+    'decimal paren horizontal rule' => ['markdown' => "1)\n   ---\n2) next", 'list' => 'ordered_list', 'child' => 'horizontal_rule', 'start' => 1, 'style' => 'decimal', 'delimiter' => 'one_paren'],
+    'default blockquote' => ['markdown' => "#.\n   > default\n#. next", 'list' => 'ordered_list', 'child' => 'blockquote', 'text' => 'default', 'start' => 1, 'style' => 'default', 'delimiter' => 'default'],
+    'two paren fenced code' => ['markdown' => "(1)\n    ```\n    code\n    ```\n(2) next", 'list' => 'ordered_list', 'child' => 'code_block', 'code' => 'code', 'start' => 1, 'style' => 'decimal', 'delimiter' => 'two_parens'],
+];
+
+foreach ($emptyMarkerBlockCases as $label => $case) {
+    $tests["maps commonmark block list empty marker block child {$label}"] = static function (TestRunner $t) use ($read, $listItemText, $assertListAttrs, $case): void {
+        $document = $read($case['markdown']);
+        $list = $document->children[0] ?? new AstNode('missing');
+        $first = $list->children[0] ?? new AstNode('missing');
+        $block = $first->children[0] ?? new AstNode('missing');
+
+        $t->same([$case['list']], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same($case['list'], $list->type);
+        $assertListAttrs($t, $list, $case);
+        $t->same('', $first->attr('text'));
+        $t->same($case['child'], $block->type);
+        $t->same('next', $listItemText($list->children[1]));
+        if (isset($case['text'])) {
+            $t->same($case['text'], $block->attr('text', $listItemText($block)));
+        }
+        if (isset($case['code'])) {
+            $t->same($case['code'], $block->attr('text'));
+        }
+        if (isset($case['classes'])) {
+            $t->same($case['classes'], $block->attr('classes'));
+        }
+    };
+}
+
 return $tests;
