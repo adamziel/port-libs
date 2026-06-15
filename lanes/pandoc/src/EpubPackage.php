@@ -816,6 +816,9 @@ final class EpubPackage
                 'ncxNavigationSelectedBy' => $ncxNavigationSelection['selectedBy'],
                 'ncxNavigationSelectedItem' => $ncxNavigationSelection['selectedItem'],
                 'ncxNavigationFallbackToManifestScan' => $ncxNavigationSelection['fallbackToManifestScan'],
+                'ncxSpineTocBinding' => $ncxNavigationSelection['binding'],
+                'ncxSpineTocBindingStatus' => $ncxNavigationSelection['bindingStatus'],
+                'ncxSpineTocBindingDiagnostics' => $ncxNavigationSelection['binding']['diagnostics'] ?? [],
                 'spineAuthoring' => $spineAuthoring,
                 'spineAuthoringItems' => $spineAuthoring['items'],
                 'manifestMediaTypeParameterItems' => $validationReport['manifest']['mediaTypeParameterItems'],
@@ -1146,12 +1149,19 @@ final class EpubPackage
         $manifestNcxItems = self::compactDiagnosticList($ncxReport['manifestNcxItems'] ?? []);
         $tocItem = is_array($ncxReport['tocItem'] ?? null) ? $ncxReport['tocItem'] : null;
         $selectedItem = is_array($ncxReport['selectedItem'] ?? null) ? $ncxReport['selectedItem'] : null;
+        $binding = is_array($ncxReport['binding'] ?? null) ? $ncxReport['binding'] : [];
         $source = is_string($navigationReport['source'] ?? null) ? $navigationReport['source'] : null;
         $selectedBy = is_string($ncxReport['selectedBy'] ?? null) ? $ncxReport['selectedBy'] : null;
         $tocSpecified = ($ncxReport['tocSpecified'] ?? false) === true;
+        $tocRaw = $tocSpecified && is_string($ncxReport['tocRaw'] ?? null)
+            ? (string) $ncxReport['tocRaw']
+            : null;
         $tocId = is_string($ncxReport['tocId'] ?? null) && trim($ncxReport['tocId']) !== ''
             ? trim($ncxReport['tocId'])
             : null;
+        $bindingStatus = is_string($ncxReport['bindingStatus'] ?? null)
+            ? (string) $ncxReport['bindingStatus']
+            : 'absent';
         $manifestNcxItemCount = is_int($ncxReport['manifestNcxItemCount'] ?? null)
             ? (int) $ncxReport['manifestNcxItemCount']
             : count($manifestNcxItems);
@@ -1173,7 +1183,9 @@ final class EpubPackage
             'source' => $source,
             'sourceIsNcx' => $sourceIsNcx,
             'tocSpecified' => $tocSpecified,
+            'tocRaw' => $tocRaw,
             'tocId' => $tocId,
+            'tocEmpty' => ($ncxReport['tocEmpty'] ?? false) === true,
             'tocItem' => $tocItem,
             'tocUsable' => $tocUsable,
             'selectedMatchesToc' => $selectedMatchesToc,
@@ -1181,6 +1193,8 @@ final class EpubPackage
             'selectedItem' => $selectedItem,
             'selectedPartName' => $selectedPartName,
             'fallbackToManifestScan' => $sourceIsNcx && $selectedBy === 'manifest-scan' && !$selectedMatchesToc,
+            'bindingStatus' => $bindingStatus,
+            'binding' => $binding,
             'manifestNcxItemCount' => $manifestNcxItemCount,
             'manifestNcxItems' => $manifestNcxItems,
             'entryCount' => is_int($navigationReport['entryCount'] ?? null) ? (int) $navigationReport['entryCount'] : 0,
@@ -1297,7 +1311,7 @@ final class EpubPackage
         $metadataReport = self::packageMetadataValidationReport($metadata, $epub3);
         $manifestReport = self::packageManifestValidationReport($manifestItems, $epub3);
         $spineReport = self::packageSpineValidationReport($spine, $spineMetadata);
-        $ncxReport = self::packageNcxValidationReport($spineTocId, $manifestItems, $navigation);
+        $ncxReport = self::packageNcxValidationReport($spineTocId, $spineMetadata, $manifestItems, $navigation);
         $navigationReport = self::packageNavigationValidationReport($package, $navigation, $navigationSections);
         $diagnostics = array_merge(
             $rootfileReport['diagnostics'],
@@ -2212,7 +2226,7 @@ final class EpubPackage
      *
      * @return array<string, mixed>
      */
-    private static function packageNcxValidationReport(?string $spineTocId, array $manifestItems, ?array $navigation): array
+    private static function packageNcxValidationReport(?string $spineTocId, array $spineMetadata, array $manifestItems, ?array $navigation): array
     {
         $manifestById = [];
         $ncxItems = [];
@@ -2227,6 +2241,10 @@ final class EpubPackage
             }
         }
 
+        $tocSpecified = ($spineMetadata['tocSpecified'] ?? false) === true;
+        $tocRaw = $tocSpecified && is_string($spineMetadata['tocRaw'] ?? null)
+            ? (string) $spineMetadata['tocRaw']
+            : null;
         $tocId = is_string($spineTocId) && trim($spineTocId) !== '' ? trim($spineTocId) : null;
         $tocItem = $tocId !== null && isset($manifestById[$tocId])
             ? self::compactManifestBindingItem($manifestById[$tocId])
@@ -2243,7 +2261,13 @@ final class EpubPackage
         }
 
         $diagnostics = [];
-        if ($tocId !== null && $tocItem === null) {
+        if ($tocSpecified && $tocId === null) {
+            $diagnostics[] = [
+                'type' => 'empty-spine-toc-attribute',
+                'tocRaw' => $tocRaw,
+                'message' => 'EPUB spine toc attribute is present but does not name an NCX manifest item',
+            ];
+        } elseif ($tocId !== null && $tocItem === null) {
             $diagnostics[] = [
                 'type' => 'missing-spine-toc-manifest-item',
                 'tocId' => $tocId,
@@ -2265,16 +2289,65 @@ final class EpubPackage
                 ? 'spine-toc'
                 : 'manifest-scan';
         }
+        $selectedPartName = is_array($selectedItem) && is_string($selectedItem['partName'] ?? null)
+            ? $selectedItem['partName']
+            : null;
+        $tocItemIsNcx = $tocItem !== null && ($tocItem['mediaType'] ?? null) === self::NCX_MEDIA_TYPE;
+        $selectedMatchesToc = $tocItemIsNcx
+            && $selectedItem !== null
+            && ($selectedItem['id'] ?? null) === ($tocItem['id'] ?? null)
+            && ($selectedItem['partName'] ?? null) === ($tocItem['partName'] ?? null);
+        $fallbackToManifestScan = $selectedBy === 'manifest-scan' && !$selectedMatchesToc;
+        $bindingStatus = 'absent';
+        if ($tocSpecified && $tocId === null) {
+            $bindingStatus = 'empty';
+        } elseif ($tocId !== null && $tocItem === null) {
+            $bindingStatus = 'missing';
+        } elseif ($tocItem !== null && !$tocItemIsNcx) {
+            $bindingStatus = 'non-ncx';
+        } elseif ($selectedMatchesToc) {
+            $bindingStatus = 'selected';
+        } elseif ($tocItemIsNcx) {
+            $bindingStatus = 'available';
+        }
+        $binding = [
+            'status' => $bindingStatus,
+            'tocSpecified' => $tocSpecified,
+            'tocRaw' => $tocRaw,
+            'tocId' => $tocId,
+            'tocEmpty' => $tocSpecified && $tocId === null,
+            'tocItemFound' => $tocItem !== null,
+            'tocItemIsNcx' => $tocItemIsNcx,
+            'tocItem' => $tocItem,
+            'selectedBy' => $selectedBy,
+            'selectedItem' => $selectedItem,
+            'selectedPartName' => $selectedPartName,
+            'selectedMatchesToc' => $selectedMatchesToc,
+            'fallbackToManifestScan' => $fallbackToManifestScan,
+            'manifestNcxItemCount' => count($ncxItems),
+            'manifestNcxItems' => $ncxItems,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
 
         return [
             'valid' => $diagnostics === [],
-            'tocSpecified' => $tocId !== null,
+            'tocSpecified' => $tocSpecified,
+            'tocRaw' => $tocRaw,
             'tocId' => $tocId,
+            'tocEmpty' => $tocSpecified && $tocId === null,
             'tocItem' => $tocItem,
+            'tocItemFound' => $tocItem !== null,
+            'tocItemIsNcx' => $tocItemIsNcx,
             'manifestNcxItemCount' => count($ncxItems),
             'manifestNcxItems' => $ncxItems,
             'selectedBy' => $selectedBy,
             'selectedItem' => $selectedItem,
+            'selectedPartName' => $selectedPartName,
+            'selectedMatchesToc' => $selectedMatchesToc,
+            'fallbackToManifestScan' => $fallbackToManifestScan,
+            'bindingStatus' => $bindingStatus,
+            'binding' => $binding,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -8061,6 +8134,7 @@ final class EpubPackage
     private static function parseSpineMetadata(\DOMElement $spineElement): array
     {
         $tocSpecified = $spineElement->hasAttribute('toc');
+        $tocRaw = $tocSpecified ? $spineElement->getAttribute('toc') : null;
         $pageProgressionSpecified = $spineElement->hasAttribute('page-progression-direction');
         $pageProgressionRaw = $pageProgressionSpecified
             ? self::emptyToNull($spineElement->getAttribute('page-progression-direction'))
@@ -8081,7 +8155,8 @@ final class EpubPackage
 
         return [
             'tocSpecified' => $tocSpecified,
-            'tocId' => $tocSpecified ? self::emptyToNull($spineElement->getAttribute('toc')) : null,
+            'tocRaw' => $tocRaw,
+            'tocId' => $tocSpecified && $tocRaw !== null ? self::emptyToNull($tocRaw) : null,
             'pageProgressionDirectionSpecified' => $pageProgressionSpecified,
             'pageProgressionDirectionRaw' => $pageProgressionRaw,
             'pageProgressionDirection' => $pageProgression,

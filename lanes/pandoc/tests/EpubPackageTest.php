@@ -5417,6 +5417,84 @@ XML;
         $t->same(['missing-spine-toc-manifest-item'], $missingSelection['diagnosticTypes']);
     },
 
+    'reports empty OPF spine toc binding while preserving NCX manifest fallback' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $ncxXml = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="chapter" playOrder="1">
+      <navLabel><text>Fallback NCX chapter</text></navLabel>
+      <content src="chapter.xhtml"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML;
+        $opfWithEmptyToc = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:empty-ncx-binding</dc:identifier>
+    <dc:title>Empty NCX binding</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+  </manifest>
+  <spine toc="">
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithEmptyToc],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Chapter</body></html>'],
+            ['name' => 'EPUB/toc.ncx', 'data' => $ncxXml],
+        ]));
+        $spineMetadata = $epub->spineMetadata();
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+        $ncx = $validation['ncx'];
+        $binding = $ncx['binding'];
+        $selection = $summary['ncxNavigationSelection'];
+
+        $t->same(false, $validation['valid']);
+        $t->same(1, $validation['diagnosticCount']);
+        $t->same(['empty-spine-toc-attribute'], array_column($validation['diagnostics'], 'type'));
+        $t->same(true, $spineMetadata['tocSpecified']);
+        $t->same('', $spineMetadata['tocRaw']);
+        $t->same(null, $spineMetadata['tocId']);
+        $t->same(true, $ncx['tocSpecified']);
+        $t->same('', $ncx['tocRaw']);
+        $t->same(null, $ncx['tocId']);
+        $t->same(true, $ncx['tocEmpty']);
+        $t->same('empty', $ncx['bindingStatus']);
+        $t->same(null, $ncx['tocItem']);
+        $t->same(1, $ncx['manifestNcxItemCount']);
+        $t->same('manifest-scan', $ncx['selectedBy']);
+        $t->same('toc', $ncx['selectedItem']['id']);
+        $t->same('/EPUB/toc.ncx', $ncx['selectedPartName']);
+        $t->same(false, $ncx['selectedMatchesToc']);
+        $t->same(true, $ncx['fallbackToManifestScan']);
+        $t->same('empty-spine-toc-attribute', $ncx['diagnostics'][0]['type']);
+        $t->same('empty', $binding['status']);
+        $t->same('', $binding['tocRaw']);
+        $t->same(true, $binding['tocEmpty']);
+        $t->same('manifest-scan', $binding['selectedBy']);
+        $t->same('toc', $binding['selectedItem']['id']);
+        $t->same(true, $binding['fallbackToManifestScan']);
+        $t->same('ncx', $validation['navigation']['source']);
+        $t->same(1, $validation['navigation']['entryCount']);
+        $t->same('Fallback NCX chapter', $epub->navigation()['entries'][0]['label']);
+        $t->same($selection, $summary['wordpressImport']['ncxNavigationSelection']);
+        $t->same('empty', $selection['bindingStatus']);
+        $t->same($binding, $selection['binding']);
+        $t->same($binding, $summary['wordpressImport']['ncxSpineTocBinding']);
+        $t->same('empty', $summary['wordpressImport']['ncxSpineTocBindingStatus']);
+        $t->same($binding['diagnostics'], $summary['wordpressImport']['ncxSpineTocBindingDiagnostics']);
+    },
+
     'preserves EPUB container rootfile full-path suffix provenance for package review' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
         $containerWithRootfileSuffix = <<<'XML'
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
