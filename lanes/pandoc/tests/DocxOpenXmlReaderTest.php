@@ -226,6 +226,87 @@ return [
         $t->same(2, $methodBuckets[0]['entryCount']);
         $t->same(count($parts) - 1, $methodBuckets[8]['entryCount']);
     },
+    'preserves docx zip entry name policy provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        $zipParts[] = ['name' => 'word/media/Review.PNG', 'data' => 'alternate case image bytes', 'compressionMethod' => 0];
+        $zipParts[] = ['name' => 'word/media/ leading.png', 'data' => 'leading space image bytes', 'compressionMethod' => 0];
+        $zipParts[] = ['name' => 'word/media/trailing./scan.png', 'data' => 'trailing dot segment image bytes', 'compressionMethod' => 0];
+        $zipParts[] = ['name' => 'word/media/CON', 'data' => 'windows reserved device image bytes', 'compressionMethod' => 0];
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(ZipPackage::fromParts($zipParts));
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $namePolicy = $zipPackage['namePolicy'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $caseCollision = $namePolicy['caseInsensitiveNameCollisionGroups'][0];
+        $caseEntries = $namePolicy['caseInsensitiveNameCollisionEntries'];
+        $hygieneEntries = $namePolicy['nameHygieneReviewEntries'];
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $zipPackage['present']);
+        $t->same(count($zipParts), $zipPackage['entryCount']);
+        $t->same(count($zipParts), $zipPackage['loadedPartCount']);
+        $t->same(true, $namePolicy['present']);
+        $t->same(count($zipParts), $namePolicy['entryCount']);
+        $t->same(false, $namePolicy['valid']);
+        $t->same(2, $namePolicy['issueCount']);
+        $t->same(['case-insensitive-name-collisions', 'name-hygiene-review-entries'], $namePolicy['issueCodes']);
+
+        $t->same(0, $namePolicy['pathHierarchyCollisionEntryCount']);
+        $t->same([], $namePolicy['pathHierarchyCollisionEntries']);
+        $t->same(1, $namePolicy['caseInsensitiveNameCollisionGroupCount']);
+        $t->same(2, $namePolicy['caseInsensitiveNameCollisionEntryCount']);
+        $t->same('word/media/review.png', $caseCollision['caseFoldKey']);
+        $t->same(['word/media/review.png', 'word/media/Review.PNG'], $caseCollision['entryNames']);
+        $t->same('word/media/review.png', $caseEntries[0]['name']);
+        $t->same('word/media/Review.PNG', $caseEntries[1]['name']);
+        $t->same(['case-insensitive-name-collision'], $caseEntries[0]['issues']);
+        $t->same(['case-insensitive-name-collision'], $caseEntries[1]['issues']);
+
+        $t->same(0, $namePolicy['rawNameCollisionGroupCount']);
+        $t->same(0, $namePolicy['rawNameCollisionEntryCount']);
+        $t->same(0, $namePolicy['rawNameProvenanceEntryCount']);
+        $t->same([], $namePolicy['rawNameCollisionGroups']);
+        $t->same([], $namePolicy['rawNameProvenanceEntries']);
+
+        $t->same(3, $namePolicy['nameHygieneReviewEntryCount']);
+        $t->same(1, $namePolicy['nameHygieneLeadingOrTrailingWhitespaceEntryCount']);
+        $t->same(1, $namePolicy['nameHygieneTrailingDotSegmentEntryCount']);
+        $t->same(1, $namePolicy['nameHygieneWindowsReservedNameEntryCount']);
+        $t->same(0, $namePolicy['nameHygieneWindowsAlternateDataStreamEntryCount']);
+        $t->same(0, $namePolicy['nameHygieneUnicodeFormatControlEntryCount']);
+        $t->same(0, $namePolicy['nameHygieneUnicodeBidiControlEntryCount']);
+        $t->same('word/media/ leading.png', $hygieneEntries[0]['name']);
+        $t->same(['segment-leading-or-trailing-whitespace'], $hygieneEntries[0]['issues']);
+        $t->same(' leading.png', $hygieneEntries[0]['flaggedSegments'][0]['segment']);
+        $t->same('word/media/trailing./scan.png', $hygieneEntries[1]['name']);
+        $t->same(['segment-trailing-dot'], $hygieneEntries[1]['issues']);
+        $t->same('trailing.', $hygieneEntries[1]['flaggedSegments'][0]['segment']);
+        $t->same('word/media/CON', $hygieneEntries[2]['name']);
+        $t->same(['segment-windows-reserved-name'], $hygieneEntries[2]['issues']);
+        $t->same('CON', $hygieneEntries[2]['flaggedSegments'][0]['segment']);
+
+        $t->same(false, $summary['zipNamePolicyValid']);
+        $t->same($namePolicy['issueCodes'], $summary['zipNamePolicyIssueCodes']);
+        $t->same(2, $summary['zipNamePolicyIssueCount']);
+        $t->same(1, $summary['zipCaseInsensitiveNameCollisionGroupCount']);
+        $t->same(2, $summary['zipCaseInsensitiveNameCollisionEntryCount']);
+        $t->same(3, $summary['zipNameHygieneReviewEntryCount']);
+        $t->same(1, $summary['zipNameHygieneLeadingOrTrailingWhitespaceEntryCount']);
+        $t->same(1, $summary['zipNameHygieneTrailingDotSegmentEntryCount']);
+        $t->same(1, $summary['zipNameHygieneWindowsReservedNameEntryCount']);
+
+        $t->same(true, $inventory['word/media/Review.PNG']['zipEntryPresent']);
+        $t->same('image/png', $inventory['word/media/Review.PNG']['contentTypeBase']);
+        $t->same(true, $inventory['word/media/ leading.png']['zipEntryPresent']);
+        $t->same('image/png', $inventory['word/media/ leading.png']['contentTypeBase']);
+        $t->same(true, $inventory['word/media/trailing./scan.png']['zipEntryPresent']);
+        $t->same('image/png', $inventory['word/media/trailing./scan.png']['contentTypeBase']);
+        $t->same(true, $inventory['word/media/CON']['zipEntryPresent']);
+        $t->same('missing', $inventory['word/media/CON']['contentTypeSource']);
+    },
     'preserves docx package inventory CRC32 provenance for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';

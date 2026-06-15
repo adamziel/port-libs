@@ -5765,6 +5765,23 @@ final class DocxOpenXmlReader
         $summary['zipUnsupportedCompressionMethodCount'] = $zipPackage['unsupportedCompressionMethodCount'];
         $summary['zipCentralDirectoryOrderMatchesLocalHeaderOrder'] = $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'];
         $summary['zipCompressionMethods'] = $zipPackage['compressionMethods']['methodBuckets'] ?? [];
+        $zipNamePolicy = $zipPackage['namePolicy'];
+        $summary['zipNamePolicyValid'] = $zipNamePolicy['valid'];
+        $summary['zipNamePolicyIssueCount'] = $zipNamePolicy['issueCount'];
+        $summary['zipNamePolicyIssueCodes'] = $zipNamePolicy['issueCodes'];
+        $summary['zipPathHierarchyCollisionEntryCount'] = $zipNamePolicy['pathHierarchyCollisionEntryCount'];
+        $summary['zipCaseInsensitiveNameCollisionGroupCount'] = $zipNamePolicy['caseInsensitiveNameCollisionGroupCount'];
+        $summary['zipCaseInsensitiveNameCollisionEntryCount'] = $zipNamePolicy['caseInsensitiveNameCollisionEntryCount'];
+        $summary['zipRawNameCollisionGroupCount'] = $zipNamePolicy['rawNameCollisionGroupCount'];
+        $summary['zipRawNameCollisionEntryCount'] = $zipNamePolicy['rawNameCollisionEntryCount'];
+        $summary['zipRawNameProvenanceEntryCount'] = $zipNamePolicy['rawNameProvenanceEntryCount'];
+        $summary['zipNameHygieneReviewEntryCount'] = $zipNamePolicy['nameHygieneReviewEntryCount'];
+        $summary['zipNameHygieneLeadingOrTrailingWhitespaceEntryCount'] = $zipNamePolicy['nameHygieneLeadingOrTrailingWhitespaceEntryCount'];
+        $summary['zipNameHygieneTrailingDotSegmentEntryCount'] = $zipNamePolicy['nameHygieneTrailingDotSegmentEntryCount'];
+        $summary['zipNameHygieneWindowsReservedNameEntryCount'] = $zipNamePolicy['nameHygieneWindowsReservedNameEntryCount'];
+        $summary['zipNameHygieneWindowsAlternateDataStreamEntryCount'] = $zipNamePolicy['nameHygieneWindowsAlternateDataStreamEntryCount'];
+        $summary['zipNameHygieneUnicodeFormatControlEntryCount'] = $zipNamePolicy['nameHygieneUnicodeFormatControlEntryCount'];
+        $summary['zipNameHygieneUnicodeBidiControlEntryCount'] = $zipNamePolicy['nameHygieneUnicodeBidiControlEntryCount'];
 
         return [
             'contentTypesPart' => $contentTypesPart,
@@ -5823,6 +5840,7 @@ final class DocxOpenXmlReader
                     'mismatchedEntries' => [],
                     'entries' => [],
                 ],
+                'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
                 'canExposeBytes' => false,
                 'entries' => [],
@@ -5897,11 +5915,107 @@ final class DocxOpenXmlReader
             'directoryPackagePaths' => $directoryPackagePaths,
             'loadedPartNames' => $loadedPartNames,
             'compressionMethods' => $compressionMethods,
+            'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'localHeaderOrder' => $localHeaderOrder,
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             'canExposeBytes' => false,
             'entries' => $entries,
             'byPackagePath' => $byPackagePath,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipNamePolicyProvenance(): array
+    {
+        return [
+            'present' => false,
+            'entryCount' => 0,
+            'valid' => true,
+            'issueCount' => 0,
+            'issueCodes' => [],
+            'pathHierarchyCollisionEntryCount' => 0,
+            'pathHierarchyCollisionEntries' => [],
+            'caseInsensitiveNameCollisionGroupCount' => 0,
+            'caseInsensitiveNameCollisionEntryCount' => 0,
+            'caseInsensitiveNameCollisionGroups' => [],
+            'caseInsensitiveNameCollisionEntries' => [],
+            'rawNameCollisionGroupCount' => 0,
+            'rawNameCollisionEntryCount' => 0,
+            'rawNameProvenanceEntryCount' => 0,
+            'rawNameLegacyEncodedEntryCount' => 0,
+            'rawNameUnicodePathExtraEntryCount' => 0,
+            'rawNameDecodedDiffersEntryCount' => 0,
+            'rawNameCollisionGroups' => [],
+            'rawNameCollisionEntries' => [],
+            'rawNameProvenanceEntries' => [],
+            'nameHygieneReviewEntryCount' => 0,
+            'nameHygieneLeadingOrTrailingWhitespaceEntryCount' => 0,
+            'nameHygieneTrailingDotSegmentEntryCount' => 0,
+            'nameHygieneWindowsReservedNameEntryCount' => 0,
+            'nameHygieneWindowsAlternateDataStreamEntryCount' => 0,
+            'nameHygieneUnicodeFormatControlEntryCount' => 0,
+            'nameHygieneUnicodeBidiControlEntryCount' => 0,
+            'nameHygieneReviewEntries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function zipNamePolicyProvenance(ZipPackage $sourcePackage): array
+    {
+        $pathHierarchy = $sourcePackage->pathHierarchyPreflight();
+        $caseInsensitiveNames = $sourcePackage->caseInsensitiveNamePreflight();
+        $rawNames = $sourcePackage->rawNamePreflight();
+        $nameHygiene = $sourcePackage->nameHygienePreflight();
+        $issueCodes = [];
+        if ((int) $pathHierarchy['collisionEntryCount'] > 0) {
+            $issueCodes[] = 'path-hierarchy-collisions';
+        }
+        if ((int) $caseInsensitiveNames['collisionEntryCount'] > 0) {
+            $issueCodes[] = 'case-insensitive-name-collisions';
+        }
+        if ((int) $rawNames['collisionEntryCount'] > 0) {
+            $issueCodes[] = 'raw-name-collisions';
+        }
+        if ((int) $rawNames['provenanceEntryCount'] > 0) {
+            $issueCodes[] = 'raw-name-provenance-review-entries';
+        }
+        if ((int) $nameHygiene['reviewEntryCount'] > 0) {
+            $issueCodes[] = 'name-hygiene-review-entries';
+        }
+
+        return [
+            'present' => true,
+            'entryCount' => count($sourcePackage->entries()),
+            'valid' => $issueCodes === [],
+            'issueCount' => count($issueCodes),
+            'issueCodes' => $issueCodes,
+            'pathHierarchyCollisionEntryCount' => (int) $pathHierarchy['collisionEntryCount'],
+            'pathHierarchyCollisionEntries' => $pathHierarchy['collisionEntries'],
+            'caseInsensitiveNameCollisionGroupCount' => (int) $caseInsensitiveNames['collisionGroupCount'],
+            'caseInsensitiveNameCollisionEntryCount' => (int) $caseInsensitiveNames['collisionEntryCount'],
+            'caseInsensitiveNameCollisionGroups' => $caseInsensitiveNames['collisionGroups'],
+            'caseInsensitiveNameCollisionEntries' => $caseInsensitiveNames['collisionEntries'],
+            'rawNameCollisionGroupCount' => (int) $rawNames['collisionGroupCount'],
+            'rawNameCollisionEntryCount' => (int) $rawNames['collisionEntryCount'],
+            'rawNameProvenanceEntryCount' => (int) $rawNames['provenanceEntryCount'],
+            'rawNameLegacyEncodedEntryCount' => (int) $rawNames['legacyEncodedNameEntryCount'],
+            'rawNameUnicodePathExtraEntryCount' => (int) $rawNames['unicodePathExtraEntryCount'],
+            'rawNameDecodedDiffersEntryCount' => (int) $rawNames['decodedNameDiffersFromRawNameEntryCount'],
+            'rawNameCollisionGroups' => $rawNames['collisionGroups'],
+            'rawNameCollisionEntries' => $rawNames['collisionEntries'],
+            'rawNameProvenanceEntries' => $rawNames['provenanceEntries'],
+            'nameHygieneReviewEntryCount' => (int) $nameHygiene['reviewEntryCount'],
+            'nameHygieneLeadingOrTrailingWhitespaceEntryCount' => (int) $nameHygiene['leadingOrTrailingWhitespaceEntryCount'],
+            'nameHygieneTrailingDotSegmentEntryCount' => (int) $nameHygiene['trailingDotSegmentEntryCount'],
+            'nameHygieneWindowsReservedNameEntryCount' => (int) $nameHygiene['windowsReservedNameEntryCount'],
+            'nameHygieneWindowsAlternateDataStreamEntryCount' => (int) $nameHygiene['windowsAlternateDataStreamEntryCount'],
+            'nameHygieneUnicodeFormatControlEntryCount' => (int) $nameHygiene['unicodeFormatControlEntryCount'],
+            'nameHygieneUnicodeBidiControlEntryCount' => (int) $nameHygiene['unicodeBidiControlEntryCount'],
+            'nameHygieneReviewEntries' => $nameHygiene['reviewEntries'],
         ];
     }
 
