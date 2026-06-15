@@ -1571,6 +1571,69 @@ XML;
         $t->same('kind=thumb', $thumbnail['relationships'][0]['targetQuery']);
         $t->same('cover', $thumbnail['relationships'][0]['targetFragment']);
     },
+    'summarizes docx relationship target part extension buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $audioRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="gif" ContentType="image/gif"/>' . "\n" .
+            '  <Default Extension="mp3" ContentType="audio/mpeg"/>' . "\n" .
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/review-package" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rGif" Type="' . $imageRel . '" Target="media/review.gif?variant=review#image"/>' . "\n" .
+            '  <Relationship Id="rNarration" Type="' . $audioRel . '" Target="media/narration.mp3"/>' . "\n" .
+            '  <Relationship Id="rEmbeddedBin" Type="' . $packageRel . '" Target="embeddings/review-data.bin"/>' . "\n" .
+            '  <Relationship Id="rEmbeddedNoExtension" Type="' . $packageRel . '" Target="embeddings/review-package?raw=1#payload"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/media/review.gif'] = 'gif review bytes';
+        $parts['word/media/narration.mp3'] = 'audio review bytes';
+        $parts['word/embeddings/review-data.bin'] = 'embedded binary review bytes';
+        $parts['word/embeddings/review-package'] = 'extensionless embedded package bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $types = $document->attr('docx')['packageProvenance']['relationshipTypes'];
+        $image = $types[$imageRel];
+        $audio = $types[$audioRel];
+        $package = $types[$packageRel];
+
+        $t->same(2, $image['count']);
+        $t->same(['gif', 'png'], $image['targetPartExtensions']);
+        $t->same(['gif' => 1, 'png' => 1], $image['targetPartExtensionCounts']);
+        $t->same(0, $image['targetPartWithoutExtensionCount']);
+        $t->same('png', $image['relationships'][0]['targetPartExtension']);
+        $t->same('gif', $image['relationships'][1]['targetPartExtension']);
+        $t->same('word/media/review.gif', $image['existingTargetPartDigests'][0]['partName']);
+        $t->same('gif', $image['existingTargetPartDigests'][0]['partExtension']);
+        $t->same('word/media/review.png', $image['existingTargetPartDigests'][1]['partName']);
+        $t->same('png', $image['existingTargetPartDigests'][1]['partExtension']);
+
+        $t->same(1, $audio['count']);
+        $t->same(['mp3'], $audio['targetPartExtensions']);
+        $t->same(['mp3' => 1], $audio['targetPartExtensionCounts']);
+        $t->same(0, $audio['targetPartWithoutExtensionCount']);
+        $t->same('mp3', $audio['relationships'][0]['targetPartExtension']);
+        $t->same('audio/mpeg', $audio['contentTypes'][0]);
+
+        $t->same(2, $package['count']);
+        $t->same(['bin'], $package['targetPartExtensions']);
+        $t->same(['(none)' => 1, 'bin' => 1], $package['targetPartExtensionCounts']);
+        $t->same(1, $package['targetPartWithoutExtensionCount']);
+        $t->same('bin', $package['relationships'][0]['targetPartExtension']);
+        $t->same(null, $package['relationships'][1]['targetPartExtension']);
+        $t->same('raw=1', $package['relationships'][1]['targetQuery']);
+        $t->same('payload', $package['relationships'][1]['targetFragment']);
+        $t->same('word/embeddings/review-package', $package['existingTargetPartDigests'][1]['partName']);
+        $t->same(null, $package['existingTargetPartDigests'][1]['partExtension']);
+    },
     'summarizes docx relationship type package matrix rollups for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
