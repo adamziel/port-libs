@@ -102,6 +102,7 @@ final class OdtReader
             $packageReference = self::manifestPackageReference($path);
 
             $size = $this->manifestAttr($child, 'size');
+            $encryption = $this->manifestEncryption($child);
             $entries[] = [
                 'path' => $path,
                 'packagePath' => $packageReference['packagePath'],
@@ -110,12 +111,170 @@ final class OdtReader
                 'pathQuery' => $packageReference['pathQuery'],
                 'pathFragment' => $packageReference['pathFragment'],
                 'mediaType' => (string) ($this->manifestAttr($child, 'media-type') ?? ''),
-                'encrypted' => $this->firstChildElement($child, self::MANIFEST_NS, 'encryption-data') instanceof \DOMElement,
+                'encrypted' => $encryption !== null,
+                'encryption' => $encryption,
                 'size' => $size !== null && preg_match('/^\d+$/', $size) === 1 ? (int) $size : null,
             ];
         }
 
         return $entries;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function manifestEncryption(\DOMElement $entry): ?array
+    {
+        $encryptionElements = $this->childElements($entry, self::MANIFEST_NS, 'encryption-data');
+        if ($encryptionElements === []) {
+            return null;
+        }
+
+        $records = array_map(
+            fn (\DOMElement $encryption): array => $this->manifestEncryptionData($encryption),
+            $encryptionElements
+        );
+        $data = $records[0] ?? [];
+        $data['records'] = $records;
+        $data['recordCount'] = count($records);
+
+        if (count($records) > 1) {
+            $issueCodes = is_array($data['issueCodes'] ?? null) ? $data['issueCodes'] : [];
+            $issueCodes[] = 'odf-manifest-encryption-multiple-encryption-data';
+            $data['issueCodes'] = array_values(array_unique($issueCodes));
+            $data['issueCount'] = count($data['issueCodes']);
+        }
+
+        return $data;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function manifestEncryptionData(\DOMElement $encryption): array
+    {
+        $data = self::withoutEmpty([
+            'checksumType' => self::optionalManifestString($this->manifestAttr($encryption, 'checksum-type')),
+            'checksum' => self::optionalManifestString($this->manifestAttr($encryption, 'checksum')),
+        ]);
+
+        $algorithms = array_map(
+            fn (\DOMElement $algorithm): array => $this->manifestEncryptionAlgorithm($algorithm),
+            $this->childElements($encryption, self::MANIFEST_NS, 'algorithm')
+        );
+        if ($algorithms !== []) {
+            $data['algorithm'] = $algorithms[0];
+            $data['algorithms'] = $algorithms;
+            $data['algorithmCount'] = count($algorithms);
+        }
+
+        $keyDerivations = array_map(
+            fn (\DOMElement $keyDerivation): array => $this->manifestEncryptionKeyDerivation($keyDerivation),
+            $this->childElements($encryption, self::MANIFEST_NS, 'key-derivation')
+        );
+        if ($keyDerivations !== []) {
+            $data['keyDerivation'] = $keyDerivations[0];
+            $data['keyDerivations'] = $keyDerivations;
+            $data['keyDerivationCount'] = count($keyDerivations);
+        }
+
+        $startKeyGenerations = array_map(
+            fn (\DOMElement $startKeyGeneration): array => $this->manifestEncryptionStartKeyGeneration($startKeyGeneration),
+            $this->childElements($encryption, self::MANIFEST_NS, 'start-key-generation')
+        );
+        if ($startKeyGenerations !== []) {
+            $data['startKeyGeneration'] = $startKeyGenerations[0];
+            $data['startKeyGenerations'] = $startKeyGenerations;
+            $data['startKeyGenerationCount'] = count($startKeyGenerations);
+        }
+
+        $unknownChildren = $this->manifestEncryptionUnknownChildren($encryption);
+        if ($unknownChildren !== []) {
+            $data['unknownChildCount'] = count($unknownChildren);
+            $data['unknownChildren'] = $unknownChildren;
+        }
+
+        $issueCodes = [];
+        if (count($algorithms) > 1) {
+            $issueCodes[] = 'odf-manifest-encryption-multiple-algorithms';
+        }
+        if (count($keyDerivations) > 1) {
+            $issueCodes[] = 'odf-manifest-encryption-multiple-key-derivations';
+        }
+        if (count($startKeyGenerations) > 1) {
+            $issueCodes[] = 'odf-manifest-encryption-multiple-start-key-generations';
+        }
+        if ($unknownChildren !== []) {
+            $issueCodes[] = 'odf-manifest-encryption-unknown-child';
+        }
+        if ($issueCodes !== []) {
+            $data['issueCount'] = count($issueCodes);
+            $data['issueCodes'] = $issueCodes;
+        }
+
+        return $data;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function manifestEncryptionAlgorithm(\DOMElement $algorithm): array
+    {
+        $initialisationVector = $this->manifestAttr($algorithm, 'initialisation-vector')
+            ?? $this->manifestAttr($algorithm, 'initialization-vector');
+
+        return self::withoutEmpty([
+            'name' => self::optionalManifestString($this->manifestAttr($algorithm, 'algorithm-name')),
+            'initialisationVector' => self::optionalManifestString($initialisationVector),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function manifestEncryptionKeyDerivation(\DOMElement $keyDerivation): array
+    {
+        return self::withoutEmpty([
+            'name' => self::optionalManifestString($this->manifestAttr($keyDerivation, 'key-derivation-name')),
+            'keySize' => self::optionalManifestInt($this->manifestAttr($keyDerivation, 'key-size')),
+            'iterationCount' => self::optionalManifestInt($this->manifestAttr($keyDerivation, 'iteration-count')),
+            'salt' => self::optionalManifestString($this->manifestAttr($keyDerivation, 'salt')),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function manifestEncryptionStartKeyGeneration(\DOMElement $startKeyGeneration): array
+    {
+        return self::withoutEmpty([
+            'name' => self::optionalManifestString($this->manifestAttr($startKeyGeneration, 'start-key-generation-name')),
+            'keySize' => self::optionalManifestInt($this->manifestAttr($startKeyGeneration, 'key-size')),
+        ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function manifestEncryptionUnknownChildren(\DOMElement $encryption): array
+    {
+        $unknownChildren = [];
+        foreach ($this->childElements($encryption) as $child) {
+            if (
+                $child->namespaceURI === self::MANIFEST_NS
+                && in_array($child->localName, ['algorithm', 'key-derivation', 'start-key-generation'], true)
+            ) {
+                continue;
+            }
+
+            $unknownChildren[] = self::withoutEmpty([
+                'name' => self::qualifiedElementName($child),
+                'namespaceUri' => self::optionalManifestString($child->namespaceURI),
+                'localName' => $child->localName,
+            ]);
+        }
+
+        return $unknownChildren;
     }
 
     /**
@@ -1318,13 +1477,33 @@ final class OdtReader
             $part = is_string($part) && $part !== '' ? $part : null;
             $exists = $part !== null ? $package->has($part) : null;
             $manifest = $part !== null ? ($manifestByPath[$part] ?? null) : null;
+            $encrypted = is_array($manifest) && ($manifest['encrypted'] ?? false) === true;
+            $entry = $part !== null && $exists === true ? $package->entry($part) : null;
+            $hasSupportedCompression = $entry instanceof ZipPackageEntry
+                && in_array($entry->compressionMethod, [0, 8], true);
+            $canExposeBytes = $entry instanceof ZipPackageEntry && !$encrypted && $hasSupportedCompression;
+            $byteExposurePolicy = $this->imageByteExposurePolicy($part, $exists, $encrypted, $entry, $hasSupportedCompression);
             $items[] = [
                 'href' => $href,
                 'part' => $part,
                 'exists' => $exists,
-                'bytes' => $part !== null && $exists === true ? strlen($package->read($part)) : null,
+                'bytes' => $canExposeBytes ? $entry->uncompressedSize : null,
+                'byteLength' => $canExposeBytes ? $entry->uncompressedSize : null,
+                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'crc32' => $canExposeBytes ? $entry->crc32Hex() : null,
+                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'canExposeBytes' => $canExposeBytes,
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'mediaType' => is_array($manifest) ? $manifest['mediaType'] : null,
-                'encrypted' => is_array($manifest) ? $manifest['encrypted'] : false,
+                'encrypted' => $encrypted,
+                'encryption' => is_array($manifest) ? ($manifest['encryption'] ?? null) : null,
+                'encryptionRecordCount' => is_array($manifest) && is_array($manifest['encryption'] ?? null)
+                    ? ($manifest['encryption']['recordCount'] ?? 0)
+                    : 0,
+                'encryptionIssueCodes' => is_array($manifest) && is_array($manifest['encryption'] ?? null)
+                    ? ($manifest['encryption']['issueCodes'] ?? [])
+                    : [],
                 'manifestPath' => is_array($manifest) ? $manifest['path'] : null,
                 'manifestPackagePath' => is_array($manifest) ? $manifest['packagePath'] : null,
                 'manifestPathReference' => is_array($manifest) ? $manifest['pathReference'] : null,
@@ -1339,8 +1518,37 @@ final class OdtReader
             'count' => count($items),
             'embeddedCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === false)),
+            'exposableCount' => count(array_filter($items, static fn (array $item): bool => $item['canExposeBytes'] === true)),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
             'items' => $items,
         ];
+    }
+
+    private function imageByteExposurePolicy(
+        ?string $part,
+        ?bool $exists,
+        bool $encrypted,
+        ?ZipPackageEntry $entry,
+        bool $hasSupportedCompression
+    ): ?string
+    {
+        if ($part === null) {
+            return null;
+        }
+        if ($exists === false) {
+            return 'missing-package-part';
+        }
+        if ($encrypted) {
+            return 'encrypted-resource-bytes-blocked';
+        }
+        if (!$entry instanceof ZipPackageEntry) {
+            return 'missing-package-part';
+        }
+        if (!$hasSupportedCompression) {
+            return 'unsupported-compression-bytes-blocked';
+        }
+
+        return 'package-bytes-exposable';
     }
 
     /**
@@ -1822,6 +2030,25 @@ final class OdtReader
             $values,
             static fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []
         );
+    }
+
+    private static function optionalManifestString(?string $value): ?string
+    {
+        $value = $value === null ? '' : trim($value);
+
+        return $value === '' ? null : $value;
+    }
+
+    private static function optionalManifestInt(?string $value): ?int
+    {
+        $value = $value === null ? '' : trim($value);
+
+        return ctype_digit($value) ? (int) $value : null;
+    }
+
+    private static function qualifiedElementName(\DOMElement $element): string
+    {
+        return $element->prefix === '' ? $element->localName : $element->prefix . ':' . $element->localName;
     }
 
     private function positiveIntAttr(\DOMElement $element, string $namespace, string $localName, int $default): int

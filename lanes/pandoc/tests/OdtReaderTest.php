@@ -328,6 +328,63 @@ XML;
         $t->same(1, $report['textBoxes']['count']);
         $t->same(1, $report['styles']['listCount']);
     },
+    'blocks encrypted ODT image bytes and reports manifest encryption provenance' => static function (TestRunner $t) use ($buildPackage, $manifestXml): void {
+        $manifestWithEncryptedHero = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="7"/>',
+            <<<'XML'
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="7">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="hero-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="hero-iv"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:key-size="16" manifest:iteration-count="1024" manifest:salt="hero-salt"/>
+      <manifest:start-key-generation manifest:start-key-generation-name="SHA1" manifest:key-size="20"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML,
+            $manifestXml
+        );
+
+        $result = (new OdtReader())->readPackage($buildPackage([
+            'META-INF/manifest.xml' => $manifestWithEncryptedHero,
+        ]));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $entry) {
+            $manifestByPath[$entry['path']] = $entry;
+        }
+        $heroEntry = $manifestByPath['Pictures/hero.png'];
+        $heroMedia = $result['importReport']['media']['items'][0];
+
+        $t->same(1, $result['importReport']['encryptedEntryCount']);
+        $t->same(['Pictures/hero.png'], $result['importReport']['encryptedEntries']);
+        $t->same(true, $heroEntry['encrypted']);
+        $t->same(1, $heroEntry['encryption']['recordCount']);
+        $t->same('SHA1/1K', $heroEntry['encryption']['checksumType']);
+        $t->same('hero-checksum', $heroEntry['encryption']['checksum']);
+        $t->same('Blowfish CFB', $heroEntry['encryption']['algorithm']['name']);
+        $t->same('hero-iv', $heroEntry['encryption']['algorithm']['initialisationVector']);
+        $t->same('PBKDF2', $heroEntry['encryption']['keyDerivation']['name']);
+        $t->same(16, $heroEntry['encryption']['keyDerivation']['keySize']);
+        $t->same(1024, $heroEntry['encryption']['keyDerivation']['iterationCount']);
+        $t->same('hero-salt', $heroEntry['encryption']['keyDerivation']['salt']);
+        $t->same('SHA1', $heroEntry['encryption']['startKeyGeneration']['name']);
+        $t->same(20, $heroEntry['encryption']['startKeyGeneration']['keySize']);
+
+        $t->same(2, $result['importReport']['media']['count']);
+        $t->same(1, $result['importReport']['media']['embeddedCount']);
+        $t->same(1, $result['importReport']['media']['missingCount']);
+        $t->same(0, $result['importReport']['media']['exposableCount']);
+        $t->same(1, $result['importReport']['media']['encryptedCount']);
+        $t->same(true, $heroMedia['exists']);
+        $t->same(true, $heroMedia['encrypted']);
+        $t->same(false, $heroMedia['canExposeBytes']);
+        $t->same(null, $heroMedia['bytes']);
+        $t->same(null, $heroMedia['byteLength']);
+        $t->same(7, $heroMedia['storedByteLength']);
+        $t->same(null, $heroMedia['crc32']);
+        $t->same('db1a1847', $heroMedia['storedCrc32']);
+        $t->same('encrypted-resource-bytes-blocked', $heroMedia['byteExposurePolicy']);
+        $t->same($heroEntry['encryption'], $heroMedia['encryption']);
+        $t->same(1, $heroMedia['encryptionRecordCount']);
+    },
     'resolves encoded ODT image package references with query and fragment provenance' => static function (TestRunner $t) use ($buildPackage): void {
         $contentWithEncodedImage = <<<'XML'
 <office:document-content
