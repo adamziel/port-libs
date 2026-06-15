@@ -1247,13 +1247,38 @@ final class MarkdownWriter
         }
 
         foreach (['exampleLabel', 'label'] as $name) {
-            $label = trim((string) $item->attr($name, ''));
-            if (preg_match('/\A[A-Za-z0-9_-]+\z/', $label) === 1) {
+            $value = $item->attr($name, '');
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $label = trim((string) $value);
+            if ($this->isNumberedExampleLabel($label)) {
                 return $label;
             }
         }
 
+        $attributes = $item->attr('attributes', []);
+        if (is_array($attributes)) {
+            foreach (['data-example-label', 'example-label'] as $name) {
+                $value = $attributes[$name] ?? '';
+                if (!is_scalar($value)) {
+                    continue;
+                }
+
+                $label = trim((string) $value);
+                if ($this->isNumberedExampleLabel($label)) {
+                    return $label;
+                }
+            }
+        }
+
         return '';
+    }
+
+    private function isNumberedExampleLabel(string $label): bool
+    {
+        return $label !== '' && preg_match('/\A[A-Za-z0-9_-]+\z/u', $label) === 1;
     }
 
     private function bulletListMarker(): string
