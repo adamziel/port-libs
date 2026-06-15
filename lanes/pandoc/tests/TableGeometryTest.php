@@ -1291,11 +1291,10 @@ return [
         $t->contains('<th colspan="2" style="text-align:left">Scope</th><th style="text-align:center">Status</th>', $blocks);
         $t->contains('<tr><td rowspan="2" style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr><tr><td style="text-align:right">7</td><td style="text-align:center">Review</td></tr>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Migration review grid</figcaption>', $blocks);
-        $t->contains('| Scope |     | Status |', $markdown);
-        $t->contains('|:----|--:|:----:|', $markdown);
-        $t->contains('| Posts |  42 | Ready  |', $markdown);
-        $t->contains('|       |   7 | Review |', $markdown);
-        $t->contains(': Migration review grid', $markdown);
+        $t->contains('<caption>Migration review grid</caption>', $markdown);
+        $t->contains('<th scope="col" colspan="2" style="text-align:left">Scope</th>', $markdown);
+        $t->contains('<td rowspan="2" style="text-align:left">Posts</td>', $markdown);
+        $t->contains('<td style="text-align:center">Review</td>', $markdown);
     },
     'preserves pandoc table colspec columns beyond physical row cells' => static function (TestRunner $t) use ($buildColspecTableDocument): void {
         $document = $buildColspecTableDocument();
@@ -1455,8 +1454,10 @@ return [
         $t->same(['left', 'right', 'center', 'default'], array_map(static fn (array $spec): string => $spec['alignment'], $packet['columns'] ?? []));
         $t->contains('<th style="text-align:left">Field</th><th style="text-align:right">Count</th><th style="text-align:center">State</th><th>Notes</th>', $blocks);
         $t->contains('<td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td><td style="text-align:right">Needs alt text</td>', $blocks);
-        $t->contains('|:----|----:|:---:|--------------|', $markdown);
-        $t->contains('| Posts |    42 | Ready | Needs alt text |', $markdown);
+        $t->contains('<th scope="col" style="text-align:left">Field</th>', $markdown);
+        $t->contains('<th scope="col" style="text-align:right">Count</th>', $markdown);
+        $t->contains('<th scope="col" style="text-align:center">State</th>', $markdown);
+        $t->contains('<td style="text-align:right">Needs alt text</td>', $markdown);
     },
     'reports normalized relative widths when source colspecs exceed full table width' => static function (TestRunner $t) use ($buildOverfullColumnWidthDocument): void {
         $table = $buildOverfullColumnWidthDocument()->children[0];
@@ -1572,9 +1573,10 @@ return [
         $t->same([0, 1, 2, 3], array_map(static fn (array $cell): int => $cell['column'], $layout[0]['cells']));
         $t->same([1, 2, 3], array_map(static fn (array $cell): int => $cell['column'], $layout[1]['cells']));
         $t->contains('<tbody><tr><th rowspan="2" style="text-align:left">Pandoc</th><th style="text-align:left">Table geometry</th><td style="text-align:right">4</td><td style="text-align:center">Mapped</td></tr><tr><th style="text-align:left">DOCX handoff</th><td style="text-align:right">10</td><td style="text-align:center">Accepted</td></tr></tbody>', $blocks);
-        $t->contains('| Pandoc | Table geometry |      4 |  Mapped  |', $markdown);
-        $t->contains('|        | DOCX handoff   |     10 | Accepted |', $markdown);
-        $t->contains(': Lane coverage review', $markdown);
+        $t->contains('<caption>Lane coverage review</caption>', $markdown);
+        $t->contains('<th scope="row" rowspan="2" style="text-align:left">Pandoc</th>', $markdown);
+        $t->contains('<th scope="row" style="text-align:left">DOCX handoff</th>', $markdown);
+        $t->contains('<td style="text-align:center">Accepted</td>', $markdown);
     },
     'keeps rowspans scoped to table sections for wordpress and markdown handoff' => static function (TestRunner $t) use ($buildSectionScopedRowspanDocument): void {
         $document = $buildSectionScopedRowspanDocument();
@@ -1598,11 +1600,11 @@ return [
         $t->same(1, $headLayout[0]['cells'][0]['rowspan']);
         $t->same([0, 1], array_map(static fn (array $cell): int => $cell['column'], $bodyLayout[0]['cells']));
         $t->contains('<thead><tr><th style="text-align:left">Scope</th><th style="text-align:right">Status</th></tr></thead><tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">Ready</td></tr></tbody><tfoot><tr><td style="text-align:left">Total</td><td style="text-align:right">1</td></tr></tfoot>', $blocks);
-        $t->contains('| Scope | Status |', $markdown);
-        $t->contains('|:----|-----:|', $markdown);
-        $t->contains('| Posts |  Ready |', $markdown);
-        $t->contains('| Total |      1 |', $markdown);
-        $t->contains(': Section boundary review', $markdown);
+        $t->contains('<caption>Section boundary review</caption>', $markdown);
+        $t->contains('<thead>', $markdown);
+        $t->contains('<tbody>', $markdown);
+        $t->contains('<tfoot>', $markdown);
+        $t->contains('<td style="text-align:right">1</td>', $markdown);
     },
     'diagnoses cells that exceed declared pandoc table columns without dropping content' => static function (TestRunner $t) use ($buildDeclaredColumnOverflowDocument): void {
         $document = $buildDeclaredColumnOverflowDocument();
@@ -1632,9 +1634,10 @@ return [
         $t->same(0, $diagnostics[1]['column'] ?? null);
         $t->same(3, $diagnostics[1]['colspan'] ?? null);
         $t->contains('<tbody><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">Ready</td></tr><tr><td style="text-align:right">Needs media</td><td>Overflow note</td></tr><tr><th colspan="3" style="text-align:left">Full width audit note</th></tr></tbody>', $blocks);
-        $t->contains('| Posts                 |                Ready |               |', $markdown);
-        $t->contains('|                       |          Needs media | Overflow note |', $markdown);
-        $t->contains('| Full width audit note |                      |               |', $markdown);
+        $t->contains('<caption>Declared column overflow review</caption>', $markdown);
+        $t->contains('<th scope="row" rowspan="2" style="text-align:left">Posts</th>', $markdown);
+        $t->contains('<td>Overflow note</td>', $markdown);
+        $t->contains('<th scope="row" colspan="3" style="text-align:left">Full width audit note</th>', $markdown);
     },
     'reports source cell coordinates for rowspanned declared column conflicts' => static function (TestRunner $t) use ($buildSourceCoordinateOverflowDocument): void {
         $document = $buildSourceCoordinateOverflowDocument();
@@ -1705,7 +1708,9 @@ return [
         $t->same(0, $coverage[1]['sourceColumn']);
         $t->same(false, $coverage[1]['headerCell']);
         $t->contains('<tbody><tr><th colspan="2" rowspan="2" style="text-align:left">Posts</th></tr><tr><td>Unexpected source cell</td></tr></tbody>', $blocks);
-        $t->contains('|       |     | Unexpected source cell |', $markdown);
+        $t->contains('<caption>Malformed overlap review</caption>', $markdown);
+        $t->contains('<th scope="row" colspan="2" rowspan="2" style="text-align:left">Posts</th>', $markdown);
+        $t->contains('<td>Unexpected source cell</td>', $markdown);
     },
     'serializes source-to-visual column shifts for implicit rowspan handoffs' => static function (TestRunner $t) use ($buildImplicitColumnRowspanOverlapDocument): void {
         $document = $buildImplicitColumnRowspanOverlapDocument();
@@ -1743,8 +1748,9 @@ return [
         $t->same([1], $packet['coverage'][2]['sourceColumns'] ?? null);
         $t->same(2, $packet['coverage'][2]['visualShift'] ?? null);
         $t->contains('<tbody><tr><td colspan="2" rowspan="2">Merged source</td></tr><tr><td>Unexpected source cell</td><td>Second conflict</td></tr></tbody>', $blocks);
-        $t->contains('| Merged source |     |                        |                 |', $markdown);
-        $t->contains('|               |     | Unexpected source cell | Second conflict |', $markdown);
+        $t->contains('<caption>Implicit column overlap review</caption>', $markdown);
+        $t->contains('<td colspan="2" rowspan="2">Merged source</td>', $markdown);
+        $t->contains('<td>Unexpected source cell</td><td>Second conflict</td>', $markdown);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'summarizes source-to-visual shift records for importer audits' => static function (TestRunner $t) use ($buildImplicitColumnRowspanOverlapDocument): void {
@@ -1819,8 +1825,9 @@ return [
         $t->contains('<table id="malformed-source-span-grid"><tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr><tr><td style="text-align:left">Media</td><td style="text-align:right">7</td><td style="text-align:center">Review</td></tr></tbody></table>', $blocks);
         $t->true(!str_contains($blocks, 'colspan="0"'), 'Malformed colspan must not leak into WordPress table output');
         $t->true(!str_contains($blocks, 'rowspan="-3"'), 'Malformed rowspan must not leak into WordPress table output');
-        $t->contains('| Posts |  42 | Ready  |', $markdown);
-        $t->contains('| Media |   7 | Review |', $markdown);
+        $t->contains('<table id="malformed-source-span-grid">', $markdown);
+        $t->contains('<td style="text-align:left">Posts</td>', $markdown);
+        $t->contains('<td style="text-align:center">Review</td>', $markdown);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'builds section grids with covered and missing visual slots for importer audits' => static function (TestRunner $t) use ($buildSectionGridDocument): void {
@@ -1853,8 +1860,10 @@ return [
         $t->same(0, $bodyGrid[1][2]['sourceColumn']);
         $t->same('missing', $bodyGrid[1][3]['kind']);
         $t->contains('<tbody><tr><td colspan="2" rowspan="2" style="text-align:left">Posts</td><td style="text-align:right">Ready</td></tr><tr><td style="text-align:right">Needs media</td></tr></tbody>', $blocks);
-        $t->contains('| Posts      |            |       Ready |            |', $markdown);
-        $t->contains('|            |            | Needs media |            |', $markdown);
+        $t->contains('<caption>Normalized table grid review</caption>', $markdown);
+        $t->contains('<colgroup>', $markdown);
+        $t->contains('<td colspan="2" rowspan="2" style="text-align:left">Posts</td>', $markdown);
+        $t->contains('<td style="text-align:right">Needs media</td>', $markdown);
     },
     'summarizes visual row occupancy for table geometry review packets' => static function (TestRunner $t) use ($buildSectionGridDocument, $buildSpannedTableDocument): void {
         $packet = TableGeometry::reviewPacket($buildSectionGridDocument()->children[0], ['accessibility' => false]);
@@ -2819,8 +2828,10 @@ return [
         $t->same('posts-body', $packet['rowGroups'][1]['sourceAttributes']['id'] ?? null);
         $t->same('pages-body', $packet['rowGroups'][2]['sourceAttributes']['id'] ?? null);
         $t->contains('<tbody id="posts-body" data-group="posts"><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td></tr><tr><td style="text-align:left">Media</td><td style="text-align:right">7</td></tr></tbody><tbody id="pages-body" data-group="pages"><tr><td style="text-align:left">Pages</td><td style="text-align:right">5</td></tr></tbody>', $blocks);
-        $t->contains('| Posts |    42 |', $markdown);
-        $t->contains('| Pages |     5 |', $markdown);
+        $t->contains('<tbody id="posts-body" data-group="posts">', $markdown);
+        $t->contains('<td style="text-align:left">Posts</td><td style="text-align:right">42</td>', $markdown);
+        $t->contains('<tbody id="pages-body" data-group="pages">', $markdown);
+        $t->contains('<td style="text-align:left">Pages</td><td style="text-align:right">5</td>', $markdown);
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
     },
@@ -5037,7 +5048,9 @@ return [
         ], $packet['summary']['writerDowngradeCodes'] ?? null);
         $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
         $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
-        $t->contains(': [Queue **short**] Block **caption** for reviewer<br />- Queue note', $markdown);
+        $t->contains('<caption data-pandoc-short-caption="Queue short">', $markdown);
+        $t->contains('<p>Block <strong>caption</strong> for reviewer</p>', $markdown);
+        $t->contains('<ul><li><p>Queue note</p></li></ul>', $markdown);
         $t->contains('data-pandoc-short-caption="Queue short"', $blocks);
         $t->contains('<strong>caption</strong>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
