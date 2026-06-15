@@ -2462,6 +2462,85 @@ XML;
         $t->same(1, $summary['exposableMediaPartCount']);
         $t->same(1, $summary['undeclaredPackageEntryCount']);
     },
+    'reports compact ODT script package media type mismatches without exposing script bytes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $reviewScript = 'function approveReview() { return false; }';
+        $pythonScript = 'print("review")';
+        $jarBytes = 'JARDATA';
+        $untypedBytes = 'UNTYPED';
+        $scriptEntries =
+            '  <manifest:file-entry manifest:media-type="text/plain" manifest:full-path="Scripts/review.js" manifest:size="' . strlen($reviewScript) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="application/x-python" manifest:full-path="Scripts/audit.py" manifest:size="' . strlen($pythonScript) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="application/java-archive" manifest:full-path="Scripts/legacy.jar" manifest:size="' . strlen($jarBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="" manifest:full-path="Scripts/untyped.bin" manifest:size="' . strlen($untypedBytes) . '"/>' . "\n";
+        $manifest = str_replace('</manifest:manifest>', $scriptEntries . '</manifest:manifest>', $manifestXml);
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Scripts/review.js', 'data' => $reviewScript, 'compressionMethod' => 0],
+                ['name' => 'Scripts/audit.py', 'data' => $pythonScript, 'compressionMethod' => 0],
+                ['name' => 'Scripts/legacy.jar', 'data' => $jarBytes, 'compressionMethod' => 0],
+                ['name' => 'Scripts/untyped.bin', 'data' => $untypedBytes, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $scripts = $summary['packageScripts'];
+        $scriptByPath = [];
+        foreach ($scripts['items'] as $item) {
+            $scriptByPath[$item['packagePath']] = $item;
+        }
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+
+        $t->same(4, $scripts['count']);
+        $t->same(4, $scripts['readableCount']);
+        $t->same(4, $scripts['declaredCount']);
+        $t->same(0, $scripts['missingCount']);
+        $t->same(0, $scripts['encryptedCount']);
+        $t->same(2, $scripts['invalidMediaTypeCount']);
+        $t->same(2, $scripts['issueCount']);
+        $t->same(['odf-script-invalid-media-type'], $scripts['issueCodes']);
+        $t->same(['scripts'], $scripts['scriptContainers']);
+        $t->same(['java-archive', 'javascript', 'python', 'script-package-part'], $scripts['scriptKinds']);
+
+        $badJavaScript = $scriptByPath['Scripts/review.js'];
+        $t->same('text/plain', $badJavaScript['mediaType']);
+        $t->same('javascript', $badJavaScript['scriptKind']);
+        $t->same(false, $badJavaScript['mediaTypeValid']);
+        $t->same(false, $badJavaScript['valid']);
+        $t->same(['odf-script-invalid-media-type'], $badJavaScript['issues']);
+        $t->same(strlen($reviewScript), $badJavaScript['storedByteLength']);
+        $t->same('script-package-bytes-blocked', $badJavaScript['byteExposurePolicy']);
+
+        $python = $scriptByPath['Scripts/audit.py'];
+        $t->same('application/x-python', $python['mediaType']);
+        $t->same('python', $python['scriptKind']);
+        $t->same(true, $python['mediaTypeValid']);
+        $t->same(true, $python['valid']);
+        $t->same([], $python['issues']);
+
+        $jar = $scriptByPath['Scripts/legacy.jar'];
+        $t->same('java-archive', $jar['scriptKind']);
+        $t->same(true, $jar['mediaTypeValid']);
+        $t->same(true, $jar['valid']);
+
+        $untyped = $scriptByPath['Scripts/untyped.bin'];
+        $t->same(null, $untyped['mediaType']);
+        $t->same('script-package-part', $untyped['scriptKind']);
+        $t->same(false, $untyped['mediaTypeValid']);
+        $t->same(false, $untyped['valid']);
+        $t->same(['odf-script-invalid-media-type'], $untyped['issues']);
+
+        $t->same(true, $reviewByPath['Scripts/review.js']['scriptPackagePart']);
+        $t->same(false, $reviewByPath['Scripts/review.js']['canExposeBytes']);
+        $t->same('script-package-bytes-blocked', $reviewByPath['Scripts/review.js']['byteExposurePolicy']);
+        $t->same(['script-package', 'manifest-declared'], $inventory['Scripts/review.js']['roles']);
+        $t->same(false, $inventory['Scripts/review.js']['canExposeBytes']);
+        $t->same(null, $inventory['Scripts/review.js']['byteSha256']);
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+    },
     'reports compact ODT package fonts as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $reviewSansBytes = 'WOFF2DAT';
         $sourceBytes = 'WOFFDATA';

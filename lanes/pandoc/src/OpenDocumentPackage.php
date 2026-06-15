@@ -2475,6 +2475,7 @@ final class OpenDocumentPackage
 
             $mediaTypeReport = self::mediaTypeReport($mediaType);
             $pathInfo = self::scriptPackagePathInfo($packagePath, $mediaTypeReport['mediaTypeBase']);
+            $mediaTypeValid = self::scriptMediaTypeValid($packagePath, $mediaTypeReport['mediaTypeBase']);
             $issues = [];
             if (!$zipEntry instanceof ZipPackageEntry) {
                 $issues[] = 'odf-script-missing-package-part';
@@ -2484,6 +2485,9 @@ final class OpenDocumentPackage
             }
             if ($encrypted) {
                 $issues[] = 'odf-script-encrypted-package-part';
+            }
+            if (!$mediaTypeValid) {
+                $issues[] = 'odf-script-invalid-media-type';
             }
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
@@ -2511,6 +2515,7 @@ final class OpenDocumentPackage
                 'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
                 'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'mediaTypeValid' => $mediaTypeValid,
                 'scriptContainer' => $pathInfo['scriptContainer'] ?? null,
                 'scriptKind' => $pathInfo['scriptKind'] ?? null,
                 'scriptPath' => $pathInfo['scriptPath'] ?? null,
@@ -2521,7 +2526,7 @@ final class OpenDocumentPackage
                 'declared' => $declared,
                 'undeclared' => !$declared,
                 'encrypted' => $encrypted,
-                'valid' => $zipEntry instanceof ZipPackageEntry && !$encrypted,
+                'valid' => $zipEntry instanceof ZipPackageEntry && !$encrypted && $mediaTypeValid,
                 'byteLength' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
                 'compressionMethod' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null,
@@ -2552,6 +2557,10 @@ final class OpenDocumentPackage
             'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
             'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'invalidMediaTypeCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['mediaTypeValid'] !== true,
+            )),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
             'scriptContainers' => array_keys($containers),
@@ -2811,6 +2820,31 @@ final class OpenDocumentPackage
             'xba', 'xml' => 'text/xml',
             default => null,
         };
+    }
+
+    private static function scriptMediaTypeValid(string $path, string $mediaTypeBase): bool
+    {
+        if ($mediaTypeBase === '') {
+            return false;
+        }
+
+        $expected = self::scriptMediaTypeFromPart($path);
+        if ($expected === null) {
+            return true;
+        }
+
+        $expectedBase = self::mediaTypeReport($expected)['mediaTypeBase'];
+        if ($expectedBase === 'application/javascript') {
+            return in_array($mediaTypeBase, ['application/javascript', 'text/javascript'], true);
+        }
+        if ($expectedBase === 'text/xml') {
+            return in_array($mediaTypeBase, ['text/xml', 'application/xml'], true);
+        }
+        if ($expectedBase === 'text/x-python') {
+            return in_array($mediaTypeBase, ['text/x-python', 'application/x-python'], true);
+        }
+
+        return $mediaTypeBase === $expectedBase;
     }
 
     /**
