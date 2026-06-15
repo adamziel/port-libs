@@ -1,6 +1,6 @@
 | Data format | Path | Ported tests | Passing tests | Upstream tests | Pass % |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Markdown/CommonMark/GFM | `commonmark`, `commonmark_x`, `gfm`, `markdown`, `markdown_github`, `markdown_mmd`, `markdown_phpextra`, `markdown_strict` | 790 | 790 | 1096 | 72.1% |
+| Markdown/CommonMark/GFM | `commonmark`, `commonmark_x`, `gfm`, `markdown`, `markdown_github`, `markdown_mmd`, `markdown_phpextra`, `markdown_strict` | 844 | 844 | 1096 | 77.0% |
 | HTML/XML/JATS/BITS | `html`, `xml`, `jats`, `bits` | 298 | 298 | 54 | 551.9% |
 | JSON/native | `json`, `native` | 87 | 87 | 252 | 34.5% |
 | DOCX/OpenXML | `docx` | 95 | 95 | 256 | 37.1% |

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\WordPressBlockWriter;
 
 $inlineText = static function (AstNode $node) use (&$inlineText): string {
     if ($node->type === 'text' || $node->type === 'code') {
@@ -449,5 +451,143 @@ foreach ($cases as $name => $case) {
         }
     };
 }
+
+$makeTableCaptionSurgeTable = static function (string $syntax, int $tableCaptionSurgeCaseNumber): string {
+    $rowLabel = 'A' . str_pad((string) $tableCaptionSurgeCaseNumber, 3, '0', STR_PAD_LEFT);
+
+    return match ($syntax) {
+        'pipe' => implode("\n", [
+            '| Term | Count |',
+            '|:-----|------:|',
+            '| ' . $rowLabel . ' | ' . $tableCaptionSurgeCaseNumber . ' |',
+        ]),
+        'grid' => implode("\n", [
+            '+----------+-------+',
+            '| Term     | Count |',
+            '+==========+=======+',
+            '| ' . str_pad($rowLabel, 8) . ' | ' . str_pad((string) $tableCaptionSurgeCaseNumber, 5) . ' |',
+            '+----------+-------+',
+        ]),
+        'simple' => implode("\n", [
+            sprintf('%-12s  %5s', 'Term', 'Count'),
+            '------------  -----',
+            sprintf('%-12s  %5s', $rowLabel, (string) $tableCaptionSurgeCaseNumber),
+        ]),
+    };
+};
+
+$makeTableCaptionSurgeMarkdown = static function (array $case) use ($makeTableCaptionSurgeTable): string {
+    $caption = $case['marker'] . ' [' . $case['shortCaption'] . '] ' . $case['caption']
+        . ' {#' . $case['id'] . ' .surge .' . $case['caseClass']
+        . ' ' . $case['attributeSource'] . '}';
+    $table = $makeTableCaptionSurgeTable($case['syntax'], $case['number']);
+
+    return $case['position'] === 'leading'
+        ? $caption . "\n\n" . $table
+        : $table . "\n\n" . $caption;
+};
+
+$tableCaptionSurgeCases = [];
+$tableCaptionSurgeCaseNumber = 1;
+foreach (['pipe', 'grid', 'simple'] as $syntax) {
+    foreach (['trailing', 'leading'] as $position) {
+        foreach ([':', 'Table:', 'Caption:'] as $marker) {
+            for ($variant = 1; $variant <= 3; $variant++) {
+                $caseId = str_pad((string) $tableCaptionSurgeCaseNumber, 3, '0', STR_PAD_LEFT);
+                $attributeSet = match ($variant) {
+                    1 => [
+                        'source' => 'data-source="upstream-' . $caseId . '" lang="en"',
+                        'attributes' => ['data-source' => 'upstream-' . $caseId, 'lang' => 'en'],
+                        'html' => 'data-source="upstream-' . $caseId . '" lang="en"',
+                    ],
+                    2 => [
+                        'source' => 'role="table" title="Review table ' . $caseId . '"',
+                        'attributes' => ['role' => 'table', 'title' => 'Review table ' . $caseId],
+                        'html' => 'role="table" title="Review table ' . $caseId . '"',
+                    ],
+                    default => [
+                        'source' => 'aria-label="Review table ' . $caseId . '" dir="ltr"',
+                        'attributes' => ['aria-label' => 'Review table ' . $caseId, 'dir' => 'ltr'],
+                        'html' => 'aria-label="Review table ' . $caseId . '" dir="ltr"',
+                    ],
+                };
+                $tableCaptionSurgeCases[] = [
+                    'number' => $tableCaptionSurgeCaseNumber,
+                    'id' => 'md-table-caption-surge-' . $caseId,
+                    'caseClass' => 'case-' . $caseId,
+                    'attributeSource' => $attributeSet['source'],
+                    'attributes' => $attributeSet['attributes'],
+                    'htmlAttributeFragment' => $attributeSet['html'],
+                    'syntax' => $syntax,
+                    'position' => $position,
+                    'marker' => $marker,
+                    'caption' => 'Review *caption* ' . $caseId,
+                    'shortCaption' => 'Queue ' . $caseId,
+                    'rowLabel' => 'A' . $caseId,
+                    'name' => sprintf(
+                        'maps upstream markdown table caption surge case %s %s %s %s',
+                        $caseId,
+                        $syntax,
+                        $position,
+                        strtolower(rtrim($marker, ':')) ?: 'colon'
+                    ),
+                ];
+                $tableCaptionSurgeCaseNumber++;
+            }
+        }
+    }
+}
+
+foreach ($tableCaptionSurgeCases as $case) {
+    $tests[$case['name']] = static function (TestRunner $t) use ($case, $makeTableCaptionSurgeMarkdown): void {
+        $document = (new MarkdownReader())->read($makeTableCaptionSurgeMarkdown($case));
+        $table = $document->children[0] ?? new AstNode('missing');
+        $captionInlines = $table->attr('captionInlines', []);
+        $shortCaptionInlines = $table->attr('shortCaptionInlines', []);
+        $attributes = $table->attr('attributes', []);
+        $htmlAttributes = $table->attr('htmlAttributes', []);
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($document->children));
+        $t->same('table', $table->type);
+        $t->same($case['caption'], $table->attr('caption'));
+        $t->same($case['shortCaption'], $table->attr('shortCaption'));
+        $t->same($case['id'], $table->attr('id'));
+        $t->same(['surge', $case['caseClass']], $table->attr('classes'));
+        $t->same($case['attributes'], $attributes);
+        $t->same($case['id'], $htmlAttributes['id'] ?? null);
+        $t->same('surge ' . $case['caseClass'], $htmlAttributes['class'] ?? null);
+        $t->same(['text', 'emph', 'text'], array_map(static fn (AstNode $node): string => $node->type, $captionInlines));
+        $t->same('caption', $captionInlines[1]->children[0]->attr('text'));
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $shortCaptionInlines));
+        $t->same($case['shortCaption'], $shortCaptionInlines[0]->attr('text'));
+        $t->same('Term', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same($case['rowLabel'], $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same((string) $case['number'], $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->contains(
+            ': [' . $case['shortCaption'] . '] ' . $case['caption']
+                . ' {#' . $case['id'] . ' .surge .' . $case['caseClass']
+                . ' ' . $case['attributeSource'] . '}',
+            $markdown
+        );
+        $t->contains(
+            '<figure class="wp-block-table" data-pandoc-short-caption="' . $case['shortCaption'] . '">',
+            $blocks
+        );
+        $t->contains(
+            '<table id="' . $case['id'] . '" class="surge ' . $case['caseClass']
+                . '" ' . $case['htmlAttributeFragment'] . '>',
+            $blocks
+        );
+        $t->contains(
+            '<figcaption class="wp-element-caption">Review <em>caption</em> '
+                . str_pad((string) $case['number'], 3, '0', STR_PAD_LEFT)
+                . '</figcaption>',
+            $blocks
+        );
+    };
+}
+
 
 return $tests;
