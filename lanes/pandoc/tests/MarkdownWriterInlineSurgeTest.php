@@ -103,7 +103,7 @@ function markdown_writer_inline_surge_cases(): array
         ],
         'escapes fenced div colon run' => $textCase('::: imported div fence literal', '\\::: imported div fence literal'),
         'escapes image opener in text' => $textCase('![not an image]', '\\![not an image\\]'),
-        'escapes strikeout delimiter in text' => $textCase('~~not deleted~~', '\\~~not deleted\\~~'),
+        'escapes strikeout delimiter in text' => $textCase('~~not deleted~~', '\\~\\~not deleted\\~\\~'),
         'preserves intraword underscore text' => $textCase('alpha_beta_gamma', 'alpha_beta_gamma'),
         'escapes standalone underscore text' => $textCase('alpha _ beta', 'alpha \\_ beta'),
         'escapes angle comparison text' => $textCase('5 < 6 > 4', '5 \\< 6 \\> 4'),
@@ -220,7 +220,7 @@ function markdown_writer_inline_surge_cases(): array
         ], '==marked=='),
         'falls back attributed mark span containing delimiter' => $inlineCase([
             markdown_writer_surge_inline('span', [markdown_writer_surge_text('a==b')], ['classes' => ['mark']]),
-        ], '[a==b]{.mark}'),
+        ], '[a\\=\\=b]{.mark}'),
         'renders small caps span class' => $inlineCase([
             markdown_writer_surge_inline('small_caps', [markdown_writer_surge_text('Caps')]),
         ], '[Caps]{.smallcaps}'),

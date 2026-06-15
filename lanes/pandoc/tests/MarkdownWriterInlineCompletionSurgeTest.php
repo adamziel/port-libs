@@ -151,7 +151,7 @@ $cases = [
     ], '**a \\* b**'),
     'strikeout content escapes nested delimiter text' => $case([
         $inline('strikeout', [$text('a ~~ b')]),
-    ], '~~a \\~~ b~~'),
+    ], '~~a \\~\\~ b~~'),
     'superscript escapes spaces' => $case([
         $inline('superscript', [$text('build 42 rc')]),
     ], '^build\\ 42\\ rc^'),

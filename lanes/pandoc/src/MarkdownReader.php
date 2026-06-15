@@ -20217,12 +20217,12 @@ final class MarkdownReader
      */
     private function tryParseStrikeout(string $text, int $offset): ?array
     {
-        if (substr($text, $offset, 2) !== '~~') {
+        if (substr($text, $offset, 2) !== '~~' || $this->isEscapedInlinePosition($text, $offset)) {
             return null;
         }
 
-        $end = strpos($text, '~~', $offset + 2);
-        if ($end === false || $end === $offset + 2) {
+        $end = $this->findClosingStrikeoutDelimiter($text, $offset + 2);
+        if ($end === null || $end === $offset + 2) {
             return null;
         }
 
@@ -20232,6 +20232,20 @@ final class MarkdownReader
             'node' => new AstNode('strikeout', [], $this->parseInlines($inner)),
             'next' => $end + 2,
         ];
+    }
+
+    private function findClosingStrikeoutDelimiter(string $text, int $offset): ?int
+    {
+        $position = strpos($text, '~~', $offset);
+        while ($position !== false) {
+            if (!$this->isEscapedInlinePosition($text, $position)) {
+                return $position;
+            }
+
+            $position = strpos($text, '~~', $position + 2);
+        }
+
+        return null;
     }
 
     /**
@@ -20289,6 +20303,10 @@ final class MarkdownReader
     {
         $delimiter = $text[$offset] ?? '';
         if ($delimiter !== '^' && $delimiter !== '~') {
+            return null;
+        }
+
+        if ($this->isEscapedInlinePosition($text, $offset)) {
             return null;
         }
 
@@ -20407,6 +20425,9 @@ final class MarkdownReader
     {
         $char = $text[$offset] ?? '';
         if ($char !== '*' && $char !== '_') {
+            return null;
+        }
+        if ($this->isEscapedInlinePosition($text, $offset)) {
             return null;
         }
 
@@ -20590,6 +20611,11 @@ final class MarkdownReader
         $needle = str_repeat($char, $size);
         $position = strpos($text, $needle, $offset);
         while ($position !== false) {
+            if ($this->isEscapedInlinePosition($text, $position)) {
+                $position = strpos($text, $needle, $position + 1);
+                continue;
+            }
+
             $runLength = $this->countDelimiterRun($text, $position, $char);
             if ($size === 1 && (($text[$position - 1] ?? '') === $char || $runLength > 1)) {
                 $position = strpos($text, $needle, $position + 1);

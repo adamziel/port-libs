@@ -10277,7 +10277,7 @@ MD;
         ]);
 
         $t->same(implode("\n", [
-            '\\# Heading-looking source \\-- \\... \\::: \\![draft\\] \\~~gone\\~~ a_b \\*stars\\* \\_under\\_ \\`tick\\` \\| \\^ \\~ \\$ \\<tag\\> \\> \\&ouml; \\\\macro [bracket \\[label\\]][1] and [bracket \\[again\\]][1] then [normal] and [normal][2]',
+            '\\# Heading-looking source \\-- \\... \\::: \\![draft\\] \\~\\~gone\\~\\~ a_b \\*stars\\* \\_under\\_ \\`tick\\` \\| \\^ \\~ \\$ \\<tag\\> \\> \\&ouml; \\\\macro [bracket \\[label\\]][1] and [bracket \\[again\\]][1] then [normal] and [normal][2]',
             '',
             '  [1]: /review',
             '  [normal]: /other',

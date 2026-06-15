@@ -3444,7 +3444,11 @@ final class MarkdownWriter
             return '==' . $content . '==';
         }
 
-        $attrs = $this->renderLinkAttributes($node);
+        $attrTuple = $this->linkAttrTuple($node);
+        if (($attrTuple['classes'][0] ?? null) === 'mark') {
+            $content = str_replace('==', '\\=\\=', $content);
+        }
+        $attrs = $this->renderAttributesTuple($attrTuple);
 
         return $attrs === '' ? $content : '[' . $content . ']' . $attrs;
     }
@@ -3954,7 +3958,7 @@ final class MarkdownWriter
             }
 
             if (str_starts_with($tail, '~~')) {
-                $escaped .= '\\~~';
+                $escaped .= '\\~\\~';
                 $i++;
                 $lineStart = false;
                 $definitionLineStart = false;

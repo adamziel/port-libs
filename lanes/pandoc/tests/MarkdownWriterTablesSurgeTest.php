@@ -635,7 +635,7 @@ $spanCompletionCases = [
     ],
     'mark span containing delimiter falls back to bracketed attributes' => [
         'inline' => new AstNode('span', ['classes' => ['mark']], [$text('a==b')]),
-        'expected' => '[a==b]{.mark}',
+        'expected' => '[a\\=\\=b]{.mark}',
     ],
     'emoji alias span' => [
         'inline' => new AstNode('span', ['classes' => ['emoji'], 'attributes' => ['data-emoji' => 'sparkles']], [$text("\u{2728}")]),
