@@ -1275,5 +1275,7 @@
   "mappedMarkdownReaderInlineGenericHtmlSurgeCases": 50,
   "markdownReaderInlineGenericHtmlSurgeAssertions": 254,
   "mappedMarkdownWriterReferenceAttributeBraceSurgeCases": 55,
-  "markdownWriterReferenceAttributeBraceSurgeAssertions": 166
+  "markdownWriterReferenceAttributeBraceSurgeAssertions": 166,
+  "mappedMarkdownWriterInlineAliasHandoffSurgeCases": 56,
+  "markdownWriterInlineAliasHandoffSurgeAssertions": 57
 }

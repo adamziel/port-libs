@@ -4175,7 +4175,7 @@ final class MarkdownWriter
     ): string
     {
         return match ($node->type) {
-            'text' => $this->escapeText((string) $node->attr('text', ''), $escapeDefinitionMarker, $escapeLeadingAttributeBrace),
+            'text' => $this->escapeText($this->nodeText($node), $escapeDefinitionMarker, $escapeLeadingAttributeBrace),
             'space' => ' ',
             'softbreak' => $this->softBreakMarkdown(),
             'linebreak' => "\\\n",
@@ -4222,11 +4222,11 @@ final class MarkdownWriter
             return $this->renderReferenceLink($node, $following);
         }
 
-        $title = (string) $node->attr('title', '');
+        $title = $this->linkTitle($node);
         $titleMarkdown = $title === '' ? '' : ' "' . $this->escapeLinkTitle($title) . '"';
 
         return '[' . $this->renderBracketedLabelInlines($node->children) . ']('
-            . $this->renderLinkDestination((string) $node->attr('url', ''))
+            . $this->renderLinkDestination($this->linkUrl($node))
             . $titleMarkdown
             . ')'
             . $this->renderLinkAttributes($node);
@@ -4256,8 +4256,8 @@ final class MarkdownWriter
         $plainLabel = $this->normalizeReferenceLabelText($this->plainInlineText($node->children));
         $referenceLabel = $this->registerReference(
             $plainLabel,
-            (string) $node->attr('url', ''),
-            (string) $node->attr('title', ''),
+            $this->linkUrl($node),
+            $this->linkTitle($node),
             $this->linkAttrTuple($node)
         );
 
@@ -4300,7 +4300,7 @@ final class MarkdownWriter
 
     private function sourceNoteLabel(AstNode $node): ?string
     {
-        $label = trim((string) $node->attr('label', ''));
+        $label = trim($this->scalarAttr($node, ['label', 'noteLabel']));
         if ($label === '' || preg_match('/[\[\]\s]/u', $label) === 1) {
             return null;
         }
@@ -4330,11 +4330,11 @@ final class MarkdownWriter
         }
 
         if (
-            (string) $node->attr('mode', 'normal') === 'author_in_text'
+            $this->citationMode($node) === 'author_in_text'
             && $this->citationAffixMarkdown($node, 'prefix') === ''
         ) {
             $suffix = $this->citationSuffixMarkdown($node);
-            $token = '@' . $this->citationIdentifierMarkdown((string) $node->attr('id', ''));
+            $token = '@' . $this->citationIdentifierMarkdown($this->citationId($node));
 
             if ($suffix === '') {
                 return $token;
@@ -4393,8 +4393,8 @@ final class MarkdownWriter
     private function citationItemMarkdown(AstNode $citation): string
     {
         $prefix = $this->citationAffixMarkdown($citation, 'prefix');
-        $token = ((string) $citation->attr('mode', 'normal') === 'suppress_author' ? '-@' : '@')
-            . $this->citationIdentifierMarkdown((string) $citation->attr('id', ''));
+        $token = ($this->citationMode($citation) === 'suppress_author' ? '-@' : '@')
+            . $this->citationIdentifierMarkdown($this->citationId($citation));
         $suffix = $this->citationSuffixMarkdown($citation);
         $markdown = $prefix === '' ? $token : $prefix . ' ' . $token;
 
@@ -4424,7 +4424,7 @@ final class MarkdownWriter
 
     private function citationAffixMarkdown(AstNode $citation, string $name): string
     {
-        $value = $citation->attr($name, '');
+        $value = $this->citationAffixValue($citation, $name);
         if (is_array($value) && $this->allAstNodes(array_values($value))) {
             return $this->renderInlines(array_values($value));
         }
@@ -4457,7 +4457,7 @@ final class MarkdownWriter
             return $this->renderHtmlInline($node);
         }
 
-        $text = (string) $node->attr('text', '');
+        $text = $this->nodeText($node, ['text', 'literal', 'code', 'value', 'content', 'string']);
         $delimiter = str_repeat('`', max(1, $this->longestBacktickRun($text) + 1));
         if (str_contains($text, '`') || str_starts_with($text, ' ') || str_ends_with($text, ' ')) {
             $text = ' ' . $text . ' ';
@@ -4641,7 +4641,7 @@ final class MarkdownWriter
             return $this->renderHtmlInline($node);
         }
 
-        $text = $this->escapeMathText((string) $node->attr('text', ''));
+        $text = $this->escapeMathText($this->nodeText($node, ['text', 'formula', 'math', 'value', 'literal', 'content', 'string']));
         if ($node->attr('display') === true) {
             return '$$' . $text . '$$' . $this->renderLinkAttributes($node);
         }
@@ -4659,13 +4659,13 @@ final class MarkdownWriter
      */
     private function renderRawBlock(AstNode $node, int $indent): array
     {
-        $format = strtolower((string) $node->attr('format', ''));
+        $format = strtolower($this->rawFormat($node));
         if (($node->type === 'raw_html' || $this->isHtmlRawFormat($format)) && $this->rawFormatAllowed($format, 'html')) {
-            $text = (string) $node->attr('text', $node->attr('html', ''));
+            $text = $this->rawText($node, ['text', 'html', 'raw', 'content', 'literal', 'value']);
         } elseif (($node->type === 'raw_markdown' || $this->isMarkdownRawFormat($format)) && $this->rawFormatAllowed($format, 'markdown')) {
-            $text = (string) $node->attr('text', $node->attr('markdown', ''));
+            $text = $this->rawText($node, ['text', 'markdown', 'raw', 'content', 'literal', 'value']);
         } elseif (($node->type === 'raw_tex' || $this->isTexRawFormat($format)) && $this->rawFormatAllowed($format, 'tex')) {
-            $text = (string) $node->attr('text', $node->attr('tex', ''));
+            $text = $this->rawText($node, ['text', 'tex', 'raw', 'content', 'literal', 'value']);
         } else {
             return [];
         }
@@ -4678,25 +4678,25 @@ final class MarkdownWriter
 
     private function renderRawInline(AstNode $node): string
     {
-        $format = strtolower((string) $node->attr('format', ''));
+        $format = strtolower($this->rawFormat($node));
         if ($node->type === 'raw_html_inline') {
             if (!$this->rawFormatAllowed($format, 'html')) {
                 return '';
             }
 
-            return (string) $node->attr('text', $node->attr('html', ''));
+            return $this->rawText($node, ['text', 'html', 'raw', 'content', 'literal', 'value']);
         }
 
         if (($node->type === 'raw_markdown' || $this->isMarkdownRawFormat($format)) && $this->rawFormatAllowed($format, 'markdown')) {
-            return (string) $node->attr('text', $node->attr('markdown', ''));
+            return $this->rawText($node, ['text', 'markdown', 'raw', 'content', 'literal', 'value']);
         }
 
         if (($node->type === 'raw_html_inline' || $this->isHtmlRawFormat($format)) && $this->rawFormatAllowed($format, 'html')) {
-            return (string) $node->attr('text', $node->attr('html', ''));
+            return $this->rawText($node, ['text', 'html', 'raw', 'content', 'literal', 'value']);
         }
 
         if (($node->type === 'raw_tex' || $this->isTexRawFormat($format)) && $this->rawFormatAllowed($format, 'tex')) {
-            return (string) $node->attr('text', $node->attr('tex', ''));
+            return $this->rawText($node, ['text', 'tex', 'raw', 'content', 'literal', 'value']);
         }
 
         return '';
@@ -5678,7 +5678,8 @@ final class MarkdownWriter
         $text = '';
         foreach ($nodes as $node) {
             $text .= match ($node->type) {
-                'text', 'code' => (string) $node->attr('text', ''),
+                'text', 'code' => $this->nodeText($node, ['text', 'value', 'literal', 'code', 'content', 'string']),
+                'math' => $this->nodeText($node, ['text', 'formula', 'math', 'value', 'literal', 'content', 'string']),
                 'space', 'softbreak', 'linebreak' => ' ',
                 default => $this->plainInlineText($node->children),
             };
@@ -5875,15 +5876,15 @@ final class MarkdownWriter
             $attrs['id'] !== ''
             || $attrs['classes'] !== ['wikilink']
             || $attrs['attributes'] !== []
-            || (string) $node->attr('title', '') !== ''
+            || $this->linkTitle($node) !== ''
             || count($node->children) !== 1
             || $node->children[0]->type !== 'text'
         ) {
             return null;
         }
 
-        $label = (string) $node->children[0]->attr('text', '');
-        $url = (string) $node->attr('url', '');
+        $label = $this->nodeText($node->children[0]);
+        $url = $this->linkUrl($node);
         if ($label === '' || $url === '' || str_contains($label, "\n") || str_contains($url, "\n")) {
             return null;
         }
@@ -5921,8 +5922,8 @@ final class MarkdownWriter
 
     private function canRenderAutolink(AstNode $node): bool
     {
-        $url = (string) $node->attr('url', '');
-        if (!$this->isUriLike($url) || (string) $node->attr('title', '') !== '') {
+        $url = $this->linkUrl($node);
+        if (!$this->isUriLike($url) || $this->linkTitle($node) !== '') {
             return false;
         }
 
@@ -5945,7 +5946,7 @@ final class MarkdownWriter
             return false;
         }
 
-        $label = (string) $node->children[0]->attr('text', '');
+        $label = $this->nodeText($node->children[0]);
         $suffix = $this->autolinkText($node);
         if (!$this->isSafeAutolinkText($node, $suffix)) {
             return false;
@@ -5962,7 +5963,7 @@ final class MarkdownWriter
 
     private function autolinkText(AstNode $node): string
     {
-        $url = (string) $node->attr('url', '');
+        $url = $this->linkUrl($node);
 
         return $this->isMailtoUrl($url) ? substr($url, 7) : $url;
     }
@@ -5984,7 +5985,7 @@ final class MarkdownWriter
             return false;
         }
 
-        $url = (string) $node->attr('url', '');
+        $url = $this->linkUrl($node);
         if ($this->isMailtoUrl($url)) {
             return $this->isValidEmailAutolinkText($text);
         }
@@ -6020,14 +6021,14 @@ final class MarkdownWriter
     {
         $labelNodes = $node->children;
         if ($labelNodes === []) {
-            $alt = (string) $node->attr('alt', '');
+            $alt = $this->imageAlt($node);
             if ($alt !== '') {
                 $labelNodes = [new AstNode('text', ['text' => $alt])];
             }
         }
 
-        $url = (string) $node->attr('url', '');
-        if ($labelNodes === [] || (count($labelNodes) === 1 && $labelNodes[0]->type === 'text' && $labelNodes[0]->attr('text', '') === $url)) {
+        $url = $this->linkUrl($node);
+        if ($labelNodes === [] || (count($labelNodes) === 1 && $labelNodes[0]->type === 'text' && $this->nodeText($labelNodes[0]) === $url)) {
             return [new AstNode('text', ['text' => ''])];
         }
 
@@ -6040,17 +6041,22 @@ final class MarkdownWriter
     private function imageLinkAttrs(AstNode $node): array
     {
         $attrs = [
-            'url' => (string) $node->attr('url', ''),
-            'title' => (string) $node->attr('title', ''),
+            'url' => $this->linkUrl($node),
+            'title' => $this->linkTitle($node),
         ];
 
-        foreach (['id', 'classes', 'attributes'] as $name) {
-            if (array_key_exists($name, $node->attrs)) {
-                $attrs[$name] = $node->attrs[$name];
-            }
+        $linkAttrs = $this->linkAttrTuple($node);
+        if ($linkAttrs['id'] !== '') {
+            $attrs['id'] = $linkAttrs['id'];
+        }
+        if ($linkAttrs['classes'] !== []) {
+            $attrs['classes'] = $linkAttrs['classes'];
+        }
+        if ($linkAttrs['attributes'] !== []) {
+            $attrs['attributes'] = $linkAttrs['attributes'];
         }
 
-        $alt = (string) $node->attr('alt', '');
+        $alt = $this->imageAlt($node);
         if ($alt !== '') {
             $labelText = $this->plainInlineText($this->imageLabelNodesForLink($node));
             $attributes = $attrs['attributes'] ?? [];
@@ -6158,13 +6164,186 @@ final class MarkdownWriter
     }
 
     /**
+     * @param list<string> $names
+     */
+    private function scalarAttr(AstNode $node, array $names, string $default = ''): string
+    {
+        foreach ($names as $name) {
+            if (!array_key_exists($name, $node->attrs) || !is_scalar($node->attrs[$name])) {
+                continue;
+            }
+
+            return (string) $node->attrs[$name];
+        }
+
+        return $default;
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private function nodeText(AstNode $node, array $names = ['text', 'value', 'literal', 'content', 'string']): string
+    {
+        return $this->scalarAttr($node, $names);
+    }
+
+    private function rawFormat(AstNode $node): string
+    {
+        return $this->scalarAttr($node, ['format', 'rawFormat', 'formatName']);
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private function rawText(AstNode $node, array $names): string
+    {
+        return $this->scalarAttr($node, $names);
+    }
+
+    private function linkUrl(AstNode $node): string
+    {
+        $url = $this->scalarAttr($node, ['url', 'href', 'src', 'uri']);
+        if ($url !== '') {
+            return $url;
+        }
+
+        return $this->targetUrl($node);
+    }
+
+    private function linkTitle(AstNode $node): string
+    {
+        $title = $this->scalarAttr($node, ['title', 'titleText', 'tooltip']);
+        if ($title !== '') {
+            return $title;
+        }
+
+        return $this->targetTitle($node);
+    }
+
+    private function targetUrl(AstNode $node): string
+    {
+        foreach (['target', 'destination'] as $name) {
+            $value = $node->attr($name);
+            if (is_scalar($value)) {
+                return (string) $value;
+            }
+            if (is_array($value)) {
+                $url = $this->targetArrayPart($value, 0, ['url', 'href', 'src', 'uri']);
+                if ($url !== '') {
+                    return $url;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private function targetTitle(AstNode $node): string
+    {
+        foreach (['target', 'destination'] as $name) {
+            $value = $node->attr($name);
+            if (!is_array($value)) {
+                continue;
+            }
+
+            $title = $this->targetArrayPart($value, 1, ['title', 'titleText', 'tooltip']);
+            if ($title !== '') {
+                return $title;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<mixed> $value
+     * @param list<string> $keys
+     */
+    private function targetArrayPart(array $value, int $index, array $keys): string
+    {
+        if (array_is_list($value) && isset($value[$index]) && is_scalar($value[$index])) {
+            return (string) $value[$index];
+        }
+
+        foreach ($keys as $key) {
+            if (isset($value[$key]) && is_scalar($value[$key])) {
+                return (string) $value[$key];
+            }
+        }
+
+        return '';
+    }
+
+    private function imageAlt(AstNode $node): string
+    {
+        return $this->scalarAttr($node, ['alt', 'altText', 'alternateText', 'description']);
+    }
+
+    private function citationId(AstNode $node): string
+    {
+        return $this->scalarAttr($node, ['id', 'citationId', 'identifier']);
+    }
+
+    private function citationMode(AstNode $node): string
+    {
+        $mode = $this->scalarAttr($node, ['mode']);
+        if ($mode !== '') {
+            return $this->normalizeCitationMode($mode);
+        }
+
+        return $this->normalizeCitationMode($this->scalarAttr($node, ['citationModeConstructor', 'citationMode']));
+    }
+
+    private function normalizeCitationMode(string $mode): string
+    {
+        $normalized = strtolower(str_replace(['-', ' '], '_', trim($mode)));
+
+        return match ($normalized) {
+            'authorintext', 'author_in_text' => 'author_in_text',
+            'suppressauthor', 'suppress_author' => 'suppress_author',
+            default => 'normal',
+        };
+    }
+
+    private function citationAffixValue(AstNode $citation, string $name): mixed
+    {
+        $aliases = match ($name) {
+            'prefix' => ['prefix', 'citationPrefix'],
+            'suffix' => ['suffix', 'citationSuffix'],
+            'locator' => ['locator', 'locatorText', 'citationLocator', 'citationLocatorText'],
+            default => [$name],
+        };
+
+        foreach ($aliases as $alias) {
+            if (array_key_exists($alias, $citation->attrs)) {
+                return $citation->attrs[$alias];
+            }
+        }
+
+        return '';
+    }
+
+    /**
      * @return array{id:string, classes:list<string>, attributes:array<string, string>}
      */
     private function linkAttrTuple(AstNode $node): array
     {
-        $id = is_scalar($node->attr('id')) ? trim((string) $node->attr('id', '')) : '';
-        $classes = $this->normalizedClassList($node->attr('classes', $node->attr('className', [])));
-        $attributes = $this->normalizedAttributePairs($node->attr('attributes', []));
+        $id = trim($this->scalarAttr($node, ['id', 'identifier', 'anchor']));
+
+        $classes = [];
+        foreach (['classes', 'class', 'className'] as $name) {
+            if (array_key_exists($name, $node->attrs)) {
+                $this->appendNormalizedClasses($classes, $node->attrs[$name]);
+            }
+        }
+        $classes = array_values(array_unique($classes));
+
+        $attributes = [];
+        foreach (['attributes', 'keyvals', 'keyValues', 'attributePairs', 'dataAttributes'] as $name) {
+            if (array_key_exists($name, $node->attrs)) {
+                $this->appendNormalizedAttributes($attributes, $node->attrs[$name]);
+            }
+        }
 
         $topLevelAttributeNames = ['dir', 'lang', 'role', 'xml:lang'];
         if (!in_array($node->type, ['link', 'image'], true)) {
@@ -6188,61 +6367,89 @@ final class MarkdownWriter
     }
 
     /**
-     * @return list<string>
+     * @param list<string> $classes
      */
-    private function normalizedClassList(mixed $classes): array
+    private function appendNormalizedClasses(array &$classes, mixed $value): void
     {
-        if (is_string($classes)) {
-            $classes = preg_split('/\s+/', trim($classes), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if (is_string($value)) {
+            foreach (preg_split('/\s+/u', trim($value)) ?: [] as $class) {
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
+            }
+            return;
         }
 
-        if (!is_array($classes)) {
-            return [];
+        if (!is_array($value)) {
+            if (is_scalar($value)) {
+                $class = trim((string) $value);
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
+            }
+            return;
         }
 
-        $normalized = [];
-        foreach ($classes as $class) {
+        foreach ($value as $class) {
             if (!is_scalar($class)) {
                 continue;
             }
 
             $class = trim((string) $class);
             if ($class !== '') {
-                $normalized[] = $class;
+                $classes[] = $class;
             }
         }
-
-        return array_values(array_unique($normalized));
     }
 
     /**
-     * @return array<string, string>
+     * @param array<string, string> $attributes
      */
-    private function normalizedAttributePairs(mixed $attributes): array
+    private function appendNormalizedAttributes(array &$attributes, mixed $value): void
     {
-        if (!is_array($attributes)) {
-            return [];
+        if (!is_array($value)) {
+            return;
         }
 
-        $normalized = [];
-        foreach ($attributes as $name => $value) {
-            if (is_array($value) && array_is_list($value) && count($value) >= 2) {
-                $name = $value[0];
-                $value = $value[1];
+        if (!array_is_list($value)) {
+            foreach ($value as $name => $item) {
+                $this->appendNormalizedAttribute($attributes, (string) $name, $item);
             }
+            return;
+        }
 
-            if (!is_scalar($name) || !is_scalar($value)) {
+        foreach ($value as $item) {
+            if (!is_array($item)) {
                 continue;
             }
 
-            $name = trim((string) $name);
-            $value = (string) $value;
-            if ($name !== '' && $value !== '') {
-                $normalized[$name] = $value;
+            if (isset($item[0], $item[1])) {
+                $this->appendNormalizedAttribute($attributes, (string) $item[0], $item[1]);
+                continue;
+            }
+
+            if (isset($item['key'], $item['value'])) {
+                $this->appendNormalizedAttribute($attributes, (string) $item['key'], $item['value']);
+                continue;
+            }
+
+            if (isset($item['name'], $item['value'])) {
+                $this->appendNormalizedAttribute($attributes, (string) $item['name'], $item['value']);
             }
         }
+    }
 
-        return $normalized;
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function appendNormalizedAttribute(array &$attributes, string $name, mixed $value): void
+    {
+        $name = trim($name);
+        if ($name === '' || !is_scalar($value) || (string) $value === '') {
+            return;
+        }
+
+        $attributes[$name] = (string) $value;
     }
 
     private function renderLinkAttributes(AstNode $node): string
