@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\TableGeometry;
 
 $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
 $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
@@ -30,6 +32,47 @@ $table = static function (array $attrs = [], ?AstNode $valueCell = null, bool $b
 
 $writeTable = static fn (AstNode $table): string => (new MarkdownWriter())->write($document([$table]));
 $topCaption = static fn (array $attrs): array => array_replace_recursive(['captionSource' => ['captionSide' => 'top']], $attrs);
+$readFirstTable = static function (string $markdown): AstNode {
+    $document = (new MarkdownReader())->read($markdown);
+    foreach ($document->children as $node) {
+        if ($node->type === 'table') {
+            return $node;
+        }
+    }
+
+    return new AstNode('missing');
+};
+
+$readerTableFixtures = [
+    'pipe' => implode("\n", [
+        '| Metric | Value |',
+        '|:-------|------:|',
+        '| Probe | 42 |',
+    ]),
+    'simple' => implode("\n", [
+        'Metric  Value',
+        '------  -----',
+        'Probe   42',
+    ]),
+    'grid' => implode("\n", [
+        '+--------+-------+',
+        '| Metric | Value |',
+        '+========+=======+',
+        '| Probe  | 42    |',
+        '+--------+-------+',
+    ]),
+];
+$captionedReaderTable = static function (string $tableMarkdown, string $position, string $marker, string $caption): string {
+    $captionLine = $marker . ' ' . $caption;
+
+    return $position === 'before-table'
+        ? $captionLine . "\n\n" . $tableMarkdown
+        : $tableMarkdown . "\n\n" . $captionLine;
+};
+$inlineTypes = static fn (array $nodes): array => array_values(array_map(
+    static fn (AstNode $node): string => $node->type,
+    $nodes
+));
 
 $tests = [];
 
@@ -288,9 +331,94 @@ foreach ($textCellCases as $label => $case) {
         };
 }
 
+$readerShortCaptionCases = [
+    'plain text' => [
+        'source' => 'Short label {n}',
+        'plain' => 'Short label {n}',
+        'types' => ['text'],
+    ],
+    'strong inline' => [
+        'source' => 'Short **label** {n}',
+        'plain' => 'Short label {n}',
+        'types' => ['text', 'strong', 'text'],
+    ],
+    'link inline' => [
+        'source' => '[Short link {n}](/short-{n})',
+        'plain' => 'Short link {n}',
+        'types' => ['link'],
+    ],
+];
+
+$shortCaptionCaseNumber = 1;
+foreach ($readerTableFixtures as $tableName => $tableMarkdown) {
+    foreach (['before-table', 'after-table'] as $position) {
+        foreach (['Table:', 'Caption:', ':'] as $marker) {
+            foreach ($readerShortCaptionCases as $label => $case) {
+                $caseNumber = $shortCaptionCaseNumber++;
+                $source = str_replace('{n}', (string) $caseNumber, $case['source']);
+                $plain = str_replace('{n}', (string) $caseNumber, $case['plain']);
+
+                $tests["maps upstream markdown reader short-only table caption {$tableName} {$position} {$marker} {$label}"] =
+                    static function (TestRunner $t) use ($captionedReaderTable, $readFirstTable, $inlineTypes, $tableMarkdown, $position, $marker, $source, $plain, $case): void {
+                        $markdown = $captionedReaderTable($tableMarkdown, $position, $marker, '[' . $source . ']');
+                        $table = $readFirstTable($markdown);
+                        $sourceRecord = $table->attr('captionSource');
+                        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+                        $rewritten = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
+
+                        $t->same('table', $table->type, $markdown);
+                        $t->same('', $table->attr('caption'), $markdown);
+                        $t->same(null, $table->attr('captionInlines', null), $markdown);
+                        $t->same($plain, $table->attr('shortCaption'), $markdown);
+                        $t->same($case['types'], $inlineTypes($table->attr('shortCaptionInlines', [])), $markdown);
+                        $t->same('markdown-table-caption', $sourceRecord['element'] ?? null, $markdown);
+                        $t->same($position, $sourceRecord['position'] ?? null, $markdown);
+                        $t->same($marker, $sourceRecord['marker'] ?? null, $markdown);
+                        $t->same($position === 'before-table' ? 'top' : 'bottom', $sourceRecord['captionSide'] ?? null, $markdown);
+                        $t->same(false, $packet['summary']['hasCaption'] ?? null, $markdown);
+                        $t->same(true, $packet['summary']['hasShortCaption'] ?? null, $markdown);
+                        $t->same($plain, $packet['captions']['short']['text'] ?? null, $markdown);
+                        $t->contains(': [' . $source . ']', $rewritten);
+                    };
+            }
+        }
+    }
+}
+
+$readerCaptionAttributeCases = [
+    'same line attributes' => 'Attributed **caption** {n} {#tbl-{n} .review data-source="batch-{n}"}',
+    'continuation line attributes' => "Attributed **caption** {n}\n  {#tbl-{n} .review data-source=\"batch-{n}\"}",
+];
+
+$attributeCaseNumber = 1;
+foreach ($readerTableFixtures as $tableName => $tableMarkdown) {
+    foreach (['before-table' => 'Table:', 'after-table' => ':'] as $position => $marker) {
+        foreach ($readerCaptionAttributeCases as $label => $sourceTemplate) {
+            $caseNumber = $attributeCaseNumber++;
+            $source = str_replace('{n}', (string) $caseNumber, $sourceTemplate);
+            $id = 'tbl-' . $caseNumber;
+
+            $tests["maps upstream markdown reader table caption trailing attributes {$tableName} {$position} {$label}"] =
+                static function (TestRunner $t) use ($captionedReaderTable, $readFirstTable, $inlineTypes, $tableMarkdown, $position, $marker, $source, $caseNumber, $id): void {
+                    $markdown = $captionedReaderTable($tableMarkdown, $position, $marker, $source);
+                    $table = $readFirstTable($markdown);
+                    $rewritten = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
+
+                    $t->same('table', $table->type, $markdown);
+                    $t->same('Attributed **caption** ' . $caseNumber, $table->attr('caption'), $markdown);
+                    $t->same(['text', 'strong', 'text'], $inlineTypes($table->attr('captionInlines', [])), $markdown);
+                    $t->same($id, $table->attr('id'), $markdown);
+                    $t->same(['review'], $table->attr('classes'), $markdown);
+                    $t->same('batch-' . $caseNumber, $table->attr('attributes')['data-source'] ?? null, $markdown);
+                    $t->contains('{#' . $id . ' .review data-source="batch-' . $caseNumber . '"}', $rewritten);
+                };
+        }
+    }
+}
+
 $tests['records markdown writer table caption span completion mapped-case count'] =
     static function (TestRunner $t): void {
-        $t->same(50, 30 + 10 + 10);
+        $t->same(116, 30 + 10 + 10 + 54 + 12);
     };
 
 return $tests;

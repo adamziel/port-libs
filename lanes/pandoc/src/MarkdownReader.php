@@ -14988,19 +14988,7 @@ final class MarkdownReader
      */
     private function splitTableCaptionAttributes(string $caption): array
     {
-        if (preg_match('/^([\s\S]*?)[ \t]*\{([^{}\r\n]+)\}[ \t]*$/u', $caption, $match) !== 1) {
-            return [$caption, []];
-        }
-
-        [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($match[2]);
-        if ($id === null && $classes === [] && $attributes === []) {
-            return [$caption, []];
-        }
-
-        return [
-            rtrim($match[1]),
-            $this->markdownAttributeAstAttrs($id, $classes, $attributes),
-        ];
+        return $this->extractTrailingTableCaptionAttributes($caption);
     }
 
     /**
@@ -15019,10 +15007,6 @@ final class MarkdownReader
         }
 
         $remainder = trim(substr($caption, $end + 1));
-        if ($remainder === '') {
-            return [null, $caption];
-        }
-
         return [substr($caption, 1, $end - 1), $remainder];
     }
 
