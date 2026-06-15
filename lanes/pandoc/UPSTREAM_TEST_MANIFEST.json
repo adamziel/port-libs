@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3599,
-        "latestSlice": "pandoc-epub-manifest-item-reference-readiness-matrix maps ten EPUB3 OPF manifest fallback, fallback-style, and media-overlay reference rows after rebase onto current main 770501a482. EpubPackageReader now parses those attributes and reports resolved references with missing id, external target, missing package part, non-CSS fallback-style, and non-SMIL media-overlay diagnostics without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3608 -> 3609, phpFail remains 0, mapped upstream cases move 3589 -> 3599, mappedEpubManifestItemReferenceReadinessCases = 10, and epubManifestItemReferenceReadinessAssertions = 35. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php passed 1 file, 912 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84695 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+        "mapped": 3604,
+        "latestSlice": "pandoc-zip-creator-version-host-matrix maps five shared ZIP/OPC creator host/version cases after rebase onto current main b7ea35883f. ZipPackage reports creator-version comparison buckets and known/unknown below-needed splits for central-directory records without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3609 -> 3610, phpFail remains 0, mapped upstream cases move 3599 -> 3604, mappedZipCreatorVersionHostMatrixCases = 5, and zipCreatorVersionHostMatrixAssertions = 36. Verification passed php -l for ZipPackage.php and ZipPackageTest.php; focused ZipPackageTest.php passed 1 file, 4762 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84731 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "EPUB3 package manifest item reference readiness matrix is verified after rebase onto current main 770501a482; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-15 EPUB3 package manifest item reference readiness matrix verified after rebase onto current main 770501a482; focused EpubPackageReaderTest.php passed 1 file, 912 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84695 assertions, 0 failures.",
+        "status": "Shared ZIP/OPC creator host/version matrix is verified after rebase onto current main b7ea35883f; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-15 Shared ZIP/OPC creator host/version matrix verified after rebase onto current main b7ea35883f; focused ZipPackageTest.php passed 1 file, 4762 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84731 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -469,7 +469,9 @@
         "mappedEpubManifestResourceKindMatrixCases": 10,
         "epubManifestResourceKindMatrixAssertions": 44,
         "mappedEpubManifestItemReferenceReadinessCases": 10,
-        "epubManifestItemReferenceReadinessAssertions": 35
+        "epubManifestItemReferenceReadinessAssertions": 35,
+        "mappedZipCreatorVersionHostMatrixCases": 5,
+        "zipCreatorVersionHostMatrixAssertions": 36
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -636,7 +638,9 @@
         "mappedZipLocalHeaderSpanByteBucketCases": 1,
         "zipLocalHeaderSpanByteBucketAssertions": 27,
         "mappedDocxOpenXmlRelationshipTypeMatrixCases": 8,
-        "docxOpenXmlRelationshipTypeMatrixAssertions": 58
+        "docxOpenXmlRelationshipTypeMatrixAssertions": 58,
+        "mappedZipCreatorVersionHostMatrixCases": 5,
+        "zipCreatorVersionHostMatrixAssertions": 36
     },
     "inventory": {
         "mainTestSuite": "pandoc.cabal test-suite test-pandoc",
@@ -1474,7 +1478,9 @@
         "mappedXmlHtmlDomJatsReferenceTitleSourceCases": 1,
         "xmlHtmlDomJatsReferenceTitleSourceAssertions": 61,
         "mappedMediaBagRepairProvenanceCases": 1,
-        "mediaBagRepairProvenanceAssertions": 38
+        "mediaBagRepairProvenanceAssertions": 38,
+        "mappedZipCreatorVersionHostMatrixCases": 5,
+        "zipCreatorVersionHostMatrixAssertions": 36
     },
     "wordpressScenario": "JATS/BITS figure review preserves license target diagnostics and media linkage without exposing payload bytes.",
     "nextTask": "Continue bounded shared ZIP/OPC, DOCX/OpenXML, EPUB3, ODF/ODT, JSON/native-AST, CSL, XML/HTML, wiki/roff/text, or PDF/Typst blocker slices while keeping phpFail at zero.",
@@ -2090,5 +2096,7 @@
     "mappedEpubManifestResourceKindMatrixCases": 10,
     "epubManifestResourceKindMatrixAssertions": 44,
     "mappedEpubManifestItemReferenceReadinessCases": 10,
-    "epubManifestItemReferenceReadinessAssertions": 35
+    "epubManifestItemReferenceReadinessAssertions": 35,
+    "mappedZipCreatorVersionHostMatrixCases": 5,
+    "zipCreatorVersionHostMatrixAssertions": 36
 }

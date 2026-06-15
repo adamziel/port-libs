@@ -8374,7 +8374,13 @@ final class ZipPackage
      *     entryCount:int,
      *     knownHostSystemEntryCount:int,
      *     unknownHostSystemEntryCount:int,
+     *     creatorVersionMeetsNeededEntryCount:int,
      *     creatorVersionBelowNeededEntryCount:int,
+     *     creatorVersionEqualNeededEntryCount:int,
+     *     creatorVersionAboveNeededEntryCount:int,
+     *     creatorVersionBelowNeededKnownHostEntryCount:int,
+     *     creatorVersionBelowNeededUnknownHostEntryCount:int,
+     *     creatorVersionComparisonCounts:array<string, int>,
      *     blockedEntryCount:int,
      *     hostSystems:list<array{id:int, name:string, isKnown:bool, entryCount:int}>,
      *     isSupportedByBoundedReader:bool,
@@ -8407,6 +8413,13 @@ final class ZipPackage
         $creatorVersionBelowNeededEntries = [];
         $blockedEntries = [];
         $hostSystems = [];
+        $creatorVersionComparisonCounts = [
+            'below-needed' => 0,
+            'equals-needed' => 0,
+            'above-needed' => 0,
+        ];
+        $creatorVersionBelowNeededKnownHostEntryCount = 0;
+        $creatorVersionBelowNeededUnknownHostEntryCount = 0;
         $cursor = $archive['centralDirectoryOffset'];
         $index = 0;
 
@@ -8440,6 +8453,11 @@ final class ZipPackage
             $isKnown = self::isKnownCreatorHostSystem($hostSystem);
             $madeByVersion = $versionMadeBy & 0xff;
             $creatorVersionMeetsNeeded = $madeByVersion >= $versionNeededToExtract;
+            $creatorVersionDelta = $madeByVersion - $versionNeededToExtract;
+            $creatorVersionComparison = $creatorVersionDelta < 0
+                ? 'below-needed'
+                : ($creatorVersionDelta === 0 ? 'equals-needed' : 'above-needed');
+            $creatorVersionComparisonCounts[$creatorVersionComparison]++;
             $diagnostics = [];
             $issues = [];
             if (!$isKnown) {
@@ -8473,6 +8491,8 @@ final class ZipPackage
                 'madeByVersion' => $madeByVersion,
                 'versionNeededToExtract' => $versionNeededToExtract,
                 'creatorVersionMeetsNeeded' => $creatorVersionMeetsNeeded,
+                'creatorVersionComparison' => $creatorVersionComparison,
+                'creatorVersionDelta' => $creatorVersionDelta,
                 'versionMadeBy' => $versionMadeBy,
                 'isKnown' => $isKnown,
                 'policy' => $diagnostics === [] ? 'metadata' : 'blocked',
@@ -8486,6 +8506,11 @@ final class ZipPackage
             }
             if (!$creatorVersionMeetsNeeded) {
                 $creatorVersionBelowNeededEntries[] = $entry;
+                if ($isKnown) {
+                    $creatorVersionBelowNeededKnownHostEntryCount++;
+                } else {
+                    $creatorVersionBelowNeededUnknownHostEntryCount++;
+                }
                 if (!in_array($entry, $blockedEntries, true)) {
                     $blockedEntries[] = $entry;
                 }
@@ -8526,7 +8551,14 @@ final class ZipPackage
             'entryCount' => count($entries),
             'knownHostSystemEntryCount' => count($entries) - count($unknownEntries),
             'unknownHostSystemEntryCount' => count($unknownEntries),
+            'creatorVersionMeetsNeededEntryCount' => $creatorVersionComparisonCounts['equals-needed']
+                + $creatorVersionComparisonCounts['above-needed'],
             'creatorVersionBelowNeededEntryCount' => count($creatorVersionBelowNeededEntries),
+            'creatorVersionEqualNeededEntryCount' => $creatorVersionComparisonCounts['equals-needed'],
+            'creatorVersionAboveNeededEntryCount' => $creatorVersionComparisonCounts['above-needed'],
+            'creatorVersionBelowNeededKnownHostEntryCount' => $creatorVersionBelowNeededKnownHostEntryCount,
+            'creatorVersionBelowNeededUnknownHostEntryCount' => $creatorVersionBelowNeededUnknownHostEntryCount,
+            'creatorVersionComparisonCounts' => $creatorVersionComparisonCounts,
             'blockedEntryCount' => count($blockedEntries),
             'hostSystems' => array_values($hostSystems),
             'isSupportedByBoundedReader' => $issues === [],
@@ -13738,11 +13770,17 @@ final class ZipPackage
      *     entryCount:int,
      *     knownHostSystemEntryCount:int,
      *     unknownHostSystemEntryCount:int,
+     *     creatorVersionMeetsNeededEntryCount:int,
      *     creatorVersionBelowNeededEntryCount:int,
+     *     creatorVersionEqualNeededEntryCount:int,
+     *     creatorVersionAboveNeededEntryCount:int,
+     *     creatorVersionBelowNeededKnownHostEntryCount:int,
+     *     creatorVersionBelowNeededUnknownHostEntryCount:int,
+     *     creatorVersionComparisonCounts:array<string, int>,
      *     hostSystems:list<array{id:int, name:string, isKnown:bool, entryCount:int}>,
-     *     unknownEntries:list<array{name:string, madeByHostSystem:int, madeByHostSystemName:string, madeByVersion:int, versionMadeBy:int, isKnown:bool}>,
+     *     unknownEntries:list<array<string, mixed>>,
      *     creatorVersionBelowNeededEntries:list<array<string, mixed>>,
-     *     entries:list<array{name:string, madeByHostSystem:int, madeByHostSystemName:string, madeByVersion:int, versionMadeBy:int, isKnown:bool}>
+     *     entries:list<array<string, mixed>>
      * }
      */
     public function creatorHostSystemPreflight(): array
@@ -13751,12 +13789,24 @@ final class ZipPackage
         $unknownEntries = [];
         $creatorVersionBelowNeededEntries = [];
         $hostSystems = [];
+        $creatorVersionComparisonCounts = [
+            'below-needed' => 0,
+            'equals-needed' => 0,
+            'above-needed' => 0,
+        ];
+        $creatorVersionBelowNeededKnownHostEntryCount = 0;
+        $creatorVersionBelowNeededUnknownHostEntryCount = 0;
 
         foreach ($this->entries as $entry) {
             $hostSystem = $entry->madeByHostSystem();
             $hostSystemName = self::creatorHostSystemName($hostSystem);
             $isKnown = self::isKnownCreatorHostSystem($hostSystem);
             $creatorVersionMeetsNeeded = $entry->madeByVersion() >= $entry->neededToExtractVersion();
+            $creatorVersionDelta = $entry->madeByVersion() - $entry->neededToExtractVersion();
+            $creatorVersionComparison = $creatorVersionDelta < 0
+                ? 'below-needed'
+                : ($creatorVersionDelta === 0 ? 'equals-needed' : 'above-needed');
+            $creatorVersionComparisonCounts[$creatorVersionComparison]++;
             $issues = [];
             if (!$isKnown) {
                 $issues[] = 'unknown-creator-host-system';
@@ -13771,6 +13821,8 @@ final class ZipPackage
                 'madeByVersion' => $entry->madeByVersion(),
                 'versionNeededToExtract' => $entry->neededToExtractVersion(),
                 'creatorVersionMeetsNeeded' => $creatorVersionMeetsNeeded,
+                'creatorVersionComparison' => $creatorVersionComparison,
+                'creatorVersionDelta' => $creatorVersionDelta,
                 'versionMadeBy' => $entry->versionMadeBy,
                 'isKnown' => $isKnown,
                 'issues' => $issues,
@@ -13781,6 +13833,11 @@ final class ZipPackage
             }
             if (!$creatorVersionMeetsNeeded) {
                 $creatorVersionBelowNeededEntries[] = $summary;
+                if ($isKnown) {
+                    $creatorVersionBelowNeededKnownHostEntryCount++;
+                } else {
+                    $creatorVersionBelowNeededUnknownHostEntryCount++;
+                }
             }
 
             if (!isset($hostSystems[$hostSystem])) {
@@ -13798,7 +13855,14 @@ final class ZipPackage
             'entryCount' => count($this->entries),
             'knownHostSystemEntryCount' => count($this->entries) - count($unknownEntries),
             'unknownHostSystemEntryCount' => count($unknownEntries),
+            'creatorVersionMeetsNeededEntryCount' => $creatorVersionComparisonCounts['equals-needed']
+                + $creatorVersionComparisonCounts['above-needed'],
             'creatorVersionBelowNeededEntryCount' => count($creatorVersionBelowNeededEntries),
+            'creatorVersionEqualNeededEntryCount' => $creatorVersionComparisonCounts['equals-needed'],
+            'creatorVersionAboveNeededEntryCount' => $creatorVersionComparisonCounts['above-needed'],
+            'creatorVersionBelowNeededKnownHostEntryCount' => $creatorVersionBelowNeededKnownHostEntryCount,
+            'creatorVersionBelowNeededUnknownHostEntryCount' => $creatorVersionBelowNeededUnknownHostEntryCount,
+            'creatorVersionComparisonCounts' => $creatorVersionComparisonCounts,
             'hostSystems' => array_values($hostSystems),
             'unknownEntries' => $unknownEntries,
             'creatorVersionBelowNeededEntries' => $creatorVersionBelowNeededEntries,
@@ -13931,8 +13995,8 @@ final class ZipPackage
      *     knownHostSystemEntryCount:int,
      *     unknownHostSystemEntryCount:int,
      *     hostSystems:list<array{id:int, name:string, isKnown:bool, entryCount:int}>,
-     *     unknownEntries:list<array{name:string, madeByHostSystem:int, madeByHostSystemName:string, madeByVersion:int, versionMadeBy:int, isKnown:bool}>,
-     *     entries:list<array{name:string, madeByHostSystem:int, madeByHostSystemName:string, madeByVersion:int, versionMadeBy:int, isKnown:bool}>
+     *     unknownEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
      * }
      */
     public function assertKnownCreatorHostSystems(): array

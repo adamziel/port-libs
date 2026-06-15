@@ -2906,6 +2906,104 @@ return [
         $t->same([], $safeRaw['diagnostics']);
     },
 
+    'preflights zip creator host and version matrix before package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>creator matrix equal version</w:p></w:document>',
+                'method' => 8,
+                'versionNeededToExtract' => 20,
+                'versionMadeBy' => 0x0314,
+            ],
+            [
+                'name' => 'word/media/windows-newer.txt',
+                'data' => "windows creator version newer than needed\n",
+                'method' => 0,
+                'versionNeededToExtract' => 10,
+                'versionMadeBy' => 0x0a14,
+            ],
+            [
+                'name' => 'word/media/unix-legacy-deflate.bin',
+                'data' => "legacy creator version below deflate need\n",
+                'method' => 8,
+                'versionNeededToExtract' => 20,
+                'versionMadeBy' => 0x030a,
+            ],
+            [
+                'name' => 'word/media/unknown-equal.bin',
+                'data' => "unknown host with equal creator version\n",
+                'method' => 0,
+                'versionNeededToExtract' => 20,
+                'versionMadeBy' => 0x3f14,
+            ],
+            [
+                'name' => 'word/media/unknown-legacy.bin',
+                'data' => "unknown host with legacy creator version\n",
+                'method' => 0,
+                'versionNeededToExtract' => 20,
+                'versionMadeBy' => 0x3f0a,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->creatorHostSystemPreflight();
+        $rawSummary = ZipPackage::creatorHostSystemPolicyPreflight($zip);
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+
+        $entryNames = static fn (array $entries): array => array_map(
+            static fn (array $entry): string => $entry['name'],
+            $entries
+        );
+        $entriesByName = [];
+        foreach ($summary['entries'] as $entry) {
+            $entriesByName[$entry['name']] = $entry;
+        }
+        $hostSystemCounts = [];
+        foreach ($summary['hostSystems'] as $hostSystem) {
+            $hostSystemCounts[$hostSystem['id']] = $hostSystem['entryCount'];
+        }
+
+        $t->same(5, $summary['entryCount']);
+        $t->same(3, $summary['knownHostSystemEntryCount']);
+        $t->same(2, $summary['unknownHostSystemEntryCount']);
+        $t->same(3, $summary['creatorVersionMeetsNeededEntryCount']);
+        $t->same(2, $summary['creatorVersionBelowNeededEntryCount']);
+        $t->same(2, $summary['creatorVersionEqualNeededEntryCount']);
+        $t->same(1, $summary['creatorVersionAboveNeededEntryCount']);
+        $t->same(1, $summary['creatorVersionBelowNeededKnownHostEntryCount']);
+        $t->same(1, $summary['creatorVersionBelowNeededUnknownHostEntryCount']);
+        $t->same(['below-needed' => 2, 'equals-needed' => 2, 'above-needed' => 1], $summary['creatorVersionComparisonCounts']);
+        $t->same([3 => 2, 10 => 1, 63 => 2], $hostSystemCounts);
+        $t->same(['word/media/unknown-equal.bin', 'word/media/unknown-legacy.bin'], $entryNames($summary['unknownEntries']));
+        $t->same(['word/media/unix-legacy-deflate.bin', 'word/media/unknown-legacy.bin'], $entryNames($summary['creatorVersionBelowNeededEntries']));
+
+        $t->same('equals-needed', $entriesByName['word/document.xml']['creatorVersionComparison']);
+        $t->same(0, $entriesByName['word/document.xml']['creatorVersionDelta']);
+        $t->same([], $entriesByName['word/document.xml']['issues']);
+        $t->same('above-needed', $entriesByName['word/media/windows-newer.txt']['creatorVersionComparison']);
+        $t->same(10, $entriesByName['word/media/windows-newer.txt']['creatorVersionDelta']);
+        $t->same('below-needed', $entriesByName['word/media/unix-legacy-deflate.bin']['creatorVersionComparison']);
+        $t->same(-10, $entriesByName['word/media/unix-legacy-deflate.bin']['creatorVersionDelta']);
+        $t->same(['creator-version-below-version-needed'], $entriesByName['word/media/unix-legacy-deflate.bin']['issues']);
+        $t->same(['unknown-creator-host-system'], $entriesByName['word/media/unknown-equal.bin']['issues']);
+        $t->same(['unknown-creator-host-system', 'creator-version-below-version-needed'], $entriesByName['word/media/unknown-legacy.bin']['issues']);
+
+        $t->same($summary['creatorVersionComparisonCounts'], $rawSummary['creatorVersionComparisonCounts']);
+        $t->same(3, $rawSummary['blockedEntryCount']);
+        $t->same(false, $rawSummary['isSupportedByBoundedReader']);
+        $t->same(['unknown-creator-host-systems', 'creator-version-below-version-needed'], $rawSummary['issues']);
+        $t->same(['word/media/unix-legacy-deflate.bin', 'word/media/unknown-equal.bin', 'word/media/unknown-legacy.bin'], $entryNames($rawSummary['blockedEntries']));
+        $t->same(['zip-unknown-creator-host-system', 'zip-creator-version-below-version-needed'], $rawSummary['blockedEntries'][2]['diagnostics']);
+
+        $t->same(false, $strict['isValid']);
+        $t->same($summary, $strict['creatorHostSystems']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(true, $rawStrict['canInstantiate']);
+        $t->same($rawSummary, $rawStrict['creatorHostSystems']);
+        $t->contains('unknown-creator-host-systems', implode(',', $rawStrict['diagnostics']));
+        $t->contains('creator-version-below-version-needed', implode(',', $rawStrict['diagnostics']));
+    },
+
     'preflights zip DOS hidden system and volume label attributes before media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $package = ZipPackage::fromString($buildZipPackage([
             [
