@@ -7262,6 +7262,185 @@ XML;
         $t->true(in_array('chart-part', $inventory['word/charts/unreferenced.xml']['roles'], true), 'unreferenced chart inventory role missing');
         $t->true(!isset($docx['media']['word/charts/chart1.xml']), 'Chart XML should not be exposed as document media');
     },
+    'summarizes docx diagram package parts from smartart relationships' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $dataRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
+        $layoutRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout';
+        $styleRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle';
+        $colorsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors';
+        $dataContentType = 'application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml';
+        $layoutContentType = 'application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml';
+        $styleContentType = 'application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml';
+        $colorsContentType = 'application/vnd.openxmlformats-officedocument.drawingml.diagramColors+xml';
+        $dataXml = '<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>';
+        $layoutXml = '<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>';
+        $badStyleXml = '<review-style/>';
+        $unreferencedDataXml = '<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:ptLst/></dgm:dataModel>';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/diagrams/data1.xml" ContentType="' . $dataContentType . '; profile=smartart-review"/>' . "\n" .
+            '  <Override PartName="/word/diagrams/layout1.xml" ContentType="' . $layoutContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/diagrams/bad-style.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/word/diagrams/missing-colors.xml" ContentType="' . $colorsContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/diagrams/unreferenced-data.xml" ContentType="' . $dataContentType . '"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rDiagramData" Type="' . $dataRel . '" Target="diagrams/data1.xml?model=1#dgm"/>' . "\n" .
+            '  <Relationship Id="rDiagramLayout" Type="' . $layoutRel . '" Target="diagrams/layout1.xml"/>' . "\n" .
+            '  <Relationship Id="rBadDiagramStyle" Type="' . $styleRel . '" Target="diagrams/bad-style.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingDiagramColors" Type="' . $colorsRel . '" Target="diagrams/missing-colors.xml"/>' . "\n" .
+            '  <Relationship Id="rExternalDiagramData" Type="' . $dataRel . '" Target="https://example.test/diagram-data.xml?remote=1#model" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>' . "\n" .
+            '  <Relationship Id="rUnreferencedDiagramData" Type="' . $dataRel . '" Target="diagrams/unreferenced-data.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            "      </w:r>\n    </w:p>\n    <w:tbl>",
+            "      </w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/diagram\"><dgm:relIds r:dm=\"rDiagramData\" r:lo=\"rDiagramLayout\" r:qs=\"rBadDiagramStyle\" r:cs=\"rMissingDiagramColors\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/diagram\"><dgm:relIds r:dm=\"rExternalDiagramData\" r:lo=\"rWrongType\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "    </w:p>\n    <w:tbl>",
+            $parts['word/document.xml']
+        );
+        $parts['word/diagrams/data1.xml'] = $dataXml;
+        $parts['word/diagrams/layout1.xml'] = $layoutXml;
+        $parts['word/diagrams/bad-style.xml'] = $badStyleXml;
+        $parts['word/diagrams/unreferenced-data.xml'] = $unreferencedDataXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $diagrams = $docx['diagramParts'];
+        $summary = $package['summary'];
+        $data = $diagrams['byRelationshipId']['rDiagramData'];
+        $layout = $diagrams['byRelationshipId']['rDiagramLayout'];
+        $badStyle = $diagrams['byRelationshipId']['rBadDiagramStyle'];
+        $missingColors = $diagrams['byRelationshipId']['rMissingDiagramColors'];
+        $externalData = $diagrams['byRelationshipId']['rExternalDiagramData'];
+        $wrongType = $diagrams['byRelationshipId']['rWrongType'];
+        $unreferenced = $diagrams['byRelationshipId']['rUnreferencedDiagramData'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $inventory = $package['parts'];
+
+        $t->same($diagrams, $package['diagramParts']);
+        $t->same(7, $diagrams['count']);
+        $t->same(6, $diagrams['relationshipCount']);
+        $t->same(6, $diagrams['referencedCount']);
+        $t->same(1, $diagrams['unreferencedRelationshipCount']);
+        $t->same(4, $diagrams['existingCount']);
+        $t->same(1, $diagrams['missingCount']);
+        $t->same(1, $diagrams['externalCount']);
+        $t->same(0, $diagrams['unresolvedCount']);
+        $t->same(0, $diagrams['invalidXmlCount']);
+        $t->same(1, $diagrams['unexpectedRootCount']);
+        $t->same(1, $diagrams['unexpectedRelationshipTypeCount']);
+        $t->same(0, $diagrams['missingContentTypeCount']);
+        $t->same(1, $diagrams['unexpectedContentTypeCount']);
+        $t->same(4, $diagrams['issueCount']);
+        $t->same([
+            'external-diagram-part',
+            'missing-diagram-part',
+            'unexpected-diagram-content-type',
+            'unexpected-diagram-root',
+            'unexpected-relationship-type',
+        ], $diagrams['issueCodes']);
+        $t->same(['rDiagramData', 'rDiagramLayout', 'rBadDiagramStyle', 'rMissingDiagramColors', 'rExternalDiagramData', 'rWrongType', 'rUnreferencedDiagramData'], $diagrams['relationshipIds']);
+        $t->same(['rDiagramData', 'rDiagramLayout', 'rBadDiagramStyle', 'rMissingDiagramColors', 'rExternalDiagramData', 'rWrongType'], $diagrams['referencedRelationshipIds']);
+        $t->same(['rUnreferencedDiagramData'], $diagrams['unreferencedRelationshipIds']);
+        $t->same(['word/diagrams/data1.xml', 'word/diagrams/layout1.xml', 'word/diagrams/bad-style.xml', 'word/diagrams/missing-colors.xml', 'word/diagrams/unreferenced-data.xml'], $diagrams['partNames']);
+        $t->same(['colors' => 1, 'data' => 3, 'layout' => 2, 'quick-style' => 1], $diagrams['roleCounts']);
+        $t->same('diagram-part-bytes-blocked', $diagrams['byteExposurePolicy']);
+        $t->same('diagram-part-metadata-only', $diagrams['reviewPolicy']);
+
+        $t->same(true, $data['referenced']);
+        $t->same('data', $data['role']);
+        $t->same('dm', $data['attributeName']);
+        $t->same($dataRel, $data['relationshipType']);
+        $t->same('diagrams/data1.xml?model=1#dgm', $data['target']);
+        $t->same('word/diagrams/data1.xml?model=1#dgm', $data['resolvedTarget']);
+        $t->same('word/diagrams/data1.xml', $data['targetPart']);
+        $t->same('model=1', $data['targetQuery']);
+        $t->same('dgm', $data['targetFragment']);
+        $t->same('?model=1#dgm', $data['targetReferenceSuffix']);
+        $t->same(strlen($dataXml), $data['byteLength']);
+        $t->same(sprintf('%08x', crc32($dataXml)), $data['crc32']);
+        $t->same(hash('sha256', $dataXml), $data['sha256']);
+        $t->same($dataContentType . '; profile=smartart-review', $data['contentType']);
+        $t->same(strtolower($dataContentType), $data['contentTypeBase']);
+        $t->same(['profile' => 'smartart-review'], $data['contentTypeParameterMap']);
+        $t->same('word/diagrams/_rels/data1.xml.rels', $data['diagramRelationshipsPart']);
+        $t->same(true, $data['validXml']);
+        $t->same(true, $data['validRoot']);
+        $t->same('http://schemas.openxmlformats.org/drawingml/2006/diagram', $data['rootNamespace']);
+        $t->same('dataModel', $data['rootLocalName']);
+        $t->same([], $data['issues']);
+        $t->same(true, $data['valid']);
+
+        $t->same('layout', $layout['role']);
+        $t->same($layoutRel, $layout['relationshipType']);
+        $t->same(strtolower($layoutContentType), $layout['contentTypeBase']);
+        $t->same('layoutDef', $layout['rootLocalName']);
+        $t->same([], $layout['issues']);
+        $t->same(['unexpected-diagram-content-type', 'unexpected-diagram-root'], $badStyle['issues']);
+        $t->same('quick-style', $badStyle['role']);
+        $t->same($styleRel, $badStyle['relationshipType']);
+        $t->same('application/xml', $badStyle['contentTypeBase']);
+        $t->same('review-style', $badStyle['rootLocalName']);
+        $t->same(['missing-diagram-part'], $missingColors['issues']);
+        $t->same('colors', $missingColors['role']);
+        $t->same($colorsRel, $missingColors['relationshipType']);
+        $t->same(false, $missingColors['exists']);
+        $t->same(strtolower($colorsContentType), $missingColors['contentTypeBase']);
+        $t->same(['external-diagram-part'], $externalData['issues']);
+        $t->same(true, $externalData['external']);
+        $t->same(null, $externalData['targetPart']);
+        $t->same('remote=1', $externalData['targetQuery']);
+        $t->same('model', $externalData['targetFragment']);
+        $t->same(['unexpected-relationship-type'], $wrongType['issues']);
+        $t->same($layoutRel, $wrongType['expectedRelationshipType']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', $wrongType['relationshipType']);
+        $t->same('word/media/review.png', $wrongType['targetPart']);
+        $t->same(false, $unreferenced['referenced']);
+        $t->same('data', $unreferenced['role']);
+        $t->same(true, $unreferenced['exists']);
+        $t->same(strlen($unreferencedDataXml), $unreferenced['byteLength']);
+        $t->same(true, $unreferenced['valid']);
+
+        $t->same(7, $summary['diagramPartCount']);
+        $t->same(6, $summary['diagramPartRelationshipCount']);
+        $t->same(6, $summary['diagramPartReferencedCount']);
+        $t->same(4, $summary['diagramPartExistingCount']);
+        $t->same(1, $summary['diagramPartMissingCount']);
+        $t->same(1, $summary['diagramPartExternalCount']);
+        $t->same(4, $summary['diagramPartIssueCount']);
+        $t->same($diagrams['issueCodes'], $summary['diagramPartIssueCodes']);
+        $t->same('diagramData', $relationshipTypes[$dataRel]['label']);
+        $t->same(3, $relationshipTypes[$dataRel]['count']);
+        $t->same(2, $relationshipTypes[$dataRel]['internalCount']);
+        $t->same(1, $relationshipTypes[$dataRel]['externalCount']);
+        $t->same(['word/diagrams/data1.xml', 'word/diagrams/unreferenced-data.xml'], $relationshipTypes[$dataRel]['existingTargetParts']);
+        $t->same('diagramLayout', $relationshipTypes[$layoutRel]['label']);
+        $t->same(['word/diagrams/layout1.xml'], $relationshipTypes[$layoutRel]['existingTargetParts']);
+        $t->same('diagramQuickStyle', $relationshipTypes[$styleRel]['label']);
+        $t->same(['word/diagrams/bad-style.xml'], $relationshipTypes[$styleRel]['existingTargetParts']);
+        $t->same('diagramColors', $relationshipTypes[$colorsRel]['label']);
+        $t->same(['word/diagrams/missing-colors.xml'], $relationshipTypes[$colorsRel]['missingTargetParts']);
+        $t->true(in_array('diagram-data', $inventory['word/diagrams/data1.xml']['roles'], true), 'diagram data inventory role missing');
+        $t->true(in_array('diagram-layout', $inventory['word/diagrams/layout1.xml']['roles'], true), 'diagram layout inventory role missing');
+        $t->true(in_array('diagram-quick-style', $inventory['word/diagrams/bad-style.xml']['roles'], true), 'diagram style inventory role missing');
+        $t->true(in_array('diagram-data', $inventory['word/diagrams/unreferenced-data.xml']['roles'], true), 'unreferenced diagram inventory role missing');
+        $t->true(!isset($docx['media']['word/diagrams/data1.xml']), 'Diagram XML should not be exposed as document media');
+    },
     'summarizes docx chart embedded package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';

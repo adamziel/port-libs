@@ -23,6 +23,7 @@ final class DocxOpenXmlReader
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const NS_C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
     private const NS_V = 'urn:schemas-microsoft-com:vml';
+    private const NS_DGM = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
     private const NS_O = 'urn:schemas-microsoft-com:office:office';
     private const NS_DS = 'http://schemas.openxmlformats.org/officeDocument/2006/customXml';
     private const NS_ACTIVEX = 'http://schemas.microsoft.com/office/2006/activeX';
@@ -57,6 +58,10 @@ final class DocxOpenXmlReader
     private const OLE_OBJECT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
     private const CHART_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+    private const DIAGRAM_DATA_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
+    private const DIAGRAM_LAYOUT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout';
+    private const DIAGRAM_QUICK_STYLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle';
+    private const DIAGRAM_COLORS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors';
     private const ACTIVEX_CONTROL_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/control';
     private const ACTIVEX_BINARY_REL = 'http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary';
     private const VBA_PROJECT_REL = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
@@ -90,6 +95,10 @@ final class DocxOpenXmlReader
     private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
     private const CT_PACKAGE_RELATIONSHIPS = 'application/vnd.openxmlformats-package.relationships+xml';
     private const CT_CHART = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+    private const CT_DIAGRAM_DATA = 'application/vnd.openxmlformats-officedocument.drawingml.diagramdata+xml';
+    private const CT_DIAGRAM_LAYOUT = 'application/vnd.openxmlformats-officedocument.drawingml.diagramlayout+xml';
+    private const CT_DIAGRAM_QUICK_STYLE = 'application/vnd.openxmlformats-officedocument.drawingml.diagramstyle+xml';
+    private const CT_DIAGRAM_COLORS = 'application/vnd.openxmlformats-officedocument.drawingml.diagramcolors+xml';
     private const CT_ACTIVEX_XML = 'application/vnd.ms-office.activex+xml';
     private const CT_ACTIVEX_BINARY = 'application/vnd.ms-office.activex';
     private const CT_VBA_PROJECT = 'application/vnd.ms-office.vbaproject';
@@ -424,6 +433,13 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $diagramParts = $this->readDiagramParts(
+            $parts,
+            $parts[$documentPart],
+            $documentPart,
+            $documentRelationships,
+            $contentTypes,
+        );
         $activeXControls = $this->readActiveXControls(
             $parts,
             $parts[$documentPart],
@@ -582,6 +598,15 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['chartEmbeddedPackageExternalCount'] = $chartParts['embeddedPackageExternalCount'];
         $packageProvenance['summary']['chartEmbeddedPackageIssueCount'] = $chartParts['embeddedPackageIssueCount'];
         $packageProvenance['summary']['chartEmbeddedPackageIssueCodes'] = $chartParts['embeddedPackageIssueCodes'];
+        $packageProvenance['diagramParts'] = $diagramParts;
+        $packageProvenance['summary']['diagramPartCount'] = $diagramParts['count'];
+        $packageProvenance['summary']['diagramPartRelationshipCount'] = $diagramParts['relationshipCount'];
+        $packageProvenance['summary']['diagramPartReferencedCount'] = $diagramParts['referencedCount'];
+        $packageProvenance['summary']['diagramPartExistingCount'] = $diagramParts['existingCount'];
+        $packageProvenance['summary']['diagramPartMissingCount'] = $diagramParts['missingCount'];
+        $packageProvenance['summary']['diagramPartExternalCount'] = $diagramParts['externalCount'];
+        $packageProvenance['summary']['diagramPartIssueCount'] = $diagramParts['issueCount'];
+        $packageProvenance['summary']['diagramPartIssueCodes'] = $diagramParts['issueCodes'];
         $packageProvenance['activeXControls'] = $activeXControls;
         $packageProvenance['summary']['activeXControlCount'] = $activeXControls['count'];
         $packageProvenance['summary']['activeXControlRelationshipCount'] = $activeXControls['relationshipCount'];
@@ -659,6 +684,7 @@ final class DocxOpenXmlReader
                 'documentMediaRelationships' => $documentMediaRelationships,
                 'documentBackgroundImages' => $documentBackgroundImages,
                 'chartParts' => $chartParts,
+                'diagramParts' => $diagramParts,
                 'activeXControls' => $activeXControls,
                 'vbaProjects' => $vbaProjects,
                 'customXmlParts' => $customXmlParts,
@@ -3522,6 +3548,367 @@ final class DocxOpenXmlReader
             'issues' => $issues,
             'relationship' => $summary,
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readDiagramParts(
+        array $parts,
+        string $xml,
+        string $documentPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $referencedRelationshipIds = [];
+        $referencedDiagramRelationshipIds = [];
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+        $roleDefinitions = $this->diagramRoleDefinitions();
+
+        if ($xml !== '') {
+            $dom = $this->loadXml($xml, $documentPart);
+            $xpath = $this->xpath($dom);
+            foreach ($this->elements($xpath, '//dgm:relIds') as $relIds) {
+                foreach ($roleDefinitions as $definition) {
+                    $attribute = $definition['attribute'];
+                    if (!$relIds->hasAttributeNS(self::NS_R, $attribute)) {
+                        continue;
+                    }
+
+                    $relationshipId = $relIds->getAttributeNS(self::NS_R, $attribute);
+                    $item = $this->diagramPartItem(
+                        $parts,
+                        $relationships[$relationshipId] ?? null,
+                        $documentPart,
+                        $relationshipsPart,
+                        $contentTypes,
+                        $relationshipId,
+                        count($items),
+                        true,
+                        $definition,
+                    );
+                    $items[] = $item;
+
+                    $this->appendUniqueString($relationshipIds, $relationshipId);
+                    $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                    if ($item['relationshipType'] === $definition['relationshipType']) {
+                        $this->appendUniqueString($referencedDiagramRelationshipIds, $relationshipId);
+                    }
+                    if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                        $byRelationshipId[$relationshipId] = $item;
+                    }
+                }
+            }
+        }
+
+        $unreferencedRelationshipIds = [];
+        foreach ($relationships as $relationship) {
+            if (!$this->isDiagramRelationshipType($relationship['type'])) {
+                continue;
+            }
+
+            $relationshipId = $relationship['id'];
+            if (in_array($relationshipId, $referencedDiagramRelationshipIds, true)) {
+                continue;
+            }
+
+            $definition = $this->diagramRoleDefinitionForRelationshipType($relationship['type']);
+            if ($definition === null) {
+                continue;
+            }
+
+            $item = $this->diagramPartItem(
+                $parts,
+                $relationship,
+                $documentPart,
+                $relationshipsPart,
+                $contentTypes,
+                $relationshipId,
+                count($items),
+                false,
+                $definition,
+            );
+            $items[] = $item;
+
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            $this->appendUniqueString($unreferencedRelationshipIds, $relationshipId);
+            if (!isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+        }
+
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $roleCounts = [];
+        $issueCodes = [];
+        foreach ($items as $item) {
+            $role = is_string($item['role'] ?? null) ? $item['role'] : '';
+            if ($role !== '') {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+            }
+            if ($this->isDiagramRelationshipType((string) ($item['relationshipType'] ?? ''))) {
+                $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            }
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        ksort($roleCounts, SORT_STRING);
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count(array_filter($relationships, fn (array $relationship): bool => $this->isDiagramRelationshipType($relationship['type']))),
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
+            'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
+            'existingCount' => count(array_filter($items, fn (array $item): bool => $this->isDiagramRelationshipType((string) ($item['relationshipType'] ?? '')) && $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-diagram-part', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, fn (array $item): bool => $this->isDiagramRelationshipType((string) ($item['relationshipType'] ?? '')) && $item['external'] === true)),
+            'unresolvedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
+            )),
+            'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-diagram-xml', $item['issues'], true))),
+            'unexpectedRootCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-diagram-root', $item['issues'], true))),
+            'unexpectedRelationshipTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-relationship-type', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-diagram-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-diagram-content-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'referencedRelationshipIds' => $referencedRelationshipIds,
+            'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'roleCounts' => $roleCounts,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+            'byteExposurePolicy' => 'diagram-part-bytes-blocked',
+            'reviewPolicy' => 'diagram-part-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array{attribute:string, role:string, relationshipType:string, contentTypeBase:string, rootLocalName:string} $definition
+     * @return array<string, mixed>
+     */
+    private function diagramPartItem(
+        array $parts,
+        ?array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        string $relationshipId,
+        int $index,
+        bool $referenced,
+        array $definition,
+    ): array {
+        $item = [
+            'index' => $index,
+            'relationshipId' => $relationshipId,
+            'referenced' => $referenced,
+            'role' => $definition['role'],
+            'attributeName' => $definition['attribute'],
+            'relationshipType' => null,
+            'expectedRelationshipType' => $definition['relationshipType'],
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'external' => false,
+            'partName' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'exists' => false,
+            'byteLength' => null,
+            'crc32' => null,
+            'sha256' => null,
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'expectedContentTypeBase' => $definition['contentTypeBase'],
+            'relationshipsPart' => $relationshipsPart,
+            'diagramRelationshipsPart' => null,
+            'diagramRelationshipCount' => 0,
+            'validXml' => null,
+            'xmlParseError' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'expectedRootLocalName' => $definition['rootLocalName'],
+            'validRoot' => null,
+            'byteExposurePolicy' => 'diagram-part-bytes-blocked',
+            'reviewPolicy' => 'diagram-part-metadata-only',
+            'valid' => false,
+            'issues' => [],
+            'relationship' => null,
+        ];
+
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+            return $item;
+        }
+
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'unknown-relationship';
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) $summary['exists'];
+        $diagramRelationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+        $diagramRelationships = $diagramRelationshipsPart === null || (bool) $summary['external']
+            ? []
+            : $this->readRelationshipsPart($parts, $diagramRelationshipsPart);
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['external'] = (bool) $summary['external'];
+        $item['partName'] = $targetPart;
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['exists'] = $exists;
+        $item['byteLength'] = $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null;
+        $item['crc32'] = $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+        $item['sha256'] = $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null;
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $summary['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $summary['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $summary['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $summary['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['diagramRelationshipsPart'] = $diagramRelationshipsPart;
+        $item['diagramRelationshipCount'] = count($diagramRelationships);
+        $item['relationship'] = $summary;
+
+        if ($relationship['type'] !== $definition['relationshipType']) {
+            $item['issues'][] = 'unexpected-relationship-type';
+            return $item;
+        }
+
+        if ($item['external'] === true) {
+            $item['issues'][] = 'external-diagram-part';
+            return $item;
+        }
+
+        if (!$exists) {
+            $item['issues'][] = 'missing-diagram-part';
+        }
+
+        $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+        if (($summary['contentTypeSource'] ?? '') === 'missing') {
+            $item['issues'][] = 'missing-diagram-content-type';
+        } elseif ($contentTypeBase !== $definition['contentTypeBase']) {
+            $item['issues'][] = 'unexpected-diagram-content-type';
+        }
+
+        if ($exists && $targetPart !== null) {
+            $root = $this->xmlRootProvenance($parts[$targetPart], $targetPart);
+            $item['validXml'] = $root['validXml'];
+            $item['xmlParseError'] = $root['xmlParseError'];
+            $item['rootNamespace'] = $root['namespace'];
+            $item['rootLocalName'] = $root['localName'];
+            $item['validRoot'] = $root['namespace'] === self::NS_DGM && $root['localName'] === $definition['rootLocalName'];
+            if ($root['validXml'] === false) {
+                $item['issues'][] = 'invalid-diagram-xml';
+            } elseif ($item['validRoot'] === false) {
+                $item['issues'][] = 'unexpected-diagram-root';
+            }
+        }
+
+        $item['valid'] = $item['issues'] === [];
+
+        return $item;
+    }
+
+    /**
+     * @return array<string, array{attribute:string, role:string, relationshipType:string, contentTypeBase:string, rootLocalName:string}>
+     */
+    private function diagramRoleDefinitions(): array
+    {
+        return [
+            'data' => [
+                'attribute' => 'dm',
+                'role' => 'data',
+                'relationshipType' => self::DIAGRAM_DATA_REL,
+                'contentTypeBase' => self::CT_DIAGRAM_DATA,
+                'rootLocalName' => 'dataModel',
+            ],
+            'layout' => [
+                'attribute' => 'lo',
+                'role' => 'layout',
+                'relationshipType' => self::DIAGRAM_LAYOUT_REL,
+                'contentTypeBase' => self::CT_DIAGRAM_LAYOUT,
+                'rootLocalName' => 'layoutDef',
+            ],
+            'quick-style' => [
+                'attribute' => 'qs',
+                'role' => 'quick-style',
+                'relationshipType' => self::DIAGRAM_QUICK_STYLE_REL,
+                'contentTypeBase' => self::CT_DIAGRAM_QUICK_STYLE,
+                'rootLocalName' => 'styleDef',
+            ],
+            'colors' => [
+                'attribute' => 'cs',
+                'role' => 'colors',
+                'relationshipType' => self::DIAGRAM_COLORS_REL,
+                'contentTypeBase' => self::CT_DIAGRAM_COLORS,
+                'rootLocalName' => 'colorsDef',
+            ],
+        ];
+    }
+
+    /**
+     * @return array{attribute:string, role:string, relationshipType:string, contentTypeBase:string, rootLocalName:string}|null
+     */
+    private function diagramRoleDefinitionForRelationshipType(string $relationshipType): ?array
+    {
+        foreach ($this->diagramRoleDefinitions() as $definition) {
+            if ($definition['relationshipType'] === $relationshipType) {
+                return $definition;
+            }
+        }
+
+        return null;
+    }
+
+    private function isDiagramRelationshipType(string $relationshipType): bool
+    {
+        return $relationshipType === self::DIAGRAM_DATA_REL
+            || $relationshipType === self::DIAGRAM_LAYOUT_REL
+            || $relationshipType === self::DIAGRAM_QUICK_STYLE_REL
+            || $relationshipType === self::DIAGRAM_COLORS_REL;
     }
 
     /**
@@ -9644,6 +10031,10 @@ final class DocxOpenXmlReader
             self::OLE_OBJECT_REL => 'embedded-object',
             self::EMBEDDED_PACKAGE_REL => 'embedded-package',
             self::CHART_REL => 'chart-part',
+            self::DIAGRAM_DATA_REL => 'diagram-data',
+            self::DIAGRAM_LAYOUT_REL => 'diagram-layout',
+            self::DIAGRAM_QUICK_STYLE_REL => 'diagram-quick-style',
+            self::DIAGRAM_COLORS_REL => 'diagram-colors',
             self::ACTIVEX_CONTROL_REL => 'activex-control',
             self::ACTIVEX_BINARY_REL => 'activex-binary',
             self::VBA_PROJECT_REL => 'vba-project',
@@ -13163,6 +13554,7 @@ final class DocxOpenXmlReader
         $xpath->registerNamespace('wp', self::NS_WP);
         $xpath->registerNamespace('c', self::NS_C);
         $xpath->registerNamespace('v', self::NS_V);
+        $xpath->registerNamespace('dgm', self::NS_DGM);
         $xpath->registerNamespace('o', self::NS_O);
         $xpath->registerNamespace('ds', self::NS_DS);
 
