@@ -18,6 +18,7 @@ final class DocxOpenXmlReader
     private const NS_EP = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties';
     private const NS_CUSTOM_PROPS = 'http://schemas.openxmlformats.org/officeDocument/2006/custom-properties';
     private const NS_VT = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
+    private const NS_WNE = 'http://schemas.microsoft.com/office/word/2006/wordml';
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const NS_C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
@@ -530,6 +531,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaDataExistingCount'] = $vbaProjects['existingDataPartCount'];
         $packageProvenance['summary']['vbaDataMissingCount'] = $vbaProjects['missingDataPartCount'];
         $packageProvenance['summary']['vbaDataExternalCount'] = $vbaProjects['externalDataPartCount'];
+        $packageProvenance['summary']['vbaDataInvalidXmlCount'] = $vbaProjects['dataPartInvalidXmlCount'];
+        $packageProvenance['summary']['vbaDataUnexpectedRootCount'] = $vbaProjects['dataPartUnexpectedRootCount'];
         $packageProvenance['summary']['vbaProjectIssueCount'] = $vbaProjects['issueCount'];
         $packageProvenance['summary']['vbaProjectIssueCodes'] = $vbaProjects['issueCodes'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
@@ -3487,6 +3490,8 @@ final class DocxOpenXmlReader
             'existingDataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['existingCount'] ?? 0), $items)),
             'missingDataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['missingCount'] ?? 0), $items)),
             'externalDataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['externalCount'] ?? 0), $items)),
+            'dataPartInvalidXmlCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['invalidXmlCount'] ?? 0), $items)),
+            'dataPartUnexpectedRootCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['unexpectedRootCount'] ?? 0), $items)),
             'issueCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => $item['issues'] !== []
@@ -3615,6 +3620,8 @@ final class DocxOpenXmlReader
             'missingCount' => 0,
             'externalCount' => 0,
             'unexpectedContentTypeCount' => 0,
+            'invalidXmlCount' => 0,
+            'unexpectedRootCount' => 0,
             'issueCount' => 0,
             'relationshipIds' => [],
             'partNames' => [],
@@ -3690,6 +3697,8 @@ final class DocxOpenXmlReader
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-vba-' . $kind, $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
             'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-vba-' . $kind . '-content-type', $item['issues'], true))),
+            'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-vba-' . $kind . '-xml', $item['issues'], true))),
+            'unexpectedRootCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-vba-' . $kind . '-root', $item['issues'], true))),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'relationshipIds' => $relationshipIds,
             'partNames' => $partNames,
@@ -3722,6 +3731,11 @@ final class DocxOpenXmlReader
         $external = (bool) ($summary['external'] ?? false);
         $exists = (bool) ($summary['exists'] ?? false);
         $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+        $validXml = null;
+        $xmlParseError = null;
+        $rootNamespace = null;
+        $rootLocalName = null;
+        $validRoot = null;
         $issues = [];
 
         if ($external) {
@@ -3734,6 +3748,21 @@ final class DocxOpenXmlReader
                 $issues[] = 'missing-vba-' . $kind . '-content-type';
             } elseif ($contentTypeBase !== $expectedContentTypeBase) {
                 $issues[] = 'unexpected-vba-' . $kind . '-content-type';
+            }
+        }
+
+        if ($kind === 'data' && !$external && $exists && $contentTypeBase === $expectedContentTypeBase && $targetPart !== null) {
+            $root = $this->xmlRootProvenance($parts[$targetPart], $targetPart);
+            $validXml = $root['validXml'];
+            $xmlParseError = $root['xmlParseError'];
+            $rootNamespace = $root['namespace'];
+            $rootLocalName = $root['localName'];
+            $validRoot = $root['namespace'] === self::NS_WNE && $root['localName'] === 'vbaSuppData';
+            if ($root['validXml'] === false) {
+                $validRoot = false;
+                $issues[] = 'invalid-vba-data-xml';
+            } elseif ($validRoot === false) {
+                $issues[] = 'unexpected-vba-data-root';
             }
         }
 
@@ -3759,6 +3788,11 @@ final class DocxOpenXmlReader
             'defaultExtension' => $summary['defaultExtension'],
             'overridePartName' => $summary['overridePartName'],
             'expectedContentTypeBase' => $expectedContentTypeBase,
+            'validXml' => $validXml,
+            'xmlParseError' => $xmlParseError,
+            'rootNamespace' => $rootNamespace,
+            'rootLocalName' => $rootLocalName,
+            'validRoot' => $validRoot,
             'external' => $external,
             'exists' => $exists,
             'relationshipsPart' => $relationshipsPart,

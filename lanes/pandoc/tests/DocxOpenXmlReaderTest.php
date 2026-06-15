@@ -2995,6 +2995,115 @@ XML;
         $t->true(in_array('vba-data', $inventory['word/vbaData.xml']['roles'], true), 'VBA data inventory role missing');
         $t->true(!isset($docx['media']['word/vbaProject.bin']), 'VBA project bytes should not be exposed as document media');
     },
+    'preflights docx vba data xml roots for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $projectRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
+        $dataRel = 'http://schemas.microsoft.com/office/2006/relationships/wordVbaData';
+        $projectBytes = 'review macro project bytes';
+        $validDataXml = '<wne:vbaSuppData xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"/>';
+        $wrongRootXml = '<review:macroData xmlns:review="urn:example:macro-review"/>';
+        $invalidDataXml = '<wne:vbaSuppData xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml">';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/vbaProject.bin" ContentType="application/vnd.ms-office.vbaProject"/>' . "\n" .
+            '  <Override PartName="/word/vbaData.xml" ContentType="application/vnd.ms-word.vbaData+xml; profile=review"/>' . "\n" .
+            '  <Override PartName="/word/wrongRootVbaData.xml" ContentType="application/vnd.ms-word.vbaData+xml"/>' . "\n" .
+            '  <Override PartName="/word/invalidVbaData.xml" ContentType="application/vnd.ms-word.vbaData+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rVbaProjectReview" Type="' . $projectRel . '" Target="vbaProject.bin"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/vbaProject.bin'] = $projectBytes;
+        $parts['word/_rels/vbaProject.bin.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rValidVbaData" Type="{$dataRel}" Target="vbaData.xml?slot=main#supp"/>
+  <Relationship Id="rWrongRootVbaData" Type="{$dataRel}" Target="wrongRootVbaData.xml"/>
+  <Relationship Id="rInvalidVbaData" Type="{$dataRel}" Target="invalidVbaData.xml"/>
+</Relationships>
+XML;
+        $parts['word/vbaData.xml'] = $validDataXml;
+        $parts['word/wrongRootVbaData.xml'] = $wrongRootXml;
+        $parts['word/invalidVbaData.xml'] = $invalidDataXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $vba = $docx['vbaProjects'];
+        $project = $vba['byRelationshipId']['rVbaProjectReview'];
+        $dataParts = $project['dataParts'];
+        $valid = $dataParts['byRelationshipId']['rValidVbaData'];
+        $wrongRoot = $dataParts['byRelationshipId']['rWrongRootVbaData'];
+        $invalid = $dataParts['byRelationshipId']['rInvalidVbaData'];
+        $summary = $docx['packageProvenance']['summary'];
+        $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
+        $inventory = $docx['packageProvenance']['parts'];
+
+        $t->same(1, $vba['count']);
+        $t->same(1, $vba['existingCount']);
+        $t->same(3, $vba['dataPartCount']);
+        $t->same(3, $vba['existingDataPartCount']);
+        $t->same(1, $vba['dataPartInvalidXmlCount']);
+        $t->same(1, $vba['dataPartUnexpectedRootCount']);
+        $t->same(1, $vba['issueCount']);
+        $t->same(['invalid-vba-data-xml', 'unexpected-vba-data-root'], $vba['issueCodes']);
+
+        $t->same(3, $dataParts['count']);
+        $t->same(3, $dataParts['existingCount']);
+        $t->same(1, $dataParts['invalidXmlCount']);
+        $t->same(1, $dataParts['unexpectedRootCount']);
+        $t->same(2, $dataParts['issueCount']);
+        $t->same(['invalid-vba-data-xml', 'unexpected-vba-data-root'], $dataParts['issueCodes']);
+        $t->same(['word/vbaData.xml', 'word/wrongRootVbaData.xml', 'word/invalidVbaData.xml'], $dataParts['partNames']);
+
+        $t->same('word/vbaData.xml', $valid['targetPart']);
+        $t->same('?slot=main#supp', $valid['targetReferenceSuffix']);
+        $t->same('slot=main', $valid['targetQuery']);
+        $t->same('supp', $valid['targetFragment']);
+        $t->same('application/vnd.ms-word.vbaData+xml; profile=review', $valid['contentType']);
+        $t->same('application/vnd.ms-word.vbadata+xml', $valid['contentTypeBase']);
+        $t->same(['profile' => 'review'], $valid['contentTypeParameterMap']);
+        $t->same(true, $valid['validXml']);
+        $t->same(true, $valid['validRoot']);
+        $t->same('http://schemas.microsoft.com/office/word/2006/wordml', $valid['rootNamespace']);
+        $t->same('vbaSuppData', $valid['rootLocalName']);
+        $t->same([], $valid['issues']);
+        $t->same(true, $valid['valid']);
+
+        $t->same('word/wrongRootVbaData.xml', $wrongRoot['targetPart']);
+        $t->same(true, $wrongRoot['validXml']);
+        $t->same(false, $wrongRoot['validRoot']);
+        $t->same('urn:example:macro-review', $wrongRoot['rootNamespace']);
+        $t->same('macroData', $wrongRoot['rootLocalName']);
+        $t->same(['unexpected-vba-data-root'], $wrongRoot['issues']);
+        $t->same(false, $wrongRoot['valid']);
+
+        $t->same('word/invalidVbaData.xml', $invalid['targetPart']);
+        $t->same(false, $invalid['validXml']);
+        $t->same(false, $invalid['validRoot']);
+        $t->same(null, $invalid['rootNamespace']);
+        $t->same(null, $invalid['rootLocalName']);
+        $t->contains('Premature end of data', (string) $invalid['xmlParseError']);
+        $t->same(['invalid-vba-data-xml'], $invalid['issues']);
+        $t->same(false, $invalid['valid']);
+
+        $t->same(3, $summary['vbaDataPartCount']);
+        $t->same(3, $summary['vbaDataExistingCount']);
+        $t->same(1, $summary['vbaDataInvalidXmlCount']);
+        $t->same(1, $summary['vbaDataUnexpectedRootCount']);
+        $t->same(1, $summary['vbaProjectIssueCount']);
+        $t->same($vba['issueCodes'], $summary['vbaProjectIssueCodes']);
+        $t->same(3, $relationshipTypes[$dataRel]['count']);
+        $t->same(['word/vbaData.xml', 'word/wrongRootVbaData.xml', 'word/invalidVbaData.xml'], $relationshipTypes[$dataRel]['existingTargetParts']);
+        $t->true(in_array('vba-data', $inventory['word/vbaData.xml']['roles'], true), 'valid VBA data inventory role missing');
+        $t->true(in_array('vba-data', $inventory['word/wrongRootVbaData.xml']['roles'], true), 'wrong-root VBA data inventory role missing');
+        $t->true(!isset($docx['media']['word/vbaData.xml']), 'VBA data XML should not be exposed as document media');
+    },
     'summarizes docx custom xml data store package parts for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
