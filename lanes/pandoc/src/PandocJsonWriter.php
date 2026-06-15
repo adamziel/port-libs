@@ -1853,17 +1853,32 @@ final class PandocJsonWriter
         $url = (string) $node->attr('url', '');
         $title = (string) $node->attr('title', '');
         $native = $node->attr('targetNative');
-        if (
-            is_array($native)
-            && array_is_list($native)
-            && count($native) >= 2
-            && $native[0] === $url
-            && $native[1] === $title
-        ) {
+        $target = $this->targetTuplePayload($native);
+        if ($target !== null && $target[0] === $url && $target[1] === $title) {
             return $native;
         }
 
         return [$url, $title];
+    }
+
+    /**
+     * @return list<mixed>|null
+     */
+    private function targetTuplePayload(mixed $native): ?array
+    {
+        if (!is_array($native) || !array_is_list($native)) {
+            return null;
+        }
+
+        if (
+            count($native) === 1
+            && is_array($native[0])
+            && array_is_list($native[0])
+        ) {
+            return $this->targetTuplePayload($native[0]);
+        }
+
+        return count($native) >= 2 && is_string($native[0]) && is_string($native[1]) ? $native : null;
     }
 
     /**

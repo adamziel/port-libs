@@ -1640,10 +1640,7 @@ final class PandocJsonReader
             throw new \InvalidArgumentException(ucfirst($type) . ' must have 2 or 3 entries');
         }
 
-        $target = $this->listContent($targetContent, ucfirst($type) . ' target');
-        if (count($target) < 2) {
-            throw new \InvalidArgumentException(ucfirst($type) . ' target must have at least 2 entries');
-        }
+        [$target, $targetNative] = $this->targetTupleContent($targetContent, ucfirst($type) . ' target');
         if (!is_string($target[0]) || !is_string($target[1])) {
             throw new \InvalidArgumentException(ucfirst($type) . ' target entries must be strings');
         }
@@ -1652,7 +1649,7 @@ final class PandocJsonReader
         $attrs = array_merge($attrs, [
             'url' => $target[0],
             'title' => $target[1],
-            'targetNative' => $target,
+            'targetNative' => $targetNative,
         ]);
         if ($type === 'image') {
             $alt = trim($this->plainText($label));
@@ -1662,6 +1659,28 @@ final class PandocJsonReader
         }
 
         return new AstNode($type, $attrs, $label);
+    }
+
+    /**
+     * @return array{0:list<mixed>, 1:list<mixed>}
+     */
+    private function targetTupleContent(mixed $value, string $context): array
+    {
+        $native = $this->listContent($value, $context);
+        $target = $native;
+        if (
+            count($target) === 1
+            && is_array($target[0])
+            && array_is_list($target[0])
+        ) {
+            $target = $this->listContent($target[0], $context);
+        }
+
+        if (count($target) < 2) {
+            throw new \InvalidArgumentException("{$context} must have at least 2 entries");
+        }
+
+        return [$target, $native];
     }
 
     private function readSpanInline(mixed $content): AstNode

@@ -1744,14 +1744,15 @@ final class NativeReader
         if (count($content) === 3) {
             $attrs = array_replace($attrs, $this->attrsFromTuple($content[0]));
             $label = $content[1];
-            $target = $content[2];
+            $targetContent = $content[2];
         } elseif (count($content) === 2) {
             $label = $content[0];
-            $target = $content[1];
+            $targetContent = $content[1];
         } else {
             throw new \InvalidArgumentException('Pandoc native JSON Link inline content must contain label and target, optionally preceded by attributes');
         }
 
+        [$target, $targetNative] = $this->targetTupleContent($targetContent, 'Pandoc native JSON Link target');
         if (!is_array($target) || !is_string($target[0] ?? null) || !is_string($target[1] ?? null)) {
             throw new \InvalidArgumentException('Pandoc native JSON Link target must contain URL and title strings');
         }
@@ -1759,7 +1760,7 @@ final class NativeReader
         $attrs = array_replace($attrs, [
             'url' => $target[0],
             'title' => $target[1],
-            'targetNative' => $target,
+            'targetNative' => $targetNative,
         ]);
 
         return new AstNode('link', $attrs, $this->inlines($label));
@@ -1777,14 +1778,15 @@ final class NativeReader
         if (count($content) === 3) {
             $attrs = array_replace($attrs, $this->attrsFromTuple($content[0]));
             $labelContent = $content[1];
-            $target = $content[2];
+            $targetContent = $content[2];
         } elseif (count($content) === 2) {
             $labelContent = $content[0];
-            $target = $content[1];
+            $targetContent = $content[1];
         } else {
             throw new \InvalidArgumentException('Pandoc native JSON Image inline content must contain label and target, optionally preceded by attributes');
         }
 
+        [$target, $targetNative] = $this->targetTupleContent($targetContent, 'Pandoc native JSON Image target');
         if (!is_array($target) || !is_string($target[0] ?? null) || !is_string($target[1] ?? null)) {
             throw new \InvalidArgumentException('Pandoc native JSON Image target must contain URL and title strings');
         }
@@ -1793,7 +1795,7 @@ final class NativeReader
         $attrs = array_replace($attrs, [
             'url' => $target[0],
             'title' => $target[1],
-            'targetNative' => $target,
+            'targetNative' => $targetNative,
         ]);
         $alt = trim($this->plainTextFromInlines($label));
         if ($alt !== '') {
@@ -1801,6 +1803,24 @@ final class NativeReader
         }
 
         return new AstNode('image', $attrs, $label);
+    }
+
+    /**
+     * @return array{0:list<mixed>, 1:list<mixed>}
+     */
+    private function targetTupleContent(mixed $value, string $context): array
+    {
+        $native = $this->listContent($value, $context);
+        $target = $native;
+        if (
+            count($target) === 1
+            && is_array($target[0])
+            && array_is_list($target[0])
+        ) {
+            $target = $this->listContent($target[0], $context);
+        }
+
+        return [$target, $native];
     }
 
     /**

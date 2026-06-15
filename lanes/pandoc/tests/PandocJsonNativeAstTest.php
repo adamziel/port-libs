@@ -3630,6 +3630,92 @@ return [
             $t->same(['media/cover.png', 'Edited title'], $editedJson['blocks'][0]['c'][2]['c'][2], "{$source} edited image target drops stale sidecar");
         }
     },
+    'accepts single wrapped target tuple sidecars for link and image constructors' => static function (TestRunner $t): void {
+        $linkTarget = [
+            'https://example.test/source?x=1#review',
+            'Source title',
+            ['reviewQueue' => 'wrapped-link-target', 'sourceOrdinal' => 21],
+        ];
+        $imageTarget = [
+            'media/cover.png',
+            'Cover title',
+            ['reviewQueue' => 'wrapped-image-target', 'sourceOrdinal' => 22],
+        ];
+        $wrappedLinkTarget = [$linkTarget];
+        $wrappedImageTarget = [$imageTarget];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Link', 'c' => [
+                        ['source-link', ['review-link'], [['data-origin', 'json']]],
+                        [['t' => 'Str', 'c' => 'source']],
+                        $wrappedLinkTarget,
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Image', 'c' => [
+                        ['cover-image', ['review-image'], [['data-origin', 'asset']]],
+                        [
+                            ['t' => 'Str', 'c' => 'Cover'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'image'],
+                        ],
+                        $wrappedImageTarget,
+                    ]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $link = $document->children[0]->children[0];
+            $image = $document->children[0]->children[2];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('link', array_replace($link->attrs, ['id' => 'edited-link']), $link->children),
+                    new AstNode('space'),
+                    new AstNode('image', array_replace($image->attrs, ['classes' => ['edited-image']]), $image->children),
+                ]),
+            ]);
+
+            $t->same($wrappedLinkTarget, $link->attr('targetNative'), "{$source} link preserves wrapped target tuple sidecar on read");
+            $t->same($linkTarget[0], $link->attr('url'), "{$source} link unwraps target url");
+            $t->same($linkTarget[1], $link->attr('title'), "{$source} link unwraps target title");
+            $t->same($wrappedImageTarget, $image->attr('targetNative'), "{$source} image preserves wrapped target tuple sidecar on read");
+            $t->same($imageTarget[0], $image->attr('url'), "{$source} image unwraps target url");
+            $t->same($imageTarget[1], $image->attr('title'), "{$source} image unwraps target title");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedLink = $encoded['blocks'][0]['c'][0];
+                $encodedImage = $encoded['blocks'][0]['c'][2];
+
+                $t->same($wrappedLinkTarget, $encodedLink['c'][2], "{$source} {$writer} writer preserves wrapped link target tuple sidecar");
+                $t->same($wrappedImageTarget, $encodedImage['c'][2], "{$source} {$writer} writer preserves wrapped image target tuple sidecar");
+
+                $editedTarget = new AstNode('document', $document->attrs, [
+                    new AstNode('paragraph', [], [
+                        new AstNode('link', array_replace($link->attrs, ['url' => 'https://example.test/edited']), $link->children),
+                        new AstNode('space'),
+                        new AstNode('image', array_replace($image->attrs, ['title' => 'Edited title']), $image->children),
+                    ]),
+                ]);
+                $edited = $writer === 'json'
+                    ? (new PandocJsonWriter())->toArray($editedTarget)
+                    : json_decode((new NativeWriter())->write($editedTarget), true, 512, JSON_THROW_ON_ERROR);
+
+                $t->same(['https://example.test/edited', 'Source title'], $edited['blocks'][0]['c'][0]['c'][2], "{$source} {$writer} edited link target drops wrapped sidecar");
+                $t->same(['media/cover.png', 'Edited title'], $edited['blocks'][0]['c'][2]['c'][2], "{$source} {$writer} edited image target drops wrapped sidecar");
+            }
+        }
+    },
     'records quote and math native enum payloads on json and native ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],
