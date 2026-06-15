@@ -80,8 +80,10 @@ final class MarkdownReader
 
     private int $sectionDivsSuppressionDepth = 0;
 
+    private bool $nativeSpanInlineEnabled = false;
+
     /**
-     * @param array{literateHaskell?: bool, yamlMetadata?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool, sectionDivs?: bool} $options
+     * @param array{literateHaskell?: bool, yamlMetadata?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool, sectionDivs?: bool, nativeSpans?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -128,11 +130,14 @@ final class MarkdownReader
         $previousExampleReferences = $this->exampleReferences;
         $previousExampleNumbersByLine = $this->exampleNumbersByLine;
         $previousRawTexMacros = $this->rawTexMacros;
+        $previousNativeSpanInlineEnabled = $this->nativeSpanInlineEnabled;
         $documentAttrs = [];
         $yamlMetadata = null;
         if (($this->options['yamlMetadata'] ?? true) !== false) {
             [$lines, $yamlMetadata] = $this->extractYamlMetadataBlocks($lines);
         }
+        $this->nativeSpanInlineEnabled = ($this->options['nativeSpans'] ?? false) === true
+            || $this->metadataEnablesNativeSpans($yamlMetadata);
         [$lines, $titleBlock] = $this->extractTitleBlock($lines);
         [$lines, $abbreviations] = $this->extractAbbreviationDefinitions($lines);
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
@@ -410,8 +415,42 @@ final class MarkdownReader
         $this->exampleReferences = $previousExampleReferences;
         $this->exampleNumbersByLine = $previousExampleNumbersByLine;
         $this->rawTexMacros = $previousRawTexMacros;
+        $this->nativeSpanInlineEnabled = $previousNativeSpanInlineEnabled;
 
         return $document;
+    }
+
+    /**
+     * @param array<string, mixed>|null $metadata
+     */
+    private function metadataEnablesNativeSpans(?array $metadata): bool
+    {
+        if ($metadata === null) {
+            return false;
+        }
+
+        return $this->metadataExtensionValueEnablesNativeSpans($metadata['extension'] ?? null)
+            || (
+                isset($metadata['review']) && is_array($metadata['review'])
+                && $this->metadataExtensionValueEnablesNativeSpans($metadata['review']['extension'] ?? null)
+            );
+    }
+
+    private function metadataExtensionValueEnablesNativeSpans(mixed $extension): bool
+    {
+        if (is_string($extension)) {
+            return trim($extension) === 'native_spans';
+        }
+
+        if (is_array($extension)) {
+            foreach ($extension as $value) {
+                if ($this->metadataExtensionValueEnablesNativeSpans($value)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -17005,6 +17044,14 @@ final class MarkdownReader
                 continue;
             }
 
+            $nativeSpan = ($allowLinks && $this->nativeSpanInlineEnabled) ? $this->tryParseNativeSpanInline($text, $offset) : null;
+            if ($nativeSpan !== null) {
+                $this->flushText($buffer, $nodes);
+                array_push($nodes, ...$nativeSpan['nodes']);
+                $offset = $nativeSpan['next'];
+                continue;
+            }
+
             $rawHtmlInline = $allowLinks ? $this->tryParseRawHtmlInline($text, $offset) : null;
             if ($rawHtmlInline !== null) {
                 $this->flushText($buffer, $nodes);
@@ -18232,6 +18279,92 @@ final class MarkdownReader
         }
 
         return [$attrs, $offset, null];
+    }
+
+    /**
+     * @return array{nodes:list<AstNode>, next:int}|null
+     */
+    private function tryParseNativeSpanInline(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '<' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        if (preg_match('~\G<span(?=\s|>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?>~iu', $text, $m, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $end = $this->findClosingNativeSpanInline($text, $offset + strlen($m[0]));
+        if ($end === null) {
+            return null;
+        }
+
+        $body = XmlHtml5Dom::parseHtmlFragmentBody(substr($text, $offset, $end - $offset));
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $nodes = $this->parseHtmlInlineChildren($body);
+        if ($nodes === []) {
+            return null;
+        }
+
+        return [
+            'nodes' => $nodes,
+            'next' => $end,
+        ];
+    }
+
+    private function findClosingNativeSpanInline(string $text, int $offset): ?int
+    {
+        $depth = 1;
+        $cursor = $offset;
+        $length = strlen($text);
+        while ($cursor < $length) {
+            $tag = $this->findNativeSpanInlineTag($text, $cursor);
+            if ($tag === null) {
+                return null;
+            }
+
+            if ($tag['closing']) {
+                $depth--;
+                if ($depth === 0) {
+                    return $tag['end'];
+                }
+            } elseif (!$tag['selfClosing']) {
+                $depth++;
+            }
+
+            $cursor = $tag['end'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{closing:bool, selfClosing:bool, end:int}|null
+     */
+    private function findNativeSpanInlineTag(string $text, int $offset): ?array
+    {
+        if (
+            preg_match(
+                '~</span\s*>|<span(?=\s|>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu',
+                $text,
+                $m,
+                PREG_OFFSET_CAPTURE,
+                $offset
+            ) !== 1
+        ) {
+            return null;
+        }
+
+        $raw = $m[0][0];
+
+        return [
+            'closing' => str_starts_with(strtolower($raw), '</'),
+            'selfClosing' => preg_match('~/\s*>\z~', $raw) === 1,
+            'end' => $m[0][1] + strlen($raw),
+        ];
     }
 
     /**
