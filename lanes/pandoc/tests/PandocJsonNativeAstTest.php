@@ -1615,6 +1615,56 @@ return [
         $t->same('horizontal_rule', $roundTrip->children[7]->type);
         $t->same('null_block', $roundTrip->children[8]->type);
     },
+    'round trips native writer core block constructors through both readers' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('blockquote', [], [
+                new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Quoted source'])]),
+            ]),
+            new AstNode('bullet_list', [], [
+                new AstNode('list_item', [], [new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Check media'])])]),
+            ]),
+            new AstNode('ordered_list', ['start' => 3, 'style' => 'upper_alpha', 'delimiter' => 'one_paren'], [
+                new AstNode('list_item', [], [new AstNode('plain', [], [new AstNode('text', ['text' => 'Review'])])]),
+            ]),
+            new AstNode('line_block', [], [
+                new AstNode('line', [], [new AstNode('text', ['text' => 'Address line'])]),
+            ]),
+            new AstNode('code_block', ['text' => 'wp post get 42', 'classes' => ['bash']]),
+            new AstNode('raw_markdown', ['format' => 'markdown', 'text' => '*raw*']),
+            new AstNode('div', ['id' => 'packet'], [
+                new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Wrapped'])]),
+            ]),
+            new AstNode('horizontal_rule'),
+            new AstNode('null_block'),
+        ]);
+
+        $packet = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(
+            ['BlockQuote', 'BulletList', 'OrderedList', 'LineBlock', 'CodeBlock', 'RawBlock', 'Div', 'HorizontalRule', 'Null'],
+            array_map(static fn (array $block): string => $block['t'], $packet['blocks'])
+        );
+
+        $roundTrips = [
+            'json reader' => (new PandocJsonReader())->readPacket($packet),
+            'native reader' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($roundTrips as $source => $roundTrip) {
+            $t->same('blockquote', $roundTrip->children[0]->type, "{$source} blockquote node");
+            $t->same('bullet_list', $roundTrip->children[1]->type, "{$source} bullet list node");
+            $t->same('ordered_list', $roundTrip->children[2]->type, "{$source} ordered list node");
+            $t->same(3, $roundTrip->children[2]->attr('start'), "{$source} ordered list start");
+            $t->same('upper_alpha', $roundTrip->children[2]->attr('style'), "{$source} ordered list style");
+            $t->same('one_paren', $roundTrip->children[2]->attr('delimiter'), "{$source} ordered list delimiter");
+            $t->same('Address line', $roundTrip->children[3]->children[0]->attr('text'), "{$source} line block text");
+            $t->same(['bash'], $roundTrip->children[4]->attr('classes'), "{$source} code block classes");
+            $t->same('raw_markdown', $roundTrip->children[5]->type, "{$source} raw block alias");
+            $t->same('packet', $roundTrip->children[6]->attr('id'), "{$source} div attr");
+            $t->same('horizontal_rule', $roundTrip->children[7]->type, "{$source} horizontal rule node");
+            $t->same('null_block', $roundTrip->children[8]->type, "{$source} null block node");
+        }
+    },
     'regenerates present nullary block constructor payloads through json and native writers' => static function (TestRunner $t): void {
         $horizontalRule = ['t' => 'HorizontalRule', 'c' => ['stale'], 'reviewQueue' => 'rule-source'];
         $nullBlock = ['t' => 'Null', 'c' => 'stale', 'reviewQueue' => 'null-source'];
