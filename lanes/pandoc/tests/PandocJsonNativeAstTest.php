@@ -7867,6 +7867,38 @@ return [
                 'types' => [],
                 'tags' => [],
             ],
+            'top-level document constructor' => [
+                'packet' => [
+                    't' => 'Pandoc',
+                    'pandoc-api-version' => [1, 24, 2],
+                    'c' => [
+                        ['t' => 'MetaMap', 'c' => [
+                            'source' => ['t' => 'MetaString', 'c' => 'document-matrix'],
+                        ]],
+                        [
+                            ['t' => 'Para', 'c' => [
+                                ['t' => 'Str', 'c' => 'Document'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'matrix'],
+                            ], 'reviewQueue' => 'document-matrix-paragraph'],
+                        ],
+                    ],
+                    'reviewQueue' => 'document-matrix-source',
+                ],
+                'expectedMeta' => [
+                    'source' => ['t' => 'MetaString', 'c' => 'document-matrix'],
+                ],
+                'expectedBlocks' => [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Str', 'c' => 'Document'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'matrix'],
+                    ], 'reviewQueue' => 'document-matrix-paragraph'],
+                ],
+                'documentConstructor' => 'Pandoc',
+                'types' => ['paragraph'],
+                'tags' => ['Para'],
+            ],
             'nullary block constructors' => [
                 'packet' => [
                     'pandoc-api-version' => [1, 23, 1],
@@ -8258,8 +8290,8 @@ return [
 
         foreach ($cases as $caseName => $case) {
             $packet = $case['packet'];
-            $expectedMeta = $packet['meta'];
-            $expectedBlocks = $packet['blocks'];
+            $expectedMeta = $case['expectedMeta'] ?? $packet['meta'];
+            $expectedBlocks = $case['expectedBlocks'] ?? $packet['blocks'];
 
             foreach ([
                 'json' => (new PandocJsonReader())->readPacket($packet),
@@ -8275,6 +8307,10 @@ return [
                 $t->same($expectedMeta, $nativePacket['meta'], "{$caseName} {$source} native metadata constructors");
                 $t->same($expectedBlocks, $jsonPacket['blocks'], "{$caseName} {$source} json block constructors");
                 $t->same($expectedBlocks, $nativePacket['blocks'], "{$caseName} {$source} native block constructors");
+                if (isset($case['documentConstructor'])) {
+                    $t->same($case['documentConstructor'], $document->attr('documentConstructor'), "{$caseName} {$source} document constructor");
+                    $t->same($packet, $document->attr('documentNative'), "{$caseName} {$source} document native payload");
+                }
             }
         }
     },
