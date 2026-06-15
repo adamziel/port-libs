@@ -1161,6 +1161,74 @@ return [
             $t->same($bodyNative, $packet['meta']['body'], "{$writer} writer keeps unchanged direct block metadata payload");
         }
     },
+    'reads constructorless json-compatible metadata through json and native ast readers' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'title' => 'Constructorless title',
+                'draft' => false,
+                'priority' => 7,
+                'empty' => null,
+                'review' => [
+                    'queue' => 'native-json',
+                    'flags' => ['core', true],
+                    'details' => [
+                        'format' => 'json-native',
+                    ],
+                ],
+            ],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Metadata'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'packet'],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $meta = $document->attr('meta');
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+            $jsonRoundTripMeta = (new PandocJsonReader())->readPacket($jsonPacket)->attr('meta');
+            $nativeRoundTripMeta = (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR))->attr('meta');
+
+            $t->same('Constructorless title', $meta['title'], "{$source} reads plain string metadata");
+            $t->same(false, $meta['draft'], "{$source} reads plain bool metadata");
+            $t->same('7', $meta['priority'], "{$source} normalizes numeric metadata as string");
+            $t->same('', $meta['empty'], "{$source} normalizes null metadata as empty string");
+            $t->same('map', $meta['review']['type'], "{$source} reads plain map metadata");
+            $t->same('native-json', $meta['review']['items']['queue'], "{$source} reads nested map scalar metadata");
+            $t->same('list', $meta['review']['items']['flags']['type'], "{$source} reads nested list metadata");
+            $t->same(['core', true], $meta['review']['items']['flags']['items'], "{$source} preserves nested list values");
+            $t->same('json-native', $meta['review']['items']['details']['items']['format'], "{$source} reads nested map values");
+            $t->same('paragraph', $document->children[0]->type, "{$source} reads block payload with constructorless metadata");
+
+            $t->same($jsonPacket['meta'], $nativePacket['meta'], "{$source} writers agree on regenerated metadata constructors");
+            $t->same('MetaString', $jsonPacket['meta']['title']['t'], "{$source} writer emits title constructor");
+            $t->same('Constructorless title', $jsonPacket['meta']['title']['c'], "{$source} writer emits title value");
+            $t->same('MetaBool', $jsonPacket['meta']['draft']['t'], "{$source} writer emits bool constructor");
+            $t->same(false, $jsonPacket['meta']['draft']['c'], "{$source} writer emits bool value");
+            $t->same('MetaString', $jsonPacket['meta']['priority']['t'], "{$source} writer emits numeric metadata as string constructor");
+            $t->same('7', $jsonPacket['meta']['priority']['c'], "{$source} writer emits numeric metadata as string");
+            $t->same('MetaString', $jsonPacket['meta']['empty']['t'], "{$source} writer emits null metadata as string constructor");
+            $t->same('', $jsonPacket['meta']['empty']['c'], "{$source} writer emits null metadata as empty string");
+            $t->same('MetaMap', $jsonPacket['meta']['review']['t'], "{$source} writer emits map constructor");
+            $t->same('MetaList', $jsonPacket['meta']['review']['c']['flags']['t'], "{$source} writer emits nested list constructor");
+            $t->same('MetaString', $jsonPacket['meta']['review']['c']['flags']['c'][0]['t'], "{$source} writer emits nested string constructor");
+            $t->same('MetaBool', $jsonPacket['meta']['review']['c']['flags']['c'][1]['t'], "{$source} writer emits nested bool constructor");
+
+            $t->same('Constructorless title', $jsonRoundTripMeta['title'], "{$source} json round trip unwraps regenerated title");
+            $t->same('native-json', $jsonRoundTripMeta['review']['items']['queue'], "{$source} json round trip unwraps nested map");
+            $t->same('MetaString', $nativeRoundTripMeta['title']['t'], "{$source} native round trip preserves regenerated title constructor");
+            $t->same('MetaMap', $nativeRoundTripMeta['review']['t'], "{$source} native round trip preserves regenerated map constructor");
+        }
+    },
     'reuses native wrapper payloads when derived helper sidecars are absent' => static function (TestRunner $t): void {
         $formatNative = ['t' => 'Format', 'c' => 'html', 'reviewQueue' => 'format-source'];
         $linkAttr = ['source-link', ['review'], [['data-source', 'json-native']]];

@@ -452,10 +452,46 @@ final class NativeReader
     private function metaValue(mixed $value): mixed
     {
         if (!is_array($value) || !is_string($value['t'] ?? null)) {
-            throw new \InvalidArgumentException('Pandoc native JSON meta values must be tagged constructors');
+            return $this->plainMetaValue($value);
         }
 
         return $value;
+    }
+
+    private function plainMetaValue(mixed $value): mixed
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_string($value) || is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_array($value)) {
+            if (array_is_list($value)) {
+                return [
+                    'type' => 'list',
+                    'items' => array_map(fn (mixed $item): mixed => $this->metaValue($item), $value),
+                ];
+            }
+
+            $items = [];
+            foreach ($value as $key => $item) {
+                $items[(string) $key] = $this->metaValue($item);
+            }
+
+            return [
+                'type' => 'map',
+                'items' => $items,
+            ];
+        }
+
+        throw new \InvalidArgumentException('Pandoc native JSON meta values must be tagged constructors or JSON-compatible values');
     }
 
     /**
