@@ -1617,4 +1617,77 @@ foreach ($blockCases as $name => $case) {
     };
 }
 
+$lineTexts = static fn (AstNode $lineBlock): array => array_map(
+    static fn (AstNode $line): string => (string) $line->attr('text', ''),
+    $lineBlock->children
+);
+
+foreach ($markers as $label => $case) {
+    $tests["maps commonmark block list line-block surge {$label} first text"] = static function (TestRunner $t) use ($read, $types, $firstItem, $lineTexts, $case): void {
+        $document = $read($case['marker'] . '| first' . "\n" . $case['indent'] . '| second' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $lineBlock = $item->children[0] ?? new AstNode('missing');
+
+        $t->same(['line_block'], $types($item));
+        $t->same('line_block', $lineBlock->type);
+        $t->same(['first', 'second'], $lineTexts($lineBlock));
+    };
+
+    $tests["maps commonmark block list line-block surge {$label} continuation"] = static function (TestRunner $t) use ($read, $types, $firstItem, $lineTexts, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n" . $case['indent'] . '| first' . "\n" . $case['indent'] . '| second' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $lineBlock = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'line_block'], $types($item));
+        $t->same('line_block', $lineBlock->type);
+        $t->same(['first', 'second'], $lineTexts($lineBlock));
+    };
+
+    $tests["maps commonmark block list line-block surge {$label} loose continuation"] = static function (TestRunner $t) use ($read, $types, $lineTexts, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n\n" . $case['indent'] . '| first' . "\n" . $case['indent'] . '| second' . "\n" . $case['next']);
+        $list = $document->children[0] ?? new AstNode('missing');
+        $item = $list->children[0] ?? new AstNode('missing');
+        $lineBlock = $item->children[1] ?? new AstNode('missing');
+
+        $t->same($case['list'], $list->type);
+        $t->same(true, (bool) $list->attr('loose'));
+        $t->same(['paragraph', 'line_block'], $types($item));
+        $t->same(['first', 'second'], $lineTexts($lineBlock));
+    };
+
+    $tests["maps commonmark block list line-block surge {$label} wrapped continuation"] = static function (TestRunner $t) use ($read, $types, $firstItem, $lineTexts, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n" . $case['indent'] . '| first' . "\n" . $case['indent'] . '  wrapped' . "\n" . $case['indent'] . '| second' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $lineBlock = $item->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'line_block'], $types($item));
+        $t->same(['first wrapped', 'second'], $lineTexts($lineBlock));
+    };
+
+    $tests["maps commonmark block list line-block surge {$label} inline markup"] = static function (TestRunner $t) use ($read, $types, $firstItem, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n" . $case['indent'] . '| **strong** line' . "\n" . $case['indent'] . '| `code` line' . "\n" . $case['next']);
+        $item = $firstItem($t, $document, $case['list']);
+        $lineBlock = $item->children[1] ?? new AstNode('missing');
+        $firstLine = $lineBlock->children[0] ?? new AstNode('missing');
+        $secondLine = $lineBlock->children[1] ?? new AstNode('missing');
+
+        $t->same(['text', 'line_block'], $types($item));
+        $t->same(['strong', 'text'], $types($firstLine));
+        $t->same(['code', 'text'], $types($secondLine));
+    };
+
+    $tests["maps commonmark block list line-block surge {$label} terminates before following paragraph"] = static function (TestRunner $t) use ($read, $types, $lineTexts, $case): void {
+        $document = $read($case['marker'] . 'lead' . "\n" . $case['indent'] . '| first' . "\n" . $case['indent'] . '| second' . "\nAfter");
+        $list = $document->children[0] ?? new AstNode('missing');
+        $item = $list->children[0] ?? new AstNode('missing');
+        $lineBlock = $item->children[1] ?? new AstNode('missing');
+        $after = $document->children[1] ?? new AstNode('missing');
+
+        $t->same([$case['list'], 'paragraph'], $types($document));
+        $t->same(['text', 'line_block'], $types($item));
+        $t->same(['first', 'second'], $lineTexts($lineBlock));
+        $t->same('After', $after->attr('text'));
+    };
+}
+
 return $tests;
