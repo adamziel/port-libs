@@ -206,6 +206,59 @@ return [
             }
         }
     },
+    'reads single wrapped tagged pandoc document constructor content' => static function (TestRunner $t): void {
+        $meta = ['t' => 'MetaMap', 'c' => [
+            'source' => ['t' => 'MetaString', 'c' => 'single-wrapped-pandoc'],
+            'review' => ['t' => 'MetaBool', 'c' => true],
+        ]];
+        $blocks = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Single'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'wrapped'],
+                ['t' => 'Space'],
+                ['t' => 'Code', 'c' => [
+                    ['wrapped-code', ['php'], [['data-source', 'pandoc']]],
+                    'wp_insert_post',
+                ]],
+            ], 'reviewQueue' => 'single-wrapped-pandoc-block'],
+        ];
+        $pandoc = [
+            't' => 'Pandoc',
+            'pandoc-api-version' => [1, 23, 1],
+            'c' => [[$meta, $blocks]],
+            'reviewQueue' => 'single-wrapped-pandoc-document',
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($pandoc),
+            'native' => (new NativeReader())->read(json_encode($pandoc, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $codeNodes = array_values(array_filter(
+                $paragraph->children,
+                static fn (AstNode $node): bool => $node->type === 'code'
+            ));
+            $code = $codeNodes[0] ?? new AstNode('missing');
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('Pandoc', $document->attr('documentConstructor'), "{$source} single-wrapped document constructor");
+            $t->same($pandoc, $document->attr('documentNative'), "{$source} single-wrapped document native payload");
+            $t->same([1, 23, 1], $document->attr('pandocApiVersion'), "{$source} single-wrapped document API version");
+            $t->same('paragraph', $paragraph->type, "{$source} single-wrapped paragraph type");
+            $t->same('Single wrapped wp_insert_post', $paragraph->attr('text'), "{$source} single-wrapped paragraph text");
+            $t->same('Code', $code->attr('constructor'), "{$source} single-wrapped code constructor");
+            $t->same(['t' => 'MetaString', 'c' => 'single-wrapped-pandoc'], $jsonPacket['meta']['source'], "{$source} json writer emits source metadata");
+            $t->same(['t' => 'MetaBool', 'c' => true], $nativePacket['meta']['review'], "{$source} native writer emits review metadata");
+            $t->same($blocks, $jsonPacket['blocks'], "{$source} json writer preserves wrapped document blocks");
+            $t->same($blocks, $nativePacket['blocks'], "{$source} native writer preserves wrapped document blocks");
+            $t->same(false, array_key_exists('t', $jsonPacket), "{$source} json writer emits packet object");
+            $t->same(false, array_key_exists('t', $nativePacket), "{$source} native writer emits packet object");
+        }
+    },
     'reads legacy pandoc json metadata envelopes into shared ast documents' => static function (TestRunner $t): void {
         $reader = new PandocJsonReader();
         $wrappedPacket = [
