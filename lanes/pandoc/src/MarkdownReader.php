@@ -15357,6 +15357,15 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($char === '<') {
+                $html = $this->readRawHtmlInlineTagSource($line, $offset);
+                if ($html !== null && $this->isRawHtmlInlineTagSource($html)) {
+                    $cell .= $html;
+                    $offset += strlen($html) - 1;
+                    continue;
+                }
+            }
+
             if ($char === '|' && $codeFenceLength === null) {
                 $cells[] = $cell;
                 $cell = '';
