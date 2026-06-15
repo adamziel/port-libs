@@ -852,6 +852,44 @@ BIB;
         $t->contains('Call number: MS 42 Box 4', $markdown);
         $t->contains('Call number: Reading Room Shelf B/12', $blocks);
     },
+    'carries biblatex citation aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{canonical-source,
+  ids    = {legacy-source, alt-source},
+  author = {Ng, Nia},
+  title  = {Alias Source Manual},
+  date   = {2026}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['canonical-source'];
+
+        $t->same(['canonical-source'], array_keys($items));
+        $t->same(['legacy-source', 'alt-source'], $item['citation-aliases']);
+        $t->same('Nia Ng. Alias Source Manual. Citation aliases: legacy-source; alt-source. 2026.', $processor->renderBibliographyText($item));
+
+        $document = (new MarkdownReader())->read('Alias review cites @legacy-source, [@alt-source], and @canonical-source.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $markdown = (new MarkdownWriter())->write($bibliographyDocument);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['legacy-source', 'alt-source', 'canonical-source'], $handoff['citedKeys']);
+        $t->same([], $handoff['missingKeys']);
+        $t->same(['canonical-source'], array_map(static fn (array $item): string => (string) $item['id'], $handoff['items']));
+        $t->same(['legacy-source', 'alt-source'], $handoff['bibliography']->children[0]->attr('cslItem')['citation-aliases'] ?? null);
+        $t->contains('Citation aliases: legacy-source; alt-source', $markdown);
+        $t->contains('<dt>canonical-source</dt>', $blocks);
+        $t->contains('Citation aliases: legacy-source; alt-source', $blocks);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items));
+        $t->same('Alias Source Manual', $styled->item('legacy-source')['title'] ?? null);
+        $t->same('(Ng 2026)', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'alt-source', 'text' => '[@alt-source]']),
+        ]));
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

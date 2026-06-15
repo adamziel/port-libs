@@ -136,17 +136,28 @@ final class BibtexCslProcessor
     public function citationHandoff(AstNode $document, string $bibtex): array
     {
         $itemsByKey = $this->cslItems($bibtex);
+        $itemsByCitationKey = $this->itemsByCitationKey($itemsByKey);
         $citedKeys = $this->citedKeys($document);
         $items = [];
         $missing = [];
+        $includedItemIds = [];
 
         foreach ($citedKeys as $key) {
-            if (!isset($itemsByKey[$key])) {
+            if (!isset($itemsByCitationKey[$key])) {
                 $missing[] = $key;
                 continue;
             }
 
-            $items[] = $itemsByKey[$key];
+            $item = $itemsByCitationKey[$key];
+            $itemId = (string) ($item['id'] ?? '');
+            if ($itemId !== '' && isset($includedItemIds[$itemId])) {
+                continue;
+            }
+
+            if ($itemId !== '') {
+                $includedItemIds[$itemId] = true;
+            }
+            $items[] = $item;
         }
 
         return [
@@ -217,6 +228,10 @@ final class BibtexCslProcessor
         }
         if (($item['title'] ?? '') !== '') {
             $parts[] = (string) $item['title'];
+        }
+        $citationAliases = $item['citation-aliases'] ?? [];
+        if (is_array($citationAliases) && $citationAliases !== []) {
+            $parts[] = 'Citation aliases: ' . implode('; ', array_map('strval', $citationAliases));
         }
         $translatedTitle = (string) ($item['translated-title'] ?? '');
         if ($translatedTitle !== '') {
@@ -554,6 +569,11 @@ final class BibtexCslProcessor
             }
         }
 
+        $citationAliases = $this->citationAliases($fields);
+        if ($citationAliases !== []) {
+            $item['citation-aliases'] = $citationAliases;
+        }
+
         $date = $this->dateParts($fields);
         if ($date !== null) {
             $item['issued'] = ['date-parts' => [$date]];
@@ -595,6 +615,36 @@ final class BibtexCslProcessor
         }
 
         return $item;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $itemsByKey
+     * @return array<string, array<string, mixed>>
+     */
+    private function itemsByCitationKey(array $itemsByKey): array
+    {
+        $itemsByCitationKey = $itemsByKey;
+        foreach ($itemsByKey as $key => $item) {
+            $aliases = $item['citation-aliases'] ?? [];
+            if (!is_array($aliases)) {
+                continue;
+            }
+
+            foreach ($aliases as $alias) {
+                if (!is_scalar($alias)) {
+                    continue;
+                }
+
+                $alias = trim((string) $alias);
+                if ($alias === '' || $alias === $key || isset($itemsByCitationKey[$alias])) {
+                    continue;
+                }
+
+                $itemsByCitationKey[$alias] = $item;
+            }
+        }
+
+        return $itemsByCitationKey;
     }
 
     /**
@@ -766,6 +816,23 @@ final class BibtexCslProcessor
         }
 
         return $keywords;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<string>
+     */
+    private function citationAliases(array $fields): array
+    {
+        $value = $this->firstField($fields, ['ids', 'citation-aliases', 'citationaliases', 'citation-alias', 'citationalias']);
+        if ($value === null || trim($value) === '') {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(static fn (string $alias): string => trim($alias), preg_split('/[,;]+/', $value) ?: []),
+            static fn (string $alias): bool => $alias !== ''
+        ));
     }
 
     /**
