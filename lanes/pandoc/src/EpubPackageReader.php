@@ -225,6 +225,9 @@ final class EpubPackageReader
                     'hrefFragment' => $suffix['fragment'],
                     'mediaType' => trim($node->getAttribute('media-type')),
                     'properties' => $this->tokens($node->getAttribute('properties')),
+                    'fallback' => trim($node->getAttribute('fallback')),
+                    'fallbackStyle' => trim($node->getAttribute('fallback-style')),
+                    'mediaOverlay' => trim($node->getAttribute('media-overlay')),
                     'diagnostics' => $diagnostics,
                 ];
                 $manifestOccurrences[$id][] = $item;
@@ -416,7 +419,8 @@ final class EpubPackageReader
             }
         }
 
-        $diagnostics = array_merge($diagnostics, $duplicateIdDiagnostics);
+        $referenceReport = $this->manifestItemReferenceReport($manifest);
+        $diagnostics = array_merge($diagnostics, $duplicateIdDiagnostics, $referenceReport['manifestItemReferenceDiagnostics']);
 
         return [
             'itemCount' => count($manifest),
@@ -439,7 +443,173 @@ final class EpubPackageReader
             'hrefSuffixItems' => $hrefSuffixItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
+        ] + $referenceReport;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function manifestItemReferenceReport(array $manifest): array
+    {
+        $fallbackReferences = [];
+        $fallbackDiagnostics = [];
+        $fallbackStyleReferences = [];
+        $fallbackStyleDiagnostics = [];
+        $mediaOverlayReferences = [];
+        $mediaOverlayDiagnostics = [];
+
+        foreach ($manifest as $item) {
+            $this->appendManifestReference(
+                $item,
+                $manifest,
+                'fallback',
+                'fallback',
+                null,
+                [
+                    'missing' => 'missing-manifest-fallback-item',
+                    'external' => 'external-manifest-fallback-target',
+                    'missingPart' => 'missing-manifest-fallback-part',
+                ],
+                $fallbackReferences,
+                $fallbackDiagnostics
+            );
+            $this->appendManifestReference(
+                $item,
+                $manifest,
+                'fallbackStyle',
+                'fallback-style',
+                'text/css',
+                [
+                    'missing' => 'missing-manifest-fallback-style-item',
+                    'external' => 'external-manifest-fallback-style-target',
+                    'missingPart' => 'missing-manifest-fallback-style-part',
+                    'unexpectedType' => 'non-css-manifest-fallback-style',
+                ],
+                $fallbackStyleReferences,
+                $fallbackStyleDiagnostics
+            );
+            $this->appendManifestReference(
+                $item,
+                $manifest,
+                'mediaOverlay',
+                'media-overlay',
+                'application/smil+xml',
+                [
+                    'missing' => 'missing-manifest-media-overlay-item',
+                    'external' => 'external-manifest-media-overlay-target',
+                    'missingPart' => 'missing-manifest-media-overlay-part',
+                    'unexpectedType' => 'unexpected-manifest-media-overlay-type',
+                ],
+                $mediaOverlayReferences,
+                $mediaOverlayDiagnostics
+            );
+        }
+
+        $allDiagnostics = array_merge($fallbackDiagnostics, $fallbackStyleDiagnostics, $mediaOverlayDiagnostics);
+
+        return [
+            'manifestItemReferenceCount' => count($fallbackReferences) + count($fallbackStyleReferences) + count($mediaOverlayReferences),
+            'manifestItemReferenceDiagnosticCount' => count($allDiagnostics),
+            'manifestItemReferenceDiagnostics' => $allDiagnostics,
+            'fallbackReferenceCount' => count($fallbackReferences),
+            'fallbackReferences' => $fallbackReferences,
+            'fallbackReferenceDiagnosticCount' => count($fallbackDiagnostics),
+            'fallbackReferenceDiagnostics' => $fallbackDiagnostics,
+            'fallbackStyleReferenceCount' => count($fallbackStyleReferences),
+            'fallbackStyleReferences' => $fallbackStyleReferences,
+            'fallbackStyleReferenceDiagnosticCount' => count($fallbackStyleDiagnostics),
+            'fallbackStyleReferenceDiagnostics' => $fallbackStyleDiagnostics,
+            'mediaOverlayReferenceCount' => count($mediaOverlayReferences),
+            'mediaOverlayReferences' => $mediaOverlayReferences,
+            'mediaOverlayReferenceDiagnosticCount' => count($mediaOverlayDiagnostics),
+            'mediaOverlayReferenceDiagnostics' => $mediaOverlayDiagnostics,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, array<string, mixed>> $manifest
+     * @param array<string, string> $diagnosticTypes
+     * @param list<array<string, mixed>> $references
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private function appendManifestReference(
+        array $item,
+        array $manifest,
+        string $field,
+        string $attribute,
+        ?string $expectedMediaType,
+        array $diagnosticTypes,
+        array &$references,
+        array &$diagnostics
+    ): void {
+        $targetId = trim((string) ($item[$field] ?? ''));
+        if ($targetId === '') {
+            return;
+        }
+
+        $sourceId = (string) ($item['id'] ?? '');
+        $target = $manifest[$targetId] ?? null;
+        $referenceDiagnostics = [];
+        $reference = [
+            'sourceId' => $sourceId,
+            'sourceIndex' => (int) ($item['index'] ?? 0),
+            'attribute' => $attribute,
+            'targetId' => $targetId,
+            'target' => is_array($target) ? (string) ($target['target'] ?? '') : '',
+            'targetPath' => is_array($target) ? (string) ($target['path'] ?? '') : '',
+            'targetMediaType' => is_array($target) ? (string) ($target['mediaType'] ?? '') : '',
+            'targetExternal' => is_array($target) && ($target['external'] ?? false) === true,
+            'targetExists' => is_array($target) && ($target['exists'] ?? false) === true,
+        ];
+
+        if (!is_array($target)) {
+            $referenceDiagnostics[] = [
+                'type' => $diagnosticTypes['missing'],
+                'targetId' => $targetId,
+                'message' => 'EPUB OPF manifest item references another manifest id that is not declared',
+            ];
+        } else {
+            if (($target['external'] ?? false) === true) {
+                $referenceDiagnostics[] = [
+                    'type' => $diagnosticTypes['external'],
+                    'targetId' => $targetId,
+                    'target' => (string) ($target['target'] ?? ''),
+                    'message' => 'EPUB OPF manifest item reference points outside the package and was not fetched',
+                ];
+            } elseif (($target['path'] ?? '') !== '' && ($target['exists'] ?? true) !== true) {
+                $referenceDiagnostics[] = [
+                    'type' => $diagnosticTypes['missingPart'],
+                    'targetId' => $targetId,
+                    'path' => (string) ($target['path'] ?? ''),
+                    'message' => 'EPUB OPF manifest item reference points at a missing package part',
+                ];
+            }
+
+            $mediaType = (string) ($target['mediaType'] ?? '');
+            if ($expectedMediaType !== null && $mediaType !== $expectedMediaType) {
+                $referenceDiagnostics[] = [
+                    'type' => (string) ($diagnosticTypes['unexpectedType'] ?? 'unexpected-manifest-reference-type'),
+                    'targetId' => $targetId,
+                    'mediaType' => $mediaType,
+                    'expectedMediaType' => $expectedMediaType,
+                    'message' => 'EPUB OPF manifest item reference resolves to an unexpected media type',
+                ];
+            }
+        }
+
+        $reference['diagnosticCount'] = count($referenceDiagnostics);
+        $reference['diagnostics'] = $referenceDiagnostics;
+        $references[] = $reference;
+
+        foreach ($referenceDiagnostics as $diagnostic) {
+            $diagnostics[] = [
+                'sourceId' => $sourceId,
+                'sourceIndex' => (int) ($item['index'] ?? 0),
+                'attribute' => $attribute,
+            ] + $diagnostic;
+        }
     }
 
     /**

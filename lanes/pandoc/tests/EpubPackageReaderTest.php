@@ -2212,6 +2212,130 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports direct package manifest item reference readiness matrix' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-manifest-reference-readiness-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-manifest-reference-readiness</dc:identifier>
+    <dc:title>Manifest Reference Readiness</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="style" href="style.css" media-type="text/css"/>
+    <item id="overlay" href="overlay.smil" media-type="application/smil+xml"/>
+    <item id="poster" href="poster.png" media-type="image/png"/>
+    <item id="remote-poster" href="https://cdn.example.invalid/poster.png" media-type="image/png"/>
+    <item id="missing-poster" href="missing-poster.png" media-type="image/png"/>
+    <item id="widget-ok" href="widgets/ok.bin" media-type="application/x-review-widget" fallback="poster" fallback-style="style" media-overlay="overlay"/>
+    <item id="widget-missing-fallback" href="widgets/missing-fallback.bin" media-type="application/x-review-widget" fallback="missing-fallback"/>
+    <item id="widget-external-fallback" href="widgets/external-fallback.bin" media-type="application/x-review-widget" fallback="remote-poster"/>
+    <item id="widget-missing-part-fallback" href="widgets/missing-part-fallback.bin" media-type="application/x-review-widget" fallback="missing-poster"/>
+    <item id="widget-missing-style" href="widgets/missing-style.bin" media-type="application/x-review-widget" fallback-style="missing-style"/>
+    <item id="widget-non-css-style" href="widgets/non-css-style.bin" media-type="application/x-review-widget" fallback-style="poster"/>
+    <item id="chapter-missing-overlay" href="chapter-missing-overlay.xhtml" media-type="application/xhtml+xml" media-overlay="missing-overlay"/>
+    <item id="chapter-non-smil-overlay" href="chapter-non-smil-overlay.xhtml" media-type="application/xhtml+xml" media-overlay="style"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            foreach ([
+                'chapter.xhtml' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable chapter.</p></body></html>',
+                'chapter-missing-overlay.xhtml' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Missing overlay.</p></body></html>',
+                'chapter-non-smil-overlay.xhtml' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Wrong overlay.</p></body></html>',
+                'style.css' => 'body { color: #333; }',
+                'overlay.smil' => '<smil xmlns="http://www.w3.org/ns/SMIL"><body/></smil>',
+                'poster.png' => 'PNGDATA',
+                'widgets/ok.bin' => 'OK',
+                'widgets/missing-fallback.bin' => 'MISSING-FALLBACK',
+                'widgets/external-fallback.bin' => 'EXTERNAL-FALLBACK',
+                'widgets/missing-part-fallback.bin' => 'MISSING-PART-FALLBACK',
+                'widgets/missing-style.bin' => 'MISSING-STYLE',
+                'widgets/non-css-style.bin' => 'NON-CSS-STYLE',
+            ] as $path => $bytes) {
+                $writePackageFile($root, 'EPUB/' . $path, $bytes);
+            }
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $manifest = $epub['manifestById'];
+            $manifestReport = $epub['manifestReport'];
+
+            $t->same('poster', $manifest['widget-ok']['fallback']);
+            $t->same('style', $manifest['widget-ok']['fallbackStyle']);
+            $t->same('overlay', $manifest['widget-ok']['mediaOverlay']);
+            $t->same('missing-fallback', $manifest['widget-missing-fallback']['fallback']);
+            $t->same('remote-poster', $manifest['widget-external-fallback']['fallback']);
+            $t->same('missing-poster', $manifest['widget-missing-part-fallback']['fallback']);
+            $t->same('missing-style', $manifest['widget-missing-style']['fallbackStyle']);
+            $t->same('poster', $manifest['widget-non-css-style']['fallbackStyle']);
+            $t->same('missing-overlay', $manifest['chapter-missing-overlay']['mediaOverlay']);
+            $t->same('style', $manifest['chapter-non-smil-overlay']['mediaOverlay']);
+
+            $t->same(14, $manifestReport['itemCount']);
+            $t->same(1, $manifestReport['externalItemCount']);
+            $t->same(1, $manifestReport['missingItemCount']);
+            $t->same(10, $manifestReport['manifestItemReferenceCount']);
+            $t->same(7, $manifestReport['manifestItemReferenceDiagnosticCount']);
+            $t->same(9, $manifestReport['diagnosticCount']);
+            $t->same([
+                'external-manifest-href-target',
+                'missing-manifest-href-target',
+                'missing-manifest-fallback-item',
+                'external-manifest-fallback-target',
+                'missing-manifest-fallback-part',
+                'missing-manifest-fallback-style-item',
+                'non-css-manifest-fallback-style',
+                'missing-manifest-media-overlay-item',
+                'unexpected-manifest-media-overlay-type',
+            ], array_column($manifestReport['diagnostics'], 'type'));
+
+            $t->same(4, $manifestReport['fallbackReferenceCount']);
+            $t->same(3, $manifestReport['fallbackReferenceDiagnosticCount']);
+            $t->same(['widget-ok', 'widget-missing-fallback', 'widget-external-fallback', 'widget-missing-part-fallback'], array_column($manifestReport['fallbackReferences'], 'sourceId'));
+            $t->same('EPUB/poster.png', $manifestReport['fallbackReferences'][0]['target']);
+            $t->same(true, $manifestReport['fallbackReferences'][0]['targetExists']);
+            $t->same([], $manifestReport['fallbackReferences'][0]['diagnostics']);
+            $t->same([
+                'missing-manifest-fallback-item',
+                'external-manifest-fallback-target',
+                'missing-manifest-fallback-part',
+            ], array_column($manifestReport['fallbackReferenceDiagnostics'], 'type'));
+            $t->same(['missing-fallback', 'remote-poster', 'missing-poster'], array_column($manifestReport['fallbackReferenceDiagnostics'], 'targetId'));
+
+            $t->same(3, $manifestReport['fallbackStyleReferenceCount']);
+            $t->same(2, $manifestReport['fallbackStyleReferenceDiagnosticCount']);
+            $t->same('text/css', $manifestReport['fallbackStyleReferences'][0]['targetMediaType']);
+            $t->same([
+                'missing-manifest-fallback-style-item',
+                'non-css-manifest-fallback-style',
+            ], array_column($manifestReport['fallbackStyleReferenceDiagnostics'], 'type'));
+            $t->same('image/png', $manifestReport['fallbackStyleReferences'][2]['targetMediaType']);
+
+            $t->same(3, $manifestReport['mediaOverlayReferenceCount']);
+            $t->same(2, $manifestReport['mediaOverlayReferenceDiagnosticCount']);
+            $t->same('application/smil+xml', $manifestReport['mediaOverlayReferences'][0]['targetMediaType']);
+            $t->same([
+                'missing-manifest-media-overlay-item',
+                'unexpected-manifest-media-overlay-type',
+            ], array_column($manifestReport['mediaOverlayReferenceDiagnostics'], 'type'));
+            $t->same('text/css', $manifestReport['mediaOverlayReferences'][2]['targetMediaType']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports direct package spine page progression metadata' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-spine-progression-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
