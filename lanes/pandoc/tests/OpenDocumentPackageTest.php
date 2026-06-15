@@ -1649,6 +1649,134 @@ XML;
         $t->same(1, $summary['packageObjectReplacements']['count']);
         $t->same(1, $summary['rdfMetadata']['parsedPartCount']);
     },
+    'maps compact ODT manifest media family review matrix' => static function (TestRunner $t) use (
+        $buildOdtPackage,
+        $manifestXml
+    ): void {
+        $audioBytes = 'AUDIO-REVIEW';
+        $videoBytes = 'VIDEO-REVIEW';
+        $scriptBytes = 'Sub Main' . "\n" . 'End Sub';
+        $configurationBytes = '<config:config-item-set xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" config:name="Review"/>';
+        $fontBytes = 'WOFF2-FONT';
+        $rdfBytes = '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"/>';
+        $replacementBytes = 'PREVIEWPNG';
+        $binaryBytes = 'BINARY-DATA';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="audio/ogg" manifest:full-path="Media/narration.ogg" manifest:size="' . strlen($audioBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="video/mp4" manifest:full-path="Media/clip.mp4" manifest:size="' . strlen($videoBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Review.xml" manifest:size="' . strlen($scriptBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/accelerator/current.xml" manifest:size="' . strlen($configurationBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="font/woff2" manifest:full-path="Fonts/ReviewSans.woff2" manifest:size="' . strlen($fontBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/rdf+xml" manifest:full-path="manifest.rdf" manifest:size="' . strlen($rdfBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="ObjectReplacements/preview.png" manifest:size="' . strlen($replacementBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.chart" manifest:full-path="Object%20Chart/"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Payloads/review.bin" manifest:size="' . strlen($binaryBytes) . '"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Media/narration.ogg', 'data' => $audioBytes, 'compressionMethod' => 0],
+                ['name' => 'Media/clip.mp4', 'data' => $videoBytes, 'compressionMethod' => 0],
+                ['name' => 'Basic/Standard/Review.xml', 'data' => $scriptBytes, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/accelerator/current.xml', 'data' => $configurationBytes, 'compressionMethod' => 0],
+                ['name' => 'Fonts/ReviewSans.woff2', 'data' => $fontBytes, 'compressionMethod' => 0],
+                ['name' => 'manifest.rdf', 'data' => $rdfBytes, 'compressionMethod' => 0],
+                ['name' => 'ObjectReplacements/preview.png', 'data' => $replacementBytes, 'compressionMethod' => 0],
+                ['name' => 'Object Chart/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Payloads/review.bin', 'data' => $binaryBytes, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $review = $summary['manifestReview'];
+        $inventory = $summary['packageInventory'];
+        $reviewByPath = [];
+        foreach ($review['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $familyByPath = [];
+        foreach ($review['manifestMediaFamilyItems'] as $item) {
+            $familyByPath[$item['path']] = $item['manifestMediaFamily'];
+        }
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $media) {
+            $mediaByPath[$media['path']] = $media;
+        }
+
+        $t->same([
+            'audio' => 1,
+            'binary' => 1,
+            'configuration' => 1,
+            'font' => 1,
+            'image' => 1,
+            'object-replacement' => 1,
+            'opendocument-object-package' => 1,
+            'opendocument-text-package' => 1,
+            'rdf' => 1,
+            'script' => 1,
+            'video' => 1,
+            'xml' => 3,
+        ], $review['manifestMediaFamilyCounts']);
+        $t->same(14, count($review['manifestMediaFamilyItems']));
+        $t->same('opendocument-text-package', $familyByPath['/']);
+        $t->same('xml', $familyByPath['content.xml']);
+        $t->same('image', $familyByPath['Pictures/hero.png']);
+        $t->same('audio', $familyByPath['Media/narration.ogg']);
+        $t->same('video', $familyByPath['Media/clip.mp4']);
+        $t->same('script', $familyByPath['Basic/Standard/Review.xml']);
+        $t->same('configuration', $familyByPath['Configurations2/accelerator/current.xml']);
+        $t->same('font', $familyByPath['Fonts/ReviewSans.woff2']);
+        $t->same('rdf', $familyByPath['manifest.rdf']);
+        $t->same('object-replacement', $familyByPath['ObjectReplacements/preview.png']);
+        $t->same('opendocument-object-package', $familyByPath['Object%20Chart/']);
+        $t->same('binary', $familyByPath['Payloads/review.bin']);
+
+        $t->same(strlen($audioBytes), $review['manifestMediaFamilyByteLengths']['audio']);
+        $t->same(strlen($videoBytes), $review['manifestMediaFamilyByteLengths']['video']);
+        $t->same(strlen($scriptBytes), $review['manifestMediaFamilyByteLengths']['script']);
+        $t->same(strlen($configurationBytes), $review['manifestMediaFamilyByteLengths']['configuration']);
+        $t->same(strlen($fontBytes), $review['manifestMediaFamilyByteLengths']['font']);
+        $t->same(strlen($rdfBytes), $review['manifestMediaFamilyByteLengths']['rdf']);
+        $t->same(strlen($replacementBytes), $review['manifestMediaFamilyByteLengths']['object-replacement']);
+        $t->same(0, $review['manifestMediaFamilyByteLengths']['opendocument-object-package'] ?? 0);
+        $t->same(strlen($binaryBytes), $review['manifestMediaFamilyByteLengths']['binary']);
+
+        $t->same('audio', $mediaByPath['Media/narration.ogg']['manifestMediaFamily']);
+        $t->same('video', $mediaByPath['Media/clip.mp4']['manifestMediaFamily']);
+        $t->same('script', $reviewByPath['Basic/Standard/Review.xml']['manifestMediaFamily']);
+        $t->same('configuration', $reviewByPath['Configurations2/accelerator/current.xml']['manifestMediaFamily']);
+        $t->same('font', $reviewByPath['Fonts/ReviewSans.woff2']['manifestMediaFamily']);
+        $t->same('rdf', $reviewByPath['manifest.rdf']['manifestMediaFamily']);
+        $t->same('object-replacement', $reviewByPath['ObjectReplacements/preview.png']['manifestMediaFamily']);
+        $t->same('opendocument-object-package', $reviewByPath['Object%20Chart/']['manifestMediaFamily']);
+        $t->same('binary', $reviewByPath['Payloads/review.bin']['manifestMediaFamily']);
+
+        $t->same(13, $inventory['manifestDeclaredPartCount']);
+        $t->same([
+            'audio' => 1,
+            'binary' => 1,
+            'configuration' => 1,
+            'font' => 1,
+            'image' => 1,
+            'object-replacement' => 1,
+            'opendocument-object-package' => 1,
+            'rdf' => 1,
+            'script' => 1,
+            'video' => 1,
+            'xml' => 3,
+        ], $inventory['manifestMediaFamilyCounts']);
+        $t->same('audio', $inventory['parts']['Media/narration.ogg']['manifestMediaFamily']);
+        $t->same('video', $inventory['parts']['Media/clip.mp4']['manifestMediaFamily']);
+        $t->same('script', $inventory['parts']['Basic/Standard/Review.xml']['manifestMediaFamily']);
+        $t->same('configuration', $inventory['parts']['Configurations2/accelerator/current.xml']['manifestMediaFamily']);
+        $t->same('font', $inventory['parts']['Fonts/ReviewSans.woff2']['manifestMediaFamily']);
+        $t->same('rdf', $inventory['parts']['manifest.rdf']['manifestMediaFamily']);
+        $t->same('object-replacement', $inventory['parts']['ObjectReplacements/preview.png']['manifestMediaFamily']);
+        $t->same('opendocument-object-package', $inventory['parts']['Object Chart/']['manifestMediaFamily']);
+        $t->same('binary', $inventory['parts']['Payloads/review.bin']['manifestMediaFamily']);
+    },
     'preserves compact ODT exposable package SHA-256 provenance for review handoff' => static function (TestRunner $t) use (
         $buildZipPackageWithCentralDirectoryOrder,
         $manifestXml,
