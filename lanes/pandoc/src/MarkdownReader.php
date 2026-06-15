@@ -8195,13 +8195,18 @@ final class MarkdownReader
         }
 
         $label = $this->parseBracketedLabel($line, $offset);
-        if ($label === null || $label['text'] === '' || ($line[$label['next']] ?? '') !== ':') {
+        if (
+            $label === null
+            || $label['text'] === ''
+            || str_starts_with($label['text'], '^')
+            || ($line[$label['next']] ?? '') !== ':'
+        ) {
             return null;
         }
 
         return [
             'label' => $label['text'],
-            'content' => rtrim(substr($line, $label['next'] + 1)),
+            'content' => rtrim(ltrim(substr($line, $label['next'] + 1), " \t")),
         ];
     }
 
@@ -8222,15 +8227,82 @@ final class MarkdownReader
             }
         }
 
+        if ($target !== '' && $this->referenceTargetHasUnclosedTitle($target)) {
+            $collected = $this->collectMultilineReferenceTitle($lines, $cursor, $target);
+            if ($collected !== null) {
+                return $collected;
+            }
+        }
+
         if ($cursor < $count) {
             $candidate = trim($this->expandTabsToSpaces($lines[$cursor]));
             if ($this->parseLinkTitle($candidate) !== null) {
                 $target .= ' ' . $candidate;
                 $cursor++;
+            } elseif ($this->looksLikeLinkTitleStart($candidate)) {
+                $collected = $this->collectMultilineReferenceTitle($lines, $cursor + 1, $target . ' ' . $candidate);
+                if ($collected !== null) {
+                    return $collected;
+                }
             }
         }
 
         return [$target, $cursor];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int}|null
+     */
+    private function collectMultilineReferenceTitle(array $lines, int $cursor, string $target): ?array
+    {
+        $candidate = $target;
+        $count = count($lines);
+        while ($cursor < $count && trim($lines[$cursor]) !== '') {
+            $candidate .= "\n" . trim($this->expandTabsToSpaces($lines[$cursor]));
+            $cursor++;
+            if ($this->parseLinkDestinationAndTitle($candidate) !== null) {
+                return [$candidate, $cursor];
+            }
+        }
+
+        return null;
+    }
+
+    private function referenceTargetHasUnclosedTitle(string $target): bool
+    {
+        $title = $this->referenceTargetTitleSource($target);
+
+        return $title !== null
+            && $this->looksLikeLinkTitleStart($title)
+            && $this->parseLinkTitle($title) === null;
+    }
+
+    private function referenceTargetTitleSource(string $target): ?string
+    {
+        $target = trim($target);
+        if ($target === '') {
+            return null;
+        }
+
+        if ($target[0] === '<') {
+            [$destination, $rest] = $this->readLinkDestination($target);
+            return $destination === null ? null : trim($rest);
+        }
+
+        [, $rest] = $this->readLinkDestination($target);
+
+        return trim($rest);
+    }
+
+    private function looksLikeLinkTitleStart(string $text): bool
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return false;
+        }
+
+        return $text[0] === '"' || $text[0] === "'" || $text[0] === '(';
     }
 
     /**
