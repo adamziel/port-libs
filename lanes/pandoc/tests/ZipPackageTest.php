@@ -698,6 +698,106 @@ return [
         $t->same('<container/>', $package->read('/META-INF/container.xml'));
     },
 
+    'preflights deterministic zip package manifest for shared package ingestion' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $mimetype = 'application/epub+zip';
+        $contentXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Manifest identity</p></body></html>';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => $mimetype,
+                'method' => 0,
+                'centralIndex' => 2,
+            ],
+            [
+                'name' => 'OEBPS/content.xhtml',
+                'data' => $contentXhtml,
+                'method' => 8,
+                'centralIndex' => 0,
+            ],
+            [
+                'name' => 'OEBPS/images/',
+                'data' => '',
+                'method' => 0,
+                'centralIndex' => 1,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $expectedCentralOrder = ['OEBPS/content.xhtml', 'OEBPS/images/', 'mimetype'];
+        $expectedLocalOrder = ['mimetype', 'OEBPS/content.xhtml', 'OEBPS/images/'];
+        $expectedEntries = [
+            [
+                'name' => 'OEBPS/content.xhtml',
+                'isDirectory' => false,
+                'centralDirectoryIndex' => 0,
+                'localHeaderOrder' => 1,
+                'compressionMethod' => 8,
+                'crc32Hex' => sprintf('%08x', $crc32($contentXhtml)),
+                'compressedSize' => strlen(gzdeflate($contentXhtml)),
+                'uncompressedSize' => strlen($contentXhtml),
+            ],
+            [
+                'name' => 'OEBPS/images/',
+                'isDirectory' => true,
+                'centralDirectoryIndex' => 1,
+                'localHeaderOrder' => 2,
+                'compressionMethod' => 0,
+                'crc32Hex' => sprintf('%08x', $crc32('')),
+                'compressedSize' => 0,
+                'uncompressedSize' => 0,
+            ],
+            [
+                'name' => 'mimetype',
+                'isDirectory' => false,
+                'centralDirectoryIndex' => 2,
+                'localHeaderOrder' => 0,
+                'compressionMethod' => 0,
+                'crc32Hex' => sprintf('%08x', $crc32($mimetype)),
+                'compressedSize' => strlen($mimetype),
+                'uncompressedSize' => strlen($mimetype),
+            ],
+        ];
+        $expectedHash = hash('sha256', json_encode([
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'centralDirectoryOrderNames' => $expectedCentralOrder,
+            'localHeaderOrderNames' => $expectedLocalOrder,
+            'entries' => $expectedEntries,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+
+        $t->same('zip-package-manifest-v1', $manifest['manifestVersion']);
+        $t->same($expectedHash, $manifest['manifestSha256']);
+        $t->same(3, $manifest['entryCount']);
+        $t->same(2, $manifest['fileEntryCount']);
+        $t->same(1, $manifest['directoryEntryCount']);
+        $t->same(strlen(gzdeflate($contentXhtml)) + strlen($mimetype), $manifest['compressedBytes']);
+        $t->same(strlen($contentXhtml) + strlen($mimetype), $manifest['uncompressedBytes']);
+        $t->same(2, $manifest['storedEntryCount']);
+        $t->same(1, $manifest['deflatedEntryCount']);
+        $t->same(0, $manifest['unsupportedCompressionMethodCount']);
+        $t->same($expectedCentralOrder, $manifest['centralDirectoryOrderNames']);
+        $t->same($expectedLocalOrder, $manifest['localHeaderOrderNames']);
+        $t->same(false, $manifest['centralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same($expectedEntries, array_map(
+            static fn (array $entry): array => [
+                'name' => $entry['name'],
+                'isDirectory' => $entry['isDirectory'],
+                'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                'localHeaderOrder' => $entry['localHeaderOrder'],
+                'compressionMethod' => $entry['compressionMethod'],
+                'crc32Hex' => $entry['crc32Hex'],
+                'compressedSize' => $entry['compressedSize'],
+                'uncompressedSize' => $entry['uncompressedSize'],
+            ],
+            $manifest['entries']
+        ));
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
     'preflights zip local header spans for stored and streamed package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
         $mimetype = 'application/epub+zip';
         $documentXml = '<w:document><w:p>local header span inventory</w:p></w:document>';

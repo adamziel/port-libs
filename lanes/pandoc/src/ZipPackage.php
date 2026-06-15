@@ -12261,6 +12261,7 @@ final class ZipPackage
                 'centralDirectoryFixedHeaders' => null,
                 'centralDirectoryVariableFields' => null,
                 'centralDirectoryRepairPlan' => null,
+                'packageManifest' => null,
                 'localHeaderNames' => null,
                 'localHeaderVariableFields' => null,
                 'localHeaderMetadata' => null,
@@ -12307,6 +12308,7 @@ final class ZipPackage
         $centralDirectoryFixedHeaders = null;
         $centralDirectoryVariableFields = null;
         $centralDirectoryRepairPlan = null;
+        $packageManifest = null;
         $localHeaderNames = null;
         $localHeaderVariableFields = null;
         $localHeaderMetadata = null;
@@ -12671,6 +12673,7 @@ final class ZipPackage
         try {
             $package = self::fromString($bytes);
             $canInstantiate = true;
+            $packageManifest = $package->packageManifestPreflight();
             $strictImport = $package->strictImportPreflight(
                 $maxTotalUncompressedBytes,
                 $maxExpansionRatio,
@@ -12688,6 +12691,7 @@ final class ZipPackage
             $strictImport['entryCount']
             ?? $centralDirectoryInventory['entryCount']
             ?? $centralDirectoryRepairPlan['scannedEntryCount']
+            ?? $packageManifest['entryCount']
             ?? $localHeaderNames['entryCount']
             ?? $localHeaderVariableFields['entryCount']
             ?? $localHeaderMetadata['entryCount']
@@ -12746,6 +12750,7 @@ final class ZipPackage
             'centralDirectoryFixedHeaders' => $centralDirectoryFixedHeaders,
             'centralDirectoryVariableFields' => $centralDirectoryVariableFields,
             'centralDirectoryRepairPlan' => $centralDirectoryRepairPlan,
+            'packageManifest' => $packageManifest,
             'localHeaderNames' => $localHeaderNames,
             'localHeaderVariableFields' => $localHeaderVariableFields,
             'localHeaderMetadata' => $localHeaderMetadata,
@@ -12799,6 +12804,111 @@ final class ZipPackage
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function packageManifestPreflight(): array
+    {
+        $localEntries = $this->localEntries();
+        $localOrderByName = [];
+        foreach ($localEntries as $localHeaderOrder => $entry) {
+            $localOrderByName[$entry->name] = $localHeaderOrder;
+        }
+
+        $entries = [];
+        $manifestEntries = [];
+        $fileEntryCount = 0;
+        $directoryEntryCount = 0;
+        $storedEntryCount = 0;
+        $deflatedEntryCount = 0;
+        $unsupportedCompressionMethodCount = 0;
+        $compressedBytes = 0;
+        $uncompressedBytes = 0;
+
+        foreach ($this->entries as $centralDirectoryIndex => $entry) {
+            $localHeader = $this->readLocalHeader($entry);
+            $isDirectory = $entry->isDirectory();
+            if ($isDirectory) {
+                ++$directoryEntryCount;
+            } else {
+                ++$fileEntryCount;
+            }
+
+            if ($entry->compressionMethod === 0) {
+                ++$storedEntryCount;
+            } elseif ($entry->compressionMethod === 8) {
+                ++$deflatedEntryCount;
+            } else {
+                ++$unsupportedCompressionMethodCount;
+            }
+
+            $compressedBytes += $entry->compressedSize;
+            $uncompressedBytes += $entry->uncompressedSize;
+            $localHeaderOrder = $localOrderByName[$entry->name] ?? null;
+            $localHeaderLength = (int) $localHeader['localHeaderLength'];
+            $compressedDataOffset = (int) $localHeader['dataStart'];
+            $summary = [
+                'name' => $entry->name,
+                'isDirectory' => $isDirectory,
+                'centralDirectoryIndex' => $centralDirectoryIndex,
+                'localHeaderOrder' => $localHeaderOrder,
+                'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                'crc32' => $entry->crc32,
+                'crc32Hex' => $entry->crc32Hex(),
+                'compressedSize' => $entry->compressedSize,
+                'uncompressedSize' => $entry->uncompressedSize,
+                'localHeaderOffset' => $entry->localHeaderOffset,
+                'localHeaderLength' => $localHeaderLength,
+                'compressedDataOffset' => $compressedDataOffset,
+                'compressedDataEnd' => $compressedDataOffset + $entry->compressedSize,
+                'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
+                'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
+            ];
+            $entries[] = $summary;
+            $manifestEntries[] = [
+                'name' => $summary['name'],
+                'isDirectory' => $summary['isDirectory'],
+                'centralDirectoryIndex' => $summary['centralDirectoryIndex'],
+                'localHeaderOrder' => $summary['localHeaderOrder'],
+                'compressionMethod' => $summary['compressionMethod'],
+                'crc32Hex' => $summary['crc32Hex'],
+                'compressedSize' => $summary['compressedSize'],
+                'uncompressedSize' => $summary['uncompressedSize'],
+            ];
+        }
+
+        $centralDirectoryOrderNames = $this->names();
+        $localHeaderOrderNames = $this->localNames();
+        $manifestPayload = [
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
+            'localHeaderOrderNames' => $localHeaderOrderNames,
+            'entries' => $manifestEntries,
+        ];
+        $manifestJson = json_encode(
+            $manifestPayload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        return [
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'manifestSha256' => hash('sha256', $manifestJson),
+            'entryCount' => count($this->entries),
+            'fileEntryCount' => $fileEntryCount,
+            'directoryEntryCount' => $directoryEntryCount,
+            'compressedBytes' => $compressedBytes,
+            'uncompressedBytes' => $uncompressedBytes,
+            'storedEntryCount' => $storedEntryCount,
+            'deflatedEntryCount' => $deflatedEntryCount,
+            'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
+            'localHeaderOrderNames' => $localHeaderOrderNames,
+            'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * @return array{
      *     entryCount:int,
      *     isValid:bool,
@@ -12814,6 +12924,7 @@ final class ZipPackage
      *     localHeaderVariableFields:array<string, mixed>,
      *     packageByteLayout:array<string, mixed>,
      *     contentPresence:array<string, mixed>,
+     *     packageManifest:array<string, mixed>,
      *     size:array<string, mixed>,
      *     generalPurposeFlags:array<string, mixed>,
      *     compressionMethods:array<string, mixed>,
@@ -12859,6 +12970,7 @@ final class ZipPackage
         $localHeaderVariableFields = self::localHeaderVariableFieldsPreflight($this->bytes);
         $packageByteLayout = self::packageByteLayoutPreflight($this->bytes);
         $contentPresence = $this->contentPresencePreflight();
+        $packageManifest = $this->packageManifestPreflight();
         $size = $this->sizePreflight();
         $generalPurposeFlags = $this->generalPurposeFlagPreflight();
         $compressionMethods = $this->compressionMethodPreflight();
@@ -13053,6 +13165,7 @@ final class ZipPackage
             'localHeaderVariableFields' => $localHeaderVariableFields,
             'packageByteLayout' => $packageByteLayout,
             'contentPresence' => $contentPresence,
+            'packageManifest' => $packageManifest,
             'size' => $size,
             'generalPurposeFlags' => $generalPurposeFlags,
             'compressionMethods' => $compressionMethods,
