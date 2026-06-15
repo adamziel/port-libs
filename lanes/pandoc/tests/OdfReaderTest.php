@@ -10298,6 +10298,86 @@ XML;
         $t->same(2, $compactSummary['packageInventory']['parts']['Pictures/hero.png']['manifestEncryptionRecordCount']);
         $t->same($encryption['issueCodes'], $compactSummary['packageInventory']['parts']['Pictures/hero.png']['manifestEncryptionIssueCodes']);
     },
+    'summarizes ODT manifest encryption methods across blocked package parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $encryptedEntries = <<<'XML'
+<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="4096">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="first-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="first-iv"/>
+      <manifest:start-key-generation manifest:start-key-generation-name="SHA1" manifest:key-size="20"/>
+    </manifest:encryption-data>
+    <manifest:encryption-data manifest:checksum-type="SHA256/1K" manifest:checksum="second-checksum">
+      <manifest:algorithm manifest:algorithm-name="AES256" manifest:initialization-vector="second-iv"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="2048" manifest:salt="second-salt"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+  <manifest:file-entry manifest:full-path="Basic/Standard/Module1.xml" manifest:media-type="text/xml" manifest:size="13">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="macro-checksum">
+      <manifest:algorithm manifest:algorithm-name="ChaCha20" manifest:initialisation-vector="macro-iv"/>
+      <manifest:key-derivation manifest:key-derivation-name="Argon2id" manifest:iteration-count="3" manifest:salt="macro-salt"/>
+      <manifest:start-key-generation manifest:start-key-generation-name="SHA256" manifest:key-size="32"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifestWithEncryptionSummary = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            $encryptedEntries,
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithEncryptionSummary, null, null, [
+            ['name' => 'Basic/Standard/Module1.xml', 'data' => '<script/>', 'compressionMethod' => 0],
+        ]));
+
+        $encryption = $result['importReport']['encryption'];
+        $summary = $encryption['summary'];
+        $manifestSummary = $result['importReport']['manifest']['encryption'];
+        $documentSummary = $result['document']->attr('manifest')['encryption'];
+
+        $t->same(2, $encryption['count']);
+        $t->same(['Pictures/hero.png', 'Basic/Standard/Module1.xml'], $encryption['encryptedParts']);
+        $t->same(2, $summary['encryptedItemCount']);
+        $t->same(3, $summary['recordCount']);
+        $t->same([
+            'AES256' => 1,
+            'Blowfish CFB' => 1,
+            'ChaCha20' => 1,
+        ], $summary['algorithmNameCounts']);
+        $t->same([
+            'Argon2id' => 1,
+            'PBKDF2' => 1,
+        ], $summary['keyDerivationNameCounts']);
+        $t->same([
+            'SHA1' => 1,
+            'SHA256' => 1,
+        ], $summary['startKeyGenerationNameCounts']);
+        $t->same([
+            'SHA1/1K' => 2,
+            'SHA256/1K' => 1,
+        ], $summary['checksumTypeCounts']);
+        $t->same([
+            'odf-manifest-encryption-multiple-encryption-data' => 1,
+        ], $summary['issueCodeCounts']);
+        $t->same(1, $summary['issueItemCount']);
+
+        $hero = $summary['items'][0];
+        $script = $summary['items'][1];
+        $t->same('Pictures/hero.png', $hero['part']);
+        $t->same(2, $hero['encryptionRecordCount']);
+        $t->same(['Blowfish CFB', 'AES256'], $hero['algorithmNames']);
+        $t->same(['SHA1/1K', 'SHA256/1K'], $hero['checksumTypes']);
+        $t->same(['odf-manifest-encryption-multiple-encryption-data'], $hero['issueCodes']);
+        $t->same('Basic/Standard/Module1.xml', $script['part']);
+        $t->same('encrypted-resource-bytes-blocked', $script['byteExposurePolicy']);
+        $t->same(1, $script['encryptionRecordCount']);
+        $t->same(['ChaCha20'], $script['algorithmNames']);
+        $t->same(['Argon2id'], $script['keyDerivationNames']);
+        $t->same(['SHA256'], $script['startKeyGenerationNames']);
+        $t->same('encrypted-resource-bytes-blocked', $result['importReport']['manifest']['packageProvenance']['parts']['Basic/Standard/Module1.xml']['byteExposurePolicy']);
+        $t->true(in_array('script-package', $result['importReport']['manifest']['packageProvenance']['parts']['Basic/Standard/Module1.xml']['roles'], true));
+        $t->same($summary, $manifestSummary);
+        $t->same($summary['algorithmNameCounts'], $documentSummary['algorithmNameCounts']);
+        $t->same($summary['items'], $documentSummary['items']);
+    },
     'reports ODT byte exposure policy and encryption provenance in package inventory' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $reviewEntries = <<<'XML'
 <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="4096">
