@@ -1736,6 +1736,76 @@ XML;
         $t->same($renditions, $result['importReport']['renditions']);
         $t->same($renditions, $result['document']->attr('renditions'));
     },
+    'preserves EPUB container rootfile authoring attributes in rendition handoff' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $alternateOpfXml): void {
+        $authoringContainer = str_replace(
+            '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">',
+            '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:review="https://example.invalid/epub-review" version="1.0">',
+            $containerXml
+        );
+        $authoringContainer = str_replace(
+            '<rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/>',
+            '<rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml" xml:lang="en" review:profile="primary" data-review-state="selected"/>',
+            $authoringContainer
+        );
+        $authoringContainer = str_replace(
+            '</rootfiles>',
+            '    <rootfile full-path="OEBPS/fixed/package.opf" media-type="application/oebps-package+xml" review:profile="fixed-layout" data-review-state="alternate"/>' . "\n"
+            . '  </rootfiles>',
+            $authoringContainer
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            $authoringContainer,
+            [
+                ['name' => 'OEBPS/fixed/package.opf', 'data' => $alternateOpfXml],
+            ]
+        ));
+
+        $rootfiles = $result['container']['rootfiles'];
+        $renditions = $result['renditions'];
+
+        $t->same(2, count($rootfiles));
+        $t->same('OEBPS/package.opf', $rootfiles[0]['fullPath']);
+        $t->same([
+            'data-review-state' => 'selected',
+            'full-path' => 'OEBPS/package.opf',
+            'media-type' => 'application/oebps-package+xml',
+            'review:profile' => 'primary',
+            'xml:lang' => 'en',
+        ], $rootfiles[0]['attributes']);
+        $t->same(5, $rootfiles[0]['attributeCount']);
+        $t->same([
+            'data-review-state' => 'selected',
+            'review:profile' => 'primary',
+            'xml:lang' => 'en',
+        ], $rootfiles[0]['customAttributes']);
+        $t->same(3, $rootfiles[0]['customAttributeCount']);
+        $t->same(true, $rootfiles[0]['selected']);
+
+        $t->same('OEBPS/fixed/package.opf', $rootfiles[1]['fullPath']);
+        $t->same([
+            'data-review-state' => 'alternate',
+            'full-path' => 'OEBPS/fixed/package.opf',
+            'media-type' => 'application/oebps-package+xml',
+            'review:profile' => 'fixed-layout',
+        ], $rootfiles[1]['attributes']);
+        $t->same([
+            'data-review-state' => 'alternate',
+            'review:profile' => 'fixed-layout',
+        ], $rootfiles[1]['customAttributes']);
+        $t->same(false, $rootfiles[1]['selected']);
+
+        $t->same('OEBPS/package.opf', $renditions['items'][0]['fullPath']);
+        $t->same($rootfiles[0]['attributes'], $renditions['items'][0]['attributes']);
+        $t->same($rootfiles[0]['customAttributes'], $renditions['items'][0]['customAttributes']);
+        $t->same('OEBPS/fixed/package.opf', $renditions['items'][1]['fullPath']);
+        $t->same($rootfiles[1]['attributes'], $renditions['items'][1]['attributes']);
+        $t->same($rootfiles[1]['customAttributes'], $renditions['items'][1]['customAttributes']);
+        $t->same($result['container'], $result['importReport']['container']);
+        $t->same($renditions, $result['importReport']['renditions']);
+        $t->same($renditions, $result['document']->attr('renditions'));
+    },
     'summarizes OPF fixed layout viewport metadata for package review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithFixedLayout = str_replace(
             '<meta name="cover" content="cover-image"/>',

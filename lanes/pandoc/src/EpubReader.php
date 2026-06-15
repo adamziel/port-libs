@@ -102,6 +102,10 @@ final class EpubReader
         'xml:base' => true,
         'dir' => true,
     ];
+    private const OCF_ROOTFILE_STRUCTURAL_ATTRIBUTES = [
+        'full-path' => true,
+        'media-type' => true,
+    ];
 
     /**
      * @return array{
@@ -302,8 +306,11 @@ final class EpubReader
             $mediaTypeReport = self::rootfileMediaTypeReport($mediaType);
             $exists = $package->has($part);
             $provenance = self::zipEntryProvenance($exists ? $package->entry($part) : null);
+            $attributes = self::rootfileElementAttributes($rootfile);
+            $customAttributes = self::rootfileCustomAttributes($attributes);
             $rootfiles[] = [
                 'index' => $index,
+                'fullPath' => $path,
                 'path' => $part,
                 'mediaType' => $mediaType,
                 'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
@@ -314,6 +321,10 @@ final class EpubReader
                 'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
                 'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
                 'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
+                'attributes' => $attributes,
+                'attributeCount' => count($attributes),
+                'customAttributes' => $customAttributes,
+                'customAttributeCount' => count($customAttributes),
                 'exists' => $exists,
                 'byteLength' => $provenance['byteLength'],
                 'compressedByteLength' => $provenance['compressedByteLength'],
@@ -905,6 +916,33 @@ final class EpubReader
 
     /**
      * @param array<string, mixed> $rootfile
+     *
+     * @return array<string, mixed>
+     */
+    private static function rootfileAuthoringFields(array $rootfile): array
+    {
+        $attributes = is_array($rootfile['attributes'] ?? null) ? $rootfile['attributes'] : [];
+        $customAttributes = is_array($rootfile['customAttributes'] ?? null)
+            ? $rootfile['customAttributes']
+            : self::rootfileCustomAttributes($attributes);
+
+        return [
+            'fullPath' => is_string($rootfile['fullPath'] ?? null)
+                ? $rootfile['fullPath']
+                : ltrim((string) ($rootfile['path'] ?? ''), '/'),
+            'attributes' => $attributes,
+            'attributeCount' => is_int($rootfile['attributeCount'] ?? null)
+                ? $rootfile['attributeCount']
+                : count($attributes),
+            'customAttributes' => $customAttributes,
+            'customAttributeCount' => is_int($rootfile['customAttributeCount'] ?? null)
+                ? $rootfile['customAttributeCount']
+                : count($customAttributes),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $rootfile
      * @param array<string, mixed> $opf
      *
      * @return array<string, mixed>
@@ -917,7 +955,7 @@ final class EpubReader
             'index' => (int) ($rootfile['index'] ?? 0),
             'path' => (string) $rootfile['path'],
             'mediaType' => (string) $rootfile['mediaType'],
-        ], self::rootfileMediaTypeFields($rootfile), [
+        ], self::rootfileMediaTypeFields($rootfile), self::rootfileAuthoringFields($rootfile), [
             'exists' => (bool) ($rootfile['exists'] ?? false),
             'selected' => (bool) ($rootfile['selected'] ?? false),
             'package' => is_array($opf['package'] ?? null) ? $opf['package'] : null,
@@ -943,7 +981,7 @@ final class EpubReader
             'index' => (int) ($rootfile['index'] ?? 0),
             'path' => (string) $rootfile['path'],
             'mediaType' => (string) $rootfile['mediaType'],
-        ], self::rootfileMediaTypeFields($rootfile), [
+        ], self::rootfileMediaTypeFields($rootfile), self::rootfileAuthoringFields($rootfile), [
             'exists' => (bool) ($rootfile['exists'] ?? false),
             'selected' => false,
             'package' => null,
@@ -4910,6 +4948,31 @@ final class EpubReader
      *
      * @return array<string, string>
      */
+    private static function rootfileCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OCF_ROOTFILE_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+            if ($name === 'xmlns' || str_starts_with($name, 'xmlns:')) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
     private static function spineItemrefCustomAttributes(array $attributes): array
     {
         $custom = [];
@@ -4956,6 +5019,14 @@ final class EpubReader
      * @return array<string, string>
      */
     private static function manifestItemAttributes(\DOMElement $element): array
+    {
+        return self::opfElementAttributes($element);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function rootfileElementAttributes(\DOMElement $element): array
     {
         return self::opfElementAttributes($element);
     }
