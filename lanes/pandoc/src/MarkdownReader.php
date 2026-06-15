@@ -8574,7 +8574,7 @@ final class MarkdownReader
         $count = count($lines);
         while ($cursor < $count) {
             if ($this->isClosingCodeFence($lines[$cursor], $fenceChar, $fenceLength)) {
-                $rawFormat = $this->rawFormatAttributeSpec($info);
+                $rawFormat = $this->rawBlockFormatAttributeSpec($info);
                 if ($rawFormat !== null) {
                     $index = $cursor;
 
@@ -8598,7 +8598,7 @@ final class MarkdownReader
             $cursor++;
         }
 
-        $rawFormat = $this->rawFormatAttributeSpec($info);
+        $rawFormat = $this->rawBlockFormatAttributeSpec($info);
         if ($rawFormat !== null) {
             $index = $cursor - 1;
 
@@ -17583,6 +17583,59 @@ final class MarkdownReader
         }
 
         return strtolower($m[1]);
+    }
+
+    private function rawBlockFormatAttributeSpec(string $source): ?string
+    {
+        $format = $this->rawFormatAttributeSpec($source);
+        if ($format !== null) {
+            return $format;
+        }
+
+        $source = trim($source);
+        if ($source === '' || $source[0] !== '{' || !str_ends_with($source, '}')) {
+            return null;
+        }
+
+        $inside = trim(substr($source, 1, -1));
+        $offset = 0;
+        $length = strlen($inside);
+        while ($offset < $length) {
+            while ($offset < $length && ctype_space($inside[$offset])) {
+                $offset++;
+            }
+            if ($offset >= $length) {
+                break;
+            }
+
+            $start = $offset;
+            if (
+                $inside[$offset] !== '#'
+                && $inside[$offset] !== '.'
+                && $this->readMarkdownKeyValueAttribute($inside, $offset) !== null
+            ) {
+                continue;
+            }
+
+            $token = $this->readMarkdownAttributeToken($inside, $offset);
+            if (preg_match('/^=([A-Za-z][A-Za-z0-9_.+-]*)$/', $token, $tokenMatch) !== 1) {
+                if ($offset === $start) {
+                    $offset++;
+                }
+                continue;
+            }
+
+            if ($format !== null) {
+                return null;
+            }
+
+            $format = strtolower($tokenMatch[1]);
+            if ($offset === $start) {
+                $offset++;
+            }
+        }
+
+        return $format;
     }
 
     /**
