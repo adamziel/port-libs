@@ -1351,6 +1351,7 @@ final class BibtexCslParser
         return match (strtolower($type)) {
             'article', 'periodical', 'suppperiodical' => 'article-journal',
             'inproceedings', 'conference' => 'paper-conference',
+            'talk', 'lecture', 'presentation' => 'speech',
             'bookinbook', 'inbook', 'incollection', 'suppbook', 'suppcollection' => 'chapter',
             'inreference' => 'entry-encyclopedia',
             'set' => 'entry',
@@ -1393,11 +1394,24 @@ final class BibtexCslParser
      */
     private static function publisherPlaceFieldNames(string $type, array $fields): array
     {
-        if (strtolower($type) === 'unpublished' && self::firstField($fields, ['eventtitle']) !== '') {
+        if (self::entryUsesVenueAsEventPlace($type, $fields)) {
             return ['location', 'address'];
         }
 
         return ['location', 'address', 'venue'];
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private static function entryUsesVenueAsEventPlace(string $type, array $fields): bool
+    {
+        $entryType = strtolower($type);
+        if (in_array($entryType, ['talk', 'lecture', 'presentation'], true)) {
+            return true;
+        }
+
+        return $entryType === 'unpublished' && self::firstField($fields, ['eventtitle']) !== '';
     }
 
     /**

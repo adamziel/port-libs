@@ -7020,6 +7020,129 @@ XML);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Migration Review Talk. Event: WordPress Import Summit. Event place: Portland. Event date 2026-06-04. 2026.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Unpublished Field Notes. 2025.</dd>', $blocks);
     },
+    'maps bounded biblatex presentation aliases into csl speech conditionals' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@talk{review-talk,
+  author     = {Speaker, Sam},
+  title      = {Review Talk Packet},
+  eventtitle = {Migration Review Forum},
+  eventdate  = {2026-06-15},
+  venue      = {Portland},
+  type       = {lightning talk},
+  pubstate   = {forthcoming},
+  date       = {2026}
+}
+
+@lecture{archive-lecture,
+  author     = {Curator, Eli},
+  title      = {Archive Lecture Packet},
+  eventtitle = {Source Audit Seminar},
+  eventdate  = {2025-05-02},
+  venue      = {Seattle},
+  type       = {seminar lecture},
+  date       = {2025}
+}
+
+@presentation{poster-presentation,
+  author     = {Ng, Nia},
+  title      = {Poster Presentation Packet},
+  eventtitle = {WordPress Import Session},
+  eventdate  = {2024-04-03},
+  venue      = {Remote},
+  type       = {poster},
+  date       = {2024}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('talk', $items[0]['rawBibtex']['type'] ?? null);
+        $t->same('lecture', $items[1]['rawBibtex']['type'] ?? null);
+        $t->same('presentation', $items[2]['rawBibtex']['type'] ?? null);
+        $t->same('speech', $items[0]['type'] ?? null);
+        $t->same('speech', $items[1]['type'] ?? null);
+        $t->same('speech', $items[2]['type'] ?? null);
+        $t->same('Migration Review Forum', $items[0]['event'] ?? null);
+        $t->same('Portland', $items[0]['event-place'] ?? null);
+        $t->same('', $items[0]['publisher-place'] ?? null);
+        $t->same('forthcoming', $items[0]['status'] ?? null);
+        $t->same(['date-parts' => [[2026, 6, 15]]], $items[0]['event-date'] ?? null);
+        $t->same('Seattle', $items[1]['event-place'] ?? null);
+        $t->same('', $items[1]['publisher-place'] ?? null);
+        $t->same('Remote', $items[2]['event-place'] ?? null);
+        $t->same('', $items[2]['publisher-place'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $talk = $processor->item('review-talk');
+        $lecture = $processor->item('archive-lecture');
+        $poster = $processor->item('poster-presentation');
+        $t->same('speech', $talk['type'] ?? null);
+        $t->same('lightning talk', $talk['genre'] ?? null);
+        $t->same('Migration Review Forum', $talk['eventTitle'] ?? null);
+        $t->same('Portland', $talk['eventPlace'] ?? null);
+        $t->same('', $talk['publisherPlace'] ?? null);
+        $t->same('2026-06-15', $talk['eventDate']['display'] ?? null);
+        $t->same('forthcoming', $talk['status'] ?? null);
+        $t->same('speech', $lecture['type'] ?? null);
+        $t->same('Source Audit Seminar', $lecture['eventTitle'] ?? null);
+        $t->same('Seattle', $lecture['eventPlace'] ?? null);
+        $t->same('speech', $poster['type'] ?? null);
+        $t->same('WordPress Import Session', $poster['eventTitle'] ?? null);
+        $t->same('Remote', $poster['eventPlace'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if type="speech">
+          <group delimiter=" | ">
+            <text variable="type"/>
+            <text variable="title"/>
+            <text variable="event"/>
+            <text variable="genre"/>
+            <text variable="event-place" prefix="event "/>
+            <text variable="publisher-place" prefix="publisher "/>
+            <date variable="event-date"/>
+            <text variable="status" prefix="state "/>
+          </group>
+        </if>
+        <else>
+          <text value="not-speech"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="type"/>
+      <text variable="title"/>
+      <text variable="event"/>
+      <text variable="genre"/>
+      <text variable="event-place" prefix="event "/>
+      <text variable="publisher-place" prefix="publisher "/>
+      <date variable="event-date"/>
+      <text variable="status" prefix="state "/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[speech | Review Talk Packet | Migration Review Forum | lightning talk | event Portland | 2026-06-15 | state forthcoming; speech | Archive Lecture Packet | Source Audit Seminar | seminar lecture | event Seattle | 2025-05-02; speech | Poster Presentation Packet | WordPress Import Session | poster | event Remote | 2024-04-03]', $styled->renderCitationCluster([
+            $citation('review-talk', '[@review-talk]'),
+            $citation('archive-lecture', '[@archive-lecture]'),
+            $citation('poster-presentation', '[@poster-presentation]'),
+        ]));
+        $t->same('speech :: Review Talk Packet :: Migration Review Forum :: lightning talk :: event Portland :: 2026-06-15 :: state forthcoming', $styled->renderBibliographyEntry('review-talk'));
+        $t->same('speech :: Archive Lecture Packet :: Source Audit Seminar :: seminar lecture :: event Seattle :: 2025-05-02', $styled->renderBibliographyEntry('archive-lecture'));
+
+        $document = (new MarkdownReader())->read('Presentation aliases cite [@review-talk; @archive-lecture; @poster-presentation] with speech semantics.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Presentation aliases cite [speech | Review Talk Packet | Migration Review Forum | lightning talk | event Portland | 2026-06-15 | state forthcoming; speech | Archive Lecture Packet | Source Audit Seminar | seminar lecture | event Seattle | 2025-05-02; speech | Poster Presentation Packet | WordPress Import Session | poster | event Remote | 2024-04-03] with speech semantics.</p>', $blocks);
+        $t->contains('<dt>Speaker 2026</dt><dd>speech :: Review Talk Packet :: Migration Review Forum :: lightning talk :: event Portland :: 2026-06-15 :: state forthcoming</dd>', $blocks);
+        $t->contains('<dt>Curator 2025</dt><dd>speech :: Archive Lecture Packet :: Source Audit Seminar :: seminar lecture :: event Seattle :: 2025-05-02</dd>', $blocks);
+        $t->contains('<dt>Ng 2024</dt><dd>speech :: Poster Presentation Packet :: WordPress Import Session :: poster :: event Remote :: 2024-04-03</dd>', $blocks);
+    },
     'keeps bounded biblatex unpublished conference venue separate from publisher place' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @unpublished{forthcoming-poster,
