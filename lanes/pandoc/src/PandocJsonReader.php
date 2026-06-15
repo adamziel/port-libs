@@ -624,7 +624,7 @@ final class PandocJsonReader
             }
         }
 
-        return new AstNode($type, [], $children);
+        return new AstNode($type, ['text' => $this->plainText($children)], $children);
     }
 
     /**
@@ -664,10 +664,13 @@ final class PandocJsonReader
             throw new \InvalidArgumentException('Header level must be an integer');
         }
 
+        $children = $this->readInlines($this->listContent($tuple[2], 'Header inlines'));
+
         return new AstNode('heading', array_merge(
             ['level' => $tuple[0]],
-            $this->readAttrTuple($tuple[1])
-        ), $this->readInlines($this->listContent($tuple[2], 'Header inlines')));
+            $this->readAttrTuple($tuple[1]),
+            ['text' => $this->plainText($children)]
+        ), $children);
     }
 
     private function readCodeBlock(mixed $content): AstNode

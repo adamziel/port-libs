@@ -1739,6 +1739,9 @@ final class NativeWriter
             if (in_array($key, self::NATIVE_REUSE_PROVENANCE_ATTRS, true)) {
                 continue;
             }
+            if ($key === 'text' && in_array($node->type, ['plain', 'paragraph', 'heading'], true)) {
+                continue;
+            }
             $attrs[$key] = $this->comparisonValue($value);
         }
         ksort($attrs);

@@ -7584,6 +7584,241 @@ return [
             }
         }
     },
+    'maps json native constructor completeness summaries through reader writer stacks' => static function (TestRunner $t): void {
+        $plainBlock = ['t' => 'Plain', 'c' => [
+            ['t' => 'Str', 'c' => 'Plain'],
+            ['t' => 'Space'],
+            ['t' => 'Code', 'c' => [['', ['php'], []], 'summary']],
+        ]];
+        $paraBlock = ['t' => 'Para', 'c' => [
+            ['t' => 'Str', 'c' => 'Paragraph'],
+            ['t' => 'Space'],
+            ['t' => 'Emph', 'c' => [
+                ['t' => 'Str', 'c' => 'summary'],
+            ]],
+        ]];
+        $headerBlock = ['t' => 'Header', 'c' => [
+            2,
+            ['constructor-heading', ['review'], [['data-kind', 'heading']]],
+            [
+                ['t' => 'Str', 'c' => 'Heading'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'summary'],
+            ],
+        ]];
+        $codeBlock = ['t' => 'CodeBlock', 'c' => [
+            ['constructor-code', ['php'], [['data-kind', 'code-block']]],
+            "echo 1;\n",
+        ]];
+        $rawBlock = ['t' => 'RawBlock', 'c' => [
+            ['t' => 'Format', 'c' => 'html'],
+            '<aside>raw block</aside>',
+        ]];
+        $quotedInline = ['t' => 'Quoted', 'c' => [
+            ['t' => 'DoubleQuote'],
+            [['t' => 'Str', 'c' => 'quoted']],
+        ]];
+        $mathInline = ['t' => 'Math', 'c' => [
+            ['t' => 'DisplayMath'],
+            'x = y',
+        ]];
+        $rawInline = ['t' => 'RawInline', 'c' => [
+            ['t' => 'Format', 'c' => 'latex'],
+            '\\alpha',
+        ]];
+        $linkInline = ['t' => 'Link', 'c' => [
+            ['constructor-link', ['source'], [['data-kind', 'link']]],
+            [['t' => 'Str', 'c' => 'source']],
+            ['https://example.test/source', 'Source title'],
+        ]];
+        $tableCell = ['t' => 'Cell', 'c' => [
+            ['constructor-cell', ['body'], [['data-kind', 'cell']]],
+            ['t' => 'AlignRight'],
+            ['t' => 'RowSpan', 'c' => 2],
+            ['t' => 'ColSpan', 'c' => 3],
+            [['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Cell'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'summary'],
+            ]]],
+        ]];
+        $tableBlock = ['t' => 'Table', 'c' => [
+            ['constructor-table', ['review'], []],
+            ['t' => 'Caption', 'c' => [
+                ['t' => 'Nothing'],
+                [],
+            ]],
+            [[['t' => 'AlignRight'], ['t' => 'ColWidth', 'c' => 0.4]]],
+            ['t' => 'TableHead', 'c' => [['', [], []], []]],
+            [['t' => 'TableBody', 'c' => [
+                ['', [], []],
+                ['t' => 'RowHeadColumns', 'c' => 1],
+                [],
+                [['t' => 'Row', 'c' => [
+                    ['', [], []],
+                    [$tableCell],
+                ]]],
+            ]]],
+            ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+        ]];
+
+        $cases = [
+            'plain text summary' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [$plainBlock]],
+                'path' => [0],
+                'type' => 'plain',
+                'constructor' => 'Plain',
+                'native' => $plainBlock,
+                'text' => 'Plain summary',
+            ],
+            'paragraph text summary' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [$paraBlock]],
+                'path' => [0],
+                'type' => 'paragraph',
+                'constructor' => 'Para',
+                'native' => $paraBlock,
+                'text' => 'Paragraph summary',
+            ],
+            'header text summary' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [$headerBlock]],
+                'path' => [0],
+                'type' => 'heading',
+                'constructor' => 'Header',
+                'native' => $headerBlock,
+                'text' => 'Heading summary',
+                'assert' => static function (TestRunner $t, AstNode $node, string $label): void {
+                    $t->same(2, $node->attr('level'), "{$label} level");
+                    $t->same('constructor-heading', $node->attr('id'), "{$label} attr id");
+                },
+            ],
+            'code block text summary' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [$codeBlock]],
+                'path' => [0],
+                'type' => 'code_block',
+                'constructor' => 'CodeBlock',
+                'native' => $codeBlock,
+                'text' => "echo 1;\n",
+                'assert' => static function (TestRunner $t, AstNode $node, string $label): void {
+                    $t->same(['php'], $node->attr('classes'), "{$label} code classes");
+                    $t->same('constructor-code', $node->attr('id'), "{$label} code id");
+                },
+            ],
+            'raw block format helper' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [$rawBlock]],
+                'path' => [0],
+                'type' => 'raw_html',
+                'constructor' => 'RawBlock',
+                'native' => $rawBlock,
+                'text' => '<aside>raw block</aside>',
+                'assert' => static function (TestRunner $t, AstNode $node, string $label) use ($rawBlock): void {
+                    $t->same('html', $node->attr('format'), "{$label} raw format");
+                    $t->same($rawBlock['c'][0], $node->attr('formatNative'), "{$label} format native");
+                },
+            ],
+            'quoted inline helper' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [['t' => 'Para', 'c' => [$quotedInline]]]],
+                'path' => [0, 0],
+                'type' => 'quoted',
+                'constructor' => 'Quoted',
+                'native' => $quotedInline,
+                'assert' => static function (TestRunner $t, AstNode $node, string $label) use ($quotedInline): void {
+                    $t->same('double', $node->attr('kind'), "{$label} quote kind");
+                    $t->same('DoubleQuote', $node->attr('quoteTypeConstructor'), "{$label} quote helper constructor");
+                    $t->same($quotedInline['c'][0], $node->attr('quoteTypeNative'), "{$label} quote helper native");
+                },
+            ],
+            'math inline helper' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [['t' => 'Para', 'c' => [$mathInline]]]],
+                'path' => [0, 0],
+                'type' => 'math',
+                'constructor' => 'Math',
+                'native' => $mathInline,
+                'text' => 'x = y',
+                'assert' => static function (TestRunner $t, AstNode $node, string $label) use ($mathInline): void {
+                    $t->same(true, $node->attr('display'), "{$label} display math");
+                    $t->same('DisplayMath', $node->attr('mathTypeConstructor'), "{$label} math helper constructor");
+                    $t->same($mathInline['c'][0], $node->attr('mathTypeNative'), "{$label} math helper native");
+                },
+            ],
+            'raw inline format helper' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [['t' => 'Para', 'c' => [$rawInline]]]],
+                'path' => [0, 0],
+                'type' => 'raw_tex',
+                'constructor' => 'RawInline',
+                'native' => $rawInline,
+                'text' => '\\alpha',
+                'assert' => static function (TestRunner $t, AstNode $node, string $label) use ($rawInline): void {
+                    $t->same('latex', $node->attr('format'), "{$label} raw inline format");
+                    $t->same($rawInline['c'][0], $node->attr('formatNative'), "{$label} raw inline format native");
+                },
+            ],
+            'target attr inline helper' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [['t' => 'Para', 'c' => [$linkInline]]]],
+                'path' => [0, 0],
+                'type' => 'link',
+                'constructor' => 'Link',
+                'native' => $linkInline,
+                'assert' => static function (TestRunner $t, AstNode $node, string $label) use ($linkInline): void {
+                    $t->same('constructor-link', $node->attr('id'), "{$label} link id");
+                    $t->same('https://example.test/source', $node->attr('url'), "{$label} link url");
+                    $t->same($linkInline['c'][2], $node->attr('targetNative'), "{$label} link target native");
+                },
+            ],
+            'table span helper constructors' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [$tableBlock]],
+                'path' => [0, 0, 0, 0],
+                'type' => 'table_cell',
+                'constructor' => 'Cell',
+                'native' => $tableCell,
+                'text' => 'Cell summary',
+                'assert' => static function (TestRunner $t, AstNode $node, string $label) use ($tableCell): void {
+                    $t->same('right', $node->attr('align'), "{$label} cell alignment");
+                    $t->same(2, $node->attr('rowspan'), "{$label} row span");
+                    $t->same(3, $node->attr('colspan'), "{$label} col span");
+                    $t->same($tableCell['c'][2], $node->attr('rowSpanNative'), "{$label} row span native");
+                    $t->same($tableCell['c'][3], $node->attr('colSpanNative'), "{$label} col span native");
+                },
+            ],
+        ];
+
+        $nodeAt = static function (AstNode $document, array $path): AstNode {
+            $node = $document;
+            foreach ($path as $index) {
+                $next = $node->children[$index] ?? null;
+                $node = $next instanceof AstNode ? $next : new AstNode('missing');
+            }
+
+            return $node;
+        };
+
+        foreach ($cases as $caseName => $case) {
+            $packet = $case['packet'];
+
+            foreach ([
+                'json' => (new PandocJsonReader())->readPacket($packet),
+                'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+            ] as $source => $document) {
+                $node = $nodeAt($document, $case['path']);
+                $jsonPacket = (new PandocJsonWriter())->toArray($document);
+                $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+                $label = "{$caseName} {$source}";
+
+                $t->same($case['type'], $node->type, "{$label} node type");
+                $t->same($case['constructor'], $node->attr('constructor'), "{$label} constructor attr");
+                $t->same($case['native'], $node->attr('native'), "{$label} native payload");
+                if (array_key_exists('text', $case)) {
+                    $t->same($case['text'], $node->attr('text'), "{$label} text summary");
+                }
+                $t->same($packet['blocks'], $jsonPacket['blocks'], "{$label} JSON writer preserves constructors");
+                $t->same($packet['blocks'], $nativePacket['blocks'], "{$label} native writer preserves constructors");
+
+                $assert = $case['assert'] ?? null;
+                if ($assert instanceof \Closure) {
+                    $assert($t, $node, $label);
+                }
+            }
+        }
+    },
     'flushes mixed inline children inside block containers for json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],
