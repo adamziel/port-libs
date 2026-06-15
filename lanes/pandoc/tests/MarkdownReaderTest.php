@@ -10275,6 +10275,35 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer generic html raw block boundaries' => static function (TestRunner $t): void {
+        $section = '<section data-review="html-node">'
+            . "\n" . '<p>Keep <strong>HTML</strong>.</p>'
+            . "\n" . '</section>';
+        $aside = '<aside data-review="generic-html">Keep generic HTML.</aside>';
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Before raw HTML handoff.']),
+            ]),
+            new AstNode('raw_html', ['html' => $section]),
+            new AstNode('raw_block', ['format' => 'html5', 'html' => $aside]),
+            new AstNode('raw_block', ['format' => 'opml', 'text' => '<outline text="drop"/>']),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'After raw HTML handoff.']),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(implode("\n\n", [
+            'Before raw HTML handoff.',
+            $section,
+            $aside,
+            'After raw HTML handoff.',
+        ]), $markdown);
+        $t->contains($section, $markdown);
+        $t->contains($aside, $markdown);
+        $t->true(!str_contains($markdown, '<outline'), 'Unsupported raw block formats stay disabled in Markdown output');
+    },
     'maps upstream markdown raw attribute code spans and fenced blocks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             'Raw attributes: `**kept**`{=markdown} and `<span>drop</span>`{=html}.',
