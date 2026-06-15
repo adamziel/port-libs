@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3628,
-        "latestSlice": "pandoc-odf-preferred-view-mode-review maps eight ODF manifest preferred-view-mode review cases after rebase onto current main 388c993dfe. OdfReader and OpenDocumentPackage now summarize root applicability, defined OASIS modes, vendor namespaced tokens, invalid unqualified tokens, and non-root diagnostics across rich and compact package review metadata without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3619 -> 3620, phpFail remains 0, mapped upstream cases move 3620 -> 3628, mappedOdfManifestPreferredViewModeReviewCases = 8, and odfManifestPreferredViewModeReviewAssertions = 29. Verification passed php -l for OdfReader.php, OpenDocumentPackage.php, and OdfReaderTest.php; focused ODF/ODT gate passed 5 files, 6550 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84891 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+        "mapped": 3633,
+        "latestSlice": "pandoc-odt-package-signature-sidecar-matrix maps five ODF/ODT package signature sidecar ingestion cases after rebase onto current main 0f57cacd. OdfReader now exposes packageSignatures/odfPackageSignatures metadata for declared, missing, encrypted, invalid-media-type, and undeclared META-INF/*signatures.xml sidecars, marks signature sidecars as metadata-only, blocks declared signature bytes with signature-package-bytes-blocked, and keeps invalid image-typed signature sidecars out of document media via package-role precedence without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3620 -> 3621, phpFail remains 0, mapped upstream cases move 3628 -> 3633, mappedOdtPackageSignatureSidecarCases = 5, and odtPackageSignatureSidecarAssertions = 65. Verification passed post-rebase: focused OdfReaderTest.php (1 file, 4863 assertions, 0 failures) and full lanes/pandoc/tests (46 test files, 84956 assertions, 0 failures).",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "ODF/ODT manifest preferred-view-mode review is verified after rebase onto current main 388c993dfe; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-15 ODF/ODT manifest preferred-view-mode review verified after rebase onto current main 388c993dfe; focused ODF/ODT gate passed 5 files, 6550 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84891 assertions, 0 failures.",
+        "status": "ODF/ODT package signature sidecar matrix rebased onto current main 0f57cacd; phpFail remains 0 after focused OdfReaderTest.php and full lanes/pandoc/tests validation.",
+        "latestFocusedSource": "2026-06-15 ODF/ODT package signature sidecar matrix rebased onto current main 0f57cacd; focused OdfReaderTest.php passed 1 file, 4863 assertions, 0 failures; full lanes/pandoc/tests passed 46 test files, 84956 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -475,7 +475,9 @@
         "mappedJsonNativeHelperConstructorVariantCases": 8,
         "jsonNativeHelperConstructorVariantAssertions": 116,
         "mappedOdfManifestPreferredViewModeReviewCases": 8,
-        "odfManifestPreferredViewModeReviewAssertions": 29
+        "odfManifestPreferredViewModeReviewAssertions": 29,
+        "mappedOdtPackageSignatureSidecarCases": 5,
+        "odtPackageSignatureSidecarAssertions": 65
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
