@@ -2747,6 +2747,99 @@ XML);
             $removeDirectory($root);
         }
     },
+    'preserves direct reader OPF authoring attributes for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-authoring-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:review="https://example.invalid/epub-review" id="reader-authoring" version="3.0" unique-identifier="bookid" xml:lang="fr" dir="rtl" xml:base="review-base/" prefix="schema: https://schema.org/ review: https://example.invalid/vocab#" review:packet="source" data-package="handoff">
+  <metadata>
+    <dc:identifier id="bookid">urn:reader-authoring-review</dc:identifier>
+    <dc:title>Reader Authoring Review</dc:title>
+    <dc:language>fr</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav" data-nav="toc"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" xml:lang="fr" dir="rtl" data-track="spine" review:role="chapter"/>
+  </manifest>
+  <spine page-progression-direction="rtl">
+    <itemref id="spine-chapter" idref="chapter" linear="yes" properties="page-spread-left" xml:lang="fr" dir="rtl" data-spine="primary" review:note="ordered"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable chapter.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $packageAuthoring = $epub['packageAuthoring'];
+            $manifestAuthoring = $epub['manifestAuthoring'];
+            $spineAuthoring = $epub['spineAuthoring'];
+            $manifest = $epub['manifestById'];
+            $spine = $epub['spine'];
+
+            $t->same(true, $packageAuthoring['present']);
+            $t->same('reader-authoring', $packageAuthoring['id']);
+            $t->same('3.0', $packageAuthoring['version']);
+            $t->same('bookid', $packageAuthoring['uniqueIdentifierId']);
+            $t->same('fr', $packageAuthoring['language']);
+            $t->same('rtl', $packageAuthoring['direction']);
+            $t->same('review-base/', $packageAuthoring['xmlBase']);
+            $t->same('schema: https://schema.org/ review: https://example.invalid/vocab#', $packageAuthoring['prefix']);
+            $t->same(9, $packageAuthoring['attributeCount']);
+            $t->same('source', $packageAuthoring['customAttributes']['review:packet']);
+            $t->same('handoff', $packageAuthoring['customAttributes']['data-package']);
+            $t->same(2, $packageAuthoring['customAttributeCount']);
+            $t->same(true, $packageAuthoring['hasCustomAttributes']);
+
+            $t->same('fr', $manifest['chapter']['language']);
+            $t->same('rtl', $manifest['chapter']['direction']);
+            $t->same('spine', $manifest['chapter']['customAttributes']['data-track']);
+            $t->same('chapter', $manifest['chapter']['customAttributes']['review:role']);
+            $t->same(true, $manifestAuthoring['present']);
+            $t->same(2, $manifestAuthoring['itemCount']);
+            $t->same(1, $manifestAuthoring['languageItemCount']);
+            $t->same(1, $manifestAuthoring['directionItemCount']);
+            $t->same(2, $manifestAuthoring['customAttributeItemCount']);
+            $t->same('toc', $manifestAuthoring['itemsById']['nav']['customAttributes']['data-nav']);
+            $t->same(['nav', 'chapter'], array_column($manifestAuthoring['customAttributeItems'], 'id'));
+            $t->same($manifest['chapter']['attributes'], $manifestAuthoring['itemsById']['chapter']['attributes']);
+            $t->same($manifest['chapter']['customAttributes'], $manifestAuthoring['itemsById']['chapter']['customAttributes']);
+
+            $t->same('spine-chapter', $spine[0]['id']);
+            $t->same('yes', $spine[0]['linearRaw']);
+            $t->same('fr', $spine[0]['language']);
+            $t->same('rtl', $spine[0]['direction']);
+            $t->same('primary', $spine[0]['customAttributes']['data-spine']);
+            $t->same('ordered', $spine[0]['customAttributes']['review:note']);
+            $t->same(true, $spineAuthoring['present']);
+            $t->same(1, $spineAuthoring['itemCount']);
+            $t->same(1, $spineAuthoring['languageItemCount']);
+            $t->same(1, $spineAuthoring['directionItemCount']);
+            $t->same(1, $spineAuthoring['customAttributeItemCount']);
+            $t->same($spine[0]['attributes'], $spineAuthoring['items'][0]['attributes']);
+            $t->same($spine[0]['customAttributes'], $spineAuthoring['items'][0]['customAttributes']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports direct package spine page progression metadata' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-spine-progression-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);

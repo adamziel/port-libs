@@ -7,6 +7,37 @@ namespace PortLibs\Pandoc;
 final class EpubPackageReader
 {
     private const EPUB_TYPE_NS = 'http://www.idpf.org/2007/ops';
+    private const OPF_PACKAGE_STRUCTURAL_ATTRIBUTES = [
+        'dir' => true,
+        'id' => true,
+        'lang' => true,
+        'prefix' => true,
+        'unique-identifier' => true,
+        'version' => true,
+        'xml:base' => true,
+        'xml:lang' => true,
+    ];
+    private const OPF_MANIFEST_ITEM_STRUCTURAL_ATTRIBUTES = [
+        'dir' => true,
+        'fallback' => true,
+        'fallback-style' => true,
+        'href' => true,
+        'id' => true,
+        'lang' => true,
+        'media-overlay' => true,
+        'media-type' => true,
+        'properties' => true,
+        'xml:lang' => true,
+    ];
+    private const OPF_SPINE_ITEMREF_STRUCTURAL_ATTRIBUTES = [
+        'dir' => true,
+        'id' => true,
+        'idref' => true,
+        'lang' => true,
+        'linear' => true,
+        'properties' => true,
+        'xml:lang' => true,
+    ];
 
     public function readDirectory(string $directory): AstNode
     {
@@ -48,6 +79,7 @@ final class EpubPackageReader
                 'packagePrefixReport' => $package['packageReport']['prefixReport'],
                 'packagePrefixBindings' => $package['packageReport']['prefixBindings'],
                 'packagePrefixDiagnostics' => $package['packageReport']['prefixDiagnostics'],
+                'packageAuthoring' => $package['packageAuthoring'],
                 'uniqueIdentifier' => $package['packageReport']['uniqueIdentifier'],
                 'identifierDetails' => $package['packageReport']['identifierDetails'],
                 'identifierSummary' => $package['packageReport']['identifierSummary'],
@@ -59,9 +91,11 @@ final class EpubPackageReader
                 'manifest' => array_values($package['manifest']),
                 'manifestById' => $package['manifest'],
                 'manifestReport' => $package['manifestReport'],
+                'manifestAuthoring' => $package['manifestAuthoring'],
                 'spine' => $package['spine'],
                 'spineMetadata' => $package['spineMetadata'],
                 'spineReport' => $package['spineReport'],
+                'spineAuthoring' => $package['spineAuthoring'],
                 'guide' => $package['guide'],
                 'toc' => $toc,
                 'tocReport' => $navReport,
@@ -98,13 +132,16 @@ final class EpubPackageReader
      *     version:string,
      *     uniqueIdentifierId:string,
      *     packageReport:array<string, mixed>,
+     *     packageAuthoring:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     metadataItems:list<array<string, mixed>>,
      *     metadataReport:array<string, mixed>,
      *     metadataProperties:list<array<string, mixed>>,
      *     metadataLinks:list<array{id:string, rel:list<string>, href:string, path:string, fragment:string, mediaType:string, properties:list<string>, refines:string, external:bool}>,
      *     manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>,
+     *     manifestAuthoring:array<string, mixed>,
      *     spine:list<array{idref:string, href:string, path:string, mediaType:string, linear:bool, properties:list<string>}>,
+     *     spineAuthoring:array<string, mixed>,
      *     guide:array<string, mixed>
      * }
      */
@@ -240,6 +277,8 @@ final class EpubPackageReader
                         'fragment' => $suffix['fragment'],
                     ];
                 }
+                $attributes = $this->elementAttributes($node);
+                $language = $this->elementLanguage($node);
                 $item = [
                     'index' => $manifestIndex,
                     'id' => $id,
@@ -253,6 +292,13 @@ final class EpubPackageReader
                     'hrefHasFragment' => $suffix['hasFragment'],
                     'hrefFragment' => $suffix['fragment'],
                     'mediaType' => trim($node->getAttribute('media-type')),
+                    'language' => $language === '' ? null : $language,
+                    'direction' => $this->nullableAttribute($node, 'dir'),
+                    'attributes' => $attributes,
+                    'customAttributes' => $this->customAttributes(
+                        $attributes,
+                        self::OPF_MANIFEST_ITEM_STRUCTURAL_ATTRIBUTES
+                    ),
                     'properties' => $this->tokens($node->getAttribute('properties')),
                     'fallback' => trim($node->getAttribute('fallback')),
                     'fallbackStyle' => trim($node->getAttribute('fallback-style')),
@@ -277,8 +323,10 @@ final class EpubPackageReader
                     continue;
                 }
                 $idref = trim($node->getAttribute('idref'));
+                $id = $this->nullableAttribute($node, 'id');
+                $linearRaw = $this->nullableAttribute($node, 'linear');
                 $item = $manifest[$idref] ?? null;
-                $linear = strtolower(trim($node->getAttribute('linear'))) !== 'no';
+                $linear = $linearRaw === null || strtolower($linearRaw) !== 'no';
                 $mediaType = is_array($item) ? $item['mediaType'] : '';
                 $external = is_array($item) && ($item['external'] ?? false) === true;
                 $exists = is_array($item) && ($item['exists'] ?? false) === true;
@@ -302,15 +350,23 @@ final class EpubPackageReader
                         'path' => $item['path'],
                     ];
                 }
+                $attributes = $this->elementAttributes($node);
+                $language = $this->elementLanguage($node);
                 $spine[] = [
                     'index' => $spineIndex,
+                    'id' => $id,
                     'idref' => $idref,
                     'href' => is_array($item) ? $item['href'] : '',
                     'target' => is_array($item) ? $item['target'] : '',
                     'path' => is_array($item) ? $item['path'] : '',
                     'mediaType' => $mediaType,
                     'linear' => $linear,
+                    'linearRaw' => $linearRaw,
                     'properties' => $this->tokens($node->getAttribute('properties')),
+                    'language' => $language === '' ? null : $language,
+                    'direction' => $this->nullableAttribute($node, 'dir'),
+                    'attributes' => $attributes,
+                    'customAttributes' => $this->customAttributes($attributes, self::OPF_SPINE_ITEMREF_STRUCTURAL_ATTRIBUTES),
                     'external' => $external,
                     'exists' => $exists,
                     'readable' => $readable,
@@ -327,6 +383,7 @@ final class EpubPackageReader
             'version' => trim($packageElement->getAttribute('version')),
             'uniqueIdentifierId' => trim($packageElement->getAttribute('unique-identifier')),
             'packageReport' => $packageReport,
+            'packageAuthoring' => $this->packageAuthoringReport($packageElement),
             'metadata' => $metadata,
             'metadataItems' => $metadataItems,
             'metadataReport' => $this->metadataReport($metadataItems, $metadataProperties, $metadataLinks),
@@ -334,9 +391,11 @@ final class EpubPackageReader
             'metadataLinks' => $metadataLinks,
             'manifest' => $manifest,
             'manifestReport' => $manifestReport,
+            'manifestAuthoring' => $this->manifestAuthoringReport($manifest),
             'spine' => $spine,
             'spineMetadata' => $spineMetadata,
             'spineReport' => $spineReport,
+            'spineAuthoring' => $this->spineAuthoringReport($spine),
             'guide' => $guide,
         ];
     }
@@ -498,6 +557,158 @@ final class EpubPackageReader
             'valid' => $diagnostics === [],
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function packageAuthoringReport(\DOMElement $packageElement): array
+    {
+        $attributes = $this->elementAttributes($packageElement);
+        $customAttributes = $this->customAttributes($attributes, self::OPF_PACKAGE_STRUCTURAL_ATTRIBUTES);
+        $xmlBase = trim($packageElement->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'base'));
+        if ($xmlBase === '') {
+            $xmlBase = trim($packageElement->getAttribute('xml:base'));
+        }
+        $language = $this->elementLanguage($packageElement);
+
+        return [
+            'present' => $attributes !== [],
+            'id' => $this->nullableAttribute($packageElement, 'id'),
+            'version' => trim($packageElement->getAttribute('version')),
+            'uniqueIdentifierId' => $this->nullableAttribute($packageElement, 'unique-identifier'),
+            'language' => $language === '' ? null : $language,
+            'direction' => $this->nullableAttribute($packageElement, 'dir'),
+            'xmlBase' => $xmlBase === '' ? null : $xmlBase,
+            'prefix' => $this->nullableAttribute($packageElement, 'prefix'),
+            'attributes' => $attributes,
+            'attributeCount' => count($attributes),
+            'customAttributes' => $customAttributes,
+            'customAttributeCount' => count($customAttributes),
+            'hasCustomAttributes' => $customAttributes !== [],
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function manifestAuthoringReport(array $manifest): array
+    {
+        $items = [];
+        $itemsById = [];
+        $languageItems = [];
+        $directionItems = [];
+        $customAttributeItems = [];
+
+        foreach ($manifest as $item) {
+            $attributes = is_array($item['attributes'] ?? null) ? $item['attributes'] : [];
+            $customAttributes = is_array($item['customAttributes'] ?? null)
+                ? $item['customAttributes']
+                : $this->customAttributes($attributes, self::OPF_MANIFEST_ITEM_STRUCTURAL_ATTRIBUTES);
+            $summary = [
+                'index' => (int) ($item['index'] ?? count($items)),
+                'id' => (string) ($item['id'] ?? ''),
+                'href' => (string) ($item['href'] ?? ''),
+                'target' => (string) ($item['target'] ?? ''),
+                'path' => (string) ($item['path'] ?? ''),
+                'mediaType' => (string) ($item['mediaType'] ?? ''),
+                'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
+                'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+                'attributes' => $attributes,
+                'attributeCount' => count($attributes),
+                'customAttributes' => $customAttributes,
+                'customAttributeCount' => count($customAttributes),
+            ];
+
+            $items[] = $summary;
+            if ($summary['id'] !== '') {
+                $itemsById[$summary['id']] = $summary;
+            }
+            if ($summary['language'] !== null) {
+                $languageItems[] = $summary;
+            }
+            if ($summary['direction'] !== null) {
+                $directionItems[] = $summary;
+            }
+            if ($customAttributes !== []) {
+                $customAttributeItems[] = $summary;
+            }
+        }
+
+        ksort($itemsById, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'languageItemCount' => count($languageItems),
+            'languageItems' => $languageItems,
+            'directionItemCount' => count($directionItems),
+            'directionItems' => $directionItems,
+            'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeItems' => $customAttributeItems,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spine
+     * @return array<string, mixed>
+     */
+    private function spineAuthoringReport(array $spine): array
+    {
+        $items = [];
+        $languageItems = [];
+        $directionItems = [];
+        $customAttributeItems = [];
+
+        foreach ($spine as $item) {
+            $attributes = is_array($item['attributes'] ?? null) ? $item['attributes'] : [];
+            $customAttributes = is_array($item['customAttributes'] ?? null)
+                ? $item['customAttributes']
+                : $this->customAttributes($attributes, self::OPF_SPINE_ITEMREF_STRUCTURAL_ATTRIBUTES);
+            $summary = [
+                'index' => (int) ($item['index'] ?? count($items)),
+                'id' => is_string($item['id'] ?? null) ? $item['id'] : null,
+                'idref' => (string) ($item['idref'] ?? ''),
+                'href' => (string) ($item['href'] ?? ''),
+                'target' => (string) ($item['target'] ?? ''),
+                'path' => (string) ($item['path'] ?? ''),
+                'mediaType' => (string) ($item['mediaType'] ?? ''),
+                'linear' => (bool) ($item['linear'] ?? true),
+                'linearRaw' => is_string($item['linearRaw'] ?? null) ? $item['linearRaw'] : null,
+                'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
+                'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+                'attributes' => $attributes,
+                'attributeCount' => count($attributes),
+                'customAttributes' => $customAttributes,
+                'customAttributeCount' => count($customAttributes),
+            ];
+
+            $items[] = $summary;
+            if ($summary['language'] !== null) {
+                $languageItems[] = $summary;
+            }
+            if ($summary['direction'] !== null) {
+                $directionItems[] = $summary;
+            }
+            if ($customAttributes !== []) {
+                $customAttributeItems[] = $summary;
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'items' => $items,
+            'languageItemCount' => count($languageItems),
+            'languageItems' => $languageItems,
+            'directionItemCount' => count($directionItems),
+            'directionItems' => $directionItems,
+            'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeItems' => $customAttributeItems,
         ];
     }
 
@@ -5309,12 +5520,20 @@ final class EpubPackageReader
      */
     private function htmlAttributes(\DOMElement $element): array
     {
+        return $this->elementAttributes($element);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function elementAttributes(\DOMElement $element): array
+    {
         $attrs = [];
         foreach ($element->attributes ?? [] as $attr) {
             if (!$attr instanceof \DOMAttr) {
                 continue;
             }
-            $name = $attr->name;
+            $name = $attr->nodeName;
             if (str_starts_with($name, 'xmlns')) {
                 continue;
             }
@@ -5322,6 +5541,25 @@ final class EpubPackageReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param array<string, bool> $structural
+     * @return array<string, string>
+     */
+    private function customAttributes(array $attributes, array $structural): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (isset($structural[$name])) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
     }
 
     /**
