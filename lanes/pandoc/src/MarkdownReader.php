@@ -14614,14 +14614,24 @@ final class MarkdownReader
     {
         $cells = [];
         $lineLength = strlen($line);
-        foreach ($columns as $column) {
+        foreach ($columns as $index => $column) {
             $start = $column['start'];
-            $length = $column['length'];
-            $cell = $start < $lineLength ? substr($line, $start, $length) : '';
+            $end = $this->simpleTableColumnEnd($columns, $index, $lineLength);
+            $cell = $start < $lineLength && $end > $start ? substr($line, $start, $end - $start) : '';
             $cells[] = trim($cell);
         }
 
         return $cells;
+    }
+
+    /**
+     * @param list<array{start:int, length:int}> $columns
+     */
+    private function simpleTableColumnEnd(array $columns, int $index, int $lineLength): int
+    {
+        $next = $columns[$index + 1]['start'] ?? null;
+
+        return $next === null ? $lineLength : min($next, $lineLength);
     }
 
     /**
