@@ -27682,7 +27682,7 @@ XML);
   </info>
   <citation>
     <sort>
-      <key variable="container"/>
+      <key variable="collectionTitleShort"/>
     </sort>
     <layout prefix="[" suffix="]" delimiter="; ">
       <group delimiter=" | ">
@@ -27690,16 +27690,19 @@ XML);
         <text variable="container-title"/>
         <text variable="container" form="short"/>
         <text variable="collection-title"/>
-        <text variable="collection" form="short"/>
+        <text variable="collectionTitleShort"/>
       </group>
     </layout>
   </citation>
   <bibliography>
+    <sort>
+      <key variable="collectiontitleshort"/>
+    </sort>
     <layout delimiter=" :: ">
       <text variable="title"/>
       <text variable="container-title-text"/>
       <text variable="collection-title-text"/>
-      <text variable="collection-title" form="short"/>
+      <text variable="collectiontitleshort"/>
     </layout>
   </bibliography>
 </style>
@@ -27707,13 +27710,16 @@ XML);
 
         $summary = $styled->cslStyleSummary();
         $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
         $t->same('Bounded Direct CSL Container Collection Alias Review', $summary['title'] ?? null);
-        $t->same('container', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('collectionTitleShort', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('collectiontitleshort', $summary['bibliographySort'][0]['variable'] ?? null);
         $t->same('container-title', $citationChildren[1]['variable'] ?? null);
         $t->same('short', $citationChildren[2]['form'] ?? null);
         $t->same('collection-title', $citationChildren[3]['variable'] ?? null);
-        $t->same('collection', $citationChildren[4]['variable'] ?? null);
-        $t->same('[Chen | Compact Container Ledger | CCL | Compact Collection Ledger | C-Series; Ames | Migration Container Review | MCR | Reviewer Series | RS; Bell | Source Container Journal | SCJ | Archive Collection | AC]', $styled->renderCitationCluster([
+        $t->same('collectionTitleShort', $citationChildren[4]['variable'] ?? null);
+        $t->same('collectiontitleshort', $bibliographyChildren[3]['variable'] ?? null);
+        $t->same('[Bell | Source Container Journal | SCJ | Archive Collection | AC; Chen | Compact Container Ledger | CCL | Compact Collection Ledger | C-Series; Ames | Migration Container Review | MCR | Reviewer Series | RS]', $styled->renderCitationCluster([
             $citation('direct-container-compact', '[@direct-container-compact]'),
             $citation('direct-container-text', '[@direct-container-text]'),
             $citation('direct-container-flat', '[@direct-container-flat]'),
@@ -27724,9 +27730,97 @@ XML);
 
         $document = (new MarkdownReader())->read('Direct container aliases [@direct-container-compact; @direct-container-text; @direct-container-flat] keep imported source families visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
-        $t->contains('<p>Direct container aliases [Chen | Compact Container Ledger | CCL | Compact Collection Ledger | C-Series; Ames | Migration Container Review | MCR | Reviewer Series | RS; Bell | Source Container Journal | SCJ | Archive Collection | AC] keep imported source families visible.</p>', $blocks);
+        $t->contains('<p>Direct container aliases [Bell | Source Container Journal | SCJ | Archive Collection | AC; Chen | Compact Container Ledger | CCL | Compact Collection Ledger | C-Series; Ames | Migration Container Review | MCR | Reviewer Series | RS] keep imported source families visible.</p>', $blocks);
         $t->contains('<dt>Ames 2026</dt><dd>Direct Container Alias Packet :: Migration Container Review :: Reviewer Series :: RS</dd>', $blocks);
+        $t->contains('<dt>Bell 2025</dt><dd>Direct Container Text Alias Packet :: Source Container Journal :: Archive Collection :: AC</dd>', $blocks);
         $t->contains('<dt>Chen 2024</dt><dd>Direct Container Flat Alias Packet :: Compact Container Ledger :: Compact Collection Ledger :: C-Series</dd>', $blocks);
+    },
+    'renders bounded direct csl json collection title short variable aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-collection-short-camel',
+                'type' => 'book',
+                'title' => 'Camel Collection Short Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'collectionTitle' => 'Migration Review Series',
+                'collectionTitleShort' => 'MRS',
+            ],
+            [
+                'id' => 'direct-collection-short-compact',
+                'type' => 'book',
+                'title' => 'Compact Collection Short Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'collectiontitle' => 'Archive Source Library',
+                'collectiontitleshort' => 'ASL',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-collection-short-camel');
+        $compact = $processor->item('direct-collection-short-compact');
+        $t->same('MRS', $camel['collectionTitleShort'] ?? null);
+        $t->same('ASL', $compact['collectionTitleShort'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Collection Title Short Variable Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-collection-title-short-variable-review</id>
+    <updated>2026-06-15T10:20:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="collectionTitleShort"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="collectionTitleShort"/>
+        <text variable="collectiontitleshort"/>
+        <text variable="collection-title-short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="collectiontitleshort"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="collectionTitleShort"/>
+      <text variable="collectiontitleshort"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Collection Title Short Variable Review', $summary['title'] ?? null);
+        $t->same('collectionTitleShort', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('collectiontitleshort', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same('collectionTitleShort', $citationChildren[1]['variable'] ?? null);
+        $t->same('collectiontitleshort', $citationChildren[2]['variable'] ?? null);
+        $t->same('collection-title-short', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Bell | ASL | ASL | ASL; Ames | MRS | MRS | MRS]', $styled->renderCitationCluster([
+            $citation('direct-collection-short-camel', '[@direct-collection-short-camel]'),
+            $citation('direct-collection-short-compact', '[@direct-collection-short-compact]'),
+        ]));
+        $t->same('Camel Collection Short Packet :: MRS :: MRS', $styled->renderBibliographyEntry('direct-collection-short-camel'));
+        $t->same('Compact Collection Short Packet :: ASL :: ASL', $styled->renderBibliographyEntry('direct-collection-short-compact'));
+
+        $document = (new MarkdownReader())->read('Collection abbreviations [@direct-collection-short-camel; @direct-collection-short-compact] stay addressable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Collection abbreviations [Bell | ASL | ASL | ASL; Ames | MRS | MRS | MRS] stay addressable.</p>', $blocks);
+        $t->contains('<dt>Bell 2025</dt><dd>Compact Collection Short Packet :: ASL :: ASL</dd>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Camel Collection Short Packet :: MRS :: MRS</dd>', $blocks);
     },
     'normalizes bounded direct csl json compact citation metadata aliases' => static function (TestRunner $t): void {
         $json = json_encode([
