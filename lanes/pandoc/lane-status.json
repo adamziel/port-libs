@@ -3,7 +3,7 @@
   "library": "pandoc",
   "estimatedProgress": 96,
   "suiteProgress": "pandoc-docx-package-root-relationship-suffix-provenance maps one DOCX/OpenXML package ingestion case after rebase onto current main f1b4c808cf. DocxReader and OpcRelationshipGraph preserve package-root relationship target query/fragment suffix provenance in docxPackageRelationships metadata and importReport packageRelationships for office-document, core-properties, thumbnail, and encrypted-package role records while loading path-only package parts, preserving current EPUB duplicate manifest package inventory, EPUB reader spine page-spread, direct binding-handler fallback, DOCX document media relationship, and JSON/native single-wrapped task-list accounting without invoking Pandoc, Word, LibreOffice, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 15324 -> 15325, phpFail remains 0, mapped upstream manifest cases move 14988 -> 14989, root mapped inventory moves 14995 -> 14996, mappedDocxPackageRootRelationshipSuffixCases = 1, and docxPackageRootRelationshipSuffixAssertions = 26. Validation after rebase onto current main f1b4c808cf passed: jq metadata validation; exact conflict-marker scan; git diff --check; php -l for DocxReader.php, OpcRelationshipGraph.php, and DocxReaderTest.php; focused DocxReaderTest.php (1 file / 5141 assertions / 0 failures); and full lanes/pandoc/tests (181 files / 165315 assertions / 0 failures).",
-  "phpPass": 15327,
+  "phpPass": 15328,
   "phpFail": 0,
   "wordpressScenarios": "DOCX package review reports package-root relationship query and fragment suffix provenance without external Office tooling.",
   "phase": "DOCX package-root relationship suffix provenance verified on current main f1b4c808cf",
@@ -798,7 +798,7 @@
   "xmlHtmlDomHyperlinkNavigationReviewAssertions": 48,
   "mappedXmlHtmlDomJatsReferenceTitleSourceCases": 1,
   "xmlHtmlDomJatsReferenceTitleSourceAssertions": 61,
-  "currentSlice": "pandoc-epub-duplicate-manifest-package-path-inventory rebased onto current main 48602c145a. Current duplicate manifest package-part inventory remains canonical while WordPress/import review also exposes duplicate OPF manifest package-path compatibility aliases.",
+  "currentSlice": "pandoc-epub-manifest-property-token-report rebased onto current main 847e0a8496. EpubPackage reports OPF manifest properties token inventories, duplicate token review items, diagnostics, and WordPress import mirrors while preserving current EPUB inventory and DOCX accounting.",
   "mappedJsonNativeTaggedDocumentApiVersionCases": 1,
   "jsonNativeTaggedDocumentApiVersionAssertions": 6,
   "mappedEpubPageListNavCollisionCases": 1,
@@ -1429,5 +1429,7 @@
   "mappedEpubDuplicateManifestPackageInventoryCases": 1,
   "epubDuplicateManifestPackageInventoryAssertions": 43,
   "mappedEpubDuplicateManifestPackagePathInventoryCases": 1,
-  "epubDuplicateManifestPackagePathInventoryAssertions": 41
+  "epubDuplicateManifestPackagePathInventoryAssertions": 41,
+  "mappedEpubManifestPropertyTokenCases": 1,
+  "epubManifestPropertyTokenAssertions": 23
 }

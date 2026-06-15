@@ -966,6 +966,10 @@ final class EpubPackage
                 'manifestMediaTypeDiagnostics' => $validationReport['manifest']['mediaTypeDiagnostics'],
                 'manifestExternalItems' => $validationReport['manifest']['externalItems'],
                 'manifestItemDiagnostics' => $validationReport['manifest']['itemDiagnostics'],
+                'manifestPropertyTokenReport' => $validationReport['manifest']['propertyTokenReport'],
+                'manifestPropertyTokenItems' => $validationReport['manifest']['propertyTokenItems'],
+                'manifestDuplicatePropertyTokenItems' => $validationReport['manifest']['duplicatePropertyTokenItems'],
+                'manifestPropertyTokenDiagnostics' => $validationReport['manifest']['propertyTokenDiagnostics'],
                 'manifestMissingRequiredAttributeItems' => $validationReport['manifest']['missingRequiredAttributeItems'],
                 'manifestMissingRequiredAttributeNames' => $validationReport['manifest']['missingRequiredAttributeNames'],
                 'manifestInvalidHrefItems' => $validationReport['manifest']['invalidHrefItems'],
@@ -2256,11 +2260,12 @@ final class EpubPackage
         $mediaTypeParameterCount = 0;
         $mediaTypeDiagnostics = [];
         $itemDiagnostics = [];
+        $propertyTokenReport = self::manifestPropertyTokenReport($manifestItems);
         $missingRequiredAttributeItems = [];
         $missingRequiredAttributeNames = [];
         $missingRequiredAttributeCount = 0;
         $invalidHrefItems = [];
-        $diagnostics = [];
+        $diagnostics = $propertyTokenReport['diagnostics'];
 
         foreach ($manifestItems as $index => $item) {
             $id = (string) ($item['id'] ?? '');
@@ -2526,6 +2531,11 @@ final class EpubPackage
             'mediaTypeParameterNames' => array_keys($mediaTypeParameterNames),
             'mediaTypeDiagnosticCount' => count($mediaTypeDiagnostics),
             'itemDiagnosticCount' => count($itemDiagnostics),
+            'propertyTokenItemCount' => $propertyTokenReport['itemCount'],
+            'propertyTokenCount' => $propertyTokenReport['propertyTokenCount'],
+            'duplicatePropertyTokenItemCount' => $propertyTokenReport['duplicatePropertyItemCount'],
+            'duplicatePropertyTokenCount' => $propertyTokenReport['duplicatePropertyTokenCount'],
+            'propertyTokenDiagnosticCount' => $propertyTokenReport['diagnosticCount'],
             'missingRequiredAttributeItemCount' => count($missingRequiredAttributeItems),
             'missingRequiredAttributeCount' => $missingRequiredAttributeCount,
             'missingRequiredAttributeNames' => array_keys($missingRequiredAttributeNames),
@@ -2546,6 +2556,10 @@ final class EpubPackage
             'mediaTypeParameterItems' => $mediaTypeParameterItems,
             'mediaTypeDiagnostics' => $mediaTypeDiagnostics,
             'itemDiagnostics' => $itemDiagnostics,
+            'propertyTokenReport' => $propertyTokenReport,
+            'propertyTokenItems' => $propertyTokenReport['items'],
+            'duplicatePropertyTokenItems' => $propertyTokenReport['duplicatePropertyItems'],
+            'propertyTokenDiagnostics' => $propertyTokenReport['diagnostics'],
             'missingRequiredAttributeItems' => $missingRequiredAttributeItems,
             'invalidHrefItems' => $invalidHrefItems,
             'invalidMediaTypeItems' => $invalidMediaTypeItems,
@@ -15887,6 +15901,125 @@ final class EpubPackage
         }
 
         return $reviewFlags;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestPropertyTokenReport(array $manifest): array
+    {
+        $items = [];
+        $itemsById = [];
+        $propertyCounts = [];
+        $propertyIds = [];
+        $propertyPartNames = [];
+        $duplicatePropertyItems = [];
+        $diagnostics = [];
+        $propertyTokenCount = 0;
+        $duplicatePropertyTokenCount = 0;
+
+        foreach ($manifest as $index => $item) {
+            $properties = array_values(array_filter(
+                is_array($item['properties'] ?? null) ? $item['properties'] : [],
+                static fn (mixed $property): bool => is_string($property) && $property !== '',
+            ));
+            if ($properties === []) {
+                continue;
+            }
+
+            $id = (string) ($item['id'] ?? '');
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            $tokenCounts = [];
+            foreach ($properties as $property) {
+                $tokenCounts[$property] = ($tokenCounts[$property] ?? 0) + 1;
+                $propertyCounts[$property] = ($propertyCounts[$property] ?? 0) + 1;
+                if ($id !== '') {
+                    $propertyIds[$property][$id] = $id;
+                }
+                if ($partName !== null && $partName !== '') {
+                    $propertyPartNames[$property][$partName] = $partName;
+                }
+            }
+
+            $duplicates = [];
+            $duplicateTokenCount = 0;
+            foreach ($tokenCounts as $property => $count) {
+                if ($count < 2) {
+                    continue;
+                }
+
+                $duplicates[$property] = $count;
+                $duplicateTokenCount += $count - 1;
+            }
+            $duplicatePropertyTokenCount += $duplicateTokenCount;
+
+            $summary = [
+                'index' => $index,
+                'id' => $id,
+                'href' => (string) ($item['href'] ?? ''),
+                'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+                'partName' => $partName,
+                'mediaType' => (string) ($item['mediaType'] ?? ''),
+                'propertyCount' => count($properties),
+                'properties' => $properties,
+                'uniqueProperties' => array_keys($tokenCounts),
+                'duplicateProperties' => $duplicates,
+                'duplicatePropertyCount' => count($duplicates),
+                'duplicatePropertyTokenCount' => $duplicateTokenCount,
+                'hasDuplicateProperties' => $duplicates !== [],
+            ];
+
+            $items[] = $summary;
+            if ($id !== '') {
+                $itemsById[$id] = $summary;
+            }
+            if ($duplicates !== []) {
+                $duplicatePropertyItems[] = $summary;
+                foreach ($duplicates as $property => $count) {
+                    $diagnostics[] = [
+                        'type' => 'duplicate-manifest-property-token',
+                        'index' => $index,
+                        'id' => $id,
+                        'href' => (string) ($item['href'] ?? ''),
+                        'partName' => $partName,
+                        'property' => $property,
+                        'count' => $count,
+                        'message' => 'EPUB OPF manifest item repeats a properties token; compact package ingestion preserves token order and reports the duplicate for review',
+                    ];
+                }
+            }
+
+            $propertyTokenCount += count($properties);
+        }
+
+        ksort($propertyCounts, SORT_STRING);
+        ksort($propertyIds, SORT_STRING);
+        ksort($propertyPartNames, SORT_STRING);
+        foreach ($propertyIds as $property => $ids) {
+            $propertyIds[$property] = array_values($ids);
+        }
+        foreach ($propertyPartNames as $property => $partNames) {
+            $propertyPartNames[$property] = array_values($partNames);
+        }
+
+        return [
+            'present' => $propertyTokenCount > 0,
+            'itemCount' => count($items),
+            'propertyTokenCount' => $propertyTokenCount,
+            'propertyCounts' => $propertyCounts,
+            'properties' => array_keys($propertyCounts),
+            'propertyIds' => $propertyIds,
+            'propertyPartNames' => $propertyPartNames,
+            'duplicatePropertyItemCount' => count($duplicatePropertyItems),
+            'duplicatePropertyTokenCount' => $duplicatePropertyTokenCount,
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'duplicatePropertyItems' => $duplicatePropertyItems,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**

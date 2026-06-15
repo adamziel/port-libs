@@ -9477,4 +9477,53 @@ XML;
         $t->same('unsupported-compression-metadata-only', $packedRow['byteExposurePolicy']);
         $t->same('undeclared-epub-package-entry-unsupported-compression', $packedRow['diagnostics'][1]['type']);
     },
+
+    'reports duplicate OPF manifest property tokens for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithRepeatedProperties = str_replace(
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" properties="remote-resources scripted scripted"/>',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithRepeatedProperties],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $summary = $epub->summary();
+        $validation = $summary['validation'];
+        $report = $validation['manifest']['propertyTokenReport'];
+        $chapter = $report['itemsById']['chapter1'];
+        $diagnostic = $report['diagnostics'][0];
+
+        $t->same(false, $validation['valid']);
+        $t->same(false, $validation['manifest']['valid']);
+        $t->same(3, $report['itemCount']);
+        $t->same(5, $report['propertyTokenCount']);
+        $t->same(['cover-image', 'nav', 'remote-resources', 'scripted'], $report['properties']);
+        $t->same(2, $report['propertyCounts']['scripted']);
+        $t->same(['chapter1'], $report['propertyIds']['scripted']);
+        $t->same(['/EPUB/text/chapter1.xhtml'], $report['propertyPartNames']['scripted']);
+        $t->same(1, $report['duplicatePropertyItemCount']);
+        $t->same(1, $report['duplicatePropertyTokenCount']);
+        $t->same(['remote-resources', 'scripted', 'scripted'], $chapter['properties']);
+        $t->same(['remote-resources', 'scripted'], $chapter['uniqueProperties']);
+        $t->same(['scripted' => 2], $chapter['duplicateProperties']);
+        $t->same(true, $chapter['hasDuplicateProperties']);
+        $t->same('duplicate-manifest-property-token', $diagnostic['type']);
+        $t->same('chapter1', $diagnostic['id']);
+        $t->same('/EPUB/text/chapter1.xhtml', $diagnostic['partName']);
+        $t->same('scripted', $diagnostic['property']);
+        $t->same(2, $diagnostic['count']);
+        $t->same($report, $summary['wordpressImport']['manifestPropertyTokenReport']);
+        $t->same($report['items'], $summary['wordpressImport']['manifestPropertyTokenItems']);
+        $t->same($report['duplicatePropertyItems'], $summary['wordpressImport']['manifestDuplicatePropertyTokenItems']);
+        $t->same($report['diagnostics'], $summary['wordpressImport']['manifestPropertyTokenDiagnostics']);
+    },
 ];
