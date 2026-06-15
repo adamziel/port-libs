@@ -52,31 +52,31 @@ $inlineTypes = static fn (array $nodes): array => array_map(
     $nodes
 );
 
-$inlineText = static function (array $nodes) use (&$inlineText): string {
+$plainInlineText = static function (array $nodes) use (&$plainInlineText): string {
     $text = '';
     foreach ($nodes as $node) {
         if ($node->type === 'text' || $node->type === 'code' || $node->type === 'math') {
             $text .= (string) $node->attr('text', '');
             continue;
         }
+
         if ($node->type === 'raw_tex') {
             $text .= (string) $node->attr('tex', '');
             continue;
         }
-        if ($node->type === 'softbreak') {
-            $text .= "\n";
-            continue;
-        }
-        if ($node->type === 'linebreak') {
+
+        if ($node->type === 'softbreak' || $node->type === 'linebreak') {
             $text .= "\n";
             continue;
         }
 
-        $text .= $inlineText($node->children);
+        $text .= $plainInlineText($node->children);
     }
 
     return $text;
 };
+
+$inlineText = $plainInlineText;
 
 $tests = [];
 
@@ -162,6 +162,115 @@ foreach ($entityCases as $name => [$useLabel, $definitionLabel, $expectedText]) 
     };
 }
 
+$codeSpanBracketLabelCases = [
+    'close bracket only' => ['`]`', ']'],
+    'open bracket only' => ['`[`', '['],
+    'bracket pair' => ['`[]`', '[]'],
+    'double close run' => ['`]]`', ']]'],
+    'double open run' => ['`[[`', '[['],
+    'mixed bracket run' => ['`[x]`', '[x]'],
+    'text before close' => ['alpha `]` beta', 'alpha ] beta'],
+    'text before open' => ['alpha `[` beta', 'alpha [ beta'],
+    'two code spans' => ['left `]` right `[`', 'left ] right ['],
+    'trailing close code' => ['trail `]`', 'trail ]'],
+    'leading open code' => ['`[` lead', '[ lead'],
+    'multitick close' => ['``]``', ']'],
+    'multitick open' => ['``[``', '['],
+    'multitick pair' => ['``[]``', '[]'],
+    'inner backtick close' => ['`` `]` ``', '`]`'],
+    'inner backtick open' => ['`` `[` ``', '`[`'],
+    'spaced bracket pair' => ['`` [] ``', '[]'],
+    'code before nested word' => ['code `]` [word]', 'code ] [word]'],
+    'nested word before code' => ['[word] code `]`', '[word] code ]'],
+    'multiple close code spans' => ['`]` and `]` again', '] and ] again'],
+];
+
+foreach ($codeSpanBracketLabelCases as $name => [$label, $expectedText]) {
+    $tests["maps upstream inline link code-span bracket label {$name}"] = static function (TestRunner $t) use ($readFirstLink, $plainInlineText, $slug, $name, $label, $expectedText): void {
+        $url = '/code-bracket-label-' . $slug($name);
+        $markdown = "[{$label}]({$url} \"Code {$name}\")";
+        $link = $readFirstLink($markdown);
+        $childTypes = array_map(static fn (AstNode $node): string => $node->type, $link->children);
+
+        $t->same('link', $link->type, $name);
+        $t->same($url, $link->attr('url'), $name);
+        $t->same("Code {$name}", $link->attr('title'), $name);
+        $t->same($expectedText, $plainInlineText($link->children), $name);
+        $t->true(in_array('code', $childTypes, true), $name);
+    };
+}
+
+$rawHtmlBracketLabelCases = [
+    'span close attribute' => ['<span data-close=]>alpha</span>'],
+    'span open attribute' => ['<span data-open=[>alpha</span>'],
+    'span both attribute' => ['<span data-pair=[]>alpha</span>'],
+    'custom close attribute' => ['<x-review data-close=]>alpha</x-review>'],
+    'custom open attribute' => ['<x-review data-open=[>alpha</x-review>'],
+    'anchor close query' => ['<a href=/search?close]>alpha</a>'],
+    'anchor open query' => ['<a href=/search?open[>alpha</a>'],
+    'image close alt' => ['<img alt=]/>'],
+    'image open alt' => ['<img alt=[/>'],
+    'input close value' => ['<input value=]>'],
+    'input open value' => ['<input value=[>'],
+    'br close data' => ['<br data-break=]>after'],
+    'wbr open data' => ['<wbr data-break=[>after'],
+    'delete close attribute' => ['<del data-close=]>alpha</del>'],
+    'insert open attribute' => ['<ins data-open=[>alpha</ins>'],
+    'cdata close bracket' => ['<![CDATA[ ] ]]>tail'],
+    'cdata open bracket' => ['<![CDATA[ [ data ]]>tail'],
+    'processing close bracket' => ['<?review ] ?>tail'],
+    'declaration close bracket' => ['<!DECL ]>tail'],
+    'mixed html bracket sources' => ['<span data-close=]>x</span><x-open data-open=[>'],
+];
+
+foreach ($rawHtmlBracketLabelCases as $name => [$label]) {
+    $tests["maps upstream inline link raw-html bracket label {$name}"] = static function (TestRunner $t) use ($readFirstLink, $plainInlineText, $slug, $name, $label): void {
+        $url = '/html-bracket-label-' . $slug($name);
+        $markdown = "[{$label}]({$url} \"Html {$name}\")";
+        $link = $readFirstLink($markdown);
+
+        $t->same('link', $link->type, $name);
+        $t->same($url, $link->attr('url'), $name);
+        $t->same("Html {$name}", $link->attr('title'), $name);
+        $t->same($label, $plainInlineText($link->children), $name);
+    };
+}
+
+$angleDestinationParenCases = [
+    'close paren path' => ['<https://example.test/a)b>', 'https://example.test/a)b'],
+    'close paren query' => ['<https://example.test/search?q=a)b>', 'https://example.test/search?q=a)b'],
+    'close paren fragment' => ['<https://example.test/page#frag)ment>', 'https://example.test/page#frag)ment'],
+    'double close path' => ['<https://example.test/a)b)c>', 'https://example.test/a)b)c'],
+    'leading close segment' => ['<https://example.test/)lead>', 'https://example.test/)lead'],
+    'space before close' => ['<https://example.test/a b)c>', 'https://example.test/a%20b)c'],
+    'relative close path' => ['</docs/a)b>', '/docs/a)b'],
+    'fragment close path' => ['<#section)one>', '#section)one'],
+    'mailto close local' => ['<mailto:review)team@example.test>', 'mailto:review)team@example.test'],
+    'doi close suffix' => ['<doi:10.1000/foo)bar>', 'doi:10.1000/foo)bar'],
+    'ftp close path' => ['<ftp://example.test/a)b>', 'ftp://example.test/a)b'],
+    'urn close component' => ['<urn:review:a)b>', 'urn:review:a)b'],
+    'nested literal close' => ['<https://example.test/(a)b)c>', 'https://example.test/(a)b)c'],
+    'encoded then close' => ['<https://example.test/a%20b)c>', 'https://example.test/a%20b)c'],
+    'semicolon close query' => ['<https://example.test/a;b)c>', 'https://example.test/a;b)c'],
+    'colon close path' => ['<https://example.test/a:b)c>', 'https://example.test/a:b)c'],
+    'at close path' => ['<https://example.test/a@b)c>', 'https://example.test/a@b)c'],
+    'tilde close path' => ['<https://example.test/a~b)c>', 'https://example.test/a~b)c'],
+    'underscore close path' => ['<https://example.test/a_b)c>', 'https://example.test/a_b)c'],
+    'dash close path' => ['<https://example.test/a-b)c>', 'https://example.test/a-b)c'],
+];
+
+foreach ($angleDestinationParenCases as $name => [$destination, $expectedUrl]) {
+    $tests["maps upstream inline link angle destination paren {$name}"] = static function (TestRunner $t) use ($readFirstLink, $slug, $name, $destination, $expectedUrl): void {
+        $markdown = "[angle {$name}]({$destination} \"Angle {$name}\")";
+        $link = $readFirstLink($markdown);
+
+        $t->same('link', $link->type, $name);
+        $t->same($expectedUrl, $link->attr('url'), $name);
+        $t->same("Angle {$name}", $link->attr('title'), $name);
+        $t->same("angle {$name}", $link->children[0]->attr('text'), $name);
+    };
+}
+
 $tests['maps upstream entity normalized reference labels through wordpress handoff'] = static function (TestRunner $t): void {
     $document = (new MarkdownReader())->read(implode("\n", [
         '[AT&amp;T] and [Greek &#x3bb;].',
@@ -175,7 +284,7 @@ $tests['maps upstream entity normalized reference labels through wordpress hando
     $t->contains('<a href="/entity-reference-lambda" title="Lambda title">Greek ' . "\u{03BB}" . '</a>', $blocks);
 };
 
-$codeSpanBracketLabelCases = [
+$detailedCodeSpanBracketLabelCases = [
     'inline code close bracket' => ['kind' => 'link', 'markdown' => '[`]`](/code-close)', 'url' => '/code-close', 'text' => ']', 'types' => ['code']],
     'inline code open bracket' => ['kind' => 'link', 'markdown' => '[`[`](/code-open)', 'url' => '/code-open', 'text' => '[', 'types' => ['code']],
     'inline code balanced brackets' => ['kind' => 'link', 'markdown' => '[`[x]`](/code-balanced)', 'url' => '/code-balanced', 'text' => '[x]', 'types' => ['code']],
@@ -229,9 +338,9 @@ $codeSpanBracketLabelCases = [
 ];
 
 $tests['maps upstream code-span bracket labels and nested double bracket links'] =
-    static function (TestRunner $t) use ($codeSpanBracketLabelCases, $readFirstNodeOfType, $inlineTypes, $inlineText): void {
+    static function (TestRunner $t) use ($detailedCodeSpanBracketLabelCases, $readFirstNodeOfType, $inlineTypes, $inlineText): void {
         $mapped = 0;
-        foreach ($codeSpanBracketLabelCases as $name => $case) {
+        foreach ($detailedCodeSpanBracketLabelCases as $name => $case) {
             $node = $readFirstNodeOfType($case['markdown'], $case['kind']);
 
             $t->same($case['kind'], $node->type, $name . ' node type');
@@ -252,5 +361,16 @@ $tests['maps upstream code-span bracket labels and nested double bracket links']
 
         $t->same(50, $mapped);
     };
+
+$tests['records markdown inline link entity surge mapped-case count'] = static function (TestRunner $t) use ($escapedPunctuationCases, $entityCases, $codeSpanBracketLabelCases, $rawHtmlBracketLabelCases, $angleDestinationParenCases): void {
+    $t->same(
+        110,
+        count($escapedPunctuationCases)
+            + count($entityCases)
+            + count($codeSpanBracketLabelCases)
+            + count($rawHtmlBracketLabelCases)
+            + count($angleDestinationParenCases)
+    );
+};
 
 return $tests;
