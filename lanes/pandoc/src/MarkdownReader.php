@@ -17439,7 +17439,7 @@ final class MarkdownReader
      */
     private function tryParseBracketedCitationCluster(string $text, int $offset): ?array
     {
-        $label = $this->parseBracketedLabel($text, $offset);
+        $label = $this->parseBracketedLabel($text, $offset, true);
         if ($label === null || !str_contains($label['text'], '@')) {
             return null;
         }
@@ -17749,7 +17749,7 @@ final class MarkdownReader
             return null;
         }
 
-        $label = $this->parseBracketedLabel($text, $offset + 1);
+        $label = $this->parseBracketedLabel($text, $offset + 1, true);
         if ($label === null) {
             return null;
         }
@@ -18023,7 +18023,7 @@ final class MarkdownReader
      */
     private function tryParseInlineLink(string $text, int $offset): ?array
     {
-        $label = $this->parseBracketedLabel($text, $offset);
+        $label = $this->parseBracketedLabel($text, $offset, true);
         if ($label === null || ($text[$label['next']] ?? '') !== '(') {
             return null;
         }
@@ -18052,7 +18052,7 @@ final class MarkdownReader
      */
     private function tryParseReferenceLink(string $text, int $offset): ?array
     {
-        $label = $this->parseBracketedLabel($text, $offset);
+        $label = $this->parseBracketedLabel($text, $offset, true);
         if ($label === null) {
             return null;
         }
@@ -18117,7 +18117,7 @@ final class MarkdownReader
      */
     private function tryParseBracketedSpan(string $text, int $offset): ?array
     {
-        $label = $this->parseBracketedLabel($text, $offset);
+        $label = $this->parseBracketedLabel($text, $offset, true);
         if ($label === null || ($text[$label['next']] ?? '') !== '{') {
             return null;
         }
@@ -18883,7 +18883,7 @@ final class MarkdownReader
     /**
      * @return array{text:string, next:int}|null
      */
-    private function parseBracketedLabel(string $text, int $offset): ?array
+    private function parseBracketedLabel(string $text, int $offset, bool $skipCodeSpans = false): ?array
     {
         if (($text[$offset] ?? '') !== '[') {
             return null;
@@ -18895,6 +18895,15 @@ final class MarkdownReader
         for ($cursor = $start; $cursor < $length; $cursor++) {
             if ($text[$cursor] === '\\') {
                 $cursor++;
+                continue;
+            }
+
+            if ($skipCodeSpans && $text[$cursor] === '`') {
+                $tickCount = $this->countBackticks($text, $cursor);
+                $end = $this->findMatchingBacktickRun($text, $cursor + $tickCount, $tickCount);
+                if ($end !== null) {
+                    $cursor = $end + $tickCount - 1;
+                }
                 continue;
             }
 
