@@ -16876,6 +16876,10 @@ final class MarkdownReader
                 $figureAttrs['captionInlines'] = $children[0]->children;
                 $figureAttrs['renderCaptionInlines'] = true;
             }
+            $figureAttrs['captionSource'] = [
+                'element' => 'markdown-image-label',
+                'position' => 'implicit-figure',
+            ];
             $blocks[] = new AstNode(
                 'figure',
                 $figureAttrs,
