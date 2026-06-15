@@ -2288,8 +2288,8 @@ final class MarkdownWriter
 
         $head = null;
         $bodies = [];
+        $directBodyRows = [];
         $foot = null;
-        $directRows = [];
         foreach ($node->children as $child) {
             if ($child->type === 'table_head') {
                 $head = $child;
@@ -2307,8 +2307,11 @@ final class MarkdownWriter
             }
 
             if ($child->type === 'table_row') {
-                $directRows[] = $child;
+                $directBodyRows[] = $child;
             }
+        }
+        if ($directBodyRows !== []) {
+            $bodies[] = new AstNode('table_body', [], $directBodyRows);
         }
 
         if ($head instanceof AstNode && $this->tableSectionRowsWithBodyHeads($head) !== []) {
@@ -2330,17 +2333,6 @@ final class MarkdownWriter
             $lines[] = $innerPrefix . '<tbody' . $this->renderHtmlAttributes($this->htmlAttributeMap($body)) . '>';
             array_push($lines, ...$this->renderHtmlTableRows(
                 $this->tableBodyRowEntries($body, $columnCount),
-                $node,
-                $columnCount,
-                $indent + 4
-            ));
-            $lines[] = $innerPrefix . '</tbody>';
-        }
-
-        if ($directRows !== []) {
-            $lines[] = $innerPrefix . '<tbody>';
-            array_push($lines, ...$this->renderHtmlTableRows(
-                $this->tableRowsEntries($directRows, false),
                 $node,
                 $columnCount,
                 $indent + 4
