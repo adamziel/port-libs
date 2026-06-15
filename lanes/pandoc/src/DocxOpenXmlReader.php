@@ -11,6 +11,7 @@ final class DocxOpenXmlReader
     private const NS_W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     private const NS_W14 = 'http://schemas.microsoft.com/office/word/2010/wordml';
     private const NS_W15 = 'http://schemas.microsoft.com/office/word/2012/wordml';
+    private const NS_WNE = 'http://schemas.microsoft.com/office/word/2006/wordml';
     private const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_CP = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties';
@@ -35,6 +36,8 @@ final class DocxOpenXmlReader
     private const ATTACHED_TEMPLATE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
     private const MAIL_MERGE_SOURCE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource';
     private const MAIL_MERGE_HEADER_SOURCE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource';
+    private const MAIL_MERGE_RECIPIENT_DATA_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/recipientData';
+    private const MAIL_MERGE_RECIPIENT_DATA_COMPAT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeRecipientData';
     private const WEB_SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
     private const FONT_TABLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
     private const FONT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/font';
@@ -75,6 +78,8 @@ final class DocxOpenXmlReader
     private const CT_WORD_WEB_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml';
     private const CT_WORD_FONT_TABLE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml';
     private const CT_OBFUSCATED_FONT = 'application/vnd.openxmlformats-officedocument.obfuscatedfont';
+    private const CT_MAIL_MERGE_RECIPIENT_DATA = 'application/vnd.openxmlformats-officedocument.wordprocessingml.mailmergerecipientdata+xml';
+    private const CT_MS_MAIL_MERGE_RECIPIENT_DATA = 'application/vnd.ms-word.mailmergerecipientdata+xml';
     private const CT_THEME = 'application/vnd.openxmlformats-officedocument.theme+xml';
     private const CT_WORD_GLOSSARY_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml';
     private const CT_WORD_FOOTNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml';
@@ -490,6 +495,13 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['mailMergeRelationshipCount'] = (int) ($mailMerge['relationshipCount'] ?? 0);
             $packageProvenance['summary']['mailMergeIssueCount'] = (int) ($mailMerge['issueCount'] ?? 0);
             $packageProvenance['summary']['mailMergeIssueCodes'] = $mailMerge['issueCodes'] ?? [];
+            $recipientData = $mailMerge['recipientData'] ?? null;
+            if (is_array($recipientData)) {
+                $packageProvenance['summary']['mailMergeRecipientDataRecordCount'] = (int) ($recipientData['recordCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeRecipientDataExcludedRecordCount'] = (int) ($recipientData['excludedRecordCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeRecipientDataUniqueTagCount'] = (int) ($recipientData['uniqueTagCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeRecipientDataIssueCount'] = count($recipientData['issues'] ?? []);
+            }
         }
         $packageProvenance['chartParts'] = $chartParts;
         $packageProvenance['summary']['chartPartCount'] = $chartParts['count'];
@@ -8445,6 +8457,7 @@ final class DocxOpenXmlReader
             self::SETTINGS_REL => 'settings',
             self::MAIL_MERGE_SOURCE_REL => 'mail-merge-source',
             self::MAIL_MERGE_HEADER_SOURCE_REL => 'mail-merge-header-source',
+            self::MAIL_MERGE_RECIPIENT_DATA_REL, self::MAIL_MERGE_RECIPIENT_DATA_COMPAT_REL => 'mail-merge-recipient-data',
             self::FONT_TABLE_REL => 'font-table',
             self::FONT_REL => 'embedded-font',
             self::HEADER_REL => 'header-part',
@@ -9343,26 +9356,51 @@ final class DocxOpenXmlReader
         $relationshipCount = 0;
         $issueCount = 0;
         $issueCodes = [];
-        foreach ([
-            'dataSource' => [self::MAIL_MERGE_SOURCE_REL, 'mail-merge-source'],
-            'headerSource' => [self::MAIL_MERGE_HEADER_SOURCE_REL, 'mail-merge-header-source'],
-        ] as $localName => [$expectedRelationshipType, $reviewPolicy]) {
+        $relationshipChildren = [
+            [
+                'parent' => $mailMerge,
+                'key' => 'dataSource',
+                'expectedRelationshipTypes' => [self::MAIL_MERGE_SOURCE_REL],
+                'reviewPolicy' => 'mail-merge-source',
+            ],
+            [
+                'parent' => $mailMerge,
+                'key' => 'headerSource',
+                'expectedRelationshipTypes' => [self::MAIL_MERGE_HEADER_SOURCE_REL],
+                'reviewPolicy' => 'mail-merge-header-source',
+            ],
+        ];
+        $odso = $this->childElement($mailMerge, 'odso');
+        if ($odso instanceof \DOMElement) {
+            $relationshipChildren[] = [
+                'parent' => $odso,
+                'key' => 'recipientData',
+                'expectedRelationshipTypes' => [self::MAIL_MERGE_RECIPIENT_DATA_REL, self::MAIL_MERGE_RECIPIENT_DATA_COMPAT_REL],
+                'reviewPolicy' => 'mail-merge-recipient-data',
+            ];
+        }
+
+        foreach ($relationshipChildren as $relationshipChild) {
             $summary = $this->mailMergeRelationshipChildSummary(
-                $mailMerge,
-                $localName,
+                $relationshipChild['parent'],
+                $relationshipChild['key'],
                 $parts,
                 $settingsPart,
                 $relationshipsPart,
                 $relationships,
                 $contentTypes,
-                $expectedRelationshipType,
-                $reviewPolicy,
+                $relationshipChild['expectedRelationshipTypes'],
+                $relationshipChild['reviewPolicy'],
             );
             if ($summary === null) {
                 continue;
             }
 
-            $metadata[$localName] = $summary;
+            if ($relationshipChild['key'] === 'recipientData') {
+                $summary = $this->mailMergeRecipientDataPartSummary($summary, $parts);
+            }
+
+            $metadata[$relationshipChild['key']] = $summary;
             ++$relationshipCount;
             if ($summary['issues'] !== []) {
                 ++$issueCount;
@@ -9420,6 +9458,7 @@ final class DocxOpenXmlReader
      * @param array<string, string> $parts
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param list<string> $expectedRelationshipTypes
      * @return array<string, mixed>|null
      */
     private function mailMergeRelationshipChildSummary(
@@ -9430,7 +9469,7 @@ final class DocxOpenXmlReader
         string $relationshipsPart,
         array $relationships,
         array $contentTypes,
-        string $expectedRelationshipType,
+        array $expectedRelationshipTypes,
         string $reviewPolicy
     ): ?array {
         $child = $this->childElement($mailMerge, $localName);
@@ -9521,7 +9560,7 @@ final class DocxOpenXmlReader
         $item['sha256'] = $targetPart !== null && $item['exists'] === true ? hash('sha256', $parts[$targetPart]) : null;
         $item['relationship'] = $summary;
 
-        if ($relationship['type'] !== $expectedRelationshipType) {
+        if (!in_array($relationship['type'], $expectedRelationshipTypes, true)) {
             $item['issues'][] = 'unexpected-relationship-type';
         }
 
@@ -9544,6 +9583,206 @@ final class DocxOpenXmlReader
         sort($item['issues'], SORT_STRING);
 
         return $item;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, string> $parts
+     * @return array<string, mixed>
+     */
+    private function mailMergeRecipientDataPartSummary(array $item, array $parts): array
+    {
+        $expectedContentTypeBases = [
+            self::CT_MAIL_MERGE_RECIPIENT_DATA,
+            self::CT_MS_MAIL_MERGE_RECIPIENT_DATA,
+        ];
+        $item['expectedContentTypeBases'] = $expectedContentTypeBases;
+        $item['contentTypeMatchesExpected'] = null;
+        $item['validXml'] = null;
+        $item['xmlParseError'] = null;
+        $item['rootNamespace'] = null;
+        $item['rootLocalName'] = null;
+        $item['validRoot'] = null;
+        $item['recordCount'] = 0;
+        $item['includedRecordCount'] = 0;
+        $item['explicitIncludedRecordCount'] = 0;
+        $item['implicitIncludedRecordCount'] = 0;
+        $item['excludedRecordCount'] = 0;
+        $item['uniqueTagCount'] = 0;
+        $item['columnIndexes'] = [];
+        $item['uniqueTagSha256s'] = [];
+        $item['records'] = [];
+
+        if (($item['external'] ?? null) === true) {
+            $item['issues'][] = 'external-recipient-data';
+        } else {
+            $contentTypeBase = is_string($item['contentTypeBase'] ?? null) ? $item['contentTypeBase'] : '';
+            if ($contentTypeBase !== '') {
+                $item['contentTypeMatchesExpected'] = in_array($contentTypeBase, $expectedContentTypeBases, true);
+                if ($item['contentTypeMatchesExpected'] !== true) {
+                    $item['issues'][] = 'unexpected-content-type';
+                }
+            }
+        }
+
+        $targetPart = is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null;
+        if ($targetPart === null || ($item['exists'] ?? false) !== true || !isset($parts[$targetPart])) {
+            return $this->finalizeMailMergeRecipientDataPartSummary($item);
+        }
+
+        $dom = $this->loadXmlForProvenance($parts[$targetPart], $targetPart);
+        if (!$dom instanceof \DOMDocument) {
+            $item['validXml'] = false;
+            $item['xmlParseError'] = $this->lastXmlPreflightError($parts[$targetPart], $targetPart);
+            $item['issues'][] = 'invalid-recipient-data-xml';
+
+            return $this->finalizeMailMergeRecipientDataPartSummary($item);
+        }
+
+        $root = $dom->documentElement;
+        $validRoot = $root instanceof \DOMElement
+            && in_array($root->namespaceURI, [self::NS_W, self::NS_WNE], true)
+            && $root->localName === 'recipients';
+        $item['validXml'] = $root instanceof \DOMElement;
+        $item['rootNamespace'] = $root instanceof \DOMElement ? $root->namespaceURI : null;
+        $item['rootLocalName'] = $root instanceof \DOMElement ? $root->localName : null;
+        $item['validRoot'] = $validRoot;
+        if (!$validRoot) {
+            $item['issues'][] = 'unexpected-recipient-data-root';
+
+            return $this->finalizeMailMergeRecipientDataPartSummary($item);
+        }
+
+        $xpath = $this->xpath($dom);
+        $records = [];
+        $columnIndexes = [];
+        $uniqueTagSha256s = [];
+        foreach ($this->elements($xpath, '/*[local-name()="recipients"]/*[local-name()="recipientData"]') as $index => $recipientData) {
+            $active = $this->mailMergeRecipientChildBoolean($recipientData, 'active');
+            $columnIndex = $this->mailMergeRecipientChildInt($recipientData, 'column');
+            $uniqueTag = $this->mailMergeRecipientChildValue($recipientData, 'uniqueTag');
+            $uniqueTagKind = 'uniqueTag';
+            if ($uniqueTag === null) {
+                $uniqueTag = $this->mailMergeRecipientChildValue($recipientData, 'hash');
+                $uniqueTagKind = $uniqueTag === null ? null : 'hash';
+            }
+            $uniqueTagLength = $uniqueTag === null ? null : strlen($uniqueTag);
+            $uniqueTagSha256 = $uniqueTag === null ? null : hash('sha256', $uniqueTag);
+            $recordIssues = [];
+            if ($columnIndex === null) {
+                $recordIssues[] = 'missing-recipient-column';
+            } else {
+                $columnIndexes[$columnIndex] = true;
+            }
+            if ($uniqueTag === null) {
+                $recordIssues[] = 'missing-recipient-unique-tag';
+            } elseif ($uniqueTagSha256 !== null) {
+                $uniqueTagSha256s[$uniqueTagSha256] = true;
+            }
+
+            $records[] = [
+                'index' => $index,
+                'active' => $active,
+                'included' => $active !== false,
+                'columnIndex' => $columnIndex,
+                'uniqueTagPresent' => $uniqueTag !== null,
+                'uniqueTagKind' => $uniqueTagKind,
+                'uniqueTagLength' => $uniqueTagLength,
+                'uniqueTagSha256' => $uniqueTagSha256,
+                'issues' => $recordIssues,
+            ];
+            foreach ($recordIssues as $issue) {
+                $item['issues'][] = $issue;
+            }
+        }
+
+        $columnIndexValues = array_keys($columnIndexes);
+        sort($columnIndexValues, SORT_NUMERIC);
+        $uniqueTagSha256Values = array_keys($uniqueTagSha256s);
+        sort($uniqueTagSha256Values, SORT_STRING);
+
+        $item['recordCount'] = count($records);
+        $item['includedRecordCount'] = count(array_filter($records, static fn (array $record): bool => $record['included'] === true));
+        $item['explicitIncludedRecordCount'] = count(array_filter($records, static fn (array $record): bool => $record['active'] === true));
+        $item['implicitIncludedRecordCount'] = count(array_filter($records, static fn (array $record): bool => $record['active'] === null));
+        $item['excludedRecordCount'] = count(array_filter($records, static fn (array $record): bool => $record['active'] === false));
+        $item['uniqueTagCount'] = count($uniqueTagSha256Values);
+        $item['columnIndexes'] = $columnIndexValues;
+        $item['uniqueTagSha256s'] = $uniqueTagSha256Values;
+        $item['records'] = $records;
+
+        return $this->finalizeMailMergeRecipientDataPartSummary($item);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function finalizeMailMergeRecipientDataPartSummary(array $item): array
+    {
+        $item['issues'] = array_values(array_unique(array_map('strval', $item['issues'] ?? [])));
+        sort($item['issues'], SORT_STRING);
+
+        return $item;
+    }
+
+    private function mailMergeRecipientChildElement(\DOMElement $parent, string $localName): ?\DOMElement
+    {
+        foreach ($parent->childNodes as $child) {
+            if (
+                $child instanceof \DOMElement
+                && in_array($child->namespaceURI, [self::NS_W, self::NS_WNE], true)
+                && $child->localName === $localName
+            ) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private function mailMergeRecipientChildValue(\DOMElement $parent, string $localName): ?string
+    {
+        $child = $this->mailMergeRecipientChildElement($parent, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        foreach ([self::NS_W, self::NS_WNE] as $namespace) {
+            $value = trim($child->getAttributeNS($namespace, 'val'));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        $value = trim($child->textContent);
+
+        return $value === '' ? null : $value;
+    }
+
+    private function mailMergeRecipientChildBoolean(\DOMElement $parent, string $localName): ?bool
+    {
+        $child = $this->mailMergeRecipientChildElement($parent, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = $this->mailMergeRecipientChildValue($parent, $localName);
+        if ($value === null) {
+            return true;
+        }
+
+        return $this->onOffStringValue($value);
+    }
+
+    private function mailMergeRecipientChildInt(\DOMElement $parent, string $localName): ?int
+    {
+        $value = $this->mailMergeRecipientChildValue($parent, $localName);
+        if ($value === null || preg_match('/^-?\d+$/', $value) !== 1) {
+            return null;
+        }
+
+        return (int) $value;
     }
 
     /**
