@@ -799,7 +799,19 @@ final class NativeReader
     private function orderedList(array $attrs, mixed $content): AstNode
     {
         $tuple = $this->tuple($content, 2, 'Pandoc native JSON OrderedList content');
-        $listAttributes = $this->tuple($tuple[0], 3, 'Pandoc native JSON OrderedList attributes');
+        $listAttributesNative = $tuple[0];
+        $listAttributesContent = $this->constructorContent($listAttributesNative, 'ListAttributes', 'Pandoc native JSON OrderedList attributes', false);
+        if (
+            is_array($listAttributesContent)
+            && array_is_list($listAttributesContent)
+            && count($listAttributesContent) === 1
+            && is_array($listAttributesContent[0])
+            && array_is_list($listAttributesContent[0])
+        ) {
+            $listAttributesContent = $listAttributesContent[0];
+        }
+
+        $listAttributes = $this->tuple($listAttributesContent, 3, 'Pandoc native JSON OrderedList attributes');
         if (!is_int($listAttributes[0])) {
             throw new \InvalidArgumentException('Pandoc native JSON OrderedList start number must be an integer');
         }
@@ -807,7 +819,7 @@ final class NativeReader
         $listStyleConstructor = $this->constructorTag($listAttributes[1], 'Pandoc native JSON list style');
         $listDelimiterConstructor = $this->constructorTag($listAttributes[2], 'Pandoc native JSON list delimiter');
 
-        return new AstNode('ordered_list', array_replace($attrs, [
+        $attrs = array_replace($attrs, [
             'start' => $listAttributes[0],
             'style' => $this->listStyleFromConstructor($listStyleConstructor),
             'delimiter' => $this->listDelimiterFromConstructor($listDelimiterConstructor),
@@ -815,7 +827,13 @@ final class NativeReader
             'listStyleNative' => $listAttributes[1],
             'listDelimiterConstructor' => $listDelimiterConstructor,
             'listDelimiterNative' => $listAttributes[2],
-        ]), $this->listItems($tuple[1], 'Pandoc native JSON OrderedList items'));
+        ]);
+        if ($this->isTaggedConstructor($listAttributesNative, 'ListAttributes')) {
+            $attrs['listAttributesConstructor'] = 'ListAttributes';
+            $attrs['listAttributesNative'] = $listAttributesNative;
+        }
+
+        return new AstNode('ordered_list', $attrs, $this->listItems($tuple[1], 'Pandoc native JSON OrderedList items'));
     }
 
     /**

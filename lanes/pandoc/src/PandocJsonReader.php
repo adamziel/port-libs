@@ -712,15 +712,26 @@ final class PandocJsonReader
     private function readOrderedList(mixed $content): AstNode
     {
         $tuple = $this->tuple($content, 2, 'OrderedList');
-        $listAttributes = $this->tuple($tuple[0], 3, 'OrderedList attributes');
+        $listAttributesNative = $tuple[0];
+        $listAttributesContent = $this->constructorContent($listAttributesNative, 'ListAttributes', 'OrderedList attributes', false);
+        if (
+            is_array($listAttributesContent)
+            && array_is_list($listAttributesContent)
+            && count($listAttributesContent) === 1
+            && is_array($listAttributesContent[0])
+            && array_is_list($listAttributesContent[0])
+        ) {
+            $listAttributesContent = $listAttributesContent[0];
+        }
+
+        $listAttributes = $this->tuple($listAttributesContent, 3, 'OrderedList attributes');
         if (!is_int($listAttributes[0])) {
             throw new \InvalidArgumentException('OrderedList start number must be an integer');
         }
 
         $listStyleConstructor = $this->enumTag($listAttributes[1], 'list style');
         $listDelimiterConstructor = $this->enumTag($listAttributes[2], 'list delimiter');
-
-        return new AstNode('ordered_list', [
+        $attrs = [
             'start' => $listAttributes[0],
             'style' => $this->listStyleFromConstructor($listStyleConstructor),
             'delimiter' => $this->listDelimiterFromConstructor($listDelimiterConstructor),
@@ -728,7 +739,13 @@ final class PandocJsonReader
             'listStyleNative' => $listAttributes[1],
             'listDelimiterConstructor' => $listDelimiterConstructor,
             'listDelimiterNative' => $listAttributes[2],
-        ], $this->readListItems($this->listContent($tuple[1], 'OrderedList items')));
+        ];
+        if ($this->isTaggedConstructor($listAttributesNative, 'ListAttributes')) {
+            $attrs['listAttributesConstructor'] = 'ListAttributes';
+            $attrs['listAttributesNative'] = $listAttributesNative;
+        }
+
+        return new AstNode('ordered_list', $attrs, $this->readListItems($this->listContent($tuple[1], 'OrderedList items')));
     }
 
     private function readBulletList(mixed $content): AstNode

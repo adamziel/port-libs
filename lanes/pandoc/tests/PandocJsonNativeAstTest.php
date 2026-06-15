@@ -10913,6 +10913,95 @@ return [
             }
         }
     },
+    'preserves tagged ordered list attribute constructors through rebuilt writers' => static function (TestRunner $t): void {
+        $styleNative = ['t' => 'LowerAlpha', 'reviewQueue' => 'list-attribute-style'];
+        $delimiterNative = ['t' => 'TwoParens', 'reviewQueue' => 'list-attribute-delimiter'];
+        $listAttributes = [
+            't' => 'ListAttributes',
+            'c' => [7, $styleNative, $delimiterNative],
+            'reviewQueue' => 'list-attributes-source',
+        ];
+        $wrappedListAttributes = [
+            't' => 'ListAttributes',
+            'c' => [[4, ['t' => 'UpperRoman'], ['t' => 'Period']]],
+            'reviewQueue' => 'wrapped-list-attributes-source',
+        ];
+        $blocks = [
+            ['t' => 'OrderedList', 'c' => [
+                $listAttributes,
+                [[
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Tagged'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'attributes'],
+                    ]],
+                ]],
+            ]],
+            ['t' => 'OrderedList', 'c' => [
+                $wrappedListAttributes,
+                [[
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Wrapped'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'attributes'],
+                    ]],
+                ]],
+            ]],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => $blocks,
+        ];
+        $stripWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $direct = $document->children[0];
+            $wrapped = $document->children[1];
+
+            $t->same('ordered_list', $direct->type, "{$source} direct list type");
+            $t->same('ListAttributes', $direct->attr('listAttributesConstructor'), "{$source} direct list attributes constructor");
+            $t->same($listAttributes, $direct->attr('listAttributesNative'), "{$source} direct list attributes native payload");
+            $t->same(7, $direct->attr('start'), "{$source} direct list start");
+            $t->same('lower_alpha', $direct->attr('style'), "{$source} direct list style");
+            $t->same('two_parens', $direct->attr('delimiter'), "{$source} direct list delimiter");
+            $t->same('ListAttributes', $wrapped->attr('listAttributesConstructor'), "{$source} wrapped list attributes constructor");
+            $t->same($wrappedListAttributes, $wrapped->attr('listAttributesNative'), "{$source} wrapped list attributes native payload");
+            $t->same(4, $wrapped->attr('start'), "{$source} wrapped list start");
+            $t->same('upper_roman', $wrapped->attr('style'), "{$source} wrapped list style");
+            $t->same('period', $wrapped->attr('delimiter'), "{$source} wrapped list delimiter");
+            $t->same($blocks, (new PandocJsonWriter())->toArray($document)['blocks'], "{$source} json writer preserves unchanged list attributes payloads");
+            $t->same($blocks, json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR)['blocks'], "{$source} native writer preserves unchanged list attributes payloads");
+
+            $rebuiltDocument = new AstNode('document', $document->attrs, [
+                new AstNode('ordered_list', array_replace($stripWrapper($direct), ['start' => 9]), $direct->children),
+                new AstNode('ordered_list', $stripWrapper($wrapped), $wrapped->children),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuiltDocument),
+                'native' => json_decode((new NativeWriter())->write($rebuiltDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $rebuiltListAttributes = $encoded['blocks'][0]['c'][0];
+                $rebuiltWrappedAttributes = $encoded['blocks'][1]['c'][0];
+
+                $t->same('ListAttributes', $rebuiltListAttributes['t'], "{$source} {$writer} writer keeps edited list attributes constructor");
+                $t->same(9, $rebuiltListAttributes['c'][0], "{$source} {$writer} writer regenerates edited list start");
+                $t->same($styleNative, $rebuiltListAttributes['c'][1], "{$source} {$writer} writer preserves style helper sidecar");
+                $t->same($delimiterNative, $rebuiltListAttributes['c'][2], "{$source} {$writer} writer preserves delimiter helper sidecar");
+                $t->same('list-attributes-source', $rebuiltListAttributes['reviewQueue'], "{$source} {$writer} writer preserves list attributes sidecar");
+                $t->same($wrappedListAttributes, $rebuiltWrappedAttributes, "{$source} {$writer} writer keeps single wrapped list attributes payload");
+            }
+        }
+    },
     'preserves single wrapped list definition and line helper payloads when rebuilding wrappers' => static function (TestRunner $t): void {
         $bulletBlocks = [
             ['t' => 'Plain', 'c' => [

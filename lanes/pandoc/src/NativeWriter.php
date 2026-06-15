@@ -32,6 +32,8 @@ final class NativeWriter
         'formatNative',
         'legacyTableCellBlocksNative',
         'lineNative',
+        'listAttributesConstructor',
+        'listAttributesNative',
         'listDelimiterConstructor',
         'listDelimiterNative',
         'listItemNative',
@@ -605,11 +607,7 @@ final class NativeWriter
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormatPayload($node), $this->rawText($node)]],
             'blockquote' => ['t' => 'BlockQuote', 'c' => $this->childrenAsBlocks($node)],
             'ordered_list' => ['t' => 'OrderedList', 'c' => [
-                [
-                    (int) $node->attr('start', 1),
-                    $this->enumFromNative($node, 'listStyleNative', $this->listStyleConstructor((string) $node->attr('style', 'default'))),
-                    $this->enumFromNative($node, 'listDelimiterNative', $this->listDelimiterConstructor((string) $node->attr('delimiter', 'default'))),
-                ],
+                $this->listAttributesPayload($node),
                 $this->listItems($node->children),
             ]],
             'bullet_list' => ['t' => 'BulletList', 'c' => $this->listItems($node->children)],
@@ -622,6 +620,49 @@ final class NativeWriter
             'table' => $this->tableBlock($node),
             default => throw new \InvalidArgumentException('Native writer can only emit native constructors or supported shared AST blocks'),
         };
+    }
+
+    /**
+     * @return list<mixed>|array<string, mixed>
+     */
+    private function listAttributesPayload(AstNode $node): array
+    {
+        $payload = [
+            (int) $node->attr('start', 1),
+            $this->enumFromNative($node, 'listStyleNative', $this->listStyleConstructor((string) $node->attr('style', 'default'))),
+            $this->enumFromNative($node, 'listDelimiterNative', $this->listDelimiterConstructor((string) $node->attr('delimiter', 'default'))),
+        ];
+        $native = $this->taggedNative($node->attr('listAttributesNative'), 'ListAttributes');
+        if ($native === null) {
+            return $payload;
+        }
+
+        $sourcePayload = $this->listAttributesNativeContent($native['c'] ?? null);
+        if ($sourcePayload === $payload) {
+            return $native;
+        }
+
+        $native['c'] = $payload;
+
+        return $native;
+    }
+
+    /**
+     * @return list<mixed>|null
+     */
+    private function listAttributesNativeContent(mixed $content): ?array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
+        return is_array($content) && array_is_list($content) && count($content) === 3 ? $content : null;
     }
 
     /**
