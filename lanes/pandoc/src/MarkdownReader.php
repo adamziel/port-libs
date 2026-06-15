@@ -434,25 +434,92 @@ final class MarkdownReader
             return false;
         }
 
-        return $this->metadataExtensionValueEnablesNativeSpans($metadata['extension'] ?? null)
-            || (
-                isset($metadata['review']) && is_array($metadata['review'])
-                && $this->metadataExtensionValueEnablesNativeSpans($metadata['review']['extension'] ?? null)
-            );
+        foreach (['extension', 'extensions', 'format', 'from', 'inputFormat', 'readerFormat', 'markdownExtensions'] as $key) {
+            if (
+                array_key_exists($key, $metadata)
+                && $this->metadataExtensionValueEnablesNativeSpans($metadata[$key])
+            ) {
+                return true;
+            }
+        }
+
+        foreach (['review', 'source', 'reader', 'input', 'pandoc', 'options'] as $key) {
+            if (
+                isset($metadata[$key])
+                && is_array($metadata[$key])
+                && $this->metadataEnablesNativeSpans($metadata[$key])
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function metadataExtensionValueEnablesNativeSpans(mixed $extension): bool
     {
         if (is_string($extension)) {
-            return trim($extension) === 'native_spans';
+            return $this->metadataExtensionStringEnablesNativeSpans($extension);
         }
 
         if (is_array($extension)) {
+            if ($this->metadataExtensionFlagMapEnablesNativeSpans($extension)) {
+                return true;
+            }
+
             foreach ($extension as $value) {
                 if ($this->metadataExtensionValueEnablesNativeSpans($value)) {
                     return true;
                 }
             }
+        }
+
+        return false;
+    }
+
+    private function metadataExtensionStringEnablesNativeSpans(string $extension): bool
+    {
+        $extension = trim($extension);
+        if ($extension === '') {
+            return false;
+        }
+
+        $enabled = false;
+        $matchCount = preg_match_all('/([+-]?)([A-Za-z][A-Za-z0-9_]*)/', $extension, $matches, PREG_SET_ORDER);
+        if ($matchCount === false || $matchCount === 0) {
+            return false;
+        }
+
+        foreach ($matches as $match) {
+            if (strtolower($match[2]) !== 'native_spans') {
+                continue;
+            }
+
+            $enabled = ($match[1] ?? '') !== '-';
+        }
+
+        return $enabled;
+    }
+
+    /**
+     * @param array<mixed> $extension
+     */
+    private function metadataExtensionFlagMapEnablesNativeSpans(array $extension): bool
+    {
+        foreach ($extension as $key => $value) {
+            if (strtolower((string) $key) !== 'native_spans') {
+                continue;
+            }
+
+            if ($value === false || $value === null) {
+                return false;
+            }
+
+            if (is_string($value) && in_array(strtolower(trim($value)), ['false', 'no', 'off', '0', 'disabled'], true)) {
+                return false;
+            }
+
+            return true;
         }
 
         return false;

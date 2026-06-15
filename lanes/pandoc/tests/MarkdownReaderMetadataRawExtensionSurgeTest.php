@@ -308,6 +308,102 @@ $nativeSpanFirst = static function (AstNode $document): AstNode {
     return new AstNode('missing');
 };
 
+$nativeSpanExtensionFormatCases = [
+    ['name' => 'top level extension scalar', 'metadata' => ['extension: native_spans']],
+    ['name' => 'top level extensions flow list', 'metadata' => ['extensions: [native_spans, raw_html]']],
+    ['name' => 'top level extensions block list', 'metadata' => ['extensions:', '  - raw_html', '  - native_spans']],
+    ['name' => 'top level markdown format plus extension', 'metadata' => ['format: "markdown+native_spans"']],
+    ['name' => 'top level commonmark x format plus extension', 'metadata' => ['format: "commonmark_x+native_spans"']],
+    ['name' => 'top level gfm format plus extension', 'metadata' => ['format: "gfm+native_spans"']],
+    ['name' => 'top level format with raw html plus native spans', 'metadata' => ['format: "markdown+raw_html+native_spans"']],
+    ['name' => 'top level from field format', 'metadata' => ['from: "markdown+native_spans"']],
+    ['name' => 'top level input format field', 'metadata' => ['inputFormat: "markdown+native_spans"']],
+    ['name' => 'top level reader format field', 'metadata' => ['readerFormat: "commonmark_x+native_spans"']],
+    ['name' => 'top level markdown extensions flow list', 'metadata' => ['markdownExtensions: [raw_html, native_spans]']],
+    ['name' => 'space separated extension scalar', 'metadata' => ['extension: "raw_html native_spans"']],
+    ['name' => 'comma separated extension scalar', 'metadata' => ['extension: "raw_html,native_spans"']],
+    ['name' => 'explicit plus extension scalar', 'metadata' => ['extension: "+native_spans"']],
+    ['name' => 'format disables divs but enables spans', 'metadata' => ['format: "markdown-native_divs+native_spans"']],
+    ['name' => 'format emoji plus native spans', 'metadata' => ['format: "markdown+emoji+native_spans"']],
+    ['name' => 'review extension scalar', 'metadata' => ['review: {extension: native_spans, source: review-extension}']],
+    ['name' => 'review extensions flow list', 'metadata' => ['review: {extensions: [native_spans, raw_html], source: review-extensions}']],
+    ['name' => 'review format field', 'metadata' => ['review: {format: "markdown+native_spans", source: review-format}']],
+    ['name' => 'review from field', 'metadata' => ['review: {from: "gfm+native_spans", source: review-from}']],
+    ['name' => 'review input format field', 'metadata' => ['review: {inputFormat: "markdown+native_spans", source: review-input-format}']],
+    ['name' => 'review reader format field', 'metadata' => ['review: {readerFormat: "commonmark_x+native_spans", source: review-reader-format}']],
+    ['name' => 'source extension scalar', 'metadata' => ['source: {extension: native_spans, channel: source-extension}']],
+    ['name' => 'source format field', 'metadata' => ['source: {format: "markdown+native_spans", channel: source-format}']],
+    ['name' => 'source extensions list', 'metadata' => ['source: {extensions: [raw_html, native_spans], channel: source-extensions}']],
+    ['name' => 'reader extension scalar', 'metadata' => ['reader: {extension: native_spans, channel: reader-extension}']],
+    ['name' => 'reader format field', 'metadata' => ['reader: {format: "markdown+native_spans", channel: reader-format}']],
+    ['name' => 'reader extensions list', 'metadata' => ['reader: {extensions: [native_spans], channel: reader-extensions}']],
+    ['name' => 'input extension scalar', 'metadata' => ['input: {extension: native_spans, channel: input-extension}']],
+    ['name' => 'input format field', 'metadata' => ['input: {format: "commonmark_x+native_spans", channel: input-format}']],
+    ['name' => 'input extension flag map', 'metadata' => ['input: {extensions: {native_spans: true, raw_html: true}, channel: input-flag-map}']],
+    ['name' => 'pandoc extension scalar', 'metadata' => ['pandoc: {extension: native_spans, channel: pandoc-extension}']],
+    ['name' => 'pandoc gfm format field', 'metadata' => ['pandoc: {format: "gfm+native_spans", channel: pandoc-format}']],
+    ['name' => 'pandoc extensions list', 'metadata' => ['pandoc: {extensions: [native_spans, emoji], channel: pandoc-extensions}']],
+    ['name' => 'options extension scalar', 'metadata' => ['options: {extension: native_spans, channel: options-extension}']],
+    ['name' => 'options extensions list', 'metadata' => ['options: {extensions: [native_spans], channel: options-extensions}']],
+    ['name' => 'options format field', 'metadata' => ['options: {format: "markdown+native_spans", channel: options-format}']],
+    ['name' => 'top level extension flag map', 'metadata' => ['extensions: {native_spans: true, raw_html: true}']],
+    ['name' => 'review extension flag map', 'metadata' => ['review: {extensions: {native_spans: true, raw_html: true}, source: review-flag-map}']],
+    ['name' => 'source extension flag map', 'metadata' => ['source: {extensions: {native_spans: true, raw_html: true}, channel: source-flag-map}']],
+    ['name' => 'reader extension flag map', 'metadata' => ['reader: {extensions: {native_spans: true, raw_html: true}, channel: reader-flag-map}']],
+    ['name' => 'input extension flag map with string true', 'metadata' => ['input: {extensions: {native_spans: "enabled", raw_html: true}, channel: input-string-map}']],
+    ['name' => 'pandoc extension flag map', 'metadata' => ['pandoc: {extensions: {native_spans: true, emoji: true}, channel: pandoc-flag-map}']],
+    ['name' => 'options extension flag map', 'metadata' => ['options: {extensions: {native_spans: true}, channel: options-flag-map}']],
+    ['name' => 'format plus spans minus divs', 'metadata' => ['format: "markdown+native_spans-native_divs"']],
+    ['name' => 'format raw html plus spans plus emoji', 'metadata' => ['format: "markdown-native_divs+raw_html+native_spans+emoji"']],
+    ['name' => 'extension list containing format string', 'metadata' => ['extensions:', '  - raw_html', '  - "markdown+native_spans"']],
+    ['name' => 'review raw attribute format string', 'metadata' => ['review: {format: "markdown+native_spans+raw_attribute", source: review-raw-attribute}']],
+    ['name' => 'source native div span format string', 'metadata' => ['source: {format: "markdown+native_spans+native_divs", channel: source-native-div-span}']],
+    ['name' => 'reader from format string', 'metadata' => ['reader: {from: "markdown+native_spans", channel: reader-from}']],
+];
+
+foreach ($nativeSpanExtensionFormatCases as $index => $case) {
+    $tests['maps upstream markdown native span source extension format ' . $case['name']] =
+        static function (TestRunner $t) use ($case, $index, $nativeSpanFirst, $nativeSpanInlineText): void {
+            $slug = trim((string) preg_replace('/[^A-Za-z0-9]+/', '-', strtolower($case['name'])), '-');
+            $spanId = 'span-format-' . ($index + 1);
+            $spanText = 'extension format ' . $slug;
+            $metadata = array_merge(
+                [
+                    '---',
+                    'title: Native span source extension **Packet**',
+                    'extensionCase: "' . $case['name'] . '"',
+                ],
+                $case['metadata'],
+                [
+                    '...',
+                    '',
+                    'Before <span id="' . $spanId . '" class="format-case" data-case="' . $slug . '">' . $spanText . '</span> after.',
+                ]
+            );
+
+            $document = (new MarkdownReader())->read(implode("\n", $metadata));
+            $meta = $document->attr('meta');
+            $paragraph = $document->children[0] ?? new AstNode('missing');
+            $span = $nativeSpanFirst($document);
+            $blocks = (new WordPressBlockWriter())->write($document);
+
+            $t->same($case['name'], $meta['extensionCase'] ?? null);
+            $t->same('paragraph', $paragraph->type);
+            $t->same('span', $span->type);
+            $t->same($spanId, $span->attr('id'));
+            $t->same(['format-case'], $span->attr('classes', []));
+            $t->same($slug, $span->attr('attributes', [])['case'] ?? null);
+            $t->same($spanText, $nativeSpanInlineText($span));
+            $t->contains('<span id="' . $spanId . '" class="format-case" data-case="' . $slug . '">', $blocks);
+            $t->contains($spanText, $blocks);
+        };
+}
+
+$tests['records upstream markdown native span source extension format surge mapped-case count'] =
+    static function (TestRunner $t) use ($nativeSpanExtensionFormatCases): void {
+        $t->same(50, count($nativeSpanExtensionFormatCases));
+    };
+
 $nativeSpanCases = [
     [
         'name' => 'id class data review',
