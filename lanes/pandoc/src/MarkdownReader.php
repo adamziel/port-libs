@@ -8365,19 +8365,19 @@ final class MarkdownReader
                     break;
                 }
 
-                $body[] = rtrim($this->stripIndentColumns($line, 4));
+                $body[] = $this->normalizeFootnoteDefinitionContinuationLine($line);
                 $insideIndentedBlock = true;
                 $cursor++;
                 continue;
             }
 
             if ($afterBlank && $this->isFootnoteIndentedContinuation($line)) {
-                $body[] = rtrim($this->stripIndentColumns($line, 4));
+                $body[] = $this->normalizeFootnoteDefinitionContinuationLine($line);
                 $cursor++;
                 continue;
             }
 
-            $body[] = rtrim($line);
+            $body[] = $this->normalizeFootnoteDefinitionContinuationLine($line);
             $cursor++;
         }
 
@@ -8407,6 +8407,15 @@ final class MarkdownReader
     private function isFootnoteIndentedContinuation(string $line): bool
     {
         return $this->countIndentColumns($line) >= 4;
+    }
+
+    private function normalizeFootnoteDefinitionContinuationLine(string $line): string
+    {
+        if ($this->isFootnoteIndentedContinuation($line)) {
+            return rtrim($this->stripIndentColumns($line, 4));
+        }
+
+        return rtrim($line);
     }
 
     /**

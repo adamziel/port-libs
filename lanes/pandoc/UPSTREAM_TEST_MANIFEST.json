@@ -5,11 +5,11 @@
   "upstream": {
     "name": "jgm/pandoc",
     "url": "https://github.com/jgm/pandoc",
-    "commit": "pandoc-markdown-writer-wikilink-inline-surge-943fd60f3f",
+    "commit": "pandoc-markdown-reader-footnote-continuation-surge-e5842793e2",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 5415,
-    "latestSlice": "pandoc-markdown-writer-wikilink-inline-surge maps 56 upstream-style Markdown/GFM wiki-link writer cases after rebase onto current main 943fd60f3f. MarkdownWriter emits GitHub wiki-link extension syntax for clean {.wikilink} Link nodes, including same-label targets and label|target forms, while escaping closing brackets, pipes, backslashes, and entity-sensitive characters, and preserving titled/attributed wikilinks as explicit links so metadata is not lost. It preserves current main Markdown writer code-info metadata, reader figure-caption, reference-definition, emphasis delimiter, table/caption/span, list-item block continuation, native-span, raw-inline, bare-autolink, block/list/code, writer table HTML fallback, and list-continuation coverage. No Pandoc, cmark, Cabal/Haskell runner, Node tooling, browser renderer, external validator, online service, live provider, or live-service provider is invoked. phpPass moves 5369 -> 5425, phpFail remains 0, mapped upstream manifest cases move 5359 -> 5415, mappedMarkdownWriterWikiLinkSurgeCases = 56, and markdownWriterWikiLinkSurgeAssertions = 282. Verification passed php -l for MarkdownWriter.php and MarkdownWriterWikiLinkSurgeTest.php; focused MarkdownWriterWikiLinkSurgeTest.php plus MarkdownWriterInlineSurgeTest.php passed 2 files, 400 assertions, 0 failures; full lanes/pandoc/tests passed 67 files, 98429 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and exact conflict-marker scan.",
+    "mapped": 5465,
+    "latestSlice": "pandoc-markdown-reader-footnote-continuation-surge maps 50 upstream Markdown/CommonMark/Pandoc footnote continuation cases after rebase onto current main e5842793e2. MarkdownReader now strips the required four-column continuation indentation before parsing footnote definition bodies, so same-line and empty-first definitions preserve paragraph continuations, tab continuations, blockquote-marker text, headings, bullet and ordered lists, fenced code, indented code, and raw HTML inside note AST nodes instead of turning continuations into accidental code blocks. It preserves current main Markdown writer wikilink inline, code info metadata, figure-caption, reference-definition, emphasis delimiter, table/caption/span, list-item block continuation, native-span, raw-inline, bare-autolink, block/list/code, writer table HTML fallback, and list-continuation coverage. No Pandoc, cmark, Cabal/Haskell runner, Node tooling, browser renderer, external validator, online service, live provider, or live-service provider is invoked. phpPass moves 5425 -> 5475, phpFail remains 0, mapped upstream manifest cases move 5415 -> 5465, mappedMarkdownReaderFootnoteContinuationSurgeCases = 50, and markdownReaderFootnoteContinuationSurgeAssertions = 251. Verification passed php -l for MarkdownReader.php and MarkdownReaderFootnoteSurgeTest.php; focused MarkdownReaderFootnoteSurgeTest.php passed 1 file, 251 assertions, 0 failures; focused MarkdownReaderFootnoteSurgeTest.php plus MarkdownReaderTest.php passed 2 files, 7270 assertions, 0 failures; full lanes/pandoc/tests passed 68 files, 98680 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and exact conflict-marker scan.",
     "mappedMarkdownReaderBlockListSurgeCases": 160,
     "markdownReaderBlockListSurgeAssertions": 9066,
     "mappedOdfPackageFontFormatProvenanceCases": 6,
@@ -60,8 +60,8 @@
     "opcRawZipCentralDirectoryManifestAssertions": 37,
     "mappedZipCentralDirectorySignaturePolicyCases": 2,
     "zipCentralDirectorySignaturePolicyAssertions": 30,
-    "status": "Markdown/GFM wiki-link writer surge is verified after rebase onto current main 943fd60f3f; phpFail remains 0.",
-    "latestFocusedSource": "2026-06-15 Markdown/GFM wiki-link writer surge verified after rebase onto current main 943fd60f3f; php -l clean for MarkdownWriter.php and MarkdownWriterWikiLinkSurgeTest.php; focused MarkdownWriterWikiLinkSurgeTest.php plus MarkdownWriterInlineSurgeTest.php passed 2 files, 400 assertions, 0 failures; full lanes/pandoc/tests passed 67 files, 98429 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and exact conflict-marker scan.",
+    "status": "Markdown reader footnote continuation surge is verified after rebase onto current main e5842793e2; phpFail remains 0.",
+    "latestFocusedSource": "2026-06-15 Markdown reader footnote continuation surge verified after rebase onto current main e5842793e2; php -l clean for MarkdownReader.php and MarkdownReaderFootnoteSurgeTest.php; focused MarkdownReaderFootnoteSurgeTest.php passed 1 file, 251 assertions, 0 failures; focused MarkdownReaderFootnoteSurgeTest.php plus MarkdownReaderTest.php passed 2 files, 7270 assertions, 0 failures; full lanes/pandoc/tests passed 68 files, 98680 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and exact conflict-marker scan.",
     "mappedPandocFormatReaderEvidenceBatchCases": 6,
     "pandocFormatReaderEvidenceBatchAssertions": 200,
     "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -680,7 +680,9 @@
     "mappedMarkdownWriterCodeInfoMetadataSurgeCases": 50,
     "markdownWriterCodeInfoMetadataSurgeAssertions": 50,
     "mappedMarkdownWriterWikiLinkSurgeCases": 56,
-    "markdownWriterWikiLinkSurgeAssertions": 282
+    "markdownWriterWikiLinkSurgeAssertions": 282,
+    "mappedMarkdownReaderFootnoteContinuationSurgeCases": 50,
+    "markdownReaderFootnoteContinuationSurgeAssertions": 251
   },
   "benchmarkDenominator": {
     "status": "Pandoc JSON/native single-wrapped target tuple sidecars are verified after rebase onto current main 9f2dd9a0fd; phpFail remains 0.",
