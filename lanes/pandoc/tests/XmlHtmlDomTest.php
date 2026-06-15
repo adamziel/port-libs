@@ -3709,6 +3709,82 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             $html
         );
     },
+    'summarizes inherited html language and direction for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="root" lang="en-US" dir="LTR"><section id="chapter"><p id="body" dir="sideways">Body <span id="quote" lang="fr-CA" dir="auto">Citation</span></p></section></article>'
+                . '<aside id="bad-dir" dir="sideways"><span id="neutral">No inherited direction</span></aside>'
+                . '<div id="xml-scope" xml:lang="de-DE"><em id="term">Begriff</em></div>',
+            'language direction inheritance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/language-direction-inheritance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $section = $article['children'][0];
+        $paragraph = $section['children'][0];
+        $quote = $paragraph['children'][1];
+        $aside = $summary[1];
+        $neutral = $aside['children'][0];
+        $xmlScope = $summary[2];
+        $term = $xmlScope['children'][0];
+
+        $t->same('article', $article['name']);
+        $t->same('en-US', $article['effectiveLanguageRaw']);
+        $t->same('en-US', $article['effectiveLanguage']);
+        $t->same(false, $article['languageInherited']);
+        $t->same('self-lang', $article['languageSource']);
+        $t->same('LTR', $article['effectiveDirectionRaw']);
+        $t->same('ltr', $article['effectiveDirection']);
+        $t->same(false, $article['directionInherited']);
+
+        $t->same('section', $section['name']);
+        $t->same('en-US', $section['effectiveLanguage']);
+        $t->same(true, $section['languageInherited']);
+        $t->same('ancestor-lang', $section['languageSource']);
+        $t->same('article', $section['languageSourceElement']);
+        $t->same('root', $section['languageSourceElementId']);
+        $t->same('ltr', $section['effectiveDirection']);
+        $t->same(true, $section['directionInherited']);
+        $t->same('article', $section['directionSourceElement']);
+
+        $t->same('p', $paragraph['name']);
+        $t->same('sideways', $paragraph['dirRaw']);
+        $t->same(null, $paragraph['direction']);
+        $t->same('ltr', $paragraph['effectiveDirection']);
+        $t->same(true, $paragraph['directionInherited']);
+        $t->same('root', $paragraph['directionSourceElementId']);
+        $t->same('en-US', $paragraph['effectiveLanguage']);
+
+        $t->same('span', $quote['name']);
+        $t->same('fr-CA', $quote['effectiveLanguage']);
+        $t->same(false, $quote['languageInherited']);
+        $t->same('auto', $quote['effectiveDirection']);
+        $t->same(false, $quote['directionInherited']);
+        $t->same('self-dir', $quote['directionSource']);
+
+        $t->same('aside', $aside['name']);
+        $t->same('sideways', $aside['dirRaw']);
+        $t->same(null, $aside['direction']);
+        $t->true(!array_key_exists('effectiveDirection', $aside));
+        $t->same('span', $neutral['name']);
+        $t->true(!array_key_exists('effectiveDirection', $neutral));
+        $t->true(!array_key_exists('effectiveLanguage', $neutral));
+
+        $t->same('de-DE', $xmlScope['effectiveLanguage']);
+        $t->same('self-xml:lang', $xmlScope['languageSource']);
+        $t->same('de-DE', $term['effectiveLanguage']);
+        $t->same(true, $term['languageInherited']);
+        $t->same('div', $term['languageSourceElement']);
+        $t->same('xml-scope', $term['languageSourceElementId']);
+        $t->contains('<article dir="LTR" id="root" lang="en-US">', $html);
+        $t->contains('xml:lang="de-DE"', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/language-direction-inheritance-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html writing assistance attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="editor" contenteditable autocorrect="off" writingsuggestions="false" virtualkeyboardpolicy="manual">Draft</section>'

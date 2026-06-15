@@ -16839,11 +16839,15 @@ final class XmlHtmlDom
             $summary['language'] = trim($attributes['xml:lang']);
         }
 
+        $summary += self::effectiveLanguageSummary($element, $attributes);
+
         if (array_key_exists('dir', $attributes)) {
-            $dir = strtolower(trim($attributes['dir']));
+            $dir = self::htmlDirectionState($attributes['dir']);
             $summary['dirRaw'] = $attributes['dir'];
-            $summary['direction'] = in_array($dir, ['ltr', 'rtl', 'auto'], true) ? $dir : null;
+            $summary['direction'] = $dir;
         }
+
+        $summary += self::effectiveDirectionSummary($element, $attributes);
 
         if (array_key_exists('title', $attributes)) {
             $summary['titleAttribute'] = $attributes['title'];
@@ -17020,6 +17024,125 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveLanguageSummary(\DOMElement $element, array $attributes): array
+    {
+        foreach (['lang', 'xml:lang'] as $attribute) {
+            if (array_key_exists($attribute, $attributes) && trim($attributes[$attribute]) !== '') {
+                return self::languageProvenanceSummary(
+                    $element,
+                    $attributes[$attribute],
+                    'self-' . $attribute,
+                    false
+                );
+            }
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            foreach (['lang', 'xml:lang'] as $attribute) {
+                if (array_key_exists($attribute, $ancestorAttributes) && trim($ancestorAttributes[$attribute]) !== '') {
+                    return self::languageProvenanceSummary(
+                        $ancestor,
+                        $ancestorAttributes[$attribute],
+                        'ancestor-' . $attribute,
+                        true
+                    );
+                }
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function languageProvenanceSummary(
+        \DOMElement $source,
+        string $raw,
+        string $sourceKind,
+        bool $inherited
+    ): array {
+        $summary = [
+            'effectiveLanguageRaw' => $raw,
+            'effectiveLanguage' => trim($raw),
+            'languageInherited' => $inherited,
+            'languageSource' => $sourceKind,
+            'languageSourceElement' => self::htmlElementName($source),
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['languageSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveDirectionSummary(\DOMElement $element, array $attributes): array
+    {
+        if (array_key_exists('dir', $attributes)) {
+            $direction = self::htmlDirectionState($attributes['dir']);
+            if ($direction !== null) {
+                return self::directionProvenanceSummary($element, $attributes['dir'], $direction, false);
+            }
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (!array_key_exists('dir', $ancestorAttributes)) {
+                continue;
+            }
+
+            $direction = self::htmlDirectionState($ancestorAttributes['dir']);
+            if ($direction !== null) {
+                return self::directionProvenanceSummary($ancestor, $ancestorAttributes['dir'], $direction, true);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function directionProvenanceSummary(
+        \DOMElement $source,
+        string $raw,
+        string $direction,
+        bool $inherited
+    ): array {
+        $summary = [
+            'effectiveDirectionRaw' => $raw,
+            'effectiveDirection' => $direction,
+            'directionInherited' => $inherited,
+            'directionSource' => $inherited ? 'ancestor-dir' : 'self-dir',
+            'directionSourceElement' => self::htmlElementName($source),
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['directionSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
+    }
+
+    private static function htmlDirectionState(string $value): ?string
+    {
+        $direction = strtolower(trim($value));
+
+        return in_array($direction, ['ltr', 'rtl', 'auto'], true) ? $direction : null;
     }
 
     /**
