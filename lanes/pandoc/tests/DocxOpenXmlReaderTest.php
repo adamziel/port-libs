@@ -671,6 +671,82 @@ return [
         $t->same(['relationship-content-type-on-non-relationship-part'], $declarations['word/not-relationships.xml']['issues']);
         $t->same(['content-types-override-target'], $declarations['[Content_Types].xml']['issues']);
     },
+    'summarizes docx content type default declaration usage for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream; profile=package-default"/>' . "\n" .
+            '  <Default Extension="unused" ContentType="application/vnd.example.unused"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/embeddings/data.bin'] = 'embedded binary payload';
+        $parts['word/custom/raw.payload'] = 'raw custom payload';
+        $parts['word/custom/no-extension'] = 'extensionless payload';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $contentTypesPart = $package['contentTypesPart'];
+        $summary = $package['summary'];
+        $declarations = [];
+        foreach ($contentTypesPart['defaultDeclarations'] as $declaration) {
+            $declarations[$declaration['extension']] = $declaration;
+        }
+        $missingParts = [];
+        foreach ($contentTypesPart['defaultDeclarationMissingParts'] as $missingPart) {
+            $missingParts[$missingPart['partName']] = $missingPart;
+        }
+
+        $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
+        $t->same(5, $contentTypesPart['defaultDeclarationCount']);
+        $t->same(4, $contentTypesPart['usedDefaultDeclarationCount']);
+        $t->same(1, $contentTypesPart['unusedDefaultDeclarationCount']);
+        $t->same(7, $contentTypesPart['defaultResolvedPartCount']);
+        $t->same(2, $contentTypesPart['overrideResolvedPartCount']);
+        $t->same(2, $contentTypesPart['missingDefaultContentTypePartCount']);
+        $t->same(1, $contentTypesPart['extensionlessMissingContentTypePartCount']);
+        $t->same(['unused'], $contentTypesPart['unusedDefaultExtensions']);
+        $t->same(['payload'], $contentTypesPart['missingDefaultExtensions']);
+        $t->same([
+            'missing-content-type' => 2,
+            'missing-content-type-default' => 1,
+            'missing-content-type-extension' => 1,
+        ], $contentTypesPart['defaultDeclarationIssueCounts']);
+        $t->same([
+            'missing-content-type',
+            'missing-content-type-default',
+            'missing-content-type-extension',
+        ], $contentTypesPart['defaultDeclarationIssues']);
+
+        $t->same(3, $declarations['xml']['packagePartCount']);
+        $t->same(['[Content_Types].xml', 'word/numbering.xml', 'word/styles.xml'], $declarations['xml']['packageParts']);
+        $t->same(2, $declarations['rels']['packagePartCount']);
+        $t->same(2, $declarations['rels']['relationshipPartCount']);
+        $t->same(1, $declarations['bin']['packagePartCount']);
+        $t->same(['word/embeddings/data.bin'], $declarations['bin']['packageParts']);
+        $t->same('application/octet-stream', $declarations['bin']['contentTypeBase']);
+        $t->same(['profile' => 'package-default'], $declarations['bin']['contentTypeParameterMap']);
+        $t->same(0, $declarations['unused']['packagePartCount']);
+
+        $t->same('payload', $missingParts['word/custom/raw.payload']['extension']);
+        $t->same(['missing-content-type', 'missing-content-type-default'], $missingParts['word/custom/raw.payload']['issues']);
+        $t->same(null, $missingParts['word/custom/no-extension']['extension']);
+        $t->same(['missing-content-type', 'missing-content-type-extension'], $missingParts['word/custom/no-extension']['issues']);
+        $t->same('missing', $package['parts']['word/custom/raw.payload']['contentTypeSource']);
+        $t->same('default', $package['parts']['word/embeddings/data.bin']['contentTypeSource']);
+
+        $t->same($contentTypesPart['defaultDeclarationCount'], $summary['contentTypeDefaultDeclarationCount']);
+        $t->same($contentTypesPart['usedDefaultDeclarationCount'], $summary['contentTypeUsedDefaultDeclarationCount']);
+        $t->same($contentTypesPart['unusedDefaultDeclarationCount'], $summary['contentTypeUnusedDefaultDeclarationCount']);
+        $t->same($contentTypesPart['defaultResolvedPartCount'], $summary['contentTypeDefaultResolvedPartCount']);
+        $t->same($contentTypesPart['overrideResolvedPartCount'], $summary['contentTypeOverrideResolvedPartCount']);
+        $t->same($contentTypesPart['missingDefaultContentTypePartCount'], $summary['contentTypeMissingDefaultContentTypePartCount']);
+        $t->same($contentTypesPart['extensionlessMissingContentTypePartCount'], $summary['contentTypeExtensionlessMissingContentTypePartCount']);
+        $t->same($contentTypesPart['unusedDefaultExtensions'], $summary['contentTypeUnusedDefaultExtensions']);
+        $t->same($contentTypesPart['missingDefaultExtensions'], $summary['contentTypeMissingDefaultExtensions']);
+        $t->same($contentTypesPart['defaultDeclarationIssueCounts'], $summary['contentTypeDefaultDeclarationIssueCounts']);
+        $t->same($contentTypesPart['defaultDeclarationIssues'], $summary['contentTypeDefaultDeclarationIssues']);
+    },
     'indexes docx relationship parts beyond root and document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';

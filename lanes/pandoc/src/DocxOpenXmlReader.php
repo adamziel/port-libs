@@ -5893,6 +5893,18 @@ final class DocxOpenXmlReader
             'invalidContentTypeRecordIssueCodes' => $contentTypesPart['invalidContentTypeRecordIssueCodes'] ?? [],
             'invalidContentTypeRecordIssueBuckets' => $contentTypesPart['invalidContentTypeRecordIssueBuckets'] ?? [],
             'invalidContentTypeRecords' => $contentTypesPart['invalidContentTypeRecords'] ?? [],
+            'contentTypeDefaultDeclarationCount' => (int) ($contentTypesPart['defaultDeclarationCount'] ?? 0),
+            'contentTypeUsedDefaultDeclarationCount' => (int) ($contentTypesPart['usedDefaultDeclarationCount'] ?? 0),
+            'contentTypeUnusedDefaultDeclarationCount' => (int) ($contentTypesPart['unusedDefaultDeclarationCount'] ?? 0),
+            'contentTypeDefaultResolvedPartCount' => (int) ($contentTypesPart['defaultResolvedPartCount'] ?? 0),
+            'contentTypeOverrideResolvedPartCount' => (int) ($contentTypesPart['overrideResolvedPartCount'] ?? 0),
+            'contentTypeMissingDefaultContentTypePartCount' => (int) ($contentTypesPart['missingDefaultContentTypePartCount'] ?? 0),
+            'contentTypeExtensionlessMissingContentTypePartCount' => (int) ($contentTypesPart['extensionlessMissingContentTypePartCount'] ?? 0),
+            'contentTypeUnusedDefaultExtensions' => $contentTypesPart['unusedDefaultExtensions'] ?? [],
+            'contentTypeMissingDefaultExtensions' => $contentTypesPart['missingDefaultExtensions'] ?? [],
+            'contentTypeDefaultDeclarationIssueCounts' => $contentTypesPart['defaultDeclarationIssueCounts'] ?? [],
+            'contentTypeDefaultDeclarationIssues' => $contentTypesPart['defaultDeclarationIssues'] ?? [],
+            'contentTypeDefaultDeclarationMissingParts' => $contentTypesPart['defaultDeclarationMissingParts'] ?? [],
             'contentTypeOverrideDeclarationCount' => (int) ($contentTypesPart['overrideDeclarationCount'] ?? 0),
             'contentTypeUsedOverrideDeclarationCount' => (int) ($contentTypesPart['usedOverrideDeclarationCount'] ?? 0),
             'contentTypeUnusedOverrideDeclarationCount' => (int) ($contentTypesPart['unusedOverrideDeclarationCount'] ?? 0),
@@ -7624,6 +7636,7 @@ final class DocxOpenXmlReader
             ] + $this->contentTypeReport($contentType);
         }
         $parameterizedContentTypes = $this->parameterizedContentTypeDeclarations($defaults, $overrides);
+        $defaultDeclarationSummary = $this->contentTypeDefaultDeclarationSummary($parts, $contentTypes);
         $overrideDeclarationSummary = $this->contentTypeOverrideDeclarationSummary($parts, $overrides);
         $invalidContentTypeRecords = $this->invalidContentTypeRecordSnapshots($preflight);
         $invalidContentTypeRecordIssueBuckets = $this->contentTypeRecordIssueBuckets($invalidContentTypeRecords);
@@ -7636,6 +7649,19 @@ final class DocxOpenXmlReader
             'overrideCount' => count($overrides),
             'defaults' => $defaults,
             'overrides' => $overrides,
+            'defaultDeclarationCount' => $defaultDeclarationSummary['declarationCount'],
+            'usedDefaultDeclarationCount' => $defaultDeclarationSummary['usedDeclarationCount'],
+            'unusedDefaultDeclarationCount' => $defaultDeclarationSummary['unusedDeclarationCount'],
+            'defaultResolvedPartCount' => $defaultDeclarationSummary['defaultResolvedPartCount'],
+            'overrideResolvedPartCount' => $defaultDeclarationSummary['overrideResolvedPartCount'],
+            'missingDefaultContentTypePartCount' => $defaultDeclarationSummary['missingPartCount'],
+            'extensionlessMissingContentTypePartCount' => $defaultDeclarationSummary['extensionlessMissingPartCount'],
+            'unusedDefaultExtensions' => $defaultDeclarationSummary['unusedExtensions'],
+            'missingDefaultExtensions' => $defaultDeclarationSummary['missingExtensions'],
+            'defaultDeclarationIssueCounts' => $defaultDeclarationSummary['issueCounts'],
+            'defaultDeclarationIssues' => $defaultDeclarationSummary['issues'],
+            'defaultDeclarations' => $defaultDeclarationSummary['declarations'],
+            'defaultDeclarationMissingParts' => $defaultDeclarationSummary['missingParts'],
             'overrideDeclarationCount' => $overrideDeclarationSummary['declarationCount'],
             'usedOverrideDeclarationCount' => $overrideDeclarationSummary['usedDeclarationCount'],
             'unusedOverrideDeclarationCount' => $overrideDeclarationSummary['unusedDeclarationCount'],
@@ -7747,6 +7773,122 @@ final class DocxOpenXmlReader
         }
 
         return $counts;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array{declarationCount:int, usedDeclarationCount:int, unusedDeclarationCount:int, defaultResolvedPartCount:int, overrideResolvedPartCount:int, missingPartCount:int, extensionlessMissingPartCount:int, unusedExtensions:list<string>, missingExtensions:list<string>, issueCounts:array<string, int>, issues:list<string>, declarations:list<array<string, mixed>>, missingParts:list<array<string, mixed>>}
+     */
+    private function contentTypeDefaultDeclarationSummary(array $parts, array $contentTypes): array
+    {
+        $declarations = [];
+        foreach ($contentTypes['defaults'] as $extension => $contentType) {
+            $declarations[$extension] = [
+                'extension' => $extension,
+                'normalizedExtension' => strtolower($extension),
+                'packagePartCount' => 0,
+                'relationshipPartCount' => 0,
+                'byteLength' => 0,
+                'packageParts' => [],
+                'valid' => true,
+                'issues' => [],
+            ] + $this->contentTypeReport($contentType);
+        }
+
+        $defaultResolvedPartCount = 0;
+        $overrideResolvedPartCount = 0;
+        $missingParts = [];
+        $missingExtensions = [];
+        $issueCounts = [];
+        $extensionlessMissingPartCount = 0;
+
+        foreach ($parts as $partName => $contents) {
+            $resolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
+            $source = $resolution['contentTypeSource'] ?? 'missing';
+
+            if ($source === 'override') {
+                ++$overrideResolvedPartCount;
+                continue;
+            }
+
+            if ($source === 'default') {
+                ++$defaultResolvedPartCount;
+                $defaultExtension = is_string($resolution['defaultExtension'] ?? null)
+                    ? $resolution['defaultExtension']
+                    : '';
+                if (isset($declarations[$defaultExtension])) {
+                    ++$declarations[$defaultExtension]['packagePartCount'];
+                    $declarations[$defaultExtension]['byteLength'] += strlen($contents);
+                    $declarations[$defaultExtension]['packageParts'][] = $partName;
+                    if ($this->isRelationshipPartName($partName)) {
+                        ++$declarations[$defaultExtension]['relationshipPartCount'];
+                    }
+                }
+                continue;
+            }
+
+            $extension = is_string($resolution['defaultExtension'] ?? null)
+                ? $resolution['defaultExtension']
+                : null;
+            $issues = ['missing-content-type'];
+            if ($extension === null || $extension === '') {
+                ++$extensionlessMissingPartCount;
+                $extension = null;
+                $issues[] = 'missing-content-type-extension';
+            } else {
+                $this->appendUniqueString($missingExtensions, $extension);
+                $issues[] = 'missing-content-type-default';
+            }
+
+            foreach ($issues as $issue) {
+                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+            }
+
+            $missingParts[] = [
+                'partName' => $partName,
+                'extension' => $extension,
+                'bytes' => strlen($contents),
+                'relationshipPart' => $this->isRelationshipPartName($partName),
+                'issues' => $issues,
+            ];
+        }
+
+        $usedDeclarationCount = 0;
+        $unusedExtensions = [];
+        foreach ($declarations as &$declaration) {
+            sort($declaration['packageParts'], SORT_STRING);
+            if ($declaration['packagePartCount'] > 0) {
+                ++$usedDeclarationCount;
+            } else {
+                $unusedExtensions[] = $declaration['extension'];
+            }
+        }
+        unset($declaration);
+
+        sort($unusedExtensions, SORT_STRING);
+        sort($missingExtensions, SORT_STRING);
+        ksort($issueCounts, SORT_STRING);
+        usort(
+            $missingParts,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
+        );
+
+        return [
+            'declarationCount' => count($declarations),
+            'usedDeclarationCount' => $usedDeclarationCount,
+            'unusedDeclarationCount' => count($unusedExtensions),
+            'defaultResolvedPartCount' => $defaultResolvedPartCount,
+            'overrideResolvedPartCount' => $overrideResolvedPartCount,
+            'missingPartCount' => count($missingParts),
+            'extensionlessMissingPartCount' => $extensionlessMissingPartCount,
+            'unusedExtensions' => $unusedExtensions,
+            'missingExtensions' => $missingExtensions,
+            'issueCounts' => $issueCounts,
+            'issues' => array_keys($issueCounts),
+            'declarations' => array_values($declarations),
+            'missingParts' => $missingParts,
+        ];
     }
 
     /**
