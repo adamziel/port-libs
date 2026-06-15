@@ -8853,6 +8853,14 @@ return [
             [['t' => 'Str', 'c' => 'source']],
             ['https://example.test/source', 'Source title'],
         ]];
+        $nativeBlock = ['t' => 'VendorBlock', 'c' => [
+            'source' => 'constructor-completeness',
+            'payload' => [['t' => 'Str', 'c' => 'opaque']],
+        ]];
+        $nativeInline = ['t' => 'VendorInline', 'c' => [
+            'name' => 'constructor-completeness-anchor',
+            'value' => 42,
+        ]];
         $tableCell = ['t' => 'Cell', 'c' => [
             ['constructor-cell', ['body'], [['data-kind', 'cell']]],
             ['t' => 'AlignRight'],
@@ -8999,6 +9007,28 @@ return [
                     $t->same('constructor-link', $node->attr('id'), "{$label} link id");
                     $t->same('https://example.test/source', $node->attr('url'), "{$label} link url");
                     $t->same($linkInline['c'][2], $node->attr('targetNative'), "{$label} link target native");
+                },
+            ],
+            'native block fallback constructor' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [$nativeBlock]],
+                'path' => [0],
+                'type' => 'native_block',
+                'constructor' => 'VendorBlock',
+                'native' => $nativeBlock,
+                'assert' => static function (TestRunner $t, AstNode $node, string $label) use ($nativeBlock): void {
+                    $t->same('constructor-completeness', $node->attr('native')['c']['source'] ?? null, "{$label} fallback source");
+                    $t->same($nativeBlock['c']['payload'], $node->attr('native')['c']['payload'] ?? null, "{$label} fallback payload");
+                },
+            ],
+            'native inline fallback constructor' => [
+                'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [['t' => 'Para', 'c' => [$nativeInline]]]],
+                'path' => [0, 0],
+                'type' => 'native_inline',
+                'constructor' => 'VendorInline',
+                'native' => $nativeInline,
+                'assert' => static function (TestRunner $t, AstNode $node, string $label) use ($nativeInline): void {
+                    $t->same('constructor-completeness-anchor', $node->attr('native')['c']['name'] ?? null, "{$label} fallback name");
+                    $t->same($nativeInline['c']['value'], $node->attr('native')['c']['value'] ?? null, "{$label} fallback value");
                 },
             ],
             'table span helper constructors' => [
