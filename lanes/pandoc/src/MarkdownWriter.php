@@ -6361,8 +6361,14 @@ final class MarkdownWriter
      */
     private function linkAttrTuple(AstNode $node): array
     {
-        $id = $this->normalizeAttributeIdentifierToken($this->scalarAttr($node, ['id', 'identifier', 'anchor']));
-        $classes = [];
+        $htmlAttrs = $this->markdownHtmlAttributeTuple($node);
+        $id = $htmlAttrs['id'];
+        $explicitId = $this->normalizeAttributeIdentifierToken($this->scalarAttr($node, ['id', 'identifier', 'anchor']));
+        if ($explicitId !== '') {
+            $id = $explicitId;
+        }
+
+        $classes = $htmlAttrs['classes'];
         foreach (['classes', 'class', 'className'] as $name) {
             if (array_key_exists($name, $node->attrs)) {
                 $this->appendNormalizedClasses($classes, $node->attrs[$name]);
@@ -6370,7 +6376,7 @@ final class MarkdownWriter
         }
         $classes = array_values(array_unique($classes));
 
-        $attributes = [];
+        $attributes = $htmlAttrs['attributes'];
         foreach (['attributes', 'keyvals', 'keyValues', 'attributePairs', 'dataAttributes'] as $name) {
             if (array_key_exists($name, $node->attrs)) {
                 $this->appendNormalizedAttributes($attributes, $node->attrs[$name]);
@@ -6481,6 +6487,70 @@ final class MarkdownWriter
         }
 
         $attributes[$name] = (string) $value;
+    }
+
+    /**
+     * @return array{id:string, classes:list<string>, attributes:array<string, string>}
+     */
+    private function markdownHtmlAttributeTuple(AstNode $node): array
+    {
+        $tuple = [
+            'id' => '',
+            'classes' => [],
+            'attributes' => [],
+        ];
+
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            return $tuple;
+        }
+
+        foreach ($htmlAttributes as $name => $value) {
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $name = strtolower(trim((string) $name));
+            $value = (string) $value;
+            if ($name === '' || $value === '') {
+                continue;
+            }
+
+            if ($name === 'id') {
+                $tuple['id'] = $value;
+                continue;
+            }
+
+            if ($name === 'class') {
+                array_push(
+                    $tuple['classes'],
+                    ...preg_split('/\s+/', trim($value), -1, PREG_SPLIT_NO_EMPTY) ?: []
+                );
+                continue;
+            }
+
+            if ($this->isStructuralHtmlAttributeForMarkdown($node, $name)) {
+                continue;
+            }
+
+            $tuple['attributes'][$name] = $value;
+        }
+        $tuple['classes'] = array_values(array_unique($tuple['classes']));
+
+        return $tuple;
+    }
+
+    private function isStructuralHtmlAttributeForMarkdown(AstNode $node, string $name): bool
+    {
+        if ($node->type === 'link' && ($name === 'href' || $name === 'src')) {
+            return true;
+        }
+
+        if ($node->type === 'image' && $name === 'src') {
+            return true;
+        }
+
+        return $name === 'title' && (string) $node->attr('title', '') !== '';
     }
 
     private function renderLinkAttributes(AstNode $node): string

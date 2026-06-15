@@ -281,7 +281,7 @@ $attributeCases = [
     ],
     'attribute value with closing brace remains quoted' => [
         'children' => [$link('/source', [$text('source')], ['attributes' => ['data-review' => 'a}b']])],
-        'expected' => '[source](/source){data-review="a}b"}',
+        'expected' => '[source](/source){data-review="a\\}b"}',
     ],
 ];
 
@@ -425,6 +425,233 @@ foreach ($setextAndThematicCases as $label => [$source, $expected, $literalMarke
             ));
             $t->same('Lead', $roundTrip->children[0]->children[0]->attr('text'));
             $t->same($literalMarker, $roundTrip->children[0]->children[2]->attr('text'));
+        };
+}
+
+$htmlSidecarCases = [
+    'span html id class data tuple' => [
+        'children' => [$span([$text('source')], ['htmlAttributes' => ['id' => 'span-a', 'class' => 'review primary', 'data-kind' => 'span']])],
+        'expected' => '[source]{#span-a .review .primary data-kind="span"}',
+    ],
+    'span html id with space escapes token' => [
+        'children' => [$span([$text('source')], ['htmlAttributes' => ['id' => 'span a']])],
+        'expected' => '[source]{#span\\ a}',
+    ],
+    'span html class with braces escapes token' => [
+        'children' => [$span([$text('source')], ['htmlAttributes' => ['class' => 'needs{review}']])],
+        'expected' => '[source]{.needs\\{review\\}}',
+    ],
+    'span html data value newline stays one line' => [
+        'children' => [$span([$text('source')], ['htmlAttributes' => ['data-review' => "Line\nTwo"]])],
+        'expected' => '[source]{data-review="Line Two"}',
+    ],
+    'span html data value controls stay one line' => [
+        'children' => [$span([$text('source')], ['htmlAttributes' => ['data-review' => "A\x00B\x7FC"]])],
+        'expected' => '[source]{data-review="A B C"}',
+    ],
+    'span html data value quote and slash escapes quoted value' => [
+        'children' => [$span([$text('source')], ['htmlAttributes' => ['data-review' => 'A "quote" \\ path']])],
+        'expected' => '[source]{data-review="A \\"quote\\" \\\\ path"}',
+    ],
+    'span html attribute name with equals escapes token' => [
+        'children' => [$span([$text('source')], ['htmlAttributes' => ['data=review' => 'yes']])],
+        'expected' => '[source]{data\\=review="yes"}',
+    ],
+    'span html class mark renders mark shorthand' => [
+        'children' => [$span([$text('marked')], ['htmlAttributes' => ['class' => 'mark']])],
+        'expected' => '==marked==',
+    ],
+    'span html class mark with data falls back to attributed span' => [
+        'children' => [$span([$text('marked')], ['htmlAttributes' => ['class' => 'mark', 'data-kind' => 'mark']])],
+        'expected' => '[marked]{.mark data-kind="mark"}',
+    ],
+    'span html emoji sidecar renders alias shorthand' => [
+        'children' => [$span([$text("\u{1F44D}")], ['htmlAttributes' => ['class' => 'emoji', 'data-emoji' => 'thumbsup']])],
+        'expected' => ':thumbsup:',
+    ],
+    'span html emoji mismatch falls back to attributes' => [
+        'children' => [$span([$text('not emoji')], ['htmlAttributes' => ['class' => 'emoji', 'data-emoji' => 'thumbsup']])],
+        'expected' => '[not emoji]{.emoji data-emoji="thumbsup"}',
+    ],
+    'span html abbreviation sidecar emits definition' => [
+        'children' => [$span([$text('HTML')], ['htmlAttributes' => ['class' => 'abbr', 'title' => 'Hypertext Markup Language']])],
+        'expected' => "HTML\n\n*[HTML]: Hypertext Markup Language",
+    ],
+    'span html abbreviation extra data falls back to attributes' => [
+        'children' => [$span([$text('HTML')], ['htmlAttributes' => ['class' => 'abbr', 'title' => 'Hypertext', 'data-kind' => 'abbr']])],
+        'expected' => '[HTML]{.abbr title="Hypertext" data-kind="abbr"}',
+    ],
+    'span html data and pandoc attribute both survive' => [
+        'children' => [$span([$text('source')], ['htmlAttributes' => ['data-kind' => 'html'], 'attributes' => ['kind' => 'pandoc']])],
+        'expected' => '[source]{data-kind="html" kind="pandoc"}',
+    ],
+    'span html compressed classes normalize tuple classes' => [
+        'children' => [$span([$text('source')], ['htmlAttributes' => ['class' => 'one   two']])],
+        'expected' => '[source]{.one .two}',
+    ],
+    'span html xml lang aria tuple' => [
+        'children' => [$span([$text('texto')], ['htmlAttributes' => ['xml:lang' => 'es', 'aria-label' => 'Source label']])],
+        'expected' => '[texto]{xml:lang="es" aria-label="Source label"}',
+    ],
+    'link html id class data tuple' => [
+        'children' => [$link('/source', [$text('source')], ['htmlAttributes' => ['id' => 'link-a', 'class' => 'review', 'data-kind' => 'link']])],
+        'expected' => '[source](/source){#link-a .review data-kind="link"}',
+    ],
+    'link html href sidecar is not duplicated' => [
+        'children' => [$link('/source', [$text('source')], ['htmlAttributes' => ['href' => '/source', 'data-kind' => 'link']])],
+        'expected' => '[source](/source){data-kind="link"}',
+    ],
+    'link html title sidecar without node title stays attribute' => [
+        'children' => [$link('/source', [$text('source')], ['htmlAttributes' => ['title' => 'Source title']])],
+        'expected' => '[source](/source){title="Source title"}',
+    ],
+    'link html title sidecar with node title is not duplicated' => [
+        'children' => [$link('/source', [$text('source')], ['title' => 'Source title', 'htmlAttributes' => ['title' => 'Source title', 'data-kind' => 'link']])],
+        'expected' => '[source](/source "Source title"){data-kind="link"}',
+    ],
+    'uri autolink html uri class remains compact' => [
+        'children' => [$link('https://example.test/source', [$text('https://example.test/source')], ['htmlAttributes' => ['class' => 'uri']])],
+        'expected' => '<https://example.test/source>',
+    ],
+    'uri autolink html data disables compact shorthand' => [
+        'children' => [$link('https://example.test/source', [$text('https://example.test/source')], ['htmlAttributes' => ['class' => 'uri', 'data-kind' => 'source']])],
+        'expected' => '[https://example.test/source](https://example.test/source){.uri data-kind="source"}',
+    ],
+    'email autolink html email class remains compact' => [
+        'children' => [$link('mailto:editor@example.test', [$text('editor@example.test')], ['htmlAttributes' => ['class' => 'email']])],
+        'expected' => '<editor@example.test>',
+    ],
+    'email autolink html data disables compact shorthand' => [
+        'children' => [$link('mailto:editor@example.test', [$text('editor@example.test')], ['htmlAttributes' => ['class' => 'email', 'data-kind' => 'mail']])],
+        'expected' => '[editor@example.test](mailto:editor@example.test){.email data-kind="mail"}',
+    ],
+    'reference definition html id class data tuple' => [
+        'children' => [$link('/source', [$text('source')], ['htmlAttributes' => ['id' => 'link-a', 'class' => 'review', 'data-kind' => 'link']])],
+        'expected' => "[source]\n\n  [source]: /source {#link-a .review data-kind=\"link\"}",
+        'options' => ['referenceLinks' => true],
+    ],
+    'reference definition html target attrs are reused' => [
+        'children' => [
+            $link('/one', [$text('Source')], ['htmlAttributes' => ['data-kind' => 'source']]),
+            $text(' and '),
+            $link('/one', [$text('Again')], ['htmlAttributes' => ['data-kind' => 'source']]),
+        ],
+        'expected' => "[Source] and [Again][Source]\n\n  [Source]: /one {data-kind=\"source\"}",
+        'options' => ['referenceLinks' => true],
+    ],
+    'reference definition html target attrs disambiguate' => [
+        'children' => [
+            $link('/one', [$text('Source')], ['htmlAttributes' => ['data-kind' => 'one']]),
+            $text(' and '),
+            $link('/one', [$text('Source')], ['htmlAttributes' => ['data-kind' => 'two']]),
+        ],
+        'expected' => "[Source] and [Source][1]\n\n  [Source]: /one {data-kind=\"one\"}\n  [1]: /one {data-kind=\"two\"}",
+        'options' => ['referenceLinks' => true],
+    ],
+    'image html id class data tuple' => [
+        'children' => [$image('media/source.png', [$text('alt')], ['htmlAttributes' => ['id' => 'image-a', 'class' => 'thumb', 'data-kind' => 'image']])],
+        'expected' => '![alt](media/source.png){#image-a .thumb data-kind="image"}',
+    ],
+    'image html src sidecar is not duplicated' => [
+        'children' => [$image('media/source.png', [$text('alt')], ['htmlAttributes' => ['src' => 'media/source.png', 'data-kind' => 'image']])],
+        'expected' => '![alt](media/source.png){data-kind="image"}',
+    ],
+    'image html alt sidecar with empty visible label survives' => [
+        'children' => [$image('media/source.png', [], ['htmlAttributes' => ['alt' => 'Alt text']])],
+        'expected' => '![](media/source.png){alt="Alt text"}',
+    ],
+    'image html alt sidecar with caption survives' => [
+        'children' => [$image('media/source.png', [$text('Caption')], ['htmlAttributes' => ['alt' => 'Alt text']])],
+        'expected' => '![Caption](media/source.png){alt="Alt text"}',
+    ],
+    'image html title sidecar without node title stays attribute' => [
+        'children' => [$image('media/source.png', [$text('Caption')], ['htmlAttributes' => ['title' => 'Image title']])],
+        'expected' => '![Caption](media/source.png){title="Image title"}',
+    ],
+    'image html title sidecar with node title is not duplicated' => [
+        'children' => [$image('media/source.png', [$text('Caption')], ['title' => 'Image title', 'htmlAttributes' => ['title' => 'Image title', 'alt' => 'Alt text']])],
+        'expected' => '![Caption](media/source.png "Image title"){alt="Alt text"}',
+    ],
+    'code html id class data tuple' => [
+        'children' => [new AstNode('code', ['text' => 'source', 'htmlAttributes' => ['id' => 'code-a', 'class' => 'php', 'data-kind' => 'code']])],
+        'expected' => '`source`{#code-a .php data-kind="code"}',
+    ],
+    'code html class with backticks expands delimiter' => [
+        'children' => [new AstNode('code', ['text' => 'wp `code`', 'htmlAttributes' => ['class' => 'php']])],
+        'expected' => '`` wp `code` ``{.php}',
+    ],
+    'math html id class data tuple' => [
+        'children' => [new AstNode('math', ['text' => 'x + y', 'htmlAttributes' => ['id' => 'math-a', 'class' => 'math', 'data-kind' => 'math']])],
+        'expected' => '$x + y${#math-a .math data-kind="math"}',
+    ],
+    'display math html id newline escapes token' => [
+        'children' => [new AstNode('math', ['text' => 'x = y', 'display' => true, 'htmlAttributes' => ['id' => "eq\nreview"]])],
+        'expected' => '$$x = y$${#eq\\ review}',
+    ],
+    'small caps html sidecar renders semantic span' => [
+        'children' => [new AstNode('small_caps', ['htmlAttributes' => ['id' => 'small-a', 'class' => 'review', 'data-kind' => 'small']], [$text('Small Caps')])],
+        'expected' => '[Small Caps]{#small-a .smallcaps .review data-kind="small"}',
+    ],
+    'underline html sidecar renders semantic span' => [
+        'children' => [new AstNode('underline', ['htmlAttributes' => ['class' => 'review', 'data-kind' => 'under']], [$text('under')])],
+        'expected' => '[under]{.underline .review data-kind="under"}',
+    ],
+    'strikeout html sidecar renders semantic span' => [
+        'children' => [new AstNode('strikeout', ['htmlAttributes' => ['class' => 'review', 'data-kind' => 'delete']], [$text('gone')])],
+        'expected' => '[gone]{.strikeout .review data-kind="delete"}',
+    ],
+    'superscript html sidecar renders semantic span' => [
+        'children' => [new AstNode('superscript', ['htmlAttributes' => ['data-kind' => 'sup']], [$text('2')])],
+        'expected' => '[2]{.superscript data-kind="sup"}',
+    ],
+    'subscript html sidecar renders semantic span' => [
+        'children' => [new AstNode('subscript', ['htmlAttributes' => ['data-kind' => 'sub']], [$text('n')])],
+        'expected' => '[n]{.subscript data-kind="sub"}',
+    ],
+    'link html class merges explicit class without duplicate' => [
+        'children' => [$link('/source', [$text('source')], ['classes' => ['review'], 'htmlAttributes' => ['class' => 'review tracked']])],
+        'expected' => '[source](/source){.review .tracked}',
+    ],
+    'link html id overridden by explicit id preserves old id precedence' => [
+        'children' => [$link('/source', [$text('source')], ['id' => 'explicit-id', 'htmlAttributes' => ['id' => 'html-id', 'data-kind' => 'link']])],
+        'expected' => '[source](/source){#explicit-id data-kind="link"}',
+    ],
+    'span html empty values are skipped' => [
+        'children' => [$span([$text('source')], ['htmlAttributes' => ['id' => '', 'class' => '', 'data-empty' => '', 'data-kind' => 'kept']])],
+        'expected' => '[source]{data-kind="kept"}',
+    ],
+    'span html uppercase attribute names normalize' => [
+        'children' => [$span([$text('source')], ['htmlAttributes' => ['DATA-KIND' => 'upper', 'ARIA-LABEL' => 'Upper label']])],
+        'expected' => '[source]{data-kind="upper" aria-label="Upper label"}',
+    ],
+    'span html attributes preserve insertion order before pandoc attrs' => [
+        'children' => [$span([$text('source')], ['htmlAttributes' => ['data-a' => 'A', 'data-b' => 'B'], 'attributes' => ['data-c' => 'C']])],
+        'expected' => '[source]{data-a="A" data-b="B" data-c="C"}',
+    ],
+    'reference definition html title sidecar stays attribute' => [
+        'children' => [$link('/source', [$text('source')], ['htmlAttributes' => ['title' => 'Source title', 'data-kind' => 'link']])],
+        'expected' => "[source]\n\n  [source]: /source {title=\"Source title\" data-kind=\"link\"}",
+        'options' => ['referenceLinks' => true],
+    ],
+    'image html class with explicit class merges without duplicate' => [
+        'children' => [$image('media/source.png', [$text('alt')], ['classes' => ['thumb'], 'htmlAttributes' => ['class' => 'thumb review']])],
+        'expected' => '![alt](media/source.png){.thumb .review}',
+    ],
+    'image html data and pandoc attribute both survive' => [
+        'children' => [$image('media/source.png', [$text('alt')], ['htmlAttributes' => ['data-kind' => 'html'], 'attributes' => ['kind' => 'pandoc']])],
+        'expected' => '![alt](media/source.png){data-kind="html" kind="pandoc"}',
+    ],
+];
+
+$tests['records markdown writer html sidecar completion mapped case count'] =
+    static function (TestRunner $t) use ($htmlSidecarCases): void {
+        $t->same(50, count($htmlSidecarCases));
+    };
+
+foreach ($htmlSidecarCases as $label => $case) {
+    $tests["maps upstream markdown writer html sidecar completion {$label}"] =
+        static function (TestRunner $t) use ($case, $writeParagraph): void {
+            $t->same($case['expected'], $writeParagraph($case['children'], $case['options'] ?? []));
         };
 }
 
