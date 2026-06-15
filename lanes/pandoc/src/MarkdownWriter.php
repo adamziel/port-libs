@@ -3476,6 +3476,7 @@ final class MarkdownWriter
         $escaped = '';
         $length = strlen($text);
         $lineStart = true;
+        $lineStartSpaces = 0;
         $definitionLineStart = $escapeDefinitionMarker;
 
         for ($i = 0; $i < $length; $i++) {
@@ -3485,7 +3486,21 @@ final class MarkdownWriter
             if ($char === "\n") {
                 $escaped .= "\n";
                 $lineStart = true;
+                $lineStartSpaces = 0;
                 $definitionLineStart = true;
+                continue;
+            }
+
+            if ($lineStart && $char === ' ' && $lineStartSpaces < 3) {
+                $escaped .= ' ';
+                $lineStartSpaces++;
+                continue;
+            }
+
+            if ($lineStart && $this->startsWithSetextEqualsUnderline($tail)) {
+                $escaped .= '\\=';
+                $lineStart = false;
+                $definitionLineStart = false;
                 continue;
             }
 
@@ -3712,6 +3727,11 @@ final class MarkdownWriter
     private function startsWithDefinitionMarker(string $text): bool
     {
         return preg_match('/^[:~](?:[ \t]|$)/', $text) === 1;
+    }
+
+    private function startsWithSetextEqualsUnderline(string $text): bool
+    {
+        return preg_match('/^=+[ \t]*$/', $text) === 1;
     }
 
     private function isIntrawordUnderscore(string $text, int $offset): bool
