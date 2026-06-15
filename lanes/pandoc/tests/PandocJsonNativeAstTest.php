@@ -10523,6 +10523,105 @@ return [
             }
         }
     },
+    'preserves ordered list style and delimiter helper variants through regenerated writers' => static function (TestRunner $t): void {
+        $styles = [
+            ['constructor' => 'DefaultStyle', 'value' => 'default'],
+            ['constructor' => 'Decimal', 'value' => 'decimal'],
+            ['constructor' => 'Example', 'value' => 'example'],
+            ['constructor' => 'LowerRoman', 'value' => 'lower_roman'],
+            ['constructor' => 'UpperRoman', 'value' => 'upper_roman'],
+            ['constructor' => 'LowerAlpha', 'value' => 'lower_alpha'],
+            ['constructor' => 'UpperAlpha', 'value' => 'upper_alpha'],
+        ];
+        $delimiters = [
+            ['constructor' => 'DefaultDelim', 'value' => 'default'],
+            ['constructor' => 'Period', 'value' => 'period'],
+            ['constructor' => 'OneParen', 'value' => 'one_paren'],
+            ['constructor' => 'TwoParens', 'value' => 'two_parens'],
+        ];
+
+        $blocks = [];
+        $expectedStarts = [];
+        $expectedStyles = [];
+        $expectedDelimiters = [];
+        $expectedStyleNatives = [];
+        $expectedDelimiterNatives = [];
+        foreach ($styles as $styleIndex => $style) {
+            foreach ($delimiters as $delimiterIndex => $delimiter) {
+                $start = 10 + ($styleIndex * count($delimiters)) + $delimiterIndex;
+                $label = strtolower($style['constructor'] . '-' . $delimiter['constructor']);
+                $styleNative = ['t' => $style['constructor'], 'reviewQueue' => "style-{$label}"];
+                $delimiterNative = ['t' => $delimiter['constructor'], 'reviewQueue' => "delimiter-{$label}"];
+
+                $blocks[] = ['t' => 'OrderedList', 'c' => [
+                    [$start, $styleNative, $delimiterNative],
+                    [[
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => $style['constructor']],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => $delimiter['constructor']],
+                        ]],
+                    ]],
+                ], 'reviewQueue' => "ordered-{$label}"];
+
+                $expectedStarts[] = $start;
+                $expectedStyles[] = $style['value'];
+                $expectedDelimiters[] = $delimiter['value'];
+                $expectedStyleNatives[] = $styleNative;
+                $expectedDelimiterNatives[] = $delimiterNative;
+            }
+        }
+
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => $blocks,
+        ];
+        $stripWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+        $orderedAttrs = static fn (array $block): array => $block['c'][0];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $lists = $document->children;
+            $t->same(count($blocks), count($lists), "{$source} reads all ordered list helper variants");
+            $t->same($expectedStyles, array_map(static fn (AstNode $list): string => $list->attr('style'), $lists), "{$source} ordered list style values");
+            $t->same($expectedDelimiters, array_map(static fn (AstNode $list): string => $list->attr('delimiter'), $lists), "{$source} ordered list delimiter values");
+            $t->same($expectedStyleNatives, array_map(static fn (AstNode $list): array => $list->attr('listStyleNative'), $lists), "{$source} ordered list style sidecars");
+            $t->same($expectedDelimiterNatives, array_map(static fn (AstNode $list): array => $list->attr('listDelimiterNative'), $lists), "{$source} ordered list delimiter sidecars");
+
+            $rebuiltLists = array_map(
+                static fn (AstNode $list): AstNode => new AstNode('ordered_list', $stripWrapper($list), $list->children),
+                $lists
+            );
+            $rebuiltDocument = new AstNode('document', $document->attrs, $rebuiltLists);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuiltDocument),
+                'native' => json_decode((new NativeWriter())->write($rebuiltDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedAttrs = array_map($orderedAttrs, $encoded['blocks']);
+
+                $t->same($expectedStarts, array_map(static fn (array $attrs): int => $attrs[0], $encodedAttrs), "{$source} {$writer} writer regenerates ordered list starts");
+                $t->same($expectedStyleNatives, array_map(static fn (array $attrs): array => $attrs[1], $encodedAttrs), "{$source} {$writer} writer preserves regenerated style helper sidecars");
+                $t->same($expectedDelimiterNatives, array_map(static fn (array $attrs): array => $attrs[2], $encodedAttrs), "{$source} {$writer} writer preserves regenerated delimiter helper sidecars");
+
+                $roundTrip = $writer === 'json'
+                    ? (new PandocJsonReader())->readPacket($encoded)
+                    : (new NativeReader())->read(json_encode($encoded, JSON_THROW_ON_ERROR));
+                $t->same($expectedStyles, array_map(static fn (AstNode $list): string => $list->attr('style'), $roundTrip->children), "{$source} {$writer} round trip style values");
+                $t->same($expectedDelimiters, array_map(static fn (AstNode $list): string => $list->attr('delimiter'), $roundTrip->children), "{$source} {$writer} round trip delimiter values");
+            }
+        }
+    },
     'preserves task list checkbox sidecars through json and native list items' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
