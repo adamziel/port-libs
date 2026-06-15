@@ -1653,7 +1653,8 @@ final class NativeReader
     private function citeInline(array $attrs, mixed $content): AstNode
     {
         $tuple = $this->singleWrappedTuple($content, 2, 'Pandoc native JSON Cite inline content');
-        $records = $this->listContent($tuple[0], 'Pandoc native JSON Cite citation records');
+        $recordsNative = $this->listContent($tuple[0], 'Pandoc native JSON Cite citation records');
+        $records = $this->singleWrappedListContent($recordsNative, 'Pandoc native JSON Cite citation records');
         if ($records === []) {
             throw new \InvalidArgumentException('Pandoc native JSON Cite inline must contain at least one citation record');
         }
@@ -1662,7 +1663,7 @@ final class NativeReader
         $sourceText = trim($this->plainTextFromInlines($sourceInlines));
         $citations = array_map(fn (mixed $record): AstNode => $this->citationRecord($record), $records);
         if (count($citations) === 1) {
-            $citationAttrs = array_replace($attrs, $citations[0]->attrs);
+            $citationAttrs = array_replace($attrs, ['citationRecordsNative' => $recordsNative], $citations[0]->attrs);
             if ($sourceText !== '') {
                 $citationAttrs['text'] = $sourceText;
             }
@@ -1670,6 +1671,7 @@ final class NativeReader
             return new AstNode('citation', $citationAttrs, $sourceInlines);
         }
 
+        $attrs['citationRecordsNative'] = $recordsNative;
         if ($sourceText !== '') {
             $attrs['text'] = $sourceText;
         }

@@ -11229,6 +11229,125 @@ return [
             $t->same(null, $invalidNote->attr('label'), "{$source} invalid-label note omits label");
         }
     },
+    'accepts single-wrapped cite citation record lists from json and native ast' => static function (TestRunner $t): void {
+        $sourceInlines = [
+            ['t' => 'Str', 'c' => '[see'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@smith1899;'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@doe1901]'],
+        ];
+        $singleSourceInlines = [
+            ['t' => 'Str', 'c' => 'see'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@smith1899'],
+        ];
+        $firstRecord = [
+            'citationId' => 'smith1899',
+            'citationPrefix' => [['t' => 'Str', 'c' => 'see']],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'NormalCitation'],
+            'citationNoteNum' => 0,
+            'citationHash' => 1899,
+            'reviewQueue' => 'first-citation-source',
+        ];
+        $secondRecord = [
+            'citationId' => 'doe1901',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'AuthorInText'],
+            'citationNoteNum' => 0,
+            'citationHash' => 1901,
+            'reviewQueue' => 'second-citation-source',
+        ];
+        $records = [$firstRecord, $secondRecord];
+        $recordsNative = [$records];
+        $singleRecords = [$firstRecord];
+        $singleRecordsNative = [$singleRecords];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Cite', 'c' => [
+                        $recordsNative,
+                        $sourceInlines,
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Cite', 'c' => [
+                        $singleRecordsNative,
+                        $singleSourceInlines,
+                    ]],
+                ]],
+            ],
+        ];
+        $stripWrapperAttrs = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $cluster = $document->children[0]->children[0];
+            $singleCitation = $document->children[0]->children[2];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('citation_group', $stripWrapperAttrs($cluster), $cluster->children),
+                    new AstNode('space'),
+                    new AstNode('citation', $stripWrapperAttrs($singleCitation), $singleCitation->children),
+                ]),
+            ]);
+            $editedFirstCitation = new AstNode('citation', array_replace($cluster->children[0]->attrs, [
+                'citationHash' => 1999,
+            ]), $cluster->children[0]->children);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('citation_group', $stripWrapperAttrs($cluster), [
+                        $editedFirstCitation,
+                        $cluster->children[1],
+                    ]),
+                ]),
+            ]);
+
+            $t->same('citation_group', $cluster->type, "{$source} single-wrapped multi-record cite becomes citation group");
+            $t->same('citation', $singleCitation->type, "{$source} single-wrapped one-record cite becomes citation");
+            $t->same($recordsNative, $cluster->attr('citationRecordsNative'), "{$source} group keeps original single-wrapped record list");
+            $t->same($singleRecordsNative, $singleCitation->attr('citationRecordsNative'), "{$source} citation keeps original single-wrapped record list");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedClusterCite = $encoded['blocks'][0]['c'][0];
+                $encodedSingleCite = $encoded['blocks'][0]['c'][2];
+
+                $t->same('Cite', $encodedClusterCite['t'], "{$source} {$writer} group writer emits Cite constructor");
+                $t->same('Cite', $encodedSingleCite['t'], "{$source} {$writer} citation writer emits Cite constructor");
+                $t->same($recordsNative, $encodedClusterCite['c'][0], "{$source} {$writer} group writer preserves single-wrapped citation records");
+                $t->same($singleRecordsNative, $encodedSingleCite['c'][0], "{$source} {$writer} citation writer preserves single-wrapped citation record");
+                $t->same($sourceInlines, $encodedClusterCite['c'][1], "{$source} {$writer} group writer preserves cite source inlines");
+                $t->same($singleSourceInlines, $encodedSingleCite['c'][1], "{$source} {$writer} citation writer preserves cite source inlines");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedRecords = $encoded['blocks'][0]['c'][0]['c'][0];
+
+                $t->same(2, count($encodedRecords), "{$source} {$writer} edited group emits an unwrapped citation record list");
+                $t->same(1999, $encodedRecords[0]['citationHash'], "{$source} {$writer} edited group emits edited citation hash");
+                $t->same(false, array_key_exists('reviewQueue', $encodedRecords[0]), "{$source} {$writer} edited group drops stale edited citation sidecar");
+                $t->same('second-citation-source', $encodedRecords[1]['reviewQueue'], "{$source} {$writer} edited group preserves unchanged citation sidecar");
+            }
+        }
+    },
     'preserves cite source inline constructors when regenerating citation wrappers' => static function (TestRunner $t): void {
         $sourceInlines = [
             ['t' => 'Str', 'c' => '[see'],

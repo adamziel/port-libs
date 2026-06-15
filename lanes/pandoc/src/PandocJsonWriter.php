@@ -20,6 +20,7 @@ final class PandocJsonWriter
         'citationModeConstructor',
         'citationModeNative',
         'citationNative',
+        'citationRecordsNative',
         'colSpanConstructor',
         'colSpanNative',
         'columnWidthConstructors',
@@ -1426,8 +1427,8 @@ final class PandocJsonWriter
                 (string) $node->attr('text', ''),
             ]],
             'raw_html_inline', 'raw_tex', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormatPayload($node), $this->rawText($node)]],
-            'citation' => $this->writeCiteInline([$node], $this->citationSourceInlines($node)),
-            'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node)),
+            'citation' => $this->writeCiteInline([$node], $this->citationSourceInlines($node), $node->attr('citationRecordsNative')),
+            'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node), $node->attr('citationRecordsNative')),
             'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), $this->targetTuple($node)]],
             'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlines($this->imageLabelInlines($node)), $this->targetTuple($node)]],
             'note' => $this->noteInline($node),
@@ -2005,19 +2006,38 @@ final class PandocJsonWriter
      * @param list<AstNode> $sourceInlines
      * @return array<string, mixed>
      */
-    private function writeCiteInline(array $citations, array $sourceInlines): array
+    private function writeCiteInline(array $citations, array $sourceInlines, mixed $recordsNative = null): array
     {
         if ($citations === []) {
             throw new \InvalidArgumentException('Citation group must contain at least one citation');
         }
 
+        $records = array_map(fn (AstNode $citation): array => $this->writeCitationRecord($citation), $citations);
+
         return [
             't' => 'Cite',
             'c' => [
-                array_map(fn (AstNode $citation): array => $this->writeCitationRecord($citation), $citations),
+                $this->reusableCitationRecordsNative($recordsNative, $records) ?? $records,
                 $this->writeInlines($sourceInlines),
             ],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<mixed>|null
+     */
+    private function reusableCitationRecordsNative(mixed $native, array $records): ?array
+    {
+        if (!is_array($native) || !array_is_list($native)) {
+            return null;
+        }
+
+        if ($native === $records) {
+            return $native;
+        }
+
+        return $this->singleWrappedReusableListPayload($native, $records);
     }
 
     /**

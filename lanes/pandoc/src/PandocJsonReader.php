@@ -1555,7 +1555,8 @@ final class PandocJsonReader
     private function readCiteInline(mixed $content): AstNode
     {
         $tuple = $this->singleWrappedTuple($content, 2, 'Cite');
-        $records = $this->listContent($tuple[0], 'Cite citation records');
+        $recordsNative = $this->listContent($tuple[0], 'Cite citation records');
+        $records = $this->singleWrappedListContent($recordsNative, 'Cite citation records');
         if ($records === []) {
             throw new \InvalidArgumentException('Cite must contain at least one citation record');
         }
@@ -1564,7 +1565,7 @@ final class PandocJsonReader
         $sourceText = $this->plainText($sourceInlines);
         $citations = array_map(fn (mixed $record): AstNode => $this->readCitationRecord($record), $records);
         if (count($citations) === 1) {
-            $attrs = $citations[0]->attrs;
+            $attrs = array_replace(['citationRecordsNative' => $recordsNative], $citations[0]->attrs);
             if ($sourceText !== '') {
                 $attrs['text'] = $sourceText;
             }
@@ -1572,7 +1573,10 @@ final class PandocJsonReader
             return new AstNode('citation', $attrs, $sourceInlines);
         }
 
-        $attrs = $sourceText === '' ? [] : ['text' => $sourceText];
+        $attrs = ['citationRecordsNative' => $recordsNative];
+        if ($sourceText !== '') {
+            $attrs['text'] = $sourceText;
+        }
         if ($sourceInlines !== []) {
             $attrs['citationSourceInlines'] = $sourceInlines;
         }

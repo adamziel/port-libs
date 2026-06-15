@@ -19,6 +19,7 @@ final class NativeWriter
         'citationModeConstructor',
         'citationModeNative',
         'citationNative',
+        'citationRecordsNative',
         'colSpanConstructor',
         'colSpanNative',
         'columnWidthConstructors',
@@ -1429,8 +1430,8 @@ final class NativeWriter
                 't' => 'RawInline',
                 'c' => [$this->rawFormatPayload($node), $this->rawText($node)],
             ]],
-            'citation' => [$this->citeInline([$node], $this->citationSourceInlines($node))],
-            'citation_group' => [$this->citeInline($this->citationGroupChildren($node), $this->citationSourceInlines($node))],
+            'citation' => [$this->citeInline([$node], $this->citationSourceInlines($node), $node->attr('citationRecordsNative'))],
+            'citation_group' => [$this->citeInline($this->citationGroupChildren($node), $this->citationSourceInlines($node), $node->attr('citationRecordsNative'))],
             'link' => [[
                 't' => 'Link',
                 'c' => [
@@ -1900,19 +1901,38 @@ final class NativeWriter
      * @param list<AstNode> $sourceInlines
      * @return array<string, mixed>
      */
-    private function citeInline(array $citations, array $sourceInlines): array
+    private function citeInline(array $citations, array $sourceInlines, mixed $recordsNative = null): array
     {
         if ($citations === []) {
             throw new \InvalidArgumentException('Native writer citation group must contain at least one citation');
         }
 
+        $records = array_map(fn (AstNode $citation): array => $this->citationRecord($citation), $citations);
+
         return [
             't' => 'Cite',
             'c' => [
-                array_map(fn (AstNode $citation): array => $this->citationRecord($citation), $citations),
+                $this->reusableCitationRecordsNative($recordsNative, $records) ?? $records,
                 $this->inlines($sourceInlines),
             ],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<mixed>|null
+     */
+    private function reusableCitationRecordsNative(mixed $native, array $records): ?array
+    {
+        if (!is_array($native) || !array_is_list($native)) {
+            return null;
+        }
+
+        if ($native === $records) {
+            return $native;
+        }
+
+        return $this->singleWrappedReusableListPayload($native, $records);
     }
 
     /**
