@@ -14699,6 +14699,9 @@ final class XmlHtmlDom
         if ($name === 'data') {
             $summary += self::dataElementSummary($node);
         }
+        if ($name === 'pre') {
+            $summary += self::preformattedBlockSummary($node);
+        }
         if (in_array($name, ['ruby', 'rb', 'rt', 'rp', 'rtc'], true)) {
             $summary += self::rubySummary($node, $name);
         }
@@ -15243,6 +15246,149 @@ final class XmlHtmlDom
             ],
             default => [],
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function preformattedBlockSummary(\DOMElement $element): array
+    {
+        $text = $element->textContent;
+        $code = self::primaryPreformattedCodeElement($element);
+        $codeText = $code instanceof \DOMElement ? $code->textContent : null;
+        $contentText = $codeText ?? $text;
+        $language = self::preformattedLanguageSummary($element, $code);
+        $preClasses = self::spaceSeparatedTokens((string) self::attributeOrNull($element, 'class'));
+        $codeClasses = $code instanceof \DOMElement
+            ? self::spaceSeparatedTokens((string) self::attributeOrNull($code, 'class'))
+            : [];
+
+        return [
+            'preformattedBlock' => 'pre',
+            'preformattedReviewPolicy' => 'html-pre-code-block-review',
+            'preformattedContentSource' => $code instanceof \DOMElement ? 'nested-code' : 'pre-text',
+            'preformattedText' => $text,
+            'preformattedTextLength' => strlen($text),
+            'preformattedTextSha256' => hash('sha256', $text),
+            'preformattedLineCount' => self::sourceLineCount($text),
+            'preformattedTrailingNewline' => self::hasTrailingSourceNewline($text),
+            'preformattedClasses' => $preClasses,
+            'preformattedCodeBlock' => $code instanceof \DOMElement,
+            'preformattedCodeElementCount' => count(self::childHtmlElements($element, 'code')),
+            'preformattedCodeText' => $codeText,
+            'preformattedCodeTextLength' => $codeText === null ? null : strlen($codeText),
+            'preformattedCodeTextSha256' => $codeText === null ? null : hash('sha256', $codeText),
+            'preformattedCodeLineCount' => $codeText === null ? null : self::sourceLineCount($codeText),
+            'preformattedCodeTrailingNewline' => $codeText === null ? null : self::hasTrailingSourceNewline($codeText),
+            'preformattedCodeClasses' => $codeClasses,
+            'preformattedContentLineCount' => self::sourceLineCount($contentText),
+            'preformattedNumberedLines' => in_array('numberLines', $preClasses, true)
+                || in_array('numberLines', $codeClasses, true),
+        ] + $language;
+    }
+
+    private static function primaryPreformattedCodeElement(\DOMElement $element): ?\DOMElement
+    {
+        foreach (self::childHtmlElements($element, 'code') as $code) {
+            return $code;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{
+     *     preformattedLanguage:?string,
+     *     preformattedLanguageToken:?string,
+     *     preformattedLanguageSource:?string
+     * }
+     */
+    private static function preformattedLanguageSummary(\DOMElement $pre, ?\DOMElement $code): array
+    {
+        $codeClasses = $code instanceof \DOMElement
+            ? self::spaceSeparatedTokens((string) self::attributeOrNull($code, 'class'))
+            : [];
+        $preClasses = self::spaceSeparatedTokens((string) self::attributeOrNull($pre, 'class'));
+        foreach ([
+            ['classes' => $codeClasses, 'source' => 'code-class'],
+            ['classes' => $preClasses, 'source' => 'pre-class'],
+        ] as $candidate) {
+            $language = self::languageFromClassTokens($candidate['classes'], $candidate['source']);
+            if ($language['preformattedLanguage'] !== null) {
+                return $language;
+            }
+        }
+
+        return [
+            'preformattedLanguage' => null,
+            'preformattedLanguageToken' => null,
+            'preformattedLanguageSource' => null,
+        ];
+    }
+
+    /**
+     * @param list<string> $classes
+     * @return array{
+     *     preformattedLanguage:?string,
+     *     preformattedLanguageToken:?string,
+     *     preformattedLanguageSource:?string
+     * }
+     */
+    private static function languageFromClassTokens(array $classes, string $source): array
+    {
+        foreach ($classes as $token) {
+            $lower = strtolower($token);
+            if (str_starts_with($lower, 'language-') && strlen($token) > 9) {
+                return [
+                    'preformattedLanguage' => substr($token, 9),
+                    'preformattedLanguageToken' => $token,
+                    'preformattedLanguageSource' => $source . '-language-prefix',
+                ];
+            }
+        }
+
+        $sourceCodeIndex = array_search('sourceCode', $classes, true);
+        if ($sourceCodeIndex === false) {
+            $sourceCodeIndex = array_search('sourcecode', array_map('strtolower', $classes), true);
+        }
+        if ($sourceCodeIndex !== false) {
+            foreach (array_slice($classes, (int) $sourceCodeIndex + 1) as $token) {
+                if (in_array($token, ['numberSource', 'numberLines', 'lineAnchors'], true)) {
+                    continue;
+                }
+
+                return [
+                    'preformattedLanguage' => $token,
+                    'preformattedLanguageToken' => $token,
+                    'preformattedLanguageSource' => $source . '-sourcecode-token',
+                ];
+            }
+        }
+
+        return [
+            'preformattedLanguage' => null,
+            'preformattedLanguageToken' => null,
+            'preformattedLanguageSource' => null,
+        ];
+    }
+
+    private static function sourceLineCount(string $text): int
+    {
+        $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+        if ($normalized === '') {
+            return 0;
+        }
+
+        if (str_ends_with($normalized, "\n")) {
+            $normalized = substr($normalized, 0, -1);
+        }
+
+        return $normalized === '' ? 1 : substr_count($normalized, "\n") + 1;
+    }
+
+    private static function hasTrailingSourceNewline(string $text): bool
+    {
+        return str_ends_with($text, "\n") || str_ends_with($text, "\r");
     }
 
     /**

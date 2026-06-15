@@ -4680,6 +4680,66 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/data-element-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html pre code block provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $codeText = "echo <review> & status;\nreturn true;\n";
+        $plainText = "plain\ntext";
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<pre id="snippet" class="sourceCode numberSource php numberLines" data-startfrom="7"><code class="language-php">'
+                . htmlspecialchars($codeText, ENT_QUOTES | ENT_HTML5, 'UTF-8')
+                . '</code></pre><pre data-note="plain">' . $plainText . '</pre>',
+            'pre code block review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/pre-code-block-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $pre = $summary[0];
+        $code = $pre['children'][0];
+        $plain = $summary[1];
+
+        $t->same('pre', $pre['name']);
+        $t->same('pre', $pre['preformattedBlock']);
+        $t->same('html-pre-code-block-review', $pre['preformattedReviewPolicy']);
+        $t->same('nested-code', $pre['preformattedContentSource']);
+        $t->same($codeText, $pre['preformattedText']);
+        $t->same(strlen($codeText), $pre['preformattedTextLength']);
+        $t->same(hash('sha256', $codeText), $pre['preformattedTextSha256']);
+        $t->same(2, $pre['preformattedLineCount']);
+        $t->same(true, $pre['preformattedTrailingNewline']);
+        $t->same(['sourceCode', 'numberSource', 'php', 'numberLines'], $pre['preformattedClasses']);
+        $t->same(true, $pre['preformattedCodeBlock']);
+        $t->same(1, $pre['preformattedCodeElementCount']);
+        $t->same($codeText, $pre['preformattedCodeText']);
+        $t->same(2, $pre['preformattedCodeLineCount']);
+        $t->same(true, $pre['preformattedCodeTrailingNewline']);
+        $t->same(['language-php'], $pre['preformattedCodeClasses']);
+        $t->same(2, $pre['preformattedContentLineCount']);
+        $t->same(true, $pre['preformattedNumberedLines']);
+        $t->same('php', $pre['preformattedLanguage']);
+        $t->same('language-php', $pre['preformattedLanguageToken']);
+        $t->same('code-class-language-prefix', $pre['preformattedLanguageSource']);
+        $t->same('code', $code['name']);
+        $t->same('code', $code['textSemantic']);
+        $t->same('echo <review> & status; return true;', $code['semanticText']);
+
+        $t->same('pre', $plain['name']);
+        $t->same('pre-text', $plain['preformattedContentSource']);
+        $t->same($plainText, $plain['preformattedText']);
+        $t->same(2, $plain['preformattedLineCount']);
+        $t->same(false, $plain['preformattedTrailingNewline']);
+        $t->same(false, $plain['preformattedCodeBlock']);
+        $t->same(0, $plain['preformattedCodeElementCount']);
+        $t->same(null, $plain['preformattedCodeText']);
+        $t->same(2, $plain['preformattedContentLineCount']);
+        $t->same(null, $plain['preformattedLanguage']);
+        $t->same(false, $plain['preformattedNumberedLines']);
+        $t->same('<pre class="sourceCode numberSource php numberLines" data-startfrom="7" id="snippet"><code class="language-php">echo &lt;review&gt; &amp; status;' . "\n" . 'return true;' . "\n" . '</code></pre><pre data-note="plain">plain' . "\n" . 'text</pre>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/pre-code-block-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html time datetime provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article><time datetime=" 2026-06-11 ">June 11</time>'
