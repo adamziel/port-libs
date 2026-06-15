@@ -13707,6 +13707,84 @@ return [
             }
         }
     },
+    'reads single-wrapped task list item checkbox sidecars from json and native ast' => static function (TestRunner $t): void {
+        $uncheckedBlocks = [
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Prepare'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'packet'],
+            ], 'taskChecked' => false, 'reviewQueue' => 'unchecked-task-source'],
+        ];
+        $checkedBlocks = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Ship'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'packet'],
+            ], 'taskChecked' => true, 'reviewQueue' => 'checked-task-source'],
+        ];
+        $items = [[$uncheckedBlocks], [$checkedBlocks]];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'BulletList', 'c' => $items, 'reviewQueue' => 'task-list-wrapper'],
+            ],
+        ];
+        $stripWrapperAttrs = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $list = $document->children[0];
+            $unchecked = $list->children[0];
+            $checked = $list->children[1];
+
+            $t->same('bullet_list', $list->type, "{$source} reads single-wrapped task list");
+            $t->same(true, $list->attr('taskList'), "{$source} marks list as task list");
+            $t->same(false, $unchecked->attr('taskChecked'), "{$source} reads unchecked sidecar through wrapper");
+            $t->same(true, $checked->attr('taskChecked'), "{$source} reads checked sidecar through wrapper");
+            $t->same([$uncheckedBlocks], $unchecked->attr('listItemNative'), "{$source} keeps unchecked single-wrapped item payload");
+            $t->same([$checkedBlocks], $checked->attr('listItemNative'), "{$source} keeps checked single-wrapped item payload");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($items, $encoded['blocks'][0]['c'], "{$source} {$writer} writer preserves single-wrapped task item payloads");
+            }
+
+            $editedUnchecked = new AstNode('list_item', $unchecked->attrs, [
+                new AstNode('plain', [], [
+                    new AstNode('text', ['text' => 'Review']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'packet']),
+                ]),
+            ]);
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('bullet_list', $stripWrapperAttrs($list), [$editedUnchecked, $checked]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $editedItemBlocks = $encoded['blocks'][0]['c'][0];
+
+                $t->same('Review', $editedItemBlocks[0]['c'][0]['c'], "{$source} {$writer} writer regenerates edited task item text");
+                $t->same(false, $editedItemBlocks[0]['taskChecked'], "{$source} {$writer} writer keeps unchecked sidecar on edited item");
+                $t->same(false, array_key_exists('reviewQueue', $editedItemBlocks[0]), "{$source} {$writer} writer drops stale edited task block sidecar");
+                $t->same([$checkedBlocks], $encoded['blocks'][0]['c'][1], "{$source} {$writer} writer preserves unchanged checked wrapper");
+            }
+        }
+    },
     'preserves task list checkbox sidecars through json and native list items' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

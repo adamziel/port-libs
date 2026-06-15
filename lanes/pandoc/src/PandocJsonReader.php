@@ -856,16 +856,37 @@ final class PandocJsonReader
 
     private function listItemTaskChecked(mixed $item): ?bool
     {
-        if (!is_array($item) || !array_is_list($item) || $item === []) {
+        $blocks = $this->listItemBlockPayload($item);
+        if ($blocks === null || $blocks === []) {
             return null;
         }
 
-        $firstBlock = $item[0];
+        $firstBlock = $blocks[0];
         if (!is_array($firstBlock) || array_is_list($firstBlock) || !array_key_exists('taskChecked', $firstBlock)) {
             return null;
         }
 
         return is_bool($firstBlock['taskChecked']) ? $firstBlock['taskChecked'] : null;
+    }
+
+    /**
+     * @return list<mixed>|null
+     */
+    private function listItemBlockPayload(mixed $item): ?array
+    {
+        if (!is_array($item) || !array_is_list($item) || $item === []) {
+            return null;
+        }
+
+        if (
+            count($item) === 1
+            && is_array($item[0])
+            && array_is_list($item[0])
+        ) {
+            return $item[0];
+        }
+
+        return $item;
     }
 
     /**
