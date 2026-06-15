@@ -754,17 +754,24 @@ final class NativeWriter
             return null;
         }
 
+        $shortNative = $this->captionShortNative($content[0], $caption[0]);
         if ([$short['value'], $content[1]] === $caption) {
+            if ($shortNative === $content[0]) {
+                return $native;
+            }
+
+            $native['c'] = $isWrappedContent ? [[$shortNative, $content[1]]] : [$shortNative, $content[1]];
+
             return $native;
         }
 
         return [
             't' => 'Caption',
             'c' => $isWrappedContent ? [[
-                $this->captionShortNative($content[0], $caption[0]),
+                $shortNative,
                 $caption[1],
             ]] : [
-                $this->captionShortNative($content[0], $caption[0]),
+                $shortNative,
                 $caption[1],
             ],
         ];
@@ -819,12 +826,12 @@ final class NativeWriter
     {
         $normalized = $this->normalizeCaptionShortNative($sourceShort);
         if (($normalized['valid'] ?? false) && $normalized['value'] === $generatedShort) {
-            return $sourceShort;
+            return $this->cleanCaptionMaybeNative($sourceShort);
         }
 
         if (is_array($sourceShort) && !array_is_list($sourceShort) && is_string($sourceShort['t'] ?? null)) {
             if ($sourceShort['t'] === 'Nothing') {
-                return $generatedShort === null ? $sourceShort : ['t' => 'Just', 'c' => ['t' => 'ShortCaption', 'c' => [$generatedShort]]];
+                return $generatedShort === null ? $this->cleanCaptionMaybeNative($sourceShort) : ['t' => 'Just', 'c' => ['t' => 'ShortCaption', 'c' => [$generatedShort]]];
             }
 
             if ($sourceShort['t'] === 'Just') {
@@ -839,6 +846,21 @@ final class NativeWriter
         }
 
         return $generatedShort;
+    }
+
+    private function cleanCaptionMaybeNative(mixed $sourceShort): mixed
+    {
+        if (
+            is_array($sourceShort)
+            && !array_is_list($sourceShort)
+            && ($sourceShort['t'] ?? null) === 'Nothing'
+            && array_key_exists('c', $sourceShort)
+            && $sourceShort['c'] !== []
+        ) {
+            unset($sourceShort['c']);
+        }
+
+        return $sourceShort;
     }
 
     /**
@@ -1829,6 +1851,7 @@ final class NativeWriter
             'AlignCenter',
             'AlignDefault',
             'ColWidthDefault',
+            'Nothing',
         ], true);
     }
 

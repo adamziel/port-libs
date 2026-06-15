@@ -1812,6 +1812,83 @@ return [
             }
         }
     },
+    'regenerates stale caption nothing helpers through json and native writers' => static function (TestRunner $t): void {
+        $staleNothing = ['t' => 'Nothing', 'c' => ['stale'], 'reviewQueue' => 'caption-nothing-source'];
+        $cleanNothing = ['t' => 'Nothing', 'reviewQueue' => 'caption-nothing-source'];
+        $captionBlocks = [
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Long'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'caption'],
+            ]],
+        ];
+        $caption = [
+            't' => 'Caption',
+            'c' => [$staleNothing, $captionBlocks],
+            'reviewQueue' => 'caption-source',
+        ];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['caption-nothing-table', ['json-native'], []],
+                $caption,
+                [],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'table-wrapper-source',
+        ];
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['caption-nothing-figure', [], []],
+                $caption,
+                [],
+            ],
+            'reviewQueue' => 'figure-wrapper-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock, $figureBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $figure = $document->children[1];
+
+            $t->same($staleNothing, $table->attr('shortCaptionMaybeNative'), "{$source} records stale table Nothing helper");
+            $t->same($staleNothing, $figure->attr('shortCaptionMaybeNative'), "{$source} records stale figure Nothing helper");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $tableCaption = $encoded['blocks'][0]['c'][1];
+                $figureCaption = $encoded['blocks'][1]['c'][1];
+
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} {$writer} writer regenerates stale table wrapper");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][1]), "{$source} {$writer} writer regenerates stale figure wrapper");
+                $t->same('caption-source', $tableCaption['reviewQueue'] ?? null, "{$source} {$writer} writer preserves table caption sidecar");
+                $t->same('caption-source', $figureCaption['reviewQueue'] ?? null, "{$source} {$writer} writer preserves figure caption sidecar");
+                $t->same($cleanNothing, $tableCaption['c'][0], "{$source} {$writer} writer cleans table Nothing helper");
+                $t->same($cleanNothing, $figureCaption['c'][0], "{$source} {$writer} writer cleans figure Nothing helper");
+
+                $roundTrip = $writer === 'json'
+                    ? (new PandocJsonReader())->readPacket($encoded)
+                    : (new NativeReader())->read(json_encode($encoded, JSON_THROW_ON_ERROR));
+
+                $t->same($cleanNothing, $roundTrip->children[0]->attr('shortCaptionMaybeNative'), "{$source} {$writer} round trip table Nothing helper");
+                $t->same($cleanNothing, $roundTrip->children[1]->attr('shortCaptionMaybeNative'), "{$source} {$writer} round trip figure Nothing helper");
+            }
+        }
+    },
     'regenerates stale nullary block payloads inside metadata lists and nested containers' => static function (TestRunner $t): void {
         $metaRule = ['t' => 'HorizontalRule', 'c' => ['stale-meta-rule'], 'reviewQueue' => 'meta-rule-source'];
         $metaNull = ['t' => 'Null', 'c' => ['stale-meta-null'], 'reviewQueue' => 'meta-null-source'];
