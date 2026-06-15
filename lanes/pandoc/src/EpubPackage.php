@@ -571,6 +571,7 @@ final class EpubPackage
             $ocfSidecars,
             $this->encryption,
         );
+        $readingOrderInventory = self::readingOrderInventoryReport($this->spine, $packageInventory);
         $compactPackageReport = self::compactPackageReport(
             $this->metadata,
             $this->packageLinks,
@@ -592,6 +593,7 @@ final class EpubPackage
             'opfPart' => $this->opfPartName,
             'mimetypeEntry' => $this->mimetypeEntry,
             'packageInventory' => $packageInventory,
+            'readingOrderInventory' => $readingOrderInventory,
             'rootfiles' => $this->rootfiles,
             'renditions' => $this->renditions,
             'containerLinks' => $this->containerLinks,
@@ -641,6 +643,7 @@ final class EpubPackage
             'wordpressImport' => [
                 'mimetypeEntry' => $this->mimetypeEntry,
                 'packageInventory' => $packageInventory,
+                'readingOrderInventory' => $readingOrderInventory,
                 'compactPackageReport' => $compactPackageReport,
                 'compactPackageReportCases' => $compactPackageReport['cases'],
                 'compactPackageReportPresentCaseIds' => $compactPackageReport['presentCaseIds'],
@@ -7154,6 +7157,291 @@ final class EpubPackage
             'centralPackagePaths' => $package->names(),
             'byPackagePath' => $byPackagePath,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spine
+     * @param array<string, mixed> $packageInventory
+     *
+     * @return array<string, mixed>
+     */
+    private static function readingOrderInventoryReport(array $spine, array $packageInventory): array
+    {
+        $inventoryByPackagePath = is_array($packageInventory['byPackagePath'] ?? null)
+            ? $packageInventory['byPackagePath']
+            : [];
+        $items = [];
+        $itemsByIdref = [];
+        $diagnostics = [];
+        $partNames = [];
+        $packagePaths = [];
+        $missingPartNames = [];
+        $encryptedPartNames = [];
+        $obfuscatedFontPartNames = [];
+        $unsupportedCompressionPartNames = [];
+        $byteExposurePolicyCounts = [];
+        $compressionMethodCounts = [];
+        $linearItemCount = 0;
+        $nonLinearItemCount = 0;
+        $existingItemCount = 0;
+        $missingPackagePartCount = 0;
+        $manifestItemMissingCount = 0;
+        $externalItemCount = 0;
+        $encryptedItemCount = 0;
+        $obfuscatedFontItemCount = 0;
+        $unsupportedCompressionItemCount = 0;
+        $exposableItemCount = 0;
+        $blockedItemCount = 0;
+        $totalByteLength = 0;
+        $totalCompressedByteLength = 0;
+        $exposableByteLength = 0;
+        $exposableCompressedByteLength = 0;
+        $blockedByteLength = 0;
+        $blockedCompressedByteLength = 0;
+        $unsupportedCompressionByteLength = 0;
+        $unsupportedCompressionCompressedByteLength = 0;
+
+        foreach ($spine as $index => $spineItem) {
+            $idref = is_string($spineItem['idref'] ?? null) ? $spineItem['idref'] : '';
+            $partName = is_string($spineItem['partName'] ?? null) ? $spineItem['partName'] : '';
+            $packagePath = self::packageInventoryEntryName($partName);
+            $inventoryItem = null;
+            if ($packagePath !== null && isset($inventoryByPackagePath[$packagePath]) && is_array($inventoryByPackagePath[$packagePath])) {
+                $inventoryItem = $inventoryByPackagePath[$packagePath];
+            }
+            $linear = ($spineItem['linear'] ?? true) !== false;
+            $manifestItemMissing = ($spineItem['manifestItemMissing'] ?? false) === true;
+            $external = ($spineItem['external'] ?? false) === true;
+            $exists = !$manifestItemMissing && !$external && ($spineItem['exists'] ?? false) === true && is_array($inventoryItem);
+            $missingPackagePart = !$manifestItemMissing && !$external && !$exists;
+            $encrypted = is_array($inventoryItem) && ($inventoryItem['encrypted'] ?? false) === true;
+            $obfuscatedFont = is_array($inventoryItem) && ($inventoryItem['obfuscatedFont'] ?? false) === true;
+            $compressionSupported = is_array($inventoryItem) ? ($inventoryItem['compressionSupported'] ?? null) : null;
+            $unsupportedCompression = $compressionSupported === false;
+            $canExposeBytes = $exists && !$encrypted && !$unsupportedCompression && ($inventoryItem['canExposeBytes'] ?? false) === true;
+            $byteLength = is_array($inventoryItem) && is_int($inventoryItem['byteLength'] ?? null) ? $inventoryItem['byteLength'] : null;
+            $compressedByteLength = is_array($inventoryItem) && is_int($inventoryItem['compressedByteLength'] ?? null) ? $inventoryItem['compressedByteLength'] : null;
+            $compressionMethodName = is_array($inventoryItem) && is_string($inventoryItem['compressionMethodName'] ?? null)
+                ? $inventoryItem['compressionMethodName']
+                : null;
+
+            if ($manifestItemMissing) {
+                $byteExposurePolicy = 'missing-spine-manifest-item-metadata-only';
+            } elseif ($external) {
+                $byteExposurePolicy = 'external-spine-resource-metadata-only';
+            } elseif ($missingPackagePart) {
+                $byteExposurePolicy = 'missing-spine-package-part-metadata-only';
+            } elseif ($obfuscatedFont) {
+                $byteExposurePolicy = 'obfuscated-font-bytes-blocked';
+            } elseif ($encrypted) {
+                $byteExposurePolicy = 'encrypted-resource-bytes-blocked';
+            } elseif ($unsupportedCompression) {
+                $byteExposurePolicy = 'unsupported-compression-metadata-only';
+            } elseif ($canExposeBytes) {
+                $byteExposurePolicy = 'spine-content-bytes-exposable';
+            } else {
+                $byteExposurePolicy = 'spine-content-metadata-only';
+            }
+
+            $itemDiagnostics = [];
+            if ($manifestItemMissing) {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-spine-manifest-item',
+                    'idref' => $idref,
+                    'message' => 'EPUB spine itemref references a manifest item id that is not present',
+                ];
+            } elseif ($external) {
+                $itemDiagnostics[] = [
+                    'type' => 'external-spine-resource-reference',
+                    'idref' => $idref,
+                    'href' => is_string($spineItem['href'] ?? null) ? $spineItem['href'] : '',
+                    'message' => 'EPUB spine itemref resolves to an external manifest resource and was not fetched',
+                ];
+            } elseif ($missingPackagePart) {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-spine-package-part',
+                    'idref' => $idref,
+                    'partName' => $partName,
+                    'message' => 'EPUB spine itemref points at a manifest package part that is not present in the ZIP',
+                ];
+            }
+            if ($encrypted) {
+                $itemDiagnostics[] = [
+                    'type' => 'encrypted-spine-package-part',
+                    'idref' => $idref,
+                    'partName' => $partName,
+                    'byteExposurePolicy' => $byteExposurePolicy,
+                    'message' => 'EPUB spine package part is encrypted and remains metadata-only for compact ingestion',
+                ];
+            }
+            if ($unsupportedCompression) {
+                $itemDiagnostics[] = [
+                    'type' => 'unsupported-spine-package-compression',
+                    'idref' => $idref,
+                    'partName' => $partName,
+                    'compressionMethod' => is_array($inventoryItem) && is_int($inventoryItem['compressionMethod'] ?? null) ? $inventoryItem['compressionMethod'] : null,
+                    'compressionMethodName' => $compressionMethodName,
+                    'message' => 'EPUB spine package part uses a ZIP compression method that compact ingestion does not inflate',
+                ];
+            }
+
+            $item = [
+                'index' => $index,
+                'id' => is_string($spineItem['id'] ?? null) ? $spineItem['id'] : null,
+                'idref' => $idref,
+                'href' => is_string($spineItem['href'] ?? null) ? $spineItem['href'] : '',
+                'partName' => $partName === '' ? null : $partName,
+                'packagePath' => $packagePath,
+                'linear' => $linear,
+                'manifestItemMissing' => $manifestItemMissing,
+                'external' => $external,
+                'exists' => $exists,
+                'missingPackagePart' => $missingPackagePart,
+                'mediaType' => is_string($spineItem['mediaType'] ?? null) ? $spineItem['mediaType'] : '',
+                'mediaTypeBase' => self::mediaTypeBase((string) ($spineItem['mediaType'] ?? '')),
+                'resourceKind' => is_array($inventoryItem) && is_string($inventoryItem['resourceKind'] ?? null) ? $inventoryItem['resourceKind'] : null,
+                'encrypted' => $encrypted,
+                'obfuscatedFont' => $obfuscatedFont,
+                'compressionSupported' => $compressionSupported,
+                'unsupportedCompression' => $unsupportedCompression,
+                'compressionMethod' => is_array($inventoryItem) && is_int($inventoryItem['compressionMethod'] ?? null) ? $inventoryItem['compressionMethod'] : null,
+                'compressionMethodName' => $compressionMethodName,
+                'localOrder' => is_array($inventoryItem) && is_int($inventoryItem['localOrder'] ?? null) ? $inventoryItem['localOrder'] : null,
+                'centralOrder' => is_array($inventoryItem) && is_int($inventoryItem['index'] ?? null) ? $inventoryItem['index'] : null,
+                'byteLength' => $byteLength,
+                'compressedByteLength' => $compressedByteLength,
+                'crc32' => is_array($inventoryItem) && is_string($inventoryItem['crc32'] ?? null) ? $inventoryItem['crc32'] : null,
+                'canExposeBytes' => $canExposeBytes,
+                'byteExposurePolicy' => $byteExposurePolicy,
+                'roles' => is_array($inventoryItem) && is_array($inventoryItem['roles'] ?? null) ? array_values($inventoryItem['roles']) : [],
+                'diagnosticCount' => count($itemDiagnostics),
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            $items[] = $item;
+            if ($idref !== '') {
+                $itemsByIdref[$idref][] = $item;
+            }
+            if ($partName !== '') {
+                $partNames[] = $partName;
+            }
+            if ($packagePath !== null) {
+                $packagePaths[] = $packagePath;
+            }
+
+            if ($linear) {
+                ++$linearItemCount;
+            } else {
+                ++$nonLinearItemCount;
+            }
+            if ($exists) {
+                ++$existingItemCount;
+            }
+            if ($missingPackagePart) {
+                ++$missingPackagePartCount;
+                if ($partName !== '') {
+                    $missingPartNames[] = $partName;
+                }
+            }
+            if ($manifestItemMissing) {
+                ++$manifestItemMissingCount;
+            }
+            if ($external) {
+                ++$externalItemCount;
+            }
+            if ($encrypted) {
+                ++$encryptedItemCount;
+                if ($partName !== '') {
+                    $encryptedPartNames[] = $partName;
+                }
+            }
+            if ($obfuscatedFont) {
+                ++$obfuscatedFontItemCount;
+                if ($partName !== '') {
+                    $obfuscatedFontPartNames[] = $partName;
+                }
+            }
+            if ($unsupportedCompression) {
+                ++$unsupportedCompressionItemCount;
+                if ($partName !== '') {
+                    $unsupportedCompressionPartNames[] = $partName;
+                }
+            }
+            if ($canExposeBytes) {
+                ++$exposableItemCount;
+            } else {
+                ++$blockedItemCount;
+            }
+
+            $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+            if ($compressionMethodName !== null) {
+                $compressionMethodCounts[$compressionMethodName] = ($compressionMethodCounts[$compressionMethodName] ?? 0) + 1;
+            }
+
+            $bytes = $byteLength ?? 0;
+            $compressedBytes = $compressedByteLength ?? 0;
+            $totalByteLength += $bytes;
+            $totalCompressedByteLength += $compressedBytes;
+            if ($canExposeBytes) {
+                $exposableByteLength += $bytes;
+                $exposableCompressedByteLength += $compressedBytes;
+            } else {
+                $blockedByteLength += $bytes;
+                $blockedCompressedByteLength += $compressedBytes;
+            }
+            if ($unsupportedCompression) {
+                $unsupportedCompressionByteLength += $bytes;
+                $unsupportedCompressionCompressedByteLength += $compressedBytes;
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = [
+                    'index' => $index,
+                    'idref' => $idref,
+                ] + $diagnostic;
+            }
+        }
+
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+        ksort($compressionMethodCounts, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'linearItemCount' => $linearItemCount,
+            'nonLinearItemCount' => $nonLinearItemCount,
+            'existingItemCount' => $existingItemCount,
+            'missingItemCount' => $manifestItemMissingCount + $missingPackagePartCount,
+            'missingPackagePartCount' => $missingPackagePartCount,
+            'manifestItemMissingCount' => $manifestItemMissingCount,
+            'externalItemCount' => $externalItemCount,
+            'encryptedItemCount' => $encryptedItemCount,
+            'obfuscatedFontItemCount' => $obfuscatedFontItemCount,
+            'unsupportedCompressionItemCount' => $unsupportedCompressionItemCount,
+            'exposableItemCount' => $exposableItemCount,
+            'blockedItemCount' => $blockedItemCount,
+            'totalByteLength' => $totalByteLength,
+            'totalCompressedByteLength' => $totalCompressedByteLength,
+            'exposableByteLength' => $exposableByteLength,
+            'exposableCompressedByteLength' => $exposableCompressedByteLength,
+            'blockedByteLength' => $blockedByteLength,
+            'blockedCompressedByteLength' => $blockedCompressedByteLength,
+            'unsupportedCompressionByteLength' => $unsupportedCompressionByteLength,
+            'unsupportedCompressionCompressedByteLength' => $unsupportedCompressionCompressedByteLength,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'compressionMethodCounts' => $compressionMethodCounts,
+            'partNames' => $partNames,
+            'packagePaths' => $packagePaths,
+            'missingPartNames' => $missingPartNames,
+            'encryptedPartNames' => $encryptedPartNames,
+            'obfuscatedFontPartNames' => $obfuscatedFontPartNames,
+            'unsupportedCompressionPartNames' => $unsupportedCompressionPartNames,
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticTypes' => self::compactDiagnosticTypes($diagnostics),
+            'diagnostics' => $diagnostics,
+            'itemsByIdref' => $itemsByIdref,
+            'items' => $items,
         ];
     }
 
