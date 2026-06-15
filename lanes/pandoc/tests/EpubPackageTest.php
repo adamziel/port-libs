@@ -4537,8 +4537,8 @@ XML;
         $report = $summary['compactPackageReport'];
         $casesById = $report['casesById'];
 
-        $t->same(8, $report['caseCount']);
-        $t->same(8, $report['presentCaseCount']);
+        $t->same(10, $report['caseCount']);
+        $t->same(10, $report['presentCaseCount']);
         $t->same(0, $report['diagnosticCaseCount']);
         $t->same(0, $report['diagnosticCount']);
         $t->same([], $report['diagnosticTypes']);
@@ -4549,6 +4549,8 @@ XML;
             'collections',
             'media-overlays',
             'manifest-fallbacks',
+            'manifest-resource-kinds',
+            'manifest-resource-properties',
             'encrypted-resources',
             'ocf-sidecars',
         ], $report['caseIds']);
@@ -4560,6 +4562,8 @@ XML;
             'collections' => 1,
             'media-overlays' => 1,
             'manifest-fallbacks' => 1,
+            'manifest-resource-kinds' => 8,
+            'manifest-resource-properties' => 2,
             'encrypted-resources' => 1,
             'ocf-sidecars' => 1,
         ], $report['caseCounts']);
@@ -4569,7 +4573,7 @@ XML;
             'guide' => 2,
             'collections' => 1,
             'media-overlays' => 1,
-            'manifest' => 1,
+            'manifest' => 11,
             'encryption' => 1,
             'ocf' => 1,
         ], $report['domainCounts']);
@@ -4585,6 +4589,23 @@ XML;
         $t->same(['/EPUB/text/chapter1.xhtml#intro'], $casesById['media-overlays']['textTargets']);
         $t->same(['/EPUB/audio/chapter.mp3'], $casesById['media-overlays']['audioTargets']);
         $t->same(1, $casesById['manifest-fallbacks']['fallbackCount']);
+        $t->same(7, $casesById['manifest-resource-kinds']['kindCount']);
+        $t->same([
+            'asset' => 1,
+            'audio' => 1,
+            'cover-image' => 1,
+            'media-overlay' => 1,
+            'navigation' => 1,
+            'style' => 1,
+            'xhtml' => 2,
+        ], $casesById['manifest-resource-kinds']['kindCounts']);
+        $t->same(2, $casesById['manifest-resource-properties']['itemCount']);
+        $t->same(1, $casesById['manifest-resource-properties']['blockedByteExposureCount']);
+        $t->same(['cover'], $casesById['manifest-resource-properties']['blockedByteExposureItemIds']);
+        $t->same([
+            'encrypted-resource-bytes-blocked' => 1,
+            'manifest-resource-bytes-exposable' => 1,
+        ], $casesById['manifest-resource-properties']['byteExposurePolicyCounts']);
         $t->same(['/EPUB/images/cover.png'], $casesById['encrypted-resources']['encryptedParts']);
         $t->same(1, $casesById['encrypted-resources']['blockedByteExposureCount']);
         $t->same(['signatures'], $casesById['ocf-sidecars']['kinds']);
@@ -4592,6 +4613,79 @@ XML;
         $t->same($report['cases'], $summary['wordpressImport']['compactPackageReportCases']);
         $t->same($report['presentCaseIds'], $summary['wordpressImport']['compactPackageReportPresentCaseIds']);
         $t->same([], $summary['wordpressImport']['compactPackageReportDiagnostics']);
+    },
+
+    'summarizes compact EPUB manifest resource readiness cases for review handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $opfWithResourceReadiness = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" prefix="review: https://example.invalid/epub-review#">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:compact-resource-readiness</dc:identifier>
+    <dc:title>Compact resource readiness</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-15T03:20:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml unknown:review-flag"/>
+    <item id="remote" href="https://cdn.example.invalid/cover.png" media-type="image/png" properties="remote-resources"/>
+    <item id="missing" href="images/missing.svg" media-type="image/svg+xml" properties="svg"/>
+    <item id="script" href="scripts/review.js" media-type="application/javascript" properties="scripted"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithResourceReadiness],
+            ['name' => 'EPUB/nav.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><h1>Contents</h1><ol><li><a href="text/chapter.xhtml">Chapter</a></li></ol></nav></body></html>'],
+            ['name' => 'EPUB/text/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><math><mi>x</mi></math></body></html>'],
+            ['name' => 'EPUB/scripts/review.js', 'data' => 'SCRIPTED-REVIEW', 'method' => 12],
+        ]));
+        $summary = $epub->summary();
+        $report = $summary['compactPackageReport'];
+        $resourceKinds = $report['casesById']['manifest-resource-kinds'];
+        $resourceProperties = $report['casesById']['manifest-resource-properties'];
+
+        $t->true(in_array('manifest-resource-kinds', $report['caseIds'], true));
+        $t->true(in_array('manifest-resource-properties', $report['caseIds'], true));
+        $t->same(['manifest-resource-properties'], $report['diagnosticCaseIds']);
+        $t->same(['manifest-resource-kinds', 'manifest-resource-properties'], $report['reviewRequiredCaseIds']);
+        $t->same(1, $report['diagnosticCount']);
+        $t->same(['unknown-manifest-property-prefix'], $report['diagnosticTypes']);
+        $t->same('unknown-manifest-property-prefix', $report['diagnostics'][0]['type']);
+        $t->same('chapter', $report['diagnostics'][0]['manifestId']);
+
+        $t->same(5, $resourceKinds['itemCount']);
+        $t->same([
+            'image' => 1,
+            'navigation' => 1,
+            'script' => 1,
+            'svg' => 1,
+            'xhtml' => 1,
+        ], $resourceKinds['kindCounts']);
+        $t->same(3, $resourceKinds['existingItemCount']);
+        $t->same(2, $resourceKinds['missingItemCount']);
+        $t->same(1, $resourceKinds['externalItemCount']);
+        $t->same(2, $resourceKinds['exposableItemCount']);
+
+        $t->same(5, $resourceProperties['itemCount']);
+        $t->same(4, $resourceProperties['reviewRequiredCount']);
+        $t->same(3, $resourceProperties['blockedByteExposureCount']);
+        $t->same(2, $resourceProperties['missingItemCount']);
+        $t->same(1, $resourceProperties['externalItemCount']);
+        $t->same(1, $resourceProperties['unsupportedCompressionItemCount']);
+        $t->same(['chapter', 'remote', 'missing', 'script'], $resourceProperties['reviewItemIds']);
+        $t->same(['remote', 'missing', 'script'], $resourceProperties['blockedByteExposureItemIds']);
+        $t->same([
+            'external-resource-metadata-only' => 1,
+            'manifest-resource-bytes-exposable' => 2,
+            'missing-resource-metadata-only' => 1,
+            'unsupported-compression-metadata-only' => 1,
+        ], $resourceProperties['byteExposurePolicyCounts']);
+        $t->same($report, $summary['wordpressImport']['compactPackageReport']);
+        $t->same($report['diagnostics'], $summary['wordpressImport']['compactPackageReportDiagnostics']);
     },
 
     'summarizes compact EPUB package validation diagnostics for review handoff' => static function (TestRunner $t) use ($epubContainerXml): void {

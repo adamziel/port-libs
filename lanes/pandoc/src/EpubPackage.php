@@ -580,6 +580,8 @@ final class EpubPackage
             $this->mediaOverlays,
             $manifestFallbacks,
             $this->encryption,
+            $manifestResourceKinds,
+            $resourceProperties,
             $ocfSidecars,
             $this->navigation,
             $this->navigationSections,
@@ -822,6 +824,8 @@ final class EpubPackage
      * @param array<string, mixed> $mediaOverlays
      * @param array<string, mixed> $manifestFallbacks
      * @param array<string, mixed> $encryption
+     * @param array<string, mixed> $manifestResourceKinds
+     * @param array<string, mixed> $resourceProperties
      * @param array<string, mixed> $ocfSidecars
      * @param array<string, mixed>|null $navigation
      * @param list<array<string, mixed>> $navigationSections
@@ -838,6 +842,8 @@ final class EpubPackage
         array $mediaOverlays,
         array $manifestFallbacks,
         array $encryption,
+        array $manifestResourceKinds,
+        array $resourceProperties,
         array $ocfSidecars,
         ?array $navigation,
         array $navigationSections,
@@ -978,6 +984,60 @@ final class EpubPackage
             [
                 'fallbackCount' => (int) ($manifestFallbacks['fallbackCount'] ?? 0),
                 'fallbackStyleCount' => (int) ($manifestFallbacks['fallbackStyleCount'] ?? 0),
+            ],
+        );
+
+        $manifestResourceKindMissingCount = (int) ($manifestResourceKinds['missingItemCount'] ?? 0);
+        $manifestResourceKindExternalCount = (int) ($manifestResourceKinds['externalItemCount'] ?? 0);
+        $appendCase(
+            'manifest-resource-kinds',
+            'manifest',
+            'OPF manifest resource kind readiness',
+            (int) ($manifestResourceKinds['itemCount'] ?? 0),
+            [],
+            [
+                'reviewRequired' => $manifestResourceKindMissingCount > 0 || $manifestResourceKindExternalCount > 0,
+                'kindCount' => (int) ($manifestResourceKinds['kindCount'] ?? 0),
+                'kinds' => is_array($manifestResourceKinds['kinds'] ?? null) ? array_values($manifestResourceKinds['kinds']) : [],
+                'kindCounts' => is_array($manifestResourceKinds['kindCounts'] ?? null) ? $manifestResourceKinds['kindCounts'] : [],
+                'kindPartNames' => is_array($manifestResourceKinds['kindPartNames'] ?? null) ? $manifestResourceKinds['kindPartNames'] : [],
+                'mediaTypeBaseCounts' => is_array($manifestResourceKinds['mediaTypeBaseCounts'] ?? null) ? $manifestResourceKinds['mediaTypeBaseCounts'] : [],
+                'existingItemCount' => (int) ($manifestResourceKinds['existingItemCount'] ?? 0),
+                'missingItemCount' => $manifestResourceKindMissingCount,
+                'externalItemCount' => $manifestResourceKindExternalCount,
+                'exposableItemCount' => (int) ($manifestResourceKinds['exposableItemCount'] ?? 0),
+            ],
+        );
+
+        $resourcePropertySummary = is_array($resourceProperties['summary'] ?? null) ? $resourceProperties['summary'] : [];
+        $resourcePropertyVocabulary = is_array($resourceProperties['propertyVocabulary'] ?? null) ? $resourceProperties['propertyVocabulary'] : [];
+        $resourcePropertyDiagnostics = self::compactDiagnosticList($resourcePropertyVocabulary['diagnostics'] ?? []);
+        $resourcePropertyReviewRequiredCount = (int) ($resourcePropertySummary['reviewRequiredCount'] ?? 0);
+        $resourcePropertyBlockedCount = (int) ($resourcePropertySummary['blockedByteExposureCount'] ?? 0);
+        $appendCase(
+            'manifest-resource-properties',
+            'manifest',
+            'OPF manifest resource property byte policy',
+            is_array($resourceProperties['items'] ?? null) ? count($resourceProperties['items']) : 0,
+            $resourcePropertyDiagnostics,
+            [
+                'reviewRequired' => $resourcePropertyReviewRequiredCount > 0 || $resourcePropertyBlockedCount > 0 || $resourcePropertyDiagnostics !== [],
+                'propertySummary' => $resourcePropertySummary,
+                'byteExposurePolicyCounts' => is_array($resourceProperties['byteExposurePolicyCounts'] ?? null) ? $resourceProperties['byteExposurePolicyCounts'] : [],
+                'reviewRequiredCount' => $resourcePropertyReviewRequiredCount,
+                'blockedByteExposureCount' => $resourcePropertyBlockedCount,
+                'missingItemCount' => (int) ($resourcePropertySummary['missingItemCount'] ?? 0),
+                'externalItemCount' => (int) ($resourcePropertySummary['externalItemCount'] ?? 0),
+                'encryptedItemCount' => (int) ($resourcePropertySummary['encryptedItemCount'] ?? 0),
+                'unsupportedCompressionItemCount' => (int) ($resourcePropertySummary['unsupportedCompressionItemCount'] ?? 0),
+                'reviewItemIds' => is_array($resourceProperties['reviewItems'] ?? null) ? array_values(array_filter(
+                    array_column($resourceProperties['reviewItems'], 'id'),
+                    static fn (mixed $id): bool => is_string($id) && $id !== '',
+                )) : [],
+                'blockedByteExposureItemIds' => is_array($resourceProperties['blockedByteExposureItems'] ?? null) ? array_values(array_filter(
+                    array_column($resourceProperties['blockedByteExposureItems'], 'id'),
+                    static fn (mixed $id): bool => is_string($id) && $id !== '',
+                )) : [],
             ],
         );
 
