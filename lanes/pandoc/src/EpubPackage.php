@@ -555,6 +555,10 @@ final class EpubPackage
         $resourceProperties = $this->resourceProperties();
         $manifestResourceKinds = $this->manifestResourceKinds();
         $validationReport = $this->validationReport();
+        $ncxNavigationSelection = self::ncxNavigationSelectionReport(
+            is_array($validationReport['ncx'] ?? null) ? $validationReport['ncx'] : [],
+            is_array($validationReport['navigation'] ?? null) ? $validationReport['navigation'] : [],
+        );
         $auxiliaryNavigation = self::auxiliaryNavigationReport($this->navigationSections);
         $spineMetadata = $this->spineMetadata();
         $packageAuthoring = self::packageAuthoringReport($this->metadata);
@@ -637,6 +641,7 @@ final class EpubPackage
             'assets' => $assetSummary,
             'remoteResourcePolicy' => $remoteResourcePolicy,
             'validation' => $validationReport,
+            'ncxNavigationSelection' => $ncxNavigationSelection,
             'compactPackageReport' => $compactPackageReport,
             'wordpressImport' => [
                 'mimetypeEntry' => $this->mimetypeEntry,
@@ -792,6 +797,11 @@ final class EpubPackage
                 'resourcePropertyDiagnostics' => $resourceProperties['propertyVocabulary']['diagnostics'],
                 'packageValidation' => $validationReport,
                 'packageValidationDiagnostics' => $validationReport['diagnostics'],
+                'ncxNavigationSelection' => $ncxNavigationSelection,
+                'ncxNavigationSelectionDiagnostics' => $ncxNavigationSelection['diagnostics'],
+                'ncxNavigationSelectedBy' => $ncxNavigationSelection['selectedBy'],
+                'ncxNavigationSelectedItem' => $ncxNavigationSelection['selectedItem'],
+                'ncxNavigationFallbackToManifestScan' => $ncxNavigationSelection['fallbackToManifestScan'],
                 'spineAuthoring' => $spineAuthoring,
                 'spineAuthoringItems' => $spineAuthoring['items'],
                 'manifestMediaTypeParameterItems' => $validationReport['manifest']['mediaTypeParameterItems'],
@@ -1110,6 +1120,62 @@ final class EpubPackage
             'diagnostics' => $allDiagnostics,
             'cases' => $cases,
             'casesById' => self::compactCasesById($cases),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ncxNavigationSelectionReport(array $ncxReport, array $navigationReport): array
+    {
+        $diagnostics = self::compactDiagnosticList($ncxReport['diagnostics'] ?? []);
+        $manifestNcxItems = self::compactDiagnosticList($ncxReport['manifestNcxItems'] ?? []);
+        $tocItem = is_array($ncxReport['tocItem'] ?? null) ? $ncxReport['tocItem'] : null;
+        $selectedItem = is_array($ncxReport['selectedItem'] ?? null) ? $ncxReport['selectedItem'] : null;
+        $source = is_string($navigationReport['source'] ?? null) ? $navigationReport['source'] : null;
+        $selectedBy = is_string($ncxReport['selectedBy'] ?? null) ? $ncxReport['selectedBy'] : null;
+        $tocSpecified = ($ncxReport['tocSpecified'] ?? false) === true;
+        $tocId = is_string($ncxReport['tocId'] ?? null) && trim($ncxReport['tocId']) !== ''
+            ? trim($ncxReport['tocId'])
+            : null;
+        $manifestNcxItemCount = is_int($ncxReport['manifestNcxItemCount'] ?? null)
+            ? (int) $ncxReport['manifestNcxItemCount']
+            : count($manifestNcxItems);
+        $sourceIsNcx = $source === 'ncx';
+        $selectedPartName = is_array($selectedItem) && is_string($selectedItem['partName'] ?? null)
+            ? $selectedItem['partName']
+            : null;
+        $tocUsable = $tocSpecified
+            && is_array($tocItem)
+            && ($tocItem['mediaType'] ?? null) === self::NCX_MEDIA_TYPE;
+        $selectedMatchesToc = $tocUsable
+            && is_array($selectedItem)
+            && ($selectedItem['id'] ?? null) === ($tocItem['id'] ?? null)
+            && ($selectedItem['partName'] ?? null) === ($tocItem['partName'] ?? null);
+
+        return [
+            'present' => $tocSpecified || $manifestNcxItemCount > 0 || $sourceIsNcx || $selectedItem !== null,
+            'valid' => ($ncxReport['valid'] ?? true) === true,
+            'source' => $source,
+            'sourceIsNcx' => $sourceIsNcx,
+            'tocSpecified' => $tocSpecified,
+            'tocId' => $tocId,
+            'tocItem' => $tocItem,
+            'tocUsable' => $tocUsable,
+            'selectedMatchesToc' => $selectedMatchesToc,
+            'selectedBy' => $selectedBy,
+            'selectedItem' => $selectedItem,
+            'selectedPartName' => $selectedPartName,
+            'fallbackToManifestScan' => $sourceIsNcx && $selectedBy === 'manifest-scan' && !$selectedMatchesToc,
+            'manifestNcxItemCount' => $manifestNcxItemCount,
+            'manifestNcxItems' => $manifestNcxItems,
+            'entryCount' => is_int($navigationReport['entryCount'] ?? null) ? (int) $navigationReport['entryCount'] : 0,
+            'localTargetCount' => is_int($navigationReport['localTargetCount'] ?? null) ? (int) $navigationReport['localTargetCount'] : 0,
+            'externalTargetCount' => is_int($navigationReport['externalTargetCount'] ?? null) ? (int) $navigationReport['externalTargetCount'] : 0,
+            'missingTargetCount' => is_int($navigationReport['missingTargetCount'] ?? null) ? (int) $navigationReport['missingTargetCount'] : 0,
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticTypes' => self::compactDiagnosticTypes($diagnostics),
+            'diagnostics' => $diagnostics,
         ];
     }
 

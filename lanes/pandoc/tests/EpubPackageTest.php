@@ -5351,6 +5351,25 @@ XML;
         $t->same('/EPUB/chapter.xhtml', $epub->navigation()['entries'][0]['target']);
         $t->same($validation, $summary['wordpressImport']['packageValidation']);
         $t->same($ncx, $summary['wordpressImport']['packageValidation']['ncx']);
+        $selection = $summary['ncxNavigationSelection'];
+        $t->same($selection, $summary['wordpressImport']['ncxNavigationSelection']);
+        $t->same(true, $selection['present']);
+        $t->same(false, $selection['valid']);
+        $t->same('ncx', $selection['source']);
+        $t->same(true, $selection['sourceIsNcx']);
+        $t->same(true, $selection['tocSpecified']);
+        $t->same('wrong-toc', $selection['tocId']);
+        $t->same(false, $selection['tocUsable']);
+        $t->same(false, $selection['selectedMatchesToc']);
+        $t->same(true, $selection['fallbackToManifestScan']);
+        $t->same('manifest-scan', $summary['wordpressImport']['ncxNavigationSelectedBy']);
+        $t->same('/EPUB/toc.ncx', $selection['selectedPartName']);
+        $t->same('toc', $summary['wordpressImport']['ncxNavigationSelectedItem']['id']);
+        $t->same(1, $selection['entryCount']);
+        $t->same(1, $selection['localTargetCount']);
+        $t->same(1, $selection['manifestNcxItemCount']);
+        $t->same(['spine-toc-non-ncx-manifest-item'], $selection['diagnosticTypes']);
+        $t->same($selection['diagnostics'], $summary['wordpressImport']['ncxNavigationSelectionDiagnostics']);
 
         $opfWithMissingToc = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="bookid">
@@ -5377,6 +5396,8 @@ XML;
             ['name' => 'EPUB/toc.ncx', 'data' => $ncxXml],
         ]));
         $missingValidation = $missingTocEpub->validationReport();
+        $missingSummary = $missingTocEpub->summary();
+        $missingSelection = $missingSummary['wordpressImport']['ncxNavigationSelection'];
 
         $t->same(false, $missingValidation['valid']);
         $t->same(['missing-spine-toc-manifest-item'], array_column($missingValidation['diagnostics'], 'type'));
@@ -5386,6 +5407,14 @@ XML;
         $t->same('toc', $missingValidation['ncx']['selectedItem']['id']);
         $t->same('ncx', $missingValidation['navigation']['source']);
         $t->same('Legacy chapter', $missingTocEpub->navigation()['entries'][0]['label']);
+        $t->same(true, $missingSelection['present']);
+        $t->same(false, $missingSelection['valid']);
+        $t->same('missing-toc', $missingSelection['tocId']);
+        $t->same(null, $missingSelection['tocItem']);
+        $t->same(false, $missingSelection['tocUsable']);
+        $t->same(true, $missingSelection['fallbackToManifestScan']);
+        $t->same('/EPUB/toc.ncx', $missingSelection['selectedPartName']);
+        $t->same(['missing-spine-toc-manifest-item'], $missingSelection['diagnosticTypes']);
     },
 
     'preserves EPUB container rootfile full-path suffix provenance for package review' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
