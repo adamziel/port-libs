@@ -2759,6 +2759,11 @@ final class MarkdownWriter
 
         $caption = (string) $figure->attr('caption', '');
         if ($caption !== '' && $image->children === []) {
+            $captionInlines = $figure->attr('captionInlines', []);
+            if ($figure->attr('renderCaptionInlines') === true && is_array($captionInlines) && $this->allAstNodes($captionInlines)) {
+                return new AstNode('image', $attrs, array_values($captionInlines));
+            }
+
             return new AstNode('image', $attrs, [new AstNode('text', ['text' => $caption])]);
         }
 

@@ -5160,10 +5160,24 @@ final class EpubPackageReader
             if ($image instanceof \DOMElement) {
                 $caption = $this->firstDescendantByLocalName($element, 'figcaption');
                 $imageNode = $this->imageNode($image, $baseDir);
-                return [new AstNode('figure', [
-                    'caption' => $caption instanceof \DOMElement ? $this->normalizedText($caption->textContent) : (string) $imageNode->attr('alt', ''),
+                $captionInlines = $caption instanceof \DOMElement ? $this->inlineNodesFromChildren($caption, $baseDir) : [];
+                $attrs = [
+                    'caption' => $captionInlines !== [] ? $this->plainInlineText($captionInlines) : (string) $imageNode->attr('alt', ''),
                     'htmlAttributes' => $this->htmlAttributes($element),
-                ], [$imageNode])];
+                ];
+                if ($caption instanceof \DOMElement) {
+                    $attrs['captionInlines'] = $captionInlines;
+                    $attrs['renderCaptionInlines'] = true;
+                    $attrs['captionSource'] = [
+                        'source' => 'epub-xhtml-figcaption',
+                        'sourceAttributes' => [
+                            'htmlAttributes' => $this->htmlAttributes($caption),
+                            'classes' => $this->classList($caption),
+                        ],
+                    ];
+                }
+
+                return [new AstNode('figure', $attrs, [$imageNode])];
             }
         }
 

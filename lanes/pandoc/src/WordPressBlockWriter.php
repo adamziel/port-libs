@@ -657,7 +657,7 @@ final class WordPressBlockWriter
     private function renderCaptionInlines(AstNode $node): string
     {
         $inlines = $node->attr('captionInlines', null);
-        if (!is_array($inlines)) {
+        if (!is_array($inlines) || $inlines === []) {
             return $this->esc((string) $node->attr('caption', ''));
         }
 
@@ -2400,9 +2400,9 @@ final class WordPressBlockWriter
         $contentBlocks = $this->figureContentBlocks($node);
         if (!$this->isSimpleImageFigure($node) && $contentBlocks !== []) {
             $html = '<figure' . $this->renderHtmlWriterAttrs($node, true) . '>' . $this->renderBlocksAsHtml($contentBlocks);
-            $caption = (string) $node->attr('caption', '');
+            $caption = $this->renderFigureCaption($node);
             if ($caption !== '') {
-                $html .= '<figcaption>' . $this->esc($caption) . '</figcaption>';
+                $html .= '<figcaption>' . $caption . '</figcaption>';
             }
 
             return $html . '</figure>';
@@ -2419,10 +2419,19 @@ final class WordPressBlockWriter
         $caption = (string) $node->attr('caption', $image->attr('alt', ''));
         $html = '<figure' . $this->renderImageFigureAttrs($node) . '>' . $this->renderImageHtml($image);
         if ($caption !== '') {
-            $html .= '<figcaption>' . $this->esc($caption) . '</figcaption>';
+            $html .= '<figcaption>' . $this->renderFigureCaption($node) . '</figcaption>';
         }
 
         return $html . '</figure>';
+    }
+
+    private function renderFigureCaption(AstNode $node): string
+    {
+        if ($node->attr('renderCaptionInlines') === true) {
+            return $this->renderCaptionInlines($node);
+        }
+
+        return $this->esc((string) $node->attr('caption', ''));
     }
 
     private function isSimpleImageFigure(AstNode $node): bool

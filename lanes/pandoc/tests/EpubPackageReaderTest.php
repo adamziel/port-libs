@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\EpubPackageReader;
+use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $fixture = static fn (): string => dirname(__DIR__) . '/fixtures/epub3-package';
@@ -2668,6 +2669,75 @@ XML);
         $t->same('Preserve nested checks.', $secondItem->children[1]->children[1]->children[0]->children[0]->attr('text'));
         $t->contains('<dl id="review-glossary" class="migration-terms"><dt>Review status</dt><dd>Ready for <strong>direct XHTML</strong> handoff.</dd>', $blocks);
         $t->contains('<dt>Resource note</dt><dd><p>Keep package-local links like <a href="EPUB/chapter1.xhtml#opening-note">opening note</a> reviewable.</p><ul><li>Preserve nested checks.</li></ul></dd></dl>', $blocks);
+    },
+    'preserves epub xhtml figure caption inline provenance for writer handoff' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-xhtml-figure-caption-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-figure-caption-review</dc:identifier>
+    <dc:title>Figure Caption Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="cover" href="images/cover.png" media-type="image/png"/>
+    <item id="audit" href="audit.html" media-type="text/html"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <figure id="cover-figure" class="reviewed" data-review="figure">
+      <img src="images/cover.png" title="Cover source"/>
+      <figcaption id="cover-caption" class="source-caption">Reviewed <em>cover</em> <a href="audit.html#cover" title="Audit record">audit</a> <code>sha256</code></figcaption>
+    </figure>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/images/cover.png', 'PNG');
+            $writePackageFile($root, 'EPUB/audit.html', '<html><body>audit</body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $wordpress = (new WordPressBlockWriter())->write($document);
+            $markdown = (new MarkdownWriter())->write($document);
+            $figure = $document->children[0];
+            $image = $figure->children[0];
+            $captionInlines = $figure->attr('captionInlines');
+
+            $t->same(1, count($document->children));
+            $t->same('figure', $figure->type);
+            $t->same('Reviewed cover audit sha256', $figure->attr('caption'));
+            $t->same('cover-figure', $figure->attr('htmlAttributes')['id']);
+            $t->same('reviewed', $figure->attr('htmlAttributes')['class']);
+            $t->same('epub-xhtml-figcaption', $figure->attr('captionSource')['source']);
+            $t->same('cover-caption', $figure->attr('captionSource')['sourceAttributes']['htmlAttributes']['id']);
+            $t->same(['source-caption'], $figure->attr('captionSource')['sourceAttributes']['classes']);
+            $t->same(['text', 'emph', 'text', 'link', 'text', 'code'], array_map(static fn (AstNode $node): string => $node->type, $captionInlines));
+            $t->same('cover', $captionInlines[1]->children[0]->attr('text'));
+            $t->same('EPUB/audit.html#cover', $captionInlines[3]->attr('url'));
+            $t->same('Audit record', $captionInlines[3]->attr('title'));
+            $t->same('sha256', $captionInlines[5]->attr('text'));
+            $t->same('EPUB/images/cover.png', $image->attr('url'));
+            $t->same('Cover source', $image->attr('title'));
+            $t->contains('<figcaption>Reviewed <em>cover</em> <a href="EPUB/audit.html#cover" title="Audit record">audit</a> <code>sha256</code></figcaption>', $wordpress);
+            $t->contains('![Reviewed *cover* [audit](EPUB/audit.html#cover "Audit record") `sha256`](EPUB/images/cover.png "Cover source")', $markdown);
+        } finally {
+            $removeDirectory($root);
+        }
     },
     'maps epub xhtml tables into shared ast and wordpress blocks' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-xhtml-table-' . str_replace('.', '', uniqid('', true));
