@@ -5326,16 +5326,28 @@ final class MarkdownWriter
             }
 
             if (str_starts_with($tail, '...')) {
-                $escaped .= '\\...';
-                $i += 2;
+                $dotRun = strspn($tail, '.');
+                if ($dotRun > 3) {
+                    $escaped .= str_repeat('\\.', $dotRun);
+                    $i += $dotRun - 1;
+                } else {
+                    $escaped .= '\\...';
+                    $i += 2;
+                }
                 $lineStart = false;
                 $definitionLineStart = false;
                 continue;
             }
 
             if (str_starts_with($tail, '--')) {
-                $escaped .= '\\--';
-                $i++;
+                $dashRun = strspn($tail, '-');
+                if ($dashRun > 2) {
+                    $escaped .= str_repeat('\\-', $dashRun);
+                    $i += $dashRun - 1;
+                } else {
+                    $escaped .= '\\--';
+                    $i++;
+                }
                 $lineStart = false;
                 $definitionLineStart = false;
                 continue;

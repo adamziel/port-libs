@@ -1277,5 +1277,7 @@
   "mappedMarkdownWriterReferenceAttributeBraceSurgeCases": 55,
   "markdownWriterReferenceAttributeBraceSurgeAssertions": 166,
   "mappedMarkdownWriterInlineAliasHandoffSurgeCases": 56,
-  "markdownWriterInlineAliasHandoffSurgeAssertions": 57
+  "markdownWriterInlineAliasHandoffSurgeAssertions": 57,
+  "mappedMarkdownWriterInlineSmartRunCompletionSurgeCases": 61,
+  "markdownWriterInlineSmartRunCompletionSurgeAssertions": 93
 }
