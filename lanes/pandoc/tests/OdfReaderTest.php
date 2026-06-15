@@ -1492,7 +1492,7 @@ XML;
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('<caption>Protected Review Matrix</caption>', $markdown);
+        $t->contains(': Protected Review Matrix', $markdown);
         $t->contains('<table data-odf-table-name="Protected Review Matrix" data-odf-table-style-name="ReviewTable" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">', $blocksHtml);
         $t->contains('<figcaption class="wp-element-caption">Protected Review Matrix</figcaption>', $blocksHtml);
     },
@@ -1604,7 +1604,7 @@ XML;
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('<caption>PrintableReview</caption>', $markdown);
+        $t->contains(': PrintableReview', $markdown);
         $t->contains('<table data-odf-table-name="PrintableReview" data-odf-table-print-range-count="2" data-odf-table-print-ranges="PrintableReview.A1:PrintableReview.B2;PrintableReview.D1:PrintableReview.D4">', $blocksHtml);
     },
     'maps ODT table scenarios into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -1681,7 +1681,7 @@ XML;
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('<caption>ScenarioReview</caption>', $markdown);
+        $t->contains(': ScenarioReview', $markdown);
         $t->contains('<table class="odf-table-scenario" data-odf-table-name="ScenarioReview" data-odf-table-scenario-count="2" data-odf-table-active-scenario-count="1" data-odf-table-scenario-names="ReadyImport,DraftFallback" data-odf-table-scenario-ranges="ScenarioReview.A2:ScenarioReview.B3;ScenarioReview.D2:ScenarioReview.D4;ScenarioReview.A5:ScenarioReview.B6">', $blocksHtml);
     },
     'preserves quoted ODT table range tokens in print scenarios and consolidation metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -2572,7 +2572,7 @@ XML;
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('<caption>Templated Review</caption>', $markdown);
+        $t->contains(': Templated Review', $markdown);
         $t->contains('<table class="odf-table-template" data-odf-table-name="Templated Review" data-odf-table-template-name="ReviewTemplate" data-odf-table-template-exists="true" data-odf-table-template-style-count="9">', $blocksHtml);
     },
     'maps ODT table column repeats visibility and widths into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -7636,7 +7636,7 @@ XML;
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('<caption class="odf-table-caption" data-odf-table-caption-source="following-paragraph" data-odf-table-caption-style-name="Table"><p>Table <strong><span data-odf-style-name="CaptionStrong">1</span></strong>: Source media audit</p></caption>', $markdown);
+        $t->contains(': Table **[1]{data-odf-style-name="CaptionStrong"}**: Source media audit', $markdown);
         $t->contains('<figcaption class="wp-element-caption odf-table-caption" data-odf-table-caption-source="following-paragraph" data-odf-table-caption-style-name="Table"><p>Table <strong><span data-odf-style-name="CaptionStrong">1</span></strong>: Source media audit</p></figcaption>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, '<div class="caption odf-table-caption"'), 'Following ODT table captions should not remain standalone divs after a table');
     },
@@ -8906,7 +8906,7 @@ XML;
         $t->contains('[^1]', $markdown);
         $t->contains('c.  Legal review', $markdown);
         $t->contains('![Hero alt text](Pictures/hero.png "Hero title")', $markdown);
-        $t->contains('<table', $markdown);
+        $t->contains('| Status', $markdown);
         $t->contains('Ready for review', $markdown);
 
         $t->contains('<!-- wp:heading {"level":1} -->', $blocks);

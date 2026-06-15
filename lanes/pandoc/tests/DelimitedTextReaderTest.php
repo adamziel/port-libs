@@ -53,8 +53,8 @@ return [
         $t->same("Two\nline title", $table->children[1]->children[1]->children[1]->attr('text'));
         $t->same(3, $geometry['columnCount'] ?? null);
         $t->same('Legacy, "quoted" title', $geometry['coverage'][4]['text'] ?? null);
-        $t->contains('<th scope="col"><p>source_id</p></th>', $markdown);
-        $t->contains('<td><p>Legacy, &quot;quoted&quot; title</p></td>', $markdown);
+        $t->contains('| source_id | title                    | published |', $markdown);
+        $t->contains('| 42        | Legacy, \\"quoted\\" title | true      |', $markdown);
         $t->contains('<th>source_id</th><th>title</th><th>published</th>', $wordpress);
         $t->contains('<td>Legacy, &quot;quoted&quot; title</td>', $wordpress);
         $t->same('Table', $json['blocks'][0]['t'] ?? null);
@@ -80,7 +80,7 @@ return [
         $t->same(1, $packet['raggedRowCount'] ?? null);
         $t->same([2], $packet['raggedRows'] ?? null);
         $t->same('', $table->children[1]->children[1]->children[2]->attr('text'));
-        $t->contains('<td><p>43</p></td><td><p>Needs review</p></td><td></td>', $markdown);
+        $t->contains('| 43        | Needs review  |           |', $markdown);
         $t->contains('<td>Needs review</td><td></td>', $wordpress);
     },
     'records csv and tsv control character row repair interaction summaries' => static function (TestRunner $t): void {

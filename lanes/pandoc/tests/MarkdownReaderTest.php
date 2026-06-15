@@ -11687,7 +11687,7 @@ MD;
             '',
         ]), (new MarkdownWriter())->write($document));
     },
-    'maps upstream markdown writer table spans into html table fallback' => static function (TestRunner $t): void {
+    'maps upstream markdown writer table span degradation to rectangular pipe rows' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('table', [
                 'captionInlines' => [
@@ -11734,13 +11734,15 @@ MD;
             ]),
         ]);
 
-        $markdown = (new MarkdownWriter())->write($document);
-        $t->contains('<table>', $markdown);
-        $t->contains('<caption>Grid span review</caption>', $markdown);
-        $t->contains('<th scope="col" colspan="2" style="text-align:left">Review scope</th>', $markdown);
-        $t->contains('<td rowspan="2" style="text-align:left">Media audit</td>', $markdown);
-        $t->contains('<td style="text-align:center">posts | pages</td>', $markdown);
-        $t->contains('<td colspan="3" style="text-align:left">Reviewer note across all columns</td>', $markdown);
+        $t->same(implode("\n", [
+            '| Review scope                     |                |  Status |',
+            '|:-------------------------------|:------------:|------:|',
+            '| Media audit                      | posts \\| pages |   ready |',
+            '|                                  |  attachments   | blocked |',
+            '| Reviewer note across all columns |                |         |',
+            '',
+            ': Grid span review',
+        ]), (new MarkdownWriter())->write($document));
     },
     'maps upstream markdown writer multi block table cell fallback safely inside pipe rows' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
@@ -15591,7 +15593,7 @@ XML;
         $t->same('audit', $note->attr('label'));
         $t->same('link', $noteParagraph->children[1]->type);
         $t->same('https://example.test/audit', $noteParagraph->children[1]->attr('url'));
-        $t->contains('<td>linked note[^audit]</td>', $markdown);
+        $t->contains('| Packet | linked note[^audit] |', $markdown);
         $t->contains('[^audit]: Review [source](https://example.test/audit) and table \\| pipe.', $markdown);
         $t->contains('<td>linked note<sup id="fnref-audit" data-pandoc-note-label="audit"><a href="#fn-audit" role="doc-noteref">1</a></sup></td>', $blocks);
         $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-audit" data-pandoc-note-label="audit"><p>Review <a href="https://example.test/audit">source</a> and table | pipe.</p> <a href="#fnref-audit" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li></ol></section>', $blocks);

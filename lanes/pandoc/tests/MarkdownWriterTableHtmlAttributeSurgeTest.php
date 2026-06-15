@@ -17,7 +17,7 @@ $row = static fn (array $cells, array $attrs = []): AstNode => new AstNode('tabl
 $head = static fn (array $rows): AstNode => new AstNode('table_head', [], $rows);
 $body = static fn (array $rows): AstNode => new AstNode('table_body', [], $rows);
 $document = static fn (array $children): AstNode => new AstNode('document', [], $children);
-$writeDocument = static fn (AstNode $node): string => (new MarkdownWriter())->write($document([$node]));
+$writeDocument = static fn (AstNode $node): string => (new MarkdownWriter(['htmlTableAutoFallback' => true]))->write($document([$node]));
 $table = static fn (array $sections, array $attrs = []): AstNode => new AstNode('table', $attrs + ['alignments' => ['left', 'right']], $sections);
 $twoColumnTable = static fn (AstNode $valueCell, array $attrs = []): AstNode => $table([
     $head([$row([$cell('Metric'), $cell('Value')])]),
