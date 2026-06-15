@@ -5,11 +5,11 @@
   "upstream": {
     "name": "jgm/pandoc",
     "url": "https://github.com/jgm/pandoc",
-    "commit": "pandoc-markdown-adjacent-figure-caption-surge-652e902b22",
+    "commit": "pandoc-markdown-writer-inline-escape-completion-surge-da198b2290",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 5738,
-    "latestSlice": "pandoc-markdown-adjacent-figure-caption-surge expands the already-mapped 54 Markdown/CommonMark/GFM figure-caption cases after rebase onto current main 652e902b22: MarkdownReader now accepts leading and trailing Figure:, Fig:, and Caption: blocks for standalone inline, reference, and shortcut-reference images, preserves short captions and trailing Pandoc attributes, and carries id, classes, data/lang/role/title/aria/dir attributes through Markdown writer and WordPress image-figure handoff while preserving current raw-format, list-continuation, writer table HTML fallback, block/list/code, writer inline/link, bare-autolink, raw inline HTML, and nested list-item block coverage. No Pandoc, cmark, Node tooling, browser renderer, external validator, online service, or live provider is invoked. phpPass remains 5748, phpFail remains 0, mapped upstream cases remain 5738, mappedMarkdownReaderFigureCaptionSurgeCases remains 54, and markdownReaderFigureCaptionSurgeAssertions moves 865 -> 2377. Verification passed php -l for MarkdownReader.php, MarkdownWriter.php, WordPressBlockWriter.php, and MarkdownReaderFigureCaptionSurgeTest.php; focused MarkdownReaderFigureCaptionSurgeTest.php passed 1 file, 2377 assertions, 0 failures; full lanes/pandoc/tests passed 69 files, 102580 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and exact conflict-marker scan.",
+    "mapped": 5817,
+    "latestSlice": "pandoc-markdown-writer-inline-escape-completion-surge maps 79 additional Markdown writer inline/link/escape cases after rebase onto current main da198b2290: MarkdownWriter now serializes line-start CommonMark raw HTML block tags as entity-opened literal text instead of raw_html blocks, escapes setext equals underlines, and escapes dash underline/thematic runs one dash at a time so smart punctuation does not change literal prose. It preserves current main adjacent figure-caption, Markdown raw format rehydration, writer wiki-link, emoji extension, ordered-list marker, code-info metadata, reference-definition, emphasis delimiter, table/caption/span, inline/link/escape fancy-marker, list-item block continuation, native-span, table-caption, raw-inline, bare-autolink, block/list/code, and writer table HTML fallback coverage. No Pandoc, cmark, Node tooling, browser renderer, online service, external validator, or live provider is invoked. phpPass moves 5748 -> 5827, phpFail remains 0, mapped upstream cases move 5738 -> 5817, mappedMarkdownWriterInlineLinkEscapeCompletionCases = 79, and markdownWriterInlineLinkEscapeCompletionAssertions = 253. Verification passed php -l for MarkdownWriter.php and MarkdownWriterInlineLinkEscapeCompletionSurgeTest.php; focused MarkdownWriterInlineLinkEscapeCompletionSurgeTest.php passed 1 file, 253 assertions, 0 failures; focused MarkdownWriterInlineLinkEscapeCompletionSurgeTest.php plus MarkdownWriterInlineLinkEscapeSurgeTest.php plus MarkdownWriterInlinesSurgeTest.php plus MarkdownWriterInlineSurgeTest.php plus MarkdownReaderTest.php passed 5 files, 7708 assertions, 0 failures; full lanes/pandoc/tests passed 70 files, 102833 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and exact conflict-marker scan.",
     "mappedMarkdownReaderBlockListSurgeCases": 280,
     "markdownReaderBlockListSurgeAssertions": 9846,
     "mappedOdfPackageFontFormatProvenanceCases": 6,
@@ -60,8 +60,8 @@
     "opcRawZipCentralDirectoryManifestAssertions": 37,
     "mappedZipCentralDirectorySignaturePolicyCases": 2,
     "zipCentralDirectorySignaturePolicyAssertions": 30,
-    "status": "Markdown reader list-continuation table surge is verified after rebase onto current main 59f5a22928; phpFail remains 0.",
-    "latestFocusedSource": "2026-06-15 Markdown adjacent figure-caption surge verified after rebase onto current main 652e902b22: php -l for MarkdownReader.php, MarkdownWriter.php, WordPressBlockWriter.php, and MarkdownReaderFigureCaptionSurgeTest.php passed; focused MarkdownReaderFigureCaptionSurgeTest.php passed 1 file, 2377 assertions, 0 failures; PHP JSON status/manifest validation, git diff --check, and exact conflict-marker scan passed.",
+    "status": "Markdown writer inline escape completion surge is verified after rebase onto current main da198b2290; phpFail remains 0.",
+    "latestFocusedSource": "2026-06-15 Markdown writer inline escape completion surge verified after rebase onto current main da198b2290: php -l for MarkdownWriter.php and MarkdownWriterInlineLinkEscapeCompletionSurgeTest.php passed; focused MarkdownWriterInlineLinkEscapeCompletionSurgeTest.php passed 1 file, 253 assertions, 0 failures; focused MarkdownWriterInlineLinkEscapeCompletionSurgeTest.php plus MarkdownWriterInlineLinkEscapeSurgeTest.php plus MarkdownWriterInlinesSurgeTest.php plus MarkdownWriterInlineSurgeTest.php plus MarkdownReaderTest.php passed 5 files, 7708 assertions, 0 failures; full lanes/pandoc/tests passed 70 files, 102833 assertions, 0 failures; PHP JSON status/manifest validation, git diff --check, and exact conflict-marker scan passed.",
     "mappedPandocFormatReaderEvidenceBatchCases": 6,
     "pandocFormatReaderEvidenceBatchAssertions": 200,
     "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -684,7 +684,9 @@
     "mappedMarkdownEmojiExtensionSurgeCases": 80,
     "markdownEmojiExtensionSurgeAssertions": 560,
     "mappedMarkdownWriterOrderedListMarkerSurgeCases": 63,
-    "markdownWriterOrderedListMarkerSurgeAssertions": 279
+    "markdownWriterOrderedListMarkerSurgeAssertions": 279,
+    "mappedMarkdownWriterInlineLinkEscapeCompletionCases": 79,
+    "markdownWriterInlineLinkEscapeCompletionAssertions": 253
   },
   "benchmarkDenominator": {
     "status": "Pandoc JSON/native single-wrapped target tuple sidecars are verified after rebase onto current main 9f2dd9a0fd; phpFail remains 0.",

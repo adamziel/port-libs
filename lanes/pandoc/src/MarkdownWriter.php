@@ -3425,6 +3425,29 @@ final class MarkdownWriter
                 continue;
             }
 
+            if ($lineStart && $char === '<' && $this->startsWithRawHtmlBlockTag($tail)) {
+                $escaped .= '&lt;';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if ($lineStart && $char === '=' && $this->startsWithSetextHeadingUnderline($tail)) {
+                $escaped .= '\\=';
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
+            if ($lineStart && $char === '-' && $this->startsWithDashUnderlineOrThematicBreak($tail)) {
+                $dashRun = strspn($tail, '-');
+                $escaped .= str_repeat('\\-', $dashRun);
+                $i += $dashRun - 1;
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
+
             if ($lineStart && $char === '#' && $this->startsWithAtxHeadingMarker($tail)) {
                 $escaped .= '\\#';
                 $lineStart = false;
@@ -3594,6 +3617,24 @@ final class MarkdownWriter
     private function startsWithBulletListMarker(string $text): bool
     {
         return preg_match('/^[*+-](?:[ \t]|$)/', $text) === 1;
+    }
+
+    private function startsWithRawHtmlBlockTag(string $text): bool
+    {
+        return preg_match(
+            '/^<\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|pre|script|search|section|summary|style|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?=[\s>\/])/i',
+            $text
+        ) === 1;
+    }
+
+    private function startsWithSetextHeadingUnderline(string $text): bool
+    {
+        return preg_match('/^=+[ \t]*(?:\n|\z)/', $text) === 1;
+    }
+
+    private function startsWithDashUnderlineOrThematicBreak(string $text): bool
+    {
+        return preg_match('/^-{3,}[ \t]*(?:\n|\z)/', $text) === 1;
     }
 
     /**
