@@ -7413,6 +7413,81 @@ XML);
         $t->contains('<dt>Migration Review Institute 2026</dt><dd>Migration Review Institute. Institutional Source Report. Migration Review Institute, 2026. https://example.test/institutional-report.</dd>', $blocks);
         $t->contains('<dt>Title Led Import Rule 2025</dt><dd>Title Led Import Rule. Oregon Legislature, 2025. Authority: Oregon Legislature.</dd>', $blocks);
     },
+    'normalizes bounded biblatex institutional authority lists for csl names' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@report{joint-authority-report,
+  institution = {Health Board and Safety Office},
+  title       = {Joint Authority Report},
+  date        = {2026}
+}
+
+@legislation{multi-authority-rule,
+  title        = {Multi Authority Import Rule},
+  organization = {Rules Council and Public Comment Office},
+  date         = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same(['Health Board', 'Safety Office'], $items[0]['authority-list'] ?? null);
+        $t->same('Health Board; Safety Office', $items[0]['authority'] ?? null);
+        $t->same('Health Board and Safety Office', $items[0]['rawBibtex']['fields']['institution'] ?? null);
+        $t->same(['Rules Council', 'Public Comment Office'], $items[1]['authority-list'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $report = $processor->item('joint-authority-report');
+        $rule = $processor->item('multi-authority-rule');
+        $t->same('Health Board; Safety Office', $report['authority'] ?? null);
+        $t->same('Health Board', $report['authorities'][0]['literal'] ?? null);
+        $t->same('Safety Office', $report['authorities'][1]['literal'] ?? null);
+        $t->same('Rules Council; Public Comment Office', $rule['authority'] ?? null);
+        $t->same('Public Comment Office', $rule['authorities'][1]['literal'] ?? null);
+        $t->same('(Health Board and Safety Office 2026; Multi Authority Import Rule 2025)', $processor->renderCitationCluster([
+            $citation('joint-authority-report', '[@joint-authority-report]'),
+            $citation('multi-authority-rule', '[@multi-authority-rule]'),
+        ]));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Authority List Review</title>
+    <id>https://example.test/styles/bounded-biblatex-authority-list-review</id>
+    <updated>2026-06-15T04:01:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="authority"/>
+        <text variable="authority-list"/>
+        <text variable="issuingauthoritylist"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="authority"/>
+      <text variable="authority-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded BibLaTeX Authority List Review', $summary['title'] ?? null);
+        $t->same('[Health Board and Safety Office | Health Board; Safety Office | Health Board; Safety Office; Rules Council and Public Comment Office | Rules Council; Public Comment Office | Rules Council; Public Comment Office]', $styled->renderCitationCluster([
+            $citation('joint-authority-report', '[@joint-authority-report]'),
+            $citation('multi-authority-rule', '[@multi-authority-rule]'),
+        ]));
+        $t->same('Joint Authority Report :: Health Board; Safety Office :: Health Board; Safety Office', $styled->renderBibliographyEntry('joint-authority-report'));
+
+        $document = (new MarkdownReader())->read('Authority list source [@joint-authority-report; @multi-authority-rule] keeps separate institutional names.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Authority list source [Health Board and Safety Office | Health Board; Safety Office | Health Board; Safety Office; Rules Council and Public Comment Office | Rules Council; Public Comment Office | Rules Council; Public Comment Office] keeps separate institutional names.</p>', $blocks);
+        $t->contains('<dt>Health Board and Safety Office 2026</dt><dd>Joint Authority Report :: Health Board; Safety Office :: Health Board; Safety Office</dd>', $blocks);
+    },
     'maps bounded biblatex journal abbreviations into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{short-journal-detail,

@@ -700,6 +700,19 @@ final class BibtexCslParser
         $languageList = self::literalListFromFirstField($fields, ['language']);
         $originalLanguageList = self::literalListFromFirstField($fields, ['origlanguage', 'originallanguage', 'original-language']);
         $eventPlaceList = self::literalListFromFirstField($fields, ['eventvenue', 'event-venue', 'eventlocation', 'event-location', 'eventplace', 'event-place', 'venue']);
+        $authorityFieldNames = [
+            'authority-list',
+            'authoritylist',
+            'issuing-authority-list',
+            'issuingauthoritylist',
+            'authority',
+            'court',
+            'institution',
+            'organization',
+            'issuing-authority',
+            'issuingauthority',
+        ];
+        $authorityList = self::literalListFromFirstField($fields, $authorityFieldNames);
         $eventPlace = self::literalListDisplay($eventPlaceList);
         if ($eventPlace === '') {
             $eventPlace = self::firstField($fields, ['venue', 'eventvenue', 'event-venue', 'eventlocation', 'event-location', 'eventplace', 'event-place']);
@@ -805,7 +818,7 @@ final class BibtexCslParser
             'patent-type-label' => self::patentTypeLabel($patentType),
             'entry-subtype' => self::firstField($fields, ['entrysubtype', 'entry-subtype']),
             'gender' => self::firstField($fields, ['gender']),
-            'authority' => self::firstField($fields, ['authority', 'court', 'institution', 'organization']),
+            'authority' => self::literalListDisplay($authorityList) ?: self::firstField($fields, $authorityFieldNames),
             'jurisdiction' => self::firstField($fields, ['jurisdiction', 'location', 'address']),
             'status' => self::firstField($fields, ['status', 'publication-status', 'publicationstatus', 'pubstate']),
             'version' => self::firstField($fields, ['version']),
@@ -893,6 +906,10 @@ final class BibtexCslParser
 
         if ($languageList !== []) {
             $item['language-list'] = $languageList;
+        }
+
+        if (count($authorityList) > 1) {
+            $item['authority-list'] = $authorityList;
         }
 
         $biblatexCustomFields = self::biblatexCustomFieldsFromFields($fields);

@@ -1189,16 +1189,16 @@ final class CitationCslProcessor
             $eventPlace = implode('; ', $eventPlaceList);
         }
         $authorityValue = self::firstPresentField($item, [
-            'authority',
             'authority-list',
             'authorityList',
             'authoritylist',
-            'issuing-authority',
-            'issuingAuthority',
-            'issuingauthority',
             'issuing-authority-list',
             'issuingAuthorityList',
             'issuingauthoritylist',
+            'authority',
+            'issuing-authority',
+            'issuingAuthority',
+            'issuingauthority',
         ]);
         $authorityNames = self::namesOrLiteral($authorityValue, $id, 'authority');
         $authority = self::stringOrNamesValue($authorityValue, 'authority', $id, $authorityNames);
