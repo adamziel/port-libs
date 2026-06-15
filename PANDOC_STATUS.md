@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 1,564 | 1,096 |
+| Markdown / CommonMark / GFM | 1,618 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,4 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` parses escaped closing brackets and nested bracket labels in reference definitions, collects multiline link titles, and preserves link/image handoff output.\n\nCurrent Pandoc counters: 5,215 PHP passes / 0 failures and 5,205 mapped upstream cases. Verification passed: `php -l` for `MarkdownReader.php` and `MarkdownReaderReferenceSurgeTest.php`; focused `MarkdownReaderReferenceSurgeTest.php` passed 1 file, 250 assertions, 0 failures; focused `MarkdownReaderTest.php` plus `MarkdownReaderInlineLinkEntitySurgeTest.php` plus `MarkdownReaderEntitySurgeTest.php` plus `MarkdownReaderReferenceSurgeTest.php` passed 4 files, 7539 assertions, 0 failures; full `lanes/pandoc/tests` passed 65 files, 96938 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.\n
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` promotes standalone image paragraphs to figure blocks with `captionInlines` / `renderCaptionInlines` metadata, preserving formatted image labels through Markdown and WordPress figure captions.
+
+Current Pandoc counters: 5,319 PHP passes / 0 failures and 5,309 mapped upstream cases. Verification passed: `php -l` for `MarkdownReader.php` and `MarkdownReaderFigureCaptionSurgeTest.php`; focused `MarkdownReaderFigureCaptionSurgeTest.php` passed 1 file, 865 assertions, 0 failures; focused `MarkdownReaderTest.php` plus `MarkdownReaderFigureCaptionSurgeTest.php` passed 2 files, 7884 assertions, 0 failures; full `lanes/pandoc/tests` passed 66 files, 98097 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
