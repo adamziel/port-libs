@@ -6430,7 +6430,7 @@ return [
         $t->same('7', $attrs['data-legacy-doc-numbering-field-list-override-start-at']);
         $t->same('7.', $autoNumber->children[0]->attr('text'));
 
-        $t->contains('[\7.]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-autonum data-legacy-doc-field="autonum"', $markdown);
+        $t->contains('[7\.]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-autonum data-legacy-doc-field="autonum"', $markdown);
         $t->contains('data-legacy-doc-numbering-field-list-lsid="1001"', $markdown);
         $t->contains('data-legacy-doc-numbering-field-list-override-start-at="7"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonum" data-legacy-doc-field="autonum" data-legacy-doc-field-instruction="AUTONUM \* Arabic" data-legacy-doc-numbering-field-type="auto-number" data-legacy-doc-field-format="Arabic" data-legacy-doc-numbering-field-list-policy="metadata-only-native-review"', $blocks);

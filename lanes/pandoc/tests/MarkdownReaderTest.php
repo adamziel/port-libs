@@ -11163,12 +11163,12 @@ MD;
         $markdown = (new MarkdownWriter())->write($document);
 
         $t->same(implode("\n\n", [
-            '\\1. Imported source line is literal',
+            '1\\. Imported source line is literal',
             '\\- Audit item is prose'
                 . "\n" . '\\+ Follow-up remains prose'
                 . "\n" . '\\* Legacy marker remains prose'
-                . "\n" . '\\2) Parenthesized source marker remains prose',
-            '> \\3. Quoted reviewer note is literal',
+                . "\n" . '2\\) Parenthesized source marker remains prose',
+            '> 3\\. Quoted reviewer note is literal',
         ]), $markdown);
         $t->same(['paragraph', 'paragraph', 'blockquote'], array_map(
             static fn (AstNode $node): string => $node->type,

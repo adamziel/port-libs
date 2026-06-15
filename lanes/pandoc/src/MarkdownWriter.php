@@ -2551,7 +2551,13 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($i === 0 && $this->startsWithListMarker($text)) {
+            if ($i === 0 && preg_match('/^([0-9]+)([.)])(?=[ \t]|$)/', $text, $match) === 1) {
+                $escaped .= $match[1] . '\\' . $match[2];
+                $i += strlen($match[1]);
+                continue;
+            }
+
+            if ($i === 0 && $this->startsWithBulletListMarker($text)) {
                 $escaped .= '\\' . $char;
                 continue;
             }
@@ -2656,9 +2662,9 @@ final class MarkdownWriter
         return $offset > 0 && ($offset === strlen($text) || $text[$offset] === ' ' || $text[$offset] === "\t");
     }
 
-    private function startsWithListMarker(string $text): bool
+    private function startsWithBulletListMarker(string $text): bool
     {
-        return preg_match('/^(?:[0-9]+[.)]|[*+-])(?:[ \t]|$)/', $text) === 1;
+        return preg_match('/^[*+-](?:[ \t]|$)/', $text) === 1;
     }
 
     private function startsWithDefinitionMarker(string $text): bool
