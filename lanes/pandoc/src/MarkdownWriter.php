@@ -1726,6 +1726,33 @@ final class MarkdownWriter
             }
         }
 
+        if ($this->tableCaptionBlocksRequireHtmlFallback($node->attr('captionBlocks', []))) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function tableCaptionBlocksRequireHtmlFallback(mixed $blocks): bool
+    {
+        if (!is_array($blocks)) {
+            return false;
+        }
+
+        foreach ($blocks as $block) {
+            if (!$block instanceof AstNode) {
+                continue;
+            }
+
+            if ($this->nodeTreeHasSourceAttributes($block)) {
+                return true;
+            }
+
+            if (!in_array($block->type, ['paragraph', 'plain'], true)) {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -1768,7 +1795,27 @@ final class MarkdownWriter
         }
 
         return $this->nodeHasSourceAttributes($cell)
-            || $this->nodeListHasHtmlAttributes($cell->children);
+            || $this->nodeListHasHtmlAttributes($cell->children)
+            || $this->tableCellHasHtmlOnlyBlockContent($cell);
+    }
+
+    private function tableCellHasHtmlOnlyBlockContent(AstNode $cell): bool
+    {
+        foreach ($cell->children as $child) {
+            if ($this->isInlineNode($child)) {
+                continue;
+            }
+
+            if ($this->nodeTreeHasSourceAttributes($child)) {
+                return true;
+            }
+
+            if (!in_array($child->type, ['paragraph', 'plain'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function tableCellColspan(AstNode $cell): int
@@ -1918,6 +1965,21 @@ final class MarkdownWriter
         }
 
         return $this->nodeListHasHtmlAttributes($node->children);
+    }
+
+    private function nodeTreeHasSourceAttributes(AstNode $node): bool
+    {
+        if ($this->nodeHasSourceAttributes($node)) {
+            return true;
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->nodeTreeHasSourceAttributes($child)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2328,11 +2390,17 @@ final class MarkdownWriter
     private function renderHtmlBlock(AstNode $node): string
     {
         return match ($node->type) {
-            'paragraph', 'plain' => '<p>' . $this->renderHtmlInlines($node->children) . '</p>',
+            'paragraph', 'plain' => '<p' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
+                . $this->renderHtmlInlines($node->children)
+                . '</p>',
             'heading' => $this->renderHtmlHeading($node),
             'bullet_list' => $this->renderHtmlList($node, 'ul'),
             'ordered_list' => $this->renderHtmlList($node, 'ol'),
-            'blockquote' => '<blockquote>' . $this->renderHtmlBlocks($node->children) . '</blockquote>',
+            'definition_list' => $this->renderHtmlDefinitionList($node),
+            'line_block' => $this->renderHtmlLineBlock($node),
+            'blockquote' => '<blockquote' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
+                . $this->renderHtmlBlocks($node->children)
+                . '</blockquote>',
             'code_block' => '<pre><code' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
                 . $this->escapeHtml((string) $node->attr('text', ''))
                 . '</code></pre>',
@@ -2340,6 +2408,7 @@ final class MarkdownWriter
             'div' => '<div' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
                 . $this->renderHtmlBlocks($node->children)
                 . '</div>',
+            'figure' => $this->renderHtmlFigure($node),
             'table' => implode("\n", $this->renderHtmlTable($node, 0, TableGeometry::columnCount($node))),
             'raw_html', 'raw_block' => (string) $node->attr('text', $node->attr('html', '')),
             default => $this->isInlineNode($node)
@@ -2376,6 +2445,119 @@ final class MarkdownWriter
         }
 
         return $html . '</' . $tag . '>';
+    }
+
+    private function renderHtmlDefinitionList(AstNode $node): string
+    {
+        $html = '<dl' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>';
+        foreach ($node->children as $item) {
+            if ($item->type !== 'definition_item') {
+                continue;
+            }
+
+            $children = $item->children;
+            $term = $children[0] ?? null;
+            if ($term instanceof AstNode && in_array($term->type, ['term', 'definition_term'], true)) {
+                array_shift($children);
+            } else {
+                $term = new AstNode('term', ['text' => (string) $item->attr('term', '')]);
+            }
+
+            $html .= '<dt' . $this->renderHtmlAttributes($this->htmlAttributeMap($term)) . '>'
+                . $this->renderHtmlDefinitionTermContent($term)
+                . '</dt>';
+
+            foreach ($children as $definition) {
+                if ($definition->type !== 'definition') {
+                    continue;
+                }
+
+                $html .= '<dd' . $this->renderHtmlAttributes($this->htmlAttributeMap($definition)) . '>'
+                    . $this->renderHtmlBlocks($definition->children)
+                    . '</dd>';
+            }
+        }
+
+        return $html . '</dl>';
+    }
+
+    private function renderHtmlDefinitionTermContent(AstNode $term): string
+    {
+        if ($term->children !== []) {
+            return $this->renderHtmlInlines($term->children);
+        }
+
+        return $this->escapeHtml((string) $term->attr('text', $term->attr('term', '')));
+    }
+
+    private function renderHtmlLineBlock(AstNode $node): string
+    {
+        $attrs = $this->htmlAttributeMap($node);
+        $this->appendHtmlClass($attrs, 'line-block');
+
+        $lines = [];
+        foreach ($node->children as $line) {
+            if ($line->type !== 'line') {
+                continue;
+            }
+
+            $lines[] = $line->children === []
+                ? $this->escapeHtml((string) $line->attr('text', ''))
+                : $this->renderHtmlInlines($line->children);
+        }
+
+        return '<div' . $this->renderHtmlAttributes($attrs) . '>' . implode('<br />', $lines) . '</div>';
+    }
+
+    private function renderHtmlFigure(AstNode $node): string
+    {
+        $contentBlocks = $this->figureHtmlContentBlocks($node);
+        $caption = $this->renderHtmlFigureCaption($node);
+        $html = '<figure' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>';
+
+        if (count($contentBlocks) === 1 && $contentBlocks[0]->type === 'image') {
+            $html .= $this->renderHtmlImage($contentBlocks[0]);
+        } else {
+            $html .= $this->renderHtmlBlocks($contentBlocks);
+        }
+
+        if ($caption !== '') {
+            $html .= '<figcaption>' . $caption . '</figcaption>';
+        }
+
+        return $html . '</figure>';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function figureHtmlContentBlocks(AstNode $node): array
+    {
+        $blocks = [];
+        foreach ($node->children as $child) {
+            if ($child->type === 'caption') {
+                continue;
+            }
+
+            $blocks[] = $child;
+        }
+
+        return $blocks;
+    }
+
+    private function renderHtmlFigureCaption(AstNode $node): string
+    {
+        $captionBlocks = $this->htmlTableCaptionBlocks($node->attr('captionBlocks', []));
+        if ($captionBlocks !== []) {
+            return $this->renderHtmlBlocks($captionBlocks);
+        }
+
+        $captionInlines = $node->attr('captionInlines', []);
+        if (is_array($captionInlines) && $captionInlines !== [] && $this->allAstNodes($captionInlines)) {
+            return $this->renderHtmlInlines($captionInlines);
+        }
+
+        return $this->escapeHtml((string) $node->attr('caption', ''));
     }
 
     /**
