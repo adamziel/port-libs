@@ -2233,7 +2233,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{relationshipType:?string, valid:bool, relationshipCount:int, validTargetCount:int, invalidTargetCount:int, internalTargetCount:int, externalTargetCount:int, existingInternalTargetCount:int, missingInternalTargetCount:int, queryTargetCount:int, fragmentTargetCount:int, sameSourceReferenceCount:int, relationshipPartTargetCount:int, contentTypesItemTargetCount:int, reservedRelationshipDirectoryTargetCount:int, unsafeExternalTargetCount:int, relativeExternalTargetCount:int, rewriteRequiredExternalTargetCount:int, sourceCount:int, targetPartCount:int, sourcePartCounts:array<string, int>, relationshipTypeCounts:array<string, int>, externalTargetKindCounts:array<string, int>, externalTargetSchemeCounts:array<string, int>, contentTypeCounts:array<string, int>, targetParts:list<string>, missingTargetParts:list<string>, externalTargets:list<string>, contentTypes:list<string>, contentTypeSourceCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>, targets:list<array{source:string, id:string, type:string, target:string, targetPart:?string, targetQuery:?string, targetFragment:?string, sameSourceReference:bool, contentType:?string, contentTypeSource:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
+     * @return array{relationshipType:?string, valid:bool, relationshipCount:int, validTargetCount:int, invalidTargetCount:int, internalTargetCount:int, externalTargetCount:int, existingInternalTargetCount:int, missingInternalTargetCount:int, queryTargetCount:int, fragmentTargetCount:int, sameSourceReferenceCount:int, relationshipPartTargetCount:int, contentTypesItemTargetCount:int, reservedRelationshipDirectoryTargetCount:int, unsafeExternalTargetCount:int, relativeExternalTargetCount:int, rewriteRequiredExternalTargetCount:int, sourceCount:int, targetPartCount:int, sourcePartCounts:array<string, int>, relationshipTypeCounts:array<string, int>, targetResolutionKindCounts:array<string, int>, targetKeysByResolutionKind:array<string, list<string>>, targetNamesByResolutionKind:array<string, list<string>>, externalTargetKindCounts:array<string, int>, externalTargetSchemeCounts:array<string, int>, contentTypeCounts:array<string, int>, targetParts:list<string>, missingTargetParts:list<string>, externalTargets:list<string>, contentTypes:list<string>, contentTypeSourceCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>, targets:list<array{source:string, id:string, type:string, target:string, targetPart:?string, targetQuery:?string, targetFragment:?string, sameSourceReference:bool, targetResolutionKind:string, contentType:?string, contentTypeSource:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
     public function relationshipTargetSummary(?string $relationshipType = null): array
     {
@@ -2260,6 +2260,9 @@ final class OpcRelationshipGraph
             'targetPartCount' => 0,
             'sourcePartCounts' => [],
             'relationshipTypeCounts' => [],
+            'targetResolutionKindCounts' => [],
+            'targetKeysByResolutionKind' => [],
+            'targetNamesByResolutionKind' => [],
             'externalTargetKindCounts' => [],
             'externalTargetSchemeCounts' => [],
             'contentTypeCounts' => [],
@@ -2292,6 +2295,21 @@ final class OpcRelationshipGraph
                 $sameSourceReference = self::partNameEquivalenceKey($targetPart)
                     === self::partNameEquivalenceKey($target['source']);
             }
+            $targetResolutionKind = self::relationshipTargetResolutionKind(
+                $target,
+                $targetPart,
+                $sameSourceReference,
+            );
+            $targetResolutionKey = $target['source'] . ':' . $target['id'];
+            $targetResolutionName = $targetPart ?? $target['target'];
+            $summary['targetResolutionKindCounts'][$targetResolutionKind]
+                = ($summary['targetResolutionKindCounts'][$targetResolutionKind] ?? 0) + 1;
+            $summary['targetKeysByResolutionKind'][$targetResolutionKind][] = $targetResolutionKey;
+            $summary['targetNamesByResolutionKind'][$targetResolutionKind] ??= [];
+            self::appendUniqueString(
+                $summary['targetNamesByResolutionKind'][$targetResolutionKind],
+                $targetResolutionName,
+            );
 
             if ($target['external']) {
                 $summary['externalTargetCount']++;
@@ -2370,6 +2388,7 @@ final class OpcRelationshipGraph
                 'targetQuery' => $suffix['query'],
                 'targetFragment' => $suffix['fragment'],
                 'sameSourceReference' => $sameSourceReference,
+                'targetResolutionKind' => $targetResolutionKind,
                 'contentType' => $target['contentType'],
                 'contentTypeSource' => $target['contentTypeSource'],
                 'external' => $target['external'],
@@ -2399,6 +2418,17 @@ final class OpcRelationshipGraph
         $summary['targetPartCount'] = count($summary['targetParts']);
         ksort($summary['sourcePartCounts'], SORT_STRING);
         ksort($summary['relationshipTypeCounts'], SORT_STRING);
+        ksort($summary['targetResolutionKindCounts'], SORT_STRING);
+        ksort($summary['targetKeysByResolutionKind'], SORT_STRING);
+        foreach ($summary['targetKeysByResolutionKind'] as &$targetKeys) {
+            sort($targetKeys, SORT_STRING);
+        }
+        unset($targetKeys);
+        ksort($summary['targetNamesByResolutionKind'], SORT_STRING);
+        foreach ($summary['targetNamesByResolutionKind'] as &$targetNames) {
+            sort($targetNames, SORT_STRING);
+        }
+        unset($targetNames);
         ksort($summary['externalTargetKindCounts'], SORT_STRING);
         ksort($summary['externalTargetSchemeCounts'], SORT_STRING);
         ksort($summary['contentTypeCounts'], SORT_STRING);
@@ -8578,6 +8608,73 @@ final class OpcRelationshipGraph
         }
 
         return 'package-part';
+    }
+
+    /**
+     * @param array{target:string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, issues:list<string>} $target
+     */
+    private static function relationshipTargetResolutionKind(
+        array $target,
+        ?string $targetPart,
+        bool $sameSourceReference,
+    ): string {
+        if ($target['external']) {
+            if (in_array('external-target-matches-package-part', $target['issues'], true)) {
+                return 'external-package-shadow';
+            }
+
+            if ($target['externalTargetAllowed'] === false) {
+                return 'external-blocked';
+            }
+
+            if ($target['externalTargetKind'] === 'network-path-reference') {
+                return 'external-network-path-reference';
+            }
+
+            if ($target['externalTargetKind'] === 'fragment-reference') {
+                return 'external-fragment-reference';
+            }
+
+            if ($target['externalTargetKind'] === 'relative-reference') {
+                return 'external-relative-reference';
+            }
+
+            if ($target['externalTargetKind'] === 'absolute-uri') {
+                return 'external-absolute-uri';
+            }
+
+            return 'external-' . ($target['externalTargetKind'] ?? 'unknown');
+        }
+
+        if ($targetPart === null || in_array('invalid-target', $target['issues'], true)) {
+            return 'internal-invalid-target';
+        }
+
+        if ($target['relationshipPartTarget']) {
+            return 'internal-relationship-part';
+        }
+
+        if (in_array('targets-content-types-item', $target['issues'], true)) {
+            return 'internal-content-types-item';
+        }
+
+        if (in_array('targets-reserved-relationship-directory-part', $target['issues'], true)) {
+            return 'internal-reserved-relationship-directory';
+        }
+
+        if ($sameSourceReference) {
+            return 'internal-same-source';
+        }
+
+        if ($target['exists'] === false) {
+            return 'internal-missing-part';
+        }
+
+        if ($target['exists'] === true) {
+            return 'internal-existing-part';
+        }
+
+        return 'internal-unresolved';
     }
 
     /**

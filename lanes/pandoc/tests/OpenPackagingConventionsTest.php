@@ -9482,6 +9482,8 @@ XML;
   <Relationship Id="rIdTypes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="/[Content_Types].xml"/>
   <Relationship Id="rIdReserved" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="_rels/orphan.xml"/>
   <Relationship Id="rIdFile" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="file:///tmp/source.docx" TargetMode="External"/>
+  <Relationship Id="rIdExternalRelative" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="../review/source.html#packet" TargetMode="External"/>
+  <Relationship Id="rIdExternalLocalImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png" TargetMode="External"/>
   <Relationship Id="rIdSelf" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="document.xml#self"/>
 </Relationships>
 XML;
@@ -9502,11 +9504,11 @@ XML;
 
         $t->same(null, $summary['relationshipType']);
         $t->same(false, $summary['valid']);
-        $t->same(8, $summary['relationshipCount']);
-        $t->same(3, $summary['validTargetCount']);
-        $t->same(5, $summary['invalidTargetCount']);
+        $t->same(10, $summary['relationshipCount']);
+        $t->same(4, $summary['validTargetCount']);
+        $t->same(6, $summary['invalidTargetCount']);
         $t->same(7, $summary['internalTargetCount']);
-        $t->same(1, $summary['externalTargetCount']);
+        $t->same(3, $summary['externalTargetCount']);
         $t->same(5, $summary['existingInternalTargetCount']);
         $t->same(2, $summary['missingInternalTargetCount']);
         $t->same(1, $summary['queryTargetCount']);
@@ -9516,8 +9518,8 @@ XML;
         $t->same(1, $summary['contentTypesItemTargetCount']);
         $t->same(1, $summary['reservedRelationshipDirectoryTargetCount']);
         $t->same(1, $summary['unsafeExternalTargetCount']);
-        $t->same(0, $summary['relativeExternalTargetCount']);
-        $t->same(0, $summary['rewriteRequiredExternalTargetCount']);
+        $t->same(2, $summary['relativeExternalTargetCount']);
+        $t->same(2, $summary['rewriteRequiredExternalTargetCount']);
         $t->same(6, $summary['targetPartCount']);
         $t->same([
             '/[Content_Types].xml',
@@ -9528,7 +9530,11 @@ XML;
             '/word/media/hero.png',
         ], $summary['targetParts']);
         $t->same(['/word/_rels/orphan.xml', '/word/comments.xml'], $summary['missingTargetParts']);
-        $t->same(['file:///tmp/source.docx'], $summary['externalTargets']);
+        $t->same([
+            '../review/source.html#packet',
+            'file:///tmp/source.docx',
+            'media/hero.png',
+        ], $summary['externalTargets']);
         $t->same([
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
             'application/vnd.openxmlformats-package.relationships+xml',
@@ -9537,6 +9543,30 @@ XML;
         ], $summary['contentTypes']);
         $t->same(['default' => 5, 'override' => 2], $summary['contentTypeSourceCounts']);
         $t->same([
+            'external-blocked' => 1,
+            'external-package-shadow' => 1,
+            'external-relative-reference' => 1,
+            'internal-content-types-item' => 1,
+            'internal-existing-part' => 2,
+            'internal-missing-part' => 1,
+            'internal-relationship-part' => 1,
+            'internal-reserved-relationship-directory' => 1,
+            'internal-same-source' => 1,
+        ], $summary['targetResolutionKindCounts']);
+        $t->same([
+            '/:rIdDocument',
+            '/word/document.xml:rIdImage',
+        ], $summary['targetKeysByResolutionKind']['internal-existing-part']);
+        $t->same(['/word/document.xml:rIdExternalRelative'], $summary['targetKeysByResolutionKind']['external-relative-reference']);
+        $t->same(['/word/document.xml:rIdExternalLocalImage'], $summary['targetKeysByResolutionKind']['external-package-shadow']);
+        $t->same([
+            '/word/document.xml',
+            '/word/media/hero.png',
+        ], $summary['targetNamesByResolutionKind']['internal-existing-part']);
+        $t->same(['../review/source.html#packet'], $summary['targetNamesByResolutionKind']['external-relative-reference']);
+        $t->same(['media/hero.png'], $summary['targetNamesByResolutionKind']['external-package-shadow']);
+        $t->same([
+            'external-target-matches-package-part' => 1,
             'external-target-unsafe-scheme' => 1,
             'missing-in-package' => 2,
             'targets-content-types-item' => 1,
@@ -9544,6 +9574,7 @@ XML;
             'targets-reserved-relationship-directory-part' => 1,
         ], $summary['issueCounts']);
         $t->same([
+            'external-target-matches-package-part',
             'external-target-unsafe-scheme',
             'missing-in-package',
             'targets-content-types-item',
@@ -9556,26 +9587,40 @@ XML;
         $t->same('preview', $targets['rIdImage']['targetFragment']);
         $t->same('default', $targets['rIdImage']['contentTypeSource']);
         $t->same(true, $targets['rIdImage']['valid']);
+        $t->same('internal-existing-part', $targets['rIdImage']['targetResolutionKind']);
 
         $t->same('/word/document.xml', $targets['rIdSelf']['targetPart']);
         $t->same(true, $targets['rIdSelf']['sameSourceReference']);
         $t->same('self', $targets['rIdSelf']['targetFragment']);
+        $t->same('internal-same-source', $targets['rIdSelf']['targetResolutionKind']);
 
         $t->same('/_rels/.rels', $targets['rIdRelPart']['targetPart']);
         $t->same(true, $targets['rIdRelPart']['relationshipPartTarget']);
         $t->same(['targets-relationship-part'], $targets['rIdRelPart']['issues']);
+        $t->same('internal-relationship-part', $targets['rIdRelPart']['targetResolutionKind']);
         $t->same('/[Content_Types].xml', $targets['rIdTypes']['targetPart']);
         $t->same(['targets-content-types-item'], $targets['rIdTypes']['issues']);
+        $t->same('internal-content-types-item', $targets['rIdTypes']['targetResolutionKind']);
         $t->same('/word/_rels/orphan.xml', $targets['rIdReserved']['targetPart']);
         $t->same(['missing-in-package', 'targets-reserved-relationship-directory-part'], $targets['rIdReserved']['issues']);
+        $t->same('internal-reserved-relationship-directory', $targets['rIdReserved']['targetResolutionKind']);
         $t->same(false, $targets['rIdFile']['externalTargetAllowed']);
         $t->same('file', $targets['rIdFile']['externalTargetScheme']);
+        $t->same('external-blocked', $targets['rIdFile']['targetResolutionKind']);
+        $t->same(true, $targets['rIdExternalRelative']['externalTargetRequiresBaseUri']);
+        $t->same('external-relative-reference', $targets['rIdExternalRelative']['targetResolutionKind']);
+        $t->same(['external-target-matches-package-part'], $targets['rIdExternalLocalImage']['issues']);
+        $t->same('external-package-shadow', $targets['rIdExternalLocalImage']['targetResolutionKind']);
 
         $imageSummary = $graph->relationshipTargetSummary(OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE);
         $t->same(OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE, $imageSummary['relationshipType']);
-        $t->same(true, $imageSummary['valid']);
-        $t->same(1, $imageSummary['relationshipCount']);
+        $t->same(false, $imageSummary['valid']);
+        $t->same(2, $imageSummary['relationshipCount']);
         $t->same(['/word/media/hero.png'], $imageSummary['targetParts']);
+        $t->same([
+            'external-package-shadow' => 1,
+            'internal-existing-part' => 1,
+        ], $imageSummary['targetResolutionKindCounts']);
     },
     'summarizes OPC relationship target aggregate buckets for reviewer handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
