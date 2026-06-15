@@ -14722,7 +14722,7 @@ final class MarkdownReader
 
         [$caption, $next] = $this->readFigureCaption($lines, $index + 1);
         if (($caption['caption'] ?? '') === '') {
-            return null;
+            return $this->buildFigureFromImageAndCaption($image, $this->buildImplicitFigureCaptionRecord($image));
         }
 
         $index = $next - 1;
@@ -14814,9 +14814,10 @@ final class MarkdownReader
      */
     private function matchFigureCaptionLine(string $line, bool $leading): ?array
     {
+        $markers = 'Figure|Fig\.?|Image|Picture|Photo|Illustration|Plate|Diagram|Caption';
         $markerPattern = $leading
-            ? '(?:Figure|Fig\.?|Image|Caption):'
-            : '(?:(?:Figure|Fig\.?|Image|Caption):|:)';
+            ? '(?:' . $markers . '):'
+            : '(?:(?:' . $markers . '):|:)';
         if (preg_match('/^ {0,3}(' . $markerPattern . ')\s*(.*)$/iu', $line, $m) !== 1) {
             return null;
         }
@@ -14833,6 +14834,34 @@ final class MarkdownReader
     private function emptyFigureCaptionRecord(): array
     {
         return ['caption' => ''];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildImplicitFigureCaptionRecord(AstNode $image): array
+    {
+        $captionInlines = $image->children;
+        $caption = $captionInlines === []
+            ? (string) $image->attr('caption', $image->attr('alt', ''))
+            : $this->plainTextFromInlines($captionInlines);
+
+        $record = [
+            'caption' => $caption,
+            'captionSource' => [
+                'element' => 'markdown-implicit-figure',
+                'position' => 'image-label',
+                'marker' => 'standalone-image',
+                'captionSide' => 'bottom',
+                'captionSideSource' => 'markdown-implicit-figure',
+            ],
+            'renderCaptionInlines' => true,
+        ];
+        if ($captionInlines !== []) {
+            $record['captionInlines'] = $captionInlines;
+        }
+
+        return $record;
     }
 
     /**
