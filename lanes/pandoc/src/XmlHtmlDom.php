@@ -19812,7 +19812,11 @@ final class XmlHtmlDom
             'sizes' => self::attributeOrNull($image, 'sizes'),
             'loading' => self::attributeOrNull($image, 'loading'),
             'decoding' => self::attributeOrNull($image, 'decoding'),
+            'crossorigin' => self::attributeOrNull($image, 'crossorigin'),
+            'referrerpolicy' => self::attributeOrNull($image, 'referrerpolicy'),
+            'fetchpriority' => self::attributeOrNull($image, 'fetchpriority'),
         ];
+        $summary += self::imageLoadingReviewSummary($image);
 
         if ($image->hasAttribute('usemap')) {
             $useMap = self::useMapAttributeSummary($image->getAttribute('usemap'));
@@ -19823,6 +19827,70 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function imageLoadingReviewSummary(\DOMElement $image): array
+    {
+        $loadingRaw = self::attributeOrNull($image, 'loading');
+        $loading = $loadingRaw === null ? null : self::imageLoadingState($loadingRaw);
+        $decodingRaw = self::attributeOrNull($image, 'decoding');
+        $decoding = $decodingRaw === null ? null : self::imageDecodingState($decodingRaw);
+        $fetchPriorityRaw = self::attributeOrNull($image, 'fetchpriority');
+        $fetchPriority = $fetchPriorityRaw === null ? null : self::fetchPriorityState($fetchPriorityRaw);
+        $crossoriginRaw = self::attributeOrNull($image, 'crossorigin');
+        $crossorigin = $crossoriginRaw === null ? null : self::htmlCorsSettingsAttributeState($crossoriginRaw);
+        $referrerPolicyRaw = self::attributeOrNull($image, 'referrerpolicy');
+        $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
+        $issueCodes = [];
+
+        if ($loadingRaw !== null && $loading === null) {
+            $issueCodes[] = 'invalid-image-loading';
+        }
+        if ($decodingRaw !== null && $decoding === null) {
+            $issueCodes[] = 'invalid-image-decoding';
+        }
+        if ($fetchPriorityRaw !== null && $fetchPriority === null) {
+            $issueCodes[] = 'invalid-image-fetchpriority';
+        }
+        if ($crossoriginRaw !== null && $crossorigin === null) {
+            $issueCodes[] = 'invalid-image-crossorigin';
+        }
+        if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
+            $issueCodes[] = 'invalid-image-referrerpolicy';
+        }
+
+        return [
+            'imageLoadingReviewPolicy' => 'image-loading-metadata-review',
+            'imageLoadingState' => $loading,
+            'imageLoadingValid' => $loadingRaw === null ? null : $loading !== null,
+            'imageDecodingState' => $decoding,
+            'imageDecodingValid' => $decodingRaw === null ? null : $decoding !== null,
+            'imageFetchPriority' => $fetchPriority,
+            'imageFetchPriorityValid' => $fetchPriorityRaw === null ? null : $fetchPriority !== null,
+            'imageCrossoriginState' => $crossorigin,
+            'imageCrossoriginValid' => $crossoriginRaw === null ? null : $crossorigin !== null,
+            'imageReferrerPolicy' => $referrerPolicy,
+            'imageReferrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
+            'imageLoadingIssueCodes' => $issueCodes,
+            'imageLoadingIssueCount' => count($issueCodes),
+        ];
+    }
+
+    private static function imageLoadingState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['eager', 'lazy'], true) ? $value : null;
+    }
+
+    private static function imageDecodingState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['sync', 'async', 'auto'], true) ? $value : null;
     }
 
     /**

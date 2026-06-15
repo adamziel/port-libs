@@ -6496,6 +6496,75 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('Object fallback', $object['fallbackText']);
         $t->same('<picture><source media="(min-width: 60em)" srcset="hero.avif 1x, hero@2x.avif 2x" type="image/avif"><source srcset="hero.webp 800w" type="image/webp"><img alt="Hero &amp; Source" decoding="async" loading="lazy" sizes="100vw" src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w"></picture><video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source media="screen" src="clip.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en"></video><audio controls src="chapter.mp3"><source src="chapter.ogg" type="audio/ogg"></audio><iframe allowfullscreen height="360" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms" src="frame.html" srcdoc="&lt;p&gt;Preview&lt;/p&gt;" width="640">Legacy frame fallback</iframe><embed height="32" src="plugin.swf" type="application/x-shockwave-flash" width="320"><object data="diagram.svg" height="480" name="diagram" type="image/svg+xml" width="640"><param name="quality" value="high"></param><param name="review-url" type="text/html" value="packet.html" valuetype="ref"></param>Object fallback</object>', $html);
     },
+    'summarizes html image loading policy metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<img src="hero.avif" alt="Hero" loading="lazy" decoding="async" fetchpriority="high" crossorigin="use-credentials" referrerpolicy="no-referrer">'
+                . '<img src="fallback.png" alt="Fallback" loading="Soon" decoding="fast" fetchpriority="urgent" crossorigin="credentialed" referrerpolicy="never">'
+                . '<picture><source type="image/webp" srcset="card.webp 1x, card@2x.webp 2x"><img src="card.jpg" alt="Card" fetchpriority="low"></picture>',
+            'image loading policy review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $validImage = $summary[0];
+        $invalidImage = $summary[1];
+        $pictureImage = $summary[2]['image'];
+
+        $t->same('image', $validImage['embeddedResource']);
+        $t->same('hero.avif', $validImage['src']);
+        $t->same('lazy', $validImage['loading']);
+        $t->same('async', $validImage['decoding']);
+        $t->same('high', $validImage['fetchpriority']);
+        $t->same('use-credentials', $validImage['crossorigin']);
+        $t->same('no-referrer', $validImage['referrerpolicy']);
+        $t->same('image-loading-metadata-review', $validImage['imageLoadingReviewPolicy']);
+        $t->same('lazy', $validImage['imageLoadingState']);
+        $t->same(true, $validImage['imageLoadingValid']);
+        $t->same('async', $validImage['imageDecodingState']);
+        $t->same(true, $validImage['imageDecodingValid']);
+        $t->same('high', $validImage['imageFetchPriority']);
+        $t->same(true, $validImage['imageFetchPriorityValid']);
+        $t->same('use-credentials', $validImage['imageCrossoriginState']);
+        $t->same(true, $validImage['imageCrossoriginValid']);
+        $t->same('no-referrer', $validImage['imageReferrerPolicy']);
+        $t->same(true, $validImage['imageReferrerPolicyValid']);
+        $t->same([], $validImage['imageLoadingIssueCodes']);
+        $t->same(0, $validImage['imageLoadingIssueCount']);
+
+        $t->same('Soon', $invalidImage['loading']);
+        $t->same('fast', $invalidImage['decoding']);
+        $t->same('urgent', $invalidImage['fetchpriority']);
+        $t->same('credentialed', $invalidImage['crossorigin']);
+        $t->same('never', $invalidImage['referrerpolicy']);
+        $t->same(null, $invalidImage['imageLoadingState']);
+        $t->same(false, $invalidImage['imageLoadingValid']);
+        $t->same(null, $invalidImage['imageDecodingState']);
+        $t->same(false, $invalidImage['imageDecodingValid']);
+        $t->same(null, $invalidImage['imageFetchPriority']);
+        $t->same(false, $invalidImage['imageFetchPriorityValid']);
+        $t->same(null, $invalidImage['imageCrossoriginState']);
+        $t->same(false, $invalidImage['imageCrossoriginValid']);
+        $t->same(null, $invalidImage['imageReferrerPolicy']);
+        $t->same(false, $invalidImage['imageReferrerPolicyValid']);
+        $t->same([
+            'invalid-image-loading',
+            'invalid-image-decoding',
+            'invalid-image-fetchpriority',
+            'invalid-image-crossorigin',
+            'invalid-image-referrerpolicy',
+        ], $invalidImage['imageLoadingIssueCodes']);
+        $t->same(5, $invalidImage['imageLoadingIssueCount']);
+
+        $t->same('card.jpg', $pictureImage['src']);
+        $t->same('low', $pictureImage['fetchpriority']);
+        $t->same('low', $pictureImage['imageFetchPriority']);
+        $t->same(true, $pictureImage['imageFetchPriorityValid']);
+        $t->same(null, $pictureImage['imageLoadingValid']);
+        $t->same(null, $pictureImage['imageDecodingValid']);
+        $t->same(null, $pictureImage['imageCrossoriginValid']);
+        $t->same(null, $pictureImage['imageReferrerPolicyValid']);
+        $t->same('<img alt="Hero" crossorigin="use-credentials" decoding="async" fetchpriority="high" loading="lazy" referrerpolicy="no-referrer" src="hero.avif"><img alt="Fallback" crossorigin="credentialed" decoding="fast" fetchpriority="urgent" loading="Soon" referrerpolicy="never" src="fallback.png"><picture><source srcset="card.webp 1x, card@2x.webp 2x" type="image/webp"><img alt="Card" fetchpriority="low" src="card.jpg"></picture>', $html);
+    },
     'summarizes html object param review provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<object id="player" data="player.swf" type="application/x-shockwave-flash">'
