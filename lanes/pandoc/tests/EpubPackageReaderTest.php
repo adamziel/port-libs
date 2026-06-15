@@ -1146,6 +1146,116 @@ XML);
         $t->same(2, $guide['diagnostics'][0]['index']);
         $t->same(3, $guide['diagnostics'][1]['index']);
     },
+    'reports direct reader OPF guide target policy for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-guide-policy-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-guide-target-policy</dc:identifier>
+    <dc:title>Guide Target Policy</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+  <guide>
+    <reference type="text" title="Start" href="chapter.xhtml?source=guide#start" xml:lang="en" dir="ltr" data-review="primary"/>
+    <reference type="glossary" title="Missing glossary" href="missing.xhtml"/>
+    <reference type="cover" title="Remote cover" href="https://example.invalid/cover.xhtml"/>
+    <reference type="appendix" title="Unmanifested appendix" href="appendix.xhtml#app"/>
+    <reference type="toc" title="Untargeted guide entry"/>
+  </guide>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml#start">Guide target policy</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p id="start">Guide policy chapter.</p></body></html>');
+            $writePackageFile($root, 'EPUB/appendix.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p id="app">Appendix outside manifest.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $guide = $epub['guide'];
+
+            $t->same('Guide Target Policy', $document->attr('meta')['title']);
+            $t->same($guide, $epub['guideReferenceReport']);
+            $t->same($guide['targets'], $epub['guideReferenceTargets']);
+            $t->same($guide['diagnostics'], $epub['guideReferenceDiagnostics']);
+            $t->same(5, $guide['itemCount']);
+            $t->same(5, $guide['typedItemCount']);
+            $t->same(0, $guide['missingTypeCount']);
+            $t->same(4, $guide['targetCount']);
+            $t->same(2, $guide['localTargetCount']);
+            $t->same(1, $guide['externalTargetCount']);
+            $t->same(1, $guide['missingTargetCount']);
+            $t->same(1, $guide['unmanifestedTargetCount']);
+            $t->same(1, $guide['missingHrefCount']);
+            $t->same(1, $guide['manifestLinkedTargetCount']);
+            $t->same([
+                'EPUB/chapter.xhtml?source=guide#start',
+                'EPUB/missing.xhtml',
+                'https://example.invalid/cover.xhtml',
+                'EPUB/appendix.xhtml#app',
+            ], $guide['targets']);
+            $t->same(['EPUB/chapter.xhtml?source=guide#start', 'EPUB/appendix.xhtml#app'], $guide['localTargets']);
+            $t->same(['https://example.invalid/cover.xhtml'], $guide['externalTargets']);
+            $t->same(['EPUB/missing.xhtml'], $guide['missingTargets']);
+            $t->same(['EPUB/appendix.xhtml#app'], $guide['unmanifestedTargets']);
+            $t->same([
+                'external-guide-reference-target' => 1,
+                'guide-reference-target-not-in-manifest' => 1,
+                'missing-guide-reference' => 1,
+                'missing-guide-reference-href' => 1,
+            ], $guide['diagnosticTypes']);
+            $t->same([
+                'missing-guide-reference',
+                'external-guide-reference-target',
+                'guide-reference-target-not-in-manifest',
+                'missing-guide-reference-href',
+            ], array_column($guide['diagnostics'], 'type'));
+            $t->same('EPUB/chapter.xhtml?source=guide#start', $guide['items'][0]['target']);
+            $t->same(true, $guide['items'][0]['hrefHasQuery']);
+            $t->same('source=guide', $guide['items'][0]['hrefQuery']);
+            $t->same('start', $guide['items'][0]['hrefFragment']);
+            $t->same('chapter', $guide['items'][0]['manifestId']);
+            $t->same('application/xhtml+xml', $guide['items'][0]['mediaTypeBase']);
+            $t->same('en', $guide['items'][0]['language']);
+            $t->same('ltr', $guide['items'][0]['direction']);
+            $t->same(['data-review' => 'primary'], $guide['items'][0]['customAttributes']);
+            $t->same('chapter', $guide['manifestLinkedTargets'][0]['manifestId']);
+            $t->same('missing-guide-reference', $guide['items'][1]['diagnostics'][0]['type']);
+            $t->same(true, $guide['items'][2]['external']);
+            $t->same('external-guide-reference-target', $guide['items'][2]['diagnostics'][0]['type']);
+            $t->same(true, $guide['items'][3]['exists']);
+            $t->same('', $guide['items'][3]['manifestId']);
+            $t->same('guide-reference-target-not-in-manifest', $guide['items'][3]['diagnostics'][0]['type']);
+            $t->same('', $guide['items'][4]['target']);
+            $t->same('missing-guide-reference-href', $guide['items'][4]['diagnostics'][0]['type']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports direct reader OPF collection hierarchy and links for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-reader-collections-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);

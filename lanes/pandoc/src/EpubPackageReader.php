@@ -94,6 +94,14 @@ final class EpubPackageReader
         'media-type' => true,
         'xml:lang' => true,
     ];
+    private const OPF_GUIDE_REFERENCE_STRUCTURAL_ATTRIBUTES = [
+        'dir' => true,
+        'href' => true,
+        'lang' => true,
+        'title' => true,
+        'type' => true,
+        'xml:lang' => true,
+    ];
 
     public function readDirectory(string $directory): AstNode
     {
@@ -166,6 +174,9 @@ final class EpubPackageReader
                 'spineItemDiagnostics' => $package['spineReport']['itemDiagnostics'],
                 'spineAuthoring' => $package['spineAuthoring'],
                 'guide' => $package['guide'],
+                'guideReferenceReport' => $package['guide'],
+                'guideReferenceTargets' => $package['guide']['targets'],
+                'guideReferenceDiagnostics' => $package['guide']['diagnostics'],
                 'collections' => $package['collections'],
                 'collectionReport' => $package['collectionReport'],
                 'collectionHierarchy' => $package['collectionReport'],
@@ -4098,6 +4109,21 @@ final class EpubPackageReader
                 'typeCounts' => [],
                 'items' => [],
                 'itemsByType' => [],
+                'targetCount' => 0,
+                'localTargetCount' => 0,
+                'externalTargetCount' => 0,
+                'missingTargetCount' => 0,
+                'unmanifestedTargetCount' => 0,
+                'missingHrefCount' => 0,
+                'unsafeTargetCount' => 0,
+                'manifestLinkedTargetCount' => 0,
+                'targets' => [],
+                'localTargets' => [],
+                'externalTargets' => [],
+                'missingTargets' => [],
+                'unmanifestedTargets' => [],
+                'manifestLinkedTargets' => [],
+                'diagnosticTypes' => [],
                 'diagnosticCount' => 0,
                 'diagnostics' => [],
             ];
@@ -4124,12 +4150,37 @@ final class EpubPackageReader
             }
 
             $href = trim($node->getAttribute('href'));
-            [$path, $fragment] = $this->splitResolvedHref($opfDir, $href);
-            $external = $href !== '' && preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $href) === 1;
-            $exists = !$external && $path !== '' && $this->packagePathExists($root, $path);
+            $suffix = $this->hrefSuffix($href);
+            $path = '';
+            $fragment = '';
+            $target = '';
+            $unsafe = false;
+            $external = false;
+            $exists = false;
+            if ($href !== '') {
+                $external = $this->isExternalHref($href);
+                try {
+                    [$path, $fragment] = $this->splitResolvedHref($opfDir, $href);
+                    $target = $this->targetWithSuffix($path, $suffix);
+                    $exists = !$external && $path !== '' && $this->packagePathExists($root, $path);
+                } catch (\RuntimeException $exception) {
+                    $unsafe = true;
+                    $path = $href;
+                    $target = $href;
+                }
+            }
             $typeRaw = trim($node->getAttribute('type'));
             $types = $this->tokens($typeRaw);
             $itemDiagnostics = [];
+
+            if ($href === '') {
+                $diagnostic = [
+                    'type' => 'missing-guide-reference-href',
+                    'message' => 'EPUB OPF guide reference is missing href',
+                ];
+                $itemDiagnostics[] = $diagnostic;
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
 
             if ($types === []) {
                 ++$missingTypeCount;
@@ -4143,7 +4194,24 @@ final class EpubPackageReader
                 ++$typedItemCount;
             }
 
-            if (!$external && $path !== '' && !$exists) {
+            if ($unsafe) {
+                $diagnostic = [
+                    'type' => 'invalid-guide-reference-href',
+                    'href' => $href,
+                    'message' => 'EPUB OPF guide reference href escapes the package root',
+                ];
+                $itemDiagnostics[] = $diagnostic;
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            } elseif ($external) {
+                $diagnostic = [
+                    'type' => 'external-guide-reference-target',
+                    'href' => $href,
+                    'target' => $target,
+                    'message' => 'EPUB OPF guide reference points outside the package and was not fetched',
+                ];
+                $itemDiagnostics[] = $diagnostic;
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            } elseif ($path !== '' && !$exists) {
                 $diagnostic = [
                     'type' => 'missing-guide-reference',
                     'href' => $href,
@@ -4154,6 +4222,19 @@ final class EpubPackageReader
             }
 
             $manifestItem = $manifestByPath[$path] ?? null;
+            if (!$external && !$unsafe && $path !== '' && $exists && !is_array($manifestItem)) {
+                $diagnostic = [
+                    'type' => 'guide-reference-target-not-in-manifest',
+                    'href' => $href,
+                    'path' => $path,
+                    'target' => $target,
+                    'message' => 'EPUB OPF guide reference target is present in the package but not declared in the OPF manifest',
+                ];
+                $itemDiagnostics[] = $diagnostic;
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+            $attributes = $this->elementAttributes($node);
+            $language = $this->elementLanguage($node);
             $item = [
                 'index' => $index,
                 'type' => $types[0] ?? '',
@@ -4161,12 +4242,23 @@ final class EpubPackageReader
                 'types' => $types,
                 'title' => trim($node->getAttribute('title')),
                 'href' => $href,
+                'target' => $target,
                 'path' => $path,
                 'fragment' => $fragment,
+                'hrefHasQuery' => $suffix['hasQuery'],
+                'hrefQuery' => $suffix['query'],
+                'hrefHasFragment' => $suffix['hasFragment'],
+                'hrefFragment' => $suffix['fragment'],
                 'external' => $external,
+                'unsafe' => $unsafe,
                 'exists' => $exists,
                 'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : '',
                 'mediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : '',
+                'mediaTypeBase' => is_array($manifestItem) ? $manifestItem['mediaTypeBase'] : '',
+                'language' => $language === '' ? null : $language,
+                'direction' => $this->nullableAttribute($node, 'dir'),
+                'attributes' => $attributes,
+                'customAttributes' => $this->customAttributes($attributes, self::OPF_GUIDE_REFERENCE_STRUCTURAL_ATTRIBUTES),
                 'diagnostics' => $itemDiagnostics,
             ];
 
@@ -4178,6 +4270,62 @@ final class EpubPackageReader
             ++$index;
         }
 
+        $targets = [];
+        $localTargets = [];
+        $externalTargets = [];
+        $missingTargets = [];
+        $unmanifestedTargets = [];
+        $manifestLinkedTargets = [];
+        $diagnosticTypes = [];
+        $missingHrefCount = 0;
+        $unsafeTargetCount = 0;
+
+        foreach ($items as $item) {
+            $target = (string) ($item['target'] ?? '');
+            if ($target !== '') {
+                $targets[] = $target;
+            }
+            if (($item['external'] ?? false) === true) {
+                if ($target !== '') {
+                    $externalTargets[] = $target;
+                }
+            } elseif (($item['unsafe'] ?? false) === true) {
+                ++$unsafeTargetCount;
+            } elseif (($item['exists'] ?? false) === true) {
+                if ($target !== '') {
+                    $localTargets[] = $target;
+                }
+                if (($item['manifestId'] ?? '') === '') {
+                    $unmanifestedTargets[] = $target;
+                }
+            } elseif ($target !== '') {
+                $missingTargets[] = $target;
+            }
+
+            if (($item['manifestId'] ?? '') !== '') {
+                $manifestLinkedTargets[] = [
+                    'index' => (int) ($item['index'] ?? 0),
+                    'type' => (string) ($item['type'] ?? ''),
+                    'target' => $target,
+                    'path' => (string) ($item['path'] ?? ''),
+                    'manifestId' => (string) ($item['manifestId'] ?? ''),
+                    'mediaType' => (string) ($item['mediaType'] ?? ''),
+                    'mediaTypeBase' => (string) ($item['mediaTypeBase'] ?? $item['mediaType'] ?? ''),
+                ];
+            }
+        }
+        foreach ($diagnostics as $diagnostic) {
+            $type = is_string($diagnostic['type'] ?? null) ? $diagnostic['type'] : '';
+            if ($type === '') {
+                continue;
+            }
+            if ($type === 'missing-guide-reference-href') {
+                ++$missingHrefCount;
+            }
+            $diagnosticTypes[$type] = ($diagnosticTypes[$type] ?? 0) + 1;
+        }
+        ksort($diagnosticTypes, SORT_STRING);
+
         return [
             'present' => true,
             'itemCount' => count($items),
@@ -4187,6 +4335,21 @@ final class EpubPackageReader
             'typeCounts' => $typeCounts,
             'items' => $items,
             'itemsByType' => $itemsByType,
+            'targetCount' => count($targets),
+            'localTargetCount' => count($localTargets),
+            'externalTargetCount' => count($externalTargets),
+            'missingTargetCount' => count($missingTargets),
+            'unmanifestedTargetCount' => count($unmanifestedTargets),
+            'missingHrefCount' => $missingHrefCount,
+            'unsafeTargetCount' => $unsafeTargetCount,
+            'manifestLinkedTargetCount' => count($manifestLinkedTargets),
+            'targets' => $targets,
+            'localTargets' => $localTargets,
+            'externalTargets' => $externalTargets,
+            'missingTargets' => $missingTargets,
+            'unmanifestedTargets' => $unmanifestedTargets,
+            'manifestLinkedTargets' => $manifestLinkedTargets,
+            'diagnosticTypes' => $diagnosticTypes,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
