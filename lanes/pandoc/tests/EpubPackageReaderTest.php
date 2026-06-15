@@ -538,6 +538,142 @@ XML);
         $t->same(2, $guide['diagnostics'][0]['index']);
         $t->same(3, $guide['diagnostics'][1]['index']);
     },
+    'reports direct reader OPF collection hierarchy and links for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-collections-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-collection-review</dc:identifier>
+    <dc:title>Reader Collection Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="series-record" href="meta/series.json" media-type="application/ld+json"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+  <collection id="series" role="series review" xml:lang="en" dir="ltr">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title>Reader collection packet</dc:title>
+    </metadata>
+    <link id="series-record-link" rel="record" href="meta/series.json?profile=review#series" media-type="application/ld+json" properties="source"/>
+    <link id="missing-review" rel="review" href="meta/missing.json" media-type="application/json"/>
+    <link id="remote-review" rel="alternate" href="https://example.invalid/series.json" media-type="application/ld+json"/>
+    <collection id="samples" role="preview">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>Sample picks</dc:title>
+      </metadata>
+      <link id="chapter-link" rel="first" href="chapter.xhtml#start" media-type="application/xhtml+xml"/>
+    </collection>
+  </collection>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="start">Chapter</h1></body></html>');
+            $writePackageFile($root, 'EPUB/meta/series.json', '{"name":"Reader collection packet"}');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $collections = $epub['collections'];
+            $report = $epub['collectionReport'];
+
+            $t->same(1, count($collections));
+            $series = $collections[0];
+            $t->same('series', $series['id']);
+            $t->same('series review', $series['role']);
+            $t->same(['series', 'review'], $series['roleTokens']);
+            $t->same('series', $series['primaryRole']);
+            $t->same('en', $series['language']);
+            $t->same('ltr', $series['direction']);
+            $t->same('Reader collection packet', $series['metadata']['title']);
+            $t->same(3, $series['linkCount']);
+            $t->same(2, $series['localLinkCount']);
+            $t->same(1, $series['externalLinkCount']);
+            $t->same(1, $series['missingLinkCount']);
+            $t->same(['alternate' => 1, 'record' => 1, 'review' => 1], $series['linkRelCounts']);
+
+            $record = $series['links'][0];
+            $t->same('series-record-link', $record['id']);
+            $t->same(['record'], $record['rel']);
+            $t->same('EPUB/meta/series.json?profile=review#series', $record['target']);
+            $t->same('EPUB/meta/series.json', $record['path']);
+            $t->same('series-record', $record['manifestId']);
+            $t->same('application/ld+json', $record['manifestMediaType']);
+            $t->same(true, $record['exists']);
+            $t->same(true, $record['hrefHasQuery']);
+            $t->same('profile=review', $record['hrefQuery']);
+            $t->same(true, $record['hrefHasFragment']);
+            $t->same('series', $record['hrefFragment']);
+            $t->same(['source'], $record['properties']);
+            $t->same([], $record['diagnostics']);
+
+            $t->same('missing-collection-link-target', $series['links'][1]['diagnostics'][0]['type']);
+            $t->same('EPUB/meta/missing.json', $series['links'][1]['path']);
+            $t->same('external-collection-link-target', $series['links'][2]['diagnostics'][0]['type']);
+            $t->same('https://example.invalid/series.json', $series['links'][2]['target']);
+
+            $samples = $series['children'][0];
+            $t->same('samples', $samples['id']);
+            $t->same(['preview'], $samples['roleTokens']);
+            $t->same('Sample picks', $samples['metadata']['title']);
+            $t->same('EPUB/chapter.xhtml#start', $samples['links'][0]['target']);
+            $t->same('chapter', $samples['links'][0]['manifestId']);
+
+            $t->same($report, $epub['collectionHierarchy']);
+            $t->same($report['diagnostics'], $epub['collectionDiagnostics']);
+            $t->same($report['linkTargets'], $epub['collectionLinkTargets']);
+            $t->same(true, $report['present']);
+            $t->same(2, $report['collectionCount']);
+            $t->same(1, $report['rootCollectionCount']);
+            $t->same(1, $report['leafCollectionCount']);
+            $t->same(2, $report['maxDepth']);
+            $t->same(['0', '0/0'], $report['pathKeys']);
+            $t->same(['preview' => 1, 'review' => 1, 'series' => 1], $report['roleCounts']);
+            $t->same(['preview' => 1, 'series' => 1], $report['primaryRoleCounts']);
+            $t->same(['alternate' => 1, 'first' => 1, 'record' => 1, 'review' => 1], $report['linkRelCounts']);
+            $t->same([1 => 1, 2 => 1], $report['depthCounts']);
+            $t->same(3, $report['localLinkCount']);
+            $t->same(1, $report['externalLinkCount']);
+            $t->same(1, $report['missingLinkCount']);
+            $t->same(['Reader collection packet', 'Sample picks'], $report['titles']);
+            $t->same([
+                'EPUB/meta/series.json?profile=review#series',
+                'EPUB/meta/missing.json',
+                'https://example.invalid/series.json',
+                'EPUB/chapter.xhtml#start',
+            ], $report['linkTargets']);
+            $t->same(2, $report['diagnosticCount']);
+            $t->same(['missing-collection-link-target', 'external-collection-link-target'], array_column($report['diagnostics'], 'type'));
+            $t->same([0], $report['diagnostics'][0]['collectionPath']);
+            $t->same('series', $report['diagnostics'][0]['collectionId']);
+            $t->same(2, $report['itemsByPath']['0']['diagnosticCount']);
+            $t->same(0, $report['itemsByPath']['0/0']['diagnosticCount']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub nav document and ncx fallback outlines' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $epub = $document->attr('epub');

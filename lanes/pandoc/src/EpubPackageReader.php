@@ -97,6 +97,11 @@ final class EpubPackageReader
                 'spineReport' => $package['spineReport'],
                 'spineAuthoring' => $package['spineAuthoring'],
                 'guide' => $package['guide'],
+                'collections' => $package['collections'],
+                'collectionReport' => $package['collectionReport'],
+                'collectionHierarchy' => $package['collectionReport'],
+                'collectionDiagnostics' => $package['collectionReport']['diagnostics'],
+                'collectionLinkTargets' => $package['collectionReport']['linkTargets'],
                 'toc' => $toc,
                 'tocReport' => $navReport,
                 'navReport' => $navReport,
@@ -378,6 +383,8 @@ final class EpubPackageReader
         $spineReport = $this->spineReport($spine, $spineMetadata);
 
         $guide = $this->readGuideReferences($root, $opfDir, $manifest, $packageElement);
+        $collections = $this->readCollections($root, $opfDir, $manifest, $packageElement);
+        $collectionReport = $this->collectionReport($collections);
 
         return [
             'version' => trim($packageElement->getAttribute('version')),
@@ -397,6 +404,8 @@ final class EpubPackageReader
             'spineReport' => $spineReport,
             'spineAuthoring' => $this->spineAuthoringReport($spine),
             'guide' => $guide,
+            'collections' => $collections,
+            'collectionReport' => $collectionReport,
         ];
     }
 
@@ -1742,6 +1751,516 @@ final class EpubPackageReader
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifest
+     * @return list<array<string, mixed>>
+     */
+    private function readCollections(string $root, string $opfDir, array $manifest, \DOMElement $packageElement): array
+    {
+        $manifestByPath = [];
+        foreach ($manifest as $item) {
+            $path = is_string($item['path'] ?? null) ? $item['path'] : '';
+            if ($path !== '' && !isset($manifestByPath[$path])) {
+                $manifestByPath[$path] = $item;
+            }
+        }
+
+        $collections = [];
+        $index = 0;
+        foreach ($packageElement->childNodes as $node) {
+            if (!$node instanceof \DOMElement || $node->localName !== 'collection') {
+                continue;
+            }
+
+            $collections[] = $this->readCollection($root, $opfDir, $manifestByPath, $node, $index);
+            ++$index;
+        }
+
+        return $collections;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPath
+     * @return array<string, mixed>
+     */
+    private function readCollection(
+        string $root,
+        string $opfDir,
+        array $manifestByPath,
+        \DOMElement $collectionElement,
+        int $index
+    ): array {
+        $role = trim($collectionElement->getAttribute('role'));
+        $roleTokens = $this->tokens($role);
+        $metadata = $this->collectionMetadata($collectionElement);
+        $links = [];
+        $children = [];
+
+        $linkIndex = 0;
+        $childIndex = 0;
+        foreach ($collectionElement->childNodes as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($node->localName === 'link') {
+                $links[] = $this->collectionLink($root, $opfDir, $manifestByPath, $node, $linkIndex);
+                ++$linkIndex;
+                continue;
+            }
+
+            if ($node->localName === 'collection') {
+                $children[] = $this->readCollection($root, $opfDir, $manifestByPath, $node, $childIndex);
+                ++$childIndex;
+            }
+        }
+
+        $linkReport = $this->collectionLinkReport($links);
+        $diagnostics = $linkReport['diagnostics'];
+        if ($roleTokens === []) {
+            $diagnostics[] = [
+                'type' => 'missing-collection-role',
+                'collectionIndex' => $index,
+                'message' => 'EPUB OPF collection is missing role tokens for package review classification',
+            ];
+        }
+
+        $language = $this->elementLanguage($collectionElement);
+
+        return [
+            'index' => $index,
+            'id' => $this->nullableAttribute($collectionElement, 'id'),
+            'role' => $role === '' ? null : $role,
+            'roleTokens' => $roleTokens,
+            'primaryRole' => $roleTokens[0] ?? null,
+            'language' => $language === '' ? null : $language,
+            'direction' => $this->nullableAttribute($collectionElement, 'dir'),
+            'metadata' => $metadata,
+            'links' => $links,
+            'linkCount' => $linkReport['count'],
+            'localLinkCount' => $linkReport['localCount'],
+            'externalLinkCount' => $linkReport['externalCount'],
+            'missingLinkCount' => $linkReport['missingCount'],
+            'linkRelTokens' => $linkReport['relTokens'],
+            'linkRelCounts' => $linkReport['relCounts'],
+            'linksByRel' => $linkReport['linksByRel'],
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+            'children' => $children,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function collectionMetadata(\DOMElement $collectionElement): array
+    {
+        $metadataElement = $this->firstDirectChild($collectionElement, 'metadata');
+        if (!$metadataElement instanceof \DOMElement) {
+            return [
+                'present' => false,
+                'itemCount' => 0,
+                'items' => [],
+                'title' => null,
+            ];
+        }
+
+        $items = [];
+        $title = null;
+        foreach ($metadataElement->childNodes as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $value = $this->normalizedText($node->textContent);
+            if ($value === '') {
+                continue;
+            }
+
+            $item = [
+                'index' => count($items),
+                'kind' => $node->localName,
+                'name' => $node->localName,
+                'namespace' => $node->namespaceURI ?? '',
+                'prefix' => $node->prefix ?? '',
+                'id' => $this->nullableAttribute($node, 'id'),
+                'value' => $value,
+                'text' => $value,
+            ];
+            if ($title === null && $node->localName === 'title') {
+                $title = $value;
+            }
+
+            $items[] = $item;
+        }
+
+        return [
+            'present' => true,
+            'itemCount' => count($items),
+            'items' => $items,
+            'title' => $title,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPath
+     * @return array<string, mixed>
+     */
+    private function collectionLink(
+        string $root,
+        string $opfDir,
+        array $manifestByPath,
+        \DOMElement $linkElement,
+        int $index
+    ): array {
+        $href = trim($linkElement->getAttribute('href'));
+        $suffix = $this->hrefSuffix($href);
+        $external = $href !== '' && $this->isExternalHref($href);
+        $path = '';
+        $target = '';
+        $exists = false;
+        $diagnostics = [];
+
+        if ($href === '') {
+            $diagnostics[] = [
+                'type' => 'missing-collection-link-href',
+                'message' => 'EPUB OPF collection link is missing href',
+            ];
+        } elseif ($external) {
+            $target = $href;
+            $diagnostics[] = [
+                'type' => 'external-collection-link-target',
+                'href' => $href,
+                'target' => $target,
+                'message' => 'EPUB OPF collection link points outside the package and was not fetched',
+            ];
+        } else {
+            try {
+                $path = $this->resolvePackageHref($opfDir, $href);
+                $target = $this->targetWithSuffix($path, $suffix);
+                $exists = $path !== '' && $this->packagePathExists($root, $path);
+                if ($path !== '' && !$exists) {
+                    $diagnostics[] = [
+                        'type' => 'missing-collection-link-target',
+                        'href' => $href,
+                        'path' => $path,
+                        'message' => 'EPUB OPF collection link target is missing from the package',
+                    ];
+                }
+            } catch (\RuntimeException $exception) {
+                $diagnostics[] = [
+                    'type' => 'invalid-collection-link-href',
+                    'href' => $href,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        $manifestItem = $path !== '' && isset($manifestByPath[$path]) ? $manifestByPath[$path] : null;
+
+        return [
+            'index' => $index,
+            'id' => $this->nullableAttribute($linkElement, 'id'),
+            'rel' => $this->tokens($linkElement->getAttribute('rel')),
+            'href' => $href,
+            'target' => $target,
+            'path' => $path,
+            'partName' => $path,
+            'fragment' => $suffix['fragment'],
+            'external' => $external,
+            'exists' => $exists,
+            'mediaType' => trim($linkElement->getAttribute('media-type')),
+            'manifestId' => is_array($manifestItem) ? (string) ($manifestItem['id'] ?? '') : '',
+            'manifestMediaType' => is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : '',
+            'properties' => $this->tokens($linkElement->getAttribute('properties')),
+            'title' => $this->nullableAttribute($linkElement, 'title'),
+            'refines' => $this->nullableAttribute($linkElement, 'refines'),
+            'hrefHasQuery' => $suffix['hasQuery'],
+            'hrefQuery' => $suffix['query'],
+            'hrefHasFragment' => $suffix['hasFragment'],
+            'hrefFragment' => $suffix['fragment'],
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @return array<string, mixed>
+     */
+    private function collectionLinkReport(array $links): array
+    {
+        $localCount = 0;
+        $externalCount = 0;
+        $missingCount = 0;
+        $relCounts = [];
+        $linksByRel = [];
+        $diagnostics = [];
+
+        foreach ($links as $linkIndex => $link) {
+            if (($link['external'] ?? false) === true) {
+                ++$externalCount;
+            } elseif (($link['path'] ?? '') !== '') {
+                ++$localCount;
+            }
+
+            if (($link['external'] ?? false) !== true && ($link['path'] ?? '') !== '' && ($link['exists'] ?? false) !== true) {
+                ++$missingCount;
+            }
+
+            foreach (is_array($link['rel'] ?? null) ? $link['rel'] : [] as $rel) {
+                $rel = (string) $rel;
+                $relCounts[$rel] = ($relCounts[$rel] ?? 0) + 1;
+                $linksByRel[$rel][] = $link;
+            }
+
+            foreach (is_array($link['diagnostics'] ?? null) ? $link['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'index' => $linkIndex,
+                    'id' => is_string($link['id'] ?? null) ? $link['id'] : null,
+                ] + $diagnostic;
+            }
+        }
+
+        ksort($relCounts, SORT_STRING);
+        ksort($linksByRel, SORT_STRING);
+
+        return [
+            'count' => count($links),
+            'localCount' => $localCount,
+            'externalCount' => $externalCount,
+            'missingCount' => $missingCount,
+            'relTokens' => array_keys($relCounts),
+            'relCounts' => $relCounts,
+            'linksByRel' => $linksByRel,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     * @return array<string, mixed>
+     */
+    private function collectionReport(array $collections): array
+    {
+        $items = [];
+        $diagnostics = [];
+        $roleCounts = [];
+        $primaryRoleCounts = [];
+        $linkRelCounts = [];
+        $depthCounts = [];
+        $linkTargets = [];
+        $titles = [];
+        $localLinkCount = 0;
+        $externalLinkCount = 0;
+        $missingLinkCount = 0;
+        $maxDepth = 0;
+        $leafCollectionCount = 0;
+
+        $this->appendCollectionReportItems(
+            $collections,
+            [],
+            $items,
+            $diagnostics,
+            $roleCounts,
+            $primaryRoleCounts,
+            $linkRelCounts,
+            $depthCounts,
+            $linkTargets,
+            $titles,
+            $localLinkCount,
+            $externalLinkCount,
+            $missingLinkCount,
+            $maxDepth,
+            $leafCollectionCount
+        );
+
+        ksort($roleCounts, SORT_STRING);
+        ksort($primaryRoleCounts, SORT_STRING);
+        ksort($linkRelCounts, SORT_STRING);
+        ksort($depthCounts, SORT_NUMERIC);
+
+        $itemsByPath = [];
+        foreach ($items as $item) {
+            $pathKey = (string) ($item['pathKey'] ?? '');
+            if ($pathKey !== '') {
+                $itemsByPath[$pathKey] = $item;
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'collectionCount' => count($items),
+            'rootCollectionCount' => count($collections),
+            'leafCollectionCount' => $leafCollectionCount,
+            'maxDepth' => $maxDepth,
+            'pathKeys' => array_column($items, 'pathKey'),
+            'roleCounts' => $roleCounts,
+            'primaryRoleCounts' => $primaryRoleCounts,
+            'linkRelCounts' => $linkRelCounts,
+            'depthCounts' => $depthCounts,
+            'localLinkCount' => $localLinkCount,
+            'externalLinkCount' => $externalLinkCount,
+            'missingLinkCount' => $missingLinkCount,
+            'titles' => $titles,
+            'linkTargets' => $linkTargets,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+            'items' => $items,
+            'itemsByPath' => $itemsByPath,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     * @param list<int> $parentPath
+     * @param list<array<string, mixed>> $items
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<string, int> $roleCounts
+     * @param array<string, int> $primaryRoleCounts
+     * @param array<string, int> $linkRelCounts
+     * @param array<int, int> $depthCounts
+     * @param list<string> $linkTargets
+     * @param list<string> $titles
+     */
+    private function appendCollectionReportItems(
+        array $collections,
+        array $parentPath,
+        array &$items,
+        array &$diagnostics,
+        array &$roleCounts,
+        array &$primaryRoleCounts,
+        array &$linkRelCounts,
+        array &$depthCounts,
+        array &$linkTargets,
+        array &$titles,
+        int &$localLinkCount,
+        int &$externalLinkCount,
+        int &$missingLinkCount,
+        int &$maxDepth,
+        int &$leafCollectionCount
+    ): void {
+        foreach ($collections as $collectionIndex => $collection) {
+            if (!is_array($collection)) {
+                continue;
+            }
+
+            $currentPath = array_merge($parentPath, [$collectionIndex]);
+            $pathKey = implode('/', $currentPath);
+            $parentPathKey = $parentPath === [] ? null : implode('/', $parentPath);
+            $children = is_array($collection['children'] ?? null) ? $collection['children'] : [];
+            $links = is_array($collection['links'] ?? null) ? $collection['links'] : [];
+            $metadata = is_array($collection['metadata'] ?? null) ? $collection['metadata'] : [];
+            $roleTokens = is_array($collection['roleTokens'] ?? null) ? array_values($collection['roleTokens']) : [];
+            $primaryRole = is_string($collection['primaryRole'] ?? null) ? $collection['primaryRole'] : null;
+            $title = is_string($metadata['title'] ?? null) ? $metadata['title'] : null;
+            $depth = count($currentPath);
+
+            $maxDepth = max($maxDepth, $depth);
+            $depthCounts[$depth] = ($depthCounts[$depth] ?? 0) + 1;
+            if ($children === []) {
+                ++$leafCollectionCount;
+            }
+
+            foreach ($roleTokens as $roleToken) {
+                if (is_string($roleToken) && $roleToken !== '') {
+                    $roleCounts[$roleToken] = ($roleCounts[$roleToken] ?? 0) + 1;
+                }
+            }
+            if ($primaryRole !== null && $primaryRole !== '') {
+                $primaryRoleCounts[$primaryRole] = ($primaryRoleCounts[$primaryRole] ?? 0) + 1;
+            }
+            foreach (is_array($collection['linkRelCounts'] ?? null) ? $collection['linkRelCounts'] : [] as $rel => $count) {
+                if (is_string($rel) && $rel !== '') {
+                    $linkRelCounts[$rel] = ($linkRelCounts[$rel] ?? 0) + (int) $count;
+                }
+            }
+
+            $localLinkCount += (int) ($collection['localLinkCount'] ?? 0);
+            $externalLinkCount += (int) ($collection['externalLinkCount'] ?? 0);
+            $missingLinkCount += (int) ($collection['missingLinkCount'] ?? 0);
+            if ($title !== null && $title !== '') {
+                $titles[] = $title;
+            }
+
+            $ownLinkTargets = [];
+            foreach ($links as $link) {
+                if (!is_array($link)) {
+                    continue;
+                }
+
+                $target = is_string($link['target'] ?? null) ? $link['target'] : '';
+                if ($target !== '') {
+                    $ownLinkTargets[] = $target;
+                    $linkTargets[] = $target;
+                }
+            }
+
+            $itemDiagnostics = [];
+            foreach (is_array($collection['diagnostics'] ?? null) ? $collection['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnosticWithPath = [
+                    'collectionPath' => $currentPath,
+                    'collectionPathKey' => $pathKey,
+                    'collectionId' => is_string($collection['id'] ?? null) ? $collection['id'] : null,
+                ] + $diagnostic;
+                $itemDiagnostics[] = $diagnosticWithPath;
+                $diagnostics[] = $diagnosticWithPath;
+            }
+
+            $items[] = [
+                'path' => $currentPath,
+                'pathKey' => $pathKey,
+                'parentPath' => $parentPath === [] ? null : $parentPath,
+                'parentPathKey' => $parentPathKey,
+                'index' => $collectionIndex,
+                'depth' => $depth,
+                'id' => is_string($collection['id'] ?? null) ? $collection['id'] : null,
+                'role' => is_string($collection['role'] ?? null) ? $collection['role'] : null,
+                'roleTokens' => $roleTokens,
+                'primaryRole' => $primaryRole,
+                'title' => $title,
+                'language' => is_string($collection['language'] ?? null) ? $collection['language'] : null,
+                'direction' => is_string($collection['direction'] ?? null) ? $collection['direction'] : null,
+                'linkCount' => (int) ($collection['linkCount'] ?? count($links)),
+                'localLinkCount' => (int) ($collection['localLinkCount'] ?? 0),
+                'externalLinkCount' => (int) ($collection['externalLinkCount'] ?? 0),
+                'missingLinkCount' => (int) ($collection['missingLinkCount'] ?? 0),
+                'linkRelCounts' => is_array($collection['linkRelCounts'] ?? null) ? $collection['linkRelCounts'] : [],
+                'linkTargets' => $ownLinkTargets,
+                'childCount' => count($children),
+                'leaf' => $children === [],
+                'diagnosticCount' => count($itemDiagnostics),
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            $this->appendCollectionReportItems(
+                $children,
+                $currentPath,
+                $items,
+                $diagnostics,
+                $roleCounts,
+                $primaryRoleCounts,
+                $linkRelCounts,
+                $depthCounts,
+                $linkTargets,
+                $titles,
+                $localLinkCount,
+                $externalLinkCount,
+                $missingLinkCount,
+                $maxDepth,
+                $leafCollectionCount
+            );
+        }
     }
 
     /**
