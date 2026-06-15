@@ -1651,7 +1651,7 @@ final class MarkdownWriter
     {
         if (
             $this->tableHasHtmlOnlyAttributes($node)
-            || $this->captionHasSourceAttributes($node)
+            || $this->tableCaptionRequiresHtmlFallback($node)
             || $this->tableHasColumnSourceAttributes($node)
         ) {
             return true;
@@ -1710,16 +1710,23 @@ final class MarkdownWriter
         return false;
     }
 
-    private function captionHasSourceAttributes(AstNode $node): bool
+    private function tableCaptionRequiresHtmlFallback(AstNode $node): bool
     {
         $captionSource = $node->attr('captionSource', []);
-        if (!is_array($captionSource)) {
-            return false;
+        if (is_array($captionSource)) {
+            $sourceAttributes = $captionSource['sourceAttributes'] ?? [];
+            if (is_array($sourceAttributes) && $this->sourceAttributeArrayNonEmpty($sourceAttributes)) {
+                return true;
+            }
         }
 
-        $sourceAttributes = $captionSource['sourceAttributes'] ?? [];
+        foreach (['captionInlines', 'captionBlocks', 'shortCaptionInlines', 'shortCaptionBlocks'] as $name) {
+            if ($this->nodeListHasHtmlAttributes($node->attr($name, []))) {
+                return true;
+            }
+        }
 
-        return is_array($sourceAttributes) && $this->sourceAttributeArrayNonEmpty($sourceAttributes);
+        return false;
     }
 
     private function tableHasColumnSourceAttributes(AstNode $node): bool
@@ -1740,12 +1747,11 @@ final class MarkdownWriter
 
     private function tableCellRequiresHtmlFallback(AstNode $cell): bool
     {
-        if ((int) $cell->attr('colspan', 1) > 1) {
+        if ($this->tableCellColspan($cell) > 1) {
             return true;
         }
 
-        $rowspan = $cell->attr('rowspan', 1);
-        if ((is_int($rowspan) || is_float($rowspan) || is_string($rowspan)) && (int) $rowspan !== 1) {
+        if ($this->tableCellRawRowspan($cell) !== 1) {
             return true;
         }
 
@@ -1761,7 +1767,32 @@ final class MarkdownWriter
             return true;
         }
 
-        return $this->nodeHasSourceAttributes($cell);
+        return $this->nodeHasSourceAttributes($cell)
+            || $this->nodeListHasHtmlAttributes($cell->children);
+    }
+
+    private function tableCellColspan(AstNode $cell): int
+    {
+        return max(1, (int) $cell->attr('colspan', 1));
+    }
+
+    private function tableCellRawRowspan(AstNode $cell): int
+    {
+        $value = $cell->attr('rowspan', 1);
+        if (is_string($value)) {
+            $value = trim($value);
+            if (preg_match('/^-?\d+$/', $value) !== 1) {
+                return 1;
+            }
+
+            return (int) $value;
+        }
+
+        if (!is_int($value) && !is_float($value)) {
+            return 1;
+        }
+
+        return (int) $value;
     }
 
     private function nodeHasSourceAttributes(AstNode $node): bool
@@ -1847,6 +1878,46 @@ final class MarkdownWriter
         }
 
         return false;
+    }
+
+    private function nodeHasHtmlAttributes(AstNode $node): bool
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            return false;
+        }
+
+        foreach ($htmlAttributes as $name => $value) {
+            if (is_scalar($value) && trim((string) $name) !== '' && (string) $value !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function nodeListHasHtmlAttributes(mixed $nodes): bool
+    {
+        if (!is_array($nodes)) {
+            return false;
+        }
+
+        foreach ($nodes as $node) {
+            if ($node instanceof AstNode && $this->nodeTreeHasHtmlAttributes($node)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function nodeTreeHasHtmlAttributes(AstNode $node): bool
+    {
+        if ($this->nodeHasHtmlAttributes($node)) {
+            return true;
+        }
+
+        return $this->nodeListHasHtmlAttributes($node->children);
     }
 
     /**
@@ -2518,26 +2589,65 @@ final class MarkdownWriter
             || str_starts_with($name, 'aria-')
             || in_array($name, [
                 'abbr',
+                'accesskey',
                 'align',
                 'alt',
+                'axis',
+                'border',
+                'cellpadding',
+                'cellspacing',
+                'char',
+                'charoff',
                 'class',
                 'colspan',
+                'contenteditable',
+                'crossorigin',
                 'datetime',
+                'decoding',
                 'dir',
+                'download',
+                'draggable',
+                'fetchpriority',
+                'frame',
                 'headers',
                 'height',
+                'hidden',
                 'href',
+                'hreflang',
                 'id',
+                'itemid',
+                'itemprop',
+                'itemref',
+                'itemscope',
+                'itemtype',
                 'lang',
+                'loading',
+                'name',
+                'popover',
+                'referrerpolicy',
+                'rel',
+                'reversed',
                 'role',
                 'rowspan',
+                'rules',
                 'scope',
+                'sizes',
+                'slot',
+                'span',
+                'spellcheck',
                 'src',
+                'srcset',
                 'start',
                 'style',
                 'summary',
+                'tabindex',
+                'target',
                 'title',
+                'translate',
+                'type',
+                'usemap',
                 'valign',
+                'value',
                 'width',
                 'xml:lang',
             ], true);
