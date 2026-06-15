@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 1,420 | 1,096 |
+| Markdown / CommonMark / GFM | 1,481 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,4 +26,4 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownWriter` preserves body-local table heads, direct body rows, text-only table-cell newline and delimiter normalization, hard/soft break captions and short captions, and bracketed/semantic spans in table output.\n\nCurrent Pandoc counters: 5,071 PHP passes / 0 failures and 5,061 mapped upstream cases. Verification passed: `php -l` for `MarkdownWriter.php` and `MarkdownWriterTablesSurgeTest.php`; focused `MarkdownWriterTablesSurgeTest.php` passed 1 file, 131 assertions, 0 failures; focused `MarkdownWriterTablesSurgeTest.php` plus `MarkdownReaderTest.php` passed 2 files, 7150 assertions, 0 failures; full `lanes/pandoc/tests` passed 63 files, 96519 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.\n
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownEmojiAliases` recognizes 60 additional Markdown/Pandoc emoji shortcodes; `MarkdownReader` emits emoji spans, `MarkdownWriter` roundtrips shortcodes, and WordPress handoff preserves inline spans while unknown aliases stay literal.\n\nCurrent Pandoc counters: 5,132 PHP passes / 0 failures and 5,121 mapped upstream cases. Verification passed: `php -l` for `MarkdownEmojiAliases.php` and `MarkdownReaderEmojiSurgeTest.php`; dedicated `MarkdownReaderEmojiSurgeTest.php` passed 1 file, 365 assertions, 0 failures; focused `MarkdownReaderEmojiSurgeTest.php` plus `MarkdownReaderTest.php` passed 2 files, 7384 assertions, 0 failures; full `lanes/pandoc/tests` passed 64 files, 96884 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.\n
