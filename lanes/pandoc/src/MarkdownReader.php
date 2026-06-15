@@ -7,6 +7,7 @@ namespace PortLibs\Pandoc;
 final class MarkdownReader
 {
     private const MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+    private const MAX_MARKDOWN_REFERENCE_LABEL_LENGTH = 999;
     private const SUPPORTED_YAML_METADATA_VERSIONS = ['1.1', '1.2'];
     private const YAML_TAG_SUFFIX_PATTERN = '[A-Za-z0-9_.:\/\?#@!$&()*+;=%~-]+';
 
@@ -7618,6 +7619,17 @@ final class MarkdownReader
         return strtolower(trim(preg_replace('/\s+/', ' ', $label) ?? $label));
     }
 
+    private function isMarkdownReferenceLabelLengthValid(string $label): bool
+    {
+        $label = $this->decodeHtmlEntities($this->unescapeLinkComponent($label));
+        $characters = preg_match_all('/./us', $label);
+        if ($characters === false) {
+            $characters = strlen($label);
+        }
+
+        return $characters <= self::MAX_MARKDOWN_REFERENCE_LABEL_LENGTH;
+    }
+
     /**
      * @param list<string> $lines
      * @return array{0:array<string, int>, 1:array<int, int>}
@@ -7692,7 +7704,11 @@ final class MarkdownReader
 
             $idsByLine[$index] = $id;
             $label = $this->normalizeReferenceLabel($this->plainMarkdownHeadingText($heading['text']));
-            if ($label !== '' && !isset($references[$label])) {
+            if (
+                $label !== ''
+                && $this->isMarkdownReferenceLabelLengthValid($label)
+                && !isset($references[$label])
+            ) {
                 $references[$label] = ['url' => '#' . $id, 'title' => ''];
             }
 
@@ -8204,6 +8220,7 @@ final class MarkdownReader
             $label === null
             || $label['text'] === ''
             || str_starts_with($label['text'], '^')
+            || !$this->isMarkdownReferenceLabelLengthValid($label['text'])
             || ($line[$label['next']] ?? '') !== ':'
         ) {
             return null;
@@ -18486,6 +18503,9 @@ final class MarkdownReader
             $referenceLabel = $reference['text'] === '' ? $label['text'] : $reference['text'];
             $next = $reference['next'];
         }
+        if (!$this->isMarkdownReferenceLabelLengthValid($referenceLabel)) {
+            return null;
+        }
 
         $target = $this->referenceLinks[$this->normalizeReferenceLabel($referenceLabel)] ?? null;
         if ($target === null) {
@@ -18769,6 +18789,9 @@ final class MarkdownReader
 
             $referenceLabel = $reference['text'] === '' ? $label['text'] : $reference['text'];
             $next = $reference['next'];
+        }
+        if (!$this->isMarkdownReferenceLabelLengthValid($referenceLabel)) {
+            return null;
         }
 
         $target = $this->referenceLinks[$this->normalizeReferenceLabel($referenceLabel)] ?? null;
