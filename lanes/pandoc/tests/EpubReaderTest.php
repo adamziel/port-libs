@@ -8775,6 +8775,54 @@ XML;
         $t->same($ocf, $result['importReport']['ocf']);
         $t->same($ocf, $result['document']->attr('ocf'));
     },
+    'preserves OCF sidecar reference ZIP provenance for package review' => static function (TestRunner $t) use ($buildEpubPackage, $rightsXml, $signaturesXml, $chapter1Xhtml): void {
+        $licenseBytes = '<license source="wordpress-import">review required</license>';
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            null,
+            [
+                ['name' => 'META-INF/rights.xml', 'data' => $rightsXml],
+                ['name' => 'META-INF/signatures.xml', 'data' => $signaturesXml],
+                ['name' => 'META-INF/licenses/source-license.xml', 'data' => $licenseBytes, 'compressionMethod' => 0],
+            ]
+        ));
+
+        $rightsReference = $result['ocf']['rights']['items'][0]['reference'];
+        $t->same('/META-INF/licenses/source-license.xml', $rightsReference['part']);
+        $t->same(strlen($licenseBytes), $rightsReference['byteLength']);
+        $t->same(strlen($licenseBytes), $rightsReference['compressedByteLength']);
+        $t->same(0, $rightsReference['compressionMethod']);
+        $t->same('stored', $rightsReference['compressionMethodName']);
+        $t->same(true, $rightsReference['compressionSupported']);
+        $t->same(hash('sha256', $licenseBytes), $rightsReference['byteSha256']);
+        $t->same(true, $rightsReference['canExposeBytes']);
+
+        $chapterReference = $result['ocf']['signatures']['items'][0]['references'][0];
+        $t->same('/OEBPS/text/chapter1.xhtml', $chapterReference['part']);
+        $t->same(strlen($chapter1Xhtml), $chapterReference['byteLength']);
+        $t->same(strlen(gzdeflate($chapter1Xhtml)), $chapterReference['compressedByteLength']);
+        $t->same(8, $chapterReference['compressionMethod']);
+        $t->same('deflated', $chapterReference['compressionMethodName']);
+        $t->same(true, $chapterReference['compressionSupported']);
+        $t->same(hash('sha256', $chapter1Xhtml), $chapterReference['byteSha256']);
+        $t->same(true, $chapterReference['canExposeBytes']);
+        $t->same($chapterReference, $result['ocf']['signatures']['references'][0]);
+
+        $missingReference = $result['ocf']['signatures']['items'][0]['references'][1];
+        $t->same(false, $missingReference['exists']);
+        $t->same(null, $missingReference['compressedByteLength']);
+        $t->same(null, $missingReference['byteSha256']);
+        $t->same(false, $missingReference['canExposeBytes']);
+
+        $remoteReference = $result['ocf']['signatures']['items'][0]['references'][2];
+        $t->same(true, $remoteReference['external']);
+        $t->same(null, $remoteReference['compressionMethod']);
+        $t->same(null, $remoteReference['byteSha256']);
+        $t->same(false, $remoteReference['canExposeBytes']);
+
+        $t->same($rightsReference, $result['importReport']['ocf']['rights']['items'][0]['reference']);
+        $t->same($chapterReference, $result['document']->attr('ocf')['signatures']['references'][0]);
+    },
     'preserves OCF sidecar reference fragments for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $cfi = 'epubcfi(/6/2[chapter1]!/4/2/1:12)';
         $metadataXml = <<<XML

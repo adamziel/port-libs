@@ -6925,7 +6925,13 @@ final class EpubReader
             'external' => $reference['external'],
             'exists' => $reference['exists'],
             'byteLength' => $reference['byteLength'],
+            'compressedByteLength' => $reference['compressedByteLength'],
+            'compressionMethod' => $reference['compressionMethod'],
+            'compressionMethodName' => $reference['compressionMethodName'],
+            'compressionSupported' => $reference['compressionSupported'],
             'crc32' => $reference['crc32'],
+            'byteSha256' => $reference['byteSha256'],
+            'canExposeBytes' => $reference['canExposeBytes'],
             'digestMethod' => $digestMethod instanceof \DOMElement
                 ? self::nullableAttribute($digestMethod, 'Algorithm')
                 : null,
@@ -6945,7 +6951,13 @@ final class EpubReader
      *     external:bool,
      *     exists:bool,
      *     byteLength:?int,
+     *     compressedByteLength:?int,
+     *     compressionMethod:?int,
+     *     compressionMethodName:?string,
+     *     compressionSupported:?bool,
      *     crc32:?string,
+     *     byteSha256:?string,
+     *     canExposeBytes:bool,
      *     diagnostics:list<array<string, mixed>>
      * }
      */
@@ -6970,7 +6982,13 @@ final class EpubReader
                 'external' => true,
                 'exists' => false,
                 'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
                 'crc32' => null,
+                'byteSha256' => null,
+                'canExposeBytes' => false,
                 'diagnostics' => [[
                     'type' => 'ocf-' . $context . '-remote-reference',
                     'uri' => $uri,
@@ -6997,7 +7015,13 @@ final class EpubReader
                 'external' => false,
                 'exists' => false,
                 'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
                 'crc32' => null,
+                'byteSha256' => null,
+                'canExposeBytes' => false,
                 'diagnostics' => [[
                     'type' => 'ocf-' . $context . '-invalid-reference',
                     'uri' => $uri,
@@ -7010,12 +7034,28 @@ final class EpubReader
         $fragmentFields = self::targetFragmentFields($target);
         $exists = $package->has($part);
         $entry = $exists ? $package->entry($part) : null;
+        $provenance = self::zipEntryProvenance($entry);
+        $canExposeBytes = ($provenance['canExposeBytes'] ?? false) === true;
+        $byteSha256 = null;
         $diagnostics = $exists ? [] : [[
             'type' => 'ocf-' . $context . '-missing-reference',
             'uri' => $uri,
             'part' => $part,
             'message' => 'EPUB OCF ' . $context . ' reference target is missing from the package',
         ]];
+        if ($exists && $canExposeBytes) {
+            try {
+                $byteSha256 = hash('sha256', $package->read($part));
+            } catch (\Throwable $exception) {
+                $canExposeBytes = false;
+                $diagnostics[] = [
+                    'type' => 'ocf-' . $context . '-reference-bytes-unavailable',
+                    'uri' => $uri,
+                    'part' => $part,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
 
         return [
             'target' => $target,
@@ -7026,8 +7066,14 @@ final class EpubReader
             'mediaFragment' => $fragmentFields['mediaFragment'],
             'external' => false,
             'exists' => $exists,
-            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
-            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'byteLength' => $provenance['byteLength'],
+            'compressedByteLength' => $provenance['compressedByteLength'],
+            'compressionMethod' => $provenance['compressionMethod'],
+            'compressionMethodName' => $provenance['compressionMethodName'],
+            'compressionSupported' => $provenance['compressionSupported'],
+            'crc32' => $provenance['crc32'],
+            'byteSha256' => $byteSha256,
+            'canExposeBytes' => $canExposeBytes,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -7147,7 +7193,13 @@ final class EpubReader
      *     external:false,
      *     exists:false,
      *     byteLength:null,
+     *     compressedByteLength:null,
+     *     compressionMethod:null,
+     *     compressionMethodName:null,
+     *     compressionSupported:null,
      *     crc32:null,
+     *     byteSha256:null,
+     *     canExposeBytes:false,
      *     diagnostics:list<array<string, mixed>>
      * }
      */
@@ -7163,7 +7215,13 @@ final class EpubReader
             'external' => false,
             'exists' => false,
             'byteLength' => null,
+            'compressedByteLength' => null,
+            'compressionMethod' => null,
+            'compressionMethodName' => null,
+            'compressionSupported' => null,
             'crc32' => null,
+            'byteSha256' => null,
+            'canExposeBytes' => false,
             'diagnostics' => [[
                 'type' => 'ocf-' . $context . '-missing-reference',
                 'message' => 'EPUB OCF ' . $context . ' reference is missing a URI',
