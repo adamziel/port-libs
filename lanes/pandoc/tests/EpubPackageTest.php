@@ -6783,6 +6783,98 @@ XML;
         $t->same($missingPartValidation, $missingPartSummary['wordpressImport']['packageValidation']);
     },
 
+    'reports missing OPF manifest package parts in inventory review handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfWithMissingInventoryParts = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:missing-inventory-parts</dc:identifier>
+    <dc:title>Missing inventory parts</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-15T07:08:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="cover" href="images/missing-cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="audio" href="audio/missing-theme.mp3" media-type="audio/mpeg"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="chapter.xhtml">Inventory review</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMissingInventoryParts],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Readable</h1></body></html>'],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $missing = $inventory['missingOpfManifestDeclaredItems'];
+        $byPartName = $inventory['missingOpfManifestDeclaredItemsByPartName'];
+        $cover = $byPartName['/EPUB/images/missing-cover.png'][0];
+        $audio = $byPartName['/EPUB/audio/missing-theme.mp3'][0];
+
+        $t->same(2, $inventory['missingOpfManifestDeclaredItemCount']);
+        $t->same(2, $inventory['missingOpfManifestDeclaredPartCount']);
+        $t->same(['/EPUB/images/missing-cover.png', '/EPUB/audio/missing-theme.mp3'], $inventory['missingOpfManifestDeclaredPartNames']);
+        $t->same(['cover', 'audio'], array_column($missing, 'id'));
+        $t->same([
+            'audio' => 1,
+            'cover-image' => 1,
+        ], $inventory['missingOpfManifestDeclaredResourceKindCounts']);
+        $t->same([
+            'missing-package-part' => 2,
+            'opf-manifest-declared' => 2,
+            'resource-kind-audio' => 1,
+            'resource-kind-cover-image' => 1,
+        ], $inventory['missingOpfManifestDeclaredRoleCounts']);
+        $t->same([
+            'missing-opf-manifest-package-part-metadata-only' => 2,
+        ], $inventory['missingOpfManifestDeclaredByteExposurePolicyCounts']);
+        $t->same(2, $inventory['missingOpfManifestDeclaredDiagnosticCount']);
+        $t->same(['missing-opf-manifest-package-part', 'missing-opf-manifest-package-part'], array_column($inventory['missingOpfManifestDeclaredDiagnostics'], 'type'));
+        $t->same($missing, $summary['wordpressImport']['packageInventoryMissingOpfManifestDeclaredItems']);
+        $t->same($inventory['missingOpfManifestDeclaredDiagnostics'], $summary['wordpressImport']['packageInventoryMissingOpfManifestDeclaredDiagnostics']);
+
+        $t->same(2, $cover['index']);
+        $t->same('cover', $cover['id']);
+        $t->same('images/missing-cover.png', $cover['href']);
+        $t->same('/EPUB/images/missing-cover.png', $cover['partName']);
+        $t->same('EPUB/images/missing-cover.png', $cover['packagePath']);
+        $t->same('image/png', $cover['mediaType']);
+        $t->same(['cover-image'], $cover['properties']);
+        $t->same('cover-image', $cover['resourceKind']);
+        $t->same(['opf-manifest-declared', 'missing-package-part', 'resource-kind-cover-image'], $cover['roles']);
+        $t->same(false, $cover['exists']);
+        $t->same(null, $cover['byteLength']);
+        $t->same(null, $cover['compressedByteLength']);
+        $t->same(false, $cover['canExposeBytes']);
+        $t->same('missing-opf-manifest-package-part-metadata-only', $cover['byteExposurePolicy']);
+        $t->same('missing-opf-manifest-package-part', $cover['diagnostics'][0]['type']);
+
+        $t->same(3, $audio['index']);
+        $t->same('audio', $audio['id']);
+        $t->same('audio/missing-theme.mp3', $audio['href']);
+        $t->same('/EPUB/audio/missing-theme.mp3', $audio['partName']);
+        $t->same('audio/mpeg', $audio['mediaTypeBase']);
+        $t->same('audio', $audio['resourceKind']);
+        $t->same(['opf-manifest-declared', 'missing-package-part', 'resource-kind-audio'], $audio['roles']);
+        $t->same(false, isset($inventory['byPackagePath']['EPUB/images/missing-cover.png']));
+        $t->same(false, isset($inventory['byPackagePath']['EPUB/audio/missing-theme.mp3']));
+    },
+
     'reports EPUB OCF ZIP package inventory roles without exposing payload bytes' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithInventoryResources = str_replace(
             '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',

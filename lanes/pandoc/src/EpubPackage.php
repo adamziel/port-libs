@@ -681,6 +681,8 @@ final class EpubPackage
             'wordpressImport' => [
                 'mimetypeEntry' => $this->mimetypeEntry,
                 'packageInventory' => $packageInventory,
+                'packageInventoryMissingOpfManifestDeclaredItems' => $packageInventory['missingOpfManifestDeclaredItems'],
+                'packageInventoryMissingOpfManifestDeclaredDiagnostics' => $packageInventory['missingOpfManifestDeclaredDiagnostics'],
                 'readingOrderInventory' => $readingOrderInventory,
                 'manifestDependencyInventory' => $manifestDependencyInventory,
                 'manifestDependencyEdges' => $manifestDependencyInventory['edges'],
@@ -7376,6 +7378,12 @@ final class EpubPackage
         $manifestByPackagePath = [];
         $manifestDeclaredPartNames = [];
         $missingManifestDeclaredPartNames = [];
+        $missingManifestDeclaredItems = [];
+        $missingManifestDeclaredItemsByPartName = [];
+        $missingManifestDeclaredDiagnostics = [];
+        $missingManifestDeclaredRoleCounts = [];
+        $missingManifestDeclaredResourceKindCounts = [];
+        $missingManifestDeclaredByteExposurePolicyCounts = [];
         foreach ($manifestItems as $index => $item) {
             $packagePath = self::packageInventoryEntryName($item['partName'] ?? null);
             if ($packagePath === null) {
@@ -7387,6 +7395,55 @@ final class EpubPackage
             $manifestDeclaredPartNames[$partName] = true;
             if (($item['exists'] ?? false) !== true) {
                 $missingManifestDeclaredPartNames[$partName] = true;
+                $mediaType = is_string($item['mediaType'] ?? null) ? $item['mediaType'] : '';
+                $mediaTypeBase = $mediaType === '' ? null : self::mediaTypeBase($mediaType);
+                $properties = is_array($item['properties'] ?? null) ? array_values($item['properties']) : [];
+                $resourceKind = self::packageInventoryResourceKind($mediaType, $packagePath, $properties);
+                $roles = [
+                    'opf-manifest-declared',
+                    'missing-package-part',
+                ];
+                if ($resourceKind !== null) {
+                    $roles[] = 'resource-kind-' . $resourceKind;
+                    $missingManifestDeclaredResourceKindCounts[$resourceKind] = ($missingManifestDeclaredResourceKindCounts[$resourceKind] ?? 0) + 1;
+                }
+                foreach ($roles as $role) {
+                    $missingManifestDeclaredRoleCounts[$role] = ($missingManifestDeclaredRoleCounts[$role] ?? 0) + 1;
+                }
+                $byteExposurePolicy = 'missing-opf-manifest-package-part-metadata-only';
+                $missingManifestDeclaredByteExposurePolicyCounts[$byteExposurePolicy] = ($missingManifestDeclaredByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+                $diagnostic = [
+                    'type' => 'missing-opf-manifest-package-part',
+                    'index' => $index,
+                    'id' => is_string($item['id'] ?? null) ? $item['id'] : '',
+                    'href' => is_string($item['href'] ?? null) ? $item['href'] : '',
+                    'partName' => $partName,
+                    'packagePath' => $packagePath,
+                    'mediaType' => $mediaType,
+                    'message' => 'EPUB OPF manifest declares a package part that is not present in the ZIP; compact inventory keeps a metadata-only review row',
+                ];
+                $missingItem = [
+                    'index' => $index,
+                    'id' => is_string($item['id'] ?? null) ? $item['id'] : '',
+                    'href' => is_string($item['href'] ?? null) ? $item['href'] : '',
+                    'target' => is_string($item['target'] ?? null) ? $item['target'] : '',
+                    'partName' => $partName,
+                    'packagePath' => $packagePath,
+                    'mediaType' => $mediaType,
+                    'mediaTypeBase' => $mediaTypeBase,
+                    'properties' => $properties,
+                    'resourceKind' => $resourceKind,
+                    'roles' => $roles,
+                    'exists' => false,
+                    'declaredInOpfManifest' => true,
+                    'canExposeBytes' => false,
+                    'byteExposurePolicy' => $byteExposurePolicy,
+                    'diagnosticCount' => 1,
+                    'diagnostics' => [$diagnostic],
+                ] + self::zipEntryProvenance(null);
+                $missingManifestDeclaredItems[] = $missingItem;
+                $missingManifestDeclaredItemsByPartName[$partName][] = $missingItem;
+                $missingManifestDeclaredDiagnostics[] = $diagnostic;
             }
         }
 
@@ -7721,12 +7778,16 @@ final class EpubPackage
         ksort($byteExposurePolicyCounts, SORT_STRING);
         ksort($byteExposurePolicyByteLengths, SORT_STRING);
         ksort($byteExposurePolicyCompressedByteLengths, SORT_STRING);
+        ksort($missingManifestDeclaredRoleCounts, SORT_STRING);
+        ksort($missingManifestDeclaredResourceKindCounts, SORT_STRING);
+        ksort($missingManifestDeclaredByteExposurePolicyCounts, SORT_STRING);
 
         return [
             'entryCount' => count($entries),
             'fileEntryCount' => count($entries) - $directoryEntryCount,
             'directoryEntryCount' => $directoryEntryCount,
             'opfManifestDeclaredEntryCount' => $opfManifestDeclaredEntryCount,
+            'missingOpfManifestDeclaredItemCount' => count($missingManifestDeclaredItems),
             'opfManifestDeclaredPartCount' => count($manifestDeclaredPartNames),
             'missingOpfManifestDeclaredPartCount' => count($missingManifestDeclaredPartNames),
             'undeclaredEntryCount' => count($undeclaredPartNames),
@@ -7756,6 +7817,9 @@ final class EpubPackage
             'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'byteExposurePolicyByteLengths' => $byteExposurePolicyByteLengths,
             'byteExposurePolicyCompressedByteLengths' => $byteExposurePolicyCompressedByteLengths,
+            'missingOpfManifestDeclaredRoleCounts' => $missingManifestDeclaredRoleCounts,
+            'missingOpfManifestDeclaredResourceKindCounts' => $missingManifestDeclaredResourceKindCounts,
+            'missingOpfManifestDeclaredByteExposurePolicyCounts' => $missingManifestDeclaredByteExposurePolicyCounts,
             'directoryCount' => count($directorySummaries),
             'directorySummaries' => $directorySummaries,
             'directories' => array_column($directorySummaries, 'directory'),
@@ -7764,6 +7828,10 @@ final class EpubPackage
             'extensions' => array_column($extensionSummaries, 'extension'),
             'opfManifestDeclaredPartNames' => array_keys($manifestDeclaredPartNames),
             'missingOpfManifestDeclaredPartNames' => array_keys($missingManifestDeclaredPartNames),
+            'missingOpfManifestDeclaredItems' => $missingManifestDeclaredItems,
+            'missingOpfManifestDeclaredItemsByPartName' => $missingManifestDeclaredItemsByPartName,
+            'missingOpfManifestDeclaredDiagnosticCount' => count($missingManifestDeclaredDiagnostics),
+            'missingOpfManifestDeclaredDiagnostics' => $missingManifestDeclaredDiagnostics,
             'undeclaredPartNames' => array_keys($undeclaredPartNames),
             'spinePartNames' => array_keys($spinePartNames),
             'encryptedPartNames' => array_keys($encryptedPartNames),
