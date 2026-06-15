@@ -30,3 +30,33 @@ Verification performed after rebase onto current main `ca72d60b88`:
 - conflict-marker scan
 
 No Pandoc binary, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests were invoked.
+
+## plib-kwpsv rebase slice
+
+Bead: plib-kwpsv
+
+Implemented an additional bounded JSON/native AST constructor completeness matrix case for single-wrapped tuple payloads on `Header`, `CodeBlock`, `RawBlock`, `OrderedList`, `Div`, `Figure`, and `Table`. The merged test keeps the already-landed block/table helper coverage and adds the source slice's table-body/edit assertions under a distinct test name.
+
+Accounting updates after rebase onto current main `f4a2c4886a`:
+
+- `phpPass`: 3732 -> 3733
+- `phpFail`: 0
+- upstream mapped cases: 3750 -> 3751
+- `mappedJsonNativeConstructorMatrixCases`: lane/root 19 -> 20; upstream 18 -> 19
+- `jsonNativeConstructorMatrixAssertions`: lane/root 331 -> 429; upstream 306 -> 404
+- `mappedJsonNativeConstructorCompletenessCases`: lane 58 -> 59; upstream/root 54 -> 55
+- `jsonNativeConstructorCompletenessAssertions`: lane 1512 -> 1610; upstream/root 1377 -> 1475
+- `mappedJsonNativeSingleWrappedBlockTupleCases`: lane 3 -> 4; upstream/root 2 -> 3
+- `jsonNativeSingleWrappedBlockTupleAssertions`: lane 208 -> 306; upstream/root 144 -> 242
+
+Verification passed after rebase onto current main `f4a2c4886a`:
+
+- `php -l lanes/pandoc/src/PandocJsonWriter.php`
+- `php -l lanes/pandoc/tests/PandocJsonNativeAstTest.php`
+- focused `php tools/run-tests.php lanes/pandoc/tests/PandocJsonNativeAstTest.php`
+  - Result: `1 file, 5564 assertions, 0 failures`
+- full `php tools/run-tests.php lanes/pandoc/tests`
+  - Result: `46 files, 88664 assertions, 0 failures`
+- PHP JSON manifest/status validation
+- `git diff --check`
+- conflict-marker scan

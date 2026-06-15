@@ -1969,6 +1969,190 @@ return [
             }
         }
     },
+    'accepts single wrapped block tuple payloads with table body edits through json and native readers' => static function (TestRunner $t): void {
+        $headerBlock = ['t' => 'Header', 'c' => [[
+            2,
+            ['wrapped-heading', ['review'], [['data-source', 'block-tuple']]],
+            [
+                ['t' => 'Str', 'c' => 'Wrapped'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'heading'],
+            ],
+        ]], 'reviewQueue' => 'header-tuple-source'];
+        $codeBlock = ['t' => 'CodeBlock', 'c' => [[
+            ['wrapped-code', ['bash'], [['data-source', 'block-tuple']]],
+            'wp option get home',
+        ]], 'reviewQueue' => 'code-block-tuple-source'];
+        $rawBlock = ['t' => 'RawBlock', 'c' => [[
+            ['t' => 'Format', 'c' => ['html'], 'reviewQueue' => 'raw-format-source'],
+            '<aside>raw</aside>',
+        ]], 'reviewQueue' => 'raw-block-tuple-source'];
+        $orderedBlock = ['t' => 'OrderedList', 'c' => [[
+            [5, ['t' => 'UpperRoman'], ['t' => 'Period']],
+            [[
+                ['t' => 'Plain', 'c' => [
+                    ['t' => 'Str', 'c' => 'ordered'],
+                ]],
+            ]],
+        ]], 'reviewQueue' => 'ordered-tuple-source'];
+        $divBlock = ['t' => 'Div', 'c' => [[
+            ['wrapped-div', ['review'], [['data-source', 'block-tuple']]],
+            [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'div'],
+                ]],
+            ],
+        ]], 'reviewQueue' => 'div-tuple-source'];
+        $figureBlock = ['t' => 'Figure', 'c' => [[
+            ['wrapped-figure', ['review'], [['data-source', 'block-tuple']]],
+            ['t' => 'Caption', 'c' => [
+                ['t' => 'Nothing'],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Figure'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'caption'],
+                    ]],
+                ],
+            ]],
+            [
+                ['t' => 'Plain', 'c' => [
+                    ['t' => 'Image', 'c' => [
+                        ['', [], []],
+                        [['t' => 'Str', 'c' => 'Alt']],
+                        ['media/figure.png', 'Figure title'],
+                    ]],
+                ]],
+            ],
+        ]], 'reviewQueue' => 'figure-tuple-source'];
+        $tableBlock = ['t' => 'Table', 'c' => [[
+            ['wrapped-table', ['review'], [['data-source', 'block-tuple']]],
+            ['t' => 'Caption', 'c' => [
+                ['t' => 'Nothing'],
+                [],
+            ]],
+            [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+            ['t' => 'TableHead', 'c' => [['', [], []], []]],
+            [
+                ['t' => 'TableBody', 'c' => [
+                    ['', [], []],
+                    ['t' => 'RowHeadColumns', 'c' => 0],
+                    [],
+                    [
+                        ['t' => 'Row', 'c' => [
+                            ['', [], []],
+                            [
+                                ['t' => 'Cell', 'c' => [
+                                    ['', [], []],
+                                    ['t' => 'AlignDefault'],
+                                    ['t' => 'RowSpan', 'c' => 1],
+                                    ['t' => 'ColSpan', 'c' => 1],
+                                    [
+                                        ['t' => 'Plain', 'c' => [
+                                            ['t' => 'Str', 'c' => 'cell'],
+                                        ]],
+                                    ],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                ]],
+            ],
+            ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+        ]], 'reviewQueue' => 'table-tuple-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$headerBlock, $codeBlock, $rawBlock, $orderedBlock, $divBlock, $figureBlock, $tableBlock],
+        ];
+        $withoutWrapperNative = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $heading = $document->children[0];
+            $code = $document->children[1];
+            $raw = $document->children[2];
+            $ordered = $document->children[3];
+            $div = $document->children[4];
+            $figure = $document->children[5];
+            $table = $document->children[6];
+
+            $t->same(['heading', 'code_block', 'raw_html', 'ordered_list', 'div', 'figure', 'table'], array_map(static fn (AstNode $node): string => $node->type, $document->children), "{$source} normalizes single wrapped block tuple constructors");
+            $t->same($headerBlock, $heading->attr('native'), "{$source} header native payload");
+            $t->same(2, $heading->attr('level'), "{$source} heading level");
+            $t->same('Wrapped heading', $heading->attr('text'), "{$source} heading text");
+            $t->same($codeBlock, $code->attr('native'), "{$source} code block native payload");
+            $t->same(['bash'], $code->attr('classes'), "{$source} code block classes");
+            $t->same('wp option get home', $code->attr('text'), "{$source} code block text");
+            $t->same($rawBlock, $raw->attr('native'), "{$source} raw block native payload");
+            $t->same('html', $raw->attr('format'), "{$source} raw block format");
+            $t->same('<aside>raw</aside>', $raw->attr('html'), "{$source} raw html");
+            $t->same($orderedBlock, $ordered->attr('native'), "{$source} ordered list native payload");
+            $t->same(5, $ordered->attr('start'), "{$source} ordered list start");
+            $t->same('upper_roman', $ordered->attr('style'), "{$source} ordered list style");
+            $t->same('period', $ordered->attr('delimiter'), "{$source} ordered list delimiter");
+            $t->same($divBlock, $div->attr('native'), "{$source} div native payload");
+            $t->same('wrapped-div', $div->attr('id'), "{$source} div attr id");
+            $t->same('div', $div->children[0]->attr('text'), "{$source} div child text");
+            $t->same($figureBlock, $figure->attr('native'), "{$source} figure native payload");
+            $t->same('Figure caption', $figure->attr('caption'), "{$source} figure caption");
+            $t->same('image', $figure->children[0]->type, "{$source} figure image child");
+            $t->same($tableBlock, $table->attr('native'), "{$source} table native payload");
+            $t->same('wrapped-table', $table->attr('id'), "{$source} table attr id");
+            $t->same('cell', $table->children[0]->children[0]->children[0]->attr('text'), "{$source} table cell text");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($packet['blocks'], $encoded['blocks'], "{$source} {$writer} writer preserves unchanged single wrapped block tuple payloads");
+            }
+
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('heading', array_replace($withoutWrapperNative($heading), ['level' => 3]), $heading->children),
+                new AstNode('code_block', array_replace($withoutWrapperNative($code), ['text' => 'wp option update home https://example.test'])),
+                new AstNode('raw_html', array_replace($withoutWrapperNative($raw), [
+                    'text' => '<aside>edited</aside>',
+                    'html' => '<aside>edited</aside>',
+                ])),
+                new AstNode('ordered_list', array_replace($withoutWrapperNative($ordered), ['start' => 6]), $ordered->children),
+                new AstNode('div', $withoutWrapperNative($div), $div->children),
+                new AstNode('figure', $withoutWrapperNative($figure), $figure->children),
+                new AstNode('table', $withoutWrapperNative($table), $table->children),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $editedHeader = $encoded['blocks'][0];
+                $editedCode = $encoded['blocks'][1];
+                $editedRaw = $encoded['blocks'][2];
+                $editedOrdered = $encoded['blocks'][3];
+                $editedDiv = $encoded['blocks'][4];
+
+                $t->same('Header', $editedHeader['t'], "{$source} {$writer} writer keeps edited header constructor");
+                $t->same(3, $editedHeader['c'][0], "{$source} {$writer} writer emits edited header level");
+                $t->same(false, array_key_exists('reviewQueue', $editedHeader), "{$source} {$writer} writer drops stale header sidecar");
+                $t->same('CodeBlock', $editedCode['t'], "{$source} {$writer} writer keeps edited code block constructor");
+                $t->same('wp option update home https://example.test', $editedCode['c'][1], "{$source} {$writer} writer emits edited code block text");
+                $t->same(false, array_key_exists('reviewQueue', $editedCode), "{$source} {$writer} writer drops stale code block sidecar");
+                $t->same('RawBlock', $editedRaw['t'], "{$source} {$writer} writer keeps edited raw block constructor");
+                $t->same('<aside>edited</aside>', $editedRaw['c'][1], "{$source} {$writer} writer emits edited raw block text");
+                $t->same(6, $editedOrdered['c'][0][0], "{$source} {$writer} writer emits edited ordered list start");
+                $t->same('Div', $editedDiv['t'], "{$source} {$writer} writer keeps rebuilt div constructor");
+                $t->same(2, count($editedDiv['c']), "{$source} {$writer} writer canonicalizes rebuilt div tuple");
+                $t->same(false, array_key_exists('reviewQueue', $editedDiv), "{$source} {$writer} writer drops stale div sidecar");
+            }
+        }
+    },
     'accepts tagged single wrapped block tuple constructors through json and native readers' => static function (TestRunner $t): void {
         $emptyAttr = ['', [], []];
         $sourceBlocks = [
