@@ -15393,6 +15393,7 @@ final class EpubPackage
         $prefixedPropertyCount = 0;
         $resolvedPropertyCount = 0;
         $unresolvedPropertyCount = 0;
+        $duplicatePropertyCount = 0;
 
         foreach ($manifest as $item) {
             $properties = array_values(array_filter(
@@ -15422,10 +15423,24 @@ final class EpubPackage
             if ($manifestId !== '') {
                 $itemsById[$manifestId] = $summaryItem;
             }
+            $duplicatePropertyCount += (int) ($report['duplicateCount'] ?? 0);
 
             foreach ($report['items'] as $propertyItem) {
                 ++$propertyTokenCount;
                 $vocabulary = is_array($propertyItem['vocabulary'] ?? null) ? $propertyItem['vocabulary'] : null;
+                foreach ($vocabulary['diagnostics'] ?? [] as $diagnostic) {
+                    if (!is_array($diagnostic)) {
+                        continue;
+                    }
+
+                    $diagnostics[] = [
+                        'manifestId' => $manifestId,
+                        'href' => (string) ($item['href'] ?? ''),
+                        'index' => (int) ($propertyItem['index'] ?? 0),
+                        'property' => (string) ($propertyItem['property'] ?? ''),
+                    ] + $diagnostic;
+                }
+
                 if (!is_array($vocabulary) || ($vocabulary['prefixed'] ?? false) !== true) {
                     continue;
                 }
@@ -15461,19 +15476,6 @@ final class EpubPackage
                         ++$byPrefix[$prefix]['unresolvedCount'];
                     }
                 }
-
-                foreach ($vocabulary['diagnostics'] ?? [] as $diagnostic) {
-                    if (!is_array($diagnostic)) {
-                        continue;
-                    }
-
-                    $diagnostics[] = [
-                        'manifestId' => $manifestId,
-                        'href' => (string) ($item['href'] ?? ''),
-                        'index' => (int) ($propertyItem['index'] ?? 0),
-                        'property' => (string) ($propertyItem['property'] ?? ''),
-                    ] + $diagnostic;
-                }
             }
         }
 
@@ -15495,6 +15497,7 @@ final class EpubPackage
             'prefixedPropertyCount' => $prefixedPropertyCount,
             'resolvedPropertyCount' => $resolvedPropertyCount,
             'unresolvedPropertyCount' => $unresolvedPropertyCount,
+            'duplicatePropertyCount' => $duplicatePropertyCount,
             'items' => $items,
             'itemsById' => $itemsById,
             'byPrefix' => $byPrefix,
@@ -15519,6 +15522,8 @@ final class EpubPackage
         $prefixedCount = 0;
         $resolvedCount = 0;
         $unresolvedCount = 0;
+        $duplicateCount = 0;
+        $seen = [];
 
         foreach ($properties as $index => $property) {
             if (!is_string($property) || $property === '') {
@@ -15529,6 +15534,23 @@ final class EpubPackage
             if (!is_array($vocabulary)) {
                 continue;
             }
+            $duplicate = array_key_exists($property, $seen);
+            $previousIndex = $duplicate ? $seen[$property] : null;
+            if ($duplicate) {
+                ++$duplicateCount;
+                $vocabulary['duplicate'] = true;
+                $vocabulary['previousIndex'] = $previousIndex;
+                $vocabulary['diagnostics'][] = [
+                    'type' => 'duplicate-manifest-property-token',
+                    'property' => $property,
+                    'previousIndex' => $previousIndex,
+                    'message' => 'EPUB OPF manifest item property token is repeated',
+                ];
+            } else {
+                $vocabulary['duplicate'] = false;
+                $vocabulary['previousIndex'] = null;
+            }
+            $seen[$property] = (int) $index;
 
             if (($vocabulary['prefixed'] ?? false) === true) {
                 ++$prefixedCount;
@@ -15542,6 +15564,8 @@ final class EpubPackage
             $item = [
                 'index' => (int) $index,
                 'property' => $property,
+                'duplicate' => $duplicate,
+                'previousIndex' => $previousIndex,
                 'vocabulary' => $vocabulary,
             ];
 
@@ -15565,6 +15589,7 @@ final class EpubPackage
             'prefixedCount' => $prefixedCount,
             'resolvedCount' => $resolvedCount,
             'unresolvedCount' => $unresolvedCount,
+            'duplicateCount' => $duplicateCount,
             'items' => $items,
             'diagnostics' => $diagnostics,
             'diagnosticCount' => count($diagnostics),

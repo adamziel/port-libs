@@ -4798,6 +4798,70 @@ XML;
         $t->same($vocabulary['diagnostics'], $summary['wordpressImport']['resourcePropertyDiagnostics']);
     },
 
+    'reports duplicate OPF manifest resource property tokens for compact package review' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfWithDuplicateProperties = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" prefix="review: https://example.invalid/epub-review#">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:duplicate-manifest-properties</dc:identifier>
+    <dc:title>Duplicate Manifest Properties</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-15T09:59:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav nav"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml review:flag review:flag unknown:flag bad/token"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithDuplicateProperties],
+            ['name' => 'EPUB/nav.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="text/chapter.xhtml">Chapter</a></li></ol></nav></body></html>'],
+            ['name' => 'EPUB/text/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><math><mi>x</mi></math></body></html>'],
+        ]));
+
+        $report = $epub->resourceProperties();
+        $summary = $epub->summary();
+        $vocabulary = $report['propertyVocabulary'];
+        $navVocabulary = $report['itemsById']['nav']['propertyVocabulary'];
+        $chapterVocabulary = $report['itemsById']['chapter']['propertyVocabulary'];
+
+        $t->same(true, $vocabulary['present']);
+        $t->same(2, $vocabulary['itemCount']);
+        $t->same(7, $vocabulary['propertyTokenCount']);
+        $t->same(3, $vocabulary['prefixedPropertyCount']);
+        $t->same(2, $vocabulary['resolvedPropertyCount']);
+        $t->same(1, $vocabulary['unresolvedPropertyCount']);
+        $t->same(2, $vocabulary['duplicatePropertyCount']);
+        $t->same(4, $vocabulary['diagnosticCount']);
+        $t->same([
+            'duplicate-manifest-property-token',
+            'duplicate-manifest-property-token',
+            'unknown-manifest-property-prefix',
+            'invalid-manifest-property-token',
+        ], array_column($vocabulary['diagnostics'], 'type'));
+
+        $t->same(1, $navVocabulary['duplicateCount']);
+        $t->same(true, $navVocabulary['items'][1]['duplicate']);
+        $t->same(0, $navVocabulary['items'][1]['previousIndex']);
+        $t->same('duplicate-manifest-property-token', $navVocabulary['items'][1]['vocabulary']['diagnostics'][0]['type']);
+        $t->same(1, $chapterVocabulary['duplicateCount']);
+        $t->same(true, $chapterVocabulary['items'][2]['duplicate']);
+        $t->same(1, $chapterVocabulary['items'][2]['previousIndex']);
+        $t->same('https://example.invalid/epub-review#flag', $chapterVocabulary['items'][1]['vocabulary']['iri']);
+        $t->same('duplicate-manifest-property-token', $chapterVocabulary['items'][2]['vocabulary']['diagnostics'][0]['type']);
+        $t->same('unknown-manifest-property-prefix', $chapterVocabulary['items'][3]['vocabulary']['diagnostics'][0]['type']);
+        $t->same('invalid-manifest-property-token', $chapterVocabulary['items'][4]['vocabulary']['diagnostics'][0]['type']);
+        $t->same(['review:flag'], $vocabulary['byPrefix']['review']['properties']);
+        $t->same(['chapter'], $vocabulary['byPrefix']['review']['manifestIds']);
+        $t->same($report, $summary['resourceProperties']);
+        $t->same($report, $summary['wordpressImport']['resourceProperties']);
+        $t->same($vocabulary['diagnostics'], $summary['wordpressImport']['resourcePropertyDiagnostics']);
+    },
+
     'summarizes OPF manifest resource kind matrix for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3NavXml): void {
         $opfWithResourceKinds = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
