@@ -8452,6 +8452,11 @@ final class EpubPackage
         $missingManifestDeclaredByteExposurePolicyCounts = [];
         $missingDuplicateManifestIdPartNames = [];
         $missingDuplicateManifestIdItems = [];
+        $duplicateManifestPackagePartItems = [];
+        $duplicateManifestPackagePartDiagnostics = [];
+        $duplicateManifestPackagePartNames = [];
+        $duplicateManifestPackageItemCount = 0;
+        $duplicateManifestPackagePartByPackagePath = [];
         foreach ($manifestItems as $index => $item) {
             $packagePath = self::packageInventoryEntryName($item['partName'] ?? null);
             if ($packagePath === null) {
@@ -8527,6 +8532,52 @@ final class EpubPackage
                     $missingDuplicateManifestIdItems[] = $missingItem;
                 }
             }
+        }
+
+        foreach ($manifestByPackagePath as $packagePath => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $partName = self::packageInventoryPartName($packagePath);
+            $duplicate = [
+                'packagePath' => $packagePath,
+                'partName' => $partName,
+                'itemCount' => count($items),
+                'indexes' => array_map(
+                    static fn (array $item): int => (int) ($item['index'] ?? 0),
+                    $items
+                ),
+                'ids' => array_map(
+                    static fn (array $item): string => is_string($item['id'] ?? null) ? $item['id'] : '',
+                    $items
+                ),
+                'hrefs' => array_map(
+                    static fn (array $item): string => is_string($item['href'] ?? null) ? $item['href'] : '',
+                    $items
+                ),
+                'targets' => array_map(
+                    static fn (array $item): string => is_string($item['target'] ?? null) ? $item['target'] : '',
+                    $items
+                ),
+                'mediaTypes' => array_values(array_unique(array_map(
+                    static fn (array $item): string => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : '',
+                    $items
+                ))),
+            ];
+            $diagnostic = [
+                'type' => 'duplicate-opf-manifest-package-part',
+                'partName' => $partName,
+                'packagePath' => $packagePath,
+                'ids' => $duplicate['ids'],
+                'hrefs' => $duplicate['hrefs'],
+                'message' => 'EPUB OPF manifest maps multiple item ids to the same ZIP package part; compact inventory preserves the collision for review',
+            ];
+            $duplicateManifestPackagePartItems[] = $duplicate;
+            $duplicateManifestPackagePartDiagnostics[] = $diagnostic;
+            $duplicateManifestPackagePartNames[$partName] = true;
+            $duplicateManifestPackageItemCount += count($items);
+            $duplicateManifestPackagePartByPackagePath[$packagePath] = $duplicate;
         }
 
         $rootfilesByPackagePath = [];
@@ -8632,6 +8683,8 @@ final class EpubPackage
             $partName = self::packageInventoryPartName($packagePath);
             $location = self::packageInventoryEntryLocation($packagePath);
             $manifestMatches = $manifestByPackagePath[$packagePath] ?? [];
+            $duplicateManifestPackagePart = isset($duplicateManifestPackagePartByPackagePath[$packagePath]);
+            $duplicateManifestPackagePartItem = $duplicateManifestPackagePartByPackagePath[$packagePath] ?? null;
             $rootfileMatches = $rootfilesByPackagePath[$packagePath] ?? [];
             $spineMatches = $spineByPackagePath[$packagePath] ?? [];
             $sidecarMatches = $sidecarsByPackagePath[$packagePath] ?? [];
@@ -8758,6 +8811,9 @@ final class EpubPackage
                 $duplicateManifestIdPartNames[$partName] = true;
                 $duplicateManifestIdPackagePaths[$packagePath] = true;
             }
+            if ($duplicateManifestPackagePart) {
+                $addRole('duplicate-opf-manifest-package-part');
+            }
             if ($resourceKind !== null) {
                 $addRole('resource-kind-' . $resourceKind);
                 $resourceKindCounts[$resourceKind] = ($resourceKindCounts[$resourceKind] ?? 0) + 1;
@@ -8853,6 +8909,10 @@ final class EpubPackage
                 'duplicateManifestIdIndexes' => $duplicateManifestIdIndexes,
                 'duplicateManifestIdSelected' => $duplicateManifestIdSelected,
                 'duplicateManifestIdOrdinalsById' => $duplicateManifestIdOrdinalsById,
+                'duplicateManifestPackagePart' => $duplicateManifestPackagePart,
+                'duplicateManifestPackagePartIds' => is_array($duplicateManifestPackagePartItem) ? $duplicateManifestPackagePartItem['ids'] : [],
+                'duplicateManifestPackagePartHrefs' => is_array($duplicateManifestPackagePartItem) ? $duplicateManifestPackagePartItem['hrefs'] : [],
+                'duplicateManifestPackagePartIndexes' => is_array($duplicateManifestPackagePartItem) ? $duplicateManifestPackagePartItem['indexes'] : [],
                 'inSpine' => $inSpine,
                 'spineIndexes' => $spineIndexes,
                 'rootfile' => $isRootfile,
@@ -8967,6 +9027,8 @@ final class EpubPackage
             'missingOpfManifestDeclaredPartCount' => count($missingManifestDeclaredPartNames),
             'duplicateManifestIdEntryCount' => count($duplicateManifestIdPackagePaths),
             'duplicateManifestIdMissingItemCount' => count($missingDuplicateManifestIdItems),
+            'duplicateManifestPackagePartCount' => count($duplicateManifestPackagePartItems),
+            'duplicateManifestPackageItemCount' => $duplicateManifestPackageItemCount,
             'undeclaredEntryCount' => count($undeclaredPartNames),
             'spineEntryCount' => $spineEntryCount,
             'encryptedEntryCount' => $encryptedEntryCount,
@@ -9025,6 +9087,10 @@ final class EpubPackage
             'duplicateManifestIdItems' => $duplicateManifestIdItems,
             'duplicateManifestIdMissingPartNames' => array_keys($missingDuplicateManifestIdPartNames),
             'duplicateManifestIdMissingItems' => $missingDuplicateManifestIdItems,
+            'duplicateManifestPackagePartNames' => array_keys($duplicateManifestPackagePartNames),
+            'duplicateManifestPackagePartItems' => $duplicateManifestPackagePartItems,
+            'duplicateManifestPackagePartDiagnosticCount' => count($duplicateManifestPackagePartDiagnostics),
+            'duplicateManifestPackagePartDiagnostics' => $duplicateManifestPackagePartDiagnostics,
             'undeclaredPartNames' => array_keys($undeclaredPartNames),
             'undeclaredEntryReport' => $undeclaredEntryReport,
             'undeclaredPackageEntries' => $undeclaredEntryReport['items'],

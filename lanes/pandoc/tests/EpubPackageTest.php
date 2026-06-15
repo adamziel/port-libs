@@ -7563,6 +7563,100 @@ XML;
         $t->same(false, isset($inventory['byPackagePath']['EPUB/audio/missing-theme.mp3']));
     },
 
+    'preserves duplicate OPF manifest package parts in ZIP package inventory' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfWithDuplicatePackageParts = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:duplicate-manifest-package-inventory</dc:identifier>
+    <dc:title>Duplicate manifest package inventory</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-15T11:17:53Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter-review" href="text/chapter.xhtml#review" media-type="application/xhtml+xml"/>
+    <item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="cover-review" href="images/cover.png?role=review" media-type="image/png"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="text/chapter.xhtml">Chapter</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithDuplicatePackageParts],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+            ['name' => 'EPUB/text/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter</h1></body></html>'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $summary = $epub->summary();
+        $validation = $epub->validationReport();
+        $inventory = $summary['packageInventory'];
+        $chapter = $inventory['byPackagePath']['EPUB/text/chapter.xhtml'];
+        $cover = $inventory['byPackagePath']['EPUB/images/cover.png'];
+        $duplicates = $inventory['duplicateManifestPackagePartItems'];
+
+        $t->same($inventory, $summary['wordpressImport']['packageInventory']);
+        $t->same(2, $inventory['duplicateManifestPackagePartCount']);
+        $t->same(4, $inventory['duplicateManifestPackageItemCount']);
+        $t->same(['/EPUB/text/chapter.xhtml', '/EPUB/images/cover.png'], $inventory['duplicateManifestPackagePartNames']);
+        $t->same(2, $inventory['duplicateManifestPackagePartDiagnosticCount']);
+        $t->same(['duplicate-opf-manifest-package-part', 'duplicate-opf-manifest-package-part'], array_column($inventory['duplicateManifestPackagePartDiagnostics'], 'type'));
+        $t->same(2, $inventory['roleCounts']['duplicate-opf-manifest-package-part']);
+        $t->same(3, $inventory['opfManifestDeclaredEntryCount']);
+        $t->same(3, $inventory['opfManifestDeclaredPartCount']);
+
+        $t->same('EPUB/text/chapter.xhtml', $duplicates[0]['packagePath']);
+        $t->same('/EPUB/text/chapter.xhtml', $duplicates[0]['partName']);
+        $t->same(2, $duplicates[0]['itemCount']);
+        $t->same([1, 2], $duplicates[0]['indexes']);
+        $t->same(['chapter', 'chapter-review'], $duplicates[0]['ids']);
+        $t->same(['text/chapter.xhtml', 'text/chapter.xhtml#review'], $duplicates[0]['hrefs']);
+        $t->same(['/EPUB/text/chapter.xhtml', '/EPUB/text/chapter.xhtml#review'], $duplicates[0]['targets']);
+        $t->same(['application/xhtml+xml'], $duplicates[0]['mediaTypes']);
+        $t->same(['cover', 'cover-review'], $duplicates[1]['ids']);
+        $t->same(['images/cover.png', 'images/cover.png?role=review'], $duplicates[1]['hrefs']);
+        $t->same(['/EPUB/images/cover.png', '/EPUB/images/cover.png?role=review'], $duplicates[1]['targets']);
+        $t->same(['image/png'], $duplicates[1]['mediaTypes']);
+
+        $t->same(2, $chapter['manifestItemCount']);
+        $t->same(['chapter', 'chapter-review'], $chapter['manifestIds']);
+        $t->same(true, $chapter['duplicateManifestPackagePart']);
+        $t->same(['chapter', 'chapter-review'], $chapter['duplicateManifestPackagePartIds']);
+        $t->same(['text/chapter.xhtml', 'text/chapter.xhtml#review'], $chapter['duplicateManifestPackagePartHrefs']);
+        $t->same([1, 2], $chapter['duplicateManifestPackagePartIndexes']);
+        $t->same(['opf-manifest-declared', 'duplicate-opf-manifest-package-part', 'resource-kind-xhtml', 'spine-reading-order'], $chapter['roles']);
+
+        $t->same(2, $cover['manifestItemCount']);
+        $t->same(['cover', 'cover-review'], $cover['manifestIds']);
+        $t->same(true, $cover['duplicateManifestPackagePart']);
+        $t->same(['cover', 'cover-review'], $cover['duplicateManifestPackagePartIds']);
+        $t->same(['images/cover.png', 'images/cover.png?role=review'], $cover['duplicateManifestPackagePartHrefs']);
+        $t->same([3, 4], $cover['duplicateManifestPackagePartIndexes']);
+        $t->same(['opf-manifest-declared', 'duplicate-opf-manifest-package-part', 'resource-kind-cover-image'], $cover['roles']);
+
+        $t->same(false, $validation['valid']);
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+        $t->same(2, $validation['manifest']['duplicatePartCount']);
+        $t->same(2, $validation['manifest']['duplicateHrefTargetCount']);
+        $t->same(2, $validation['manifest']['hrefSuffixCount']);
+        $t->same(['/EPUB/text/chapter.xhtml', '/EPUB/images/cover.png'], array_column($validation['manifest']['duplicatePartItems'], 'partName'));
+        $t->same(['chapter', 'chapter-review'], $validation['manifest']['duplicatePartItems'][0]['ids']);
+        $t->same(['images/cover.png', 'images/cover.png?role=review'], $validation['manifest']['duplicatePartItems'][1]['hrefs']);
+    },
+
     'reports EPUB OCF ZIP package inventory roles without exposing payload bytes' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithInventoryResources = str_replace(
             '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
