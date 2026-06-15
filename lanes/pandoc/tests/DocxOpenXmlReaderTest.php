@@ -1778,6 +1778,88 @@ XML;
         $t->same(true, $package['relationshipTypes'][$imageType]['relationships'][1]['targetStartsAtPackageRoot']);
         $t->same(true, $package['relationshipTypes'][$imageType]['relationships'][2]['targetHasParentTraversal']);
     },
+    'summarizes docx package-root relationship targets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $commentsType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $customXmlType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/root-review.xml" ContentType="application/xml; profile=package-root"/>' . "\n" .
+            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=missing-root"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootCustomXml" Type="' . $customXmlType . '" Target="/customXml/root-review.xml?root=rels#custom"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootImage" Type="' . $imageType . '" Target="/word/media/review.png?root=document#img"/>' . "\n" .
+            '  <Relationship Id="rRootComments" Type="' . $commentsType . '" Target="/word/comments.xml?root=missing#comments"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/root-review.xml'] = '<review-root/>';
+        $parts['word/header/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header root target</w:t></w:r></w:p></w:hdr>';
+        $parts['word/header/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderRootImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="/word/media/header-root.png?root=header#logo"/>
+</Relationships>
+XML;
+        $parts['word/media/header-root.png'] = 'header root image bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $targets = [];
+        foreach ($summary['relationshipTargetsStartingAtPackageRoot'] as $target) {
+            $targets[$target['id']] = $target;
+        }
+
+        $t->same(4, $summary['relationshipTargetStartsAtPackageRootCount']);
+        $t->same([
+            '_rels/.rels',
+            'word/_rels/document.xml.rels',
+            'word/header/_rels/header1.xml.rels',
+        ], $summary['relationshipPartsWithPackageRootTargets']);
+        $t->same(['rRootCustomXml', 'rRootImage', 'rRootComments', 'rHeaderRootImage'], array_column($summary['relationshipTargetsStartingAtPackageRoot'], 'id'));
+
+        $t->same('/', $targets['rRootCustomXml']['sourcePart']);
+        $t->same('/customXml/root-review.xml?root=rels#custom', $targets['rRootCustomXml']['target']);
+        $t->same('customXml/root-review.xml', $targets['rRootCustomXml']['targetPart']);
+        $t->same('root=rels', $targets['rRootCustomXml']['targetQuery']);
+        $t->same('custom', $targets['rRootCustomXml']['targetFragment']);
+        $t->same(true, $targets['rRootCustomXml']['targetStartsAtPackageRoot']);
+        $t->same(true, $targets['rRootCustomXml']['exists']);
+        $t->same(['profile' => 'package-root'], $targets['rRootCustomXml']['contentTypeParameterMap']);
+
+        $t->same('word/document.xml', $targets['rRootImage']['sourcePart']);
+        $t->same('word/media/review.png', $targets['rRootImage']['targetPart']);
+        $t->same('root=document', $targets['rRootImage']['targetQuery']);
+        $t->same(true, $targets['rRootImage']['exists']);
+        $t->same('image/png', $targets['rRootImage']['contentTypeBase']);
+
+        $t->same('word/comments.xml', $targets['rRootComments']['targetPart']);
+        $t->same(false, $targets['rRootComments']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $targets['rRootComments']['contentTypeBase']);
+        $t->same(['profile' => 'missing-root'], $targets['rRootComments']['contentTypeParameterMap']);
+
+        $t->same('word/header/header1.xml', $targets['rHeaderRootImage']['sourcePart']);
+        $t->same('word/header/_rels/header1.xml.rels', $targets['rHeaderRootImage']['relationshipsPart']);
+        $t->same('word/media/header-root.png', $targets['rHeaderRootImage']['targetPart']);
+        $t->same('root=header', $targets['rHeaderRootImage']['targetQuery']);
+        $t->same('logo', $targets['rHeaderRootImage']['targetFragment']);
+
+        $t->same(2, $package['relationshipTypes'][$imageType]['packageRootTargetCount']);
+        $t->same(1, $package['relationshipTypes'][$commentsType]['packageRootTargetCount']);
+        $t->same(1, $package['relationshipTypes'][$customXmlType]['packageRootTargetCount']);
+        $t->true(in_array('custom-xml-part', $package['parts']['customXml/root-review.xml']['roles'], true), 'package-root customXml role missing');
+    },
     'reports docx package thumbnail provenance as metadata only' => static function (TestRunner $t): void {
         $thumbnailType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
         $thumbnailBytes = 'jpeg thumbnail bytes';
