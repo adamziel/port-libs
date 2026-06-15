@@ -2927,6 +2927,110 @@ XML);
             $removeDirectory($root);
         }
     },
+    'normalizes direct package manifest media types while preserving parameter diagnostics' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-media-type-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-manifest-media-type-review</dc:identifier>
+    <dc:title>Manifest Media Type Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml; charset=UTF-8" properties="nav"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml; profile=&quot;legacy;review&quot;"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml; charset=UTF-8; charset=windows-1252"/>
+    <item id="style" href="style.css" media-type="text/css; charset=UTF-8"/>
+    <item id="overlay" href="overlay.smil" media-type="application/smil+xml; charset=UTF-8"/>
+    <item id="widget" href="widgets/review.bin" media-type="application/x-review-widget" fallback-style="style" media-overlay="overlay"/>
+    <item id="broken" href="broken.review" media-type="review-packet; flag"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/toc.ncx', <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="np-1" playOrder="1">
+      <navLabel><text>Chapter</text></navLabel>
+      <content src="chapter.xhtml"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Parameterized XHTML remains readable.</p></body></html>');
+            $writePackageFile($root, 'EPUB/style.css', 'body { color: #222; }');
+            $writePackageFile($root, 'EPUB/overlay.smil', '<smil xmlns="http://www.w3.org/ns/SMIL"><body/></smil>');
+            $writePackageFile($root, 'EPUB/widgets/review.bin', 'REVIEW');
+            $writePackageFile($root, 'EPUB/broken.review', 'BROKEN');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $manifest = $epub['manifestById'];
+            $manifestReport = $epub['manifestReport'];
+            $spineReport = $epub['spineReport'];
+
+            $t->same(1, count($document->children));
+            $t->same('Parameterized XHTML remains readable.', $document->children[0]->attr('text'));
+            $t->same(true, $epub['ncxReport']['present']);
+            $t->same(1, $epub['ncxReport']['itemCount']);
+            $t->same('application/xhtml+xml; charset=UTF-8; charset=windows-1252', $manifest['chapter']['rawMediaType']);
+            $t->same('application/xhtml+xml', $manifest['chapter']['mediaType']);
+            $t->same('application/xhtml+xml; charset=windows-1252', $manifest['chapter']['normalizedMediaType']);
+            $t->same(2, $manifest['chapter']['mediaTypeParameterCount']);
+            $t->same(['charset' => 'windows-1252'], $manifest['chapter']['mediaTypeParameterMap']);
+            $t->same('duplicate-manifest-media-type-parameter', $manifest['chapter']['mediaTypeDiagnostics'][0]['type']);
+            $t->same('application/x-dtbncx+xml', $manifest['ncx']['mediaType']);
+            $t->same(['profile' => 'legacy;review'], $manifest['ncx']['mediaTypeParameterMap']);
+            $t->same('text/css', $manifest['style']['mediaType']);
+            $t->same('application/smil+xml', $manifest['overlay']['mediaType']);
+
+            $t->same(1, $spineReport['readableItemCount']);
+            $t->same(0, $manifestReport['missingItemCount']);
+            $t->same(7, $manifestReport['itemCount']);
+            $t->same(6, $manifestReport['mediaTypeParameterCount']);
+            $t->same(5, $manifestReport['mediaTypeParameterizedItemCount']);
+            $t->same(['charset', 'profile'], $manifestReport['mediaTypeParameterNames']);
+            $t->same(['nav', 'ncx', 'chapter', 'style', 'overlay'], array_column($manifestReport['mediaTypeParameterItems'], 'id'));
+            $t->same(2, $manifestReport['invalidMediaTypeCount']);
+            $t->same(['chapter', 'broken'], array_column($manifestReport['invalidMediaTypeItems'], 'id'));
+            $t->same(3, $manifestReport['mediaTypeDiagnosticCount']);
+            $t->same([
+                'duplicate-manifest-media-type-parameter',
+                'invalid-manifest-media-type',
+                'invalid-manifest-media-type-parameter',
+            ], array_column($manifestReport['mediaTypeDiagnostics'], 'type'));
+            $t->same(0, $manifestReport['manifestItemReferenceDiagnosticCount']);
+            $t->same('text/css', $manifestReport['fallbackStyleReferences'][0]['targetMediaType']);
+            $t->same('application/smil+xml', $manifestReport['mediaOverlayReferences'][0]['targetMediaType']);
+            $t->same(3, $manifestReport['diagnosticCount']);
+            $t->same($manifestReport['mediaTypeDiagnostics'], $manifestReport['diagnostics']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports direct package manifest item reference readiness matrix' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-manifest-reference-readiness-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
