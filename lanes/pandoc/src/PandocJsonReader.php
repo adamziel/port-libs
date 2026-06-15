@@ -775,7 +775,7 @@ final class PandocJsonReader
             return new AstNode('raw_html', array_merge($attrs, ['html' => $text]));
         }
 
-        if (in_array($normalized, ['tex', 'latex', 'context'], true)) {
+        if ($this->isTexRawFormat($normalized)) {
             return new AstNode('raw_tex', array_merge($attrs, ['tex' => $text]));
         }
 
@@ -1621,7 +1621,7 @@ final class PandocJsonReader
             return new AstNode('raw_html_inline', array_merge($attrs, ['html' => $text]));
         }
 
-        if (in_array($normalized, ['tex', 'latex', 'context'], true)) {
+        if ($this->isTexRawFormat($normalized)) {
             return new AstNode('raw_tex', array_merge($attrs, ['tex' => $text]));
         }
 
@@ -2257,14 +2257,52 @@ final class PandocJsonReader
 
     private function isMarkdownRawFormat(string $format): bool
     {
-        $baseFormat = str_replace('-', '+', $format);
-        $baseFormat = explode('+', $baseFormat, 2)[0];
+        $baseFormat = $this->rawFormatBase($format);
 
-        return $baseFormat === 'markdown' || $format === 'commonmark' || str_starts_with($format, 'gfm');
+        return in_array($format, [
+            'markdown',
+            'markdown_strict',
+            'markdown_phpextra',
+            'markdown_github',
+            'markdown_mmd',
+            'pandoc',
+            'commonmark',
+            'commonmark_x',
+            'gfm',
+        ], true) || in_array($baseFormat, [
+            'markdown',
+            'markdown_strict',
+            'markdown_phpextra',
+            'markdown_github',
+            'markdown_mmd',
+            'pandoc',
+            'commonmark',
+            'commonmark_x',
+            'gfm',
+        ], true);
     }
 
     private function isHtmlRawFormat(string $format): bool
     {
-        return in_array($format, ['html', 'html4', 'html5', 'xhtml'], true);
+        $baseFormat = $this->rawFormatBase($format);
+
+        return in_array($format, ['html', 'html4', 'html5', 'xhtml'], true)
+            || in_array($baseFormat, ['html', 'html4', 'html5', 'xhtml'], true);
+    }
+
+    private function isTexRawFormat(string $format): bool
+    {
+        $baseFormat = $this->rawFormatBase($format);
+
+        return in_array($format, ['tex', 'latex', 'context'], true)
+            || in_array($baseFormat, ['tex', 'latex', 'context'], true);
+    }
+
+    private function rawFormatBase(string $format): string
+    {
+        $format = strtolower($format);
+        $format = str_replace('-', '+', $format);
+
+        return explode('+', $format, 2)[0];
     }
 }

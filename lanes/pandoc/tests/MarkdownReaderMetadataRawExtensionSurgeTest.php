@@ -5,6 +5,10 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\NativeReader;
+use PortLibs\Pandoc\NativeWriter;
+use PortLibs\Pandoc\PandocJsonReader;
+use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $rawSurgeCases = [
@@ -64,6 +68,45 @@ $rawSurgeBlockPayload = static function (array $case) use ($rawSurgeSlug): strin
     };
 };
 
+$rawSurgeExpectedNodeType = static function (array $case, string $kind): string {
+    return match ($case['family']) {
+        'html' => $kind === 'inline' ? 'raw_html_inline' : 'raw_html',
+        'tex' => 'raw_tex',
+        default => 'raw_markdown',
+    };
+};
+
+$rawSurgeTextAttr = static function (AstNode $node, array $case): string {
+    return match ($case['family']) {
+        'html' => (string) $node->attr('html', $node->attr('text', '')),
+        'tex' => (string) $node->attr('tex', $node->attr('text', '')),
+        default => (string) $node->attr('markdown', $node->attr('text', '')),
+    };
+};
+
+$rawSurgeReviewValue = static function (mixed $meta, string $key): mixed {
+    if (!is_array($meta)) {
+        return null;
+    }
+
+    $review = $meta['review'] ?? null;
+    if (!is_array($review)) {
+        return null;
+    }
+
+    if (($review['type'] ?? null) === 'map' && is_array($review['items'] ?? null)) {
+        return $review['items'][$key] ?? null;
+    }
+
+    if (($review['t'] ?? null) === 'MetaMap' && is_array($review['c'] ?? null)) {
+        $value = $review['c'][$key] ?? null;
+
+        return is_array($value) && ($value['t'] ?? null) === 'MetaString' ? ($value['c'] ?? null) : $value;
+    }
+
+    return $review[$key] ?? null;
+};
+
 $tests = [];
 
 foreach ($rawSurgeCases as $case) {
@@ -111,6 +154,43 @@ foreach ($rawSurgeCases as $case) {
             }
         };
 
+    $tests['maps upstream markdown raw attribute inline format ' . $case['format'] . ' through json and native raw family rehydration'] =
+        static function (TestRunner $t) use ($case, $rawSurgeInlinePayload, $rawSurgeExpectedNodeType, $rawSurgeTextAttr, $rawSurgeReviewValue): void {
+            $format = $case['format'];
+            $rawText = $rawSurgeInlinePayload($case);
+            $document = (new MarkdownReader())->read(implode("\n", [
+                '---',
+                'title: Raw inline family rehydration',
+                'review: {format: "' . $format . '", family: ' . $case['family'] . ', channel: inline-roundtrip}',
+                '...',
+                '',
+                'Before `' . $rawText . '`{=' . $format . '} after.',
+            ]));
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $roundTrips = [
+                'json' => (new PandocJsonReader())->readPacket($jsonPacket),
+                'native' => (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR)),
+            ];
+
+            foreach ($roundTrips as $source => $roundTrip) {
+                $meta = $roundTrip->attr('meta');
+                $paragraph = $roundTrip->children[0] ?? new AstNode('missing');
+                $raw = $paragraph->children[1] ?? new AstNode('missing');
+                $markdown = (new MarkdownWriter())->write($roundTrip);
+
+                $t->same($format, $rawSurgeReviewValue($meta, 'format'), "{$source} metadata format");
+                $t->same($case['family'], $rawSurgeReviewValue($meta, 'family'), "{$source} metadata family");
+                $t->same('inline-roundtrip', $rawSurgeReviewValue($meta, 'channel'), "{$source} metadata channel");
+                $t->same('paragraph', $paragraph->type, "{$source} paragraph node");
+                $t->same($rawSurgeExpectedNodeType($case, 'inline'), $raw->type, "{$source} raw inline family node");
+                $t->same($format, $raw->attr('format'), "{$source} raw inline format");
+                $t->same($rawText, $rawSurgeTextAttr($raw, $case), "{$source} raw inline text");
+                $t->contains($rawText, $markdown);
+            }
+        };
+
     $tests['maps upstream markdown raw attribute fenced block format ' . $case['format'] . ' with metadata'] =
         static function (TestRunner $t) use ($case, $rawSurgeBlockPayload): void {
             $format = $case['format'];
@@ -154,6 +234,48 @@ foreach ($rawSurgeCases as $case) {
                     . '</code></pre>',
                     $blocks
                 );
+            }
+        };
+
+    $tests['maps upstream markdown raw attribute fenced block format ' . $case['format'] . ' through json and native raw family rehydration'] =
+        static function (TestRunner $t) use ($case, $rawSurgeBlockPayload, $rawSurgeExpectedNodeType, $rawSurgeTextAttr, $rawSurgeReviewValue): void {
+            $format = $case['format'];
+            $rawText = $rawSurgeBlockPayload($case);
+            $document = (new MarkdownReader())->read(implode("\n", [
+                '---',
+                'title: Raw block family rehydration',
+                'review: {format: "' . $format . '", family: ' . $case['family'] . ', channel: block-roundtrip}',
+                '...',
+                '',
+                '```{=' . $format . '}',
+                $rawText,
+                '```',
+                '',
+                'After raw block.',
+            ]));
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $roundTrips = [
+                'json' => (new PandocJsonReader())->readPacket($jsonPacket),
+                'native' => (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR)),
+            ];
+
+            foreach ($roundTrips as $source => $roundTrip) {
+                $meta = $roundTrip->attr('meta');
+                $raw = $roundTrip->children[0] ?? new AstNode('missing');
+                $paragraph = $roundTrip->children[1] ?? new AstNode('missing');
+                $markdown = (new MarkdownWriter())->write($roundTrip);
+
+                $t->same($format, $rawSurgeReviewValue($meta, 'format'), "{$source} metadata format");
+                $t->same($case['family'], $rawSurgeReviewValue($meta, 'family'), "{$source} metadata family");
+                $t->same('block-roundtrip', $rawSurgeReviewValue($meta, 'channel'), "{$source} metadata channel");
+                $t->same($rawSurgeExpectedNodeType($case, 'block'), $raw->type, "{$source} raw block family node");
+                $t->same($format, $raw->attr('format'), "{$source} raw block format");
+                $t->same($rawText, $rawSurgeTextAttr($raw, $case), "{$source} raw block text");
+                $t->same('paragraph', $paragraph->type, "{$source} following paragraph");
+                $t->same('After raw block.', $paragraph->attr('text'), "{$source} following paragraph text");
+                $t->contains($rawText, $markdown);
             }
         };
 }
