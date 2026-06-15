@@ -8199,7 +8199,7 @@ final class MarkdownReader
             return null;
         }
 
-        $label = $this->parseBracketedLabel($line, $offset);
+        $label = $this->parseBracketedLabel($line, $offset, false);
         if (
             $label === null
             || $label['text'] === ''
@@ -19152,6 +19152,10 @@ final class MarkdownReader
 
     private function isRawHtmlInlineTagSource(string $html): bool
     {
+        if (!$this->isHtmlInlineTagLikeSource($html)) {
+            return false;
+        }
+
         if (preg_match('~^</([A-Za-z][A-Za-z0-9-]*)[ \t]*>$~', $html, $closing) === 1) {
             return $this->isKnownRawHtmlInlineTagName($closing[1]);
         }
@@ -19167,6 +19171,18 @@ final class MarkdownReader
         }
 
         return $this->isKnownRawHtmlInlineTagName($opening[1]);
+    }
+
+    private function isHtmlInlineTagLikeSource(string $html): bool
+    {
+        if (preg_match('~^</([A-Za-z][A-Za-z0-9-]*)[ \t]*>$~', $html) === 1) {
+            return true;
+        }
+
+        return preg_match(
+            '~^<([A-Za-z][A-Za-z0-9-]*)(?:[ \t]+[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t]*=[ \t]*(?:"[^"]*"|\'[^\']*\'|[^ \t"\'=<>`]+))?)*[ \t]*/?>$~u',
+            $html
+        ) === 1;
     }
 
     private function isKnownRawHtmlInlineTagName(string $name): bool
@@ -19351,7 +19367,7 @@ final class MarkdownReader
     /**
      * @return array{text:string, next:int}|null
      */
-    private function parseBracketedLabel(string $text, int $offset): ?array
+    private function parseBracketedLabel(string $text, int $offset, bool $skipInlineContainers = true): ?array
     {
         if (($text[$offset] ?? '') !== '[') {
             return null;
@@ -19361,6 +19377,14 @@ final class MarkdownReader
         $depth = 0;
         $length = strlen($text);
         for ($cursor = $start; $cursor < $length; $cursor++) {
+            if ($skipInlineContainers) {
+                $skipEnd = $this->bracketedLabelInlineSkipEnd($text, $cursor);
+                if ($skipEnd !== null) {
+                    $cursor = $skipEnd - 1;
+                    continue;
+                }
+            }
+
             if ($text[$cursor] === '\\') {
                 $cursor++;
                 continue;
@@ -19387,6 +19411,63 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function bracketedLabelInlineSkipEnd(string $text, int $offset): ?int
+    {
+        if (($text[$offset] ?? '') === '`') {
+            $tickCount = $this->countBackticks($text, $offset);
+            $end = $this->findMatchingBacktickRun($text, $offset + $tickCount, $tickCount);
+
+            return $end === null ? null : $end + $tickCount;
+        }
+
+        if (($text[$offset] ?? '') === '<') {
+            return $this->bracketedLabelRawHtmlInlineSkipEnd($text, $offset);
+        }
+
+        return null;
+    }
+
+    private function bracketedLabelRawHtmlInlineSkipEnd(string $text, int $offset): ?int
+    {
+        foreach ([
+            '<!--' => '-->',
+            '<![CDATA[' => ']]>',
+            '<?' => '?>',
+        ] as $open => $close) {
+            if (substr($text, $offset, strlen($open)) !== $open) {
+                continue;
+            }
+
+            $end = strpos($text, $close, $offset + strlen($open));
+            if ($end === false) {
+                return null;
+            }
+
+            return $end + strlen($close);
+        }
+
+        if (preg_match('/\G<![A-Za-z]/', $text, $m, 0, $offset) === 1) {
+            $end = strpos($text, '>', $offset + 2);
+            if ($end === false) {
+                return null;
+            }
+
+            $html = substr($text, $offset, $end - $offset + 1);
+            if (str_contains($html, "\n") || str_contains($html, "\r")) {
+                return null;
+            }
+
+            return $end + 1;
+        }
+
+        $html = $this->readRawHtmlInlineTagSource($text, $offset);
+        if ($html === null || !$this->isHtmlInlineTagLikeSource($html)) {
+            return null;
+        }
+
+        return $offset + strlen($html);
     }
 
     /**
@@ -19420,7 +19501,22 @@ final class MarkdownReader
         $length = strlen($text);
         $quote = null;
         $parenDepth = 0;
+        $angleDestinationEnd = null;
         for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if (!ctype_space($text[$cursor])) {
+                if ($text[$cursor] === '<') {
+                    $angleDestinationEnd = $this->findUnescapedCharacter($text, '>', $cursor + 1);
+                }
+                break;
+            }
+        }
+
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($angleDestinationEnd !== null && $cursor < $angleDestinationEnd) {
+                $cursor = $angleDestinationEnd;
+                continue;
+            }
+
             if ($text[$cursor] === '\\') {
                 $cursor++;
                 continue;
