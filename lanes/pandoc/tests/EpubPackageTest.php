@@ -6276,6 +6276,121 @@ XML;
         $t->same('audio', $inventory['byPackagePath']['EPUB/audio/theme.mp3']['resourceKind']);
     },
 
+    'summarizes EPUB reading order ZIP byte provenance for compact handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $chapter = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Readable</h1></body></html>';
+        $locked = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Locked</h1></body></html>';
+        $packed = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Packed</h1></body></html>';
+        $opfWithReadingOrder = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:reading-order-inventory</dc:identifier>
+    <dc:title>Reading Order Inventory</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="locked" href="text/locked.xhtml" media-type="application/xhtml+xml"/>
+    <item id="packed" href="text/packed.xhtml" media-type="application/xhtml+xml"/>
+    <item id="missing" href="text/missing.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+    <itemref idref="locked"/>
+    <itemref idref="packed" linear="no"/>
+    <itemref idref="missing"/>
+    <itemref idref="absent"/>
+  </spine>
+</package>
+XML;
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="EPUB/text/locked.xhtml"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithReadingOrder],
+            ['name' => 'EPUB/nav.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><h1>Contents</h1><ol><li><a href="text/chapter.xhtml">Readable</a></li></ol></nav></body></html>'],
+            ['name' => 'EPUB/text/chapter.xhtml', 'data' => $chapter, 'method' => 8],
+            ['name' => 'EPUB/text/locked.xhtml', 'data' => $locked, 'method' => 8],
+            ['name' => 'EPUB/text/packed.xhtml', 'data' => $packed, 'method' => 12],
+        ]));
+        $summary = $epub->summary();
+        $report = $summary['readingOrderInventory'];
+        $byIdref = $report['itemsByIdref'];
+        $chapterRow = $byIdref['chapter'][0];
+        $lockedRow = $byIdref['locked'][0];
+        $packedRow = $byIdref['packed'][0];
+        $missingRow = $byIdref['missing'][0];
+        $absentRow = $byIdref['absent'][0];
+
+        $t->same($report, $summary['wordpressImport']['readingOrderInventory']);
+        $t->same(5, $report['itemCount']);
+        $t->same(4, $report['linearItemCount']);
+        $t->same(1, $report['nonLinearItemCount']);
+        $t->same(3, $report['existingItemCount']);
+        $t->same(2, $report['missingItemCount']);
+        $t->same(1, $report['missingPackagePartCount']);
+        $t->same(1, $report['manifestItemMissingCount']);
+        $t->same(1, $report['encryptedItemCount']);
+        $t->same(1, $report['unsupportedCompressionItemCount']);
+        $t->same(1, $report['exposableItemCount']);
+        $t->same(4, $report['blockedItemCount']);
+        $t->same(strlen($chapter) + strlen($locked) + strlen($packed), $report['totalByteLength']);
+        $t->same(strlen(gzdeflate($chapter)) + strlen(gzdeflate($locked)) + strlen($packed), $report['totalCompressedByteLength']);
+        $t->same(strlen($chapter), $report['exposableByteLength']);
+        $t->same(strlen(gzdeflate($chapter)), $report['exposableCompressedByteLength']);
+        $t->same(strlen($locked) + strlen($packed), $report['blockedByteLength']);
+        $t->same(strlen(gzdeflate($locked)) + strlen($packed), $report['blockedCompressedByteLength']);
+        $t->same(strlen($packed), $report['unsupportedCompressionByteLength']);
+        $t->same(strlen($packed), $report['unsupportedCompressionCompressedByteLength']);
+        $t->same([
+            'encrypted-resource-bytes-blocked' => 1,
+            'missing-spine-manifest-item-metadata-only' => 1,
+            'missing-spine-package-part-metadata-only' => 1,
+            'spine-content-bytes-exposable' => 1,
+            'unsupported-compression-metadata-only' => 1,
+        ], $report['byteExposurePolicyCounts']);
+        $t->same(['deflated' => 2, 'unsupported' => 1], $report['compressionMethodCounts']);
+        $t->same(['/EPUB/text/missing.xhtml'], $report['missingPartNames']);
+        $t->same(['/EPUB/text/locked.xhtml'], $report['encryptedPartNames']);
+        $t->same(['/EPUB/text/packed.xhtml'], $report['unsupportedCompressionPartNames']);
+        $t->same(4, $report['diagnosticCount']);
+        $t->same([
+            'encrypted-spine-package-part',
+            'unsupported-spine-package-compression',
+            'missing-spine-package-part',
+            'missing-spine-manifest-item',
+        ], $report['diagnosticTypes']);
+
+        $t->same(true, $chapterRow['exists']);
+        $t->same(true, $chapterRow['canExposeBytes']);
+        $t->same('spine-content-bytes-exposable', $chapterRow['byteExposurePolicy']);
+        $t->same(strlen($chapter), $chapterRow['byteLength']);
+        $t->same('deflated', $chapterRow['compressionMethodName']);
+        $t->same(false, $lockedRow['canExposeBytes']);
+        $t->same(true, $lockedRow['encrypted']);
+        $t->same('encrypted-resource-bytes-blocked', $lockedRow['byteExposurePolicy']);
+        $t->same('encrypted-spine-package-part', $lockedRow['diagnostics'][0]['type']);
+        $t->same(false, $packedRow['linear']);
+        $t->same(true, $packedRow['unsupportedCompression']);
+        $t->same('unsupported', $packedRow['compressionMethodName']);
+        $t->same('unsupported-compression-metadata-only', $packedRow['byteExposurePolicy']);
+        $t->same(false, $missingRow['exists']);
+        $t->same('missing-spine-package-part-metadata-only', $missingRow['byteExposurePolicy']);
+        $t->same('missing-spine-package-part', $missingRow['diagnostics'][0]['type']);
+        $t->same(true, $absentRow['manifestItemMissing']);
+        $t->same(null, $absentRow['packagePath']);
+        $t->same('missing-spine-manifest-item-metadata-only', $absentRow['byteExposurePolicy']);
+    },
+
     'reports OPF metadata meta property vocabulary diagnostics for package review' => static function (TestRunner $t) use ($epubContainerXml): void {
         $opfWithMetaVocabulary = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" prefix="review: https://example.invalid/epub-review#">
