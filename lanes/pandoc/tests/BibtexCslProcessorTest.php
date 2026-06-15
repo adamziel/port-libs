@@ -1608,6 +1608,48 @@ BIB;
         $t->contains('Citation label: LLM', $blocks);
         $t->contains('Fallback Shorthand Manual', $blocks);
     },
+    'carries biblatex relation aliases and explicit shorthand list metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{relation-manual,
+  author                = {Ng, Nia},
+  title                 = {Relation Review Manual},
+  date                  = {2026},
+  ids                   = {legacy-relation, migrated-relation},
+  shorthand             = {RRM},
+  shorthandintro        = {cited as Relation Review Manual},
+  sortshorthand         = {010 relation manual},
+  listshorthand         = {005 explicit relation list},
+  related               = {source-appendix, source-license},
+  relatedtype           = {updated-by},
+  relatedstring         = {Updated source},
+  relatedoptions        = {dataonly; skipbib},
+  crossref              = {source-proceedings}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['relation-manual'];
+
+        $t->same(['legacy-relation', 'migrated-relation'], $item['citation-aliases']);
+        $t->same('RRM', $item['shorthand']);
+        $t->same('cited as Relation Review Manual', $item['shorthand-intro']);
+        $t->same('010 relation manual', $item['sort-shorthand']);
+        $t->same('005 explicit relation list', $item['shorthand-list-sort-key']);
+        $t->same('source-appendix, source-license', $item['related']);
+        $t->same('updated-by', $item['related-type']);
+        $t->same('Updated source', $item['related-string']);
+        $t->same('dataonly; skipbib', $item['related-options']);
+        $t->same('source-proceedings', $item['xref']);
+
+        $document = (new MarkdownReader())->read('Relation source [@legacy-relation] keeps relation handoff metadata.');
+        $handoff = $processor->citationHandoff($document, $source);
+
+        $t->same(['legacy-relation'], $handoff['citedKeys']);
+        $t->same('relation-manual', $handoff['bibliography']->children[0]->attr('cslItem')['id'] ?? null);
+        $t->same('005 explicit relation list', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
+        $t->same('source-proceedings', $handoff['bibliography']->children[0]->attr('cslItem')['xref'] ?? null);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

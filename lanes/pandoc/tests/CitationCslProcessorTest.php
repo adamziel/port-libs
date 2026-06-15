@@ -4063,6 +4063,99 @@ XML);
         ]));
         $t->same('Uncertain Review Rule | Date markers: issued uncertain (2024?); event-date circa and uncertain (2025-01-01%) | circa and uncertain | 2024?', $styled->renderBibliographyEntry('uncertain-rule'));
     },
+    'maps bounded biblatex label dates into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{label-date-source,
+  author     = {Smith, Ada},
+  title      = {Label Date Packet},
+  date       = {2026},
+  labeldate  = {2026-04?},
+  publisher  = {Review Press}
+}
+
+@book{label-season-source,
+  author      = {Ng, Nia},
+  title       = {Label Season Packet},
+  date        = {2025},
+  labelyear   = {2025},
+  labelmonth  = {21},
+  publisher   = {Season Press}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(['date-parts' => [[2026, 4]], 'uncertain' => true, 'raw' => '2026-04?'], $items[0]['label-date'] ?? null);
+        $t->same(['date-parts' => [[2025]], 'season' => 1], $items[1]['label-date'] ?? null);
+        $t->same('2026-04?', $items[0]['rawBibtex']['fields']['labeldate'] ?? null);
+        $t->same('21', $items[1]['rawBibtex']['fields']['labelmonth'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $labelDate = $processor->item('label-date-source');
+        $labelSeason = $processor->item('label-season-source');
+        $t->same([2026, 4], $labelDate['labelDate']['parts'] ?? null);
+        $t->same(true, $labelDate['labelDate']['uncertain'] ?? null);
+        $t->same('2026-04', $labelDate['labelDate']['display'] ?? null);
+        $t->same('Date markers: label-date uncertain (2026-04?)', $labelDate['dateMarkerSummary'] ?? null);
+        $t->same(1, $labelSeason['labelDate']['season'] ?? null);
+        $t->same('Spring', $labelSeason['labelDate']['seasonName'] ?? null);
+        $t->same('Date seasons: label-date Spring', $labelSeason['dateSeasonSummary'] ?? null);
+        $t->contains('Label date: 2026-04.', $processor->renderBibliographyEntry('label-date-source'));
+        $t->contains('Label date: Spring 2025.', $processor->renderBibliographyEntry('label-season-source'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded BibLaTeX Label Date Review</title>
+    <id>https://example.test/styles/bounded-biblatex-label-date-review</id>
+    <updated>2026-06-15T19:48:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="label-date"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="label-date"/>
+        <text variable="label-date-status"/>
+        <text variable="label-date-season-name"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="labeldate"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="labeldate" form="text"/>
+      <text variable="labeldate-status"/>
+      <text variable="labeldate-season-name"/>
+      <text variable="date-marker-summary"/>
+      <text variable="date-season-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded BibLaTeX Label Date Review', $summary['title'] ?? null);
+        $t->same('label-date', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('labeldate', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same('[Ng | Spring 2025 | Spring; Smith | 2026-04 | uncertain]', $styled->renderCitationCluster([
+            $citation('label-date-source', '[@label-date-source]'),
+            $citation('label-season-source', '[@label-season-source]'),
+        ]));
+        $t->same('Label Date Packet :: April 2026 :: uncertain :: Date markers: label-date uncertain (2026-04?)', $styled->renderBibliographyEntry('label-date-source'));
+        $t->same('Label Season Packet :: Spring 2025 :: Spring :: Date seasons: label-date Spring', $styled->renderBibliographyEntry('label-season-source'));
+
+        $document = (new MarkdownReader())->read('Label date sources [@label-date-source; @label-season-source] keep imported label-date metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Label date sources [Ng | Spring 2025 | Spring; Smith | 2026-04 | uncertain] keep imported label-date metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Label Season Packet :: Spring 2025 :: Spring :: Date seasons: label-date Spring</dd>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Label Date Packet :: April 2026 :: uncertain :: Date markers: label-date uncertain (2026-04?)</dd>', $blocks);
+    },
     'maps bounded biblatex date era metadata into csl review handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{era-source,
@@ -27614,6 +27707,76 @@ XML);
             new AstNode('citation', ['id' => 'direct-schema-fields', 'text' => '[@direct-schema-fields]']),
         ]));
         $t->same('Direct Schema Field Packet :: Series Desk :: Archive Division :: source review :: Vol. Rev. :: 3rd :: 2026c :: migration, review :: migration; review', $styled->renderBibliographyEntry('direct-schema-fields'));
+    },
+    'renders bounded direct csl volume title text aliases with short forms' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-volume-title-text',
+                'type' => 'chapter',
+                'title' => 'Direct Volume Title Text Packet',
+                'author' => [
+                    ['family' => 'Lopez', 'given' => 'Lia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'volume-title-text' => 'Long Hyphen Volume Text',
+                'volume-title-short' => 'LHV',
+            ],
+            [
+                'id' => 'direct-volumetitletext',
+                'type' => 'chapter',
+                'title' => 'Direct Compact Volume Text Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'volumetitletext' => 'Long Compact Volume Text',
+                'volume-title-short' => 'LCV',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Volume Title Text Short Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-volume-title-text-short-alias-review</id>
+    <updated>2026-06-15T19:48:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="volume-title-text"/>
+        <text variable="volume-title-text" form="short"/>
+        <text variable="volumetitletext" form="short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="volumetitletext"/>
+      <text variable="volumetitletext" form="short"/>
+      <text variable="volume-title"/>
+      <text variable="volume-title" form="short"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Direct CSL Volume Title Text Short Alias Review', $summary['title'] ?? null);
+        $t->same('volume-title-text', $citationChildren[1]['variable'] ?? null);
+        $t->same('short', $citationChildren[2]['form'] ?? null);
+        $t->same('volumetitletext', $citationChildren[3]['variable'] ?? null);
+        $t->same('short', $bibliographyChildren[2]['form'] ?? null);
+        $t->same('short', $bibliographyChildren[4]['form'] ?? null);
+        $t->same('[Lopez | Long Hyphen Volume Text | LHV | LHV; Ng | Long Compact Volume Text | LCV | LCV]', $processor->renderCitationCluster([
+            $citation('direct-volume-title-text', '[@direct-volume-title-text]'),
+            $citation('direct-volumetitletext', '[@direct-volumetitletext]'),
+        ]));
+        $t->same('Direct Volume Title Text Packet :: Long Hyphen Volume Text :: LHV :: Long Hyphen Volume Text :: LHV', $processor->renderBibliographyEntry('direct-volume-title-text'));
+        $t->same('Direct Compact Volume Text Packet :: Long Compact Volume Text :: LCV :: Long Compact Volume Text :: LCV', $processor->renderBibliographyEntry('direct-volumetitletext'));
     },
     'normalizes bounded direct csl json container collection aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([

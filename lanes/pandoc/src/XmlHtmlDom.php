@@ -15983,6 +15983,7 @@ final class XmlHtmlDom
         $host = $template->parentNode instanceof \DOMElement ? $template->parentNode : null;
         $slotReview = self::declarativeShadowRootSlotReview($source);
         $slots = $slotReview['slots'];
+        $slotCounts = [];
         $slotNames = [];
         $namedSlotNames = [];
         $fallbackTexts = [];
@@ -15991,6 +15992,7 @@ final class XmlHtmlDom
 
         foreach ($slots as $slot) {
             $name = (string) ($slot['slotName'] ?? '');
+            $slotCounts[$name] = ($slotCounts[$name] ?? 0) + 1;
             if (($slot['slotDefault'] ?? false) === true) {
                 ++$defaultSlotCount;
             } else {
@@ -16010,6 +16012,10 @@ final class XmlHtmlDom
         if ($invalidSlotNames !== []) {
             $diagnostics[] = 'invalid-shadow-slot-name';
         }
+        $duplicateSlotNames = self::duplicateShadowRootSlotNames($slotCounts);
+        foreach ($duplicateSlotNames as $duplicateSlotName) {
+            $diagnostics[] = 'duplicate-shadow-root-slot-name:' . $duplicateSlotName;
+        }
         $diagnostics = array_values(array_unique($diagnostics));
 
         return [
@@ -16021,6 +16027,7 @@ final class XmlHtmlDom
             'shadowRootDelegatesFocus' => $template->hasAttribute('shadowrootdelegatesfocus'),
             'shadowRootClonable' => $template->hasAttribute('shadowrootclonable'),
             'shadowRootSerializable' => $template->hasAttribute('shadowrootserializable'),
+            'shadowRootCustomElementRegistry' => $template->hasAttribute('shadowrootcustomelementregistry'),
             'shadowRootHostTag' => $host instanceof \DOMElement ? self::htmlElementName($host) : null,
             'shadowRootHostId' => $host instanceof \DOMElement ? self::attributeOrNull($host, 'id') : null,
             'shadowRootSlotCount' => count($slots),
@@ -16028,11 +16035,24 @@ final class XmlHtmlDom
             'shadowRootNamedSlotCount' => count($slots) - $defaultSlotCount,
             'shadowRootSlotNames' => $slotNames,
             'shadowRootNamedSlotNames' => $namedSlotNames,
+            'shadowRootDuplicateSlotNames' => $duplicateSlotNames,
             'invalidShadowSlotNames' => $invalidSlotNames,
             'shadowRootSlotFallbackTexts' => $fallbackTexts,
             'shadowRootSlots' => $slots,
             'shadowRootDiagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @param array<string, int> $slotCounts
+     * @return list<string>
+     */
+    private static function duplicateShadowRootSlotNames(array $slotCounts): array
+    {
+        return array_values(array_filter(
+            array_keys($slotCounts),
+            static fn (string $name): bool => $slotCounts[$name] > 1
+        ));
     }
 
     /**
@@ -16088,7 +16108,8 @@ final class XmlHtmlDom
         return $element->hasAttribute('shadowrootmode')
             || $element->hasAttribute('shadowrootdelegatesfocus')
             || $element->hasAttribute('shadowrootclonable')
-            || $element->hasAttribute('shadowrootserializable');
+            || $element->hasAttribute('shadowrootserializable')
+            || $element->hasAttribute('shadowrootcustomelementregistry');
     }
 
     /**
@@ -16195,6 +16216,7 @@ final class XmlHtmlDom
             'shadowRootDelegatesFocus' => $template->hasAttribute('shadowrootdelegatesfocus'),
             'shadowRootClonable' => $template->hasAttribute('shadowrootclonable'),
             'shadowRootSerializable' => $template->hasAttribute('shadowrootserializable'),
+            'shadowRootCustomElementRegistry' => $template->hasAttribute('shadowrootcustomelementregistry'),
             'shadowRootAccessibility' => $aria,
             'shadowRootSlotCount' => count($slots),
             'shadowRootDefaultSlotCount' => $defaultSlotCount,
@@ -17619,6 +17641,20 @@ final class XmlHtmlDom
             };
         }
 
+        if (array_key_exists('dropzone', $attributes)) {
+            $dropZone = self::dropZoneSummary($attributes['dropzone']);
+            $summary['dropZoneReviewPolicy'] = 'html-dropzone-attribute-review';
+            $summary['dropZoneRaw'] = $attributes['dropzone'];
+            $summary['dropZoneTokens'] = $dropZone['tokens'];
+            $summary['dropZoneItems'] = $dropZone['items'];
+            $summary['dropZoneEffects'] = $dropZone['effects'];
+            $summary['dropZoneStringTypes'] = $dropZone['stringTypes'];
+            $summary['dropZoneFileTypes'] = $dropZone['fileTypes'];
+            $summary['invalidDropZoneTokens'] = $dropZone['invalid'];
+            $summary['dropZoneMultipleEffects'] = $dropZone['multipleEffects'];
+            $summary['dropZoneValid'] = $dropZone['valid'];
+        }
+
         if (array_key_exists('spellcheck', $attributes)) {
             $spellcheck = strtolower(trim($attributes['spellcheck']));
             $summary['spellcheckRaw'] = $attributes['spellcheck'];
@@ -18512,6 +18548,73 @@ final class XmlHtmlDom
     {
         return $token !== ''
             && preg_match('/[\s<>"\'`=,:\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $token) !== 1;
+    }
+
+    /**
+     * @return array{tokens:list<string>, items:list<array<string, mixed>>, effects:list<string>, stringTypes:list<string>, fileTypes:list<string>, invalid:list<string>, multipleEffects:bool, valid:bool}
+     */
+    private static function dropZoneSummary(string $value): array
+    {
+        $tokens = self::spaceSeparatedTokens($value);
+        $items = [];
+        $effects = [];
+        $stringTypes = [];
+        $fileTypes = [];
+        $invalid = [];
+
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            $item = [
+                'raw' => $token,
+                'kind' => null,
+                'value' => null,
+                'valid' => false,
+            ];
+
+            if (in_array($lower, ['copy', 'move', 'link'], true)) {
+                $item['kind'] = 'effect';
+                $item['value'] = $lower;
+                $item['valid'] = true;
+                self::appendUniqueString($effects, $lower);
+            } elseif (str_starts_with($lower, 'string:')) {
+                $type = substr($lower, 7);
+                $item['kind'] = 'string';
+                $item['value'] = self::isHtmlDropZoneMimeType($type) ? $type : null;
+                $item['valid'] = $item['value'] !== null;
+                if ($item['valid']) {
+                    self::appendUniqueString($stringTypes, $type);
+                }
+            } elseif (str_starts_with($lower, 'file:')) {
+                $type = substr($lower, 5);
+                $item['kind'] = 'file';
+                $item['value'] = self::isHtmlDropZoneMimeType($type) ? $type : null;
+                $item['valid'] = $item['value'] !== null;
+                if ($item['valid']) {
+                    self::appendUniqueString($fileTypes, $type);
+                }
+            }
+
+            if (!$item['valid']) {
+                $invalid[] = $token;
+            }
+            $items[] = $item;
+        }
+
+        return [
+            'tokens' => $tokens,
+            'items' => $items,
+            'effects' => $effects,
+            'stringTypes' => $stringTypes,
+            'fileTypes' => $fileTypes,
+            'invalid' => $invalid,
+            'multipleEffects' => count($effects) > 1,
+            'valid' => $tokens !== [] && $invalid === [] && count($effects) <= 1,
+        ];
+    }
+
+    private static function isHtmlDropZoneMimeType(string $value): bool
+    {
+        return preg_match('/^[a-z0-9!#$&^_.+-]+\/(?:[a-z0-9!#$&^_.+-]+|\*)$/', $value) === 1;
     }
 
     /**
@@ -20733,7 +20836,11 @@ final class XmlHtmlDom
             'sizes' => self::attributeOrNull($image, 'sizes'),
             'loading' => self::attributeOrNull($image, 'loading'),
             'decoding' => self::attributeOrNull($image, 'decoding'),
+            'crossorigin' => self::attributeOrNull($image, 'crossorigin'),
+            'referrerpolicy' => self::attributeOrNull($image, 'referrerpolicy'),
+            'fetchpriority' => self::attributeOrNull($image, 'fetchpriority'),
         ];
+        $summary += self::imageLoadingReviewSummary($image);
 
         if ($image->hasAttribute('usemap')) {
             $useMap = self::useMapAttributeSummary($image->getAttribute('usemap'));
@@ -20744,6 +20851,70 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function imageLoadingReviewSummary(\DOMElement $image): array
+    {
+        $loadingRaw = self::attributeOrNull($image, 'loading');
+        $loading = $loadingRaw === null ? null : self::imageLoadingState($loadingRaw);
+        $decodingRaw = self::attributeOrNull($image, 'decoding');
+        $decoding = $decodingRaw === null ? null : self::imageDecodingState($decodingRaw);
+        $fetchPriorityRaw = self::attributeOrNull($image, 'fetchpriority');
+        $fetchPriority = $fetchPriorityRaw === null ? null : self::fetchPriorityState($fetchPriorityRaw);
+        $crossoriginRaw = self::attributeOrNull($image, 'crossorigin');
+        $crossorigin = $crossoriginRaw === null ? null : self::htmlCorsSettingsAttributeState($crossoriginRaw);
+        $referrerPolicyRaw = self::attributeOrNull($image, 'referrerpolicy');
+        $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
+        $issueCodes = [];
+
+        if ($loadingRaw !== null && $loading === null) {
+            $issueCodes[] = 'invalid-image-loading';
+        }
+        if ($decodingRaw !== null && $decoding === null) {
+            $issueCodes[] = 'invalid-image-decoding';
+        }
+        if ($fetchPriorityRaw !== null && $fetchPriority === null) {
+            $issueCodes[] = 'invalid-image-fetchpriority';
+        }
+        if ($crossoriginRaw !== null && $crossorigin === null) {
+            $issueCodes[] = 'invalid-image-crossorigin';
+        }
+        if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
+            $issueCodes[] = 'invalid-image-referrerpolicy';
+        }
+
+        return [
+            'imageLoadingReviewPolicy' => 'image-loading-metadata-review',
+            'imageLoadingState' => $loading,
+            'imageLoadingValid' => $loadingRaw === null ? null : $loading !== null,
+            'imageDecodingState' => $decoding,
+            'imageDecodingValid' => $decodingRaw === null ? null : $decoding !== null,
+            'imageFetchPriority' => $fetchPriority,
+            'imageFetchPriorityValid' => $fetchPriorityRaw === null ? null : $fetchPriority !== null,
+            'imageCrossoriginState' => $crossorigin,
+            'imageCrossoriginValid' => $crossoriginRaw === null ? null : $crossorigin !== null,
+            'imageReferrerPolicy' => $referrerPolicy,
+            'imageReferrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
+            'imageLoadingIssueCodes' => $issueCodes,
+            'imageLoadingIssueCount' => count($issueCodes),
+        ];
+    }
+
+    private static function imageLoadingState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['eager', 'lazy'], true) ? $value : null;
+    }
+
+    private static function imageDecodingState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['sync', 'async', 'auto'], true) ? $value : null;
     }
 
     /**
@@ -22423,21 +22594,42 @@ final class XmlHtmlDom
      */
     private static function fieldsetSummary(\DOMElement $fieldset): array
     {
-        $legend = self::firstChildHtmlElement($fieldset, 'legend');
+        $legends = self::childHtmlElements($fieldset, 'legend');
+        $legend = $legends[0] ?? null;
         $controls = self::fieldsetControlSummaries($fieldset, $legend);
+        $nestedFieldsets = self::nestedFieldsetSummaries($fieldset);
+        $issues = self::fieldsetReviewIssues($legends, $nestedFieldsets);
 
         return [
             'formGroup' => 'fieldset',
+            'fieldsetReviewPolicy' => 'fieldset-legend-disabled-control-review',
             'disabled' => $fieldset->hasAttribute('disabled'),
             'legendText' => $legend instanceof \DOMElement ? self::normalizedText($legend) : null,
-            'legendCount' => count(self::childHtmlElements($fieldset, 'legend')),
+            'legendTexts' => self::fieldsetLegendTexts($legends),
+            'legendCount' => count($legends),
             'controlCount' => count($controls),
             'legendControlCount' => count(array_filter(
                 $controls,
                 static fn (array $control): bool => (bool) ($control['inFirstLegend'] ?? false)
             )),
+            'enabledControlCount' => self::fieldsetEffectiveControlCount($controls, false),
+            'disabledControlCount' => self::fieldsetEffectiveControlCount($controls, true),
             'controls' => $controls,
             'controlNames' => self::fieldsetControlNames($controls),
+            'enabledControlNames' => self::fieldsetControlNames($controls, false),
+            'disabledControlNames' => self::fieldsetControlNames($controls, true),
+            'nestedFieldsetCount' => count($nestedFieldsets),
+            'nestedDisabledFieldsetCount' => count(array_filter(
+                $nestedFieldsets,
+                static fn (array $nested): bool => (bool) ($nested['disabled'] ?? false)
+            )),
+            'nestedFieldsets' => $nestedFieldsets,
+            'fieldsetIssueCount' => count($issues),
+            'fieldsetIssues' => $issues,
+            'fieldsetIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
         ];
     }
 
@@ -22454,7 +22646,78 @@ final class XmlHtmlDom
             'legendText' => self::normalizedText($legend),
             'fieldsetDisabled' => $fieldset instanceof \DOMElement ? $fieldset->hasAttribute('disabled') : null,
             'firstLegend' => $firstLegend instanceof \DOMElement && $legend->isSameNode($firstLegend),
+            'fieldsetLegendIndex' => $fieldset instanceof \DOMElement ? self::fieldsetLegendIndex($fieldset, $legend) : null,
+            'fieldsetLegendCount' => $fieldset instanceof \DOMElement ? count(self::childHtmlElements($fieldset, 'legend')) : null,
         ];
+    }
+
+    /**
+     * @param list<\DOMElement> $legends
+     * @return list<string>
+     */
+    private static function fieldsetLegendTexts(array $legends): array
+    {
+        return array_values(array_filter(
+            array_map(static fn (\DOMElement $legend): string => self::normalizedText($legend), $legends),
+            static fn (string $text): bool => $text !== ''
+        ));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function nestedFieldsetSummaries(\DOMElement $fieldset): array
+    {
+        $nested = [];
+        foreach (self::descendantHtmlElements($fieldset, 'fieldset') as $nestedFieldset) {
+            $legends = self::childHtmlElements($nestedFieldset, 'legend');
+            $legend = $legends[0] ?? null;
+            $controls = self::fieldsetControlSummaries($nestedFieldset, $legend);
+            $nested[] = [
+                'id' => self::attributeOrNull($nestedFieldset, 'id'),
+                'disabled' => $nestedFieldset->hasAttribute('disabled'),
+                'legendText' => $legend instanceof \DOMElement ? self::normalizedText($legend) : null,
+                'legendCount' => count($legends),
+                'controlCount' => count($controls),
+                'enabledControlCount' => self::fieldsetEffectiveControlCount($controls, false),
+                'disabledControlCount' => self::fieldsetEffectiveControlCount($controls, true),
+                'controlNames' => self::fieldsetControlNames($controls),
+            ];
+        }
+
+        return $nested;
+    }
+
+    /**
+     * @param list<\DOMElement> $legends
+     * @param list<array<string, mixed>> $nestedFieldsets
+     * @return list<array<string, mixed>>
+     */
+    private static function fieldsetReviewIssues(array $legends, array $nestedFieldsets): array
+    {
+        $issues = [];
+        $legendCount = count($legends);
+        if ($legendCount === 0) {
+            $issues[] = ['code' => 'missing-fieldset-legend'];
+        } elseif ($legendCount > 1) {
+            $issues[] = [
+                'code' => 'multiple-fieldset-legends',
+                'legendCount' => $legendCount,
+                'legendTexts' => self::fieldsetLegendTexts($legends),
+            ];
+        }
+        if ($nestedFieldsets !== []) {
+            $issues[] = [
+                'code' => 'nested-fieldset-review',
+                'nestedFieldsetCount' => count($nestedFieldsets),
+                'nestedFieldsetIds' => array_values(array_filter(
+                    array_map(static fn (array $nested): ?string => $nested['id'] ?? null, $nestedFieldsets),
+                    static fn (?string $id): bool => $id !== null && $id !== ''
+                )),
+            ];
+        }
+
+        return $issues;
     }
 
     /**
@@ -22498,10 +22761,21 @@ final class XmlHtmlDom
      * @param list<array<string, mixed>> $controls
      * @return list<string>
      */
-    private static function fieldsetControlNames(array $controls): array
+    private static function fieldsetEffectiveControlCount(array $controls, bool $effectiveDisabled): int
+    {
+        return count(array_filter(
+            $controls,
+            static fn (array $control): bool => (bool) ($control['effectiveDisabled'] ?? false) === $effectiveDisabled
+        ));
+    }
+
+    private static function fieldsetControlNames(array $controls, ?bool $effectiveDisabled = null): array
     {
         $names = [];
         foreach ($controls as $control) {
+            if ($effectiveDisabled !== null && (bool) ($control['effectiveDisabled'] ?? false) !== $effectiveDisabled) {
+                continue;
+            }
             $name = $control['controlName'] ?? null;
             if (is_string($name) && $name !== '' && !in_array($name, $names, true)) {
                 $names[] = $name;
@@ -22509,6 +22783,17 @@ final class XmlHtmlDom
         }
 
         return $names;
+    }
+
+    private static function fieldsetLegendIndex(\DOMElement $fieldset, \DOMElement $legend): ?int
+    {
+        foreach (self::childHtmlElements($fieldset, 'legend') as $index => $candidate) {
+            if ($candidate->isSameNode($legend)) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     private static function parentHtmlElement(\DOMElement $element, string $name): ?\DOMElement

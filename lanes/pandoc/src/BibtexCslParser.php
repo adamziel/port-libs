@@ -1218,6 +1218,12 @@ final class BibtexCslParser
             $item['submitted'] = $submittedDate;
         }
 
+        $labelDate = self::dateFromFields($fields, ['labeldate', 'label-date'], ['labelyear', 'labelmonth', 'labelday'], [], ['labelendyear', 'labelendmonth', 'labelendday']);
+        if ($labelDate !== null) {
+            $labelDate = self::dateWithEra($labelDate, $fields, ['labeldateera', 'label-date-era']);
+            $item['label-date'] = $labelDate;
+        }
+
         $accessed = self::dateFromFields($fields, ['urldate', 'accessed', 'accessdate', 'lastchecked', 'lastaccessed', 'visited'], ['urlyear', 'urlmonth', 'urlday'], [
             'hour' => 'urlhour',
             'minute' => 'urlminute',

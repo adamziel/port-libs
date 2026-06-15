@@ -3785,6 +3785,41 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/language-direction-inheritance-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html dropzone tokens for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="drop" draggable="true" dropzone="copy string:text/plain file:image/png string:text/html">Drop files</section>'
+                . '<p id="bad-drop" dropzone="execute string:javascript file:bad mime link move">Fallback</p>'
+                . '<div id="multi-effect" dropzone="copy move string:text/plain">Multi</div>',
+            'dropzone attribute review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+
+        $drop = $summary[0];
+        $fallback = $summary[1];
+        $multiple = $summary[2];
+
+        $t->same('html-dropzone-attribute-review', $drop['dropZoneReviewPolicy']);
+        $t->same(['copy', 'string:text/plain', 'file:image/png', 'string:text/html'], $drop['dropZoneTokens']);
+        $t->same(['copy'], $drop['dropZoneEffects']);
+        $t->same(['text/plain', 'text/html'], $drop['dropZoneStringTypes']);
+        $t->same(['image/png'], $drop['dropZoneFileTypes']);
+        $t->same([], $drop['invalidDropZoneTokens']);
+        $t->same(false, $drop['dropZoneMultipleEffects']);
+        $t->same(true, $drop['dropZoneValid']);
+        $t->same('string', $drop['dropZoneItems'][1]['kind']);
+        $t->same('text/plain', $drop['dropZoneItems'][1]['value']);
+
+        $t->same(['execute', 'string:javascript', 'file:bad', 'mime', 'link', 'move'], $fallback['dropZoneTokens']);
+        $t->same(['link', 'move'], $fallback['dropZoneEffects']);
+        $t->same(['execute', 'string:javascript', 'file:bad', 'mime'], $fallback['invalidDropZoneTokens']);
+        $t->same(true, $fallback['dropZoneMultipleEffects']);
+        $t->same(false, $fallback['dropZoneValid']);
+
+        $t->same([], $multiple['invalidDropZoneTokens']);
+        $t->same(['copy', 'move'], $multiple['dropZoneEffects']);
+        $t->same(true, $multiple['dropZoneMultipleEffects']);
+        $t->same(false, $multiple['dropZoneValid']);
+    },
     'summarizes html hidden token provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="bare" hidden>Bare</section>'
@@ -6012,6 +6047,35 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(true, $submitButton['effectiveDisabled']);
         $t->same('<form id="import-form"><label for="format">Format</label><input id="format" list="format-options" name="format" placeholder="Choose format" required><datalist id="format-options"><option label="Word" value="docx"></option><option value="epub">EPUB</option><option>ODT</option></datalist><fieldset disabled><legend>Batch <button id="legend-action">Keep enabled</button></legend><label>Confirm <input checked id="confirm" name="confirm" type="checkbox"></label><select id="state" name="state" required><option value="draft">Draft</option></select><textarea id="notes" name="notes" placeholder="Reviewer note">Ready</textarea><button id="submit" name="save" type="submit" value="1">Save</button></fieldset></form>', $html);
     },
+    'summarizes html fieldset legend diagnostics and disabled control buckets for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form><fieldset id="outer" disabled><legend>Outer <button id="legend-action" name="legend-action">Go</button></legend><input id="title" name="title"><legend>Second <input id="second" name="second"></legend><fieldset id="inner"><legend>Inner</legend><textarea id="inner-note" name="inner-note">N</textarea></fieldset><button id="save" name="save">Save</button></fieldset><fieldset id="missing"><input id="missing-control" name="missing-control"></fieldset></form>',
+            'fieldset legend diagnostics review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+
+        $outer = $summary[0]['children'][0];
+        $firstLegend = $outer['children'][0];
+        $secondLegend = $outer['children'][2];
+        $missing = $summary[0]['children'][1];
+
+        $t->same('fieldset-legend-disabled-control-review', $outer['fieldsetReviewPolicy']);
+        $t->same(['Outer Go', 'Second'], $outer['legendTexts']);
+        $t->same(2, $outer['legendCount']);
+        $t->same(1, $outer['enabledControlCount']);
+        $t->same(4, $outer['disabledControlCount']);
+        $t->same(['legend-action'], $outer['enabledControlNames']);
+        $t->same(['title', 'second', 'inner-note', 'save'], $outer['disabledControlNames']);
+        $t->same(1, $outer['nestedFieldsetCount']);
+        $t->same('inner', $outer['nestedFieldsets'][0]['id']);
+        $t->same(['multiple-fieldset-legends', 'nested-fieldset-review'], $outer['fieldsetIssueCodes']);
+        $t->same(0, $firstLegend['fieldsetLegendIndex']);
+        $t->same(2, $firstLegend['fieldsetLegendCount']);
+        $t->same(false, $secondLegend['firstLegend']);
+        $t->same(1, $secondLegend['fieldsetLegendIndex']);
+        $t->same(['missing-fieldset-legend'], $missing['fieldsetIssueCodes']);
+        $t->same(['missing-control'], $missing['enabledControlNames']);
+    },
     'summarizes html progress and meter state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<label for="upload-progress">Upload</label><progress id="upload-progress" value="3" max="4">75%</progress><progress id="pending">Pending</progress><label>Quality <meter id="quality" value="0.82" min="0" max="1" low="0.4" high="0.9" optimum="0.95">82%</meter></label><meter id="clamped" value="12" min="2" max="10">Too high</meter>',
@@ -6873,6 +6937,41 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('quality', $object['children'][0]['paramName']);
         $t->same('Object fallback', $object['fallbackText']);
         $t->same('<picture><source media="(min-width: 60em)" srcset="hero.avif 1x, hero@2x.avif 2x" type="image/avif"><source srcset="hero.webp 800w" type="image/webp"><img alt="Hero &amp; Source" decoding="async" loading="lazy" sizes="100vw" src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w"></picture><video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source media="screen" src="clip.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en"></video><audio controls src="chapter.mp3"><source src="chapter.ogg" type="audio/ogg"></audio><iframe allowfullscreen height="360" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms" src="frame.html" srcdoc="&lt;p&gt;Preview&lt;/p&gt;" width="640">Legacy frame fallback</iframe><embed height="32" src="plugin.swf" type="application/x-shockwave-flash" width="320"><object data="diagram.svg" height="480" name="diagram" type="image/svg+xml" width="640"><param name="quality" value="high"></param><param name="review-url" type="text/html" value="packet.html" valuetype="ref"></param>Object fallback</object>', $html);
+    },
+    'summarizes html image loading policy metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<img src="hero.avif" alt="Hero" loading="lazy" decoding="async" fetchpriority="high" crossorigin="use-credentials" referrerpolicy="no-referrer">'
+                . '<img src="fallback.png" alt="Fallback" loading="Soon" decoding="fast" fetchpriority="urgent" crossorigin="credentialed" referrerpolicy="never">',
+            'image loading policy review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+
+        $validImage = $summary[0];
+        $invalidImage = $summary[1];
+
+        $t->same('image-loading-metadata-review', $validImage['imageLoadingReviewPolicy']);
+        $t->same('lazy', $validImage['imageLoadingState']);
+        $t->same(true, $validImage['imageLoadingValid']);
+        $t->same('async', $validImage['imageDecodingState']);
+        $t->same('high', $validImage['imageFetchPriority']);
+        $t->same('use-credentials', $validImage['imageCrossoriginState']);
+        $t->same('no-referrer', $validImage['imageReferrerPolicy']);
+        $t->same([], $validImage['imageLoadingIssueCodes']);
+
+        $t->same(null, $invalidImage['imageLoadingState']);
+        $t->same(false, $invalidImage['imageLoadingValid']);
+        $t->same(null, $invalidImage['imageDecodingState']);
+        $t->same(null, $invalidImage['imageFetchPriority']);
+        $t->same(null, $invalidImage['imageCrossoriginState']);
+        $t->same(null, $invalidImage['imageReferrerPolicy']);
+        $t->same([
+            'invalid-image-loading',
+            'invalid-image-decoding',
+            'invalid-image-fetchpriority',
+            'invalid-image-crossorigin',
+            'invalid-image-referrerpolicy',
+        ], $invalidImage['imageLoadingIssueCodes']);
+        $t->same(5, $invalidImage['imageLoadingIssueCount']);
     },
     'summarizes html object param review provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
@@ -8223,6 +8322,7 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(true, $template['shadowRootDelegatesFocus']);
         $t->same(true, $template['shadowRootClonable']);
         $t->same(false, $template['shadowRootSerializable']);
+        $t->same(false, $template['shadowRootCustomElementRegistry']);
         $t->same('article', $template['shadowRootHostTag']);
         $t->same('card', $template['shadowRootHostId']);
         $t->same(2, $template['shadowRootSlotCount']);
@@ -8230,6 +8330,7 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(1, $template['shadowRootNamedSlotCount']);
         $t->same(['title', ''], $template['shadowRootSlotNames']);
         $t->same(['title'], $template['shadowRootNamedSlotNames']);
+        $t->same([], $template['shadowRootDuplicateSlotNames']);
         $t->same(['Untitled', 'Body fallback'], $template['shadowRootSlotFallbackTexts']);
         $t->same([], $template['shadowRootDiagnostics']);
 
@@ -8257,6 +8358,30 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->true(!str_contains($html, '<slot name="title">'), 'Expected shadow-root slot source to stay escaped in raw handoff');
         $t->contains($html, $blocks);
         $t->same('/migration/declarative-shadow-root-review.html', $document->children[0]->attr('part'));
+    },
+    'summarizes html declarative shadow root template metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $shadowSource = '<slot name="title">Fallback title</slot><slot name="title">Duplicate title</slot>';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="host"><template shadowrootmode="open" shadowrootcustomelementregistry>' . $shadowSource . '</template></article>'
+                . '<template shadowrootcustomelementregistry><slot>Missing mode</slot></template>',
+            'template declarative shadow root metadata review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+
+        $shadow = $summary[0]['children'][0];
+        $missingMode = $summary[1];
+
+        $t->same(true, $shadow['declarativeShadowRoot']);
+        $t->same(true, $shadow['shadowRootCustomElementRegistry']);
+        $t->same(['title'], $shadow['shadowRootDuplicateSlotNames']);
+        $t->same(['duplicate-shadow-root-slot-name:title'], $shadow['shadowRootDiagnostics']);
+        $t->same(['Fallback title', 'Duplicate title'], $shadow['shadowRootSlotFallbackTexts']);
+
+        $t->same(true, $missingMode['declarativeShadowRoot']);
+        $t->same(true, $missingMode['shadowRootCustomElementRegistry']);
+        $t->same(null, $missingMode['shadowRootModeRaw']);
+        $t->same(false, $missingMode['shadowRootModeValid']);
+        $t->same(['invalid-shadowroot-mode'], $missingMode['shadowRootDiagnosticCodes']);
     },
     'summarizes html template content across nested template and raw text sentinels' => static function (TestRunner $t): void {
         $templateSource = '<template data-inner="1"><p>Inner</p></template>'

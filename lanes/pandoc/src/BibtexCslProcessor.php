@@ -643,6 +643,11 @@ final class BibtexCslProcessor
             'annotation' => ['annotation', 'annote'],
             'note' => ['note', 'addendum'],
             'genre' => ['type', 'entrysubtype'],
+            'related' => ['related'],
+            'related-type' => ['relatedtype', 'related-type'],
+            'related-string' => ['relatedstring', 'related-string'],
+            'related-options' => ['relatedoptions', 'related-options'],
+            'xref' => ['xref', 'crossref'],
         ];
 
         foreach ($stringFields as $target => $names) {
@@ -658,7 +663,10 @@ final class BibtexCslProcessor
             $item['thesis-type'] = $thesisType;
         }
 
-        $shorthandListSortKey = $this->firstField($fields, ['sortshorthand', 'sort-shorthand']);
+        $shorthandListSortKey = $this->firstField($fields, ['listshorthand', 'list-shorthand', 'shorthandlistsortkey', 'shorthand-list-sort-key']);
+        if ($shorthandListSortKey === null || $shorthandListSortKey === '') {
+            $shorthandListSortKey = $this->firstField($fields, ['sortshorthand', 'sort-shorthand']);
+        }
         if ($shorthandListSortKey === null || $shorthandListSortKey === '') {
             $shorthandListSortKey = $this->firstField($fields, ['shorthand']);
         }
