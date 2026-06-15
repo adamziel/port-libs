@@ -3948,6 +3948,108 @@ XML;
         $t->same($vocabulary['diagnostics'], $summary['wordpressImport']['resourcePropertyDiagnostics']);
     },
 
+    'summarizes OPF manifest resource kind matrix for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3NavXml): void {
+        $opfWithResourceKinds = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:resource-kind-matrix</dc:identifier>
+    <dc:title>Resource Kind Matrix</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-15T00:40:40Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="style" href="styles/book.css" media-type="text/css"/>
+    <item id="diagram" href="images/diagram.svg" media-type="image/svg+xml"/>
+    <item id="font" href="fonts/source.woff2" media-type="font/woff2"/>
+    <item id="audio" href="audio/narration.mp3" media-type="audio/mpeg"/>
+    <item id="video" href="video/clip.mp4" media-type="video/mp4"/>
+    <item id="script" href="scripts/review.js" media-type="application/javascript"/>
+    <item id="packet" href="data/review.bin" media-type="application/octet-stream"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithResourceKinds],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/text/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { color: black; }'],
+            ['name' => 'EPUB/images/diagram.svg', 'data' => '<svg xmlns="http://www.w3.org/2000/svg"><title>Diagram</title></svg>'],
+            ['name' => 'EPUB/fonts/source.woff2', 'data' => 'WOFF2'],
+            ['name' => 'EPUB/audio/narration.mp3', 'data' => 'MP3'],
+            ['name' => 'EPUB/video/clip.mp4', 'data' => 'MP4'],
+            ['name' => 'EPUB/scripts/review.js', 'data' => 'window.review = true;'],
+            ['name' => 'EPUB/data/review.bin', 'data' => 'REVIEW'],
+        ]));
+
+        $report = $epub->manifestResourceKinds();
+        $summary = $epub->summary();
+        $expectedKindCounts = [
+            'asset' => 1,
+            'audio' => 1,
+            'cover-image' => 1,
+            'font' => 1,
+            'navigation' => 1,
+            'script' => 1,
+            'style' => 1,
+            'svg' => 1,
+            'video' => 1,
+            'xhtml' => 1,
+        ];
+        $expectedKindsById = [
+            'nav' => 'navigation',
+            'cover' => 'cover-image',
+            'chapter' => 'xhtml',
+            'style' => 'style',
+            'diagram' => 'svg',
+            'font' => 'font',
+            'audio' => 'audio',
+            'video' => 'video',
+            'script' => 'script',
+            'packet' => 'asset',
+        ];
+
+        $t->same(true, $report['present']);
+        $t->same(10, $report['itemCount']);
+        $t->same(10, $report['kindCount']);
+        $t->same(array_keys($expectedKindCounts), $report['kinds']);
+        $t->same($expectedKindCounts, $report['kindCounts']);
+        $t->same($expectedKindCounts, $report['summary']['kindCounts']);
+        $t->same($expectedKindCounts, $summary['packageInventory']['resourceKindCounts']);
+        $t->same(10, $report['existingItemCount']);
+        $t->same(10, $report['exposableItemCount']);
+        $t->same(0, $report['missingItemCount']);
+        $t->same(0, $report['externalItemCount']);
+        $t->same(2, $report['mediaTypeBaseCounts']['application/xhtml+xml']);
+        $t->same(1, $report['mediaTypeBaseCounts']['application/javascript']);
+        $t->same(1, $report['mediaTypeBaseCounts']['video/mp4']);
+        $t->same(['/EPUB/nav.xhtml'], $report['kindPartNames']['navigation']);
+        $t->same(['/EPUB/data/review.bin'], $report['kindPartNames']['asset']);
+
+        foreach ($expectedKindsById as $id => $kind) {
+            $t->same($kind, $report['itemsById'][$id]['resourceKind']);
+            $t->same($id, $report['itemsByKind'][$kind][0]['id']);
+        }
+
+        $t->same('cover-image', $report['itemsById']['cover']['properties'][0]);
+        $t->same('/EPUB/fonts/source.woff2', $report['itemsById']['font']['partName']);
+        $t->same('application/octet-stream', $report['itemsById']['packet']['mediaTypeBase']);
+        $t->same($report, $summary['manifestResourceKinds']);
+        $t->same($report, $summary['wordpressImport']['manifestResourceKinds']);
+        $t->same($report['summary'], $summary['wordpressImport']['manifestResourceKindSummary']);
+        $t->same($report['items'], $summary['wordpressImport']['manifestResourceKindItems']);
+        $t->same($expectedKindCounts, $summary['wordpressImport']['manifestResourceKindCounts']);
+    },
+
     'summarizes OPF package rendition metadata for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithRenditionMetadata = str_replace(
             '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',

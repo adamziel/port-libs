@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3579,
-        "latestSlice": "pandoc-opc-content-type-inventory-summary maps one shared ZIP/OPC content-type inventory summary case after rebase onto current main e075f13dcb. OpcRelationshipGraph now aggregates package-wide content-type inventory counts for package parts, overrides, defaults, relationship parts and sources, direct and reachable targets, missing overrides, invalid content types, media content types, embedded-package content types, and issue-to-content-type buckets without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, online services, live provider tests, or external validators. phpPass moves 3606 -> 3607, phpFail remains 0, mapped upstream cases move 3578 -> 3579, mappedOpcContentTypeInventorySummaryCases = 1, and opcContentTypeInventorySummaryAssertions = 39. Verification passed php -l for OpcRelationshipGraph.php and OpenPackagingConventionsTest.php; focused OpenPackagingConventionsTest.php passed 1 file, 4448 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84616 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+        "mapped": 3589,
+        "latestSlice": "pandoc-epub-manifest-resource-kind-matrix maps ten EPUB3 OPF manifest resource-kind cases after rebase onto current main 4828b744b3. EpubPackage now emits manifestResourceKinds plus WordPress import summary/count/item handoff for navigation, cover-image, XHTML, style, SVG, font, audio, video, script, and asset resources without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3607 -> 3608, phpFail remains 0, mapped upstream cases move 3579 -> 3589, mappedEpubManifestResourceKindMatrixCases = 10, and epubManifestResourceKindMatrixAssertions = 44. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2505 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84660 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "Shared ZIP/OPC content type inventory summary is verified after rebase onto current main e075f13dcb; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-15 Shared ZIP/OPC content type inventory summary verified after rebase onto current main e075f13dcb; focused OpenPackagingConventionsTest.php passed 1 file, 4448 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84616 assertions, 0 failures.",
+        "status": "EPUB3 OPF manifest resource-kind matrix is verified after rebase onto current main 4828b744b3; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-15 EPUB3 OPF manifest resource-kind matrix verified after rebase onto current main 4828b744b3; focused EpubPackageTest.php passed 1 file, 2505 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84660 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -465,7 +465,9 @@
         "mappedOdfManifestMediaFamilyMatrixCases": 10,
         "odfManifestMediaFamilyMatrixAssertions": 43,
         "mappedOpcContentTypeInventorySummaryCases": 1,
-        "opcContentTypeInventorySummaryAssertions": 39
+        "opcContentTypeInventorySummaryAssertions": 39,
+        "mappedEpubManifestResourceKindMatrixCases": 10,
+        "epubManifestResourceKindMatrixAssertions": 44
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -2082,5 +2084,7 @@
     "mappedOdfManifestMediaFamilyMatrixCases": 10,
     "odfManifestMediaFamilyMatrixAssertions": 43,
     "mappedOpcContentTypeInventorySummaryCases": 1,
-    "opcContentTypeInventorySummaryAssertions": 39
+    "opcContentTypeInventorySummaryAssertions": 39,
+    "mappedEpubManifestResourceKindMatrixCases": 10,
+    "epubManifestResourceKindMatrixAssertions": 44
 }

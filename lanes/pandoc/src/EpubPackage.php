@@ -406,6 +406,14 @@ final class EpubPackage
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function manifestResourceKinds(): array
+    {
+        return self::manifestResourceKindReport($this->manifestItems);
+    }
+
+    /**
      * @return array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null
      */
     public function navigation(): ?array
@@ -544,6 +552,7 @@ final class EpubPackage
         $mediaOverlayDiagnostics = self::mediaOverlayDiagnostics($this->mediaOverlays);
         $manifestFallbacks = $this->manifestFallbacks();
         $resourceProperties = $this->resourceProperties();
+        $manifestResourceKinds = $this->manifestResourceKinds();
         $validationReport = $this->validationReport();
         $auxiliaryNavigation = self::auxiliaryNavigationReport($this->navigationSections);
         $spineMetadata = $this->spineMetadata();
@@ -602,6 +611,7 @@ final class EpubPackage
             'accessibility' => $this->metadata['accessibility'] ?? self::accessibilityMetadataReport($this->metadata, $this->packageLinks),
             'manifest' => $this->manifestItems,
             'manifestAuthoring' => $manifestAuthoring,
+            'manifestResourceKinds' => $manifestResourceKinds,
             'readingOrder' => $this->spine,
             'spineMetadata' => $spineMetadata,
             'spineAuthoring' => $spineAuthoring,
@@ -765,6 +775,10 @@ final class EpubPackage
                 'encryption' => $this->encryption,
                 'encryptedResourceExposure' => $this->encryption['exposure'],
                 'encryptedResourceDiagnostics' => $this->encryption['diagnostics'],
+                'manifestResourceKinds' => $manifestResourceKinds,
+                'manifestResourceKindSummary' => $manifestResourceKinds['summary'],
+                'manifestResourceKindItems' => $manifestResourceKinds['items'],
+                'manifestResourceKindCounts' => $manifestResourceKinds['kindCounts'],
                 'resourceProperties' => $resourceProperties,
                 'resourcePropertySummary' => $resourceProperties['summary'],
                 'resourcePropertyReviewItems' => $resourceProperties['reviewItems'],
@@ -6532,6 +6546,125 @@ final class EpubPackage
             'directionItems' => $directionItems,
             'customAttributeItemCount' => count($customAttributeItems),
             'customAttributeItems' => $customAttributeItems,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestItems
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestResourceKindReport(array $manifestItems): array
+    {
+        $items = [];
+        $itemsById = [];
+        $itemsByKind = [];
+        $kindCounts = [];
+        $kindPartNames = [];
+        $mediaTypeBaseCounts = [];
+        $existingCount = 0;
+        $missingCount = 0;
+        $externalCount = 0;
+        $exposableCount = 0;
+
+        foreach ($manifestItems as $index => $item) {
+            $mediaType = is_string($item['mediaType'] ?? null) ? $item['mediaType'] : '';
+            $baseMediaType = is_string($item['mediaTypeBase'] ?? null)
+                ? $item['mediaTypeBase']
+                : self::mediaTypeBase($mediaType);
+            $properties = is_array($item['properties'] ?? null) ? array_values(array_filter(
+                $item['properties'],
+                static fn (mixed $property): bool => is_string($property) && $property !== '',
+            )) : [];
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            $target = is_string($item['target'] ?? null) ? $item['target'] : null;
+            $href = is_string($item['href'] ?? null) ? $item['href'] : '';
+            $packagePath = self::packageInventoryEntryName($partName ?? $target ?? $href) ?? $href;
+            $kind = self::packageInventoryResourceKind($mediaType, $packagePath, $properties);
+            $exists = ($item['exists'] ?? false) === true;
+            $external = ($item['external'] ?? false) === true;
+            $canExposeBytes = ($item['canExposeBytes'] ?? false) === true;
+
+            $reviewItem = [
+                'index' => (int) $index,
+                'id' => is_string($item['id'] ?? null) ? $item['id'] : '',
+                'href' => $href,
+                'target' => $target,
+                'partName' => $partName,
+                'mediaType' => $mediaType,
+                'mediaTypeBase' => $baseMediaType,
+                'properties' => $properties,
+                'resourceKind' => $kind,
+                'exists' => $exists,
+                'external' => $external,
+                'canExposeBytes' => $canExposeBytes,
+                'byteLength' => is_int($item['byteLength'] ?? null) ? $item['byteLength'] : null,
+                'compressedByteLength' => is_int($item['compressedByteLength'] ?? null) ? $item['compressedByteLength'] : null,
+                'compressionMethod' => is_int($item['compressionMethod'] ?? null) ? $item['compressionMethod'] : null,
+                'compressionMethodName' => is_string($item['compressionMethodName'] ?? null) ? $item['compressionMethodName'] : null,
+            ];
+
+            $items[] = $reviewItem;
+            if ($reviewItem['id'] !== '') {
+                $itemsById[$reviewItem['id']] = $reviewItem;
+            }
+            $itemsByKind[$kind][] = $reviewItem;
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+            if ($partName !== null && $partName !== '') {
+                $kindPartNames[$kind][$partName] = $partName;
+            }
+            if ($baseMediaType !== '') {
+                $mediaTypeBaseCounts[$baseMediaType] = ($mediaTypeBaseCounts[$baseMediaType] ?? 0) + 1;
+            }
+            if ($exists) {
+                ++$existingCount;
+            } else {
+                ++$missingCount;
+            }
+            if ($external) {
+                ++$externalCount;
+            }
+            if ($canExposeBytes) {
+                ++$exposableCount;
+            }
+        }
+
+        ksort($itemsById, SORT_STRING);
+        ksort($itemsByKind, SORT_STRING);
+        ksort($kindCounts, SORT_STRING);
+        ksort($kindPartNames, SORT_STRING);
+        ksort($mediaTypeBaseCounts, SORT_STRING);
+
+        foreach ($kindPartNames as $kind => $partNames) {
+            $kindPartNames[$kind] = array_values($partNames);
+            sort($kindPartNames[$kind], SORT_STRING);
+        }
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'kindCount' => count($kindCounts),
+            'kinds' => array_keys($kindCounts),
+            'kindCounts' => $kindCounts,
+            'kindPartNames' => $kindPartNames,
+            'mediaTypeBaseCounts' => $mediaTypeBaseCounts,
+            'existingItemCount' => $existingCount,
+            'missingItemCount' => $missingCount,
+            'externalItemCount' => $externalCount,
+            'exposableItemCount' => $exposableCount,
+            'summary' => [
+                'itemCount' => count($items),
+                'kindCount' => count($kindCounts),
+                'kinds' => array_keys($kindCounts),
+                'kindCounts' => $kindCounts,
+                'existingItemCount' => $existingCount,
+                'missingItemCount' => $missingCount,
+                'externalItemCount' => $externalCount,
+                'exposableItemCount' => $exposableCount,
+            ],
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'itemsByKind' => $itemsByKind,
         ];
     }
 
