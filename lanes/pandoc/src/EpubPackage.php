@@ -588,6 +588,12 @@ final class EpubPackage
             $this->encryption,
         );
         $readingOrderInventory = self::readingOrderInventoryReport($this->spine, $packageInventory);
+        $manifestDependencyInventory = self::manifestDependencyInventoryReport(
+            $this->manifestItems,
+            $manifestFallbacks,
+            $this->mediaOverlays,
+            $packageInventory,
+        );
         $compactPackageReport = self::compactPackageReport(
             $this->metadata,
             $this->packageLinks,
@@ -610,6 +616,7 @@ final class EpubPackage
             'mimetypeEntry' => $this->mimetypeEntry,
             'packageInventory' => $packageInventory,
             'readingOrderInventory' => $readingOrderInventory,
+            'manifestDependencyInventory' => $manifestDependencyInventory,
             'rootfiles' => $this->rootfiles,
             'renditions' => $this->renditions,
             'containerLinks' => $this->containerLinks,
@@ -663,6 +670,9 @@ final class EpubPackage
                 'mimetypeEntry' => $this->mimetypeEntry,
                 'packageInventory' => $packageInventory,
                 'readingOrderInventory' => $readingOrderInventory,
+                'manifestDependencyInventory' => $manifestDependencyInventory,
+                'manifestDependencyEdges' => $manifestDependencyInventory['edges'],
+                'manifestDependencyDiagnostics' => $manifestDependencyInventory['diagnostics'],
                 'compactPackageReport' => $compactPackageReport,
                 'compactPackageReportCases' => $compactPackageReport['cases'],
                 'compactPackageReportPresentCaseIds' => $compactPackageReport['presentCaseIds'],
@@ -7904,6 +7914,483 @@ final class EpubPackage
             'diagnostics' => $diagnostics,
             'itemsByIdref' => $itemsByIdref,
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestItems
+     * @param array<string, mixed> $manifestFallbacks
+     * @param array<string, mixed> $mediaOverlays
+     * @param array<string, mixed> $packageInventory
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestDependencyInventoryReport(
+        array $manifestItems,
+        array $manifestFallbacks,
+        array $mediaOverlays,
+        array $packageInventory
+    ): array {
+        $manifestById = [];
+        foreach ($manifestItems as $item) {
+            $id = is_string($item['id'] ?? null) ? $item['id'] : '';
+            if ($id !== '' && !isset($manifestById[$id])) {
+                $manifestById[$id] = $item;
+            }
+        }
+
+        $inventoryByPackagePath = is_array($packageInventory['byPackagePath'] ?? null)
+            ? $packageInventory['byPackagePath']
+            : [];
+        $fallbacksById = is_array($manifestFallbacks['itemsById'] ?? null)
+            ? $manifestFallbacks['itemsById']
+            : [];
+        $overlaysById = is_array($mediaOverlays['itemsById'] ?? null)
+            ? $mediaOverlays['itemsById']
+            : [];
+
+        $edges = [];
+        $edgesBySourceId = [];
+        $edgesByTargetId = [];
+        $diagnostics = [];
+        $relationCounts = [];
+        $byteExposurePolicyCounts = [];
+        $compressionMethodCounts = [];
+        $sourceIds = [];
+        $targetIds = [];
+        $targetPartNames = [];
+        $missingManifestTargetIds = [];
+        $missingPackagePartNames = [];
+        $externalTargetIds = [];
+        $encryptedTargetPartNames = [];
+        $obfuscatedFontTargetPartNames = [];
+        $unsupportedCompressionTargetPartNames = [];
+        $manifestTargetCount = 0;
+        $existingTargetCount = 0;
+        $missingManifestTargetCount = 0;
+        $missingPackagePartTargetCount = 0;
+        $externalTargetCount = 0;
+        $encryptedTargetCount = 0;
+        $obfuscatedFontTargetCount = 0;
+        $unsupportedCompressionTargetCount = 0;
+        $exposableTargetCount = 0;
+        $blockedTargetCount = 0;
+        $totalByteLength = 0;
+        $totalCompressedByteLength = 0;
+        $exposableByteLength = 0;
+        $exposableCompressedByteLength = 0;
+        $blockedByteLength = 0;
+        $blockedCompressedByteLength = 0;
+        $unsupportedCompressionByteLength = 0;
+        $unsupportedCompressionCompressedByteLength = 0;
+
+        $appendEdge = static function (
+            string $relation,
+            array $sourceItem,
+            ?string $targetId,
+            ?array $relationReport = null
+        ) use (
+            &$edges,
+            &$edgesBySourceId,
+            &$edgesByTargetId,
+            &$diagnostics,
+            &$relationCounts,
+            &$byteExposurePolicyCounts,
+            &$compressionMethodCounts,
+            &$sourceIds,
+            &$targetIds,
+            &$targetPartNames,
+            &$missingManifestTargetIds,
+            &$missingPackagePartNames,
+            &$externalTargetIds,
+            &$encryptedTargetPartNames,
+            &$obfuscatedFontTargetPartNames,
+            &$unsupportedCompressionTargetPartNames,
+            &$manifestTargetCount,
+            &$existingTargetCount,
+            &$missingManifestTargetCount,
+            &$missingPackagePartTargetCount,
+            &$externalTargetCount,
+            &$encryptedTargetCount,
+            &$obfuscatedFontTargetCount,
+            &$unsupportedCompressionTargetCount,
+            &$exposableTargetCount,
+            &$blockedTargetCount,
+            &$totalByteLength,
+            &$totalCompressedByteLength,
+            &$exposableByteLength,
+            &$exposableCompressedByteLength,
+            &$blockedByteLength,
+            &$blockedCompressedByteLength,
+            &$unsupportedCompressionByteLength,
+            &$unsupportedCompressionCompressedByteLength,
+            $manifestById,
+            $inventoryByPackagePath
+        ): void {
+            $sourceId = is_string($sourceItem['id'] ?? null) ? $sourceItem['id'] : '';
+            $sourcePartName = is_string($sourceItem['partName'] ?? null) ? $sourceItem['partName'] : null;
+            $sourcePackagePath = self::packageInventoryEntryName($sourcePartName);
+            $sourceMediaType = is_string($sourceItem['mediaType'] ?? null) ? $sourceItem['mediaType'] : '';
+            $sourceProperties = is_array($sourceItem['properties'] ?? null) ? array_values($sourceItem['properties']) : [];
+            $targetId = $targetId === null ? '' : $targetId;
+            $targetItem = $targetId !== '' && isset($manifestById[$targetId]) && is_array($manifestById[$targetId])
+                ? $manifestById[$targetId]
+                : null;
+            $targetPresentInManifest = is_array($targetItem);
+            $targetPartName = $targetPresentInManifest && is_string($targetItem['partName'] ?? null)
+                ? $targetItem['partName']
+                : null;
+            $targetPackagePath = self::packageInventoryEntryName($targetPartName);
+            $inventoryItem = $targetPackagePath !== null
+                && isset($inventoryByPackagePath[$targetPackagePath])
+                && is_array($inventoryByPackagePath[$targetPackagePath])
+                    ? $inventoryByPackagePath[$targetPackagePath]
+                    : null;
+            $targetExternal = $targetPresentInManifest && ($targetItem['external'] ?? false) === true;
+            $targetExists = $targetPresentInManifest
+                && !$targetExternal
+                && ($targetItem['exists'] ?? false) === true
+                && is_array($inventoryItem);
+            $missingPackagePart = $targetPresentInManifest && !$targetExternal && !$targetExists;
+            $encrypted = is_array($inventoryItem) && ($inventoryItem['encrypted'] ?? false) === true;
+            $obfuscatedFont = is_array($inventoryItem) && ($inventoryItem['obfuscatedFont'] ?? false) === true;
+            $compressionSupported = is_array($inventoryItem) ? ($inventoryItem['compressionSupported'] ?? null) : null;
+            $unsupportedCompression = $compressionSupported === false;
+            $targetCanExposeBytes = $targetExists
+                && !$encrypted
+                && !$obfuscatedFont
+                && !$unsupportedCompression
+                && is_array($inventoryItem)
+                && ($inventoryItem['canExposeBytes'] ?? false) === true;
+            $byteLength = is_array($inventoryItem) && is_int($inventoryItem['byteLength'] ?? null)
+                ? $inventoryItem['byteLength']
+                : null;
+            $compressedByteLength = is_array($inventoryItem) && is_int($inventoryItem['compressedByteLength'] ?? null)
+                ? $inventoryItem['compressedByteLength']
+                : null;
+            $compressionMethodName = is_array($inventoryItem) && is_string($inventoryItem['compressionMethodName'] ?? null)
+                ? $inventoryItem['compressionMethodName']
+                : null;
+
+            if (!$targetPresentInManifest) {
+                $byteExposurePolicy = 'missing-manifest-dependency-target-metadata-only';
+            } elseif ($targetExternal) {
+                $byteExposurePolicy = 'external-manifest-dependency-target-metadata-only';
+            } elseif ($missingPackagePart) {
+                $byteExposurePolicy = 'missing-manifest-dependency-package-part-metadata-only';
+            } elseif ($obfuscatedFont) {
+                $byteExposurePolicy = 'obfuscated-font-bytes-blocked';
+            } elseif ($encrypted) {
+                $byteExposurePolicy = 'encrypted-resource-bytes-blocked';
+            } elseif ($unsupportedCompression) {
+                $byteExposurePolicy = 'unsupported-compression-metadata-only';
+            } elseif ($targetCanExposeBytes) {
+                $byteExposurePolicy = 'manifest-dependency-target-bytes-exposable';
+            } else {
+                $byteExposurePolicy = 'manifest-dependency-target-metadata-only';
+            }
+
+            $relationDiagnostics = [];
+            $relationResolved = null;
+            $relationUsable = null;
+            $terminalId = null;
+            $terminalPartName = null;
+            $terminalMediaType = null;
+            $chainLength = 0;
+            if ($relationReport !== null) {
+                $relationDiagnostics = match ($relation) {
+                    'fallback' => self::compactDiagnosticList($relationReport['fallbackDiagnostics'] ?? []),
+                    'fallback-style' => self::compactDiagnosticList($relationReport['fallbackStyleDiagnostics'] ?? []),
+                    'media-overlay' => self::compactDiagnosticList($relationReport['diagnostics'] ?? []),
+                    default => [],
+                };
+                if ($relation === 'fallback') {
+                    $relationResolved = (bool) ($relationReport['fallbackResolved'] ?? false);
+                    $relationUsable = (bool) ($relationReport['fallbackUsable'] ?? false);
+                    $terminalId = is_string($relationReport['fallbackTerminalId'] ?? null) ? $relationReport['fallbackTerminalId'] : null;
+                    $terminalPartName = is_string($relationReport['fallbackTerminalPartName'] ?? null) ? $relationReport['fallbackTerminalPartName'] : null;
+                    $terminalMediaType = is_string($relationReport['fallbackTerminalMediaType'] ?? null) ? $relationReport['fallbackTerminalMediaType'] : null;
+                    $chainLength = is_array($relationReport['fallbackChain'] ?? null) ? count($relationReport['fallbackChain']) : 0;
+                } elseif ($relation === 'fallback-style') {
+                    $relationResolved = (bool) ($relationReport['fallbackStyleResolved'] ?? false);
+                    $relationUsable = (bool) ($relationReport['fallbackStyleUsable'] ?? false);
+                    $terminalId = is_string($relationReport['fallbackStyleTerminalId'] ?? null) ? $relationReport['fallbackStyleTerminalId'] : null;
+                    $terminalPartName = is_string($relationReport['fallbackStyleTerminalPartName'] ?? null) ? $relationReport['fallbackStyleTerminalPartName'] : null;
+                    $terminalMediaType = is_string($relationReport['fallbackStyleTerminalMediaType'] ?? null) ? $relationReport['fallbackStyleTerminalMediaType'] : null;
+                    $chainLength = is_array($relationReport['fallbackStyleChain'] ?? null) ? count($relationReport['fallbackStyleChain']) : 0;
+                } elseif ($relation === 'media-overlay') {
+                    $relationResolved = ($relationReport['exists'] ?? false) === true;
+                    $relationUsable = $relationResolved && $relationDiagnostics === [];
+                    $terminalId = is_string($relationReport['id'] ?? null) ? $relationReport['id'] : null;
+                    $terminalPartName = is_string($relationReport['partName'] ?? null) ? $relationReport['partName'] : null;
+                    $terminalMediaType = is_string($relationReport['mediaType'] ?? null) ? $relationReport['mediaType'] : null;
+                    $chainLength = 1;
+                }
+            }
+
+            $itemDiagnostics = [];
+            if (!$targetPresentInManifest) {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-manifest-dependency-target',
+                    'relation' => $relation,
+                    'sourceId' => $sourceId,
+                    'targetId' => $targetId,
+                    'message' => 'EPUB OPF manifest dependency references an item id that is not present in the manifest',
+                ];
+            } elseif ($targetExternal) {
+                $itemDiagnostics[] = [
+                    'type' => 'external-manifest-dependency-target',
+                    'relation' => $relation,
+                    'sourceId' => $sourceId,
+                    'targetId' => $targetId,
+                    'target' => is_string($targetItem['target'] ?? null) ? $targetItem['target'] : '',
+                    'message' => 'EPUB OPF manifest dependency resolves to an external target and was not fetched',
+                ];
+            } elseif ($missingPackagePart) {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-manifest-dependency-package-part',
+                    'relation' => $relation,
+                    'sourceId' => $sourceId,
+                    'targetId' => $targetId,
+                    'partName' => $targetPartName,
+                    'message' => 'EPUB OPF manifest dependency resolves to a package part that is not present in the ZIP',
+                ];
+            }
+            if ($encrypted) {
+                $itemDiagnostics[] = [
+                    'type' => 'encrypted-manifest-dependency-target',
+                    'relation' => $relation,
+                    'sourceId' => $sourceId,
+                    'targetId' => $targetId,
+                    'partName' => $targetPartName,
+                    'byteExposurePolicy' => $byteExposurePolicy,
+                    'message' => 'EPUB OPF manifest dependency target is encrypted and remains metadata-only for compact ingestion',
+                ];
+            }
+            if ($unsupportedCompression) {
+                $itemDiagnostics[] = [
+                    'type' => 'unsupported-manifest-dependency-compression',
+                    'relation' => $relation,
+                    'sourceId' => $sourceId,
+                    'targetId' => $targetId,
+                    'partName' => $targetPartName,
+                    'compressionMethod' => is_array($inventoryItem) && is_int($inventoryItem['compressionMethod'] ?? null) ? $inventoryItem['compressionMethod'] : null,
+                    'compressionMethodName' => $compressionMethodName,
+                    'message' => 'EPUB OPF manifest dependency target uses a ZIP compression method that compact ingestion does not inflate',
+                ];
+            }
+            $itemDiagnostics = array_merge($itemDiagnostics, $relationDiagnostics);
+
+            $edge = [
+                'index' => count($edges),
+                'relation' => $relation,
+                'sourceId' => $sourceId,
+                'sourceHref' => is_string($sourceItem['href'] ?? null) ? $sourceItem['href'] : '',
+                'sourcePartName' => $sourcePartName,
+                'sourcePackagePath' => $sourcePackagePath,
+                'sourceMediaType' => $sourceMediaType,
+                'sourceMediaTypeBase' => self::mediaTypeBase($sourceMediaType),
+                'sourceResourceKind' => $sourcePackagePath === null
+                    ? null
+                    : self::packageInventoryResourceKind($sourceMediaType, $sourcePackagePath, $sourceProperties),
+                'targetId' => $targetId,
+                'targetPresentInManifest' => $targetPresentInManifest,
+                'targetHref' => $targetPresentInManifest && is_string($targetItem['href'] ?? null) ? $targetItem['href'] : null,
+                'targetPartName' => $targetPartName,
+                'targetPackagePath' => $targetPackagePath,
+                'targetMediaType' => $targetPresentInManifest && is_string($targetItem['mediaType'] ?? null) ? $targetItem['mediaType'] : null,
+                'targetMediaTypeBase' => $targetPresentInManifest ? self::mediaTypeBase((string) ($targetItem['mediaType'] ?? '')) : null,
+                'targetResourceKind' => is_array($inventoryItem) && is_string($inventoryItem['resourceKind'] ?? null) ? $inventoryItem['resourceKind'] : null,
+                'targetExternal' => $targetExternal,
+                'targetExists' => $targetExists,
+                'missingManifestTarget' => !$targetPresentInManifest,
+                'missingPackagePart' => $missingPackagePart,
+                'targetEncrypted' => $encrypted,
+                'targetObfuscatedFont' => $obfuscatedFont,
+                'targetUnsupportedCompression' => $unsupportedCompression,
+                'targetCompressionSupported' => $compressionSupported,
+                'targetCompressionMethod' => is_array($inventoryItem) && is_int($inventoryItem['compressionMethod'] ?? null) ? $inventoryItem['compressionMethod'] : null,
+                'targetCompressionMethodName' => $compressionMethodName,
+                'targetByteLength' => $byteLength,
+                'targetCompressedByteLength' => $compressedByteLength,
+                'targetCrc32' => is_array($inventoryItem) && is_string($inventoryItem['crc32'] ?? null) ? $inventoryItem['crc32'] : null,
+                'targetCanExposeBytes' => $targetCanExposeBytes,
+                'targetByteExposurePolicy' => $byteExposurePolicy,
+                'relationResolved' => $relationResolved,
+                'relationUsable' => $relationUsable,
+                'relationTerminalId' => $terminalId,
+                'relationTerminalPartName' => $terminalPartName,
+                'relationTerminalMediaType' => $terminalMediaType,
+                'relationChainLength' => $chainLength,
+                'diagnosticCount' => count($itemDiagnostics),
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            $edges[] = $edge;
+            if ($sourceId !== '') {
+                $sourceIds[$sourceId] = true;
+                $edgesBySourceId[$sourceId][] = $edge;
+            }
+            if ($targetId !== '') {
+                $targetIds[$targetId] = true;
+                $edgesByTargetId[$targetId][] = $edge;
+            }
+            if ($targetPartName !== null && $targetPartName !== '') {
+                $targetPartNames[$targetPartName] = true;
+            }
+
+            $relationCounts[$relation] = ($relationCounts[$relation] ?? 0) + 1;
+            $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+            if ($compressionMethodName !== null) {
+                $compressionMethodCounts[$compressionMethodName] = ($compressionMethodCounts[$compressionMethodName] ?? 0) + 1;
+            }
+
+            if ($targetPresentInManifest) {
+                ++$manifestTargetCount;
+            } else {
+                ++$missingManifestTargetCount;
+                if ($targetId !== '') {
+                    $missingManifestTargetIds[$targetId] = true;
+                }
+            }
+            if ($targetExists) {
+                ++$existingTargetCount;
+            }
+            if ($missingPackagePart) {
+                ++$missingPackagePartTargetCount;
+                if ($targetPartName !== null && $targetPartName !== '') {
+                    $missingPackagePartNames[$targetPartName] = true;
+                }
+            }
+            if ($targetExternal) {
+                ++$externalTargetCount;
+                if ($targetId !== '') {
+                    $externalTargetIds[$targetId] = true;
+                }
+            }
+            if ($encrypted) {
+                ++$encryptedTargetCount;
+                if ($targetPartName !== null && $targetPartName !== '') {
+                    $encryptedTargetPartNames[$targetPartName] = true;
+                }
+            }
+            if ($obfuscatedFont) {
+                ++$obfuscatedFontTargetCount;
+                if ($targetPartName !== null && $targetPartName !== '') {
+                    $obfuscatedFontTargetPartNames[$targetPartName] = true;
+                }
+            }
+            if ($unsupportedCompression) {
+                ++$unsupportedCompressionTargetCount;
+                if ($targetPartName !== null && $targetPartName !== '') {
+                    $unsupportedCompressionTargetPartNames[$targetPartName] = true;
+                }
+            }
+            if ($targetCanExposeBytes) {
+                ++$exposableTargetCount;
+            } else {
+                ++$blockedTargetCount;
+            }
+
+            $bytes = $byteLength ?? 0;
+            $compressedBytes = $compressedByteLength ?? 0;
+            $totalByteLength += $bytes;
+            $totalCompressedByteLength += $compressedBytes;
+            if ($targetCanExposeBytes) {
+                $exposableByteLength += $bytes;
+                $exposableCompressedByteLength += $compressedBytes;
+            } else {
+                $blockedByteLength += $bytes;
+                $blockedCompressedByteLength += $compressedBytes;
+            }
+            if ($unsupportedCompression) {
+                $unsupportedCompressionByteLength += $bytes;
+                $unsupportedCompressionCompressedByteLength += $compressedBytes;
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+                $diagnostics[] = [
+                    'index' => $edge['index'],
+                    'relation' => $relation,
+                    'sourceId' => $sourceId,
+                    'targetId' => $targetId,
+                ] + $diagnostic;
+            }
+        };
+
+        foreach ($manifestItems as $sourceItem) {
+            $sourceId = is_string($sourceItem['id'] ?? null) ? $sourceItem['id'] : '';
+            $sourceReport = $sourceId !== '' && isset($fallbacksById[$sourceId]) && is_array($fallbacksById[$sourceId])
+                ? $fallbacksById[$sourceId]
+                : null;
+            $fallbackId = self::nullableManifestId($sourceItem['fallback'] ?? null);
+            if ($fallbackId !== null) {
+                $appendEdge('fallback', $sourceItem, $fallbackId, $sourceReport);
+            }
+
+            $fallbackStyleId = self::nullableManifestId($sourceItem['fallbackStyle'] ?? null);
+            if ($fallbackStyleId !== null) {
+                $appendEdge('fallback-style', $sourceItem, $fallbackStyleId, $sourceReport);
+            }
+
+            $mediaOverlayId = self::nullableManifestId($sourceItem['mediaOverlay'] ?? null);
+            if ($mediaOverlayId !== null) {
+                $overlayReport = isset($overlaysById[$mediaOverlayId]) && is_array($overlaysById[$mediaOverlayId])
+                    ? $overlaysById[$mediaOverlayId]
+                    : null;
+                $appendEdge('media-overlay', $sourceItem, $mediaOverlayId, $overlayReport);
+            }
+        }
+
+        ksort($relationCounts, SORT_STRING);
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+        ksort($compressionMethodCounts, SORT_STRING);
+
+        return [
+            'present' => $edges !== [],
+            'edgeCount' => count($edges),
+            'fallbackEdgeCount' => $relationCounts['fallback'] ?? 0,
+            'fallbackStyleEdgeCount' => $relationCounts['fallback-style'] ?? 0,
+            'mediaOverlayEdgeCount' => $relationCounts['media-overlay'] ?? 0,
+            'manifestTargetCount' => $manifestTargetCount,
+            'existingTargetCount' => $existingTargetCount,
+            'missingManifestTargetCount' => $missingManifestTargetCount,
+            'missingPackagePartTargetCount' => $missingPackagePartTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'encryptedTargetCount' => $encryptedTargetCount,
+            'obfuscatedFontTargetCount' => $obfuscatedFontTargetCount,
+            'unsupportedCompressionTargetCount' => $unsupportedCompressionTargetCount,
+            'exposableTargetCount' => $exposableTargetCount,
+            'blockedTargetCount' => $blockedTargetCount,
+            'totalByteLength' => $totalByteLength,
+            'totalCompressedByteLength' => $totalCompressedByteLength,
+            'exposableByteLength' => $exposableByteLength,
+            'exposableCompressedByteLength' => $exposableCompressedByteLength,
+            'blockedByteLength' => $blockedByteLength,
+            'blockedCompressedByteLength' => $blockedCompressedByteLength,
+            'unsupportedCompressionByteLength' => $unsupportedCompressionByteLength,
+            'unsupportedCompressionCompressedByteLength' => $unsupportedCompressionCompressedByteLength,
+            'relationCounts' => $relationCounts,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'compressionMethodCounts' => $compressionMethodCounts,
+            'sourceIds' => array_keys($sourceIds),
+            'targetIds' => array_keys($targetIds),
+            'targetPartNames' => array_keys($targetPartNames),
+            'missingManifestTargetIds' => array_keys($missingManifestTargetIds),
+            'missingPackagePartNames' => array_keys($missingPackagePartNames),
+            'externalTargetIds' => array_keys($externalTargetIds),
+            'encryptedTargetPartNames' => array_keys($encryptedTargetPartNames),
+            'obfuscatedFontTargetPartNames' => array_keys($obfuscatedFontTargetPartNames),
+            'unsupportedCompressionTargetPartNames' => array_keys($unsupportedCompressionTargetPartNames),
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticTypes' => self::compactDiagnosticTypes($diagnostics),
+            'diagnostics' => $diagnostics,
+            'edgesBySourceId' => $edgesBySourceId,
+            'edgesByTargetId' => $edgesByTargetId,
+            'edges' => $edges,
         ];
     }
 

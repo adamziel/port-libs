@@ -6728,6 +6728,146 @@ XML;
         $t->same('missing-spine-manifest-item-metadata-only', $absentRow['byteExposurePolicy']);
     },
 
+    'summarizes EPUB manifest dependency ZIP provenance for compact handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $fallback = '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Fallback package content.</p></body></html>';
+        $widgetCss = 'body { color: #446688; }';
+        $overlay = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL">
+  <body>
+    <seq>
+      <par id="intro">
+        <text src="../chapter.xhtml#intro"/>
+        <audio src="../audio/chapter.mp3"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML;
+        $opfWithDependencies = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:manifest-dependency-inventory</dc:identifier>
+    <dc:title>Manifest Dependency Inventory</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter"/>
+    <item id="chapter-missing-overlay" href="chapter-missing-overlay.xhtml" media-type="application/xhtml+xml" media-overlay="missing-overlay"/>
+    <item id="widget" href="widgets/review.bin" media-type="application/x-review-widget" fallback="fallback-html" fallback-style="widget-css"/>
+    <item id="styleless-widget" href="widgets/styleless.bin" media-type="application/x-review-widget" fallback-style="missing-css"/>
+    <item id="fallback-html" href="fallback.xhtml" media-type="application/xhtml+xml"/>
+    <item id="widget-css" href="styles/widget.css" media-type="text/css"/>
+    <item id="mo-chapter" href="overlays/chapter.smil" media-type="application/smil+xml"/>
+    <item id="chapter-audio" href="audio/chapter.mp3" media-type="audio/mpeg"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+    <itemref idref="chapter-missing-overlay"/>
+  </spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithDependencies],
+            ['name' => 'EPUB/nav.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Chapter</a></li></ol></nav></body></html>'],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="intro">Chapter</h1></body></html>'],
+            ['name' => 'EPUB/chapter-missing-overlay.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Missing overlay</h1></body></html>'],
+            ['name' => 'EPUB/widgets/review.bin', 'data' => 'WIDGET'],
+            ['name' => 'EPUB/widgets/styleless.bin', 'data' => 'STYLELESS'],
+            ['name' => 'EPUB/fallback.xhtml', 'data' => $fallback],
+            ['name' => 'EPUB/styles/widget.css', 'data' => $widgetCss, 'method' => 12],
+            ['name' => 'EPUB/overlays/chapter.smil', 'data' => $overlay],
+            ['name' => 'EPUB/audio/chapter.mp3', 'data' => 'AUDIO'],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['manifestDependencyInventory'];
+        $widgetFallback = $inventory['edgesBySourceId']['widget'][0];
+        $widgetStyle = $inventory['edgesBySourceId']['widget'][1];
+        $chapterOverlay = $inventory['edgesBySourceId']['chapter'][0];
+        $missingStyle = $inventory['edgesBySourceId']['styleless-widget'][0];
+        $missingOverlay = $inventory['edgesBySourceId']['chapter-missing-overlay'][0];
+
+        $t->same($inventory, $summary['wordpressImport']['manifestDependencyInventory']);
+        $t->same($inventory['edges'], $summary['wordpressImport']['manifestDependencyEdges']);
+        $t->same($inventory['diagnostics'], $summary['wordpressImport']['manifestDependencyDiagnostics']);
+        $t->same(true, $inventory['present']);
+        $t->same(5, $inventory['edgeCount']);
+        $t->same(1, $inventory['fallbackEdgeCount']);
+        $t->same(2, $inventory['fallbackStyleEdgeCount']);
+        $t->same(2, $inventory['mediaOverlayEdgeCount']);
+        $t->same(3, $inventory['manifestTargetCount']);
+        $t->same(3, $inventory['existingTargetCount']);
+        $t->same(2, $inventory['missingManifestTargetCount']);
+        $t->same(0, $inventory['missingPackagePartTargetCount']);
+        $t->same(1, $inventory['unsupportedCompressionTargetCount']);
+        $t->same(2, $inventory['exposableTargetCount']);
+        $t->same(3, $inventory['blockedTargetCount']);
+        $t->same(strlen($fallback) + strlen($widgetCss) + strlen($overlay), $inventory['totalByteLength']);
+        $t->same(strlen(gzdeflate($fallback)) + strlen($widgetCss) + strlen(gzdeflate($overlay)), $inventory['totalCompressedByteLength']);
+        $t->same(strlen($fallback) + strlen($overlay), $inventory['exposableByteLength']);
+        $t->same(strlen(gzdeflate($fallback)) + strlen(gzdeflate($overlay)), $inventory['exposableCompressedByteLength']);
+        $t->same(strlen($widgetCss), $inventory['blockedByteLength']);
+        $t->same(strlen($widgetCss), $inventory['blockedCompressedByteLength']);
+        $t->same([
+            'fallback' => 1,
+            'fallback-style' => 2,
+            'media-overlay' => 2,
+        ], $inventory['relationCounts']);
+        $t->same([
+            'manifest-dependency-target-bytes-exposable' => 2,
+            'missing-manifest-dependency-target-metadata-only' => 2,
+            'unsupported-compression-metadata-only' => 1,
+        ], $inventory['byteExposurePolicyCounts']);
+        $t->same(['deflated' => 2, 'unsupported' => 1], $inventory['compressionMethodCounts']);
+        $t->same(['mo-chapter', 'missing-overlay', 'fallback-html', 'widget-css', 'missing-css'], $inventory['targetIds']);
+        $t->same(['missing-overlay', 'missing-css'], $inventory['missingManifestTargetIds']);
+        $t->same(['/EPUB/styles/widget.css'], $inventory['unsupportedCompressionTargetPartNames']);
+        $t->same([
+            'missing-manifest-dependency-target',
+            'missing-media-overlay-manifest-item',
+            'unsupported-manifest-dependency-compression',
+            'unreadable-manifest-fallback-style-package-part',
+            'missing-manifest-fallback-style-item',
+        ], $inventory['diagnosticTypes']);
+
+        $t->same('fallback', $widgetFallback['relation']);
+        $t->same('fallback-html', $widgetFallback['targetId']);
+        $t->same('/EPUB/fallback.xhtml', $widgetFallback['targetPartName']);
+        $t->same(true, $widgetFallback['targetCanExposeBytes']);
+        $t->same('manifest-dependency-target-bytes-exposable', $widgetFallback['targetByteExposurePolicy']);
+        $t->same(strlen($fallback), $widgetFallback['targetByteLength']);
+        $t->same('fallback-html', $widgetFallback['relationTerminalId']);
+        $t->same(true, $widgetFallback['relationUsable']);
+
+        $t->same('fallback-style', $widgetStyle['relation']);
+        $t->same('widget-css', $widgetStyle['targetId']);
+        $t->same(true, $widgetStyle['targetUnsupportedCompression']);
+        $t->same('unsupported', $widgetStyle['targetCompressionMethodName']);
+        $t->same('unsupported-compression-metadata-only', $widgetStyle['targetByteExposurePolicy']);
+        $t->same(false, $widgetStyle['relationUsable']);
+
+        $t->same('media-overlay', $chapterOverlay['relation']);
+        $t->same('mo-chapter', $chapterOverlay['targetId']);
+        $t->same('/EPUB/overlays/chapter.smil', $chapterOverlay['targetPartName']);
+        $t->same('media-overlay', $chapterOverlay['targetResourceKind']);
+        $t->same(true, $chapterOverlay['relationResolved']);
+        $t->same('manifest-dependency-target-bytes-exposable', $chapterOverlay['targetByteExposurePolicy']);
+
+        $t->same('missing-css', $missingStyle['targetId']);
+        $t->same(false, $missingStyle['targetPresentInManifest']);
+        $t->same('missing-manifest-dependency-target-metadata-only', $missingStyle['targetByteExposurePolicy']);
+        $t->same('missing-manifest-dependency-target', $missingStyle['diagnostics'][0]['type']);
+        $t->same('missing-manifest-fallback-style-item', $missingStyle['diagnostics'][1]['type']);
+
+        $t->same('missing-overlay', $missingOverlay['targetId']);
+        $t->same(false, $missingOverlay['targetPresentInManifest']);
+        $t->same(false, $missingOverlay['relationResolved']);
+        $t->same('missing-media-overlay-manifest-item', $missingOverlay['diagnostics'][1]['type']);
+    },
+
     'reports OPF metadata meta property vocabulary diagnostics for package review' => static function (TestRunner $t) use ($epubContainerXml): void {
         $opfWithMetaVocabulary = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" prefix="review: https://example.invalid/epub-review#">
