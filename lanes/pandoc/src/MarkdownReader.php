@@ -15558,10 +15558,6 @@ final class MarkdownReader
         }
 
         $remainder = trim($afterShortCaption);
-        if ($remainder === '') {
-            return [null, $caption];
-        }
-
         return [substr($caption, 1, $end - 1), $remainder];
     }
 
