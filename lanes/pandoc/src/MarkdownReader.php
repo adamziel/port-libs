@@ -15924,7 +15924,7 @@ final class MarkdownReader
     }
 
     /**
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null} $marker
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null, exampleLabel:string|null} $marker
      */
     private function canListMarkerInterruptParagraph(array $marker): bool
     {
@@ -15937,7 +15937,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null} $firstMarker
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null, exampleLabel:string|null} $firstMarker
      * @return array{node: AstNode, next: int}|null
      */
     private function parseList(array $lines, int $cursor, array $firstMarker): ?array
@@ -15993,8 +15993,13 @@ final class MarkdownReader
             $attrs['start'] = $start ?? 1;
             $attrs['style'] = $style ?? 'decimal';
             $attrs['delimiter'] = $delimiter ?? 'period';
-        } elseif ($this->allListItemsAreTasks($children)) {
-            $attrs['taskList'] = true;
+        } else {
+            if ($bulletMarker !== null) {
+                $attrs['marker'] = $bulletMarker;
+            }
+            if ($this->allListItemsAreTasks($children)) {
+                $attrs['taskList'] = true;
+            }
         }
 
         return [
@@ -16005,8 +16010,8 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null} $marker
-     * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null}
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null, exampleLabel:string|null} $marker
+     * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null, exampleLabel:string|null}
      */
     private function parseListItem(
         array $lines,
@@ -16167,6 +16172,7 @@ final class MarkdownReader
             'text' => $firstText,
             'number' => $marker['start'],
             'taskChecked' => $taskChecked,
+            'exampleLabel' => $marker['exampleLabel'],
         ];
     }
 
@@ -16396,8 +16402,8 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null} $marker
-     * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null}
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null, exampleLabel:string|null} $marker
+     * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null, exampleLabel:string|null}
      */
     private function parseBlockHtmlListItem(array $lines, int $cursor, array $marker): array
     {
@@ -16459,6 +16465,7 @@ final class MarkdownReader
             'text' => trim($marker['text']),
             'number' => $marker['start'],
             'taskChecked' => null,
+            'exampleLabel' => $marker['exampleLabel'],
         ];
     }
 
@@ -16554,7 +16561,7 @@ final class MarkdownReader
     }
 
     /**
-     * @param array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null} $item
+     * @param array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null, exampleLabel:string|null} $item
      */
     private function buildListItem(array $item, bool $loose): AstNode
     {
@@ -16590,6 +16597,9 @@ final class MarkdownReader
         }
         if ($item['taskChecked'] !== null) {
             $attrs['taskChecked'] = $item['taskChecked'];
+        }
+        if ($item['exampleLabel'] !== null) {
+            $attrs['exampleLabel'] = $item['exampleLabel'];
         }
 
         return new AstNode('list_item', $attrs, $children);
@@ -16629,7 +16639,7 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null}|null
+     * @return array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, bulletMarker:string|null, exampleLabel:string|null}|null
      */
     private function matchListMarker(string $line, ?int $lineIndex = null): ?array
     {
@@ -16650,6 +16660,7 @@ final class MarkdownReader
                 'style' => 'example',
                 'delimiter' => 'two_parens',
                 'bulletMarker' => null,
+                'exampleLabel' => $example['label'] !== '' ? $example['label'] : null,
             ];
         }
 
@@ -16670,6 +16681,7 @@ final class MarkdownReader
                 'style' => null,
                 'delimiter' => null,
                 'bulletMarker' => $m[2],
+                'exampleLabel' => null,
             ];
         }
 
@@ -16690,6 +16702,7 @@ final class MarkdownReader
                 'style' => 'default',
                 'delimiter' => 'default',
                 'bulletMarker' => null,
+                'exampleLabel' => null,
             ];
         }
 
@@ -16715,6 +16728,7 @@ final class MarkdownReader
                 'style' => $ordinal['style'],
                 'delimiter' => 'two_parens',
                 'bulletMarker' => null,
+                'exampleLabel' => null,
             ];
         }
 
@@ -16736,6 +16750,7 @@ final class MarkdownReader
                 'style' => 'decimal',
                 'delimiter' => $m[3] === ')' ? 'one_paren' : 'period',
                 'bulletMarker' => null,
+                'exampleLabel' => null,
             ];
         }
 
@@ -16762,6 +16777,7 @@ final class MarkdownReader
                 'style' => $ordinal['style'],
                 'delimiter' => $delimiter,
                 'bulletMarker' => null,
+                'exampleLabel' => null,
             ];
         }
 

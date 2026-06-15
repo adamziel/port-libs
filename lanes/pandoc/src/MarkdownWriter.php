@@ -1181,7 +1181,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            $marker = $ordered ? $this->orderedListMarker($node, $start + $index, $item) : $this->bulletListMarker();
+            $marker = $ordered ? $this->orderedListMarker($node, $start + $index, $item) : $this->bulletListMarker($node);
             $itemLoose = $listLoose || (bool) $item->attr('loose', false);
             if ($itemLoose && $lines !== [] && end($lines) !== '') {
                 $lines[] = '';
@@ -1293,11 +1293,21 @@ final class MarkdownWriter
         return $label !== '' && preg_match('/\A[A-Za-z0-9_-]+\z/u', $label) === 1;
     }
 
-    private function bulletListMarker(): string
+    private function bulletListMarker(?AstNode $node = null): string
     {
-        return match ((string) ($this->options['bulletListMarker'] ?? 'dash')) {
-            'plus' => '+ ',
-            'star' => '* ',
+        if (array_key_exists('bulletListMarker', $this->options)) {
+            return match ((string) $this->options['bulletListMarker']) {
+                'plus' => '+ ',
+                'star' => '* ',
+                default => '- ',
+            };
+        }
+
+        $marker = $node instanceof AstNode ? $node->attr('marker', $node->attr('bulletMarker', '')) : '';
+
+        return match ((string) $marker) {
+            '+', 'plus' => '+ ',
+            '*', 'star' => '* ',
             default => '- ',
         };
     }
