@@ -10929,6 +10929,54 @@ MD;
             ]),
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer table caption block payloads' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $document = new AstNode('document', [], [
+            new AstNode('table', [
+                'captionBlocks' => [
+                    new AstNode('paragraph', [], [
+                        $text('Detailed '),
+                        new AstNode('emph', [], [$text('caption')]),
+                    ]),
+                    new AstNode('code_block', ['text' => 'wp option get source']),
+                ],
+                'shortCaptionBlocks' => [
+                    new AstNode('plain', [], [
+                        $text('Review '),
+                        new AstNode('strong', [], [$text('queue')]),
+                    ]),
+                ],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', ['header' => true], [
+                        new AstNode('table_cell', [], [$text('Item')]),
+                    ]),
+                ]),
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [$text('media')]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(implode("\n", [
+            '| Item  |',
+            '|-----|',
+            '| media |',
+            '',
+            ': [Review **queue**] Detailed *caption*<br />wp option get source',
+        ]), $markdown);
+        $t->contains(': [Review **queue**] Detailed *caption*<br />wp option get source', $markdown);
+        $t->same(1, substr_count($markdown, ': [Review **queue**]'));
+        $t->same(1, substr_count($markdown, '<br />'));
+        $t->same(false, str_contains($markdown, '    wp option get source'));
+        $t->same(false, str_contains($markdown, "Detailed *caption*\n"));
+        $t->same(false, str_contains($markdown, '[Review **queue**] ' . "\n"));
+        $t->same(false, str_contains($markdown, '[Review **queue**] wp option get source'));
+    },
     'maps upstream markdown writer angle wrapped destinations for spaces and parentheses' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $document = new AstNode('document', [], [
