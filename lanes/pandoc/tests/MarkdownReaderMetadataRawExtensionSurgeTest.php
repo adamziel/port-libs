@@ -623,4 +623,165 @@ foreach ($nativeSpanCases as $case) {
         };
 }
 
+$nativeDivAttributeSource = static function (array $attributes): string {
+    $parts = [];
+    foreach ($attributes as $name => $value) {
+        $parts[] = $name . '="' . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+    }
+
+    return implode(' ', $parts);
+};
+
+$nativeDivExpectedAttrs = static function (array $htmlAttributes): array {
+    $id = '';
+    $classes = [];
+    $attributes = [];
+    $normalizedHtmlAttributes = [];
+
+    foreach ($htmlAttributes as $name => $value) {
+        $name = strtolower((string) $name);
+        $value = trim((string) $value);
+        if ($name === 'id') {
+            $id = $value;
+            if ($value !== '') {
+                $normalizedHtmlAttributes['id'] = $value;
+            }
+            continue;
+        }
+
+        if ($name === 'class') {
+            $classes = preg_split('/\s+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            if ($classes !== []) {
+                $normalizedHtmlAttributes['class'] = implode(' ', $classes);
+            }
+            continue;
+        }
+
+        $attributeName = str_starts_with($name, 'data-') ? substr($name, 5) : $name;
+        if ($attributeName === '') {
+            continue;
+        }
+
+        $attributes[$attributeName] = $value;
+        $normalizedHtmlAttributes[$name] = $value;
+    }
+
+    return [
+        'id' => $id,
+        'classes' => $classes,
+        'attributes' => $attributes,
+        'htmlAttributes' => $normalizedHtmlAttributes,
+    ];
+};
+
+$nativeDivSlug = static function (string $name): string {
+    return trim((string) preg_replace('/[^A-Za-z0-9]+/', '-', strtolower($name)), '-');
+};
+
+$nativeDivCases = [
+    ['name' => 'id class data review', 'htmlAttributes' => ['id' => 'div-alpha', 'class' => 'review primary', 'data-review' => 'alpha']],
+    ['name' => 'class lang', 'htmlAttributes' => ['class' => 'locale', 'lang' => 'pl']],
+    ['name' => 'title data index', 'htmlAttributes' => ['title' => 'Review title', 'data-index' => '7']],
+    ['name' => 'direction aria label', 'htmlAttributes' => ['dir' => 'rtl', 'aria-label' => 'Direction review']],
+    ['name' => 'role data kind', 'htmlAttributes' => ['role' => 'note', 'data-kind' => 'role']],
+    ['name' => 'aria describedby', 'htmlAttributes' => ['aria-describedby' => 'note-a note-b', 'data-kind' => 'aria']],
+    ['name' => 'translate no', 'htmlAttributes' => ['translate' => 'no', 'data-token' => 'literal']],
+    ['name' => 'xml lang locale', 'htmlAttributes' => ['xml:lang' => 'pl', 'data-locale' => 'pl-PL']],
+    ['name' => 'two data attrs', 'htmlAttributes' => ['data-lane' => 'pandoc', 'data-case' => 'native-div']],
+    ['name' => 'compressed classes', 'htmlAttributes' => ['class' => 'primary   secondary', 'data-kind' => 'classes']],
+    ['name' => 'data source path', 'htmlAttributes' => ['data-source-path' => 'markdown-reader', 'data-kind' => 'source']],
+    ['name' => 'format extension packet', 'htmlAttributes' => ['class' => 'packet', 'data-format' => 'markdown', 'data-extension' => 'native_divs']],
+    ['name' => 'language direction', 'htmlAttributes' => ['lang' => 'he', 'dir' => 'rtl', 'data-direction' => 'rtl']],
+    ['name' => 'live region state', 'htmlAttributes' => ['role' => 'status', 'aria-live' => 'polite', 'data-state' => 'queued']],
+    ['name' => 'controls panel', 'htmlAttributes' => ['aria-controls' => 'panel-a', 'data-panel' => 'a']],
+    ['name' => 'expanded toggle', 'htmlAttributes' => ['aria-expanded' => 'true', 'data-toggle' => 'expanded']],
+    ['name' => 'current nav', 'htmlAttributes' => ['aria-current' => 'page', 'data-nav' => 'current']],
+    ['name' => 'details reference', 'htmlAttributes' => ['aria-details' => 'details-a', 'data-details' => 'a']],
+    ['name' => 'hidden state', 'htmlAttributes' => ['aria-hidden' => 'true', 'data-visibility' => 'hidden']],
+    ['name' => 'keyboard command', 'htmlAttributes' => ['aria-keyshortcuts' => 'Control+K', 'data-command' => 'palette']],
+    ['name' => 'role description', 'htmlAttributes' => ['aria-roledescription' => 'review card', 'data-card' => 'summary']],
+    ['name' => 'pressed button state', 'htmlAttributes' => ['aria-pressed' => 'false', 'data-button' => 'filter']],
+    ['name' => 'quoted greater title', 'htmlAttributes' => ['title' => 'a > b', 'data-boundary' => 'quote-aware']],
+    ['name' => 'entity title', 'htmlAttributes' => ['title' => 'A & B', 'data-entity' => 'ampersand']],
+    ['name' => 'review stage', 'htmlAttributes' => ['data-review-id' => '42', 'data-review-stage' => 'draft']],
+    ['name' => 'line range', 'htmlAttributes' => ['data-start-line' => '10', 'data-end-line' => '20']],
+    ['name' => 'source origin', 'htmlAttributes' => ['data-source' => 'batch', 'data-origin' => 'html']],
+    ['name' => 'batch index', 'htmlAttributes' => ['data-batch' => '20260615', 'data-index' => '28']],
+    ['name' => 'slug family', 'htmlAttributes' => ['data-slug' => 'native-div', 'data-family' => 'markdown']],
+    ['name' => 'mode variant', 'htmlAttributes' => ['data-mode' => 'reader', 'data-variant' => 'html-div']],
+    ['name' => 'callout note role', 'htmlAttributes' => ['class' => 'callout note', 'role' => 'note', 'data-alert' => 'note']],
+    ['name' => 'grid layout', 'htmlAttributes' => ['class' => 'grid two-column', 'data-layout' => 'two-column']],
+    ['name' => 'uuid packet', 'htmlAttributes' => ['id' => 'packet-33', 'data-uuid' => 'review-33']],
+    ['name' => 'language tag', 'htmlAttributes' => ['lang' => 'en-US', 'data-language' => 'english']],
+    ['name' => 'arabic script direction', 'htmlAttributes' => ['dir' => 'rtl', 'lang' => 'ar', 'data-script' => 'arabic']],
+    ['name' => 'dual locale', 'htmlAttributes' => ['xml:lang' => 'fr', 'lang' => 'fr', 'data-locale' => 'fr-FR']],
+    ['name' => 'label title packet', 'htmlAttributes' => ['aria-label' => 'Review packet', 'title' => 'Review packet']],
+    ['name' => 'note references', 'htmlAttributes' => ['aria-describedby' => 'note-a note-b', 'data-note' => 'two']],
+    ['name' => 'heading references', 'htmlAttributes' => ['aria-labelledby' => 'heading-a heading-b', 'data-heading' => 'two']],
+    ['name' => 'region label', 'htmlAttributes' => ['role' => 'region', 'aria-label' => 'Region packet', 'data-region' => 'main']],
+    ['name' => 'group label', 'htmlAttributes' => ['role' => 'group', 'aria-label' => 'Group packet', 'data-group' => 'controls']],
+    ['name' => 'doc abstract role', 'htmlAttributes' => ['role' => 'doc-abstract', 'data-doc' => 'abstract']],
+    ['name' => 'complementary sidebar', 'htmlAttributes' => ['role' => 'complementary', 'data-sidebar' => 'related']],
+    ['name' => 'translated language', 'htmlAttributes' => ['translate' => 'no', 'lang' => 'pl', 'data-translate' => 'locked']],
+    ['name' => 'import path', 'htmlAttributes' => ['data-import-path' => 'posts/2026/review', 'data-import-kind' => 'post']],
+    ['name' => 'mime format', 'htmlAttributes' => ['data-mime' => 'text/markdown', 'data-format' => 'markdown']],
+    ['name' => 'checksum size', 'htmlAttributes' => ['data-checksum' => 'sha256-abc123', 'data-size' => '42']],
+    ['name' => 'status classes', 'htmlAttributes' => ['data-status' => 'needs-review', 'class' => 'status review']],
+    ['name' => 'native identity', 'htmlAttributes' => ['id' => 'native-div-49', 'class' => 'native div packet', 'data-native' => 'true']],
+    ['name' => 'final packet', 'htmlAttributes' => ['data-final' => 'true', 'aria-label' => 'Final packet']],
+];
+
+foreach ($nativeDivCases as $case) {
+    $tests['maps upstream markdown native div extension ' . $case['name'] . ' with metadata'] =
+        static function (TestRunner $t) use ($case, $nativeDivAttributeSource, $nativeDivExpectedAttrs, $nativeDivSlug): void {
+            $slug = $nativeDivSlug($case['name']);
+            $content = 'Native div ' . $slug . ' with **strong** child.';
+            $document = (new MarkdownReader())->read(implode("\n", [
+                '---',
+                'title: Native div **Packet**',
+                'review: {extension: native_divs, family: html, kind: block, name: "' . $case['name'] . '"}',
+                '...',
+                '',
+                '<div ' . $nativeDivAttributeSource($case['htmlAttributes']) . '>' . $content . '</div>',
+            ]));
+
+            $meta = $document->attr('meta');
+            $div = $document->children[0] ?? new AstNode('missing');
+            $plain = $div->children[0] ?? new AstNode('missing');
+            $expected = $nativeDivExpectedAttrs($case['htmlAttributes']);
+            $markdown = (new MarkdownWriter())->write($document);
+            $blocks = (new WordPressBlockWriter())->write($document);
+
+            $t->same('native_divs', $meta['review']['extension'] ?? null);
+            $t->same('html', $meta['review']['family'] ?? null);
+            $t->same('block', $meta['review']['kind'] ?? null);
+            $t->same($case['name'], $meta['review']['name'] ?? null);
+            $t->same('div', $div->type);
+            $t->same($expected['id'], $div->attr('id', ''));
+            $t->same($expected['classes'], $div->attr('classes', []));
+            $t->same($expected['attributes'], $div->attr('attributes', []));
+            $t->same($expected['htmlAttributes'], $div->attr('htmlAttributes', []));
+            $t->same('plain', $plain->type);
+            $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $plain->children));
+            $t->same('strong', $plain->children[1]->children[0]->attr('text'));
+            $t->contains('::: ', $markdown);
+            $t->contains($content, $markdown);
+            $t->contains('<div', $blocks);
+            $t->contains('Native div ' . $slug . ' with <strong>strong</strong> child.', $blocks);
+
+            foreach ($expected['htmlAttributes'] as $name => $value) {
+                $t->contains(
+                    $name . '="' . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"',
+                    $blocks,
+                    $case['name'] . ' WordPress attribute ' . $name
+                );
+            }
+        };
+}
+
+$tests['records upstream markdown native div extension surge mapped-case count'] =
+    static function (TestRunner $t) use ($nativeDivCases): void {
+        $t->same(50, count($nativeDivCases));
+    };
+
 return $tests;

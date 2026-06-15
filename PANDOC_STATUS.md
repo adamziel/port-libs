@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 2,277 | 1,096 |
+| Markdown / CommonMark / GFM | 2,327 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not a current upstream Pandoc input token) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` percent-encodes C0/DEL control bytes in decoded inline link, image, reference-link, and angle-autolink destinations while preserving titles, labels, entity/backslash decoding, native span extension coverage, existing emoji alias coverage, and WordPress handoff.
+Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` preserves attributed native HTML div blocks with ids, normalized classes, data/ARIA/lang/dir/title/role/translate/xml:lang attributes, quote-aware values, Markdown fenced-div output, WordPress block handoff, URL control-byte normalization, and existing emoji alias coverage.
 
-Current Pandoc counters: 6,135 PHP passes / 0 failures and 6,125 mapped upstream cases. Verification passed after rebase onto current main `4cb757a1e1`: `php -l` for `MarkdownReader.php` and `MarkdownReaderUrlNormalizationSurgeTest.php`; focused URL-normalization coverage passed 1 file, 250 assertions, 0 failures; focused related Markdown reader coverage passed 7 files, 10169 assertions, 0 failures; full `lanes/pandoc/tests` passed 74 files, 104521 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 6,185 PHP passes / 0 failures and 6,175 mapped upstream cases. Verification passed after rebase onto current main `cc87fc6ba3`: `php -l` for `MarkdownReader.php` and `MarkdownReaderMetadataRawExtensionSurgeTest.php`; focused native-div coverage with `MarkdownReaderTest.php` passed 2 files, 10079 assertions, 0 failures; full `lanes/pandoc/tests` passed 74 files, 105433 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
