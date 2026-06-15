@@ -616,6 +616,10 @@ final class EpubPackage
             is_array($validationReport['navigation'] ?? null) ? $validationReport['navigation'] : [],
         );
         $auxiliaryNavigation = self::auxiliaryNavigationReport($this->navigationSections);
+        $auxiliaryNavigationTargetPolicy = self::auxiliaryNavigationTargetPolicyReport(
+            $auxiliaryNavigation,
+            $this->package,
+        );
         $spineMetadata = $this->spineMetadata();
         $rootfileAuthoring = self::rootfileAuthoringReport($this->rootfiles, $this->opfPartName);
         $packageAuthoring = self::packageAuthoringReport($this->metadata);
@@ -725,6 +729,7 @@ final class EpubPackage
             'ncxAudioLabelDiagnostics' => $ncxAudioLabelReport['diagnostics'],
             'navigationSections' => $this->navigationSections,
             'auxiliaryNavigation' => $auxiliaryNavigation,
+            'auxiliaryNavigationTargetPolicy' => $auxiliaryNavigationTargetPolicy,
             'assets' => $assetSummary,
             'remoteResourcePolicy' => $remoteResourcePolicy,
             'linkHrefSuffixes' => $linkHrefSuffixes,
@@ -979,6 +984,9 @@ final class EpubPackage
                 'auxiliaryNavigation' => $auxiliaryNavigation,
                 'auxiliaryNavigationSections' => $auxiliaryNavigation['sections'],
                 'auxiliaryNavigationTargets' => $auxiliaryNavigation['items'],
+                'auxiliaryNavigationTargetPolicy' => $auxiliaryNavigationTargetPolicy,
+                'auxiliaryNavigationTargetPolicyItems' => $auxiliaryNavigationTargetPolicy['items'],
+                'auxiliaryNavigationTargetPolicyDiagnostics' => $auxiliaryNavigationTargetPolicy['diagnostics'],
                 'coverImagePart' => $assetSummary['coverImagePart'],
                 'stylesheetParts' => $assetSummary['stylesheetParts'],
                 'imageParts' => $assetSummary['imageParts'],
@@ -17071,6 +17079,172 @@ final class EpubPackage
             'sectionsByType' => $sectionsByType,
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $auxiliaryNavigation
+     *
+     * @return array<string, mixed>
+     */
+    private static function auxiliaryNavigationTargetPolicyReport(array $auxiliaryNavigation, ZipPackage $package): array
+    {
+        $items = [];
+        $itemsBySectionType = [];
+        $diagnostics = [];
+        $types = [];
+        $targetedItemCount = 0;
+        $localTargetCount = 0;
+        $validTargetCount = 0;
+        $externalTargetCount = 0;
+        $missingTargetCount = 0;
+        $missingReferenceCount = 0;
+        $blockedTargetCount = 0;
+
+        foreach (is_array($auxiliaryNavigation['items'] ?? null) ? $auxiliaryNavigation['items'] : [] as $sourceItem) {
+            if (!is_array($sourceItem)) {
+                continue;
+            }
+
+            $item = self::auxiliaryNavigationTargetPolicyItem($sourceItem, count($items), $package);
+
+            if ($item['target'] !== null) {
+                ++$targetedItemCount;
+            }
+            if (($item['external'] ?? false) === true) {
+                ++$externalTargetCount;
+            } elseif ($item['target'] !== null) {
+                ++$localTargetCount;
+            }
+            if (($item['validTarget'] ?? false) === true) {
+                ++$validTargetCount;
+            }
+            if ($item['target'] === null) {
+                ++$missingTargetCount;
+            }
+            if (($item['exists'] ?? true) !== true && ($item['external'] ?? false) !== true && $item['target'] !== null) {
+                ++$missingReferenceCount;
+            }
+            if (($item['exists'] ?? false) === true && ($item['canExposeBytes'] ?? false) !== true) {
+                ++$blockedTargetCount;
+            }
+
+            foreach (is_array($item['sectionTypes'] ?? null) ? $item['sectionTypes'] : [] as $sectionType) {
+                if (!is_string($sectionType) || $sectionType === '') {
+                    continue;
+                }
+
+                $types[$sectionType] = true;
+                $itemsBySectionType[$sectionType][] = $item;
+            }
+
+            foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'index' => $item['index'],
+                    'sectionIndex' => $item['sectionIndex'],
+                    'sectionId' => $item['sectionId'],
+                    'sectionType' => $item['sectionType'],
+                ] + $diagnostic;
+            }
+
+            $items[] = $item;
+        }
+
+        return [
+            'present' => $items !== [],
+            'sectionCount' => (int) ($auxiliaryNavigation['sectionCount'] ?? 0),
+            'itemCount' => count($items),
+            'targetedItemCount' => $targetedItemCount,
+            'localTargetCount' => $localTargetCount,
+            'validTargetCount' => $validTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'missingTargetCount' => $missingTargetCount,
+            'missingReferenceCount' => $missingReferenceCount,
+            'blockedTargetCount' => $blockedTargetCount,
+            'diagnosticCount' => count($diagnostics),
+            'types' => array_keys($types),
+            'sections' => is_array($auxiliaryNavigation['sections'] ?? null) ? array_values($auxiliaryNavigation['sections']) : [],
+            'items' => $items,
+            'itemsBySectionType' => $itemsBySectionType,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $sourceItem
+     *
+     * @return array<string, mixed>
+     */
+    private static function auxiliaryNavigationTargetPolicyItem(array $sourceItem, int $index, ZipPackage $package): array
+    {
+        $target = is_string($sourceItem['target'] ?? null) ? $sourceItem['target'] : null;
+        $href = is_string($sourceItem['href'] ?? null) ? $sourceItem['href'] : null;
+        $external = $target !== null && self::isAbsoluteUri($target);
+        $partName = $target !== null && !$external ? OpcPackagePath::stripQueryAndFragment($target) : null;
+        $entry = $partName !== null && $package->has($partName) ? $package->entry($partName) : null;
+        $provenance = self::zipEntryProvenance($entry);
+        $exists = $entry instanceof ZipPackageEntry;
+        $canExposeBytes = $exists && ($provenance['canExposeBytes'] ?? false) === true;
+        $suffix = $target !== null
+            ? self::packageHrefSuffixReport($target)
+            : ['hasQuery' => false, 'query' => null, 'hasFragment' => false, 'fragment' => null];
+        $diagnostics = [];
+
+        if ($target === null || $href === null) {
+            $diagnostics[] = [
+                'type' => 'missing-auxiliary-nav-target',
+                'message' => 'EPUB auxiliary navigation item does not carry a resolvable target',
+            ];
+        } elseif ($external) {
+            $diagnostics[] = [
+                'type' => 'external-auxiliary-nav-target',
+                'target' => $target,
+                'message' => 'EPUB auxiliary navigation target points outside the package and was not fetched',
+            ];
+        } elseif (!$exists) {
+            $diagnostics[] = [
+                'type' => 'missing-auxiliary-nav-reference',
+                'partName' => $partName,
+                'target' => $target,
+                'message' => 'EPUB auxiliary navigation target is missing from the package',
+            ];
+        } elseif (!$canExposeBytes) {
+            $diagnostics[] = [
+                'type' => 'auxiliary-nav-target-bytes-unavailable',
+                'partName' => $partName,
+                'target' => $target,
+                'compressionMethod' => $provenance['compressionMethod'],
+                'compressionMethodName' => $provenance['compressionMethodName'],
+                'message' => 'EPUB auxiliary navigation target bytes are not exposed by compact package review policy',
+            ];
+        }
+
+        return [
+            'index' => $index,
+            'sectionIndex' => is_int($sourceItem['sectionIndex'] ?? null) ? $sourceItem['sectionIndex'] : null,
+            'sectionId' => is_string($sourceItem['sectionId'] ?? null) ? $sourceItem['sectionId'] : null,
+            'sectionType' => is_string($sourceItem['sectionType'] ?? null) ? $sourceItem['sectionType'] : null,
+            'sectionTypes' => is_array($sourceItem['sectionTypes'] ?? null) ? array_values($sourceItem['sectionTypes']) : [],
+            'sectionTitle' => is_string($sourceItem['sectionTitle'] ?? null) ? $sourceItem['sectionTitle'] : null,
+            'entryIndex' => is_int($sourceItem['entryIndex'] ?? null) ? $sourceItem['entryIndex'] : null,
+            'depth' => is_int($sourceItem['depth'] ?? null) ? $sourceItem['depth'] : 0,
+            'label' => is_string($sourceItem['label'] ?? null) ? $sourceItem['label'] : '',
+            'href' => $href,
+            'target' => $target,
+            'partName' => $partName,
+            'external' => $external,
+            'exists' => $exists,
+            'validTarget' => $target !== null && !$external && $exists && $canExposeBytes,
+            'hrefHasQuery' => $suffix['hasQuery'],
+            'hrefQuery' => $suffix['query'],
+            'hrefHasFragment' => $suffix['hasFragment'],
+            'hrefFragment' => $suffix['fragment'],
+            'byteSha256' => $canExposeBytes && $partName !== null ? hash('sha256', $package->read($partName)) : null,
+            'diagnostics' => $diagnostics,
+        ] + $provenance;
     }
 
     /**

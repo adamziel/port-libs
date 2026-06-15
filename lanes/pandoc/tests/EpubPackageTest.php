@@ -2731,35 +2731,41 @@ XML;
       <h2>Figures</h2>
       <ol>
         <li><a href="text/chapter1.xhtml#fig-1">Figure 1</a></li>
-        <li><a href="text/chapter2.xhtml#fig-2">Figure 2</a></li>
+        <li><a href="https://cdn.example.invalid/figures/source.svg">Remote figure source</a></li>
       </ol>
     </nav>
     <nav id="tables-nav" epub:type="lot" hidden="hidden">
       <h2>Tables</h2>
       <ol>
-        <li><a href="text/chapter2.xhtml#table-1">Table 1</a></li>
+        <li><a href="text/missing.xhtml#table-1">Missing table</a></li>
       </ol>
     </nav>
   </body>',
             $epub3NavXml
         );
+        $chapter1 = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1><figure id="fig-1"></figure></body></html>';
+        $chapter2 = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1><figure id="fig-2"></figure><table id="table-1"></table></body></html>';
 
         $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
             ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
             ['name' => 'EPUB/nav.xhtml', 'data' => $navWithAuxiliarySections],
-            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1><figure id="fig-1"></figure></body></html>'],
-            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1><figure id="fig-2"></figure><table id="table-1"></table></body></html>'],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => $chapter1],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => $chapter2],
             ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
             ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
         ]));
         $summary = $epub->summary();
         $auxiliary = $summary['auxiliaryNavigation'];
+        $policy = $summary['auxiliaryNavigationTargetPolicy'];
 
         $t->same($auxiliary, $summary['wordpressImport']['auxiliaryNavigation']);
         $t->same($auxiliary['sections'], $summary['wordpressImport']['auxiliaryNavigationSections']);
         $t->same($auxiliary['items'], $summary['wordpressImport']['auxiliaryNavigationTargets']);
+        $t->same($policy, $summary['wordpressImport']['auxiliaryNavigationTargetPolicy']);
+        $t->same($policy['items'], $summary['wordpressImport']['auxiliaryNavigationTargetPolicyItems']);
+        $t->same($policy['diagnostics'], $summary['wordpressImport']['auxiliaryNavigationTargetPolicyDiagnostics']);
         $t->same(true, $auxiliary['present']);
         $t->same(2, $auxiliary['sectionCount']);
         $t->same(3, $auxiliary['itemCount']);
@@ -2787,7 +2793,47 @@ XML;
         $t->same('tables-nav', $tableSection['id']);
         $t->same(true, $tableSection['hidden']);
         $t->same('lot', $auxiliary['items'][2]['sectionType']);
-        $t->same('/EPUB/text/chapter2.xhtml#table-1', $auxiliary['items'][2]['target']);
+        $t->same('/EPUB/text/missing.xhtml#table-1', $auxiliary['items'][2]['target']);
+
+        $t->same(true, $policy['present']);
+        $t->same(2, $policy['sectionCount']);
+        $t->same(3, $policy['itemCount']);
+        $t->same(3, $policy['targetedItemCount']);
+        $t->same(2, $policy['localTargetCount']);
+        $t->same(1, $policy['validTargetCount']);
+        $t->same(1, $policy['externalTargetCount']);
+        $t->same(0, $policy['missingTargetCount']);
+        $t->same(1, $policy['missingReferenceCount']);
+        $t->same(0, $policy['blockedTargetCount']);
+        $t->same(2, $policy['diagnosticCount']);
+        $t->same(['loi', 'list-of-illustrations', 'lot'], $policy['types']);
+        $t->same(['external-auxiliary-nav-target', 'missing-auxiliary-nav-reference'], array_column($policy['diagnostics'], 'type'));
+
+        $localTarget = $policy['items'][0];
+        $t->same('Figure 1', $localTarget['label']);
+        $t->same('/EPUB/text/chapter1.xhtml#fig-1', $localTarget['target']);
+        $t->same('/EPUB/text/chapter1.xhtml', $localTarget['partName']);
+        $t->same(false, $localTarget['external']);
+        $t->same(true, $localTarget['exists']);
+        $t->same(true, $localTarget['validTarget']);
+        $t->same(true, $localTarget['hrefHasFragment']);
+        $t->same('fig-1', $localTarget['hrefFragment']);
+        $t->same(strlen($chapter1), $localTarget['byteLength']);
+        $t->same(hash('sha256', $chapter1), $localTarget['byteSha256']);
+        $t->same([], $localTarget['diagnostics']);
+
+        $remoteTarget = $policy['itemsBySectionType']['list-of-illustrations'][1];
+        $t->same('Remote figure source', $remoteTarget['label']);
+        $t->same(true, $remoteTarget['external']);
+        $t->same(false, $remoteTarget['exists']);
+        $t->same('external-auxiliary-nav-target', $remoteTarget['diagnostics'][0]['type']);
+
+        $missingTarget = $policy['itemsBySectionType']['lot'][0];
+        $t->same('Missing table', $missingTarget['label']);
+        $t->same('/EPUB/text/missing.xhtml#table-1', $missingTarget['target']);
+        $t->same('/EPUB/text/missing.xhtml', $missingTarget['partName']);
+        $t->same(false, $missingTarget['exists']);
+        $t->same('missing-auxiliary-nav-reference', $missingTarget['diagnostics'][0]['type']);
     },
 
     'preserves OPF collections and collection links for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
