@@ -12,8 +12,8 @@ authoring metadata for native package review.
 - `xml:lang` and `dir` values;
 - sorted raw attributes;
 - custom `data-*` and namespaced review attributes;
-- aggregate authoring report rows in the package summary and WordPress import
-  review packet.
+- aggregate authoring and guide-report language/direction/custom buckets in the
+  package summary and WordPress import review packet.
 
 No Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderer, external
 validator, online service, live provider test, or live-service provider test is
@@ -21,17 +21,17 @@ used.
 
 ## Accounting
 
-- `phpPass`: `3731 -> 3732`
+- `phpPass`: `15325 -> 15326`
 - `phpFail`: `0`
-- `UPSTREAM_TEST_MANIFEST.json` upstream mapped: `3749 -> 3750`
+- `UPSTREAM_TEST_MANIFEST.json` upstream mapped: `14996 -> 14997`
 - `mappedEpubGuideReferenceAuthoringCases`: `1`
-- `epubGuideReferenceAuthoringAssertions`: `23`
+- `epubGuideReferenceAuthoringAssertions`: 29
 
 ## Verification
 
 - `php -l lanes/pandoc/src/EpubPackage.php`
 - `php -l lanes/pandoc/tests/EpubPackageTest.php`
 - `php tools/run-tests.php lanes/pandoc/tests/EpubPackageTest.php`
-  - `1 test files, 3337 assertions, 0 failures`
+  - `1 test files, 3770 assertions, 0 failures`
 - `php tools/run-tests.php lanes/pandoc/tests`
-  - `46 test files, 88566 assertions, 0 failures`
+  - `181 test files, 165327 assertions, 0 failures`

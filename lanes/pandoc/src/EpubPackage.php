@@ -146,6 +146,7 @@ final class EpubPackage
     private const OPF_GUIDE_REFERENCE_STRUCTURAL_ATTRIBUTES = [
         'dir' => true,
         'href' => true,
+        'id' => true,
         'title' => true,
         'type' => true,
         'xml:lang' => true,
@@ -868,6 +869,10 @@ final class EpubPackage
                 'guideReferenceManifestMediaTypeDiagnostics' => $guideReport['manifestMediaTypeDiagnostics'],
                 'guideReferenceAuthoring' => $guideAuthoring,
                 'guideReferenceAuthoringItems' => $guideAuthoring['items'],
+                'guideReferenceLanguageItems' => $guideReport['languageItems'],
+                'guideReferenceDirectionItems' => $guideReport['directionItems'],
+                'guideReferenceCustomAttributeItems' => $guideReport['customAttributeItems'],
+                'guideReferenceCustomAttributeNames' => $guideReport['customAttributeNames'],
                 'collections' => $this->collections,
                 'collectionHierarchy' => $collectionHierarchy,
                 'collectionHierarchyItems' => $collectionHierarchy['items'],
@@ -11782,6 +11787,7 @@ final class EpubPackage
 
         return [
             'index' => $index,
+            'id' => self::emptyToNull($reference->getAttribute('id')),
             'type' => self::emptyToNull($reference->getAttribute('type')),
             'title' => self::emptyToNull($reference->getAttribute('title')),
             'href' => $href,
@@ -11837,6 +11843,10 @@ final class EpubPackage
         $manifestMediaTypeParameterNames = [];
         $manifestMediaTypeParameterCount = 0;
         $manifestMediaTypeDiagnostics = [];
+        $languageItems = [];
+        $directionItems = [];
+        $customAttributeItems = [];
+        $customAttributeNames = [];
         $diagnostics = [];
         $missingHrefCount = 0;
         $invalidTargetCount = 0;
@@ -11874,6 +11884,24 @@ final class EpubPackage
                     'manifestMediaType' => is_string($reference['manifestMediaType'] ?? null) ? $reference['manifestMediaType'] : null,
                     'manifestMediaTypeBase' => is_string($reference['manifestMediaTypeBase'] ?? null) ? $reference['manifestMediaTypeBase'] : null,
                 ];
+            }
+
+            if (is_string($reference['language'] ?? null) && $reference['language'] !== '') {
+                $languageItems[] = $reference;
+            }
+            if (is_string($reference['direction'] ?? null) && $reference['direction'] !== '') {
+                $directionItems[] = $reference;
+            }
+            $customAttributes = is_array($reference['customAttributes'] ?? null)
+                ? $reference['customAttributes']
+                : [];
+            if ($customAttributes !== []) {
+                $customAttributeItems[] = $reference;
+                foreach ($customAttributes as $name => $_value) {
+                    if (is_string($name) && $name !== '') {
+                        $customAttributeNames[$name] = true;
+                    }
+                }
             }
 
             $manifestMediaTypeParameters = is_array($reference['manifestMediaTypeParameters'] ?? null)
@@ -11942,6 +11970,7 @@ final class EpubPackage
                 ] + $diagnostic;
             }
         }
+        ksort($customAttributeNames, SORT_STRING);
 
         return [
             'present' => $references !== [],
@@ -11960,6 +11989,10 @@ final class EpubPackage
             'manifestMediaTypeParameterCount' => $manifestMediaTypeParameterCount,
             'manifestMediaTypeParameterNames' => array_keys($manifestMediaTypeParameterNames),
             'manifestMediaTypeDiagnosticCount' => count($manifestMediaTypeDiagnostics),
+            'languageItemCount' => count($languageItems),
+            'directionItemCount' => count($directionItems),
+            'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeNames' => array_keys($customAttributeNames),
             'targets' => $targets,
             'localTargets' => $localTargets,
             'externalTargets' => $externalTargets,
@@ -11967,6 +12000,9 @@ final class EpubPackage
             'manifestLinkedTargets' => $manifestLinkedTargets,
             'manifestMediaTypeParameterItems' => $manifestMediaTypeParameterItems,
             'manifestMediaTypeDiagnostics' => $manifestMediaTypeDiagnostics,
+            'languageItems' => $languageItems,
+            'directionItems' => $directionItems,
+            'customAttributeItems' => $customAttributeItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
             'items' => $references,

@@ -2574,6 +2574,7 @@ XML;
             ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
         ]));
         $guide = $epub->guideReferences();
+        $report = $epub->guideReport();
         $summary = $epub->summary();
         $authoring = $summary['guideAuthoring'];
 
@@ -2601,6 +2602,18 @@ XML;
         $t->same('toc', $authoring['itemsByIndex'][2]['customAttributes']['data-review']);
         $t->same($authoring, $summary['wordpressImport']['guideReferenceAuthoring']);
         $t->same($authoring['items'], $summary['wordpressImport']['guideReferenceAuthoringItems']);
+        $t->same(1, $report['languageItemCount']);
+        $t->same([0], array_column($report['languageItems'], 'index'));
+        $t->same('fr', $report['languageItems'][0]['language']);
+        $t->same(2, $report['directionItemCount']);
+        $t->same([0, 1], array_column($report['directionItems'], 'index'));
+        $t->same(3, $report['customAttributeItemCount']);
+        $t->same(['data-review', 'review:source'], $report['customAttributeNames']);
+        $t->same([0, 1, 2], array_column($report['customAttributeItems'], 'index'));
+        $t->same($report['languageItems'], $summary['wordpressImport']['guideReferenceLanguageItems']);
+        $t->same($report['directionItems'], $summary['wordpressImport']['guideReferenceDirectionItems']);
+        $t->same($report['customAttributeItems'], $summary['wordpressImport']['guideReferenceCustomAttributeItems']);
+        $t->same($report['customAttributeNames'], $summary['wordpressImport']['guideReferenceCustomAttributeNames']);
     },
 
     'summarizes EPUB3 auxiliary navigation sections for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
