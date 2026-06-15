@@ -4529,6 +4529,11 @@ XML;
     },
 
     'summarizes compact EPUB package matrix across metadata navigation sidecars overlays and encryption' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $containerMetadataXml = <<<'XML'
+<metadata xmlns="http://www.idpf.org/2013/metadata">
+  <link id="container-record" rel="record" href="EPUB/meta/container.json" media-type="application/json"/>
+</metadata>
+XML;
         $opfWithMatrix = str_replace(
             '<dc:title>WordPress Migration Guide</dc:title>',
             '<dc:title id="title-main">WordPress Migration Guide</dc:title>',
@@ -4611,6 +4616,7 @@ XML;
         $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/metadata.xml', 'data' => $containerMetadataXml],
             ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
             ['name' => 'META-INF/signatures.xml', 'data' => $signaturesXml],
             ['name' => 'EPUB/package.opf', 'data' => $opfWithMatrix],
@@ -4624,20 +4630,23 @@ XML;
             ['name' => 'EPUB/widgets/review.bin', 'data' => 'WIDGET'],
             ['name' => 'EPUB/meta/creator.json', 'data' => '{"name":"Data Liberation Team"}'],
             ['name' => 'EPUB/meta/collection.json', 'data' => '{"name":"Review packet collection"}'],
+            ['name' => 'EPUB/meta/container.json', 'data' => '{"name":"Container metadata"}'],
         ]));
 
         $summary = $epub->summary();
         $report = $summary['compactPackageReport'];
         $casesById = $report['casesById'];
 
-        $t->same(11, $report['caseCount']);
-        $t->same(10, $report['presentCaseCount']);
+        $t->same(13, $report['caseCount']);
+        $t->same(12, $report['presentCaseCount']);
         $t->same(0, $report['diagnosticCaseCount']);
         $t->same(0, $report['diagnosticCount']);
         $t->same([], $report['diagnosticTypes']);
         $t->same([
             'metadata-refinements',
             'metadata-collection-membership',
+            'package-links',
+            'container-links',
             'navigation-sections',
             'guide-references',
             'collections',
@@ -4650,6 +4659,8 @@ XML;
         ], $report['caseIds']);
         $t->same([
             'metadata-refinements',
+            'package-links',
+            'container-links',
             'navigation-sections',
             'guide-references',
             'collections',
@@ -4663,6 +4674,8 @@ XML;
         $t->same([
             'metadata-refinements' => 2,
             'metadata-collection-membership' => 0,
+            'package-links' => 1,
+            'container-links' => 1,
             'navigation-sections' => 2,
             'guide-references' => 2,
             'collections' => 1,
@@ -4671,23 +4684,31 @@ XML;
             'manifest-resource-kinds' => 8,
             'manifest-resource-properties' => 2,
             'encrypted-resources' => 1,
-            'ocf-sidecars' => 1,
+            'ocf-sidecars' => 2,
         ], $report['caseCounts']);
         $t->same([
-            'metadata' => 2,
+            'metadata' => 3,
+            'ocf' => 3,
             'navigation' => 2,
             'guide' => 2,
             'collections' => 1,
             'media-overlays' => 1,
             'manifest' => 11,
             'encryption' => 1,
-            'ocf' => 1,
         ], $report['domainCounts']);
 
         $t->same(['title-main', 'creator'], $casesById['metadata-refinements']['targetIds']);
         $t->same(1, $casesById['metadata-refinements']['packageLinkCount']);
         $t->same(0, $casesById['metadata-collection-membership']['itemCount']);
         $t->same([], $casesById['metadata-collection-membership']['types']);
+        $t->same(['/EPUB/meta/creator.json'], $casesById['package-links']['targets']);
+        $t->same(['record' => 1], $casesById['package-links']['relCounts']);
+        $t->same(1, $casesById['package-links']['localLinkCount']);
+        $t->same(0, $casesById['package-links']['externalLinkCount']);
+        $t->same(0, $casesById['package-links']['missingLinkCount']);
+        $t->same(['/EPUB/meta/container.json'], $casesById['container-links']['targets']);
+        $t->same(['record' => 1], $casesById['container-links']['relCounts']);
+        $t->same(1, $casesById['container-links']['localLinkCount']);
         $t->same('nav', $casesById['navigation-sections']['navigationType']);
         $t->same(['toc', 'page-list'], $casesById['navigation-sections']['sectionTypes']);
         $t->same(3, $casesById['navigation-sections']['entryCount']);
@@ -4716,11 +4737,91 @@ XML;
         ], $casesById['manifest-resource-properties']['byteExposurePolicyCounts']);
         $t->same(['/EPUB/images/cover.png'], $casesById['encrypted-resources']['encryptedParts']);
         $t->same(1, $casesById['encrypted-resources']['blockedByteExposureCount']);
-        $t->same(['signatures'], $casesById['ocf-sidecars']['kinds']);
+        $t->same(['metadata', 'signatures'], $casesById['ocf-sidecars']['kinds']);
         $t->same($report, $summary['wordpressImport']['compactPackageReport']);
         $t->same($report['cases'], $summary['wordpressImport']['compactPackageReportCases']);
         $t->same($report['presentCaseIds'], $summary['wordpressImport']['compactPackageReportPresentCaseIds']);
         $t->same([], $summary['wordpressImport']['compactPackageReportDiagnostics']);
+    },
+
+    'summarizes compact EPUB metadata link cases for review handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $containerMetadataXml = <<<'XML'
+<metadata xmlns="http://www.idpf.org/2013/metadata">
+  <link id="container-record" rel="record" href="EPUB/meta/container.json" media-type="application/json"/>
+  <link id="container-remote" rel="record" href="https://metadata.example.invalid/container.json" media-type="application/json"/>
+  <link id="container-missing" rel="record" href="EPUB/meta/missing-container.json" media-type="application/json"/>
+</metadata>
+XML;
+        $opfWithLinkCases = str_replace(
+            '</metadata>',
+            '    <link id="package-record" rel="record" href="meta/package.json" media-type="application/json"/>
+    <link id="package-remote" rel="record" href="https://metadata.example.invalid/package.json" media-type="application/json"/>
+    <link id="package-missing" rel="record" href="meta/missing-package.json" media-type="application/json"/>
+  </metadata>',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/metadata.xml', 'data' => $containerMetadataXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithLinkCases],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/package.json', 'data' => '{"name":"package"}'],
+            ['name' => 'EPUB/meta/container.json', 'data' => '{"name":"container"}'],
+        ]));
+
+        $summary = $epub->summary();
+        $report = $summary['compactPackageReport'];
+        $packageLinks = $report['casesById']['package-links'];
+        $containerLinks = $report['casesById']['container-links'];
+
+        $t->same(13, $report['caseCount']);
+        $t->true(in_array('package-links', $report['presentCaseIds'], true));
+        $t->true(in_array('container-links', $report['presentCaseIds'], true));
+        $t->same(['package-links', 'container-links'], $report['diagnosticCaseIds']);
+        $t->same(4, $report['diagnosticCount']);
+        $t->same([
+            'external-package-link-target',
+            'missing-package-link-target',
+            'external-container-link-target',
+            'missing-container-link-target',
+        ], array_column($report['diagnostics'], 'type'));
+
+        $t->same(true, $packageLinks['present']);
+        $t->same(3, $packageLinks['itemCount']);
+        $t->same([
+            '/EPUB/meta/package.json',
+            'https://metadata.example.invalid/package.json',
+            '/EPUB/meta/missing-package.json',
+        ], $packageLinks['targets']);
+        $t->same(['record' => 3], $packageLinks['relCounts']);
+        $t->same(2, $packageLinks['localLinkCount']);
+        $t->same(1, $packageLinks['externalLinkCount']);
+        $t->same(1, $packageLinks['missingLinkCount']);
+        $t->same(2, $packageLinks['diagnosticCount']);
+        $t->same(['external-package-link-target', 'missing-package-link-target'], array_column($packageLinks['diagnostics'], 'type'));
+
+        $t->same(true, $containerLinks['present']);
+        $t->same(3, $containerLinks['itemCount']);
+        $t->same([
+            '/EPUB/meta/container.json',
+            'https://metadata.example.invalid/container.json',
+            '/EPUB/meta/missing-container.json',
+        ], $containerLinks['targets']);
+        $t->same(['record' => 3], $containerLinks['relCounts']);
+        $t->same(2, $containerLinks['localLinkCount']);
+        $t->same(1, $containerLinks['externalLinkCount']);
+        $t->same(1, $containerLinks['missingLinkCount']);
+        $t->same(2, $containerLinks['diagnosticCount']);
+        $t->same(['external-container-link-target', 'missing-container-link-target'], array_column($containerLinks['diagnostics'], 'type'));
+
+        $t->same($report, $summary['wordpressImport']['compactPackageReport']);
+        $t->same($report['diagnostics'], $summary['wordpressImport']['compactPackageReportDiagnostics']);
     },
 
     'summarizes compact EPUB manifest resource readiness cases for review handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {

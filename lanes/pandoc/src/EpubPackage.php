@@ -597,6 +597,7 @@ final class EpubPackage
         $compactPackageReport = self::compactPackageReport(
             $this->metadata,
             $this->packageLinks,
+            $this->containerLinks,
             $this->guideReferences,
             $guideReport,
             $this->collections,
@@ -862,6 +863,7 @@ final class EpubPackage
     /**
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $packageLinks
+     * @param list<array<string, mixed>> $containerLinks
      * @param list<array<string, mixed>> $guideReferences
      * @param array<string, mixed> $guideReport
      * @param list<array<string, mixed>> $collections
@@ -880,6 +882,7 @@ final class EpubPackage
     private static function compactPackageReport(
         array $metadata,
         array $packageLinks,
+        array $containerLinks,
         array $guideReferences,
         array $guideReport,
         array $collections,
@@ -971,6 +974,40 @@ final class EpubPackage
                 'localLinkedResourceCount' => (int) ($collectionMembership['localLinkedResourceCount'] ?? 0),
                 'externalLinkedResourceCount' => (int) ($collectionMembership['externalLinkedResourceCount'] ?? 0),
                 'missingLinkedResourceCount' => (int) ($collectionMembership['missingLinkedResourceCount'] ?? 0),
+            ],
+        );
+
+        $packageLinkReport = self::collectionLinkReport($packageLinks, true);
+        $appendCase(
+            'package-links',
+            'metadata',
+            'OPF metadata links',
+            count($packageLinks),
+            self::compactDiagnosticList($packageLinkReport['diagnostics'] ?? []),
+            [
+                'targets' => self::packageLinkTargets($packageLinks),
+                'relTokens' => is_array($packageLinkReport['relTokens'] ?? null) ? array_values($packageLinkReport['relTokens']) : [],
+                'relCounts' => is_array($packageLinkReport['relCounts'] ?? null) ? $packageLinkReport['relCounts'] : [],
+                'localLinkCount' => (int) ($packageLinkReport['localCount'] ?? 0),
+                'externalLinkCount' => (int) ($packageLinkReport['externalCount'] ?? 0),
+                'missingLinkCount' => (int) ($packageLinkReport['missingCount'] ?? 0),
+            ],
+        );
+
+        $containerLinkReport = self::collectionLinkReport($containerLinks, true);
+        $appendCase(
+            'container-links',
+            'ocf',
+            'OCF metadata links',
+            count($containerLinks),
+            self::compactDiagnosticList($containerLinkReport['diagnostics'] ?? []),
+            [
+                'targets' => self::packageLinkTargets($containerLinks),
+                'relTokens' => is_array($containerLinkReport['relTokens'] ?? null) ? array_values($containerLinkReport['relTokens']) : [],
+                'relCounts' => is_array($containerLinkReport['relCounts'] ?? null) ? $containerLinkReport['relCounts'] : [],
+                'localLinkCount' => (int) ($containerLinkReport['localCount'] ?? 0),
+                'externalLinkCount' => (int) ($containerLinkReport['externalCount'] ?? 0),
+                'missingLinkCount' => (int) ($containerLinkReport['missingCount'] ?? 0),
             ],
         );
 
