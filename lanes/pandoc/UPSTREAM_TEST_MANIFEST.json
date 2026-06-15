@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3649,
-        "latestSlice": "pandoc-json-native-legacy-table-width-constructor-variants maps five JSON/native legacy table width constructor cases after rebase onto current main 381f2f0702. PandocJsonReader and NativeReader now accept legacy five-field table column widths encoded as numeric default or explicit widths plus tagged ColWidthDefault, scalar ColWidth, and single-wrapped ColWidth helpers, preserving tagged width sidecars through JSON/native writer round trips without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3626 -> 3627, phpFail remains 0, mapped upstream cases move 3644 -> 3649, mappedJsonNativeLegacyTableWidthConstructorCases = 5, and jsonNativeLegacyTableWidthConstructorAssertions = 28. Verification passed php -l for PandocJsonReader.php, NativeReader.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php passed 1 file, 4005 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85215 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+        "mapped": 3657,
+        "latestSlice": "pandoc-epub-reader-metadata-report maps eight EPUB reader metadata report cases after rebase onto current main f1ed2bae74. EpubPackageReader now exposes OPF metadataItems plus metadataReport summaries for item kinds, IDs, languages, directions, schemes, roles, file-as names, refinement properties, and local/external metadata links without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3627 -> 3628, phpFail remains 0, mapped upstream cases move 3649 -> 3657, mappedEpubReaderMetadataReportCases = 8, and epubReaderMetadataReportAssertions = 46. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php passed 1 file, 992 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85261 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "Pandoc JSON/native legacy table width constructor variants are verified after rebase onto current main 381f2f0702; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-15 Pandoc JSON/native legacy table width constructor variants verified after rebase onto current main 381f2f0702; focused PandocJsonNativeAstTest.php passed 1 file, 4005 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85215 assertions, 0 failures.",
+        "status": "EPUB reader metadata report is verified after rebase onto current main f1ed2bae74; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-15 EPUB reader metadata report verified after rebase onto current main f1ed2bae74; focused EpubPackageReaderTest.php passed 1 file, 992 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85261 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -483,7 +483,9 @@
         "mappedEpubCollectionHierarchyCases": 1,
         "epubCollectionHierarchyAssertions": 45,
         "mappedJsonNativeLegacyTableWidthConstructorCases": 5,
-        "jsonNativeLegacyTableWidthConstructorAssertions": 28
+        "jsonNativeLegacyTableWidthConstructorAssertions": 28,
+        "mappedEpubReaderMetadataReportCases": 8,
+        "epubReaderMetadataReportAssertions": 46
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -1494,12 +1496,12 @@
         "mappedZipCreatorVersionHostMatrixCases": 5,
         "zipCreatorVersionHostMatrixAssertions": 36
     },
-    "wordpressScenario": "Pandoc JSON/native legacy table width constructor sidecars preserve table column geometry before WordPress or HTML writer handoff.",
+    "wordpressScenario": "EPUB reader metadata reports preserve OPF metadata item kinds, refinement properties, and local/external metadata links for WordPress import review packets.",
     "nextTask": "Continue bounded shared ZIP/OPC, DOCX/OpenXML, EPUB3, ODF/ODT, JSON/native-AST, CSL, XML/HTML, wiki/roff/text, or PDF/Typst blocker slices while keeping phpFail at zero.",
-    "status": "Pandoc JSON/native legacy table width constructor variants are verified after rebase onto current main 381f2f0702; phpFail remains 0.",
-    "mapping": "Adds five bounded native PHP JSON/native AST legacy table width constructor mappings on top of the current styled inline, wrapped table helper, EPUB3, ODF/ODT, shared ZIP/OPC, DOCX/OpenXML, CSL, XML/HTML, PDF/Typst, and text-format counters.",
+    "status": "EPUB reader metadata report is verified after rebase onto current main f1ed2bae74; phpFail remains 0.",
+    "mapping": "Adds eight bounded native PHP EPUB reader metadata report mappings on top of the current JSON/native, EPUB3, ODF/ODT, shared ZIP/OPC, DOCX/OpenXML, CSL, XML/HTML, PDF/Typst, and text-format counters.",
     "audit": "updated 2026-06-15: pandoc-epub-collection-hierarchy-report maps one EPUB3 OPF collection hierarchy case after rebase onto current main c4d82f0785. EpubPackage now emits collectionHierarchy plus WordPress import hierarchy items/diagnostics and compact collection path/depth/role/link rollups for nested OPF collections without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3623 -> 3624, phpFail remains 0, mapped upstream cases move 3635 -> 3636, mappedEpubCollectionHierarchyCases = 1, and epubCollectionHierarchyAssertions = 45. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2550 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85057 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
-    "latestSlice": "pandoc-json-native-legacy-table-width-constructor-variants maps five JSON/native legacy table width constructor cases after rebase onto current main 381f2f0702. PandocJsonReader and NativeReader now accept legacy five-field table column widths encoded as numeric default or explicit widths plus tagged ColWidthDefault, scalar ColWidth, and single-wrapped ColWidth helpers, preserving tagged width sidecars through JSON/native writer round trips without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3626 -> 3627, phpFail remains 0, mapped upstream cases move 3644 -> 3649, mappedJsonNativeLegacyTableWidthConstructorCases = 5, and jsonNativeLegacyTableWidthConstructorAssertions = 28. Verification passed php -l for PandocJsonReader.php, NativeReader.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php passed 1 file, 4005 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85215 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+    "latestSlice": "pandoc-epub-reader-metadata-report maps eight EPUB reader metadata report cases after rebase onto current main f1ed2bae74. EpubPackageReader now exposes OPF metadataItems plus metadataReport summaries for item kinds, IDs, languages, directions, schemes, roles, file-as names, refinement properties, and local/external metadata links without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3627 -> 3628, phpFail remains 0, mapped upstream cases move 3649 -> 3657, mappedEpubReaderMetadataReportCases = 8, and epubReaderMetadataReportAssertions = 46. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php passed 1 file, 992 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85261 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
     "mappedXmlHtmlDomOutputForReferenceCases": 1,
     "xmlHtmlDomOutputForReferenceAssertions": 41,
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
@@ -1667,7 +1669,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-15 Pandoc JSON/native legacy table width constructor variants verified after rebase onto current main 381f2f0702; focused PandocJsonNativeAstTest.php passed 1 file, 4005 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85215 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-15 EPUB reader metadata report verified after rebase onto current main f1ed2bae74; focused EpubPackageReaderTest.php passed 1 file, 992 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85261 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -2120,5 +2122,7 @@
     "mappedEpubCollectionHierarchyCases": 1,
     "epubCollectionHierarchyAssertions": 45,
     "mappedJsonNativeLegacyTableWidthConstructorCases": 5,
-    "jsonNativeLegacyTableWidthConstructorAssertions": 28
+    "jsonNativeLegacyTableWidthConstructorAssertions": 28,
+    "mappedEpubReaderMetadataReportCases": 8,
+    "epubReaderMetadataReportAssertions": 46
 }

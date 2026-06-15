@@ -87,6 +87,123 @@ return [
         $t->same('EPUB/chapter2.xhtml', $spine[1]['path']);
         $t->same(true, $spine[1]['linear']);
     },
+    'reports epub opf metadata item matrix for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-metadata-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid" scheme="UUID">urn:uuid:reader-metadata-review</dc:identifier>
+    <dc:title id="title-main" xml:lang="en">Reader Metadata Review</dc:title>
+    <dc:title id="subtitle" xml:lang="es" dir="ltr">Revision bilingue</dc:title>
+    <dc:creator id="author" role="aut" file-as="Team, Data Liberation">Data Liberation Team</dc:creator>
+    <dc:language id="lang-main" scheme="BCP47">en-US</dc:language>
+    <dc:subject id="subject" scheme="BISAC" xml:lang="en" dir="ltr">Computers / Data Migration</dc:subject>
+    <dc:description id="summary">Reader metadata package review.</dc:description>
+    <dc:rights id="rights" xml:lang="en">CC BY 4.0</dc:rights>
+    <meta property="dcterms:modified">2026-06-15T01:57:47Z</meta>
+    <meta refines="#subtitle" property="title-type">subtitle</meta>
+    <meta refines="#subject" property="authority">BISAC Subject Headings</meta>
+    <link id="subject-record" rel="record" refines="#subject" href="meta/subject.json" media-type="application/json"/>
+    <link id="remote-rights" rel="license" refines="#rights" href="https://example.invalid/license" media-type="text/html"/>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable metadata package.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $meta = $document->attr('meta');
+            $epub = $document->attr('epub');
+            $items = $epub['metadataItems'];
+            $report = $epub['metadataReport'];
+
+            $t->same('Reader Metadata Review', $meta['title']);
+            $t->same(['Data Liberation Team'], $meta['creators']);
+            $t->same('en-US', $meta['language']);
+            $t->same('urn:uuid:reader-metadata-review', $meta['identifier']);
+
+            $t->same(true, $report['present']);
+            $t->same(8, count($items));
+            $t->same(8, $report['itemCount']);
+            $t->same(7, $report['kindCount']);
+            $t->same([
+                'creator' => 1,
+                'description' => 1,
+                'identifier' => 1,
+                'language' => 1,
+                'rights' => 1,
+                'subject' => 1,
+                'title' => 2,
+            ], $report['kindCounts']);
+            $t->same(2, $report['titleCount']);
+            $t->same(1, $report['creatorCount']);
+            $t->same(1, $report['languageCount']);
+            $t->same(1, $report['subjectCount']);
+            $t->same(1, $report['descriptionCount']);
+            $t->same(1, $report['rightsCount']);
+            $t->same(8, $report['idCount']);
+            $t->same(4, $report['languageTaggedCount']);
+            $t->same(2, $report['directionTaggedCount']);
+            $t->same(3, $report['schemeCount']);
+            $t->same(1, $report['roleCount']);
+            $t->same(1, $report['fileAsCount']);
+
+            $t->same('identifier', $items[0]['kind']);
+            $t->same('http://purl.org/dc/elements/1.1/', $items[0]['namespace']);
+            $t->same('dc', $items[0]['prefix']);
+            $t->same('UUID', $items[0]['scheme']);
+            $t->same('Revision bilingue', $report['itemsById']['subtitle']['value']);
+            $t->same('es', $report['itemsById']['subtitle']['language']);
+            $t->same('ltr', $report['itemsById']['subtitle']['direction']);
+            $t->same('Data Liberation Team', $report['itemsByKind']['creator'][0]['text']);
+            $t->same('aut', $report['itemsByKind']['creator'][0]['role']);
+            $t->same('Team, Data Liberation', $report['itemsByKind']['creator'][0]['fileAs']);
+            $t->same('BISAC', $report['itemsByKind']['subject'][0]['scheme']);
+            $t->same('CC BY 4.0', $report['itemsById']['rights']['text']);
+
+            $t->same(3, $report['propertyCount']);
+            $t->same(2, $report['refinementPropertyCount']);
+            $t->same('title-type', $report['refinementProperties'][0]['property']);
+            $t->same('#subtitle', $report['refinementProperties'][0]['refines']);
+            $t->same('authority', $report['refinementProperties'][1]['property']);
+            $t->same('#subject', $report['refinementProperties'][1]['refines']);
+            $t->same(2, $report['linkCount']);
+            $t->same(1, $report['localLinkCount']);
+            $t->same(1, $report['externalLinkCount']);
+            $t->same('EPUB/meta/subject.json', $report['localLinks'][0]['path']);
+            $t->same('https://example.invalid/license', $report['externalLinks'][0]['path']);
+            $t->same($report['kindCounts'], $report['summary']['kindCounts']);
+            $t->same(2, $report['summary']['refinementPropertyCount']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub guide references for compact package review' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $epub = $document->attr('epub');

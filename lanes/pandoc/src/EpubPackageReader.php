@@ -43,6 +43,8 @@ final class EpubPackageReader
                 'containerRootfile' => $rootfile,
                 'packageVersion' => $package['version'],
                 'uniqueIdentifierId' => $package['uniqueIdentifierId'],
+                'metadataItems' => $package['metadataItems'],
+                'metadataReport' => $package['metadataReport'],
                 'metadataProperties' => $package['metadataProperties'],
                 'metadataLinks' => $package['metadataLinks'],
                 'manifest' => array_values($package['manifest']),
@@ -87,6 +89,8 @@ final class EpubPackageReader
      *     version:string,
      *     uniqueIdentifierId:string,
      *     metadata:array<string, mixed>,
+     *     metadataItems:list<array<string, mixed>>,
+     *     metadataReport:array<string, mixed>,
      *     metadataProperties:list<array{property:string, value:string, refines:string}>,
      *     metadataLinks:list<array{id:string, rel:list<string>, href:string, path:string, fragment:string, mediaType:string, properties:list<string>, refines:string, external:bool}>,
      *     manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>,
@@ -113,8 +117,10 @@ final class EpubPackageReader
             'date' => '',
             'publisher' => '',
         ];
+        $metadataItems = [];
         $metadataProperties = [];
         $metadataLinks = [];
+        $metadataItemIndex = 0;
         $metadataNodes = $xpath->query('./*[local-name()="metadata"]/*', $packageElement);
         if ($metadataNodes instanceof \DOMNodeList) {
             foreach ($metadataNodes as $node) {
@@ -143,6 +149,18 @@ final class EpubPackageReader
                 if ($value === '') {
                     continue;
                 }
+                if ($name === 'meta') {
+                    $metadataProperties[] = [
+                        'property' => trim($node->getAttribute('property')),
+                        'value' => $value,
+                        'refines' => trim($node->getAttribute('refines')),
+                    ];
+                    continue;
+                }
+
+                $metadataItems[] = $this->metadataItem($node, $metadataItemIndex, $value);
+                ++$metadataItemIndex;
+
                 if ($name === 'title' && $metadata['title'] === '') {
                     $metadata['title'] = $value;
                 } elseif ($name === 'creator') {
@@ -155,12 +173,6 @@ final class EpubPackageReader
                     $metadata['date'] = $value;
                 } elseif ($name === 'publisher' && $metadata['publisher'] === '') {
                     $metadata['publisher'] = $value;
-                } elseif ($name === 'meta') {
-                    $metadataProperties[] = [
-                        'property' => trim($node->getAttribute('property')),
-                        'value' => $value,
-                        'refines' => trim($node->getAttribute('refines')),
-                    ];
                 }
             }
         }
@@ -298,6 +310,8 @@ final class EpubPackageReader
             'version' => trim($packageElement->getAttribute('version')),
             'uniqueIdentifierId' => trim($packageElement->getAttribute('unique-identifier')),
             'metadata' => $metadata,
+            'metadataItems' => $metadataItems,
+            'metadataReport' => $this->metadataReport($metadataItems, $metadataProperties, $metadataLinks),
             'metadataProperties' => $metadataProperties,
             'metadataLinks' => $metadataLinks,
             'manifest' => $manifest,
@@ -307,6 +321,157 @@ final class EpubPackageReader
             'spineReport' => $spineReport,
             'guide' => $guide,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metadataItem(\DOMElement $element, int $index, string $value): array
+    {
+        $language = $this->elementLanguage($element);
+
+        return [
+            'index' => $index,
+            'kind' => $element->localName,
+            'name' => $element->localName,
+            'namespace' => $element->namespaceURI ?? '',
+            'prefix' => $element->prefix ?? '',
+            'id' => $this->nullableAttribute($element, 'id'),
+            'value' => $value,
+            'text' => $value,
+            'scheme' => $this->nullableAttribute($element, 'scheme'),
+            'language' => $language === '' ? null : $language,
+            'direction' => $this->nullableAttribute($element, 'dir'),
+            'role' => $this->nullableAttribute($element, 'role'),
+            'fileAs' => $this->nullableAttribute($element, 'file-as'),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<array<string, mixed>> $properties
+     * @param list<array<string, mixed>> $links
+     *
+     * @return array<string, mixed>
+     */
+    private function metadataReport(array $items, array $properties, array $links): array
+    {
+        $itemsByKind = [];
+        $itemsById = [];
+        $kindCounts = [];
+        $languageTaggedItems = [];
+        $directionTaggedItems = [];
+        $schemeItems = [];
+        $roleItems = [];
+        $fileAsItems = [];
+
+        foreach ($items as $item) {
+            $kind = is_string($item['kind'] ?? null) && $item['kind'] !== ''
+                ? $item['kind']
+                : 'unknown';
+            $itemsByKind[$kind][] = $item;
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+
+            if (is_string($item['id'] ?? null) && $item['id'] !== '') {
+                $itemsById[$item['id']] = $item;
+            }
+            if (is_string($item['language'] ?? null) && $item['language'] !== '') {
+                $languageTaggedItems[] = $item;
+            }
+            if (is_string($item['direction'] ?? null) && $item['direction'] !== '') {
+                $directionTaggedItems[] = $item;
+            }
+            if (is_string($item['scheme'] ?? null) && $item['scheme'] !== '') {
+                $schemeItems[] = $item;
+            }
+            if (is_string($item['role'] ?? null) && $item['role'] !== '') {
+                $roleItems[] = $item;
+            }
+            if (is_string($item['fileAs'] ?? null) && $item['fileAs'] !== '') {
+                $fileAsItems[] = $item;
+            }
+        }
+
+        ksort($itemsByKind, SORT_STRING);
+        ksort($itemsById, SORT_STRING);
+        ksort($kindCounts, SORT_STRING);
+
+        $refinementProperties = array_values(array_filter(
+            $properties,
+            static fn (array $property): bool => is_string($property['refines'] ?? null) && $property['refines'] !== ''
+        ));
+        $localLinks = [];
+        $externalLinks = [];
+        foreach ($links as $link) {
+            if (($link['external'] ?? false) === true) {
+                $externalLinks[] = $link;
+            } else {
+                $localLinks[] = $link;
+            }
+        }
+
+        $report = [
+            'present' => $items !== [] || $properties !== [] || $links !== [],
+            'itemCount' => count($items),
+            'kindCount' => count($kindCounts),
+            'kinds' => array_keys($kindCounts),
+            'kindCounts' => $kindCounts,
+            'idCount' => count($itemsById),
+            'languageTaggedCount' => count($languageTaggedItems),
+            'directionTaggedCount' => count($directionTaggedItems),
+            'schemeCount' => count($schemeItems),
+            'roleCount' => count($roleItems),
+            'fileAsCount' => count($fileAsItems),
+            'propertyCount' => count($properties),
+            'refinementPropertyCount' => count($refinementProperties),
+            'linkCount' => count($links),
+            'localLinkCount' => count($localLinks),
+            'externalLinkCount' => count($externalLinks),
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'itemsByKind' => $itemsByKind,
+            'languageTaggedItems' => $languageTaggedItems,
+            'directionTaggedItems' => $directionTaggedItems,
+            'schemeItems' => $schemeItems,
+            'roleItems' => $roleItems,
+            'fileAsItems' => $fileAsItems,
+            'refinementProperties' => $refinementProperties,
+            'localLinks' => $localLinks,
+            'externalLinks' => $externalLinks,
+        ];
+
+        foreach ([
+            'identifier',
+            'title',
+            'creator',
+            'contributor',
+            'language',
+            'subject',
+            'description',
+            'rights',
+            'publisher',
+            'date',
+            'source',
+            'relation',
+            'coverage',
+            'format',
+            'type',
+        ] as $kind) {
+            $report[$kind . 'Count'] = $kindCounts[$kind] ?? 0;
+        }
+
+        $report['summary'] = [
+            'itemCount' => $report['itemCount'],
+            'kindCount' => $report['kindCount'],
+            'kindCounts' => $report['kindCounts'],
+            'propertyCount' => $report['propertyCount'],
+            'refinementPropertyCount' => $report['refinementPropertyCount'],
+            'linkCount' => $report['linkCount'],
+            'localLinkCount' => $report['localLinkCount'],
+            'externalLinkCount' => $report['externalLinkCount'],
+        ];
+
+        return $report;
     }
 
     /**

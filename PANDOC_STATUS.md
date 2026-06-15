@@ -16,7 +16,7 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Wiki / roff / text markup readers | 0 | 20 |
 | HTML / XML / JATS / BITS DOM | 29 | 54 |
 | DOCX / OpenXML | 95 | 256 |
-| EPUB / EPUB3 | 12 | 15 |
+| EPUB / EPUB3 | 20 | 15 |
 | CSV / TSV | 2 | 4 |
 | CSL / BibTeX / BibLaTeX / csljson / RIS / EndNote XML | 79 | 227 |
 | LaTeX / TeX / math | 21 | 36 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest JSON/native evidence: legacy five-field table widths preserve numeric defaults, explicit widths, tagged `ColWidthDefault`, scalar `ColWidth`, and single-wrapped `ColWidth` sidecars through JSON and native readers/writers.
+Latest EPUB3 evidence: `EpubPackageReader` reports OPF metadata item kinds, IDs, language/direction/scheme/role/file-as attributes, refinement properties, and local/external metadata links.
 
-Current Pandoc counters: 3,627 PHP passes / 0 failures and 3,649 mapped upstream cases. Verification passed `php -l` for `PandocJsonReader.php`, `NativeReader.php`, and `PandocJsonNativeAstTest.php`; focused `PandocJsonNativeAstTest.php` (`1` file, `4,005` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,215` assertions, `0` failures); `jq empty`; and `git diff --check`.
+Current Pandoc counters: 3,628 PHP passes / 0 failures and 3,657 mapped upstream cases. Verification passed `php -l` for `EpubPackageReader.php` and `EpubPackageReaderTest.php`; focused `EpubPackageReaderTest.php` (`1` file, `992` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,261` assertions, `0` failures); `jq empty`; and `git diff --check`.
