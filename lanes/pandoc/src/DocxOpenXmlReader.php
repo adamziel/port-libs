@@ -427,6 +427,7 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $contentControls = $this->readContentControls($parts[$documentPart], $documentPart, $customXmlParts);
         $selectedXmlParts = $this->selectedXmlPartProvenance($parts, $contentTypes, [
             $this->selectedXmlPartDefinition(
                 'document',
@@ -505,6 +506,14 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['customXmlRootNamespaceDeclarationCount'] = $customXmlParts['rootNamespaceDeclarationCount'];
         $packageProvenance['summary']['customXmlDuplicateStoreItemIdCount'] = $customXmlParts['duplicateStoreItemIdCount'];
         $packageProvenance['summary']['customXmlDuplicateStoreItemIds'] = $customXmlParts['duplicateStoreItemIds'];
+        $packageProvenance['contentControls'] = $contentControls;
+        $packageProvenance['summary']['contentControlCount'] = $contentControls['count'];
+        $packageProvenance['summary']['contentControlDataBindingCount'] = $contentControls['dataBindingCount'];
+        $packageProvenance['summary']['contentControlMatchedDataBindingCount'] = $contentControls['matchedDataBindingCount'];
+        $packageProvenance['summary']['contentControlUnmatchedDataBindingCount'] = $contentControls['unmatchedDataBindingCount'];
+        $packageProvenance['summary']['contentControlDuplicateStoreItemBindingCount'] = $contentControls['duplicateStoreItemBindingCount'];
+        $packageProvenance['summary']['contentControlIssueCount'] = $contentControls['issueCount'];
+        $packageProvenance['summary']['contentControlIssueCodes'] = $contentControls['issueCodes'];
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
         $packageProvenance['summary']['attachedTemplateExternalCount'] = $attachedTemplates['externalCount'];
         $packageProvenance['summary']['attachedTemplateIssueCount'] = $attachedTemplates['issueCount'];
@@ -636,6 +645,7 @@ final class DocxOpenXmlReader
                 'activeXControls' => $activeXControls,
                 'vbaProjects' => $vbaProjects,
                 'customXmlParts' => $customXmlParts,
+                'contentControls' => $contentControls,
                 'packageThumbnails' => $packageThumbnails,
                 'digitalSignatures' => $digitalSignatures,
                 'media' => $media,
@@ -4583,6 +4593,282 @@ final class DocxOpenXmlReader
             'duplicateStoreItemIds' => $duplicateStoreItemIds,
             'duplicateStoreItemIdReferences' => $duplicateStoreItemIdReferences,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $customXmlParts
+     * @return array<string, mixed>
+     */
+    private function readContentControls(string $xml, string $partName, array $customXmlParts): array
+    {
+        if ($xml === '') {
+            return $this->emptyContentControlSummary();
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $xpath = $this->xpath($dom);
+        $storeItemReferences = $this->customXmlStoreItemReferences($customXmlParts);
+        $items = [];
+        $issueCodes = [];
+        $scopeCounts = [];
+        $storeItemIds = [];
+        $matchedStoreItemIds = [];
+        $byStoreItemId = [];
+        $tags = [];
+
+        foreach ($this->elements($xpath, '//w:sdt') as $contentControl) {
+            $item = $this->contentControlItem($contentControl, $xpath, $partName, count($items), $storeItemReferences);
+            $items[] = $item;
+
+            $scope = is_string($item['scope'] ?? null) ? $item['scope'] : 'unknown';
+            $scopeCounts[$scope] = ($scopeCounts[$scope] ?? 0) + 1;
+            $tag = is_string($item['tag'] ?? null) ? $item['tag'] : '';
+            $this->appendUniqueString($tags, $tag === '' ? null : $tag);
+
+            $storeItemId = is_string($item['storeItemId'] ?? null) ? $item['storeItemId'] : '';
+            if ($storeItemId !== '') {
+                $this->appendUniqueString($storeItemIds, $storeItemId);
+                $byStoreItemId[$storeItemId][] = $item;
+                if (($item['matchedStoreItem'] ?? false) === true) {
+                    $this->appendUniqueString($matchedStoreItemIds, $storeItemId);
+                }
+            }
+
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+
+        ksort($issueCodes, SORT_STRING);
+        ksort($scopeCounts, SORT_STRING);
+        ksort($byStoreItemId, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'dataBindingCount' => count(array_filter($items, static fn (array $item): bool => $item['dataBindingPresent'] === true)),
+            'matchedDataBindingCount' => count(array_filter($items, static fn (array $item): bool => $item['matchedStoreItem'] === true)),
+            'unmatchedDataBindingCount' => count(array_filter($items, static fn (array $item): bool => in_array('unmatched-store-item-id', $item['issues'], true))),
+            'missingStoreItemIdCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-store-item-id', $item['issues'], true))),
+            'duplicateStoreItemBindingCount' => count(array_filter($items, static fn (array $item): bool => in_array('duplicate-store-item-id', $item['issues'], true))),
+            'scopeCounts' => $scopeCounts,
+            'storeItemIds' => $storeItemIds,
+            'matchedStoreItemIds' => $matchedStoreItemIds,
+            'tags' => $tags,
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'byStoreItemId' => $byStoreItemId,
+            'items' => $items,
+            'byteExposurePolicy' => 'content-control-data-binding-bytes-blocked',
+            'reviewPolicy' => 'content-control-data-binding-metadata-only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyContentControlSummary(): array
+    {
+        return [
+            'count' => 0,
+            'dataBindingCount' => 0,
+            'matchedDataBindingCount' => 0,
+            'unmatchedDataBindingCount' => 0,
+            'missingStoreItemIdCount' => 0,
+            'duplicateStoreItemBindingCount' => 0,
+            'scopeCounts' => [],
+            'storeItemIds' => [],
+            'matchedStoreItemIds' => [],
+            'tags' => [],
+            'issueCount' => 0,
+            'issueCodes' => [],
+            'byStoreItemId' => [],
+            'items' => [],
+            'byteExposurePolicy' => 'content-control-data-binding-bytes-blocked',
+            'reviewPolicy' => 'content-control-data-binding-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $storeItemReferences
+     * @return array<string, mixed>
+     */
+    private function contentControlItem(
+        \DOMElement $contentControl,
+        \DOMXPath $xpath,
+        string $partName,
+        int $index,
+        array $storeItemReferences
+    ): array {
+        $properties = $this->childElement($contentControl, 'sdtPr');
+        $content = $this->childElement($contentControl, 'sdtContent');
+        $dataBinding = $this->childElement($properties, 'dataBinding');
+        $storeItemId = $dataBinding instanceof \DOMElement ? trim($dataBinding->getAttributeNS(self::NS_W, 'storeItemID')) : '';
+        $xpathValue = $dataBinding instanceof \DOMElement ? trim($dataBinding->getAttributeNS(self::NS_W, 'xpath')) : '';
+        $prefixMappings = $dataBinding instanceof \DOMElement ? trim($dataBinding->getAttributeNS(self::NS_W, 'prefixMappings')) : '';
+        $matchingStoreItems = $storeItemId === '' ? [] : ($storeItemReferences['byStoreItemId'][$storeItemId] ?? []);
+        $issues = [];
+
+        if ($dataBinding instanceof \DOMElement && $storeItemId === '') {
+            $issues[] = 'missing-store-item-id';
+        }
+        if ($storeItemId !== '' && $matchingStoreItems === []) {
+            $issues[] = 'unmatched-store-item-id';
+        }
+        if (count($matchingStoreItems) > 1) {
+            $issues[] = 'duplicate-store-item-id';
+        }
+
+        return [
+            'index' => $index,
+            'partName' => $partName,
+            'scope' => $this->contentControlScope($contentControl),
+            'alias' => $properties instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($properties, 'alias', 'val')) : null,
+            'tag' => $properties instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($properties, 'tag', 'val')) : null,
+            'id' => $this->contentControlId($properties),
+            'lock' => $properties instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($properties, 'lock', 'val')) : null,
+            'controlType' => $this->contentControlType($properties),
+            'contentKinds' => $this->contentControlContentKinds($content),
+            'text' => $this->contentControlText($contentControl, $xpath),
+            'relationshipIds' => $this->relationshipIdsInElement($contentControl),
+            'dataBindingPresent' => $dataBinding instanceof \DOMElement,
+            'storeItemId' => $storeItemId === '' ? null : $storeItemId,
+            'xpath' => $xpathValue === '' ? null : $xpathValue,
+            'prefixMappings' => $prefixMappings === '' ? null : $prefixMappings,
+            'prefixMappingCount' => $prefixMappings === '' ? 0 : count(preg_split('/\s+/', $prefixMappings) ?: []),
+            'matchedStoreItem' => $matchingStoreItems !== [],
+            'storeItemReferenceCount' => count($matchingStoreItems),
+            'storeItemReferences' => $matchingStoreItems,
+            'byteExposurePolicy' => 'content-control-data-binding-bytes-blocked',
+            'reviewPolicy' => 'content-control-data-binding-metadata-only',
+            'issues' => $issues,
+        ];
+    }
+
+    private function contentControlId(?\DOMElement $properties): ?int
+    {
+        $id = $this->childElement($properties, 'id');
+
+        return $id instanceof \DOMElement ? $this->wordOptionalIntAttr($id, 'val') : null;
+    }
+
+    private function contentControlScope(\DOMElement $contentControl): string
+    {
+        $parent = $contentControl->parentNode;
+        if (!$parent instanceof \DOMElement || $parent->namespaceURI !== self::NS_W) {
+            return 'unknown';
+        }
+
+        return match ($parent->localName) {
+            'p', 'r', 'hyperlink' => 'inline',
+            'body', 'tc', 'txbxContent', 'sdtContent' => 'block',
+            'tbl' => 'table',
+            'tr' => 'row',
+            default => 'nested',
+        };
+    }
+
+    private function contentControlType(?\DOMElement $properties): ?string
+    {
+        if (!$properties instanceof \DOMElement) {
+            return null;
+        }
+
+        foreach ($properties->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_W) {
+                continue;
+            }
+            if (in_array($child->localName, ['alias', 'tag', 'id', 'lock', 'placeholder', 'dataBinding'], true)) {
+                continue;
+            }
+
+            return $child->localName;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function contentControlContentKinds(?\DOMElement $content): array
+    {
+        if (!$content instanceof \DOMElement) {
+            return [];
+        }
+
+        $kinds = [];
+        foreach ($content->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === self::NS_W) {
+                $this->appendUniqueString($kinds, $child->localName);
+            }
+        }
+
+        return $kinds;
+    }
+
+    private function contentControlText(\DOMElement $contentControl, \DOMXPath $xpath): string
+    {
+        $text = '';
+        foreach ($this->elements($xpath, './/w:t', $contentControl) as $textNode) {
+            $text .= $textNode->textContent;
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param array<string, mixed> $customXmlParts
+     * @return array{byStoreItemId:array<string, list<array<string, mixed>>>}
+     */
+    private function customXmlStoreItemReferences(array $customXmlParts): array
+    {
+        $byStoreItemId = [];
+        $items = is_array($customXmlParts['items'] ?? null) ? $customXmlParts['items'] : [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $propertiesItems = $item['propertiesParts']['items'] ?? [];
+            if (!is_array($propertiesItems)) {
+                continue;
+            }
+
+            foreach ($propertiesItems as $propertiesItem) {
+                if (!is_array($propertiesItem)) {
+                    continue;
+                }
+
+                $storeItemId = is_string($propertiesItem['itemId'] ?? null) ? trim($propertiesItem['itemId']) : '';
+                if ($storeItemId === '') {
+                    continue;
+                }
+
+                $byStoreItemId[$storeItemId][] = [
+                    'storeItemId' => $storeItemId,
+                    'customXmlIndex' => (int) ($item['index'] ?? 0),
+                    'customXmlRelationshipId' => is_string($item['relationshipId'] ?? null) ? $item['relationshipId'] : '',
+                    'customXmlPartName' => is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                    'customXmlContentType' => is_string($item['contentType'] ?? null) ? $item['contentType'] : '',
+                    'customXmlRootNamespace' => is_string($item['rootNamespace'] ?? null) ? $item['rootNamespace'] : null,
+                    'customXmlRootLocalName' => is_string($item['rootLocalName'] ?? null) ? $item['rootLocalName'] : null,
+                    'propertiesIndex' => (int) ($propertiesItem['index'] ?? 0),
+                    'propertiesRelationshipId' => is_string($propertiesItem['relationshipId'] ?? null) ? $propertiesItem['relationshipId'] : '',
+                    'propertiesPartName' => is_string($propertiesItem['partName'] ?? null) ? $propertiesItem['partName'] : null,
+                    'propertiesContentType' => is_string($propertiesItem['contentType'] ?? null) ? $propertiesItem['contentType'] : '',
+                    'schemaRefs' => is_array($propertiesItem['schemaRefs'] ?? null) ? $propertiesItem['schemaRefs'] : [],
+                    'schemaRefCount' => (int) ($propertiesItem['schemaRefCount'] ?? 0),
+                    'duplicateStoreItemId' => in_array('duplicate-store-item-id', $item['issues'] ?? [], true)
+                        || in_array('duplicate-store-item-id', $propertiesItem['issues'] ?? [], true),
+                ];
+            }
+        }
+
+        ksort($byStoreItemId, SORT_STRING);
+
+        return ['byStoreItemId' => $byStoreItemId];
     }
 
     /**
@@ -11939,6 +12225,18 @@ final class DocxOpenXmlReader
                 $table = $this->readTable($bodyChild, $xpath, $relationships, $contentTypes, $styles, $referencedNotes);
                 if ($table !== null) {
                     $blocks[] = $table;
+                }
+                continue;
+            }
+
+            if ($bodyChild->namespaceURI === self::NS_W && $bodyChild->localName === 'sdt') {
+                $this->flushCurrentList($currentList, $blocks);
+                $content = $this->childElement($bodyChild, 'sdtContent');
+                if ($content instanceof \DOMElement) {
+                    array_push(
+                        $blocks,
+                        ...$this->readWordBlockChildren($content->childNodes, $xpath, $relationships, $contentTypes, $styles, $numbering, $referencedNotes)
+                    );
                 }
             }
         }

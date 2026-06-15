@@ -3873,6 +3873,146 @@ XML;
         $t->same(['duplicate-store-item-id'], $second['propertiesParts']['byRelationshipId']['rPropsB']['issues']);
         $t->same([], $third['propertiesParts']['byRelationshipId']['rPropsC']['issues']);
     },
+    'summarizes docx content control custom xml data bindings for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $customXmlPropsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
+        $storeItemId = '{99999999-aaaa-bbbb-cccc-dddddddddddd}';
+        $missingStoreItemId = '{aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee}';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/review-item.xml" ContentType="application/xml; profile=content-control"/>' . "\n" .
+            '  <Override PartName="/customXml/review-item-props.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rBoundCustomXml" Type="' . $customXmlRel . '" Target="../customXml/review-item.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Imported DOCX Heading</w:t></w:r></w:p>',
+            '    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Imported DOCX Heading</w:t></w:r></w:p>' . "\n" .
+            '    <w:sdt>' . "\n" .
+            '      <w:sdtPr>' . "\n" .
+            '        <w:alias w:val="Reviewer name"/>' . "\n" .
+            '        <w:tag w:val="reviewer-name"/>' . "\n" .
+            '        <w:id w:val="101"/>' . "\n" .
+            '        <w:lock w:val="sdtContentLocked"/>' . "\n" .
+            '        <w:text/>' . "\n" .
+            '        <w:dataBinding w:storeItemID="' . $storeItemId . '" w:xpath="/review/reviewer/name[1]" w:prefixMappings="xmlns:review=&quot;urn:example:review&quot;"/>' . "\n" .
+            '      </w:sdtPr>' . "\n" .
+            '      <w:sdtContent><w:p><w:r><w:t>Reviewer: Ada</w:t></w:r></w:p></w:sdtContent>' . "\n" .
+            '    </w:sdt>',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>',
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>' . "\n" .
+            '      <w:sdt>' . "\n" .
+            '        <w:sdtPr>' . "\n" .
+            '          <w:alias w:val="Missing packet field"/>' . "\n" .
+            '          <w:tag w:val="missing-review-field"/>' . "\n" .
+            '          <w:id w:val="102"/>' . "\n" .
+            '          <w:text/>' . "\n" .
+            '          <w:dataBinding w:storeItemID="' . $missingStoreItemId . '" w:xpath="/review/missing[1]" w:prefixMappings="xmlns:review=&quot;urn:example:review&quot;"/>' . "\n" .
+            '        </w:sdtPr>' . "\n" .
+            '        <w:sdtContent><w:r><w:t xml:space="preserve"> unmatched inline</w:t></w:r></w:sdtContent>' . "\n" .
+            '      </w:sdt>',
+            $parts['word/document.xml']
+        );
+        $parts['customXml/review-item.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<review:review xmlns:review="urn:example:review">
+  <review:reviewer><review:name>Ada</review:name></review:reviewer>
+</review:review>
+XML;
+        $parts['customXml/_rels/review-item.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rReviewItemProps" Type="{$customXmlPropsRel}" Target="review-item-props.xml"/>
+</Relationships>
+XML;
+        $parts['customXml/review-item-props.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem ds:itemID="{$storeItemId}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="urn:example:review-schema"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $contentControls = $docx['contentControls'];
+        $summary = $docx['packageProvenance']['summary'];
+        $matched = $contentControls['items'][0];
+        $unmatched = $contentControls['items'][1];
+        $reference = $matched['storeItemReferences'][0];
+
+        $t->same($contentControls, $docx['packageProvenance']['contentControls']);
+        $t->same(2, $contentControls['count']);
+        $t->same(2, $contentControls['dataBindingCount']);
+        $t->same(1, $contentControls['matchedDataBindingCount']);
+        $t->same(1, $contentControls['unmatchedDataBindingCount']);
+        $t->same(0, $contentControls['missingStoreItemIdCount']);
+        $t->same(0, $contentControls['duplicateStoreItemBindingCount']);
+        $t->same(['block' => 1, 'inline' => 1], $contentControls['scopeCounts']);
+        $t->same([$storeItemId, $missingStoreItemId], $contentControls['storeItemIds']);
+        $t->same([$storeItemId], $contentControls['matchedStoreItemIds']);
+        $t->same(['reviewer-name', 'missing-review-field'], $contentControls['tags']);
+        $t->same(1, $contentControls['issueCount']);
+        $t->same(['unmatched-store-item-id'], $contentControls['issueCodes']);
+        $t->same(2, $summary['contentControlCount']);
+        $t->same(2, $summary['contentControlDataBindingCount']);
+        $t->same(1, $summary['contentControlMatchedDataBindingCount']);
+        $t->same(1, $summary['contentControlUnmatchedDataBindingCount']);
+        $t->same(0, $summary['contentControlDuplicateStoreItemBindingCount']);
+        $t->same(1, $summary['contentControlIssueCount']);
+        $t->same(['unmatched-store-item-id'], $summary['contentControlIssueCodes']);
+
+        $t->same('block', $matched['scope']);
+        $t->same('Reviewer name', $matched['alias']);
+        $t->same('reviewer-name', $matched['tag']);
+        $t->same(101, $matched['id']);
+        $t->same('sdtContentLocked', $matched['lock']);
+        $t->same('text', $matched['controlType']);
+        $t->same(['p'], $matched['contentKinds']);
+        $t->same('Reviewer: Ada', $matched['text']);
+        $t->same(true, $matched['dataBindingPresent']);
+        $t->same($storeItemId, $matched['storeItemId']);
+        $t->same('/review/reviewer/name[1]', $matched['xpath']);
+        $t->same('xmlns:review="urn:example:review"', $matched['prefixMappings']);
+        $t->same(1, $matched['prefixMappingCount']);
+        $t->same(true, $matched['matchedStoreItem']);
+        $t->same(1, $matched['storeItemReferenceCount']);
+        $t->same([], $matched['issues']);
+
+        $t->same('rBoundCustomXml', $reference['customXmlRelationshipId']);
+        $t->same('customXml/review-item.xml', $reference['customXmlPartName']);
+        $t->same('application/xml; profile=content-control', $reference['customXmlContentType']);
+        $t->same('urn:example:review', $reference['customXmlRootNamespace']);
+        $t->same('review', $reference['customXmlRootLocalName']);
+        $t->same('rReviewItemProps', $reference['propertiesRelationshipId']);
+        $t->same('customXml/review-item-props.xml', $reference['propertiesPartName']);
+        $t->same(['urn:example:review-schema'], $reference['schemaRefs']);
+        $t->same(false, $reference['duplicateStoreItemId']);
+
+        $t->same('inline', $unmatched['scope']);
+        $t->same('Missing packet field', $unmatched['alias']);
+        $t->same('missing-review-field', $unmatched['tag']);
+        $t->same(102, $unmatched['id']);
+        $t->same(['r'], $unmatched['contentKinds']);
+        $t->same(' unmatched inline', $unmatched['text']);
+        $t->same($missingStoreItemId, $unmatched['storeItemId']);
+        $t->same(false, $unmatched['matchedStoreItem']);
+        $t->same(0, $unmatched['storeItemReferenceCount']);
+        $t->same(['unmatched-store-item-id'], $unmatched['issues']);
+        $t->same('Reviewer: Ada', $document->children[1]->attr('text'));
+        $t->contains('unmatched inline', $document->children[2]->attr('text'));
+    },
     'resolves docx numbering from the document relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
