@@ -2736,6 +2736,11 @@ final class MarkdownWriter
      */
     private function renderLink(AstNode $node, array $following): string
     {
+        $wikiLink = $this->renderWikiLink($node);
+        if ($wikiLink !== null) {
+            return $wikiLink;
+        }
+
         if ($this->canRenderAutolink($node)) {
             return '<' . $this->autolinkText($node) . '>';
         }
@@ -3789,6 +3794,57 @@ final class MarkdownWriter
         $title = trim(preg_replace('/\s+/', ' ', $title) ?? $title);
 
         return '*[' . $term . ']: ' . $title;
+    }
+
+    private function renderWikiLink(AstNode $node): ?string
+    {
+        $attrs = $this->linkAttrTuple($node);
+        if (
+            $attrs['id'] !== ''
+            || $attrs['classes'] !== ['wikilink']
+            || $attrs['attributes'] !== []
+            || (string) $node->attr('title', '') !== ''
+            || count($node->children) !== 1
+            || $node->children[0]->type !== 'text'
+        ) {
+            return null;
+        }
+
+        $label = (string) $node->children[0]->attr('text', '');
+        $url = (string) $node->attr('url', '');
+        if ($label === '' || $url === '' || str_contains($label, "\n") || str_contains($url, "\n")) {
+            return null;
+        }
+
+        $target = $this->escapeWikiLinkComponent($url);
+        if ($label === $url) {
+            return '[[' . $target . ']]';
+        }
+
+        return '[[' . $this->escapeWikiLinkComponent($label) . '|' . $target . ']]';
+    }
+
+    private function escapeWikiLinkComponent(string $text): string
+    {
+        $text = strtr($text, [
+            '&' => '&amp;',
+            '<' => '&lt;',
+            '>' => '&gt;',
+            '"' => '&quot;',
+        ]);
+
+        $escaped = '';
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $text[$offset];
+            $escaped .= match ($char) {
+                '\\' => '\\\\',
+                '|', ']' => '\\' . $char,
+                default => $char,
+            };
+        }
+
+        return $escaped;
     }
 
     private function canRenderAutolink(AstNode $node): bool
