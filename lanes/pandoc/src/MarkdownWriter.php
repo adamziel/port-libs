@@ -1729,9 +1729,9 @@ final class MarkdownWriter
      */
     private function renderCodeBlock(AstNode $node, int $indent): array
     {
-        $attrs = $this->renderLinkAttributes($node);
-        if ($attrs !== '') {
-            return $this->renderFencedCodeBlock($node, $attrs, $indent);
+        $fenceInfo = $this->renderCodeBlockFenceInfo($node);
+        if ($fenceInfo !== '') {
+            return $this->renderFencedCodeBlock($node, $fenceInfo, $indent);
         }
 
         $lines = [];
@@ -1743,17 +1743,37 @@ final class MarkdownWriter
         return $lines;
     }
 
+    private function renderCodeBlockFenceInfo(AstNode $node): string
+    {
+        $attrs = $this->linkAttrTuple($node);
+        if (
+            $attrs['id'] === ''
+            && $attrs['attributes'] === []
+            && count($attrs['classes']) === 1
+            && $this->isBareCodeInfoClass($attrs['classes'][0])
+        ) {
+            return ' ' . $attrs['classes'][0];
+        }
+
+        return $this->renderAttributesTuple($attrs);
+    }
+
+    private function isBareCodeInfoClass(string $class): bool
+    {
+        return preg_match('/\A[A-Za-z0-9][A-Za-z0-9_.+-]*\z/', $class) === 1;
+    }
+
     /**
      * @return list<string>
      */
-    private function renderFencedCodeBlock(AstNode $node, string $attrs, int $indent): array
+    private function renderFencedCodeBlock(AstNode $node, string $fenceInfo, int $indent): array
     {
         $prefix = str_repeat(' ', $indent);
         $text = (string) $node->attr('text', '');
         $fence = str_repeat('`', max(3, $this->longestBacktickRun($text) + 1));
 
         return [
-            $prefix . $fence . $attrs,
+            $prefix . $fence . $fenceInfo,
             ...array_map(static fn (string $line): string => $prefix . $line, explode("\n", $text)),
             $prefix . $fence,
         ];

@@ -10628,6 +10628,38 @@ MD;
             '    plain legacy snippet',
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer fenced code language shorthand' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', [
+                'text' => "echo esc_html(\$title);\n```\nliteral nested fence",
+                'classes' => ['php'],
+            ]),
+            new AstNode('code_block', [
+                'text' => 'wp post list --post_type=page',
+                'classes' => ['wp-cli'],
+            ]),
+            new AstNode('code_block', [
+                'text' => 'needs full attributes',
+                'classes' => ['php', 'review'],
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(implode("\n\n", [
+            "```` php\n" . 'echo esc_html($title);' . "\n```\nliteral nested fence\n````",
+            "``` wp-cli\nwp post list --post_type=page\n```",
+            "```{.php .review}\nneeds full attributes\n```",
+        ]), $markdown);
+
+        $roundTrip = (new MarkdownReader())->read($markdown);
+        $t->same(['code_block', 'code_block', 'code_block'], array_map(static fn (AstNode $node): string => $node->type, $roundTrip->children));
+        $t->same(['php'], $roundTrip->children[0]->attr('classes'));
+        $t->same("echo esc_html(\$title);\n```\nliteral nested fence", $roundTrip->children[0]->attr('text'));
+        $t->same(['wp-cli'], $roundTrip->children[1]->attr('classes'));
+        $t->same(['php', 'review'], $roundTrip->children[2]->attr('classes'));
+        $t->same('needs full attributes', $roundTrip->children[2]->attr('text'));
+    },
     'maps upstream markdown writer code span backtick delimiters' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [
