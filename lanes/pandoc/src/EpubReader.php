@@ -21832,7 +21832,7 @@ final class EpubReader
                 }
             }
         }
-        $coverImageReport = self::coverImageReport($coverImages, $metadata, $coverImage);
+        $coverImageReport = self::coverImageReport($coverImages, $metadata, $coverImage, $assets);
 
         $attachmentCandidates = array_values(array_filter(
             $assets,
@@ -21912,10 +21912,11 @@ final class EpubReader
 
     /**
      * @param list<array<string, mixed>> $coverImages
+     * @param list<array<string, mixed>> $assets
      *
      * @return array{count:int, items:list<array<string, mixed>>, diagnostics:list<array<string, mixed>>}
      */
-    private static function coverImageReport(array $coverImages, array $metadata, ?array $selected): array
+    private static function coverImageReport(array $coverImages, array $metadata, ?array $selected, array $assets): array
     {
         $ids = [];
         $manifestCoverIds = [];
@@ -21940,6 +21941,15 @@ final class EpubReader
 
         $selectedId = is_array($selected) && is_string($selected['id'] ?? null) ? $selected['id'] : null;
         $metaCoverItemId = self::nullableManifestId($metadata['coverItemId'] ?? null);
+        $metaCoverAsset = null;
+        if ($metaCoverItemId !== null) {
+            foreach ($assets as $asset) {
+                if ((string) ($asset['id'] ?? '') === $metaCoverItemId) {
+                    $metaCoverAsset = $asset;
+                    break;
+                }
+            }
+        }
         $diagnostics = [];
 
         if (count($coverImages) > 1) {
@@ -21955,7 +21965,22 @@ final class EpubReader
             ];
         }
 
-        if ($metaCoverItemId !== null && !in_array($metaCoverItemId, $ids, true)) {
+        if ($metaCoverItemId !== null && !in_array($metaCoverItemId, $ids, true) && is_array($metaCoverAsset)) {
+            $diagnostics[] = [
+                'type' => 'invalid-meta-cover-image-media-type',
+                'selectedId' => $selectedId,
+                'coverImageIds' => $ids,
+                'manifestCoverImageIds' => $manifestCoverIds,
+                'metaCoverImageIds' => $metaCoverIds,
+                'metaCoverItemId' => $metaCoverItemId,
+                'metaCoverMediaType' => $metaCoverAsset['mediaType'] ?? null,
+                'metaCoverPart' => $metaCoverAsset['part'] ?? null,
+                'metaCoverProperties' => $metaCoverAsset['properties'] ?? [],
+                'metaCoverRole' => $metaCoverAsset['role'] ?? null,
+                'sourcesById' => $sourcesById,
+                'message' => 'EPUB OPF legacy meta cover item id resolves to a non-image manifest item',
+            ];
+        } elseif ($metaCoverItemId !== null && !in_array($metaCoverItemId, $ids, true)) {
             $diagnostics[] = [
                 'type' => 'missing-meta-cover-image',
                 'selectedId' => $selectedId,
@@ -22390,7 +22415,7 @@ final class EpubReader
     private static function isCoverImageAsset(array $item, array $metadata): bool
     {
         return in_array('cover-image', $item['properties'] ?? [], true)
-            || ((string) ($metadata['coverItemId'] ?? '') !== '' && (string) $item['id'] === (string) $metadata['coverItemId']);
+            || self::isLegacyCoverImageAsset($item, $metadata);
     }
 
     /**
@@ -22405,11 +22430,40 @@ final class EpubReader
         if (in_array('cover-image', $item['properties'] ?? [], true)) {
             $sources[] = 'manifest-property-cover-image';
         }
-        if ((string) ($metadata['coverItemId'] ?? '') !== '' && (string) $item['id'] === (string) $metadata['coverItemId']) {
+        if (
+            self::legacyCoverItemIdMatches($item, $metadata)
+            && (in_array('cover-image', $item['properties'] ?? [], true) || self::isLegacyCoverImageAsset($item, $metadata))
+        ) {
             $sources[] = 'meta-name-cover';
         }
 
         return $sources;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, mixed> $metadata
+     */
+    private static function isLegacyCoverImageAsset(array $item, array $metadata): bool
+    {
+        if (!self::legacyCoverItemIdMatches($item, $metadata)) {
+            return false;
+        }
+
+        $baseMediaType = self::baseMediaType(strtolower((string) ($item['mediaType'] ?? '')));
+
+        return str_starts_with($baseMediaType, 'image/');
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, mixed> $metadata
+     */
+    private static function legacyCoverItemIdMatches(array $item, array $metadata): bool
+    {
+        $coverItemId = self::nullableManifestId($metadata['coverItemId'] ?? null);
+
+        return $coverItemId !== null && (string) ($item['id'] ?? '') === $coverItemId;
     }
 
     /**

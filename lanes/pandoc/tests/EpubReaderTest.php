@@ -8500,6 +8500,43 @@ XML, htmlspecialchars($iframeSrcdoc, ENT_QUOTES | ENT_XML1));
         $t->same(['cover-image'], $missingAssets['coverImageDiagnostics'][0]['manifestCoverImageIds']);
         $t->same('cover-image', $missingAssets['coverImageDiagnostics'][0]['selectedId']);
     },
+    'reports non image OPF meta cover targets without promoting assets' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithStyleCover = str_replace(
+            '<meta name="cover" content="cover-image"/>',
+            '<meta name="cover" content="style"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithStyleCover));
+        $assets = $result['importReport']['assets'];
+        $assetById = [];
+        foreach ($assets['items'] as $asset) {
+            $assetById[$asset['id']] = $asset;
+        }
+
+        $t->same(1, $assets['coverImageCount']);
+        $t->same('cover-image', $assets['coverImage']['id']);
+        $t->same(['manifest-property-cover-image'], $assets['coverImage']['coverImageSources']);
+        $t->same(false, $assetById['style']['isCoverImage']);
+        $t->same('stylesheet', $assetById['style']['role']);
+        $t->same(false, $assetById['style']['attachmentCandidate']);
+        $t->same(null, $assetById['style']['attachmentRole']);
+        $t->same(true, $assetById['style']['exportCandidate']);
+        $t->same(hash('sha256', 'body { color: #222; }'), $assetById['style']['byteSha256']);
+
+        $t->same(1, $assets['coverImageDiagnosticCount']);
+        $t->same('invalid-meta-cover-image-media-type', $assets['coverImageDiagnostics'][0]['type']);
+        $t->same('style', $assets['coverImageDiagnostics'][0]['metaCoverItemId']);
+        $t->same('text/css', $assets['coverImageDiagnostics'][0]['metaCoverMediaType']);
+        $t->same('/OEBPS/styles/book.css', $assets['coverImageDiagnostics'][0]['metaCoverPart']);
+        $t->same('stylesheet', $assets['coverImageDiagnostics'][0]['metaCoverRole']);
+        $t->same(['cover-image'], $assets['coverImageDiagnostics'][0]['manifestCoverImageIds']);
+        $t->same([], $assets['coverImageDiagnostics'][0]['metaCoverImageIds']);
+        $t->same('cover-image', $assets['coverImageDiagnostics'][0]['selectedId']);
+        $t->same($assets['coverImageDiagnostics'][0], $assets['diagnostics'][0]);
+        $t->same($assets, $result['assetReport']);
+        $t->same($assets, $result['document']->attr('assets'));
+    },
     'reports non-spine OPF asset fallback chains for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithAssetFallbacks = str_replace(
             '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
