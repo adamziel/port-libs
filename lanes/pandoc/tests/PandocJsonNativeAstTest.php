@@ -13998,6 +13998,75 @@ return [
             }
         }
     },
+    'preserves single wrapped raw format constructors through json and native stacks' => static function (TestRunner $t): void {
+        $blockFormat = ['t' => 'Format', 'c' => [['html']], 'reviewQueue' => 'raw-block-format-source'];
+        $inlineFormat = ['t' => 'Format', 'c' => [['latex']], 'reviewQueue' => 'raw-inline-format-source'];
+        $genericFormat = ['t' => 'Format', 'c' => [['opml']], 'reviewQueue' => 'raw-generic-format-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'RawBlock', 'c' => [
+                    $blockFormat,
+                    '<section data-review="format">raw</section>',
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'RawInline', 'c' => [$inlineFormat, '\\alpha']],
+                    ['t' => 'Space'],
+                    ['t' => 'RawInline', 'c' => [$genericFormat, '<outline text="review"/>']],
+                ]],
+            ],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $rawBlock = $document->children[0];
+            $paragraph = $document->children[1];
+            $rawInline = $paragraph->children[0];
+            $genericInline = $paragraph->children[2];
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('raw_html', $rawBlock->type, "{$source} raw block type");
+            $t->same('html', $rawBlock->attr('format'), "{$source} raw block format");
+            $t->same($blockFormat, $rawBlock->attr('formatNative'), "{$source} raw block format native");
+            $t->same('raw_tex', $rawInline->type, "{$source} raw inline type");
+            $t->same($inlineFormat, $rawInline->attr('formatNative'), "{$source} raw inline format native");
+            $t->same('raw_inline', $genericInline->type, "{$source} generic raw inline type");
+            $t->same('opml', $genericInline->attr('format'), "{$source} generic raw inline format");
+            $t->same($genericFormat, $genericInline->attr('formatNative'), "{$source} generic raw inline native");
+            $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} json writer preserves wrapped raw formats");
+            $t->same($packet['blocks'], $nativePacket['blocks'], "{$source} native writer preserves wrapped raw formats");
+
+            $editedBlockAttrs = $rawBlock->attrs;
+            $editedBlockAttrs['format'] = 'markdown';
+            $editedBlockAttrs['text'] = '**changed**';
+            $editedBlockAttrs['markdown'] = '**changed**';
+            unset($editedBlockAttrs['html']);
+
+            $editedInlineAttrs = $rawInline->attrs;
+            $editedInlineAttrs['format'] = 'html';
+            $editedInlineAttrs['text'] = '<em>changed</em>';
+            $editedInlineAttrs['html'] = '<em>changed</em>';
+            unset($editedInlineAttrs['tex']);
+
+            $edited = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
+                new AstNode('raw_markdown', $editedBlockAttrs),
+                new AstNode('paragraph', [], [
+                    new AstNode('raw_html_inline', $editedInlineAttrs),
+                ]),
+            ]);
+            $editedJson = (new PandocJsonWriter())->toArray($edited);
+            $editedNative = json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('markdown', $editedJson['blocks'][0]['c'][0], "{$source} json writer drops stale raw block format sidecar");
+            $t->same('markdown', $editedNative['blocks'][0]['c'][0], "{$source} native writer drops stale raw block format sidecar");
+            $t->same('html', $editedJson['blocks'][1]['c'][0]['c'][0], "{$source} json writer drops stale raw inline format sidecar");
+            $t->same('html', $editedNative['blocks'][1]['c'][0]['c'][0], "{$source} native writer drops stale raw inline format sidecar");
+        }
+    },
     'validates malformed pandoc json packets without shelling out' => static function (TestRunner $t): void {
         $reader = new PandocJsonReader();
         $writer = new PandocJsonWriter();

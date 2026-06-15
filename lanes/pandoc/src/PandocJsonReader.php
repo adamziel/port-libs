@@ -1924,10 +1924,7 @@ final class PandocJsonReader
             return [$value, null];
         }
 
-        $content = $this->constructorContent($value, 'Format', $context);
-        if (is_array($content) && array_is_list($content) && count($content) === 1) {
-            $content = $content[0];
-        }
+        $content = $this->singleWrappedScalarContent($this->constructorContent($value, 'Format', $context));
         if (!is_string($content)) {
             throw new \InvalidArgumentException("{$context} must contain a string");
         }
@@ -1945,6 +1942,15 @@ final class PandocJsonReader
         }
         if (!is_string($content)) {
             throw new \InvalidArgumentException("{$context} must be a string");
+        }
+
+        return $content;
+    }
+
+    private function singleWrappedScalarContent(mixed $content): mixed
+    {
+        while (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
         }
 
         return $content;

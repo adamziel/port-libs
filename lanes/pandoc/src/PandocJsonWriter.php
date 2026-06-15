@@ -2635,12 +2635,18 @@ final class PandocJsonWriter
             return $format;
         }
 
-        $content = $native['c'] ?? null;
-        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+        $content = $this->singleWrappedScalarContent($native['c'] ?? null);
+
+        return $content === $format ? $native : $format;
+    }
+
+    private function singleWrappedScalarContent(mixed $content): mixed
+    {
+        while (is_array($content) && array_is_list($content) && count($content) === 1) {
             $content = $content[0];
         }
 
-        return $content === $format ? $native : $format;
+        return $content;
     }
 
     private function rawText(AstNode $node): string
