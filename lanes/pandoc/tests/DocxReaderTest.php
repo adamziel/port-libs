@@ -8363,7 +8363,7 @@ return [
 
         $t->same('Publish import', $outline->children[1]->children[0]->children[0]->attr('text'));
 
-        $t->contains("1.  Plan import\n  a)  Check media\n  b)  Check comments\n    - Resolve reviewer note\n2.  Publish import", $markdown);
+        $t->contains("1.  Plan import\n    a)  Check media\n    b)  Check comments\n        - Resolve reviewer note\n2.  Publish import", $markdown);
         $t->contains('<!-- wp:list {"ordered":true} -->', $blocks);
         $t->contains('<ol><li>Plan import<ol type="a"><li>Check media</li><li>Check comments<ul><li>Resolve reviewer note</li></ul></li></ol></li><li>Publish import</li></ol>', $blocks);
     },

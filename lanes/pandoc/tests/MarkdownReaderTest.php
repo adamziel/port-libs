@@ -7080,6 +7080,31 @@ return [
         $t->contains('<p>MapReduce is a paradigm popularized by <a href="http://google.com">Google</a> [@mapreduce] as its', $blocks);
         $t->contains('<p><a href="">foo2</a></p>', $blocks);
     },
+    'maps commonmark duplicate reference definition precedence' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '[bar][foo]',
+            '',
+            '[foo]: /url1',
+            '[foo]: /url2',
+            '',
+            '[caps][FOO]',
+            '',
+            '[FOO]: /url3 "later title"',
+        ]));
+        $first = $document->children[0]->children[0];
+        $caseFolded = $document->children[1]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('link', $first->type);
+        $t->same('/url1', $first->attr('url'));
+        $t->same('bar', $first->children[0]->attr('text'));
+        $t->same('link', $caseFolded->type);
+        $t->same('/url1', $caseFolded->attr('url'));
+        $t->same(null, $caseFolded->attr('title'));
+        $t->contains('<p><a href="/url1">bar</a></p>', $blocks);
+        $t->contains('<p><a href="/url1">caps</a></p>', $blocks);
+        $t->true(!str_contains($blocks, '/url2') && !str_contains($blocks, '/url3'), 'Later duplicate reference definitions should not override the first target');
+    },
     'maps upstream markdown reader citations and following note link boundaries' => static function (TestRunner $t): void {
         $simple = (new MarkdownReader())->read('@item1')->children[0]->children[0];
         $digit = (new MarkdownReader())->read('@1657:huyghens')->children[0]->children[0];
@@ -7222,6 +7247,27 @@ return [
         $t->contains("<p>A\nB</p>", $blocks);
         $t->contains('<p>東<br/>京</p>', $blocks);
     },
+    'maps pandoc markdown east asian line break across inline wrapper left boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader(['eastAsianLineBreaks' => true]))->read(implode("\n\n", [
+            "[東](https://example.test/source)\n京",
+            "`東`\n京",
+        ]));
+        $linked = $document->children[0];
+        $coded = $document->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['link', 'text'], array_map(static fn (AstNode $node): string => $node->type, $linked->children));
+        $t->same('東', $linked->children[0]->children[0]->attr('text'));
+        $t->same('京', $linked->children[1]->attr('text'));
+        $t->same('東京', $linked->attr('text'));
+        $t->same(['code', 'text'], array_map(static fn (AstNode $node): string => $node->type, $coded->children));
+        $t->same('東', $coded->children[0]->attr('text'));
+        $t->same('京', $coded->children[1]->attr('text'));
+        $t->same('東京', $coded->attr('text'));
+        $t->same("[東](https://example.test/source)京\n\n`東`京", (new MarkdownWriter())->write($document));
+        $t->contains('<p><a href="https://example.test/source">東</a>京</p>', $blocks);
+        $t->contains('<p><code>東</code>京</p>', $blocks);
+    },
     'maps upstream markdown reader inline code attributes and spaced literals' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             '`document.write("Hello");`{.javascript}',
@@ -7275,6 +7321,39 @@ return [
         $t->contains('<p><a href="http://foo.bar" id="i" class="j z">http://foo.bar</a></p>', $blocks);
         $t->contains('<p><a href="http://foo.bar">http://foo.bar</a> {#i .j .z k=v}</p>', $blocks);
         $t->contains('<p>Reviewer source: <a href="https://example.test/review-token" id="review-token" class="source-link" data-source="batch-42" title="Review token">https://example.test/review-token</a>.</p>', $blocks);
+    },
+    'maps commonmark absolute uri autolinks with non-http schemes' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            '<mailto:nobody@nowhere.net>',
+            '<urn:isbn:9780131103627>',
+            '<doi:10.1000/182>{#paper-id .identifier data-source=doi}',
+            '<nobody@nowhere.net>',
+        ]));
+        $mailto = $document->children[0]->children[0] ?? new AstNode('missing');
+        $urn = $document->children[1]->children[0] ?? new AstNode('missing');
+        $doi = $document->children[2]->children[0] ?? new AstNode('missing');
+        $email = $document->children[3]->children[0] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('link', $mailto->type);
+        $t->same('mailto:nobody@nowhere.net', $mailto->attr('url'));
+        $t->same(['uri'], $mailto->attr('classes'));
+        $t->same('mailto:nobody@nowhere.net', $mailto->children[0]->attr('text'));
+        $t->same('link', $urn->type);
+        $t->same('urn:isbn:9780131103627', $urn->attr('url'));
+        $t->same('urn:isbn:9780131103627', $urn->children[0]->attr('text'));
+        $t->same('link', $doi->type);
+        $t->same('doi:10.1000/182', $doi->attr('url'));
+        $t->same('paper-id', $doi->attr('id'));
+        $t->same(['identifier'], $doi->attr('classes'));
+        $t->same(['data-source' => 'doi'], $doi->attr('attributes'));
+        $t->same('link', $email->type);
+        $t->same('mailto:nobody@nowhere.net', $email->attr('url'));
+        $t->same(['email'], $email->attr('classes'));
+        $t->contains('<p><a href="mailto:nobody@nowhere.net">mailto:nobody@nowhere.net</a></p>', $blocks);
+        $t->contains('<p><a href="urn:isbn:9780131103627">urn:isbn:9780131103627</a></p>', $blocks);
+        $t->contains('<p><a href="doi:10.1000/182" id="paper-id" class="identifier" data-source="doi">doi:10.1000/182</a></p>', $blocks);
+        $t->contains('<p><a href="mailto:nobody@nowhere.net">nobody@nowhere.net</a></p>', $blocks);
     },
     'maps upstream markdown reader bare uri autolink extension cases' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
@@ -7580,6 +7659,32 @@ return [
         $t->contains('<a href="#foo-bar">foo bar</a>', $closingBlocks);
         $t->contains('<h1 id="header">Header</h1>', $setextBlocks);
         $t->contains('<a href="#header">header</a>', $setextBlocks);
+    },
+    'maps upstream markdown reader atx closing fence before attributes' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            '# Closing attribute fence # {#closing .review data-source="fixture"}',
+            '[Closing attribute fence]',
+            '# C# reference {#csharp}',
+            '[C# reference]',
+        ]));
+        $heading = $document->children[0];
+        $link = $document->children[1]->children[0];
+        $csharpHeading = $document->children[2];
+        $csharpLink = $document->children[3]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('heading', $heading->type);
+        $t->same('Closing attribute fence', $heading->attr('text'));
+        $t->same('closing', $heading->attr('id'));
+        $t->same(['review'], $heading->attr('classes'));
+        $t->same(['data-source' => 'fixture'], $heading->attr('attributes'));
+        $t->same('#closing', $link->attr('url'));
+        $t->same('Closing attribute fence', $link->children[0]->attr('text'));
+        $t->same('C# reference', $csharpHeading->attr('text'));
+        $t->same('csharp', $csharpHeading->attr('id'));
+        $t->same('#csharp', $csharpLink->attr('url'));
+        $t->contains('<h1 id="closing" class="review" data-source="fixture">Closing attribute fence</h1>', $blocks);
+        $t->contains('<h1 id="csharp">C# reference</h1>', $blocks);
     },
     'maps markdown headings into nested section divs when requested' => static function (TestRunner $t): void {
         $document = (new MarkdownReader(['sectionDivs' => true]))->read(implode("\n\n", [
@@ -8297,6 +8402,33 @@ return [
         $t->same(['haskell'], $code->attr('classes'));
         $t->same(" let x = y\nin y +\ny +\ny", $code->attr('text'));
     },
+    'maps upstream fenced code attributes with quoted values' => static function (TestRunner $t): void {
+        $markdown = <<<'MD'
+```{#review-snippet .php .numberLines data-caption="Review packet" title='A "quoted" packet' onclick="drop()"}
+echo esc_html($title);
+```
+MD;
+        $document = (new MarkdownReader())->read($markdown);
+        $code = $document->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('code_block', $code->type);
+        $t->same('review-snippet', $code->attr('id'));
+        $t->same(['php', 'numberLines'], $code->attr('classes'));
+        $t->same([
+            'data-caption' => 'Review packet',
+            'title' => 'A "quoted" packet',
+            'onclick' => 'drop()',
+        ], $code->attr('attributes'));
+        $t->same('echo esc_html($title);', $code->attr('text'));
+        $t->same(implode("\n", [
+            '```{#review-snippet .php .numberLines data-caption="Review packet" title="A \"quoted\" packet" onclick="drop()"}',
+            'echo esc_html($title);',
+            '```',
+        ]), (new MarkdownWriter())->write($document));
+        $t->contains('<pre class="wp-block-code php numberLines" id="review-snippet" data-caption="Review packet" title="A &quot;quoted&quot; packet"><code class="language-php">echo esc_html($title);</code></pre>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe code block event attributes should not survive WordPress handoff');
+    },
     'maps upstream markdown literate haskell bird tracks when enabled' => static function (TestRunner $t): void {
         $default = (new MarkdownReader())->read("> a");
         $document = (new MarkdownReader(['literateHaskell' => true]))->read("> a\n> b\n\n< c\n\n<div>\nsource note\n</div>");
@@ -8314,6 +8446,20 @@ return [
         $t->same('source note', $htmlDiv->children[0]->attr('text'));
         $t->contains("<pre class=\"wp-block-code\"><code class=\"language-haskell\">a\nb</code></pre>", $blocks);
         $t->contains('<pre class="wp-block-code"><code class="language-haskell">c</code></pre>', $blocks);
+    },
+    'maps upstream markdown literate haskell inverse bird tracks and empty html div' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader(['literateHaskell' => true]))->read("> a\n\n< b\n\n<div>\n");
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['code_block', 'code_block', 'div'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same(['haskell', 'literate'], $document->children[0]->attr('classes'));
+        $t->same('a', $document->children[0]->attr('text'));
+        $t->same(['haskell'], $document->children[1]->attr('classes'));
+        $t->same('b', $document->children[1]->attr('text'));
+        $t->same([], $document->children[2]->children);
+        $t->contains('<pre class="wp-block-code"><code class="language-haskell">a</code></pre>', $blocks);
+        $t->contains('<pre class="wp-block-code"><code class="language-haskell">b</code></pre>', $blocks);
+        $t->contains('<div></div>', $blocks);
     },
     'maps upstream lhs fixture blockquote boundary when literate haskell is enabled' => static function (TestRunner $t): void {
         $markdown = <<<'MD'
@@ -8630,6 +8776,42 @@ MD;
             '  ok',
             '\end{itemize}',
         ]), (new LatexWriter())->write($latexTaskList));
+    },
+    'maps upstream markdown reader uppercase and empty task list markers' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '- [X] Done with uppercase marker',
+            '- [ ]',
+            '- [x] **nested source**',
+            '  - [X] Follow-up',
+            '- [ ] trailing task',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $list = $document->children[0];
+        $nested = $list->children[2]->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('bullet_list', $list->type);
+        $t->true((bool) $list->attr('taskList'));
+        $t->same(true, $list->children[0]->attr('taskChecked'));
+        $t->same('Done with uppercase marker', $list->children[0]->children[0]->attr('text'));
+        $t->same(false, $list->children[1]->attr('taskChecked'));
+        $t->same(0, count($list->children[1]->children));
+        $t->same('strong', $list->children[2]->children[0]->type);
+        $t->same('bullet_list', $nested->type);
+        $t->same(true, $nested->children[0]->attr('taskChecked'));
+        $t->same(false, $list->children[3]->attr('taskChecked'));
+        $t->same(implode("\n", [
+            '- [x] Done with uppercase marker',
+            '- [ ]',
+            '- [x] **nested source**',
+            '  - [x] Follow-up',
+            '- [ ] trailing task',
+        ]), (new MarkdownWriter())->write($document));
+        $t->contains('<ul class="task-list">', $blocks);
+        $t->contains('<li><label><input type="checkbox" checked="" />Done with uppercase marker</label></li>', $blocks);
+        $t->contains('<li><label><input type="checkbox" /></label></li>', $blocks);
+        $t->contains('<label><input type="checkbox" checked="" /><strong>nested source</strong></label><ul class="task-list"><li><label><input type="checkbox" checked="" />Follow-up</label></li></ul>', $blocks);
+        $t->contains('<li><label><input type="checkbox" />trailing task</label></li>', $blocks);
     },
     'preserves adjacent list boundaries through markdown separators' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
@@ -9558,13 +9740,13 @@ MD;
 
         $t->same(implode("\n", [
             'A.  Upper Alpha',
-            '  I.  Upper Roman.',
-            '    (6) Decimal start with 6',
-            '      c)  Lower alpha with paren',
+            '    I.  Upper Roman.',
+            '        (6) Decimal start with 6',
+            '            c)  Lower alpha with paren',
         ]), $writer->write($nested));
         $t->same("(2) begins with 2\n(3) and now 3", $writer->write($twoParens));
         $t->same("iv. roman checkpoint\nv.  publish handoff", $writer->write($roman));
-        $t->same("1.  Autonumber.\n2.  More.\n  1.  Nested.", $writer->write($reader->read(" #.  Autonumber.\n #.  More.\n     #.  Nested.")));
+        $t->same("1.  Autonumber.\n2.  More.\n    1.  Nested.", $writer->write($reader->read(" #.  Autonumber.\n #.  More.\n     #.  Nested.")));
     },
     'maps upstream markdown writer roman list marker overflow' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
@@ -9641,6 +9823,44 @@ MD;
         $t->same("- review queue item\n  - nested review task\n- [x] checked import task", (new MarkdownWriter())->write($document));
         $t->same("+ review queue item\n  + nested review task\n+ [x] checked import task", (new MarkdownWriter(['bulletListMarker' => 'plus']))->write($document));
         $t->same("* review queue item\n  * nested review task\n* [x] checked import task", (new MarkdownWriter(['bulletListMarker' => 'star']))->write($document));
+    },
+    'maps upstream markdown writer loose list paragraph spacing' => static function (TestRunner $t): void {
+        $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [
+            new AstNode('text', ['text' => $value]),
+        ]);
+        $item = static fn (string $value): AstNode => new AstNode('list_item', ['loose' => true], [
+            $paragraph($value),
+        ]);
+        $document = new AstNode('document', [], [
+            new AstNode('bullet_list', ['loose' => true], [
+                $item('asterisk 1'),
+                $item('asterisk 2'),
+                $item('asterisk 3'),
+            ]),
+            new AstNode('ordered_list', [
+                'loose' => true,
+                'start' => 1,
+                'style' => 'decimal',
+                'delimiter' => 'period',
+            ], [
+                $item('First'),
+                $item('Second'),
+                $item('Third'),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(implode("\n\n", [
+            "- asterisk 1\n\n- asterisk 2\n\n- asterisk 3",
+            "1.  First\n\n2.  Second\n\n3.  Third",
+        ]), $markdown);
+
+        $roundTrip = (new MarkdownReader())->read($markdown);
+        $t->true((bool) $roundTrip->children[0]->attr('loose'));
+        $t->true((bool) $roundTrip->children[1]->attr('loose'));
+        $t->same('paragraph', $roundTrip->children[0]->children[0]->children[0]->type);
+        $t->same('paragraph', $roundTrip->children[1]->children[2]->children[0]->type);
     },
     'maps upstream markdown writer note and reference placement' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
@@ -9772,6 +9992,87 @@ MD;
             'Some more text.',
         ]), $endOfSection);
     },
+    'maps upstream markdown writer structured citation source regeneration' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Structured citations: '),
+                new AstNode('citation', [
+                    'id' => 'source-a',
+                    'mode' => 'normal',
+                    'prefix' => [
+                        $text('see'),
+                        new AstNode('space'),
+                        new AstNode('emph', [], [$text('review')]),
+                    ],
+                    'locator' => 'pp. 10-12',
+                ]),
+                $text(', '),
+                new AstNode('citation', [
+                    'id' => 'source-b',
+                    'mode' => 'suppress_author',
+                    'suffix' => [
+                        new AstNode('strong', [], [$text('sec. 4')]),
+                    ],
+                ]),
+                $text(', '),
+                new AstNode('citation', [
+                    'id' => 'smith.2026',
+                    'mode' => 'author_in_text',
+                    'suffix' => 'chapter 2',
+                ]),
+                $text(', '),
+                new AstNode('citation', [
+                    'id' => 'source key',
+                    'mode' => 'normal',
+                ]),
+                $text(', and '),
+                new AstNode('citation_group', [], [
+                    new AstNode('citation', [
+                        'id' => 'source-c',
+                        'mode' => 'normal',
+                        'prefix' => 'compare',
+                        'locator' => 'fig. 2',
+                    ]),
+                    new AstNode('citation', [
+                        'id' => 'source-d',
+                        'mode' => 'suppress_author',
+                    ]),
+                ]),
+                $text('.'),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $roundTripParagraph = (new MarkdownReader())->read($markdown)->children[0];
+        $children = $roundTripParagraph->children;
+        $group = $children[9] ?? new AstNode('missing');
+        $explicit = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('citation', [
+                    'id' => 'explicit-source',
+                    'mode' => 'normal',
+                    'text' => '[pre-rendered @explicit-source, p. 9]',
+                ]),
+            ]),
+        ]);
+
+        $t->same('Structured citations: [see *review* @source-a, pp. 10-12], [-@source-b, **sec. 4**], @smith.2026 [chapter 2], [@{source key}], and [compare @source-c, fig. 2; -@source-d].', $markdown);
+        $t->same(['text', 'citation', 'text', 'citation', 'text', 'citation', 'text', 'citation', 'text', 'citation_group', 'text'], array_map(static fn (AstNode $node): string => $node->type, $children));
+        $t->same('source-a', $children[1]->attr('id'));
+        $t->same('normal', $children[1]->attr('mode'));
+        $t->same('see *review*', $children[1]->attr('prefix'));
+        $t->same('pp. 10-12', $children[1]->attr('locator'));
+        $t->same('suppress_author', $children[3]->attr('mode'));
+        $t->same('**sec. 4**', $children[3]->attr('locator'));
+        $t->same('author_in_text', $children[5]->attr('mode'));
+        $t->same('chapter 2', $children[5]->attr('suffix'));
+        $t->same('source key', $children[7]->attr('id'));
+        $t->same('citation_group', $group->type);
+        $t->same(['source-c', 'source-d'], array_map(static fn (AstNode $node): string => $node->attr('id'), $group->children));
+        $t->same(['normal', 'suppress_author'], array_map(static fn (AstNode $node): string => $node->attr('mode'), $group->children));
+        $t->same('[pre-rendered @explicit-source, p. 9]', (new MarkdownWriter())->write($explicit));
+    },
     'maps upstream markdown writer shortcut reference link boundaries' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $link = static fn (string $url, string $title, string $label): AstNode => new AstNode('link', [
@@ -9899,6 +10200,63 @@ MD;
             $citation('[@author]'),
         ]));
     },
+    'maps upstream markdown writer citation source reconstruction boundaries' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Reviewer sources: '),
+                new AstNode('link', ['url' => '/source-packet'], [$text('source packet')]),
+                $text(' '),
+                new AstNode('citation_group', [], [
+                    new AstNode('citation', [
+                        'id' => 'smith1899',
+                        'prefix' => [$text('see')],
+                        'locator' => [$text('p. 7')],
+                    ]),
+                    new AstNode('citation', [
+                        'id' => 'missing-source',
+                        'mode' => 'suppress_author',
+                        'prefix' => 'compare',
+                        'suffix' => 'appendix B',
+                    ]),
+                ]),
+                $text(' and '),
+                new AstNode('citation', [
+                    'id' => 'doe2020',
+                    'mode' => 'author_in_text',
+                    'suffix' => 'ch. 2',
+                ]),
+                $text(' before rendered '),
+                new AstNode('citation_group', [
+                    'rendered' => '(Smith 1899; Doe 2020)',
+                ], [
+                    new AstNode('citation', ['id' => 'smith1899']),
+                    new AstNode('citation', ['id' => 'doe2020']),
+                ]),
+                $text('.'),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $referenceMarkdown = (new MarkdownWriter(['referenceLinks' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $paragraph = $roundTripped->children[0] ?? new AstNode('missing');
+        $cluster = $paragraph->children[3] ?? new AstNode('missing');
+        $authorInText = $paragraph->children[5] ?? new AstNode('missing');
+
+        $t->same('Reviewer sources: [source packet](/source-packet) [see @smith1899, p. 7; compare -@missing-source, appendix B] and @doe2020, ch. 2 before rendered (Smith 1899; Doe 2020).', $markdown);
+        $t->same(implode("\n", [
+            'Reviewer sources: [source packet][] [see @smith1899, p. 7; compare -@missing-source, appendix B] and @doe2020, ch. 2 before rendered (Smith 1899; Doe 2020).',
+            '',
+            '  [source packet]: /source-packet',
+        ]), $referenceMarkdown);
+        $t->true(!str_contains($markdown, '\\@'), 'Citation source reconstruction should not escape citation markers as ordinary text');
+        $t->same('citation_group', $cluster->type);
+        $t->same(['smith1899', 'missing-source'], array_map(static fn (AstNode $node): string => (string) $node->attr('id'), $cluster->children));
+        $t->same('suppress_author', $cluster->children[1]->attr('mode'));
+        $t->same('citation', $authorInText->type);
+        $t->same('doe2020', $authorInText->attr('id'));
+    },
     'maps upstream markdown writer inline escaping and generated reference labels' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $link = static fn (string $url, string $label): AstNode => new AstNode('link', [
@@ -9958,6 +10316,41 @@ MD;
             'Source packet: <https://example.test/review?post=42> and <editor@example.test> plus [packet link](https://example.test/packet "Packet \\"review\\""){#packet .source-link .handoff data-source="batch-42" title="Packet \\"audit\\""}',
             (new MarkdownWriter())->write($document)
         );
+    },
+    'maps upstream markdown writer titled url labels without autolink metadata loss' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Titled source: '),
+                new AstNode('link', [
+                    'url' => 'https://example.test/source?post=42',
+                    'title' => 'Source "review"',
+                ], [$text('https://example.test/source?post=42')]),
+                $text(' and titleless '),
+                new AstNode('link', [
+                    'url' => 'https://example.test/plain',
+                    'classes' => ['uri'],
+                ], [$text('https://example.test/plain')]),
+                $text('.'),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $referenceMarkdown = (new MarkdownWriter(['referenceLinks' => true]))->write($document);
+        $roundTrip = (new MarkdownReader())->read($markdown);
+        $titled = $roundTrip->children[0]->children[1] ?? new AstNode('missing');
+        $autolink = $roundTrip->children[0]->children[3] ?? new AstNode('missing');
+
+        $t->same('Titled source: [https://example.test/source?post=42](https://example.test/source?post=42 "Source \"review\"") and titleless <https://example.test/plain>.', $markdown);
+        $t->true(!str_contains($markdown, '<https://example.test/source?post=42>'), 'Titled URL-shaped links should not use title-dropping autolink syntax');
+        $t->same(implode("\n", [
+            'Titled source: [https://example.test/source?post=42] and titleless <https://example.test/plain>.',
+            '',
+            '  [https://example.test/source?post=42]: https://example.test/source?post=42 "Source \"review\""',
+        ]), $referenceMarkdown);
+        $t->same('https://example.test/source?post=42', $titled->attr('url'));
+        $t->same('Source "review"', $titled->attr('title'));
+        $t->same('https://example.test/plain', $autolink->attr('url'));
     },
     'maps upstream markdown writer spaced link destinations with angle brackets' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
@@ -10313,6 +10706,35 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer generic html raw block boundaries' => static function (TestRunner $t): void {
+        $section = '<section data-review="html-node">'
+            . "\n" . '<p>Keep <strong>HTML</strong>.</p>'
+            . "\n" . '</section>';
+        $aside = '<aside data-review="generic-html">Keep generic HTML.</aside>';
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Before raw HTML handoff.']),
+            ]),
+            new AstNode('raw_html', ['html' => $section]),
+            new AstNode('raw_block', ['format' => 'html5', 'html' => $aside]),
+            new AstNode('raw_block', ['format' => 'opml', 'text' => '<outline text="drop"/>']),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'After raw HTML handoff.']),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(implode("\n\n", [
+            'Before raw HTML handoff.',
+            $section,
+            $aside,
+            'After raw HTML handoff.',
+        ]), $markdown);
+        $t->contains($section, $markdown);
+        $t->contains($aside, $markdown);
+        $t->true(!str_contains($markdown, '<outline'), 'Unsupported raw block formats stay disabled in Markdown output');
+    },
     'maps upstream markdown raw attribute code spans and fenced blocks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             'Raw attributes: `**kept**`{=markdown} and `<span>drop</span>`{=html}.',
@@ -10363,6 +10785,8 @@ MD;
                 new AstNode('text', ['text' => ', ']),
                 new AstNode('raw_inline', ['format' => 'markdown_mmd', 'text' => '[mmd][source]']),
                 new AstNode('text', ['text' => ', ']),
+                new AstNode('raw_inline', ['format' => 'markdown_github', 'text' => '~~github~~']),
+                new AstNode('text', ['text' => ', ']),
                 new AstNode('raw_inline', ['format' => 'commonmark_x', 'text' => '~~gfm extension~~']),
                 new AstNode('text', ['text' => ', and ']),
                 new AstNode('raw_inline', ['format' => 'markdown+tex_math_dollars', 'text' => '$raw$']),
@@ -10377,6 +10801,7 @@ MD;
             new AstNode('raw_block', ['format' => 'markdown_strict', 'text' => '> strict raw handoff']),
             new AstNode('raw_block', ['format' => 'markdown_phpextra', 'text' => '::: {.php-extra-review}' . "\n" . 'extra raw handoff' . "\n" . ':::']),
             new AstNode('raw_block', ['format' => 'markdown_mmd', 'text' => '[source]: https://example.test/source']),
+            new AstNode('raw_block', ['format' => 'markdown_github', 'text' => '- [ ] github raw task']),
             new AstNode('raw_block', ['format' => 'commonmark_x', 'text' => '~~extension raw handoff~~']),
             new AstNode('raw_block', ['format' => 'markdown+pipe_tables', 'text' => '| raw | table |' . "\n" . '| --- | --- |']),
             new AstNode('raw_block', ['format' => 'commonmark_x-smart', 'text' => 'raw -- block']),
@@ -10385,12 +10810,13 @@ MD;
         ]);
 
         $t->same(
-            'Markdown family raw inlines: *strict*, [extra]{.review}, [mmd][source], ~~gfm extension~~, and $raw$, raw -- dash, | raw |, and <span>drop</span>.'
+            'Markdown family raw inlines: *strict*, [extra]{.review}, [mmd][source], ~~github~~, ~~gfm extension~~, and $raw$, raw -- dash, | raw |, and <span>drop</span>.'
                 . "\n\n" . '> strict raw handoff'
                 . "\n\n" . '::: {.php-extra-review}'
                 . "\n" . 'extra raw handoff'
                 . "\n" . ':::'
                 . "\n\n" . '[source]: https://example.test/source'
+                . "\n\n" . '- [ ] github raw task'
                 . "\n\n" . '~~extension raw handoff~~'
                 . "\n\n" . '| raw | table |'
                 . "\n" . '| --- | --- |'
@@ -10627,6 +11053,50 @@ MD;
             '',
             '    plain legacy snippet',
         ]), (new MarkdownWriter())->write($document));
+    },
+    'maps upstream markdown writer tilde fenced code block option' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', [
+                'text' => "wp eval '`tick` fixture'\n``` nested backtick fence",
+                'classes' => ['bash'],
+            ]),
+            new AstNode('code_block', [
+                'text' => 'plain fixture with ~~~ existing tilde run',
+                'classes' => ['text'],
+            ]),
+        ]);
+
+        $defaultMarkdown = (new MarkdownWriter())->write($document);
+        $tildeMarkdown = (new MarkdownWriter(['fencedCodeBlockStyle' => 'tilde']))->write($document);
+
+        $t->same(implode("\n\n", [
+            implode("\n", [
+                '````{.bash}',
+                "wp eval '`tick` fixture'",
+                '``` nested backtick fence',
+                '````',
+            ]),
+            implode("\n", [
+                '```{.text}',
+                'plain fixture with ~~~ existing tilde run',
+                '```',
+            ]),
+        ]), $defaultMarkdown);
+        $t->same(implode("\n\n", [
+            implode("\n", [
+                '~~~{.bash}',
+                "wp eval '`tick` fixture'",
+                '``` nested backtick fence',
+                '~~~',
+            ]),
+            implode("\n", [
+                '~~~~{.text}',
+                'plain fixture with ~~~ existing tilde run',
+                '~~~~',
+            ]),
+        ]), $tildeMarkdown);
+        $t->contains('``` nested backtick fence', $tildeMarkdown);
+        $t->true(!str_contains($tildeMarkdown, '````{.bash}'), 'Tilde fence mode should not lengthen backtick fences for backtick-only code text');
     },
     'maps upstream markdown writer code span backtick delimiters' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
@@ -11014,6 +11484,54 @@ MD;
             ]),
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer table caption block payloads' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $document = new AstNode('document', [], [
+            new AstNode('table', [
+                'captionBlocks' => [
+                    new AstNode('paragraph', [], [
+                        $text('Detailed '),
+                        new AstNode('emph', [], [$text('caption')]),
+                    ]),
+                    new AstNode('code_block', ['text' => 'wp option get source']),
+                ],
+                'shortCaptionBlocks' => [
+                    new AstNode('plain', [], [
+                        $text('Review '),
+                        new AstNode('strong', [], [$text('queue')]),
+                    ]),
+                ],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', ['header' => true], [
+                        new AstNode('table_cell', [], [$text('Item')]),
+                    ]),
+                ]),
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [$text('media')]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(implode("\n", [
+            '| Item  |',
+            '|-----|',
+            '| media |',
+            '',
+            ': [Review **queue**] Detailed *caption*<br />wp option get source',
+        ]), $markdown);
+        $t->contains(': [Review **queue**] Detailed *caption*<br />wp option get source', $markdown);
+        $t->same(1, substr_count($markdown, ': [Review **queue**]'));
+        $t->same(1, substr_count($markdown, '<br />'));
+        $t->same(false, str_contains($markdown, '    wp option get source'));
+        $t->same(false, str_contains($markdown, "Detailed *caption*\n"));
+        $t->same(false, str_contains($markdown, '[Review **queue**] ' . "\n"));
+        $t->same(false, str_contains($markdown, '[Review **queue**] wp option get source'));
+    },
     'maps upstream markdown writer angle wrapped destinations for spaces and parentheses' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $document = new AstNode('document', [], [
@@ -11090,6 +11608,61 @@ MD;
             '    > orange block quote',
             '',
         ]), (new MarkdownWriter())->write($document));
+    },
+    'maps upstream markdown writer definition list section reference boundaries' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
+        $heading = static fn (string $value): AstNode => new AstNode('heading', [
+            'level' => 2,
+        ], [$text($value)]);
+        $note = static fn (string $value): AstNode => new AstNode('note', [], [
+            $paragraph([$text($value)]),
+        ]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('definition_list', [], [
+                new AstNode('definition_item', [], [
+                    new AstNode('term', [], [$text('Source packet')]),
+                    new AstNode('definition', [], [
+                        $heading('Review entry'),
+                        $paragraph([
+                            $text('Definition note'),
+                            $note('Keep note in the first section.'),
+                            $text(' with '),
+                            new AstNode('link', [
+                                'url' => '/audit',
+                                'title' => '',
+                            ], [$text('audit link')]),
+                            $text('.'),
+                        ]),
+                        $heading('Follow up'),
+                        $paragraph([$text('Second section stays after local definitions.')]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter([
+            'referenceLinks' => true,
+            'referenceLocation' => 'end_of_section',
+        ]))->write($document);
+
+        $t->same(implode("\n", [
+            'Source packet',
+            ':   ## Review entry',
+            '',
+            '    Definition note[^1] with [audit link].',
+            '',
+            '    [^1]: Keep note in the first section.',
+            '',
+            '      [audit link]: /audit',
+            '',
+            '    ## Follow up',
+            '',
+            '    Second section stays after local definitions.',
+        ]), $markdown);
+        $t->true(strpos($markdown, '[^1]:') < strpos($markdown, '## Follow up'), 'Definition-list section notes should flush before the next nested heading');
+        $t->true(strpos($markdown, '[audit link]:') < strpos($markdown, '## Follow up'), 'Definition-list section references should flush before the next nested heading');
     },
     'maps upstream markdown writer alternate definition markers to canonical colon output' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -11264,6 +11837,139 @@ MD;
         $t->same("- foo\n  - bar\n- baz", $writer->write($tightSublist));
         $t->same('*f **d*** l', $writer->write($emphStrongSpacing));
     },
+    'maps upstream markdown writer nested block collection list separators' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('blockquote', [], [
+                new AstNode('ordered_list', ['start' => 1], [
+                    new AstNode('list_item', [], [
+                        $paragraph('one'),
+                        $paragraph('two'),
+                    ]),
+                ]),
+                new AstNode('code_block', ['text' => 'test']),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '> 1.  one',
+            '>',
+            '>     two',
+            '>',
+            '> <!-- -->',
+            '>',
+            '>     test',
+        ]), (new MarkdownWriter())->write($document));
+    },
+    'maps upstream markdown writer ordered nested continuation indentation' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $writer = new MarkdownWriter();
+        $document = new AstNode('document', [], [
+            new AstNode('ordered_list', [
+                'start' => 8,
+                'style' => 'upper_roman',
+                'delimiter' => 'period',
+            ], [
+                new AstNode('list_item', [], [
+                    $text('Source import'),
+                    new AstNode('bullet_list', [], [
+                        new AstNode('list_item', [], [$text('Nested review')]),
+                    ]),
+                ]),
+                new AstNode('list_item', [], [$text('Follow-up import')]),
+            ]),
+        ]);
+
+        $markdown = $writer->write($document);
+        $roundTrip = (new MarkdownReader())->read($markdown);
+        $list = $roundTrip->children[0];
+        $firstItem = $list->children[0];
+        $nested = $firstItem->children[1];
+
+        $t->same(implode("\n", [
+            'VIII. Source import',
+            '      - Nested review',
+            'IX. Follow-up import',
+        ]), $markdown);
+        $t->same('ordered_list', $list->type);
+        $t->same(8, $list->attr('start'));
+        $t->same('upper_roman', $list->attr('style'));
+        $t->same('Source import', $firstItem->children[0]->attr('text'));
+        $t->same('bullet_list', $nested->type);
+        $t->same('Nested review', $nested->children[0]->children[0]->attr('text'));
+        $t->same('Follow-up import', $list->children[1]->children[0]->attr('text'));
+    },
+    'maps upstream markdown writer nested list separator boundaries' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
+        $bullet = static fn (string $value): AstNode => new AstNode('bullet_list', [], [
+            new AstNode('list_item', [], [$paragraph($value)]),
+        ]);
+        $ordered = static fn (string $value, int $start = 1): AstNode => new AstNode('ordered_list', [
+            'start' => $start,
+            'style' => 'decimal',
+            'delimiter' => 'period',
+        ], [
+            new AstNode('list_item', [], [$paragraph($value)]),
+        ]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('div', ['classes' => ['review-nesting']], [
+                $bullet('first nested bullet'),
+                $bullet('second nested bullet'),
+                $ordered('first nested ordered'),
+                $ordered('second nested ordered', 2),
+                new AstNode('code_block', ['text' => 'literal nested code']),
+            ]),
+            new AstNode('paragraph', [], [
+                $text('Nested note'),
+                new AstNode('note', [], [
+                    $bullet('first note bullet'),
+                    $bullet('second note bullet'),
+                    new AstNode('code_block', ['text' => 'note literal code']),
+                ]),
+                $text('.'),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(implode("\n", [
+            '::: {.review-nesting}',
+            '- first nested bullet',
+            '',
+            '<!-- -->',
+            '',
+            '- second nested bullet',
+            '',
+            '1.  first nested ordered',
+            '',
+            '<!-- -->',
+            '',
+            '2.  second nested ordered',
+            '',
+            '<!-- -->',
+            '',
+            '    literal nested code',
+            ':::',
+            '',
+            'Nested note[^1].',
+            '',
+            '[^1]: - first note bullet',
+            '',
+            '    <!-- -->',
+            '',
+            '    - second note bullet',
+            '',
+            '    <!-- -->',
+            '',
+            '        note literal code',
+        ]), $markdown);
+        $t->same(5, substr_count($markdown, '<!-- -->'));
+        $t->true(strpos($markdown, '<!-- -->') < strpos($markdown, '- second nested bullet'), 'Nested list separator should appear before the second bullet list');
+    },
     'maps upstream markdown reader more indented code at beginning of list items' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             '-     code',
@@ -11328,6 +12034,39 @@ MD;
         $t->same('</button>', $item->children[3]->attr('html'));
         $t->same('with this div too.', $item->children[4]->children[0]->attr('text'));
         $t->contains('<ul><li><div><p>first div breaks</p></div><button>if this button exists</button><div><p>with this div too.</p></div></li></ul>', $blocks);
+    },
+    'maps upstream markdown list item containing generic raw html blocks' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '- <section data-source="commonmark-list">',
+            '    *raw markdown* stays raw.',
+            '  </section>',
+            '',
+            '  <figure data-review="image">',
+            '    <img src="chart.png" alt="Chart">',
+            '    <figcaption>Chart caption</figcaption>',
+            '  </figure>',
+            '- next item',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $list = $document->children[0];
+        $item = $list->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('bullet_list', $list->type);
+        $t->true((bool) $list->attr('loose'));
+        $t->same(2, count($list->children));
+        $t->same(['raw_html', 'raw_html'], array_map(static fn (AstNode $node): string => $node->type, $item->children));
+        $t->contains('<section data-source="commonmark-list">', $item->children[0]->attr('html'));
+        $t->contains('*raw markdown* stays raw.', $item->children[0]->attr('html'));
+        $t->contains('<figure data-review="image">', $item->children[1]->attr('html'));
+        $t->contains('<figcaption>Chart caption</figcaption>', $item->children[1]->attr('html'));
+        $t->same('paragraph', $list->children[1]->children[0]->type);
+        $t->same('next item', $list->children[1]->children[0]->attr('text'));
+        $t->contains('<ul><li><section data-source="commonmark-list">', $blocks);
+        $t->contains('*raw markdown* stays raw.', $blocks);
+        $t->contains('<figure data-review="image">', $blocks);
+        $t->contains('<figcaption>Chart caption</figcaption>', $blocks);
+        $t->true(!str_contains($blocks, '&lt;section'), 'Generic raw HTML blocks in list items should not escape as paragraph text');
     },
     'maps upstream testsuite list continuation lines indented with tabs and spaces' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
@@ -11555,6 +12294,26 @@ MD;
         $t->same('bullet_list', $definition->children[0]->type);
         $t->same('bar', $definition->children[0]->children[0]->children[0]->attr('text'));
     },
+    'maps upstream markdown block quote on definition marker line' => static function (TestRunner $t): void {
+        $markdown = 'Review note' . "\n" . ':   > Quoted **source** immediately.';
+        $document = (new MarkdownReader())->read($markdown);
+        $definition = $document->children[0]->children[0]->children[1];
+        $quote = $definition->children[0];
+        $paragraph = $quote->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('definition_list', $document->children[0]->type);
+        $t->same('Review note', $document->children[0]->children[0]->attr('term'));
+        $t->same('definition', $definition->type);
+        $t->same('blockquote', $quote->type);
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('Quoted ', $paragraph->children[0]->attr('text'));
+        $t->same('source', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same(' immediately.', $paragraph->children[2]->attr('text'));
+        $t->same($markdown, (new MarkdownWriter())->write($document));
+        $t->contains('<dl><dt>Review note</dt><dd><blockquote><p>Quoted <strong>source</strong> immediately.</p></blockquote></dd></dl>', $blocks);
+    },
     'maps upstream markdown definition list inside html div' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("<div>foo\n:   - bar\n</div>");
         $div = $document->children[0];
@@ -11639,6 +12398,40 @@ MD;
         $t->same('blockquote', $quote->type);
         $t->same('paragraph', $quote->children[0]->type);
         $t->same('This is a block quote. It is pretty short.', $quote->children[0]->attr('text'));
+    },
+    'maps upstream markdown lazy blockquote paragraph continuations' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '> # Review Quote',
+            '> Keep **source**',
+            'lazy continuation with [audit](https://example.test/audit).',
+            '> Final marked line.',
+            '',
+            'After quote.',
+        ]));
+        $quote = $document->children[0];
+        $paragraph = $quote->children[1];
+        $outside = $document->children[1];
+        $outsideHeading = (new MarkdownReader())->read("> Quote paragraph\n# Outside heading");
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+        $t->same('blockquote', $quote->type);
+        $t->same(['heading', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $quote->children));
+        $t->same('Review Quote', $quote->children[0]->attr('text'));
+        $t->same('review-quote', $quote->children[0]->attr('id'));
+        $t->same(
+            ['text', 'strong', 'softbreak', 'text', 'link', 'text', 'softbreak', 'text'],
+            array_map(static fn (AstNode $node): string => $node->type, $paragraph->children)
+        );
+        $t->same('source', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same('https://example.test/audit', $paragraph->children[4]->attr('url'));
+        $t->same('Keep source lazy continuation with audit. Final marked line.', $paragraph->attr('text'));
+        $t->same('After quote.', $outside->attr('text'));
+        $t->same(['blockquote', 'heading'], array_map(static fn (AstNode $node): string => $node->type, $outsideHeading->children));
+        $t->contains('<blockquote class="wp-block-quote"><h1 id="review-quote">Review Quote</h1><p>Keep <strong>source</strong>', $blocks);
+        $t->contains('lazy continuation with <a href="https://example.test/audit">audit</a>.', $blocks);
+        $t->contains('Final marked line.</p></blockquote>', $blocks);
+        $t->contains('<p>After quote.</p>', $blocks);
     },
     'maps pandoc markdown alert blockquotes through reader writer and wordpress handoff' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
@@ -13717,6 +14510,37 @@ HTML;
         $t->contains('<h2 id="parsed-after-pre-raw-block">Parsed after pre raw block</h2>', $blocks);
         $t->contains('<p>Tail <strong>paragraph</strong>.</p>', $blocks);
     },
+    'maps commonmark textarea raw html boundaries after paragraphs' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Lead paragraph before textarea.',
+            '<textarea data-source="commonmark-textarea">',
+            'Raw **markdown** stays raw.',
+            '',
+            '# Not a heading inside textarea',
+            '</textarea>',
+            'After **textarea** boundary.',
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Lead paragraph before textarea.', $document->children[0]->attr('text'));
+        $t->same('raw_html', $document->children[1]->type);
+        $t->same(
+            '<textarea data-source="commonmark-textarea">' . "\n"
+                . 'Raw **markdown** stays raw.' . "\n\n"
+                . '# Not a heading inside textarea' . "\n"
+                . '</textarea>',
+            $document->children[1]->attr('html')
+        );
+        $t->same('paragraph', $document->children[2]->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $document->children[2]->children));
+        $t->contains('<p>Lead paragraph before textarea.</p>', $blocks);
+        $t->contains('<!-- wp:html -->' . "\n" . '<textarea data-source="commonmark-textarea">' . "\n" . 'Raw **markdown** stays raw.', $blocks);
+        $t->contains('# Not a heading inside textarea' . "\n" . '</textarea>', $blocks);
+        $t->contains('<p>After <strong>textarea</strong> boundary.</p>', $blocks);
+        $t->true(!str_contains($blocks, '<h1 id="not-a-heading-inside-textarea">'), 'Textarea body should stay raw HTML instead of parsed Markdown');
+    },
     'maps commonmark source raw html blocks to blank-line boundaries' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '<source src="review.webm" type="video/webm">',
@@ -14147,6 +14971,50 @@ HTML;
         $t->same('batch', $captionInlines[4]->attr('text'));
         $t->contains("1987\u{2013}1999.", $captionInlines[5]->attr('text'));
         $t->contains('<figcaption class="wp-element-caption"><strong>Migration</strong> <a href="https://example.test/audit" title="Audit">audit</a> uses <code>batch</code> 1987–1999.</figcaption>', $blocks);
+    },
+    'maps upstream markdown leading table captions before pipe and simple tables' => static function (TestRunner $t): void {
+        $pipeDocument = (new MarkdownReader())->read(implode("\n", [
+            'Table: **Migration** [audit](https://example.test/audit "Audit")',
+            '  for `wp_posts` imports',
+            '',
+            '| Source | Count |',
+            '|:-------|------:|',
+            '| post   | 42    |',
+        ]));
+        $simpleDocument = (new MarkdownReader())->read(implode("\n", [
+            ': Simple leading caption.',
+            '',
+            '    Right Left',
+            '  ------- ------',
+            '       12 12',
+        ]));
+        $pipeTable = $pipeDocument->children[0];
+        $pipeCaptionInlines = $pipeTable->attr('captionInlines');
+        $simpleTable = $simpleDocument->children[0];
+        $pipeBlocks = (new WordPressBlockWriter())->write($pipeDocument);
+        $simpleBlocks = (new WordPressBlockWriter())->write($simpleDocument);
+
+        $t->same(1, count($pipeDocument->children));
+        $t->same('table', $pipeTable->type);
+        $t->same('**Migration** [audit](https://example.test/audit "Audit")' . "\n" . 'for `wp_posts` imports', $pipeTable->attr('caption'));
+        $t->same(['left', 'right'], $pipeTable->attr('alignments'));
+        $t->same('Source', $pipeTable->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('42', $pipeTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same(true, is_array($pipeCaptionInlines));
+        $t->same('strong', $pipeCaptionInlines[0]->type);
+        $t->same('Migration', $pipeCaptionInlines[0]->children[0]->attr('text'));
+        $t->same('link', $pipeCaptionInlines[2]->type);
+        $t->same('https://example.test/audit', $pipeCaptionInlines[2]->attr('url'));
+        $t->same('Audit', $pipeCaptionInlines[2]->attr('title'));
+        $t->same('code', $pipeCaptionInlines[5]->type);
+        $t->same('wp_posts', $pipeCaptionInlines[5]->attr('text'));
+        $t->same(1, count($simpleDocument->children));
+        $t->same('table', $simpleTable->type);
+        $t->same('Simple leading caption.', $simpleTable->attr('caption'));
+        $t->same('Right', $simpleTable->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('12', $simpleTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->contains('<figcaption class="wp-element-caption"><strong>Migration</strong> <a href="https://example.test/audit" title="Audit">audit</a>' . "\n" . 'for <code>wp_posts</code> imports</figcaption>', $pipeBlocks);
+        $t->contains('<figcaption class="wp-element-caption">Simple leading caption.</figcaption>', $simpleBlocks);
     },
     'maps upstream command short caption latex table shape' => static function (TestRunner $t): void {
         $latex = <<<'LATEX'

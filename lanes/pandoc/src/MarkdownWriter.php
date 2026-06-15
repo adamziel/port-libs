@@ -44,7 +44,7 @@ final class MarkdownWriter
     private int $lastReferenceIndex = 0;
 
     /**
-     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool} $options
+     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, fencedCodeBlockStyle?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -1129,7 +1129,7 @@ final class MarkdownWriter
      */
     private function renderDefinitionBody(AstNode $definition, int $indent): array
     {
-        $body = $this->renderBlockCollection($definition->children);
+        $body = $this->renderBlockCollection($definition->children, true);
         $markerPrefix = str_repeat(' ', $indent) . ':   ';
         $continuationPrefix = str_repeat(' ', $indent + 4);
 
@@ -1160,6 +1160,7 @@ final class MarkdownWriter
         $lines = [];
         $start = (int) $node->attr('start', 1);
         $index = 0;
+        $listLoose = (bool) $node->attr('loose', false);
 
         foreach ($node->children as $item) {
             if ($item->type !== 'list_item') {
@@ -1178,6 +1179,10 @@ final class MarkdownWriter
             }
 
             $marker = $ordered ? $this->orderedListMarker($node, $start + $index) : $this->bulletListMarker();
+            $itemLoose = $listLoose || (bool) $item->attr('loose', false);
+            if ($itemLoose && $lines !== [] && end($lines) !== '') {
+                $lines[] = '';
+            }
             array_push($lines, ...$this->renderListItem($item, $marker, $indent));
             $index++;
         }
@@ -1280,6 +1285,7 @@ final class MarkdownWriter
     {
         $prefix = str_repeat(' ', $indent) . $marker;
         $continuationIndent = $indent + strlen($marker);
+        $blockIndent = $continuationIndent;
         $task = $item->attr('taskChecked', null);
         if (is_bool($task)) {
             $prefix .= $task ? '[x] ' : '[ ] ';
@@ -1323,7 +1329,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            foreach ($this->renderBlock($child, $indent + 2) as $nestedLine) {
+            foreach ($this->renderBlock($child, $blockIndent) as $nestedLine) {
                 $lines[] = $nestedLine;
             }
         }
@@ -1750,7 +1756,9 @@ final class MarkdownWriter
     {
         $prefix = str_repeat(' ', $indent);
         $text = (string) $node->attr('text', '');
-        $fence = str_repeat('`', max(3, $this->longestBacktickRun($text) + 1));
+        $fenceChar = (string) ($this->options['fencedCodeBlockStyle'] ?? 'backtick') === 'tilde' ? '~' : '`';
+        $longestRun = $fenceChar === '~' ? $this->longestTildeRun($text) : $this->longestBacktickRun($text);
+        $fence = str_repeat($fenceChar, max(3, $longestRun + 1));
 
         return [
             $prefix . $fence . $attrs,
@@ -1860,8 +1868,8 @@ final class MarkdownWriter
             'link' => $this->renderLink($node, $following),
             'image' => $this->renderImage($node, $following),
             'math' => $this->renderMath($node),
-            'citation' => (string) $node->attr('rendered', $node->attr('text', $this->renderInlines($node->children))),
-            'citation_group' => (string) $node->attr('rendered', $node->attr('text', $this->renderInlines($node->children))),
+            'citation' => $this->renderCitation($node),
+            'citation_group' => $this->renderCitationGroup($node),
             'raw_tex', 'raw_inline', 'raw_markdown', 'raw_html_inline' => $this->renderRawInline($node),
             'note' => $this->renderNoteReference($node),
             default => $this->renderInlines($node->children),
@@ -1975,6 +1983,135 @@ final class MarkdownWriter
         $this->noteUsedLabels[strtolower($candidate)] = true;
 
         return $candidate;
+    }
+
+    private function renderCitation(AstNode $node): string
+    {
+        $explicit = $this->explicitCitationMarkdown($node);
+        if ($explicit !== null) {
+            return $explicit;
+        }
+
+        if (
+            (string) $node->attr('mode', 'normal') === 'author_in_text'
+            && $this->citationAffixMarkdown($node, 'prefix') === ''
+        ) {
+            $suffix = $this->citationSuffixMarkdown($node);
+            $token = '@' . $this->citationIdentifierMarkdown((string) $node->attr('id', ''));
+
+            if ($suffix === '') {
+                return $token;
+            }
+
+            if ($this->isSourceStyleCitationSuffix($suffix)) {
+                return $token . ', ' . $suffix;
+            }
+
+            return $token . ' [' . $suffix . ']';
+        }
+
+        return '[' . $this->citationItemMarkdown($node) . ']';
+    }
+
+    private function renderCitationGroup(AstNode $node): string
+    {
+        $explicit = $this->explicitCitationMarkdown($node);
+        if ($explicit !== null) {
+            return $explicit;
+        }
+
+        $citations = $this->citationGroupChildren($node);
+        if ($citations === []) {
+            return '';
+        }
+
+        return '[' . implode('; ', array_map(fn (AstNode $citation): string => $this->citationItemMarkdown($citation), $citations)) . ']';
+    }
+
+    private function explicitCitationMarkdown(AstNode $node): ?string
+    {
+        foreach (['rendered', 'text'] as $name) {
+            $value = $node->attr($name);
+            if (is_scalar($value) && (string) $value !== '') {
+                return (string) $value;
+            }
+        }
+
+        $sourceInlines = $node->attr('citationSourceInlines', []);
+        if (is_array($sourceInlines) && $sourceInlines !== [] && $this->allAstNodes(array_values($sourceInlines))) {
+            $source = $this->plainInlineText(array_values($sourceInlines));
+
+            return $source === '' ? null : $source;
+        }
+
+        if ($node->type === 'citation' && $node->children !== [] && $this->allAstNodes($node->children)) {
+            $source = $this->plainInlineText($node->children);
+
+            return $source === '' ? null : $source;
+        }
+
+        return null;
+    }
+
+    private function citationItemMarkdown(AstNode $citation): string
+    {
+        $prefix = $this->citationAffixMarkdown($citation, 'prefix');
+        $token = ((string) $citation->attr('mode', 'normal') === 'suppress_author' ? '-@' : '@')
+            . $this->citationIdentifierMarkdown((string) $citation->attr('id', ''));
+        $suffix = $this->citationSuffixMarkdown($citation);
+        $markdown = $prefix === '' ? $token : $prefix . ' ' . $token;
+
+        return $suffix === '' ? $markdown : $markdown . ', ' . $suffix;
+    }
+
+    private function citationIdentifierMarkdown(string $id): string
+    {
+        if (preg_match('/\A[A-Za-z0-9_](?:[A-Za-z0-9_]|[:.#\/$%&+?<>~|-](?=[A-Za-z0-9_]))*\z/u', $id) === 1) {
+            return $id;
+        }
+
+        return '{' . str_replace(['\\', '}'], ['\\\\', '\\}'], $id) . '}';
+    }
+
+    private function citationSuffixMarkdown(AstNode $citation): string
+    {
+        $suffix = $this->citationAffixMarkdown($citation, 'suffix');
+
+        return $suffix === '' ? $this->citationAffixMarkdown($citation, 'locator') : $suffix;
+    }
+
+    private function isSourceStyleCitationSuffix(string $suffix): bool
+    {
+        return preg_match('/\\A(?:p{1,2}|ch|sec|fig)\\.\\s/u', $suffix) === 1;
+    }
+
+    private function citationAffixMarkdown(AstNode $citation, string $name): string
+    {
+        $value = $citation->attr($name, '');
+        if (is_array($value) && $this->allAstNodes(array_values($value))) {
+            return $this->renderInlines(array_values($value));
+        }
+
+        if ($value instanceof AstNode) {
+            return $this->renderInline($value);
+        }
+
+        if (!is_scalar($value)) {
+            return '';
+        }
+
+        return $this->escapeText(trim((string) $value));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationGroupChildren(AstNode $node): array
+    {
+        return array_values(array_filter(
+            $node->children,
+            static fn (AstNode $child): bool => $child->type === 'citation'
+        ));
     }
 
     private function renderCode(AstNode $node): string
@@ -2198,6 +2335,7 @@ final class MarkdownWriter
             'markdown',
             'markdown_strict',
             'markdown_phpextra',
+            'markdown_github',
             'markdown_mmd',
             'pandoc',
             'commonmark',
@@ -2207,6 +2345,7 @@ final class MarkdownWriter
             'markdown',
             'markdown_strict',
             'markdown_phpextra',
+            'markdown_github',
             'markdown_mmd',
             'pandoc',
             'commonmark',
@@ -2494,6 +2633,15 @@ final class MarkdownWriter
         return max(array_map('strlen', $matches[0]));
     }
 
+    private function longestTildeRun(string $text): int
+    {
+        if (preg_match_all('/~+/', $text, $matches) < 1) {
+            return 0;
+        }
+
+        return max(array_map('strlen', $matches[0]));
+    }
+
     private function startsWithAtxHeadingMarker(string $text): bool
     {
         $offset = strspn($text, '#');
@@ -2550,15 +2698,21 @@ final class MarkdownWriter
     private function renderBlockCollection(array $nodes, bool $sectionBoundaries = false): string
     {
         $blocks = [];
+        $previous = null;
         foreach ($nodes as $node) {
             if ($sectionBoundaries && $this->referenceLocation() === 'end_of_section' && $node->type === 'heading' && $blocks !== []) {
                 $this->appendPendingDefinitions($blocks);
+            }
+
+            if ($previous instanceof AstNode && $this->needsListSeparator($previous, $node)) {
+                $blocks[] = '<!-- -->';
             }
 
             $lines = $this->renderBlock($node, 0);
             if ($lines !== []) {
                 $blocks[] = implode("\n", $lines);
             }
+            $previous = $node;
         }
 
         if ($sectionBoundaries && $this->referenceLocation() === 'end_of_section') {
@@ -2662,7 +2816,7 @@ final class MarkdownWriter
     private function canRenderAutolink(AstNode $node): bool
     {
         $url = (string) $node->attr('url', '');
-        if (!$this->isUriLike($url)) {
+        if (!$this->isUriLike($url) || (string) $node->attr('title', '') !== '') {
             return false;
         }
 

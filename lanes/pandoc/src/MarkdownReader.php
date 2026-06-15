@@ -284,6 +284,11 @@ final class MarkdownReader
                 $blocks[] = $rawTexBlock;
                 continue;
             }
+            $tableWithLeadingCaption = $paragraph === [] && $listStack === [] ? $this->tryReadTableWithLeadingCaption($lines, $index) : null;
+            if ($tableWithLeadingCaption !== null) {
+                $blocks[] = $tableWithLeadingCaption;
+                continue;
+            }
             $gridTable = $this->tryReadGridTable($lines, $index);
             if ($gridTable !== null) {
                 $this->flushParagraph($paragraph, $blocks);
@@ -7420,10 +7425,13 @@ final class MarkdownReader
                 [$targetSource, $nextIndex] = $this->collectReferenceDefinitionTarget($lines, $index, $reference['content']);
                 $target = $this->parseLinkDestinationAndTitle($targetSource);
                 if ($target !== null) {
-                    $references[$this->normalizeReferenceLabel($reference['label'])] = [
-                        'url' => $target['url'],
-                        'title' => $target['title'],
-                    ];
+                    $label = $this->normalizeReferenceLabel($reference['label']);
+                    if (!isset($references[$label])) {
+                        $references[$label] = [
+                            'url' => $target['url'],
+                            'title' => $target['title'],
+                        ];
+                    }
                     $index = $nextIndex - 1;
                     continue;
                 }
@@ -7834,7 +7842,7 @@ final class MarkdownReader
 
         $text = $this->stripClosingAtxHeadingFence(trim($m[2]));
 
-        return $this->buildMarkdownHeading(strlen($m[1]), $text);
+        return $this->buildMarkdownHeading(strlen($m[1]), $text, true);
     }
 
     /**
@@ -7873,7 +7881,7 @@ final class MarkdownReader
     /**
      * @return array{level:int, text:string, id?:string, classes:list<string>, attributes:array<string, string>}
      */
-    private function buildMarkdownHeading(int $level, string $text): array
+    private function buildMarkdownHeading(int $level, string $text, bool $stripClosingAtxFence = false): array
     {
         $id = null;
         $classes = [];
@@ -7882,6 +7890,9 @@ final class MarkdownReader
         if (preg_match('/^(.*?)[ \t]*\{([^{}]+)\}[ \t]*$/', $text, $attrs) === 1) {
             $text = rtrim($attrs[1]);
             [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($attrs[2]);
+            if ($stripClosingAtxFence) {
+                $text = $this->stripClosingAtxHeadingFence($text);
+            }
         }
 
         $heading = [
@@ -8363,8 +8374,18 @@ final class MarkdownReader
         $content = [];
         $cursor = $index;
         $count = count($lines);
-        while ($cursor < $count && $this->isBlockQuoteLine($lines[$cursor])) {
-            $content[] = $this->stripBlockQuoteMarker($lines[$cursor]);
+        while ($cursor < $count) {
+            if ($this->isBlockQuoteLine($lines[$cursor])) {
+                $content[] = $this->stripBlockQuoteMarker($lines[$cursor]);
+                $cursor++;
+                continue;
+            }
+
+            if (!$this->isLazyBlockQuoteContinuationLine($lines, $cursor, $content)) {
+                break;
+            }
+
+            $content[] = $lines[$cursor];
             $cursor++;
         }
 
@@ -8631,7 +8652,27 @@ final class MarkdownReader
             $cursor++;
         }
 
+        if ($this->divBlockContentIsBlank($content)) {
+            $index = max($openingIndex, $count - 1);
+
+            return new AstNode('div');
+        }
+
         return null;
+    }
+
+    /**
+     * @param list<string> $content
+     */
+    private function divBlockContentIsBlank(array $content): bool
+    {
+        foreach ($content as $line) {
+            if (trim($line) !== '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -8702,7 +8743,7 @@ final class MarkdownReader
             return $this->readRawHtmlUntilMarker($lines, $index, ']]>');
         }
 
-        if (preg_match('~^ {0,3}<(script|pre|style)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $line, $m) === 1) {
+        if (preg_match('~^ {0,3}<(script|pre|style|textarea)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
@@ -14380,13 +14421,7 @@ final class MarkdownReader
             $captionCursor++;
         }
 
-        $captionLine = null;
-        if ($captionCursor < $count && preg_match('/^ {0,3}:\s*(.*)$/', $lines[$captionCursor], $m) === 1) {
-            $captionLine = $m[1];
-        } elseif ($captionCursor < $count && preg_match('/^ {0,3}(?:Table|Caption):\s*(.*)$/i', $lines[$captionCursor], $m) === 1) {
-            $captionLine = $m[1];
-        }
-
+        $captionLine = $captionCursor < $count ? $this->matchTableCaptionLine($lines[$captionCursor]) : null;
         if ($captionLine !== null) {
             $caption = [trim($captionLine)];
             $next = $captionCursor + 1;
@@ -14405,6 +14440,101 @@ final class MarkdownReader
         }
 
         return ['', $cursor];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadTableWithLeadingCaption(array $lines, int &$index): ?AstNode
+    {
+        $caption = $this->readLeadingTableCaption($lines, $index);
+        if ($caption === null) {
+            return null;
+        }
+
+        $tableIndex = $caption['tableStart'];
+        $table = $this->tryReadGridTable($lines, $tableIndex);
+        if ($table === null) {
+            $tableIndex = $caption['tableStart'];
+            $table = $this->tryReadSimpleTable($lines, $tableIndex);
+        }
+        if ($table === null) {
+            $tableIndex = $caption['tableStart'];
+            $table = $this->tryReadPipeTable($lines, $tableIndex);
+        }
+        if ($table === null) {
+            return null;
+        }
+
+        $index = $tableIndex;
+
+        return $this->tableWithCaption($table, $caption['caption']);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{caption:string, tableStart:int}|null
+     */
+    private function readLeadingTableCaption(array $lines, int $index): ?array
+    {
+        $captionLine = $this->matchTableCaptionLine($lines[$index] ?? '');
+        if ($captionLine === null) {
+            return null;
+        }
+
+        $caption = [trim($captionLine)];
+        $cursor = $index + 1;
+        $count = count($lines);
+        while (
+            $cursor < $count
+            && trim($lines[$cursor]) !== ''
+            && $this->countIndentColumns($lines[$cursor]) >= 2
+            && $this->parseSimpleTableDelimiter($lines[$cursor]) === null
+            && !$this->isSimpleTableBoundary($lines[$cursor])
+        ) {
+            $caption[] = trim($lines[$cursor]);
+            $cursor++;
+        }
+
+        while ($cursor < $count && trim($lines[$cursor]) === '') {
+            $cursor++;
+        }
+
+        if ($cursor >= $count) {
+            return null;
+        }
+
+        return [
+            'caption' => implode("\n", $caption),
+            'tableStart' => $cursor,
+        ];
+    }
+
+    private function matchTableCaptionLine(string $line): ?string
+    {
+        if (preg_match('/^ {0,3}(?:(?:Table|Caption):|:)\s*(.*)$/iu', $line, $m) !== 1) {
+            return null;
+        }
+
+        return $m[1];
+    }
+
+    private function tableWithCaption(AstNode $table, string $caption): AstNode
+    {
+        if ($table->type !== 'table') {
+            return $table;
+        }
+
+        $attrs = array_replace($table->attrs, [
+            'caption' => $caption,
+        ]);
+        if ($caption !== '') {
+            $attrs['captionInlines'] = $this->parseInlines($caption);
+        } else {
+            unset($attrs['captionInlines']);
+        }
+
+        return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $table->children));
     }
 
     /**
@@ -14864,7 +14994,7 @@ final class MarkdownReader
             return true;
         }
 
-        if (preg_match('~^ {0,3}<(script|pre|style)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $expanded) === 1) {
+        if (preg_match('~^ {0,3}<(script|pre|style|textarea)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $expanded) === 1) {
             return true;
         }
 
@@ -14997,6 +15127,61 @@ final class MarkdownReader
     private function isBlockQuoteLine(string $line): bool
     {
         return preg_match('/^ {0,3}>/', $line) === 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<string> $content
+     */
+    private function isLazyBlockQuoteContinuationLine(array $lines, int $index, array $content): bool
+    {
+        $line = $lines[$index] ?? '';
+        if (trim($line) === '') {
+            return false;
+        }
+
+        $previous = $this->lastNonBlankBlockQuoteContentLine($content);
+        if ($previous === null || !$this->canLineContinueBlockQuoteParagraphLazily($previous)) {
+            return false;
+        }
+
+        return $this->canLineContinueBlockQuoteParagraphLazily($line);
+    }
+
+    /**
+     * @param list<string> $content
+     */
+    private function lastNonBlankBlockQuoteContentLine(array $content): ?string
+    {
+        for ($index = count($content) - 1; $index >= 0; $index--) {
+            if (trim($content[$index]) !== '') {
+                return $content[$index];
+            }
+        }
+
+        return null;
+    }
+
+    private function canLineContinueBlockQuoteParagraphLazily(string $line): bool
+    {
+        $expanded = $this->expandTabsToSpaces($line);
+        if (trim($expanded) === '' || $this->countIndentColumns($expanded) >= 4) {
+            return false;
+        }
+
+        if (
+            preg_match('/^ {0,3}(?:#{1,6}\s+|`{3,}|~{3,}|:{3,})/', $expanded) === 1
+            || preg_match('/^ {0,3}(?:<!--|<\?|<!|<\/?[A-Za-z])/', $expanded) === 1
+            || preg_match('/^ {0,3}[:~]\s+/', $expanded) === 1
+            || preg_match('/^ {0,3}\|/', $expanded) === 1
+            || $this->isHorizontalRule($expanded)
+        ) {
+            return false;
+        }
+
+        $marker = $this->matchListMarker($expanded);
+
+        return $marker === null || $marker['indent'] > 3;
     }
 
     private function stripBlockQuoteMarker(string $line): string
@@ -15294,7 +15479,10 @@ final class MarkdownReader
 
     private function isListItemBlockHtmlStart(string $text): bool
     {
-        return preg_match('/^<(?:div|button)(?:\s+[^>]*)?>/i', $text) === 1;
+        $lines = [$text];
+        $index = 0;
+
+        return $this->tryReadRawHtmlBlock($lines, $index) !== null;
     }
 
     /**
@@ -15785,21 +15973,7 @@ final class MarkdownReader
 
         if (str_starts_with($info, '{') && str_ends_with($info, '}')) {
             $inside = trim(substr($info, 1, -1));
-            $tokens = preg_split('/\s+/', $inside, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-            foreach ($tokens as $token) {
-                if (str_starts_with($token, '.')) {
-                    $classes[] = substr($token, 1);
-                    continue;
-                }
-                if (str_starts_with($token, '#')) {
-                    $id = substr($token, 1);
-                    continue;
-                }
-                if (str_contains($token, '=')) {
-                    [$name, $value] = explode('=', $token, 2);
-                    $attributes[$name] = trim($value, "\"'");
-                }
-            }
+            [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($inside);
         } else {
             $tokens = preg_split('/\s+/', $info, -1, PREG_SPLIT_NO_EMPTY) ?: [];
             if ($tokens !== []) {
@@ -16099,7 +16273,7 @@ final class MarkdownReader
             return [];
         }
 
-        if (preg_match('/^(?:[-*+]|\d{1,9}[.)]|#\.)\s+/', $content) === 1) {
+        if (preg_match('/^(?:[-*+]|\d{1,9}[.)]|#\.|>)\s+/', $content) === 1) {
             return $this->read($content)->children;
         }
 
@@ -17609,7 +17783,7 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('/\G<((?:https?|ftp):\/\/[^<>\s]+)>/i', $text, $m, 0, $offset) === 1) {
+        if (preg_match('/\G<([A-Za-z][A-Za-z0-9.+-]{1,31}:[^<>\s]*)>/u', $text, $m, 0, $offset) === 1) {
             $url = $this->normalizeLinkDestination($m[1]);
             $next = $offset + strlen($m[0]);
             [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
@@ -19066,9 +19240,17 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($node->type === 'code') {
+                $char = $this->lastUtf8Character((string) $node->attr('text', ''));
+                if ($char !== null) {
+                    return $char;
+                }
+                continue;
+            }
+
             if (in_array(
                 $node->type,
-                ['emph', 'strong', 'span', 'small_caps', 'underline', 'strikeout', 'superscript', 'subscript', 'quoted'],
+                ['emph', 'strong', 'span', 'small_caps', 'underline', 'strikeout', 'superscript', 'subscript', 'quoted', 'link'],
                 true
             )) {
                 $char = $this->lastInlineCharacterForEastAsianBreak('', $node->children);

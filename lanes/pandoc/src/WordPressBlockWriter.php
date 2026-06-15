@@ -332,6 +332,10 @@ final class WordPressBlockWriter
             $html .= $this->renderInlineNode($child);
         }
 
+        if ($taskPending) {
+            $html .= $this->renderTaskListLabel($taskChecked, '');
+        }
+
         return '<li' . $this->renderListItemAttrs($item) . '>' . $html . '</li>';
     }
 
