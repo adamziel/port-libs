@@ -1515,9 +1515,7 @@ final class MarkdownWriter
         }
 
         $markdown = $hasOnlyInlines ? $this->renderInlines($cell->children) : $this->renderBlockCollection($cell->children);
-        if (!$hasOnlyInlines) {
-            $markdown = $this->escapeTableCellPipes($markdown);
-        }
+        $markdown = $this->escapeTableCellPipes($markdown);
         $markdown = str_replace("\\\r\n", "<br />", $markdown);
         $markdown = str_replace("\\\n", "<br />", $markdown);
 
