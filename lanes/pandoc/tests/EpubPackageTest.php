@@ -1067,10 +1067,15 @@ XML;
         $t->same(['application/x-demo-slideshow', 'application/x-review-widget'], $compactBinding['boundMediaTypes']);
         $t->same(['slideshow-handler', 'missing-handler'], $compactBinding['handlerIds']);
         $t->same(['/EPUB/widgets/slideshow-fallback.xhtml'], $compactBinding['handlerPartNames']);
+        $t->same(true, $compactBinding['present']);
+        $t->same(2, $compactBinding['localHandlerCount']);
         $t->same(2, $compactBinding['resolvedHandlerCount']);
         $t->same(0, $compactBinding['externalHandlerCount']);
+        $t->same(1, $compactBinding['missingHandlerCount']);
         $t->same(0, $compactBinding['encryptedHandlerCount']);
+        $t->same(2, $compactBinding['exposableHandlerCount']);
         $t->same(2, $compactBinding['byteExposableHandlerCount']);
+        $t->same(1, $compactBinding['blockedHandlerCount']);
         $t->same('manifest', $compactBinding['diagnostics'][0]['domain']);
         $t->same('media-type-bindings', $compactBinding['diagnostics'][0]['caseId']);
         $t->same($bindings['diagnostics'][0]['type'], $compactBinding['diagnostics'][0]['type']);
@@ -1204,6 +1209,7 @@ XML;
 
         $bindings = $epub->bindings();
         $summary = $epub->summary();
+        $compactBinding = $summary['compactPackageReport']['casesById']['media-type-bindings'];
         $local = $bindings['items'][0];
         $remote = $bindings['items'][1];
 
@@ -1247,6 +1253,16 @@ XML;
         $t->same($bindings, $summary['bindings']);
         $t->same($bindings['items'], $summary['wordpressImport']['mediaTypeBindings']);
         $t->same($bindings['diagnostics'], $summary['wordpressImport']['mediaTypeBindingDiagnostics']);
+        $t->same(2, $compactBinding['itemCount']);
+        $t->same(['application/x-local-widget', 'application/x-remote-widget'], $compactBinding['boundMediaTypes']);
+        $t->same(['/EPUB/widgets/local-handler.xhtml'], $compactBinding['handlerPartNames']);
+        $t->same(1, $compactBinding['localHandlerCount']);
+        $t->same(1, $compactBinding['externalHandlerCount']);
+        $t->same(0, $compactBinding['missingHandlerCount']);
+        $t->same(1, $compactBinding['exposableHandlerCount']);
+        $t->same(1, $compactBinding['blockedHandlerCount']);
+        $t->same(['external-binding-handler'], $compactBinding['diagnosticTypes']);
+        $t->true(in_array('media-type-bindings', $summary['compactPackageReport']['diagnosticCaseIds'], true));
     },
 
     'flags encrypted OPF binding handlers for compact package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
@@ -1289,6 +1305,7 @@ XML;
 
         $bindings = $epub->bindings();
         $summary = $epub->summary();
+        $compactBinding = $summary['compactPackageReport']['casesById']['media-type-bindings'];
         $handler = $bindings['items'][0];
         $diagnostic = $handler['diagnostics'][0];
 
@@ -1314,6 +1331,97 @@ XML;
         $t->same($bindings, $summary['bindings']);
         $t->same($bindings['items'], $summary['wordpressImport']['mediaTypeBindings']);
         $t->same($bindings['diagnostics'], $summary['wordpressImport']['mediaTypeBindingDiagnostics']);
+        $t->same(1, $compactBinding['itemCount']);
+        $t->same(['application/x-locked-widget'], $compactBinding['boundMediaTypes']);
+        $t->same(['locked-handler'], $compactBinding['handlerIds']);
+        $t->same(['/EPUB/widgets/locked-handler.xhtml'], $compactBinding['handlerPartNames']);
+        $t->same(1, $compactBinding['localHandlerCount']);
+        $t->same(1, $compactBinding['encryptedHandlerCount']);
+        $t->same(0, $compactBinding['exposableHandlerCount']);
+        $t->same(1, $compactBinding['blockedHandlerCount']);
+        $t->same(['encrypted-binding-handler'], $compactBinding['diagnosticTypes']);
+        $t->true(in_array('media-type-bindings', $summary['compactPackageReport']['reviewRequiredCaseIds'], true));
+    },
+
+    'summarizes compact EPUB media type binding inventory for review handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $localHandler = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Local widget handler</h1></body></html>';
+        $lockedHandler = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Locked widget handler</h1></body></html>';
+        $opfWithBindingInventory = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:compact-binding-inventory</dc:identifier>
+    <dc:title>Compact binding inventory</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="local-handler" href="widgets/local-handler.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
+    <item id="remote-handler" href="https://cdn.example.invalid/widgets/remote-handler.xhtml" media-type="application/xhtml+xml" properties="scripted remote-resources"/>
+    <item id="locked-handler" href="widgets/locked-handler.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+  <bindings>
+    <mediaType media-type="application/x-local-widget" handler="local-handler"/>
+    <mediaType media-type="application/x-remote-widget" handler="remote-handler"/>
+    <mediaType media-type="application/x-locked-widget" handler="locked-handler"/>
+    <mediaType media-type="application/x-missing-widget" handler="missing-handler"/>
+  </bindings>
+</package>
+XML;
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="EPUB/widgets/locked-handler.xhtml"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithBindingInventory],
+            ['name' => 'EPUB/nav.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Chapter</a></li></ol></nav></body></html>'],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Chapter</body></html>'],
+            ['name' => 'EPUB/widgets/local-handler.xhtml', 'data' => $localHandler],
+            ['name' => 'EPUB/widgets/locked-handler.xhtml', 'data' => $lockedHandler],
+        ]));
+
+        $summary = $epub->summary();
+        $report = $summary['compactPackageReport'];
+        $bindingCase = $report['casesById']['media-type-bindings'];
+
+        $t->same(true, $bindingCase['present']);
+        $t->same(4, $bindingCase['itemCount']);
+        $t->same([
+            'application/x-local-widget',
+            'application/x-remote-widget',
+            'application/x-locked-widget',
+            'application/x-missing-widget',
+        ], $bindingCase['boundMediaTypes']);
+        $t->same(['local-handler', 'remote-handler', 'locked-handler', 'missing-handler'], $bindingCase['handlerIds']);
+        $t->same(['/EPUB/widgets/local-handler.xhtml', '/EPUB/widgets/locked-handler.xhtml'], $bindingCase['handlerPartNames']);
+        $t->same(2, $bindingCase['localHandlerCount']);
+        $t->same(1, $bindingCase['externalHandlerCount']);
+        $t->same(1, $bindingCase['missingHandlerCount']);
+        $t->same(1, $bindingCase['encryptedHandlerCount']);
+        $t->same(1, $bindingCase['exposableHandlerCount']);
+        $t->same(3, $bindingCase['blockedHandlerCount']);
+        $t->same(strlen($localHandler) + strlen($lockedHandler), $bindingCase['totalByteLength']);
+        $t->same(3, $bindingCase['diagnosticCount']);
+        $t->same([
+            'external-binding-handler',
+            'encrypted-binding-handler',
+            'missing-binding-handler-manifest-item',
+        ], $bindingCase['diagnosticTypes']);
+        $t->same(['media-type-bindings'], array_values(array_intersect(['media-type-bindings'], $report['presentCaseIds'])));
+        $t->same(['media-type-bindings'], array_values(array_intersect(['media-type-bindings'], $report['diagnosticCaseIds'])));
+        $t->same(['media-type-bindings'], array_values(array_intersect(['media-type-bindings'], $report['reviewRequiredCaseIds'])));
+        $t->same($report, $summary['wordpressImport']['compactPackageReport']);
+        $t->same($report['diagnostics'], $summary['wordpressImport']['compactPackageReportDiagnostics']);
+        $t->same(4, $report['caseCounts']['media-type-bindings']);
     },
 
     'preserves OPF metadata refinements for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {

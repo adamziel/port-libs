@@ -1424,20 +1424,66 @@ final class EpubPackage
             ),
             static fn (?string $partName): bool => $partName !== null,
         )));
+        $bindingLocalHandlerCount = 0;
+        $bindingExternalHandlerCount = 0;
+        $bindingMissingHandlerCount = 0;
+        $bindingEncryptedHandlerCount = 0;
+        $bindingExposableHandlerCount = 0;
+        $bindingBlockedHandlerCount = 0;
+        $bindingTotalByteLength = 0;
+        $bindingTotalCompressedByteLength = 0;
+        foreach ($bindingItems as $item) {
+            $handlerIdPresent = is_string($item['handlerId'] ?? null) && $item['handlerId'] !== '';
+            $handlerExternal = ($item['handlerExternal'] ?? false) === true;
+            $handlerExists = ($item['handlerExists'] ?? false) === true;
+            $handlerEncrypted = ($item['handlerEncrypted'] ?? false) === true;
+            $handlerCanExposeBytes = ($item['handlerCanExposeBytes'] ?? false) === true;
+
+            if ($handlerExternal) {
+                ++$bindingExternalHandlerCount;
+            } elseif ($handlerExists) {
+                ++$bindingLocalHandlerCount;
+            }
+            if (!$handlerIdPresent || (!$handlerExternal && !$handlerExists)) {
+                ++$bindingMissingHandlerCount;
+            }
+            if ($handlerEncrypted) {
+                ++$bindingEncryptedHandlerCount;
+            }
+            if ($handlerCanExposeBytes) {
+                ++$bindingExposableHandlerCount;
+            } elseif ($handlerIdPresent) {
+                ++$bindingBlockedHandlerCount;
+            }
+            if (is_int($item['handlerByteLength'] ?? null)) {
+                $bindingTotalByteLength += (int) $item['handlerByteLength'];
+            }
+            if (is_int($item['handlerCompressedByteLength'] ?? null)) {
+                $bindingTotalCompressedByteLength += (int) $item['handlerCompressedByteLength'];
+            }
+        }
+        $bindingDiagnostics = self::compactDiagnosticList($bindings['diagnostics'] ?? []);
         $appendCase(
             'media-type-bindings',
             'manifest',
             'OPF media-type bindings',
             (int) ($bindings['itemCount'] ?? count($bindingItems)),
-            self::compactDiagnosticList($bindings['diagnostics'] ?? []),
+            $bindingDiagnostics,
             [
                 'boundMediaTypes' => is_array($bindings['boundMediaTypes'] ?? null) ? array_values($bindings['boundMediaTypes']) : [],
                 'handlerIds' => $bindingHandlerIds,
                 'handlerPartNames' => $bindingHandlerPartNames,
-                'resolvedHandlerCount' => count(array_filter($bindingItems, static fn (array $item): bool => ($item['handlerExists'] ?? false) === true)),
-                'externalHandlerCount' => count(array_filter($bindingItems, static fn (array $item): bool => ($item['handlerExternal'] ?? false) === true)),
-                'encryptedHandlerCount' => count(array_filter($bindingItems, static fn (array $item): bool => ($item['handlerEncrypted'] ?? false) === true)),
-                'byteExposableHandlerCount' => count(array_filter($bindingItems, static fn (array $item): bool => ($item['handlerCanExposeBytes'] ?? false) === true)),
+                'localHandlerCount' => $bindingLocalHandlerCount,
+                'resolvedHandlerCount' => $bindingLocalHandlerCount,
+                'externalHandlerCount' => $bindingExternalHandlerCount,
+                'missingHandlerCount' => $bindingMissingHandlerCount,
+                'encryptedHandlerCount' => $bindingEncryptedHandlerCount,
+                'exposableHandlerCount' => $bindingExposableHandlerCount,
+                'byteExposableHandlerCount' => $bindingExposableHandlerCount,
+                'blockedHandlerCount' => $bindingBlockedHandlerCount,
+                'totalByteLength' => $bindingTotalByteLength,
+                'totalCompressedByteLength' => $bindingTotalCompressedByteLength,
+                'reviewRequired' => $bindingBlockedHandlerCount > 0 || $bindingDiagnostics !== [],
             ],
         );
 
