@@ -5447,7 +5447,7 @@ XML;
         $summary = $document->attr('docx')['packageProvenance']['summary'];
         $byKind = $selected['byKind'];
 
-        $t->same(15, $selected['count']);
+        $t->same(16, $selected['count']);
         $t->same(6, $selected['existingCount']);
         $t->same(5, $selected['relationshipSelectedCount']);
         $t->same(1, $selected['missingRequiredOrReferencedCount']);
@@ -5456,7 +5456,7 @@ XML;
         $t->same(0, $selected['unexpectedContentTypeCount']);
         $t->same(1, $selected['issueCount']);
         $t->same(['webSettings'], $selected['issueKinds']);
-        $t->same(15, $summary['selectedXmlPartCount']);
+        $t->same(16, $summary['selectedXmlPartCount']);
         $t->same(1, $summary['selectedXmlPartIssueCount']);
         $t->same(['webSettings'], $summary['selectedXmlPartIssueKinds']);
 
@@ -5600,11 +5600,11 @@ XML;
         $t->same('override', $relationship['contentTypeSource']);
         $t->same('word/glossary/document.xml', $relationship['overridePartName']);
 
-        $t->same(15, $selected['count']);
+        $t->same(16, $selected['count']);
         $t->same(5, $selected['existingCount']);
         $t->same(3, $selected['relationshipSelectedCount']);
         $t->same(0, $selected['issueCount']);
-        $t->same(15, $package['summary']['selectedXmlPartCount']);
+        $t->same(16, $package['summary']['selectedXmlPartCount']);
         $t->same('word/glossary/document.xml', $package['summary']['glossaryDocumentPart']);
         $t->same(true, $package['summary']['glossaryDocumentExists']);
         $t->same('rGlossary', $package['summary']['glossaryDocumentRelationshipId']);
@@ -5905,7 +5905,7 @@ XML;
         $t->same('word/glossary/document.xml', $docx['glossaryDocumentRelationship']['targetPart']);
         $t->same(true, $docx['glossaryDocumentRelationship']['exists']);
 
-        $t->same(15, $selected['count']);
+        $t->same(16, $selected['count']);
         $t->same(5, $selected['existingCount']);
         $t->same(3, $selected['relationshipSelectedCount']);
         $t->same(4, $selected['validRootCount']);
@@ -6747,6 +6747,115 @@ XML;
         $t->same('00FEDCBA', $replyNote->attr('commentParaId'));
         $t->same('00ABCDEF', $replyNote->attr('commentParentParaId'));
         $t->same(false, $replyNote->attr('commentResolved'));
+    },
+    'preserves docx commentsIds durable id package metadata from relationship target' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments-ids.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.commentsIds+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments/review-comments.xml"/>' . "\n" .
+            '  <Relationship Id="rCommentsIds" Type="http://schemas.microsoft.com/office/2016/09/relationships/commentsIds" Target="comments/review-comments-ids.xml?stable=1#ids"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>',
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> with durable comment </w:t></w:r>' . "\n" .
+            '      <w:r><w:commentReference w:id="12"/></w:r>',
+            $parts['word/document.xml']
+        );
+        $parts['word/comments/review-comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+  <w:comment w:id="12" w:author="Review Lead" w:initials="RL" w:date="2026-06-15T14:25:00Z">
+    <w:p w14:paraId="00ABCDEF"><w:r><w:t>Durable comment package context.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+        $parts['word/comments/review-comments-ids.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w16cid:commentsIds xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid">
+  <w16cid:commentId w16cid:paraId="00ABCDEF" w16cid:durableId="4F1A7C9B"/>
+  <w16cid:commentId w16cid:paraId="00ABCDEF" w16cid:durableId="DUPLICATE-PARA"/>
+  <w16cid:commentId w16cid:durableId="MISSING-PARA"/>
+  <w16cid:commentId w16cid:paraId="00FEDCBA"/>
+</w16cid:commentsIds>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $commentsIds = $docx['commentsIds'];
+        $relationship = $docx['commentsIdsRelationship'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $selected = $package['selectedXmlParts']['byKind']['commentsIds'];
+        $relationshipType = 'http://schemas.microsoft.com/office/2016/09/relationships/commentsIds';
+        $relationshipTypes = $package['relationshipTypes'];
+        $inventory = $package['parts']['word/comments/review-comments-ids.xml'];
+        $paragraph = $document->children[1];
+        $notes = array_values(array_filter($paragraph->children, static fn (AstNode $node): bool => $node->type === 'note'));
+        $note = $notes[0];
+
+        $t->same('word/comments/review-comments-ids.xml', $docx['commentsIdsPart']);
+        $t->same('rCommentsIds', $relationship['id']);
+        $t->same($relationshipType, $relationship['type']);
+        $t->same('comments/review-comments-ids.xml?stable=1#ids', $relationship['target']);
+        $t->same('word/comments/review-comments-ids.xml?stable=1#ids', $relationship['resolvedTarget']);
+        $t->same('word/comments/review-comments-ids.xml', $relationship['targetPart']);
+        $t->same('stable=1', $relationship['targetQuery']);
+        $t->same('ids', $relationship['targetFragment']);
+        $t->same('?stable=1#ids', $relationship['targetReferenceSuffix']);
+        $t->same(true, $relationship['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.commentsIds+xml', $relationship['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.commentsids+xml', $relationship['contentTypeBase']);
+
+        $t->same(4, $commentsIds['count']);
+        $t->same(['00ABCDEF', '00FEDCBA'], $commentsIds['paraIds']);
+        $t->same(['4F1A7C9B', 'DUPLICATE-PARA', 'MISSING-PARA'], $commentsIds['durableIds']);
+        $t->same(1, $commentsIds['missingParaIdCount']);
+        $t->same(1, $commentsIds['missingDurableIdCount']);
+        $t->same(1, $commentsIds['duplicateParaIdCount']);
+        $t->same(['00ABCDEF'], $commentsIds['duplicateParaIds']);
+        $t->same(2, $commentsIds['issueCount']);
+        $t->same(['missing-para-id', 'missing-durable-id'], $commentsIds['issueCodes']);
+        $t->same('DUPLICATE-PARA', $commentsIds['byParaId']['00ABCDEF']['durableId']);
+
+        $t->same(4, $summary['commentsIdsCount']);
+        $t->same(1, $summary['commentsIdsMissingParaIdCount']);
+        $t->same(1, $summary['commentsIdsMissingDurableIdCount']);
+        $t->same(1, $summary['commentsIdsDuplicateParaIdCount']);
+        $t->same(2, $summary['commentsIdsIssueCount']);
+        $t->same(['missing-para-id', 'missing-durable-id'], $summary['commentsIdsIssueCodes']);
+
+        $t->same('relationship', $selected['selectionSource']);
+        $t->same('commentsIds', $selected['rootLocalName']);
+        $t->same('http://schemas.microsoft.com/office/word/2016/wordml/cid', $selected['rootNamespace']);
+        $t->same(true, $selected['validRoot']);
+        $t->same(true, $selected['contentTypeMatchesExpected']);
+        $t->same('stable=1', $selected['targetQuery']);
+        $t->same('ids', $selected['targetFragment']);
+        $t->same([], $selected['issues']);
+
+        $t->same('commentsIds', $relationshipTypes[$relationshipType]['label']);
+        $t->same(1, $relationshipTypes[$relationshipType]['count']);
+        $t->same(['word/comments/review-comments-ids.xml'], $relationshipTypes[$relationshipType]['existingTargetParts']);
+        $t->same(['comments-ids' => 1, 'document-relationship-target' => 1], $relationshipTypes[$relationshipType]['targetRoleCounts']);
+        $t->true(in_array('comments-ids', $inventory['roles'], true), 'commentsIds inventory role missing');
+
+        $t->same('00ABCDEF', $docx['comments']['byId']['12']['commentParaId']);
+        $t->same('DUPLICATE-PARA', $docx['comments']['byId']['12']['commentDurableId']);
+        $t->same('word/comments/review-comments-ids.xml', $docx['comments']['byId']['12']['commentsIdsPart']);
+        $t->same('12', $note->attr('id'));
+        $t->same('00ABCDEF', $note->attr('commentParaId'));
+        $t->same('DUPLICATE-PARA', $note->attr('commentDurableId'));
+        $t->same('word/comments/review-comments-ids.xml', $note->attr('commentsIdsPart'));
     },
     'classifies docx note package inventory roles from document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
