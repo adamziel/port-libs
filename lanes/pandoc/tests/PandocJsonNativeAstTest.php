@@ -7602,6 +7602,39 @@ return [
                 'types' => ['horizontal_rule', 'null_block'],
                 'tags' => ['HorizontalRule', 'Null'],
             ],
+            'leaf block constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Plain'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'matrix'],
+                        ]],
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Str', 'c' => 'Paragraph'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'matrix'],
+                        ]],
+                        ['t' => 'Header', 'c' => [
+                            3,
+                            ['matrix-heading', ['review'], [['data-source', 'matrix']]],
+                            [
+                                ['t' => 'Str', 'c' => 'Heading'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'matrix'],
+                            ],
+                        ]],
+                        ['t' => 'CodeBlock', 'c' => [
+                            ['matrix-code-block', ['php'], [['data-source', 'matrix']]],
+                            "echo 1;\n",
+                        ]],
+                    ],
+                ],
+                'types' => ['plain', 'paragraph', 'heading', 'code_block'],
+                'tags' => ['Plain', 'Para', 'Header', 'CodeBlock'],
+            ],
             'structural block constructors' => [
                 'packet' => [
                     'pandoc-api-version' => [1, 23, 1],
