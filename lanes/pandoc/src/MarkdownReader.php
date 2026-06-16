@@ -18936,6 +18936,13 @@ final class MarkdownReader
 
             $escaped = $this->tryReadBackslashEscape($text, $offset);
             if ($escaped !== null) {
+                if ($this->shouldIsolateEscapedCharacterReferenceDelimiter($escaped['text'], $buffer, $text, $offset)) {
+                    $this->flushText($buffer, $nodes);
+                    $nodes[] = new AstNode('text', ['text' => $escaped['text']]);
+                    $offset = $escaped['next'];
+                    continue;
+                }
+
                 $buffer .= $escaped['text'];
                 $offset = $escaped['next'];
                 continue;
@@ -21943,6 +21950,33 @@ final class MarkdownReader
     private function isMarkdownEscapablePunctuation(string $char): bool
     {
         return $char !== '' && str_contains(self::MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION, $char);
+    }
+
+    private function shouldIsolateEscapedCharacterReferenceDelimiter(
+        string $char,
+        string $buffer,
+        string $text,
+        int $offset
+    ): bool {
+        if ($char === '&') {
+            return $this->startsWithCharacterReferenceTail(substr($text, $offset + 2));
+        }
+
+        if ($char === '#') {
+            return str_ends_with($buffer, '&')
+                && preg_match('/^(?:[0-9]{1,7}|[xX][0-9A-Fa-f]{1,6});/', substr($text, $offset + 2)) === 1;
+        }
+
+        if ($char === ';') {
+            return preg_match('/&(?:#[0-9]{1,7}|#[xX][0-9A-Fa-f]{1,6}|[A-Za-z][A-Za-z0-9]+)\z/', $buffer) === 1;
+        }
+
+        return false;
+    }
+
+    private function startsWithCharacterReferenceTail(string $tail): bool
+    {
+        return preg_match('/^(?:#[0-9]{1,7};|#[xX][0-9A-Fa-f]{1,6};|[A-Za-z][A-Za-z0-9]+;)/', $tail) === 1;
     }
 
     /**
