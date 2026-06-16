@@ -5733,10 +5733,69 @@ final class MarkdownWriter
 
         $parent = $this->inlineDelimiterStack[array_key_last($this->inlineDelimiterStack)] ?? null;
         if (is_array($parent)) {
+            if ($this->shouldUseParentDelimiterForSpacedNestedStrong($node, $type, $parent)) {
+                return $parent['delimiter'];
+            }
+
             return $parent['delimiter'] === '*' ? '_' : '*';
         }
 
         return '*';
+    }
+
+    /**
+     * @param array{type:string, delimiter:string} $parent
+     */
+    private function shouldUseParentDelimiterForSpacedNestedStrong(AstNode $node, string $type, array $parent): bool
+    {
+        return $type === 'strong'
+            && $parent['type'] === 'emph'
+            && $parent['delimiter'] === '*'
+            && $this->inlineSequenceHasOuterWhitespace($node->children);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function inlineSequenceHasOuterWhitespace(array $nodes): bool
+    {
+        $first = $nodes[0] ?? null;
+        $last = $nodes === [] ? null : $nodes[array_key_last($nodes)];
+
+        return $first instanceof AstNode
+            && $last instanceof AstNode
+            && $this->inlineNodeStartsWithWhitespace($first)
+            && $this->inlineNodeEndsWithWhitespace($last);
+    }
+
+    private function inlineNodeStartsWithWhitespace(AstNode $node): bool
+    {
+        if (in_array($node->type, ['space', 'softbreak', 'linebreak'], true)) {
+            return true;
+        }
+
+        if ($node->type === 'text') {
+            return preg_match('/^\s/u', (string) $node->attr('text', '')) === 1;
+        }
+
+        $first = $node->children[0] ?? null;
+
+        return $first instanceof AstNode && $this->inlineNodeStartsWithWhitespace($first);
+    }
+
+    private function inlineNodeEndsWithWhitespace(AstNode $node): bool
+    {
+        if (in_array($node->type, ['space', 'softbreak', 'linebreak'], true)) {
+            return true;
+        }
+
+        if ($node->type === 'text') {
+            return preg_match('/\s$/u', (string) $node->attr('text', '')) === 1;
+        }
+
+        $last = $node->children === [] ? null : $node->children[array_key_last($node->children)];
+
+        return $last instanceof AstNode && $this->inlineNodeEndsWithWhitespace($last);
     }
 
     private function explicitEmphasisDelimiter(AstNode $node, string $type): ?string

@@ -11844,7 +11844,7 @@ MD;
             '    test',
         ]), $writer->write($listThenCode));
         $t->same("- foo\n  - bar\n- baz", $writer->write($tightSublist));
-        $t->same('*f __d__* l', $writer->write($emphStrongSpacing));
+        $t->same('*f **d*** l', $writer->write($emphStrongSpacing));
     },
     'maps upstream markdown writer nested block collection list separators' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
