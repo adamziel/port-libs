@@ -2876,7 +2876,13 @@ final class MarkdownWriter
         }
 
         foreach ($columnSources as $source) {
-            if (is_array($source) && $this->sourceAttributeArrayNonEmpty($source)) {
+            if (
+                is_array($source)
+                && (
+                    $this->sourceAttributeArrayNonEmpty($source)
+                    || $this->htmlTableColumnSourceHasRenderableAttributes($source)
+                )
+            ) {
                 return true;
             }
         }
@@ -3193,12 +3199,31 @@ final class MarkdownWriter
      */
     private function renderHtmlTableColgroup(AstNode $node, int $columnCount, int $indent): array
     {
-        $widths = $node->attr('widths', []);
-        if (!is_array($widths) || $widths === []) {
+        $specs = TableGeometry::columnSpecs($node, $columnCount);
+        if ($specs === []) {
             return [];
         }
 
-        $specs = TableGeometry::columnSpecs($node, $columnCount);
+        $hasCompleteWidths = true;
+        $hasColumnSourceAttributes = false;
+        foreach ($specs as $spec) {
+            if (!is_numeric($spec['width'] ?? null)) {
+                $hasCompleteWidths = false;
+            }
+
+            if ($this->htmlTableColumnSourceHasRenderableAttributes($spec['source'] ?? null)) {
+                $hasColumnSourceAttributes = true;
+            }
+        }
+
+        if (!$hasCompleteWidths && !$hasColumnSourceAttributes) {
+            return [];
+        }
+
+        if ($hasColumnSourceAttributes) {
+            return $this->renderHtmlTableSourceColgroups($specs, $indent);
+        }
+
         $cols = [];
         foreach ($specs as $spec) {
             if (!is_numeric($spec['width'] ?? null)) {
@@ -3225,6 +3250,147 @@ final class MarkdownWriter
             ...$cols,
             str_repeat(' ', $indent) . '</colgroup>',
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $specs
+     * @return list<string>
+     */
+    private function renderHtmlTableSourceColgroups(array $specs, int $indent): array
+    {
+        $lines = [];
+        $currentGroupKey = null;
+        $currentGroupIndent = str_repeat(' ', $indent);
+        $currentColIndent = str_repeat(' ', $indent + 2);
+
+        foreach ($specs as $spec) {
+            $source = is_array($spec['source'] ?? null) ? $spec['source'] : [];
+            $groupKey = $this->htmlTableColumnSourceGroupKey($source);
+            if ($groupKey !== $currentGroupKey) {
+                if ($currentGroupKey !== null) {
+                    $lines[] = $currentGroupIndent . '</colgroup>';
+                }
+
+                $lines[] = $currentGroupIndent . '<colgroup'
+                    . $this->renderHtmlAttributes($this->htmlTableColgroupSourceAttributes($source))
+                    . '>';
+                $currentGroupKey = $groupKey;
+            }
+
+            $lines[] = $currentColIndent . '<col'
+                . $this->renderHtmlAttributes($this->htmlTableColSourceAttributes($source, $spec))
+                . ' />';
+        }
+
+        if ($currentGroupKey !== null) {
+            $lines[] = $currentGroupIndent . '</colgroup>';
+        }
+
+        return $lines;
+    }
+
+    private function htmlTableColumnSourceHasRenderableAttributes(mixed $source): bool
+    {
+        if (!is_array($source)) {
+            return false;
+        }
+
+        $colgroupAttributes = is_array($source['colgroupAttributes'] ?? null) ? $source['colgroupAttributes'] : [];
+        if ($this->sourceAttributeArrayNonEmpty($colgroupAttributes)) {
+            return true;
+        }
+
+        $colAttributes = is_array($source['colAttributes'] ?? null) ? $source['colAttributes'] : [];
+        if ($this->sourceAttributeArrayNonEmpty($colAttributes)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     */
+    private function htmlTableColumnSourceGroupKey(array $source): string
+    {
+        if (isset($source['colgroupIndex']) && is_numeric($source['colgroupIndex'])) {
+            return 'index:' . (int) $source['colgroupIndex'];
+        }
+
+        return 'attributes:' . json_encode($source['colgroupAttributes'] ?? [], JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     * @return array<string, string>
+     */
+    private function htmlTableColgroupSourceAttributes(array $source): array
+    {
+        $attrs = [];
+        $sourceAttributes = is_array($source['colgroupAttributes'] ?? null) ? $source['colgroupAttributes'] : [];
+        if ($sourceAttributes !== []) {
+            $attrs = $this->htmlAttributeMapFromSource($sourceAttributes);
+        }
+
+        return $this->htmlTableColumnSourceAttributes($attrs, true);
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     * @param array<string, mixed> $spec
+     * @return array<string, string>
+     */
+    private function htmlTableColSourceAttributes(array $source, array $spec): array
+    {
+        $attrs = [];
+        $sourceAttributes = is_array($source['colAttributes'] ?? null) ? $source['colAttributes'] : [];
+        if ($sourceAttributes !== []) {
+            $attrs = $this->htmlAttributeMapFromSource($sourceAttributes);
+        }
+
+        $attrs = $this->htmlTableColumnSourceAttributes($attrs, false);
+        $styles = [];
+        $sourceStyle = (string) ($attrs['style'] ?? '');
+        if ($sourceStyle !== '' && $this->isAllowedHtmlAttribute('style', $sourceStyle)) {
+            $styles[] = rtrim($sourceStyle, ';');
+        }
+        unset($attrs['style']);
+
+        if (is_numeric($spec['width'] ?? null)) {
+            $styles[] = 'width:' . $this->formatHtmlTableWidth((float) $spec['width']);
+        }
+
+        if ($styles !== []) {
+            $attrs['style'] = implode('; ', array_values(array_filter($styles, static fn (string $style): bool => $style !== '')));
+        }
+
+        $alignment = (string) ($spec['alignment'] ?? 'default');
+        if (in_array($alignment, ['left', 'right', 'center'], true) && !isset($attrs['data-pandoc-align'])) {
+            $attrs['data-pandoc-align'] = $alignment;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @return array<string, string>
+     */
+    private function htmlTableColumnSourceAttributes(array $attrs, bool $colgroup): array
+    {
+        foreach (['span', 'width'] as $name) {
+            unset($attrs[$name]);
+        }
+
+        if (($attrs['align'] ?? '') !== 'char') {
+            unset($attrs['align']);
+        }
+
+        if ($colgroup) {
+            unset($attrs['valign']);
+        }
+
+        return $attrs;
     }
 
     private function formatHtmlTableWidth(float $width): string
