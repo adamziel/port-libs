@@ -738,6 +738,7 @@ return [
                 'crc32Hex' => sprintf('%08x', $crc32($contentXhtml)),
                 'compressedSize' => strlen(gzdeflate($contentXhtml)),
                 'uncompressedSize' => strlen($contentXhtml),
+                'compressedDataSha256' => hash('sha256', gzdeflate($contentXhtml)),
             ],
             [
                 'name' => 'OEBPS/images/',
@@ -748,6 +749,7 @@ return [
                 'crc32Hex' => sprintf('%08x', $crc32('')),
                 'compressedSize' => 0,
                 'uncompressedSize' => 0,
+                'compressedDataSha256' => hash('sha256', ''),
             ],
             [
                 'name' => 'mimetype',
@@ -758,6 +760,7 @@ return [
                 'crc32Hex' => sprintf('%08x', $crc32($mimetype)),
                 'compressedSize' => strlen($mimetype),
                 'uncompressedSize' => strlen($mimetype),
+                'compressedDataSha256' => hash('sha256', $mimetype),
             ],
         ];
         $expectedHash = hash('sha256', json_encode([
@@ -790,10 +793,54 @@ return [
                 'crc32Hex' => $entry['crc32Hex'],
                 'compressedSize' => $entry['compressedSize'],
                 'uncompressedSize' => $entry['uncompressedSize'],
+                'compressedDataSha256' => $entry['compressedDataSha256'],
             ],
             $manifest['entries']
         ));
         $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
+    'preflights zip package manifest compressed payload hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>manifest payload hash</w:p></w:body></w:document>';
+        $mediaBytes = "stored image bytes\n";
+        $documentCompressed = gzdeflate($documentXml);
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/image.png',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $documentEntry = $manifest['entries'][0];
+        $mediaEntry = $manifest['entries'][1];
+        $directoryEntry = $manifest['entries'][2];
+
+        $t->same(hash('sha256', $documentCompressed), $documentEntry['compressedDataSha256']);
+        $t->same(
+            hash('sha256', substr($zip, $documentEntry['compressedDataOffset'], $documentEntry['compressedSize'])),
+            $documentEntry['compressedDataSha256']
+        );
+        $t->same(hash('sha256', $mediaBytes), $mediaEntry['compressedDataSha256']);
+        $t->same(hash('sha256', ''), $directoryEntry['compressedDataSha256']);
+        $t->same($documentEntry['compressedDataEnd'], $mediaEntry['localHeaderOffset']);
+        $t->same($mediaEntry['compressedDataEnd'], $directoryEntry['localHeaderOffset']);
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },

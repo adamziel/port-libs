@@ -12905,6 +12905,10 @@ final class ZipPackage
             $localHeaderOrder = $localOrderByName[$entry->name] ?? null;
             $localHeaderLength = (int) $localHeader['localHeaderLength'];
             $compressedDataOffset = (int) $localHeader['dataStart'];
+            $compressedDataSha256 = hash(
+                'sha256',
+                substr($this->bytes, $compressedDataOffset, $entry->compressedSize)
+            );
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
@@ -12920,6 +12924,7 @@ final class ZipPackage
                 'localHeaderLength' => $localHeaderLength,
                 'compressedDataOffset' => $compressedDataOffset,
                 'compressedDataEnd' => $compressedDataOffset + $entry->compressedSize,
+                'compressedDataSha256' => $compressedDataSha256,
                 'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
                 'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
             ];
@@ -12933,6 +12938,7 @@ final class ZipPackage
                 'crc32Hex' => $summary['crc32Hex'],
                 'compressedSize' => $summary['compressedSize'],
                 'uncompressedSize' => $summary['uncompressedSize'],
+                'compressedDataSha256' => $summary['compressedDataSha256'],
             ];
         }
 
