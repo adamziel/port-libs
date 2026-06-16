@@ -265,7 +265,7 @@ $cases = [
     ],
     '22 continuation entity remains literal text' => [
         'doc' => $bulletTaskDoc([$text("alpha\n&copy;")]),
-        'expected' => $taskExpected('- ', false, 'alpha', ['\\&copy;']),
+        'expected' => $taskExpected('- ', false, 'alpha', ['&amp;copy;']),
         'taskStates' => [false],
     ],
     '23 continuation brackets remain paragraph text' => [

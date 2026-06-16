@@ -64,7 +64,7 @@ $mixedCases = [
     'word dots dash word' => ['alpha....---omega', 'alpha' . $escapedRun('.', 4) . $escapedRun('-', 3) . 'omega'],
     'dash run before smart quotes' => ['---"quoted"', $escapedRun('-', 3) . '\\"quoted\\"'],
     'dot run before bracket label' => ['....[label]', $escapedRun('.', 4) . '\\[label\\]', false],
-    'dash run before entity' => ['---&ouml;', $escapedRun('-', 3) . '\\&ouml;', false],
+    'dash run before entity' => ['---&ouml;', $escapedRun('-', 3) . '&amp;ouml;', false],
     'dot run before raw angle' => ['....<tag>', $escapedRun('.', 4) . '\\<tag\\>'],
 ];
 

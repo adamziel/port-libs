@@ -115,7 +115,7 @@ $autolinkGuardCases = [
     ],
     'uri with tab falls back to encoded destination' => [
         'inline' => new AstNode('link', ['url' => "https://example.test/a\tb", 'classes' => ['uri']], [$text("https://example.test/a\tb")]),
-        'expected' => "[https://example.test/a\tb](https://example.test/a%09b){.uri}",
+        'expected' => '[https://example.test/a&#9;b](https://example.test/a%09b){.uri}',
     ],
     'email with display-name space falls back to inline link' => [
         'inline' => new AstNode('link', ['url' => 'mailto:editor name@example.test', 'classes' => ['email']], [$text('editor name@example.test')]),

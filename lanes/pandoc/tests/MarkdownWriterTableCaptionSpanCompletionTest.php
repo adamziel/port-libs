@@ -593,7 +593,7 @@ $textCellCases = [
     ],
     'html entity text attr cell' => [
         'text' => "AT&amp;T\nready",
-        'expected' => 'AT\\&amp;T<br />ready',
+        'expected' => 'AT&amp;amp;T<br />ready',
     ],
 ];
 

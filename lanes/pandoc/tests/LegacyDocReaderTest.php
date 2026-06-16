@@ -8143,7 +8143,7 @@ return [
         $t->same('true', $toa->attr('attributes')['data-legacy-doc-generated-field-switch-p']);
         $t->same('Case One 2', $toa->children[0]->attr('text'));
 
-        $t->contains('[Introduction	1]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-toc data-legacy-doc-field="toc"', $markdown);
+        $t->contains('[Introduction&#9;1]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-toc data-legacy-doc-field="toc"', $markdown);
         $t->contains('[Legacy term, 4]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-index data-legacy-doc-field="index"', $markdown);
         $t->contains('[Case One 2]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-toa data-legacy-doc-field="toa"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-generated-field legacy-doc-field-toc" data-legacy-doc-field="toc" data-legacy-doc-field-instruction="TOC \o &quot;1-3&quot; \h \z \u" data-legacy-doc-generated-field-type="table-of-contents" data-legacy-doc-generated-field-switches="o h z u" data-legacy-doc-generated-field-switch-o="1-3" data-legacy-doc-generated-field-switch-h="true" data-legacy-doc-generated-field-switch-z="true" data-legacy-doc-generated-field-switch-u="true">Introduction	1</span>', $blocks);

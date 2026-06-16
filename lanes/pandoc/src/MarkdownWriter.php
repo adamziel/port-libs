@@ -50,6 +50,8 @@ final class MarkdownWriter
 
     private int $plainTextTriggerEscapeSuppression = 0;
 
+    private int $textWhitespaceEntitySuppression = 0;
+
     /**
      * @param array{format?: string, extensions?: mixed, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, wrap?: string, columns?: int, wrapColumns?: int, writerColumns?: int, lineWidth?: int, yamlMetadata?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool, autoHtmlTables?: bool, semanticTableHtmlFallback?: bool, tableStyle?: string, markdownTableFormat?: string} $options
      */
@@ -79,6 +81,7 @@ final class MarkdownWriter
         $this->lastReferenceIndex = 0;
         $this->fancyOrderedMarkerEscapeSuppression = 0;
         $this->plainTextTriggerEscapeSuppression = 0;
+        $this->textWhitespaceEntitySuppression = 0;
 
         $blocks = [];
         if ($this->yamlMetadataEnabled()) {
@@ -1306,7 +1309,12 @@ final class MarkdownWriter
         }
 
         $level = max(1, min(6, (int) $node->attr('level', 1)));
-        $text = $this->normalizeHeadingMarkdown($this->renderInlines($node->children));
+        $this->textWhitespaceEntitySuppression++;
+        try {
+            $text = $this->normalizeHeadingMarkdown($this->renderInlines($node->children));
+        } finally {
+            $this->textWhitespaceEntitySuppression--;
+        }
         $attrs = $this->renderLinkAttributes($node);
         $prefix = str_repeat(' ', $indent);
 
@@ -1384,9 +1392,16 @@ final class MarkdownWriter
                 continue;
             }
 
-            $content = $line->children === []
-                ? (string) $line->attr('text', '')
-                : $this->renderInlines($line->children);
+            if ($line->children === []) {
+                $content = (string) $line->attr('text', '');
+            } else {
+                $this->textWhitespaceEntitySuppression++;
+                try {
+                    $content = $this->renderInlines($line->children);
+                } finally {
+                    $this->textWhitespaceEntitySuppression--;
+                }
+            }
             $content = str_replace("\xC2\xA0", ' ', $content);
             $lines[] = rtrim($prefix . ($content === '' ? '' : ' ' . $content));
         }
@@ -3468,31 +3483,12 @@ final class MarkdownWriter
 
     private function renderTableCell(AstNode $cell, bool $escapePipes = true): string
     {
-        if ($cell->children === []) {
-            return $this->normalizeTableCellMarkdown($this->escapeText((string) $cell->attr('text', '')), $escapePipes);
-        }
-
-        $hasOnlyInlines = true;
-        foreach ($cell->children as $child) {
-            if (!$this->isInlineNode($child)) {
-                $hasOnlyInlines = false;
-                break;
+        $this->textWhitespaceEntitySuppression++;
+        try {
+            if ($cell->children === []) {
+                return $this->normalizeTableCellMarkdown($this->escapeText((string) $cell->attr('text', '')), $escapePipes);
             }
-        }
 
-        $markdown = $hasOnlyInlines ? $this->renderInlines($cell->children) : $this->renderBlockCollection($cell->children);
-
-        return $this->normalizeTableCellMarkdown($markdown, $escapePipes);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function renderTableCellLines(AstNode $cell): array
-    {
-        if ($cell->children === []) {
-            $markdown = $this->escapeText((string) $cell->attr('text', ''));
-        } else {
             $hasOnlyInlines = true;
             foreach ($cell->children as $child) {
                 if (!$this->isInlineNode($child)) {
@@ -3502,6 +3498,35 @@ final class MarkdownWriter
             }
 
             $markdown = $hasOnlyInlines ? $this->renderInlines($cell->children) : $this->renderBlockCollection($cell->children);
+        } finally {
+            $this->textWhitespaceEntitySuppression--;
+        }
+
+        return $this->normalizeTableCellMarkdown($markdown, $escapePipes);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderTableCellLines(AstNode $cell): array
+    {
+        $this->textWhitespaceEntitySuppression++;
+        try {
+            if ($cell->children === []) {
+                $markdown = $this->escapeText((string) $cell->attr('text', ''));
+            } else {
+                $hasOnlyInlines = true;
+                foreach ($cell->children as $child) {
+                    if (!$this->isInlineNode($child)) {
+                        $hasOnlyInlines = false;
+                        break;
+                    }
+                }
+
+                $markdown = $hasOnlyInlines ? $this->renderInlines($cell->children) : $this->renderBlockCollection($cell->children);
+            }
+        } finally {
+            $this->textWhitespaceEntitySuppression--;
         }
 
         $markdown = str_replace('\\|', '|', $markdown);
@@ -5738,6 +5763,52 @@ final class MarkdownWriter
         return preg_replace('/(?<!\\\\)\$/', '\\\$', $text) ?? $text;
     }
 
+    /**
+     * @return array{entity:string, bytes:int}|null
+     */
+    private function markdownEntityForTextWhitespace(string $text, int $offset): ?array
+    {
+        if ($this->textWhitespaceEntitySuppression > 0) {
+            return null;
+        }
+
+        $char = $text[$offset] ?? '';
+        if ($char === "\t") {
+            return ['entity' => '&#9;', 'bytes' => 1];
+        }
+
+        if ($char !== '' && ord($char) < 0x20 && $char !== "\n" && $char !== "\r") {
+            return ['entity' => sprintf('&#x%02X;', ord($char)), 'bytes' => 1];
+        }
+
+        $entities = [
+            "\xC2\xA0" => '&nbsp;',
+            "\xE1\x9A\x80" => '&#x1680;',
+            "\xE2\x80\x80" => '&#x2000;',
+            "\xE2\x80\x81" => '&#x2001;',
+            "\xE2\x80\x82" => '&#x2002;',
+            "\xE2\x80\x83" => '&#x2003;',
+            "\xE2\x80\x84" => '&#x2004;',
+            "\xE2\x80\x85" => '&#x2005;',
+            "\xE2\x80\x86" => '&#x2006;',
+            "\xE2\x80\x87" => '&#x2007;',
+            "\xE2\x80\x88" => '&#x2008;',
+            "\xE2\x80\x89" => '&#x2009;',
+            "\xE2\x80\x8A" => '&#x200A;',
+            "\xE2\x80\xAF" => '&#x202F;',
+            "\xE2\x81\x9F" => '&#x205F;',
+            "\xE3\x80\x80" => '&#x3000;',
+        ];
+
+        foreach ($entities as $sequence => $entity) {
+            if (str_starts_with(substr($text, $offset), $sequence)) {
+                return ['entity' => $entity, 'bytes' => strlen($sequence)];
+            }
+        }
+
+        return null;
+    }
+
     private function escapeText(
         string $text,
         bool $escapeDefinitionMarker = true,
@@ -5753,6 +5824,15 @@ final class MarkdownWriter
         for ($i = 0; $i < $length; $i++) {
             $char = $text[$i];
             $tail = substr($text, $i);
+
+            $whitespaceEntity = $this->markdownEntityForTextWhitespace($text, $i);
+            if ($whitespaceEntity !== null) {
+                $escaped .= $whitespaceEntity['entity'];
+                $i += $whitespaceEntity['bytes'] - 1;
+                $lineStart = false;
+                $definitionLineStart = false;
+                continue;
+            }
 
             if ($i === 0 && $escapeLeadingAttributeBrace && $char === '{') {
                 $escaped .= '\\{';
@@ -5928,7 +6008,7 @@ final class MarkdownWriter
             }
 
             if ($char === '&' && preg_match('/^&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);/', $tail) === 1) {
-                $escaped .= '\\&';
+                $escaped .= '&amp;';
                 $lineStart = false;
                 $definitionLineStart = false;
                 continue;

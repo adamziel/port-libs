@@ -93,7 +93,7 @@ function markdown_writer_inline_surge_cases(): array
         'escapes braced citation-looking leading at sign' => $textCase('@{doe, 2026} imported citation literal', '\\@{doe, 2026} imported citation literal'),
         'escapes entity-looking ampersand text' => [
             'document' => markdown_writer_surge_inline_doc([markdown_writer_surge_text('AT&amp;T imported entity literal')]),
-            'expected' => 'AT\\&amp;T imported entity literal',
+            'expected' => 'AT&amp;amp;T imported entity literal',
         ],
         'escapes ellipses smart punctuation trigger' => $textCase('Ellipses... stay literal', 'Ellipses\\... stay literal'),
         'escapes en dash trigger' => $textCase('range 5--7 stays literal', 'range 5\\--7 stays literal'),

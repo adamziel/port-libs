@@ -30,7 +30,7 @@ $citationTextCases = [
     ],
     'tab before citation id' => [
         'children' => [$text("see\t@doe2026")],
-        'expected' => "see\t\\@doe2026",
+        'expected' => 'see&#9;\\@doe2026',
     ],
     'literal newline before citation id' => [
         'children' => [$text("see\n@doe2026")],

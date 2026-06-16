@@ -28,7 +28,7 @@ $cases = [
     ], '1\. literal list'),
     'text string alias escapes entity marker' => $aliasCase([
         $aliasNode('text', ['string' => 'AT&amp;T']),
-    ], 'AT\&amp;T'),
+    ], 'AT&amp;amp;T'),
     'code literal alias renders code span' => $aliasCase([
         $aliasNode('code', ['literal' => 'literal_code']),
     ], '`literal_code`'),
