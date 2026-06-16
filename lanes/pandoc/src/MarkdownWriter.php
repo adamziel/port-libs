@@ -6649,10 +6649,10 @@ final class MarkdownWriter
             $lines = $this->rawHtmlBlockLines($text);
         } elseif (($node->type === 'raw_markdown' || $this->isMarkdownRawFormat($format)) && $this->rawFormatAllowed($format, 'markdown')) {
             $text = $this->rawText($node, ['text', 'markdown', 'raw', 'content', 'literal', 'value']);
-            $lines = explode("\n", $text);
+            $lines = $this->rawBlockLines($text);
         } elseif (($node->type === 'raw_tex' || $this->isTexRawFormat($format)) && $this->rawFormatAllowed($format, 'tex')) {
             $text = $this->rawText($node, ['text', 'tex', 'raw', 'content', 'literal', 'value']);
-            $lines = explode("\n", $text);
+            $lines = $this->rawBlockLines($text);
         } else {
             return [];
         }
@@ -6683,6 +6683,14 @@ final class MarkdownWriter
         }
 
         return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function rawBlockLines(string $text): array
+    {
+        return explode("\n", str_replace(["\r\n", "\r"], "\n", $text));
     }
 
     private function renderRawInline(AstNode $node): string
