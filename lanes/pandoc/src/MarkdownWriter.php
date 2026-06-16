@@ -5879,13 +5879,165 @@ final class MarkdownWriter
     private function citationSuffixMarkdown(AstNode $citation): string
     {
         $suffix = $this->citationAffixMarkdown($citation, 'suffix');
+        if ($suffix !== '') {
+            return $suffix;
+        }
 
-        return $suffix === '' ? $this->citationAffixMarkdown($citation, 'locator') : $suffix;
+        $locator = $this->citationAffixMarkdown($citation, 'locator');
+
+        return $this->citationLocatorMarkdown($citation, $locator);
     }
 
     private function isSourceStyleCitationSuffix(string $suffix): bool
     {
-        return preg_match('/\\A(?:p{1,2}|ch|sec|fig)\\.\\s/u', $suffix) === 1;
+        return $this->citationLocatorLooksLabeled($suffix);
+    }
+
+    private function citationLocatorMarkdown(AstNode $citation, string $locator): string
+    {
+        $locator = trim($locator);
+        $explicitValue = $this->citationLocatorValueMarkdown($citation);
+        $value = $explicitValue === '' ? $locator : $explicitValue;
+        if ($value === '') {
+            return '';
+        }
+
+        if ($this->citationLocatorLooksLabeled($value)) {
+            return $value;
+        }
+
+        $label = $this->citationLocatorLabel($citation);
+        if ($label === '' && $explicitValue !== '') {
+            $label = 'page';
+        }
+
+        if ($label === '') {
+            return $value;
+        }
+
+        return $this->citationLocatorLabelPrefix($label) . ' ' . $value;
+    }
+
+    private function citationLocatorLabel(AstNode $citation): string
+    {
+        $label = $this->scalarAttr($citation, [
+            'locatorLabel',
+            'citationLocatorLabel',
+            'locatorType',
+            'citationLocatorType',
+        ]);
+
+        return $this->normalizeCitationLocatorLabel($label);
+    }
+
+    private function normalizeCitationLocatorLabel(string $label): string
+    {
+        $label = strtolower(trim($label));
+        $label = str_replace(['_', ' '], '-', $label);
+
+        return match ($label) {
+            'article', 'article-locator' => 'article-locator',
+            'book', 'bk' => 'book',
+            'canon', 'can' => 'canon',
+            'chapter', 'chap', 'ch' => 'chapter',
+            'column', 'col' => 'column',
+            'e-location', 'elocation', 'e-loc' => 'elocation',
+            'equation', 'eq' => 'equation',
+            'figure', 'fig' => 'figure',
+            'folio', 'fol' => 'folio',
+            'line' => 'line',
+            'note' => 'note',
+            'opus', 'op' => 'opus',
+            'page', 'p', 'pp' => 'page',
+            'paragraph', 'para' => 'paragraph',
+            'part', 'pt' => 'part',
+            'rule' => 'rule',
+            'section', 'sec' => 'section',
+            'sub-verbo', 'sub-verbum', 'sub-verba', 'sub-verbois', 'sv' => 'sub-verbo',
+            'supplement', 'supp' => 'supplement',
+            'table', 'tbl' => 'table',
+            'timestamp', 'ts' => 'timestamp',
+            'title', 'tit' => 'title',
+            'verse' => 'verse',
+            'volume', 'vol' => 'volume',
+            'issue', 'iss' => 'issue',
+            'number', 'no' => 'number',
+            'appendix', 'app' => 'appendix',
+            default => $label,
+        };
+    }
+
+    private function citationLocatorLabelPrefix(string $label): string
+    {
+        $prefix = match ($this->normalizeCitationLocatorLabel($label)) {
+            'article-locator' => 'art.',
+            'appendix' => 'app.',
+            'book' => 'bk.',
+            'canon' => 'c.',
+            'chapter' => 'ch.',
+            'column' => 'col.',
+            'elocation' => 'e-loc.',
+            'equation' => 'eq.',
+            'figure' => 'fig.',
+            'folio' => 'fol.',
+            'line' => 'l.',
+            'note' => 'n.',
+            'opus' => 'op.',
+            'page' => 'p.',
+            'paragraph' => 'para.',
+            'part' => 'pt.',
+            'rule' => 'r.',
+            'section' => 'sec.',
+            'sub-verbo' => 's.v.',
+            'supplement' => 'supp.',
+            'table' => 'tbl.',
+            'timestamp' => 'ts.',
+            'title' => 'tit.',
+            'verse' => 'v.',
+            'volume' => 'vol.',
+            'issue' => 'iss.',
+            'number' => 'no.',
+            default => '',
+        };
+
+        return $prefix === '' ? $this->escapeText($label) : $prefix;
+    }
+
+    private function citationLocatorLooksLabeled(string $locator): bool
+    {
+        return preg_match(
+            '/\\A(?:(?:art|app|bk|bks|c|cc|ch|col|e-?loc|eq|fig|fol|l|ll|n|nn|op|opp|p|pp|para|paras|pt|pts|r|rr|sec|supp|tbl|ts|tit|v|vv|vol|iss|no|s\\.v)\\.|[\\x{00A7}\\x{00B6}]{1,2})\\s/u',
+            $locator
+        ) === 1;
+    }
+
+    private function citationLocatorValueMarkdown(AstNode $citation): string
+    {
+        foreach ([
+            'locatorValue',
+            'citationLocatorValue',
+            'locatorNumber',
+            'citationLocatorNumber',
+        ] as $alias) {
+            if (!array_key_exists($alias, $citation->attrs)) {
+                continue;
+            }
+
+            $value = $citation->attrs[$alias];
+            if (is_array($value) && $this->allAstNodes(array_values($value))) {
+                return trim($this->renderInlines(array_values($value)));
+            }
+
+            if ($value instanceof AstNode) {
+                return trim($this->renderInline($value));
+            }
+
+            if (is_scalar($value)) {
+                return $this->escapeText(trim((string) $value));
+            }
+        }
+
+        return '';
     }
 
     private function citationAffixMarkdown(AstNode $citation, string $name): string
