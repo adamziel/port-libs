@@ -365,6 +365,7 @@ final class MarkdownReader
             'multiline_table', 'multiline_tables' => 'multiline_tables',
             'pipe_table', 'pipetables', 'table', 'tables' => 'pipe_tables',
             'raw_attributes' => 'raw_attribute',
+            'raw_latex', 'latex_macros' => 'raw_tex',
             'simple_table', 'simpletables' => 'simple_tables',
             'subscripts' => 'subscript',
             'superscripts' => 'superscript',

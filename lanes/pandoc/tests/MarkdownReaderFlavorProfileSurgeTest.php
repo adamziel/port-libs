@@ -210,6 +210,32 @@ $phpExtraDisabled = array_values(array_diff(array_keys($featureProbes), $phpExtr
 $mmdFormats = ['markdown_mmd', 'markdown-mmd', 'markdown+mmd', 'markdown+multimarkdown'];
 $mmdEnabled = ['citation', 'dollar math', 'bracketed span'];
 $mmdDisabled = array_values(array_diff(array_keys($featureProbes), $mmdEnabled));
+$rawTexAliasCases = [
+    'commonmark raw_latex suffix enables raw tex' => [
+        'options' => ['format' => 'commonmark+raw_latex'],
+        'expected' => true,
+    ],
+    'commonmark latex_macros suffix enables raw tex' => [
+        'options' => ['format' => 'commonmark+latex_macros'],
+        'expected' => true,
+    ],
+    'commonmark raw_latex extension list enables raw tex' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['+raw_latex']],
+        'expected' => true,
+    ],
+    'commonmark latex_macros extension list enables raw tex' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['+latex_macros']],
+        'expected' => true,
+    ],
+    'markdown raw_latex suffix disables raw tex' => [
+        'options' => ['format' => 'markdown-raw_latex'],
+        'expected' => false,
+    ],
+    'markdown raw_latex extension list disables raw tex' => [
+        'options' => ['format' => 'markdown', 'extensions' => ['-raw_latex']],
+        'expected' => false,
+    ],
+];
 
 return [
     'maps upstream pandoc markdown flavor profile default extension set' =>
@@ -296,8 +322,27 @@ return [
 
             $t->same(16, $mapped);
         },
+    'maps upstream markdown raw tex extension aliases' =>
+        static function (TestRunner $t) use ($rawTexAliasCases, $findInline, $inlineText): void {
+            foreach ($rawTexAliasCases as $label => $case) {
+                $document = (new MarkdownReader($case['options']))->read('TeX \textbf{alias} done.');
+                $match = $findInline($document, static fn (AstNode $node): bool => $node->type === 'raw_tex');
+
+                if ($case['expected']) {
+                    $t->same('raw_tex', $match->type, $label);
+                    $t->same('\textbf{alias}', $match->attr('tex'), $label . ' tex payload');
+                    $t->same('textbf', $match->attr('command'), $label . ' command');
+                    continue;
+                }
+
+                $paragraph = $document->children[0] ?? new AstNode('missing');
+                $t->same('missing', $match->type, $label);
+                $t->same('paragraph', $paragraph->type, $label . ' paragraph');
+                $t->same('TeX \textbf{alias} done.', $inlineText($paragraph), $label . ' literal text');
+            }
+        },
     'records upstream markdown flavor profile surge mapped-case count' =>
         static function (TestRunner $t): void {
-            $t->same(302, 65 + 52 + 52 + 117 + 16);
+            $t->same(308, 65 + 52 + 52 + 117 + 16 + 6);
         },
 ];
