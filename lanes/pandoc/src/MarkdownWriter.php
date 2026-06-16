@@ -8568,7 +8568,7 @@ final class MarkdownWriter
 
     private function rawFormat(AstNode $node): string
     {
-        return $this->scalarAttr($node, ['format', 'rawFormat', 'formatName']);
+        return $this->scalarAttr($node, ['format', 'rawFormat', 'formatName', 'raw_format', 'format_name']);
     }
 
     /**
