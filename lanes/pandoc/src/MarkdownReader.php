@@ -20980,7 +20980,12 @@ final class MarkdownReader
                 return [null, ''];
             }
 
-            return [substr($content, 1, $end - 1), substr($content, $end + 1)];
+            $destination = substr($content, 1, $end - 1);
+            if (!$this->isValidAngleLinkDestination($destination)) {
+                return [null, ''];
+            }
+
+            return [$destination, substr($content, $end + 1)];
         }
 
         $length = strlen($content);
@@ -20996,6 +21001,23 @@ final class MarkdownReader
         }
 
         return [$content, ''];
+    }
+
+    private function isValidAngleLinkDestination(string $destination): bool
+    {
+        $length = strlen($destination);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $destination[$offset];
+            if ($char === "\n" || $char === "\r") {
+                return false;
+            }
+
+            if ($char === '<' && !$this->isEscapedInlinePosition($destination, $offset)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function findUnescapedCharacter(string $text, string $character, int $offset): ?int
