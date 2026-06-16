@@ -543,6 +543,116 @@ return [
         );
         $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $decodedPathConflictManifest)));
     },
+    'keeps duplicate compact ODT manifest custom attribute names and prefix collisions stable' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            ],
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:wp="urn:wordpress:review:root" manifest:version="1.3" wp:review-source="root">',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml" xmlns:wp="urn:wordpress:review:content" wp:media-type="application/x-content-shadow" wp:priority="1"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7" xmlns:wp="urn:wordpress:review:hero" xmlns:asset="urn:wordpress:review:content" wp:media-type="application/x-hero-shadow" wp:priority="2" asset:media-type="application/x-content-shadow" asset:priority="1" asset:full-path="Pictures/shadow.png"/>',
+            ],
+            $manifestXml
+        );
+        $package = $buildOdtPackage(manifest: $manifest);
+        $odt = OpenDocumentPackage::fromPackage($package);
+        $summary = $odt->summarize();
+        $review = $summary['manifestReview'];
+        $root = $odt->manifestRootAttributes();
+        $content = $odt->manifestEntry('content.xml');
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+        $reviewByPath = [];
+        foreach ($review['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $order = $review['manifestFileEntryOrder'];
+        $inventory = $summary['packageInventory']['parts'];
+        $readerResult = (new OdfReader())->readPackage($package);
+        $readerManifest = $readerResult['document']->attr('manifest');
+        $readerProvenance = $readerResult['importReport']['manifest']['packageProvenance'];
+        $customNamesByLocalName = static function (array $attributes): array {
+            $namesByLocalName = [];
+            foreach ($attributes as $attribute) {
+                $localName = $attribute['localName'] ?? null;
+                $name = $attribute['name'] ?? null;
+                if (!is_string($localName) || $localName === '' || !is_string($name) || $name === '') {
+                    continue;
+                }
+
+                $namesByLocalName[$localName][] = $name;
+            }
+            foreach ($namesByLocalName as &$names) {
+                sort($names, SORT_STRING);
+            }
+            unset($names);
+            ksort($namesByLocalName, SORT_STRING);
+
+            return $namesByLocalName;
+        };
+        $expectedContentCustom = [
+            'wp:media-type' => 'application/x-content-shadow',
+            'wp:priority' => '1',
+        ];
+        $expectedHeroCustom = [
+            'asset:full-path' => 'Pictures/shadow.png',
+            'asset:media-type' => 'application/x-content-shadow',
+            'asset:priority' => '1',
+            'wp:media-type' => 'application/x-hero-shadow',
+            'wp:priority' => '2',
+        ];
+        $heroCustomNamesByLocalName = $customNamesByLocalName($hero['customManifestAttributes']);
+
+        $t->same('urn:wordpress:review:root', $root['namespaceDeclarationMap']['xmlns:wp']);
+        $t->same(['wp:review-source' => 'root'], $root['customAttributeMap']);
+        $t->same('text/xml', $content['mediaType']);
+        $t->same('content.xml', $content['packagePath']);
+        $t->same($expectedContentCustom, $content['customManifestAttributeMap']);
+        $t->same('urn:wordpress:review:content', $content['manifestNamespaceDeclarationMap']['xmlns:wp']);
+        $t->same('image/png', $hero['mediaType']);
+        $t->same('Pictures/hero.png', $hero['packagePath']);
+        $t->same($expectedHeroCustom, $hero['customManifestAttributeMap']);
+        $t->same('urn:wordpress:review:hero', $hero['manifestNamespaceDeclarationMap']['xmlns:wp']);
+        $t->same('urn:wordpress:review:content', $hero['manifestNamespaceDeclarationMap']['xmlns:asset']);
+        $t->same(['asset:full-path'], $heroCustomNamesByLocalName['full-path']);
+        $t->same(['asset:media-type', 'wp:media-type'], $heroCustomNamesByLocalName['media-type']);
+        $t->same(['asset:priority', 'wp:priority'], $heroCustomNamesByLocalName['priority']);
+
+        $t->same(2, $review['manifestCustomAttributeEntryCount']);
+        $t->same(7, $review['manifestCustomAttributeCount']);
+        $t->same(['asset:full-path', 'asset:media-type', 'asset:priority', 'wp:media-type', 'wp:priority'], $review['manifestCustomAttributeNames']);
+        $t->same([1, 4], array_column($review['manifestCustomAttributeItems'], 'manifestIndex'));
+        $t->same(['content.xml', 'Pictures/hero.png'], array_column($review['manifestCustomAttributeItems'], 'path'));
+        $t->same($expectedContentCustom, $reviewByPath['content.xml']['customManifestAttributeMap']);
+        $t->same($expectedHeroCustom, $reviewByPath['Pictures/hero.png']['customManifestAttributeMap']);
+        $t->same('urn:wordpress:review:content', $order[1]['manifestNamespaceDeclarationMap']['xmlns:wp']);
+        $t->same('urn:wordpress:review:hero', $order[4]['manifestNamespaceDeclarationMap']['xmlns:wp']);
+        $t->same($expectedHeroCustom, $order[4]['customManifestAttributeMap']);
+
+        $t->same('image/png', $inventory['Pictures/hero.png']['manifestMediaType']);
+        $t->same('Pictures/hero.png', $inventory['Pictures/hero.png']['manifestPackagePath']);
+        $t->same($expectedContentCustom, $inventory['content.xml']['customManifestAttributeMap']);
+        $t->same($expectedHeroCustom, $inventory['Pictures/hero.png']['customManifestAttributeMap']);
+        $t->same('urn:wordpress:review:content', $inventory['Pictures/hero.png']['manifestNamespaceDeclarationMap']['xmlns:asset']);
+
+        $t->same($root['customAttributeMap'], $readerManifest['rootCustomAttributeMap']);
+        $t->same($root['namespaceDeclarationMap'], $readerProvenance['manifestRootNamespaceDeclarationMap']);
+        $t->same($review['manifestCustomAttributeCount'], $readerProvenance['manifestCustomAttributeCount']);
+        $t->same($review['manifestCustomAttributeNames'], $readerProvenance['manifestCustomAttributeNames']);
+        $t->same($order[1]['customManifestAttributeMap'], $readerProvenance['manifestFileEntryOrder'][1]['customManifestAttributeMap']);
+        $t->same($order[4]['customManifestAttributeMap'], $readerProvenance['manifestFileEntryOrder'][4]['customManifestAttributeMap']);
+        $t->same($order[4]['manifestNamespaceDeclarationMap'], $readerProvenance['manifestFileEntryOrder'][4]['manifestNamespaceDeclarationMap']);
+        $t->same($inventory['Pictures/hero.png']['customManifestAttributeMap'], $readerProvenance['parts']['Pictures/hero.png']['customManifestAttributeMap']);
+
+        $duplicateQNameManifest = str_replace(
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml" xmlns:wp="urn:wordpress:review:content" wp:priority="1" wp:priority="2"/>',
+            $manifestXml
+        );
+        $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $duplicateQNameManifest)));
+    },
     'preserves compact ODT manifest namespace declarations for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             [
