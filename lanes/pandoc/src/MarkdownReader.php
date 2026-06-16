@@ -372,7 +372,9 @@ final class MarkdownReader
             'task_list', 'tasklists', 'tasklist' => 'task_lists',
             'tex_math_double_backslashes' => 'tex_math_double_backslash',
             'tex_math_dollar' => 'tex_math_dollars',
-            'wiki_links' => 'wikilinks',
+            'wiki_link', 'wiki_links', 'wikilink' => 'wikilinks',
+            'wikilink_title_after_pipe', 'wikilinks_title_after_pipe' => 'wikilinks_title_after_pipe',
+            'wikilink_title_before_pipe', 'wikilinks_title_before_pipe' => 'wikilinks_title_before_pipe',
             default => str_replace('-', '_', strtolower(trim($extension))),
         };
     }
@@ -19569,7 +19571,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $wikiLink = ($allowLinks && $this->markdownExtensionEnabled('wikilinks')) ? $this->tryParseWikiLink($text, $offset) : null;
+            $wikiLink = ($allowLinks && $this->wikiLinksEnabled()) ? $this->tryParseWikiLink($text, $offset) : null;
             if ($wikiLink !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $wikiLink['node'];
@@ -20576,7 +20578,7 @@ final class MarkdownReader
                 break;
             }
 
-            return [$url, $label];
+            return $this->wikiLinkTitleAfterPipe() ? [$label, $url] : [$url, $label];
         }
 
         $content = trim($content);
@@ -23769,6 +23771,62 @@ final class MarkdownReader
     private function linkAttributesEnabled(): bool
     {
         return $this->markdownAttributeExtensionEnabled('link_attributes', 'inline_attributes');
+    }
+
+    private function wikiLinksEnabled(): bool
+    {
+        $state = null;
+
+        foreach ($this->markdownFormatExtensionOverrides() as $name => $enabled) {
+            $state = $this->wikiLinksEnabledOverride((string) $name, $enabled, $state);
+        }
+
+        foreach ($this->configuredMarkdownExtensionOverrides() as $name => $enabled) {
+            $state = $this->wikiLinksEnabledOverride((string) $name, $enabled, $state);
+        }
+
+        if ($state !== null) {
+            return $state;
+        }
+
+        return $this->markdownExtensionEnabled('wikilinks');
+    }
+
+    private function wikiLinksEnabledOverride(string $extension, bool $enabled, ?bool $current): ?bool
+    {
+        return in_array($this->normalizeMarkdownExtensionName($extension), [
+            'wikilinks',
+            'wikilinks_title_after_pipe',
+            'wikilinks_title_before_pipe',
+        ], true) ? $enabled : $current;
+    }
+
+    private function wikiLinkTitleAfterPipe(): bool
+    {
+        $direction = null;
+
+        foreach ($this->markdownFormatExtensionOverrides() as $name => $enabled) {
+            $direction = $this->wikiLinkDirectionOverride((string) $name, $enabled, $direction);
+        }
+
+        foreach ($this->configuredMarkdownExtensionOverrides() as $name => $enabled) {
+            $direction = $this->wikiLinkDirectionOverride((string) $name, $enabled, $direction);
+        }
+
+        return $direction === 'after';
+    }
+
+    private function wikiLinkDirectionOverride(string $extension, bool $enabled, ?string $current): ?string
+    {
+        if (!$enabled) {
+            return $current;
+        }
+
+        return match ($this->normalizeMarkdownExtensionName($extension)) {
+            'wikilinks_title_after_pipe' => 'after',
+            'wikilinks_title_before_pipe' => 'before',
+            default => $current,
+        };
     }
 
     private function markdownAttributeExtensionEnabled(string $extension, ?string $legacyExtension = null): bool
