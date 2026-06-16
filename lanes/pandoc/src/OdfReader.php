@@ -1233,6 +1233,17 @@ final class OdfReader
         $objectPackageRootParts = $this->objectPackageRootParts($manifest);
         $roleCounts = [];
         $undeclaredRoleCounts = [];
+        $roleByteLengths = [];
+        $roleCompressedByteLengths = [];
+        $totalByteLength = 0;
+        $totalCompressedByteLength = 0;
+        $fileEntryCount = 0;
+        $fileByteLength = 0;
+        $fileCompressedByteLength = 0;
+        $directoryByteLength = 0;
+        $directoryCompressedByteLength = 0;
+        $packagePartByteExposurePolicyByteLengths = [];
+        $packagePartByteExposurePolicyCompressedByteLengths = [];
         $corePackagePartCount = 0;
         $mediaResourcePartCount = 0;
         $packageThumbnailPartCount = 0;
@@ -1383,6 +1394,16 @@ final class OdfReader
             $byteExposurePolicy = is_array($manifestItem)
                 ? ($manifestItem['byteExposurePolicy'] ?? null)
                 : (is_array($undeclaredItem) ? ($undeclaredItem['byteExposurePolicy'] ?? null) : null);
+            $totalByteLength += $entry->uncompressedSize;
+            $totalCompressedByteLength += $entry->compressedSize;
+            if ($entry->isDirectory()) {
+                $directoryByteLength += $entry->uncompressedSize;
+                $directoryCompressedByteLength += $entry->compressedSize;
+            } else {
+                ++$fileEntryCount;
+                $fileByteLength += $entry->uncompressedSize;
+                $fileCompressedByteLength += $entry->compressedSize;
+            }
 
             $parts[$entry->name] = [
                 'part' => $entry->name,
@@ -1475,9 +1496,15 @@ final class OdfReader
             }
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                $roleByteLengths[$role] = ($roleByteLengths[$role] ?? 0) + $entry->uncompressedSize;
+                $roleCompressedByteLengths[$role] = ($roleCompressedByteLengths[$role] ?? 0) + $entry->compressedSize;
                 if ($isUndeclared) {
                     $undeclaredRoleCounts[$role] = ($undeclaredRoleCounts[$role] ?? 0) + 1;
                 }
+            }
+            if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
+                $packagePartByteExposurePolicyByteLengths[$byteExposurePolicy] = ($packagePartByteExposurePolicyByteLengths[$byteExposurePolicy] ?? 0) + $entry->uncompressedSize;
+                $packagePartByteExposurePolicyCompressedByteLengths[$byteExposurePolicy] = ($packagePartByteExposurePolicyCompressedByteLengths[$byteExposurePolicy] ?? 0) + $entry->compressedSize;
             }
             if (array_intersect($roles, ['odf-mimetype', 'odf-manifest', 'odf-content', 'odf-styles', 'odf-meta', 'odf-settings']) !== []) {
                 ++$corePackagePartCount;
@@ -1525,14 +1552,26 @@ final class OdfReader
         }
         ksort($roleCounts, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
+        ksort($roleByteLengths, SORT_STRING);
+        ksort($roleCompressedByteLengths, SORT_STRING);
         ksort($manifestByteExposurePolicyCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyCounts, SORT_STRING);
+        ksort($packagePartByteExposurePolicyByteLengths, SORT_STRING);
+        ksort($packagePartByteExposurePolicyCompressedByteLengths, SORT_STRING);
         $embeddedObjectPackages = $this->embeddedObjectPackageProvenance($package, $manifest, $objectPackageRootParts);
         sort($manifestCustomAttributeNames, SORT_STRING);
 
         return [
             'mimetypeEntry' => $mimetypeEntry,
             'entryCount' => count($parts),
+            'fileEntryCount' => $fileEntryCount,
+            'directoryEntryCount' => $packageDirectoryCount,
+            'totalByteLength' => $totalByteLength,
+            'totalCompressedByteLength' => $totalCompressedByteLength,
+            'fileByteLength' => $fileByteLength,
+            'fileCompressedByteLength' => $fileCompressedByteLength,
+            'directoryByteLength' => $directoryByteLength,
+            'directoryCompressedByteLength' => $directoryCompressedByteLength,
             'manifestDeclaredPartCount' => count($manifestByPart),
             'manifestRootAttributeCount' => $manifestRootAttributes['attributeCount'] ?? 0,
             'manifestRootAttributeNames' => $manifestRootAttributes['attributeNames'] ?? [],
@@ -1565,7 +1604,11 @@ final class OdfReader
             'manifestEncryption' => $manifestEncryptionSummary,
             'roleCounts' => $roleCounts,
             'undeclaredRoleCounts' => $undeclaredRoleCounts,
+            'roleByteLengths' => $roleByteLengths,
+            'roleCompressedByteLengths' => $roleCompressedByteLengths,
             'packagePartByteExposurePolicyCounts' => $packagePartByteExposurePolicyCounts,
+            'packagePartByteExposurePolicyByteLengths' => $packagePartByteExposurePolicyByteLengths,
+            'packagePartByteExposurePolicyCompressedByteLengths' => $packagePartByteExposurePolicyCompressedByteLengths,
             'packagePartByteExposurePolicyItemCount' => count($packagePartByteExposurePolicyItems),
             'packagePartByteExposurePolicyItems' => $packagePartByteExposurePolicyItems,
             'corePackagePartCount' => $corePackagePartCount,

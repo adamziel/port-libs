@@ -11614,6 +11614,80 @@ XML;
         $t->same(true, $inventory['Thumbnails/thumbnail.png']['undeclared']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $inventory['Thumbnails/thumbnail.png']['crc32']);
     },
+    'summarizes ODT package inventory role byte buckets for review handoff' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $reviewImage = 'REVIEWPNG';
+        $scriptXml = '<script:module xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"/>';
+        $unsupportedImage = 'UNSUPPORTED-WEBP';
+        $thumbnail = 'THUMBNAIL';
+        $manifestWithBuckets = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/review.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Basic/Standard/Module1.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/unsupported.webp" manifest:media-type="image/webp"/>',
+            $manifestXml
+        );
+        $parts = [
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestWithBuckets, 'compressionMethod' => 8],
+            ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 8],
+            ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 8],
+            ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 8],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'Pictures/review.png', 'data' => $reviewImage, 'compressionMethod' => 0],
+            ['name' => 'Basic/Standard/Module1.xml', 'data' => $scriptXml, 'compressionMethod' => 0],
+            ['name' => 'Pictures/unsupported.webp', 'data' => $unsupportedImage, 'compressionMethod' => 12],
+            ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnail, 'compressionMethod' => 0],
+        ];
+
+        $result = (new OdfReader())->readPackage($buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name')));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $manifestDeclaredBytes = strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + strlen('PNGDATA') + strlen($reviewImage) + strlen($scriptXml) + strlen($unsupportedImage);
+        $manifestDeclaredCompressedBytes = strlen(gzdeflate($contentXml)) + strlen(gzdeflate($stylesXml)) + strlen(gzdeflate($metaXml)) + strlen('PNGDATA') + strlen($reviewImage) + strlen($scriptXml) + strlen($unsupportedImage);
+        $exposableBytes = strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + strlen('PNGDATA') + strlen($reviewImage);
+        $exposableCompressedBytes = strlen(gzdeflate($contentXml)) + strlen(gzdeflate($stylesXml)) + strlen(gzdeflate($metaXml)) + strlen('PNGDATA') + strlen($reviewImage);
+        $totalBytes = strlen(OdfReader::MIMETYPE) + strlen($manifestWithBuckets) + $manifestDeclaredBytes + strlen($thumbnail);
+        $totalCompressedBytes = strlen(OdfReader::MIMETYPE) + strlen(gzdeflate($manifestWithBuckets)) + $manifestDeclaredCompressedBytes + strlen($thumbnail);
+
+        $t->same($provenance, $documentProvenance);
+        $t->same(10, $provenance['entryCount']);
+        $t->same(10, $provenance['fileEntryCount']);
+        $t->same(0, $provenance['directoryEntryCount']);
+        $t->same($totalBytes, $provenance['totalByteLength']);
+        $t->same($totalCompressedBytes, $provenance['totalCompressedByteLength']);
+        $t->same($totalBytes, $provenance['fileByteLength']);
+        $t->same($totalCompressedBytes, $provenance['fileCompressedByteLength']);
+        $t->same(0, $provenance['directoryByteLength']);
+        $t->same(0, $provenance['directoryCompressedByteLength']);
+
+        $t->same($manifestDeclaredBytes, $provenance['roleByteLengths']['manifest-declared']);
+        $t->same($manifestDeclaredCompressedBytes, $provenance['roleCompressedByteLengths']['manifest-declared']);
+        $t->same(strlen(OdfReader::MIMETYPE), $provenance['roleByteLengths']['odf-mimetype']);
+        $t->same(strlen($manifestWithBuckets), $provenance['roleByteLengths']['odf-manifest']);
+        $t->same(strlen(gzdeflate($manifestWithBuckets)), $provenance['roleCompressedByteLengths']['odf-manifest']);
+        $t->same(strlen($contentXml), $provenance['roleByteLengths']['odf-content']);
+        $t->same(strlen(gzdeflate($contentXml)), $provenance['roleCompressedByteLengths']['odf-content']);
+        $t->same(strlen('PNGDATA') + strlen($reviewImage) + strlen($unsupportedImage), $provenance['roleByteLengths']['media-resource']);
+        $t->same(strlen($scriptXml), $provenance['roleByteLengths']['script-package']);
+        $t->same(strlen($thumbnail), $provenance['roleByteLengths']['package-thumbnail']);
+        $t->same(strlen($thumbnail), $provenance['roleByteLengths']['undeclared-package-entry']);
+
+        $t->same([
+            'package-bytes-exposable' => 5,
+            'script-package-bytes-blocked' => 1,
+            'undeclared-package-entry-no-bytes' => 1,
+            'unsupported-compression-bytes-blocked' => 1,
+        ], $provenance['packagePartByteExposurePolicyCounts']);
+        $t->same($exposableBytes, $provenance['packagePartByteExposurePolicyByteLengths']['package-bytes-exposable']);
+        $t->same($exposableCompressedBytes, $provenance['packagePartByteExposurePolicyCompressedByteLengths']['package-bytes-exposable']);
+        $t->same(strlen($scriptXml), $provenance['packagePartByteExposurePolicyByteLengths']['script-package-bytes-blocked']);
+        $t->same(strlen($unsupportedImage), $provenance['packagePartByteExposurePolicyByteLengths']['unsupported-compression-bytes-blocked']);
+        $t->same(strlen($thumbnail), $provenance['packagePartByteExposurePolicyByteLengths']['undeclared-package-entry-no-bytes']);
+        $t->same(['manifest-declared', 'media-resource'], $provenance['parts']['Pictures/unsupported.webp']['roles']);
+        $t->same('unsupported-compression-bytes-blocked', $provenance['parts']['Pictures/unsupported.webp']['byteExposurePolicy']);
+        $t->same(['package-thumbnail', 'undeclared-package-entry'], $provenance['parts']['Thumbnails/thumbnail.png']['roles']);
+    },
     'reports ODT package media SHA-256 provenance without exposing blocked sidecars' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $reviewImage = 'REVIEWPNG';
         $scriptBytes = 'alert("blocked");';
