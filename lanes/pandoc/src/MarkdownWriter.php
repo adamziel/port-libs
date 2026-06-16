@@ -1826,6 +1826,14 @@ final class MarkdownWriter
             }
 
             if ($this->isInlineListItemBlock($child)) {
+                if ($previousBlock instanceof AstNode && $this->needsListItemBlockSeparator($previousBlock, $child)) {
+                    if ($lines !== [] && end($lines) !== '') {
+                        $lines[] = '';
+                    }
+                    $lines[] = str_repeat(' ', $blockIndent) . '<!-- -->';
+                    $lines[] = '';
+                }
+
                 if (count($lines) === 1 && rtrim($lines[0]) === rtrim($prefix)) {
                     $lines = [];
                     $lines = $this->appendInlineListItemLines(
@@ -1849,7 +1857,7 @@ final class MarkdownWriter
             }
 
             $nestedIndent = $blockIndent;
-            if ($previousBlock instanceof AstNode && $this->needsBlockSeparator($previousBlock, $child)) {
+            if ($previousBlock instanceof AstNode && $this->needsListItemBlockSeparator($previousBlock, $child)) {
                 if ($lines !== [] && end($lines) !== '') {
                     $lines[] = '';
                 }
@@ -7598,6 +7606,15 @@ final class MarkdownWriter
         return $previous->type === 'ordered_list'
             && $current->type === 'ordered_list'
             && $this->orderedListMarkerStyle($previous) === $this->orderedListMarkerStyle($current);
+    }
+
+    private function needsListItemBlockSeparator(AstNode $previous, AstNode $current): bool
+    {
+        if ($this->needsBlockSeparator($previous, $current)) {
+            return true;
+        }
+
+        return $this->isListBlock($previous);
     }
 
     private function rendersIndentedCodeBlock(AstNode $node): bool
