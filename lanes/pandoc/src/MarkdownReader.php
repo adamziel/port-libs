@@ -165,6 +165,7 @@ final class MarkdownReader
             'raw_tex' => true,
             'simple_tables' => true,
             'smart' => true,
+            'space_in_atx_header' => true,
             'strikeout' => true,
             'task_lists' => true,
             'subscript' => true,
@@ -179,7 +180,10 @@ final class MarkdownReader
             null, 'markdown', 'pandoc', 'commonmark_x' => $all,
             'markdown_strict', 'commonmark' => array_replace(
                 array_fill_keys(array_keys($all), false),
-                ['raw_html' => true]
+                [
+                    'raw_html' => true,
+                    'space_in_atx_header' => true,
+                ]
             ),
             'gfm', 'markdown_github' => array_replace(
                 array_fill_keys(array_keys($all), false),
@@ -188,6 +192,7 @@ final class MarkdownReader
                     'emoji' => true,
                     'pipe_tables' => true,
                     'raw_html' => true,
+                    'space_in_atx_header' => true,
                     'strikeout' => true,
                     'task_lists' => true,
                 ]
@@ -208,6 +213,7 @@ final class MarkdownReader
                     'pipe_tables' => true,
                     'raw_html' => true,
                     'simple_tables' => true,
+                    'space_in_atx_header' => true,
                 ]
             ),
             'markdown_mmd' => array_replace(
@@ -225,6 +231,7 @@ final class MarkdownReader
                     'pipe_tables' => true,
                     'raw_html' => true,
                     'simple_tables' => true,
+                    'space_in_atx_header' => true,
                     'tex_math_dollars' => true,
                     'tex_math_single_backslash' => true,
                 ]
@@ -8557,7 +8564,10 @@ final class MarkdownReader
      */
     private function tryParseMarkdownHeading(string $line): ?array
     {
-        if (preg_match('/^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/', $line, $m) !== 1) {
+        $pattern = $this->markdownExtensionEnabled('space_in_atx_header')
+            ? '/^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/'
+            : '/^ {0,3}(#{1,6})(.*)$/';
+        if (preg_match($pattern, $line, $m) !== 1) {
             return null;
         }
 
