@@ -5761,6 +5761,7 @@ final class MarkdownWriter
                 'pipe_tables',
                 'raw_tex',
                 'simple_tables',
+                'smart',
                 'strikeout',
                 'subscript',
                 'superscript',
@@ -5789,6 +5790,7 @@ final class MarkdownWriter
                 'multiline_tables',
                 'raw_tex',
                 'simple_tables',
+                'smart',
                 'subscript',
                 'superscript',
                 'tex_math_dollars',
@@ -5810,6 +5812,7 @@ final class MarkdownWriter
                 'multiline_tables',
                 'pipe_tables',
                 'simple_tables',
+                'smart',
                 'task_lists',
             ], true);
         }
@@ -5818,6 +5821,7 @@ final class MarkdownWriter
             return !in_array($extension, [
                 'fenced_divs',
                 'line_blocks',
+                'smart',
                 'task_lists',
             ], true);
         }
@@ -5827,6 +5831,7 @@ final class MarkdownWriter
                 'citations',
                 'fenced_divs',
                 'line_blocks',
+                'smart',
                 'task_lists',
             ], true);
         }
@@ -5878,7 +5883,7 @@ final class MarkdownWriter
             return null;
         }
 
-        return $this->formatBase((string) $format);
+        return MarkdownFormatProfile::canonicalFormat($format);
     }
 
     private function formatBase(string $format): ?string
@@ -6228,6 +6233,7 @@ final class MarkdownWriter
         $lineStart = $escapeDefinitionMarker;
         $lineStartSpaces = 0;
         $definitionLineStart = $escapeDefinitionMarker;
+        $escapeSmartPunctuation = $this->markdownExtensionEnabled('smart');
 
         for ($i = 0; $i < $length; $i++) {
             $char = $text[$i];
@@ -6362,7 +6368,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            if (str_starts_with($tail, '...')) {
+            if ($escapeSmartPunctuation && str_starts_with($tail, '...')) {
                 $dotRun = strspn($tail, '.');
                 if ($dotRun > 3) {
                     $escaped .= str_repeat('\\.', $dotRun);
@@ -6376,7 +6382,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            if (str_starts_with($tail, '--')) {
+            if ($escapeSmartPunctuation && str_starts_with($tail, '--')) {
                 $dashRun = strspn($tail, '-');
                 if ($dashRun > 2) {
                     $escaped .= str_repeat('\\-', $dashRun);
@@ -6415,7 +6421,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($char === '&' && preg_match('/^&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);/', $tail) === 1) {
+            if ($char === '&' && preg_match('/^&(?:#(?:[0-9]{1,7}|[xX][0-9A-Fa-f]{1,6})|[A-Za-z][A-Za-z0-9]+);/', $tail) === 1) {
                 $escaped .= '&amp;';
                 $lineStart = false;
                 $definitionLineStart = false;
@@ -6437,7 +6443,8 @@ final class MarkdownWriter
             }
 
             $escaped .= match ($char) {
-                '[', ']', '`', '*', '_', '|', '^', '~', '$', '\'', '"' => '\\' . $char,
+                '[', ']', '`', '*', '_', '|', '^', '~', '$' => '\\' . $char,
+                '\'', '"' => $escapeSmartPunctuation ? '\\' . $char : $char,
                 '>', '<' => '\\' . $char,
                 default => $char,
             };
