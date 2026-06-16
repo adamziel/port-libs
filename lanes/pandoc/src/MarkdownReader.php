@@ -16891,9 +16891,7 @@ final class MarkdownReader
 
     private function isHorizontalRule(string $line): bool
     {
-        return preg_match('/^ {0,3}(?:\*[ \t]*){3,}$/', $line) === 1
-            || preg_match('/^ {0,3}(?:-[ \t]*){3,}$/', $line) === 1
-            || preg_match('/^ {0,3}(?:_[ \t]*){3,}$/', $line) === 1;
+        return preg_match('/^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/', $line) === 1;
     }
 
     /**
