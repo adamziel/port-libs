@@ -24,6 +24,12 @@ $disabledFormats = [
     'markdown_github' => ['format' => 'markdown_github'],
 ];
 
+$lineBlockEnabledFormats = [
+    'markdown' => true,
+    'pandoc' => true,
+    'commonmark_x' => true,
+];
+
 $definition = static function (array $blocks, bool $loose = false): array {
     $entry = ['blocks' => $blocks];
     if ($loose) {
@@ -140,7 +146,7 @@ $blockSummary = static function (AstNode $block): array {
 
 return [
     'maps upstream markdown definition-list final-harvest enabled profile matrix' =>
-        static function (TestRunner $t) use ($enabledFormats, $definitionCases, $nodeTypes, $blockSummary): void {
+        static function (TestRunner $t) use ($enabledFormats, $lineBlockEnabledFormats, $definitionCases, $nodeTypes, $blockSummary): void {
             $mappedCases = count($enabledFormats) * count($definitionCases);
             $t->same(135, $mappedCases);
 
@@ -170,12 +176,16 @@ return [
                             $definition = $definitions[$definitionIndex] ?? new AstNode('missing');
                             $blocks = $definition->children;
                             $expectedLoose = $expectedDefinition['loose'] ?? false;
+                            $expectedBlocks = $expectedDefinition['blocks'];
+                            if ($caseName === 'indented line block body' && !($lineBlockEnabledFormats[$formatName] ?? false)) {
+                                $expectedBlocks = [['paragraph', '| line one | line two']];
+                            }
 
                             $t->same('definition', $definition->type, $label . " definition {$definitionIndex}");
                             $t->same($expectedLoose, (bool) $definition->attr('loose', false), $label . " definition {$definitionIndex} loose");
-                            $t->same(count($expectedDefinition['blocks']), count($blocks), $label . " definition {$definitionIndex} block count");
+                            $t->same(count($expectedBlocks), count($blocks), $label . " definition {$definitionIndex} block count");
 
-                            foreach ($expectedDefinition['blocks'] as $blockIndex => $expectedBlock) {
+                            foreach ($expectedBlocks as $blockIndex => $expectedBlock) {
                                 $block = $blocks[$blockIndex] ?? new AstNode('missing');
                                 $t->same($expectedBlock, $blockSummary($block), $label . " definition {$definitionIndex} block {$blockIndex}");
                             }

@@ -152,6 +152,7 @@ final class MarkdownReader
             'hard_line_breaks' => false,
             'ignore_line_breaks' => false,
             'inline_attributes' => true,
+            'line_blocks' => true,
             'mark' => true,
             'numbered_examples' => true,
             'raw_attribute' => true,
@@ -246,6 +247,7 @@ final class MarkdownReader
             'hard_line_break', 'hard_linebreaks' => 'hard_line_breaks',
             'ignore_line_break', 'ignore_linebreaks' => 'ignore_line_breaks',
             'inline_attribute', 'link_attributes', 'markdown_attribute' => 'inline_attributes',
+            'line_block' => 'line_blocks',
             'raw_attributes' => 'raw_attribute',
             'subscripts' => 'subscript',
             'superscripts' => 'superscript',
@@ -9136,6 +9138,10 @@ final class MarkdownReader
      */
     private function tryReadLineBlock(array $lines, int &$index): ?AstNode
     {
+        if (!$this->markdownExtensionEnabled('line_blocks')) {
+            return null;
+        }
+
         $line = $lines[$index] ?? '';
         if (preg_match('/^ {0,3}\|(.*)$/', $this->expandTabsToSpaces($line), $m) !== 1) {
             return null;
@@ -17308,7 +17314,7 @@ final class MarkdownReader
         }
 
         return $this->isBlockQuoteLine($line)
-            || $this->isLineBlockLine($line)
+            || ($this->markdownExtensionEnabled('line_blocks') && $this->isLineBlockLine($line))
             || $this->isIndentedCodeLine($line)
             || $this->isHorizontalRule($line)
             || $this->tryParseMarkdownHeading($line) !== null
