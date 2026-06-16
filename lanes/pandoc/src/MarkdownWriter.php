@@ -1788,21 +1788,28 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($line->children === []) {
-                $content = (string) $line->attr('text', '');
-            } else {
-                $this->textWhitespaceEntitySuppression++;
-                try {
-                    $content = $this->renderInlines($line->children);
-                } finally {
-                    $this->textWhitespaceEntitySuppression--;
-                }
-            }
-            $content = str_replace("\xC2\xA0", ' ', $content);
+            $content = $line->children === []
+                ? $this->escapeText((string) $line->attr('text', ''))
+                : $this->renderInlines($line->children);
+            $content = $this->normalizeLineBlockIndentationMarkdown($content);
             $lines[] = rtrim($prefix . ($content === '' ? '' : ' ' . $content));
         }
 
         return $lines;
+    }
+
+    private function normalizeLineBlockIndentationMarkdown(string $content): string
+    {
+        if ($content === '' || !str_starts_with($content, '&nbsp;')) {
+            return $content;
+        }
+
+        return preg_replace_callback(
+            '/^(?:&nbsp;)+/',
+            static fn (array $match): string => str_repeat(' ', substr_count($match[0], '&nbsp;')),
+            $content,
+            1
+        ) ?? $content;
     }
 
     /**

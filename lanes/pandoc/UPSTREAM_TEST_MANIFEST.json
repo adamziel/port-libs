@@ -5,11 +5,11 @@
   "upstream": {
     "name": "jgm/pandoc",
     "url": "https://github.com/jgm/pandoc",
-    "commit": "pandoc-markdown-writer-citation-locator-final-harvest-1308c628fd",
+    "commit": "pandoc-markdown-writer-line-block-whitespace-fixture-harvest-a369e5b1ca",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 15477,
-    "latestSlice": "pandoc-markdown-writer-citation-locator-final-harvest maps 75 Markdown writer citation locator cases after rebase onto current main 1308c628fd. MarkdownWriter synthesizes locator suffix Markdown from locatorLabel/locatorValue and citationLocator* aliases across normal, suppress-author, and author-in-text citations, preserves explicit suffixes and already labelled locators, keeps citation-disabled profile HTML fallback, and preserves bracketed span wrapping without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 15747 -> 15822, phpFail remains 0, mapped upstream manifest cases move 15402 -> 15477, root mapped inventory moves 15407 -> 15482, mappedMarkdownWriterCitationLocatorFinalHarvestCases = 75, and markdownWriterCitationLocatorFinalHarvestAssertions = 83. Verification passed php -l for MarkdownWriter.php and MarkdownWriterCitationLocatorFinalHarvestTest.php; focused MarkdownWriterCitationLocatorFinalHarvestTest.php passed 1 file, 83 assertions, 0 failures; focused citation regression set passed 6 files, 1124 assertions, 0 failures; full lanes/pandoc/tests passed 186 files, 168399 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and conflict-marker scan.",
+    "mapped": 15527,
+    "latestSlice": "pandoc-markdown-writer-line-block-whitespace-fixture-harvest maps 50 Markdown writer line-block whitespace fixture cases after rebase onto current main a369e5b1ca. MarkdownWriter preserves tab, control-byte, NBSP, and Unicode separator whitespace as Markdown entities inside line blocks while retaining leading NBSP indentation as line-block marker spacing across markdown, commonmark+line_blocks, and gfm+line_blocks fixtures without invoking Pandoc, office suites, TeX/browser engines, Node tooling, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 15822 -> 15872, phpFail remains 0, mapped upstream manifest cases move 15477 -> 15527, mappedMarkdownWriterLineBlockWhitespaceFixtureHarvestCases = 50, and markdownWriterLineBlockWhitespaceFixtureHarvestAssertions = 101. Verification passed php -l for MarkdownWriter.php and MarkdownWriterLineBlockWhitespaceFixtureHarvestTest.php; focused MarkdownWriterLineBlockWhitespaceFixtureHarvestTest.php passed 1 file, 101 assertions, 0 failures; adjacent Markdown writer block tests passed 3 files, 1363 assertions, 0 failures; post-rebase full lanes/pandoc/tests passed 188 files, 168500 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and conflict-marker scan.",
     "mappedMarkdownReaderBlockListSurgeCases": 380,
     "markdownReaderBlockListSurgeAssertions": 11667,
     "mappedOdfPackageFontFormatProvenanceCases": 6,
@@ -60,8 +60,8 @@
     "opcRawZipCentralDirectoryManifestAssertions": 37,
     "mappedZipCentralDirectorySignaturePolicyCases": 2,
     "zipCentralDirectorySignaturePolicyAssertions": 30,
-    "status": "Markdown writer citation locator final harvest is verified after rebase onto current main 1308c628fd; phpFail remains 0.",
-    "latestFocusedSource": "2026-06-16 Markdown writer citation locator final harvest verified after rebase onto current main 1308c628fd; focused MarkdownWriterCitationLocatorFinalHarvestTest.php passed 1 file, 83 assertions, 0 failures; focused citation regression set passed 6 files, 1124 assertions, 0 failures; full lanes/pandoc/tests passed 186 files, 168399 assertions, 0 failures.",
+    "status": "Markdown writer line-block whitespace fixture harvest is verified after rebase onto current main a369e5b1ca; phpFail remains 0.",
+    "latestFocusedSource": "2026-06-16 Markdown writer line-block whitespace fixture harvest verified after rebase onto current main a369e5b1ca; focused MarkdownWriterLineBlockWhitespaceFixtureHarvestTest.php passed 1 file, 101 assertions, 0 failures; adjacent Markdown writer block tests passed 3 files, 1363 assertions, 0 failures; post-rebase full lanes/pandoc/tests passed 188 files, 168500 assertions, 0 failures.",
     "mappedPandocFormatReaderEvidenceBatchCases": 6,
     "pandocFormatReaderEvidenceBatchAssertions": 200,
     "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -2775,5 +2775,7 @@
   "mappedMarkdownReaderMetadataAbstractTitleBoundaryCases": 50,
   "markdownReaderMetadataAbstractTitleBoundaryAssertions": 351,
   "mappedMarkdownWriterCitationLocatorFinalHarvestCases": 75,
-  "markdownWriterCitationLocatorFinalHarvestAssertions": 83
+  "markdownWriterCitationLocatorFinalHarvestAssertions": 83,
+  "mappedMarkdownWriterLineBlockWhitespaceFixtureHarvestCases": 50,
+  "markdownWriterLineBlockWhitespaceFixtureHarvestAssertions": 101
 }
