@@ -5802,7 +5802,7 @@ final class OpenDocumentPackage
             return '/';
         }
 
-        if (str_starts_with($path, '/') || str_contains($path, '\\') || str_contains($path, "\0")) {
+        if (str_starts_with($path, '/') || str_contains($path, '\\') || self::hasAsciiControlByte($path)) {
             throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
         }
 
@@ -5832,7 +5832,7 @@ final class OpenDocumentPackage
         }
 
         $decodedPath = rawurldecode($path);
-        if ($decodedPath === '' || str_starts_with($decodedPath, '/') || str_contains($decodedPath, '\\') || str_contains($decodedPath, "\0")) {
+        if ($decodedPath === '' || str_starts_with($decodedPath, '/') || str_contains($decodedPath, '\\') || self::hasAsciiControlByte($decodedPath)) {
             throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
         }
 
@@ -5849,6 +5849,11 @@ final class OpenDocumentPackage
         }
 
         return $decodedPath;
+    }
+
+    private static function hasAsciiControlByte(string $value): bool
+    {
+        return preg_match('/[\x00-\x1F\x7F]/', $value) === 1;
     }
 
     /**

@@ -1360,6 +1360,15 @@ XML;
             $manifestXml
         );
         $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $encodedDotSegmentManifest)));
+
+        foreach (['%1F', '%7F'] as $encodedControl) {
+            $encodedControlManifest = str_replace(
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/' . $encodedControl . 'secret.png"/>',
+                $manifestXml
+            );
+            $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $encodedControlManifest)));
+        }
     },
     'keeps compact ODT URI encoded manifest parts declared in package inventory' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sourceBytes = 'SRCIMAGE';
