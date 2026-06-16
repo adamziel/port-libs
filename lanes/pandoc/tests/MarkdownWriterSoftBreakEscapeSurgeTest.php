@@ -61,6 +61,13 @@ $wrappers = [
 ];
 
 $tests = [];
+$mappedCaseCount = count($markers) * count($wrappers);
+
+$tests['records markdown writer softbreak escape surge mapped case count'] =
+    static function (TestRunner $t) use ($mappedCaseCount): void {
+        $t->same(92, $mappedCaseCount);
+    };
+
 foreach ($markers as $markerName => $marker) {
     foreach ($wrappers as $wrapperName => $wrapper) {
         $tests["maps upstream markdown writer softbreak space escape {$wrapperName} {$markerName}"] =
