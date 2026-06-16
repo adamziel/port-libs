@@ -1650,6 +1650,107 @@ BIB;
         $t->same('005 explicit relation list', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->same('source-proceedings', $handoff['bibliography']->children[0]->attr('cslItem')['xref'] ?? null);
     },
+    'carries biblatex date addendum aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{legacy-date-addendum,
+  author             = {Ng, Nia},
+  title              = {Date Addendum Legacy Packet},
+  date               = {2026-06-05},
+  dateaddon          = {first source capture},
+  origdate           = {2020},
+  origdateaddon      = {legacy packet date},
+  reprintdate        = {2024},
+  reprintdateaddon   = {review facsimile release},
+  publisher          = {Review Press},
+  url                = {https://example.test/date-addendum-legacy},
+  urldate            = {2026-06-06},
+  urldateaddon       = {reviewer accessed archive}
+}
+
+@proceedings{legacy-event-date-addendum,
+  editor         = {Curator, Eli},
+  title          = {Event Addendum Legacy Proceedings},
+  eventtitle     = {Hybrid Review Clinic},
+  eventdate      = {2025-05-01},
+  eventdateaddon = {hybrid review window},
+  date           = {2025},
+  publisher      = {Migration Desk}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $date = $items['legacy-date-addendum'];
+        $event = $items['legacy-event-date-addendum'];
+
+        $t->same('webpage', $date['type']);
+        $t->same('first source capture', $date['date-addon']);
+        $t->same('legacy packet date', $date['original-date-addon']);
+        $t->same([2020], $date['original-date']['date-parts'][0]);
+        $t->same([2024], $date['reprint-date']['date-parts'][0]);
+        $t->same('review facsimile release', $date['reprint-date-addon']);
+        $t->same([2026, 6, 6], $date['accessed']['date-parts'][0]);
+        $t->same('reviewer accessed archive', $date['accessed-date-addon']);
+        $t->same('first source capture', $date['rawBibtex']['fields']['dateaddon']);
+        $t->same('review facsimile release', $date['rawBibtex']['fields']['reprintdateaddon']);
+        $t->same('reviewer accessed archive', $date['rawBibtex']['fields']['urldateaddon']);
+        $t->same('hybrid review window', $event['event-date-addon']);
+        $t->same([2025, 5, 1], $event['event-date']['date-parts'][0]);
+        $t->same('hybrid review window', $event['rawBibtex']['fields']['eventdateaddon']);
+        $t->same(
+            'Nia Ng. Date Addendum Legacy Packet. Review Press. 2026. Date addendum: first source capture. Original date addendum: legacy packet date. Reprint date addendum: review facsimile release. Accessed date addendum: reviewer accessed archive. https://example.test/date-addendum-legacy.',
+            $processor->renderBibliographyText($date)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="date-addon"/>
+        <text variable="original-date-addon"/>
+        <text variable="reprint-date-addon"/>
+        <text variable="accessed-date-addon"/>
+        <text variable="event-date-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="date-addon"/>
+      <text variable="original-date-addon"/>
+      <text variable="reprint-date-addon"/>
+      <text variable="accessed-date-addon"/>
+      <text variable="event-date-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $styledDate = $styled->item('legacy-date-addendum');
+        $styledEvent = $styled->item('legacy-event-date-addendum');
+        $t->same('first source capture', $styledDate['dateAddon'] ?? null);
+        $t->same('review facsimile release', $styledDate['reprintDateAddon'] ?? null);
+        $t->same('hybrid review window', $styledEvent['eventDateAddon'] ?? null);
+        $t->same('[Date Addendum Legacy Packet | first source capture | legacy packet date | review facsimile release | reviewer accessed archive; Event Addendum Legacy Proceedings | hybrid review window]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-date-addendum', 'text' => '[@legacy-date-addendum]']),
+            new AstNode('citation', ['id' => 'legacy-event-date-addendum', 'text' => '[@legacy-event-date-addendum]']),
+        ]));
+        $t->same('Date Addendum Legacy Packet :: first source capture :: legacy packet date :: review facsimile release :: reviewer accessed archive', $styled->renderBibliographyEntry('legacy-date-addendum'));
+        $t->same('Event Addendum Legacy Proceedings :: hybrid review window', $styled->renderBibliographyEntry('legacy-event-date-addendum'));
+
+        $document = (new MarkdownReader())->read('Legacy date addenda cite @legacy-date-addendum and [@legacy-event-date-addendum].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['legacy-date-addendum', 'legacy-event-date-addendum'], $handoff['citedKeys']);
+        $t->same('review facsimile release', $handoff['bibliography']->children[0]->attr('cslItem')['reprint-date-addon'] ?? null);
+        $t->contains('Date addendum: first source capture', $blocks);
+        $t->contains('Event date addendum: hybrid review window', $blocks);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

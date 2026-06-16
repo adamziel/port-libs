@@ -309,6 +309,11 @@ final class BibtexCslProcessor
             'sort-key' => 'Sort key',
             'label-prefix' => 'Label prefix',
             'extra-alpha' => 'Extra alpha',
+            'date-addon' => 'Date addendum',
+            'original-date-addon' => 'Original date addendum',
+            'reprint-date-addon' => 'Reprint date addendum',
+            'event-date-addon' => 'Event date addendum',
+            'accessed-date-addon' => 'Accessed date addendum',
         ] as $field => $label) {
             if (($item[$field] ?? '') !== '') {
                 $value = (string) $item[$field];
@@ -573,6 +578,11 @@ final class BibtexCslProcessor
             'extra-alpha' => ['extraalpha', 'extra-alpha'],
             'extra-date' => ['extradate', 'extra-date'],
             'extra-title' => ['extratitle', 'extra-title'],
+            'date-addon' => ['dateaddon', 'date-addon', 'dateaddendum', 'date-addendum'],
+            'original-date-addon' => ['origdateaddon', 'origdate-addon', 'orig-date-addon', 'originaldateaddon', 'original-date-addon'],
+            'reprint-date-addon' => ['reprintdateaddon', 'reprintdate-addon', 'reprint-date-addon', 'reprintdateaddendum', 'reprint-date-addendum'],
+            'event-date-addon' => ['eventdateaddon', 'eventdate-addon', 'event-date-addon'],
+            'accessed-date-addon' => ['urldateaddon', 'urldate-addon', 'url-date-addon', 'accesseddateaddon', 'accessed-date-addon'],
             'short-title' => ['shorttitle'],
             'title-addon' => ['titleaddon'],
             'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
@@ -740,6 +750,11 @@ final class BibtexCslProcessor
         $originalDate = $this->datePartsFromFields($fields, ['origdate', 'original-date'], ['origyear', 'origmonth', 'origday']);
         if ($originalDate !== null) {
             $item['original-date'] = ['date-parts' => [$originalDate]];
+        }
+
+        $reprintDate = $this->datePartsFromFields($fields, ['reprintdate', 'reprint-date'], ['reprintyear', 'reprintmonth', 'reprintday']);
+        if ($reprintDate !== null) {
+            $item['reprint-date'] = ['date-parts' => [$reprintDate]];
         }
 
         $eventDate = $this->datePartsFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday']);

@@ -1015,6 +1015,8 @@
   "bibtexCslAuthorityListAssertions": 16,
   "mappedBiblatexLegacySpeechAliasCases": 1,
   "biblatexLegacySpeechAliasAssertions": 25,
+  "mappedBiblatexLegacyDateAddonCases": 1,
+  "biblatexLegacyDateAddonAssertions": 25,
   "mappedJsonNativeNativeWriterEditedStructuralInlineCases": 1,
   "jsonNativeNativeWriterEditedStructuralInlineAssertions": 3,
   "mappedEpubContainerRootfileAuthoringCases": 1,
