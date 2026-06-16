@@ -1348,7 +1348,8 @@ final class MarkdownWriter
     private function paragraphWrapColumns(): ?int
     {
         $wrap = $this->options['wrap'] ?? null;
-        if (is_scalar($wrap) && in_array(strtolower(trim((string) $wrap)), ['none', 'preserve', 'nowrap'], true)) {
+        $wrapMode = is_scalar($wrap) ? strtolower(trim((string) $wrap)) : null;
+        if (in_array($wrapMode, ['none', 'preserve', 'nowrap'], true)) {
             return null;
         }
 
@@ -1357,6 +1358,10 @@ final class MarkdownWriter
             if (is_numeric($value) && (int) $value > 0) {
                 return (int) $value;
             }
+        }
+
+        if ($wrapMode === 'auto') {
+            return 72;
         }
 
         return null;
