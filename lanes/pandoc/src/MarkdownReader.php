@@ -22005,6 +22005,11 @@ final class MarkdownReader
             return null;
         }
 
+        $next = $this->characterAtOffset($text, $offset + 1 + strlen($m[0]));
+        if ($next !== null && preg_match('/\A[\pL\pN]\z/u', $next) === 1) {
+            return null;
+        }
+
         return [
             'node' => new AstNode(
                 $delimiter === '^' ? 'superscript' : 'subscript',
