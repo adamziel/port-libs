@@ -336,6 +336,7 @@ final class MarkdownReader
             'hard_line_break', 'hard_linebreaks' => 'hard_line_breaks',
             'heading_attributes', 'heading_attrs', 'header_attribute' => 'header_attributes',
             'ignore_line_break', 'ignore_linebreaks' => 'ignore_line_breaks',
+            'code_attribute', 'code_attributes', 'fenced_code_attribute' => 'fenced_code_attributes',
             'inline_attribute', 'link_attributes', 'markdown_attribute' => 'inline_attributes',
             'line_block' => 'line_blocks',
             'multiline_table', 'multiline_tables' => 'multiline_tables',
@@ -18238,7 +18239,7 @@ final class MarkdownReader
         $attributes = [];
         $id = null;
 
-        if ($this->markdownExtensionEnabled('fenced_code_attributes') && str_starts_with($info, '{') && str_ends_with($info, '}')) {
+        if ($this->fencedCodeAttributesEnabled() && str_starts_with($info, '{') && str_ends_with($info, '}')) {
             $inside = trim(substr($info, 1, -1));
             [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($inside);
         } else {
@@ -22891,6 +22892,45 @@ final class MarkdownReader
     private function rawMarkdownEnabled(): bool
     {
         return $this->rawExtensionEnabled('raw_markdown', 'rawMarkdown', true);
+    }
+
+    private function fencedCodeAttributesEnabled(): bool
+    {
+        $fencedOverride = $this->markdownExtensionOverride('fenced_code_attributes');
+        if ($fencedOverride !== null) {
+            return $fencedOverride;
+        }
+
+        if (array_key_exists('rawAttribute', $this->options)) {
+            return $this->readerBoolFlag($this->options['rawAttribute'], true);
+        }
+
+        $rawAttributeOverride = $this->markdownExtensionOverride('raw_attribute');
+        if ($rawAttributeOverride !== null) {
+            return $rawAttributeOverride;
+        }
+
+        return $this->markdownExtensionEnabled('fenced_code_attributes');
+    }
+
+    private function markdownExtensionOverride(string $extension): ?bool
+    {
+        $extension = $this->normalizeMarkdownExtensionName($extension);
+        $state = null;
+
+        foreach ($this->markdownFormatExtensionOverrides() as $name => $enabled) {
+            if ($this->normalizeMarkdownExtensionName((string) $name) === $extension) {
+                $state = $enabled;
+            }
+        }
+
+        foreach ($this->configuredMarkdownExtensionOverrides() as $name => $enabled) {
+            if ($this->normalizeMarkdownExtensionName((string) $name) === $extension) {
+                $state = $enabled;
+            }
+        }
+
+        return $state;
     }
 
     private function rawExtensionEnabled(string $extension, string $option, bool $default): bool
