@@ -763,6 +763,38 @@ return [
                 'compressedDataSha256' => hash('sha256', $mimetype),
             ],
         ];
+        $expectedEntries = array_map(static function (array $entry) use ($manifest, $zip): array {
+            foreach ($manifest['entries'] as $manifestEntry) {
+                if ($manifestEntry['name'] !== $entry['name']) {
+                    continue;
+                }
+
+                $centralDirectoryRecordBytes = $manifestEntry['centralDirectoryRecordEnd']
+                    - $manifestEntry['centralDirectoryRecordOffset'];
+
+                return [
+                    'name' => $entry['name'],
+                    'isDirectory' => $entry['isDirectory'],
+                    'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                    'localHeaderOrder' => $entry['localHeaderOrder'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'crc32Hex' => $entry['crc32Hex'],
+                    'compressedSize' => $entry['compressedSize'],
+                    'uncompressedSize' => $entry['uncompressedSize'],
+                    'localHeaderSha256' => hash(
+                        'sha256',
+                        substr($zip, $manifestEntry['localHeaderOffset'], $manifestEntry['localHeaderLength'])
+                    ),
+                    'compressedDataSha256' => $entry['compressedDataSha256'],
+                    'centralDirectoryRecordSha256' => hash(
+                        'sha256',
+                        substr($zip, $manifestEntry['centralDirectoryRecordOffset'], $centralDirectoryRecordBytes)
+                    ),
+                ];
+            }
+
+            throw new RuntimeException('Expected manifest entry is missing from source provenance fixture');
+        }, $expectedEntries);
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
             'centralDirectoryOrderNames' => $expectedCentralOrder,
@@ -793,7 +825,9 @@ return [
                 'crc32Hex' => $entry['crc32Hex'],
                 'compressedSize' => $entry['compressedSize'],
                 'uncompressedSize' => $entry['uncompressedSize'],
+                'localHeaderSha256' => $entry['localHeaderSha256'],
                 'compressedDataSha256' => $entry['compressedDataSha256'],
+                'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
             ],
             $manifest['entries']
         ));
@@ -841,6 +875,49 @@ return [
         $t->same(hash('sha256', ''), $directoryEntry['compressedDataSha256']);
         $t->same($documentEntry['compressedDataEnd'], $mediaEntry['localHeaderOffset']);
         $t->same($mediaEntry['compressedDataEnd'], $directoryEntry['localHeaderOffset']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
+    'preflights zip package manifest source record hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>manifest source records</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>manifest source sidecar</w:comment></w:comments>';
+        $commentsExtra = pack('vv', 0x5455, 0);
+        $commentsComment = 'central manifest review';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'localExtra' => $commentsExtra,
+                'centralExtra' => $commentsExtra,
+                'comment' => $commentsComment,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $documentEntry = $manifest['entries'][0];
+        $commentsEntry = $manifest['entries'][1];
+        $documentCentralDirectoryRecordBytes = $documentEntry['centralDirectoryRecordEnd']
+            - $documentEntry['centralDirectoryRecordOffset'];
+        $commentsCentralDirectoryRecordBytes = $commentsEntry['centralDirectoryRecordEnd']
+            - $commentsEntry['centralDirectoryRecordOffset'];
+
+        $t->same(hash('sha256', substr($zip, $documentEntry['localHeaderOffset'], $documentEntry['localHeaderLength'])), $documentEntry['localHeaderSha256']);
+        $t->same(hash('sha256', substr($zip, $documentEntry['centralDirectoryRecordOffset'], $documentCentralDirectoryRecordBytes)), $documentEntry['centralDirectoryRecordSha256']);
+        $t->same(hash('sha256', substr($zip, $commentsEntry['localHeaderOffset'], $commentsEntry['localHeaderLength'])), $commentsEntry['localHeaderSha256']);
+        $t->same(hash('sha256', substr($zip, $commentsEntry['centralDirectoryRecordOffset'], $commentsCentralDirectoryRecordBytes)), $commentsEntry['centralDirectoryRecordSha256']);
+        $t->same(30 + strlen('word/comments.xml') + strlen($commentsExtra), $commentsEntry['localHeaderLength']);
+        $t->same(46 + strlen('word/comments.xml') + strlen($commentsExtra) + strlen($commentsComment), $commentsCentralDirectoryRecordBytes);
+        $t->same(hash('sha256', gzdeflate($commentsXml)), $commentsEntry['compressedDataSha256']);
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },

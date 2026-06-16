@@ -12909,6 +12909,20 @@ final class ZipPackage
                 'sha256',
                 substr($this->bytes, $compressedDataOffset, $entry->compressedSize)
             );
+            $localHeaderSha256 = hash(
+                'sha256',
+                substr($this->bytes, $entry->localHeaderOffset, $localHeaderLength)
+            );
+            $centralDirectoryRecordSha256 = null;
+            if ($entry->centralDirectoryRecordOffset !== null && $entry->centralDirectoryRecordEnd !== null) {
+                $centralDirectoryRecordBytes = $entry->centralDirectoryRecordEnd - $entry->centralDirectoryRecordOffset;
+                if ($centralDirectoryRecordBytes >= 0) {
+                    $centralDirectoryRecordSha256 = hash(
+                        'sha256',
+                        substr($this->bytes, $entry->centralDirectoryRecordOffset, $centralDirectoryRecordBytes)
+                    );
+                }
+            }
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
@@ -12922,11 +12936,13 @@ final class ZipPackage
                 'uncompressedSize' => $entry->uncompressedSize,
                 'localHeaderOffset' => $entry->localHeaderOffset,
                 'localHeaderLength' => $localHeaderLength,
+                'localHeaderSha256' => $localHeaderSha256,
                 'compressedDataOffset' => $compressedDataOffset,
                 'compressedDataEnd' => $compressedDataOffset + $entry->compressedSize,
                 'compressedDataSha256' => $compressedDataSha256,
                 'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
                 'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
+                'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
             ];
             $entries[] = $summary;
             $manifestEntries[] = [
@@ -12938,7 +12954,9 @@ final class ZipPackage
                 'crc32Hex' => $summary['crc32Hex'],
                 'compressedSize' => $summary['compressedSize'],
                 'uncompressedSize' => $summary['uncompressedSize'],
+                'localHeaderSha256' => $summary['localHeaderSha256'],
                 'compressedDataSha256' => $summary['compressedDataSha256'],
+                'centralDirectoryRecordSha256' => $summary['centralDirectoryRecordSha256'],
             ];
         }
 
