@@ -1043,6 +1043,10 @@ final class MarkdownWriter
             return true;
         }
 
+        if ($node->type === 'blockquote' && $this->hasHtmlOnlyAttributes($node)) {
+            return true;
+        }
+
         if ($node->type !== 'bullet_list' && $node->type !== 'ordered_list') {
             return false;
         }
