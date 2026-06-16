@@ -1656,9 +1656,50 @@ final class MarkdownWriter
     private function renderHeading(AstNode $node, int $indent): array
     {
         if (!$this->markdownExtensionEnabled('header_attributes') && $this->hasMarkdownAttributeTuple($node)) {
-            return $this->renderHtmlBlockFallback($node, $indent);
+            if ($this->rawHtmlEnabled()) {
+                return $this->renderHtmlBlockFallback($node, $indent);
+            }
+
+            return $this->renderHeadingWithoutAttributes($node, $indent);
         }
 
+        return $this->renderHeadingWithAttributes($node, $indent);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderHeadingWithoutAttributes(AstNode $node, int $indent): array
+    {
+        $strippedAttrs = $node->attrs;
+        unset(
+            $strippedAttrs['id'],
+            $strippedAttrs['identifier'],
+            $strippedAttrs['anchor'],
+            $strippedAttrs['classes'],
+            $strippedAttrs['class'],
+            $strippedAttrs['className'],
+            $strippedAttrs['attributes'],
+            $strippedAttrs['keyvals'],
+            $strippedAttrs['keyValues'],
+            $strippedAttrs['attributePairs'],
+            $strippedAttrs['dataAttributes'],
+            $strippedAttrs['htmlAttributes'],
+            $strippedAttrs['dir'],
+            $strippedAttrs['lang'],
+            $strippedAttrs['role'],
+            $strippedAttrs['title'],
+            $strippedAttrs['xml:lang']
+        );
+
+        return $this->renderHeadingWithAttributes(new AstNode($node->type, $strippedAttrs, $node->children), $indent);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderHeadingWithAttributes(AstNode $node, int $indent): array
+    {
         $level = max(1, min(6, (int) $node->attr('level', 1)));
         $this->textWhitespaceEntitySuppression++;
         try {
@@ -4953,6 +4994,36 @@ final class MarkdownWriter
         return $lines;
     }
 
+    /**
+     * @return list<string>
+     */
+    private function renderCodeBlockWithoutAttributes(AstNode $node, int $indent): array
+    {
+        $info = $this->codeBlockInfo($node);
+        if ($info !== '') {
+            return $this->renderFencedCodeBlock($node, ' ' . $info, $indent);
+        }
+
+        $attrs = $this->linkAttrTuple($node);
+        foreach ($attrs['classes'] as $class) {
+            if ($this->isCodeBlockInfoString($class)) {
+                return $this->renderFencedCodeBlock($node, $class, $indent);
+            }
+        }
+
+        if ((bool) ($this->options['fencedCodeBlocks'] ?? false)) {
+            return $this->renderFencedCodeBlock($node, '', $indent);
+        }
+
+        $lines = [];
+        $prefix = str_repeat(' ', $indent + 4);
+        foreach (explode("\n", (string) $node->attr('text', '')) as $line) {
+            $lines[] = $prefix . $line;
+        }
+
+        return $lines;
+    }
+
     private function renderCodeBlockAttributes(AstNode $node): string
     {
         $attrs = $this->linkAttrTuple($node);
@@ -5024,6 +5095,17 @@ final class MarkdownWriter
     private function renderDivBlock(AstNode $node, int $indent): array
     {
         if (!$this->markdownExtensionEnabled('fenced_divs')) {
+            if (!$this->rawHtmlEnabled()) {
+                $body = $this->renderBlockCollection($node->children, true);
+                if ($body === '') {
+                    return [];
+                }
+
+                $prefix = str_repeat(' ', $indent);
+
+                return array_map(static fn (string $line): string => $prefix . $line, explode("\n", $body));
+            }
+
             return $this->renderHtmlBlockFallback($node, $indent);
         }
 
@@ -5744,8 +5826,12 @@ final class MarkdownWriter
 
     private function renderCode(AstNode $node): string
     {
-        if (!$this->markdownExtensionEnabled('inline_code_attributes') && $this->linkAttrTuple($node) !== ['id' => '', 'classes' => [], 'attributes' => []]) {
-            return $this->renderHtmlInline($node);
+        $attrs = $this->linkAttrTuple($node);
+        $attributesEnabled = $this->markdownExtensionEnabled('inline_code_attributes');
+        if (!$attributesEnabled && $attrs !== ['id' => '', 'classes' => [], 'attributes' => []]) {
+            if ($this->rawHtmlEnabled()) {
+                return $this->renderHtmlInline($node);
+            }
         }
 
         $text = $this->normalizeCodeSpanText($this->nodeText($node, ['text', 'literal', 'code', 'value', 'content', 'string']));
@@ -5755,7 +5841,7 @@ final class MarkdownWriter
             $text = ' ' . $text . ' ';
         }
 
-        return $delimiter . $text . $delimiter . $this->renderLinkAttributes($node);
+        return $delimiter . $text . $delimiter . ($attributesEnabled ? $this->renderAttributesTuple($attrs) : '');
     }
 
     private function normalizeCodeSpanText(string $text): string
@@ -5765,7 +5851,8 @@ final class MarkdownWriter
 
     private function renderSpan(AstNode $node): string
     {
-        $attrs = $this->renderLinkAttributes($node);
+        $attrTuple = $this->linkAttrTuple($node);
+        $attrs = $this->renderAttributesTuple($attrTuple);
         $content = $attrs === ''
             ? $this->renderInlineLabelInlines($node->children)
             : $this->renderBracketedLabelInlines($node->children);
@@ -5785,15 +5872,17 @@ final class MarkdownWriter
             return '==' . $content . '==';
         }
 
-        if (!$this->markdownExtensionEnabled('bracketed_spans') && $this->linkAttrTuple($node) !== ['id' => '', 'classes' => [], 'attributes' => []]) {
-            return $this->renderHtmlInline($node);
+        if (!$this->markdownExtensionEnabled('bracketed_spans') && $attrTuple !== ['id' => '', 'classes' => [], 'attributes' => []]) {
+            if ($this->rawHtmlEnabled()) {
+                return $this->renderHtmlInline($node);
+            }
+
+            return $this->renderInlineLabelInlines($node->children);
         }
 
-        $attrTuple = $this->linkAttrTuple($node);
         if (($attrTuple['classes'][0] ?? null) === 'mark') {
             $content = str_replace('==', '\\=\\=', $content);
         }
-        $attrs = $this->renderAttributesTuple($attrTuple);
 
         return $attrs === '' ? $content : '[' . $content . ']' . $attrs;
     }
