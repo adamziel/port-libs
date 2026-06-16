@@ -15224,6 +15224,153 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfThreads']);
     },
 
+    'fake runner summarizes bounded pdf article thread link policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/thread-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Threads [8 0 R 12 0 R 16 0 R] >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Thread /F 9 0 R /I << /Title (Main review order) >> >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Bead /T 8 0 R /P 3 0 R /R [72 648 540 720] /N 10 0 R /V 10 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /Bead /T 8 0 R /P 4 0 R /R [72 96 540 144] /N 9 0 R /V 9 0 R >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /Thread /F 13 0 R /I << /Title (Broken sidebar order) >> >>',
+            'endobj',
+            '13 0 obj',
+            '<< /Type /Bead /T 12 0 R /N 14 0 R /V 15 0 R >>',
+            'endobj',
+            '16 0 obj',
+            '<< /Type /Thread /I << /Title (Empty thread) >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/thread-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/thread-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'reviewStatus' => 'review',
+            'threadCount' => 3,
+            'beadCount' => 3,
+            'titledThreadCount' => 3,
+            'pageObjectCount' => 2,
+            'pageObjects' => ['3 0 R', '4 0 R'],
+            'missingFirstBeadCount' => 1,
+            'unresolvedFirstBeadCount' => 0,
+            'missingPageCount' => 1,
+            'missingRectCount' => 1,
+            'openLinkCount' => 0,
+            'outsideLinkCount' => 2,
+            'reciprocalMismatchCount' => 0,
+            'issueCounts' => [
+                'thread-bead-missing-page' => 1,
+                'thread-bead-missing-rect' => 1,
+                'thread-bead-next-outside-chain' => 1,
+                'thread-bead-prev-outside-chain' => 1,
+                'thread-missing-first-bead' => 1,
+            ],
+            'issues' => [
+                'thread-bead-missing-page',
+                'thread-bead-missing-rect',
+                'thread-bead-next-outside-chain',
+                'thread-bead-prev-outside-chain',
+                'thread-missing-first-bead',
+            ],
+            'threads' => [
+                [
+                    'object' => '8 0 R',
+                    'firstBead' => '9 0 R',
+                    'reviewStatus' => 'ok',
+                    'beadCount' => 2,
+                    'pageObjects' => ['3 0 R', '4 0 R'],
+                    'missingPageCount' => 0,
+                    'missingRectCount' => 0,
+                    'openLinkCount' => 0,
+                    'outsideLinkCount' => 0,
+                    'reciprocalMismatchCount' => 0,
+                    'issues' => [],
+                ],
+                [
+                    'object' => '12 0 R',
+                    'firstBead' => '13 0 R',
+                    'reviewStatus' => 'review',
+                    'beadCount' => 1,
+                    'pageObjects' => [],
+                    'missingPageCount' => 1,
+                    'missingRectCount' => 1,
+                    'openLinkCount' => 0,
+                    'outsideLinkCount' => 2,
+                    'reciprocalMismatchCount' => 0,
+                    'issues' => [
+                        'thread-bead-missing-page',
+                        'thread-bead-missing-rect',
+                        'thread-bead-next-outside-chain',
+                        'thread-bead-prev-outside-chain',
+                    ],
+                ],
+                [
+                    'object' => '16 0 R',
+                    'firstBead' => null,
+                    'reviewStatus' => 'review',
+                    'beadCount' => 0,
+                    'pageObjects' => [],
+                    'missingPageCount' => 0,
+                    'missingRectCount' => 0,
+                    'openLinkCount' => 0,
+                    'outsideLinkCount' => 0,
+                    'reciprocalMismatchCount' => 0,
+                    'issues' => ['thread-missing-first-bead'],
+                ],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfThreadPolicy'] ?? null);
+        $t->contains('pdf-byte-thread-policy:review', $diagnostics);
+        $t->contains('pdf-byte-thread-policy-threads:3', $diagnostics);
+        $t->contains('pdf-byte-thread-policy-beads:3', $diagnostics);
+        $t->contains('pdf-byte-thread-policy-pages:2', $diagnostics);
+        $t->contains('pdf-byte-thread-policy-missing-first-beads:1', $diagnostics);
+        $t->contains('pdf-byte-thread-policy-missing-pages:1', $diagnostics);
+        $t->contains('pdf-byte-thread-policy-missing-rects:1', $diagnostics);
+        $t->contains('pdf-byte-thread-policy-outside-links:2', $diagnostics);
+        $t->contains('pdf-byte-thread-policy-issues:5', $diagnostics);
+        $t->contains('pdf-byte-thread-policy-issue:thread-bead-next-outside-chain:1', $diagnostics);
+        $t->contains('pdf-byte-thread-policy-issue:thread-missing-first-bead:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfThreadPolicy']);
+    },
+
     'fake runner extracts bounded pdf acroform field metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/forms.pdf']);

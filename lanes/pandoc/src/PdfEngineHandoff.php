@@ -816,6 +816,7 @@ final class PdfEngineHandoff
      *     pdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     pdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
      *     pdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
+     *     pdfThreadPolicy: array<string, mixed>,
      *     pdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatureSubFilters: array<string, int>,
@@ -1503,6 +1504,7 @@ final class PdfEngineHandoff
         $pdfAcroFormMetadata = [];
         $pdfAcroFormCalculationOrder = [];
         $pdfThreads = [];
+        $pdfThreadPolicy = [];
         $pdfCatalogPermissions = [];
         $pdfSignatures = [];
         $pdfSignatureSubFilters = [];
@@ -1647,6 +1649,7 @@ final class PdfEngineHandoff
                 $pdfAcroFormMetadata = $pdfInspection['acroFormMetadata'];
                 $pdfAcroFormCalculationOrder = $pdfInspection['acroFormCalculationOrder'];
                 $pdfThreads = $pdfInspection['threads'];
+                $pdfThreadPolicy = $pdfInspection['threadPolicy'];
                 $pdfCatalogPermissions = $pdfInspection['catalogPermissions'];
                 $pdfSignatures = $pdfInspection['signatures'];
                 $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
@@ -3619,6 +3622,35 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-thread-info-titles:' . $titleCount;
                     }
                 }
+                if ($pdfThreadPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-thread-policy:' . ($pdfThreadPolicy['reviewStatus'] ?? 'unknown');
+                    foreach ([
+                        'threadCount' => 'threads',
+                        'beadCount' => 'beads',
+                        'pageObjectCount' => 'pages',
+                        'missingFirstBeadCount' => 'missing-first-beads',
+                        'unresolvedFirstBeadCount' => 'unresolved-first-beads',
+                        'missingPageCount' => 'missing-pages',
+                        'missingRectCount' => 'missing-rects',
+                        'openLinkCount' => 'open-links',
+                        'outsideLinkCount' => 'outside-links',
+                        'reciprocalMismatchCount' => 'reciprocal-mismatches',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfThreadPolicy[$policyKey]) && is_int($pdfThreadPolicy[$policyKey]) && $pdfThreadPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-thread-policy-' . $diagnosticName . ':' . $pdfThreadPolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfThreadPolicy['issues']) && is_array($pdfThreadPolicy['issues']) && $pdfThreadPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-thread-policy-issues:' . count($pdfThreadPolicy['issues']);
+                    }
+                    if (isset($pdfThreadPolicy['issueCounts']) && is_array($pdfThreadPolicy['issueCounts'])) {
+                        foreach ($pdfThreadPolicy['issueCounts'] as $issue => $count) {
+                            if (is_string($issue) && is_int($count) && $count > 0) {
+                                $diagnostics[] = 'pdf-byte-thread-policy-issue:' . $issue . ':' . $count;
+                            }
+                        }
+                    }
+                }
                 if ($pdfCatalogPermissions !== []) {
                     $diagnostics[] = 'pdf-byte-catalog-permissions:' . count($pdfCatalogPermissions);
                     $permissionByteRangeCount = 0;
@@ -4914,6 +4946,7 @@ final class PdfEngineHandoff
             'pdfAcroFormMetadata' => $pdfAcroFormMetadata,
             'pdfAcroFormCalculationOrder' => $pdfAcroFormCalculationOrder,
             'pdfThreads' => $pdfThreads,
+            'pdfThreadPolicy' => $pdfThreadPolicy,
             'pdfCatalogPermissions' => $pdfCatalogPermissions,
             'pdfSignatures' => $pdfSignatures,
             'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
@@ -5079,6 +5112,7 @@ final class PdfEngineHandoff
      *     finalPdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     finalPdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
      *     finalPdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
+     *     finalPdfThreadPolicy: array<string, mixed>,
      *     finalPdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatureSubFilters: array<string, int>,
@@ -5400,6 +5434,7 @@ final class PdfEngineHandoff
             'finalPdfAcroFormMetadata' => is_array($finalRun) && is_array($finalRun['pdfAcroFormMetadata'] ?? null) ? $finalRun['pdfAcroFormMetadata'] : [],
             'finalPdfAcroFormCalculationOrder' => is_array($finalRun) && is_array($finalRun['pdfAcroFormCalculationOrder'] ?? null) ? $finalRun['pdfAcroFormCalculationOrder'] : [],
             'finalPdfThreads' => is_array($finalRun) && is_array($finalRun['pdfThreads'] ?? null) ? $finalRun['pdfThreads'] : [],
+            'finalPdfThreadPolicy' => is_array($finalRun) && is_array($finalRun['pdfThreadPolicy'] ?? null) ? $finalRun['pdfThreadPolicy'] : [],
             'finalPdfCatalogPermissions' => is_array($finalRun) && is_array($finalRun['pdfCatalogPermissions'] ?? null) ? $finalRun['pdfCatalogPermissions'] : [],
             'finalPdfSignatures' => is_array($finalRun) && is_array($finalRun['pdfSignatures'] ?? null) ? $finalRun['pdfSignatures'] : [],
             'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
@@ -11082,6 +11117,7 @@ final class PdfEngineHandoff
      *     collectionMetadata:array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     collectionPolicy:array<string, mixed>,
      *     threads:list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
+     *     threadPolicy:array<string, mixed>,
      *     catalogPermissions:list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatures:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatureSubFilters:array<string, int>,
@@ -11172,6 +11208,7 @@ final class PdfEngineHandoff
         $annotationAppearancePolicy = $this->summarizePdfAnnotationAppearancePolicy($annotationAppearances);
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $collectionMetadata = $this->extractPdfCollectionMetadata($pdfBytes, $catalog);
+        $threads = $this->extractPdfThreads($pdfBytes, $catalog);
         $documentSecurityStore = $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog);
         $streamFilterPolicy = $this->summarizePdfStreamFilterPolicy(
             $xrefStreams,
@@ -11314,7 +11351,8 @@ final class PdfEngineHandoff
             'collectionPolicy' => $this->summarizePdfCollectionPolicy($collectionMetadata, $embeddedFiles),
             'acroFormMetadata' => $this->extractPdfAcroFormMetadata($pdfBytes, $catalog),
             'acroFormCalculationOrder' => $this->extractPdfAcroFormCalculationOrder($pdfBytes, $catalog),
-            'threads' => $this->extractPdfThreads($pdfBytes, $catalog),
+            'threads' => $threads,
+            'threadPolicy' => $this->summarizePdfThreadPolicy($threads),
             'catalogPermissions' => $catalogPermissions,
             'signatures' => $signatures,
             'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
@@ -20625,6 +20663,166 @@ final class PdfEngineHandoff
         }
 
         return $beads;
+    }
+
+    /**
+     * @param list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}> $threads
+     * @return array<string, mixed>
+     */
+    private function summarizePdfThreadPolicy(array $threads): array
+    {
+        if ($threads === []) {
+            return [];
+        }
+
+        $issueCounts = [];
+        $threadPolicies = [];
+        $pageObjects = [];
+        $beadCount = 0;
+        $titledThreadCount = 0;
+        $missingFirstBeadCount = 0;
+        $unresolvedFirstBeadCount = 0;
+        $missingPageCount = 0;
+        $missingRectCount = 0;
+        $openLinkCount = 0;
+        $outsideLinkCount = 0;
+        $reciprocalMismatchCount = 0;
+
+        $addIssue = static function (array &$counts, string $issue): void {
+            $counts[$issue] = ($counts[$issue] ?? 0) + 1;
+        };
+
+        foreach ($threads as $thread) {
+            $threadIssueCounts = [];
+            $threadPageObjects = [];
+            $threadMissingPageCount = 0;
+            $threadMissingRectCount = 0;
+            $threadOpenLinkCount = 0;
+            $threadOutsideLinkCount = 0;
+            $threadReciprocalMismatchCount = 0;
+            $threadBeads = is_array($thread['beads'] ?? null) ? $thread['beads'] : [];
+            $threadBeadCount = count($threadBeads);
+            $beadCount += $threadBeadCount;
+
+            if (is_string($thread['infoTitle'] ?? null) && $thread['infoTitle'] !== '') {
+                $titledThreadCount++;
+            }
+
+            $firstBead = is_string($thread['firstBead'] ?? null) && $thread['firstBead'] !== ''
+                ? $thread['firstBead']
+                : null;
+            if ($firstBead === null) {
+                $missingFirstBeadCount++;
+                $addIssue($threadIssueCounts, 'thread-missing-first-bead');
+                $addIssue($issueCounts, 'thread-missing-first-bead');
+            } elseif ($threadBeadCount === 0) {
+                $unresolvedFirstBeadCount++;
+                $addIssue($threadIssueCounts, 'thread-first-bead-unresolved');
+                $addIssue($issueCounts, 'thread-first-bead-unresolved');
+            }
+
+            $beadsByObject = [];
+            foreach ($threadBeads as $bead) {
+                if (is_string($bead['object'] ?? null) && $bead['object'] !== '') {
+                    $beadsByObject[$bead['object']] = $bead;
+                }
+            }
+
+            foreach ($threadBeads as $bead) {
+                $object = is_string($bead['object'] ?? null) ? $bead['object'] : '';
+                $pageObject = is_string($bead['pageObject'] ?? null) && $bead['pageObject'] !== ''
+                    ? $bead['pageObject']
+                    : null;
+                if ($pageObject === null) {
+                    $missingPageCount++;
+                    $threadMissingPageCount++;
+                    $addIssue($threadIssueCounts, 'thread-bead-missing-page');
+                    $addIssue($issueCounts, 'thread-bead-missing-page');
+                } else {
+                    $pageObjects[$pageObject] = true;
+                    $threadPageObjects[$pageObject] = true;
+                }
+
+                if (!is_array($bead['rect'] ?? null)) {
+                    $missingRectCount++;
+                    $threadMissingRectCount++;
+                    $addIssue($threadIssueCounts, 'thread-bead-missing-rect');
+                    $addIssue($issueCounts, 'thread-bead-missing-rect');
+                }
+
+                $next = is_string($bead['next'] ?? null) && $bead['next'] !== '' ? $bead['next'] : null;
+                $prev = is_string($bead['prev'] ?? null) && $bead['prev'] !== '' ? $bead['prev'] : null;
+                if ($next === null) {
+                    $openLinkCount++;
+                    $threadOpenLinkCount++;
+                    $addIssue($threadIssueCounts, 'thread-bead-missing-next-link');
+                    $addIssue($issueCounts, 'thread-bead-missing-next-link');
+                } elseif (!isset($beadsByObject[$next])) {
+                    $outsideLinkCount++;
+                    $threadOutsideLinkCount++;
+                    $addIssue($threadIssueCounts, 'thread-bead-next-outside-chain');
+                    $addIssue($issueCounts, 'thread-bead-next-outside-chain');
+                } elseif (($beadsByObject[$next]['prev'] ?? null) !== $object) {
+                    $reciprocalMismatchCount++;
+                    $threadReciprocalMismatchCount++;
+                    $addIssue($threadIssueCounts, 'thread-bead-next-prev-mismatch');
+                    $addIssue($issueCounts, 'thread-bead-next-prev-mismatch');
+                }
+
+                if ($prev === null) {
+                    $openLinkCount++;
+                    $threadOpenLinkCount++;
+                    $addIssue($threadIssueCounts, 'thread-bead-missing-prev-link');
+                    $addIssue($issueCounts, 'thread-bead-missing-prev-link');
+                } elseif (!isset($beadsByObject[$prev])) {
+                    $outsideLinkCount++;
+                    $threadOutsideLinkCount++;
+                    $addIssue($threadIssueCounts, 'thread-bead-prev-outside-chain');
+                    $addIssue($issueCounts, 'thread-bead-prev-outside-chain');
+                } elseif (($beadsByObject[$prev]['next'] ?? null) !== $object) {
+                    $reciprocalMismatchCount++;
+                    $threadReciprocalMismatchCount++;
+                    $addIssue($threadIssueCounts, 'thread-bead-prev-next-mismatch');
+                    $addIssue($issueCounts, 'thread-bead-prev-next-mismatch');
+                }
+            }
+
+            ksort($threadIssueCounts);
+            $threadPolicies[] = [
+                'object' => is_string($thread['object'] ?? null) ? $thread['object'] : '',
+                'firstBead' => $firstBead,
+                'reviewStatus' => $threadIssueCounts === [] ? 'ok' : 'review',
+                'beadCount' => $threadBeadCount,
+                'pageObjects' => $this->sortedPdfReferenceKeys($threadPageObjects),
+                'missingPageCount' => $threadMissingPageCount,
+                'missingRectCount' => $threadMissingRectCount,
+                'openLinkCount' => $threadOpenLinkCount,
+                'outsideLinkCount' => $threadOutsideLinkCount,
+                'reciprocalMismatchCount' => $threadReciprocalMismatchCount,
+                'issues' => array_keys($threadIssueCounts),
+            ];
+        }
+
+        ksort($issueCounts);
+
+        return [
+            'reviewStatus' => $issueCounts === [] ? 'ok' : 'review',
+            'threadCount' => count($threads),
+            'beadCount' => $beadCount,
+            'titledThreadCount' => $titledThreadCount,
+            'pageObjectCount' => count($pageObjects),
+            'pageObjects' => $this->sortedPdfReferenceKeys($pageObjects),
+            'missingFirstBeadCount' => $missingFirstBeadCount,
+            'unresolvedFirstBeadCount' => $unresolvedFirstBeadCount,
+            'missingPageCount' => $missingPageCount,
+            'missingRectCount' => $missingRectCount,
+            'openLinkCount' => $openLinkCount,
+            'outsideLinkCount' => $outsideLinkCount,
+            'reciprocalMismatchCount' => $reciprocalMismatchCount,
+            'issueCounts' => $issueCounts,
+            'issues' => array_keys($issueCounts),
+            'threads' => $threadPolicies,
+        ];
     }
 
     /**
