@@ -6695,6 +6695,13 @@ final class MarkdownWriter
             }
         }
 
+        if (
+            in_array($extension, ['fenced_code_attributes', 'header_attributes', 'inline_code_attributes', 'link_attributes'], true)
+            && $this->markdownExtensionExplicitOverride('attributes') === true
+        ) {
+            return true;
+        }
+
         return $enabled;
     }
 
@@ -6720,7 +6727,7 @@ final class MarkdownWriter
 
     private function defaultMarkdownExtensionEnabled(string $extension): bool
     {
-        if ($extension === 'literate_haskell') {
+        if ($extension === 'attributes' || $extension === 'literate_haskell') {
             return false;
         }
 
@@ -6802,6 +6809,8 @@ final class MarkdownWriter
                 'footnotes',
                 'grid_tables',
                 'header_attributes',
+                'inline_code_attributes',
+                'link_attributes',
                 'line_blocks',
                 'multiline_tables',
                 'pipe_tables',
@@ -6814,7 +6823,9 @@ final class MarkdownWriter
         if ($format === 'markdown_mmd') {
             return !in_array($extension, [
                 'fenced_divs',
+                'inline_code_attributes',
                 'line_blocks',
+                'link_attributes',
                 'smart',
                 'task_lists',
             ], true);
@@ -6824,6 +6835,7 @@ final class MarkdownWriter
             return !in_array($extension, [
                 'citations',
                 'fenced_divs',
+                'inline_code_attributes',
                 'line_blocks',
                 'smart',
                 'task_lists',
@@ -6839,13 +6851,14 @@ final class MarkdownWriter
         $extension = str_replace('-', '_', $extension);
 
         return match ($extension) {
-            'attributes', 'native_spans', 'span_attributes' => 'bracketed_spans',
+            'attributes' => 'attributes',
+            'native_spans', 'span_attributes' => 'bracketed_spans',
             'block_code_attributes',
             'code_block_attributes',
             'codeblock_attributes',
             'fenced_code_attribute' => 'fenced_code_attributes',
             'citation' => 'citations',
-            'code_attributes' => 'inline_code_attributes',
+            'code_attributes', 'inline_code_attribute' => 'inline_code_attributes',
             'definition_list', 'definition-lists', 'definition-list', 'dlists' => 'definition_lists',
             'div_attributes',
             'native_div',
@@ -6854,7 +6867,7 @@ final class MarkdownWriter
             'multiline_table', 'multiline_tables' => 'multiline_tables',
             'pipe_table', 'pipetables', 'table', 'tables' => 'pipe_tables',
             'emoji_shortcode', 'emoji_shortcodes' => 'emoji',
-            'example_list', 'numbered_example_list', 'numbered_example_lists' => 'example_lists',
+            'example_list', 'numbered_example', 'numbered_examples', 'numbered_example_list', 'numbered_example_lists' => 'example_lists',
             'fancy_list', 'fancy_ordered_list', 'fancy_ordered_lists' => 'fancy_lists',
             'heading_attributes',
             'heading_attrs',

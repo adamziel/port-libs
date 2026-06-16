@@ -137,6 +137,7 @@ final class MarkdownReader
     {
         $all = [
             'abbreviations' => true,
+            'attributes' => false,
             'bare_uri_autolinks' => true,
             'bracketed_spans' => true,
             'citations' => true,
@@ -151,7 +152,9 @@ final class MarkdownReader
             'hard_line_breaks' => false,
             'header_attributes' => true,
             'ignore_line_breaks' => false,
+            'inline_code_attributes' => true,
             'inline_attributes' => true,
+            'link_attributes' => true,
             'line_blocks' => true,
             'mark' => true,
             'multiline_tables' => true,
@@ -199,6 +202,7 @@ final class MarkdownReader
                     'footnotes' => true,
                     'header_attributes' => true,
                     'inline_attributes' => true,
+                    'link_attributes' => true,
                     'grid_tables' => true,
                     'multiline_tables' => true,
                     'pipe_tables' => true,
@@ -337,16 +341,18 @@ final class MarkdownReader
             'definition_list' => 'definition_lists',
             'east_asian_line_break', 'east_asian_linebreaks' => 'east_asian_line_breaks',
             'emoji_shortcode', 'emoji_shortcodes' => 'emoji',
-            'example_list', 'example_lists', 'numbered_example' => 'numbered_examples',
+            'example_list', 'example_lists', 'numbered_example', 'numbered_example_list', 'numbered_example_lists' => 'numbered_examples',
             'fancy_list', 'fancy_ordered_list', 'fancy_ordered_lists' => 'fancy_lists',
             'block_code_attributes', 'code_block_attributes', 'codeblock_attributes', 'fenced_code_attribute' => 'fenced_code_attributes',
+            'attributes' => 'attributes',
             'div_attribute', 'div_attributes', 'fenced_div', 'native_div', 'native_divs' => 'fenced_divs',
             'grid_table', 'gridtables' => 'grid_tables',
             'hard_line_break', 'hard_linebreaks' => 'hard_line_breaks',
             'heading_attributes', 'heading_attrs', 'header_attribute', 'header_attrs' => 'header_attributes',
             'ignore_line_break', 'ignore_linebreaks' => 'ignore_line_breaks',
-            'code_attribute', 'code_attributes', 'fenced_code_attribute' => 'fenced_code_attributes',
-            'inline_attribute', 'link_attributes', 'markdown_attribute' => 'inline_attributes',
+            'code_attribute', 'code_attributes', 'inline_code_attribute' => 'inline_code_attributes',
+            'inline_attribute', 'markdown_attribute' => 'inline_attributes',
+            'image_attributes', 'link_attribute', 'link_attrs', 'mmd_link_attributes' => 'link_attributes',
             'line_block' => 'line_blocks',
             'multiline_table', 'multiline_tables' => 'multiline_tables',
             'pipe_table', 'pipetables', 'table', 'tables' => 'pipe_tables',
@@ -19096,7 +19102,7 @@ final class MarkdownReader
                     }
 
                     $attrs = ['text' => $code];
-                    $attribute = $this->markdownExtensionEnabled('inline_attributes')
+                    $attribute = $this->inlineCodeAttributesEnabled()
                         ? $this->tryParseInlineAttributeSpec($text, $next)
                         : null;
                     $literalAttribute = null;
@@ -19131,7 +19137,7 @@ final class MarkdownReader
 
             $math = $this->tryParseMath($text, $offset);
             if ($math !== null) {
-                $attribute = $this->markdownExtensionEnabled('inline_attributes')
+                $attribute = $this->inlineAttributesEnabled()
                     ? $this->tryParseInlineAttributeSpec($text, $math['next'])
                     : null;
                 if ($attribute !== null) {
@@ -20058,7 +20064,7 @@ final class MarkdownReader
         int $offset
     ): array {
         $attrs = [];
-        $attribute = $this->markdownExtensionEnabled('inline_attributes')
+        $attribute = $this->linkAttributesEnabled()
             ? $this->tryParseInlineAttributeSpec($source, $offset)
             : null;
         if ($attribute !== null) {
@@ -20352,7 +20358,7 @@ final class MarkdownReader
             $attrs['title'] = $title;
         }
 
-        $attribute = $this->markdownExtensionEnabled('inline_attributes')
+        $attribute = $this->linkAttributesEnabled()
             ? $this->tryParseInlineAttributeSpec($source, $offset)
             : null;
         if ($attribute !== null) {
@@ -20683,7 +20689,7 @@ final class MarkdownReader
      */
     private function readTrailingAutolinkAttributes(string $text, int $offset, array $attrs): array
     {
-        $attribute = $this->markdownExtensionEnabled('inline_attributes')
+        $attribute = $this->linkAttributesEnabled()
             ? $this->tryParseInlineAttributeSpec($text, $offset)
             : null;
         if ($attribute !== null) {
@@ -23302,6 +23308,43 @@ final class MarkdownReader
     private function rawMarkdownEnabled(): bool
     {
         return $this->rawExtensionEnabled('raw_markdown', 'rawMarkdown', true);
+    }
+
+    private function inlineCodeAttributesEnabled(): bool
+    {
+        return $this->markdownAttributeExtensionEnabled('inline_code_attributes', 'inline_attributes');
+    }
+
+    private function inlineAttributesEnabled(): bool
+    {
+        return $this->markdownAttributeExtensionEnabled('inline_attributes');
+    }
+
+    private function linkAttributesEnabled(): bool
+    {
+        return $this->markdownAttributeExtensionEnabled('link_attributes', 'inline_attributes');
+    }
+
+    private function markdownAttributeExtensionEnabled(string $extension, ?string $legacyExtension = null): bool
+    {
+        $attributesOverride = $this->markdownExtensionOverride('attributes');
+        if ($attributesOverride === true) {
+            return true;
+        }
+
+        $specificOverride = $this->markdownExtensionOverride($extension);
+        if ($specificOverride !== null) {
+            return $specificOverride;
+        }
+
+        if ($legacyExtension !== null) {
+            $legacyOverride = $this->markdownExtensionOverride($legacyExtension);
+            if ($legacyOverride !== null) {
+                return $legacyOverride;
+            }
+        }
+
+        return $this->markdownExtensionEnabled($extension);
     }
 
     private function fencedCodeAttributesEnabled(): bool

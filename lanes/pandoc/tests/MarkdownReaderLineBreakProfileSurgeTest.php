@@ -114,7 +114,6 @@ $aliasExpectations = [
     'markdown-php-extra' => array_replace($disabledFeatures, [
         'inline footnote' => true,
         'bracketed span' => true,
-        'inline code attributes' => true,
     ]),
     'markdown-strict' => $disabledFeatures,
     'markdown-mmd' => array_replace($disabledFeatures, [
@@ -122,7 +121,6 @@ $aliasExpectations = [
         'inline footnote' => true,
         'dollar math' => true,
         'bracketed span' => true,
-        'inline code attributes' => true,
     ]),
     'commonmark-x' => $allFeatures,
 ];

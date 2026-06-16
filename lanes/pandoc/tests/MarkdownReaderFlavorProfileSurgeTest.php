@@ -205,10 +205,10 @@ $gfmFormats = ['gfm', 'markdown_github', 'markdown-github', 'markdown+github'];
 $gfmEnabled = ['strikeout', 'emoji', 'bare uri'];
 $gfmDisabled = array_values(array_diff(array_keys($featureProbes), $gfmEnabled));
 $phpExtraFormats = ['markdown_phpextra', 'markdown-php-extra', 'markdown+php_extra', 'markdown+php-extra', 'markdown+phpextra'];
-$phpExtraEnabled = ['bracketed span', 'inline code attributes'];
+$phpExtraEnabled = ['bracketed span'];
 $phpExtraDisabled = array_values(array_diff(array_keys($featureProbes), $phpExtraEnabled));
 $mmdFormats = ['markdown_mmd', 'markdown-mmd', 'markdown+mmd', 'markdown+multimarkdown'];
-$mmdEnabled = ['citation', 'dollar math', 'bracketed span', 'inline code attributes'];
+$mmdEnabled = ['citation', 'dollar math', 'bracketed span'];
 $mmdDisabled = array_values(array_diff(array_keys($featureProbes), $mmdEnabled));
 
 return [
