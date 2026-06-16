@@ -1378,8 +1378,21 @@ final class MarkdownWriter
         $indent = strspn($line, " \t");
         $prefix = substr($line, 0, $indent);
         $tail = substr($line, $indent);
-        if ($tail === '' || $indent > 3) {
-            return $line;
+        $encodedIndent = false;
+        if ($tail === '') {
+            return $indent > 3 ? $this->encodeLeadingAsciiWhitespace($line, $indent) : $line;
+        }
+
+        if ($indent > 3) {
+            $prefix = $this->encodeLeadingAsciiWhitespace($prefix, $indent);
+            $encodedIndent = true;
+        }
+
+        if (
+            str_starts_with($tail, '\\<')
+            && $this->startsWithRawHtmlBlockTag(str_replace(['\\<', '\\>'], ['<', '>'], $tail))
+        ) {
+            return $prefix . '&lt;' . substr($tail, 2);
         }
 
         if ($this->startsWithAtxHeadingMarker($tail) || preg_match('/^#([.)])(?=[ \t]|$)/', $tail) === 1) {
@@ -1412,7 +1425,21 @@ final class MarkdownWriter
             return $prefix . $match[1] . '\\' . $match[2] . substr($tail, strlen($match[1]) + 1);
         }
 
-        return $line;
+        return $encodedIndent ? $prefix . $tail : $line;
+    }
+
+    private function encodeLeadingAsciiWhitespace(string $line, int $bytes): string
+    {
+        if ($bytes <= 0) {
+            return $line;
+        }
+
+        $encoded = '';
+        for ($i = 0; $i < $bytes; $i++) {
+            $encoded .= ($line[$i] ?? '') === "\t" ? '&#9;' : '&#32;';
+        }
+
+        return $encoded . substr($line, $bytes);
     }
 
     /**
@@ -5163,7 +5190,7 @@ final class MarkdownWriter
     ): string
     {
         return match ($node->type) {
-            'text' => $this->escapeText($this->nodeText($node), $escapeDefinitionMarker, $escapeLeadingAttributeBrace),
+            'text' => $this->renderTextInline($node, $following, $escapeDefinitionMarker, $escapeLeadingAttributeBrace),
             'space' => ' ',
             'softbreak' => $this->softBreakMarkdown(),
             'linebreak' => "\\\n",
@@ -5261,6 +5288,51 @@ final class MarkdownWriter
             '_', '__', 'underscore', 'underscores' => '_',
             default => null,
         };
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function renderTextInline(
+        AstNode $node,
+        array $following,
+        bool $escapeDefinitionMarker,
+        bool $escapeLeadingAttributeBrace
+    ): string {
+        $text = $this->nodeText($node);
+        $escaped = $this->escapeText($text, $escapeDefinitionMarker, $escapeLeadingAttributeBrace);
+
+        if ($this->textWhitespaceEntitySuppression > 0 || !$this->followingStartsWithPreservedSoftBreak($following)) {
+            return $escaped;
+        }
+
+        return $this->encodeTrailingAsciiSpaces($escaped);
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function followingStartsWithPreservedSoftBreak(array $following): bool
+    {
+        foreach ($following as $node) {
+            if ($node->type === 'text' && $this->nodeText($node) === '') {
+                continue;
+            }
+
+            return $node->type === 'softbreak' && $this->softBreakMarkdown() !== ' ';
+        }
+
+        return false;
+    }
+
+    private function encodeTrailingAsciiSpaces(string $text): string
+    {
+        $spaces = strlen($text) - strlen(rtrim($text, ' '));
+        if ($spaces <= 0) {
+            return $text;
+        }
+
+        return substr($text, 0, -$spaces) . str_repeat('&#32;', $spaces);
     }
 
     /**
@@ -6561,6 +6633,7 @@ final class MarkdownWriter
         $length = strlen($text);
         $lineStart = $escapeDefinitionMarker;
         $lineStartSpaces = 0;
+        $lineStartSpacesEncoded = false;
         $definitionLineStart = $escapeDefinitionMarker;
         $escapeSmartPunctuation = $this->markdownExtensionEnabled('smart');
 
@@ -6570,6 +6643,10 @@ final class MarkdownWriter
 
             $whitespaceEntity = $this->markdownEntityForTextWhitespace($text, $i);
             if ($whitespaceEntity !== null) {
+                if ($lineStart && $lineStartSpaces > 0 && !$lineStartSpacesEncoded) {
+                    $escaped = $this->encodeCurrentLineLeadingAsciiSpaces($escaped, $lineStartSpaces);
+                    $lineStartSpacesEncoded = true;
+                }
                 $escaped .= $whitespaceEntity['entity'];
                 $i += $whitespaceEntity['bytes'] - 1;
                 $lineStart = false;
@@ -6588,12 +6665,23 @@ final class MarkdownWriter
                 $escaped .= "\n";
                 $lineStart = true;
                 $lineStartSpaces = 0;
+                $lineStartSpacesEncoded = false;
                 $definitionLineStart = true;
                 continue;
             }
 
             if ($lineStart && $char === ' ' && $lineStartSpaces < 3) {
                 $escaped .= ' ';
+                $lineStartSpaces++;
+                continue;
+            }
+
+            if ($lineStart && $char === ' ') {
+                if (!$lineStartSpacesEncoded) {
+                    $escaped = $this->encodeCurrentLineLeadingAsciiSpaces($escaped, $lineStartSpaces);
+                    $lineStartSpacesEncoded = true;
+                }
+                $escaped .= '&#32;';
                 $lineStartSpaces++;
                 continue;
             }
@@ -6782,6 +6870,15 @@ final class MarkdownWriter
         }
 
         return $escaped;
+    }
+
+    private function encodeCurrentLineLeadingAsciiSpaces(string $text, int $spaces): string
+    {
+        if ($spaces <= 0) {
+            return $text;
+        }
+
+        return substr($text, 0, -$spaces) . str_repeat('&#32;', $spaces);
     }
 
     private function longestColonRun(string $text): int
