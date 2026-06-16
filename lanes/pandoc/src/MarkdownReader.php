@@ -218,6 +218,17 @@ final class MarkdownReader
         return MarkdownFormatProfile::canonicalMarkdownFormat($format);
     }
 
+    private function strictBareLinkDestinations(): bool
+    {
+        return in_array($this->markdownFormatBase(), [
+            'commonmark',
+            'commonmark_x',
+            'gfm',
+            'markdown_github',
+            'markdown_strict',
+        ], true);
+    }
+
     /**
      * @return array<string, bool>
      */
@@ -21093,7 +21104,8 @@ final class MarkdownReader
             ];
         }
 
-        $destinationAndTitle = $this->splitBareLinkDestinationAndTitle($content);
+        $strictBareDestination = $this->strictBareLinkDestinations();
+        $destinationAndTitle = $this->splitBareLinkDestinationAndTitle($content, $strictBareDestination);
         if ($destinationAndTitle === null) {
             return null;
         }
@@ -21103,7 +21115,7 @@ final class MarkdownReader
         if ($destination === '') {
             return null;
         }
-        if (!$this->isValidBareLinkDestination($destination)) {
+        if (!$this->isValidBareLinkDestination($destination, $strictBareDestination)) {
             return null;
         }
 
@@ -21124,7 +21136,7 @@ final class MarkdownReader
     /**
      * @return array{0:string, 1:string|null}|null
      */
-    private function splitBareLinkDestinationAndTitle(string $content): ?array
+    private function splitBareLinkDestinationAndTitle(string $content, bool $strictBareDestination): ?array
     {
         $length = strlen($content);
         for ($cursor = 0; $cursor < $length; $cursor++) {
@@ -21135,6 +21147,9 @@ final class MarkdownReader
             $title = ltrim(substr($content, $cursor + 1));
             if ($title === '' || $this->parseLinkTitle($title) === null) {
                 if ($this->looksLikeLinkTitleStart($title)) {
+                    return null;
+                }
+                if ($strictBareDestination) {
                     return null;
                 }
                 continue;
@@ -21149,8 +21164,9 @@ final class MarkdownReader
         return [$content, null];
     }
 
-    private function isValidBareLinkDestination(string $destination): bool
+    private function isValidBareLinkDestination(string $destination, bool $strictBareDestination): bool
     {
+        $parenDepth = 0;
         $length = strlen($destination);
         for ($offset = 0; $offset < $length; $offset++) {
             $char = $destination[$offset];
@@ -21163,9 +21179,32 @@ final class MarkdownReader
             if ($char === '<') {
                 return false;
             }
+
+            if (!$strictBareDestination) {
+                continue;
+            }
+
+            $code = ord($char);
+            if ($code <= 0x20 || $code === 0x7F) {
+                return false;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char !== ')') {
+                continue;
+            }
+
+            if ($parenDepth === 0) {
+                return false;
+            }
+            $parenDepth--;
         }
 
-        return true;
+        return !$strictBareDestination || $parenDepth === 0;
     }
 
     /**
