@@ -5880,7 +5880,7 @@ final class MarkdownWriter
             return $this->renderInlineLabelInlines($node->children);
         }
 
-        if (($attrTuple['classes'][0] ?? null) === 'mark') {
+        if ($this->isMarkdownMarkClass($attrTuple['classes'][0] ?? null)) {
             $content = str_replace('==', '\\=\\=', $content);
         }
 
@@ -5927,8 +5927,14 @@ final class MarkdownWriter
         $attrs = $this->linkAttrTuple($node);
 
         return $attrs['id'] === ''
-            && $attrs['classes'] === ['mark']
+            && count($attrs['classes']) === 1
+            && $this->isMarkdownMarkClass($attrs['classes'][0])
             && $attrs['attributes'] === [];
+    }
+
+    private function isMarkdownMarkClass(?string $class): bool
+    {
+        return $class === 'mark' || $class === 'highlight';
     }
 
     private function renderSmallCaps(AstNode $node): string
@@ -5945,7 +5951,7 @@ final class MarkdownWriter
 
     private function renderUnderline(AstNode $node): string
     {
-        if (!$this->markdownExtensionEnabled('underline')) {
+        if (!$this->markdownExtensionEnabled('underline') && !$this->markdownSemanticBracketedFallbackEnabled('underline')) {
             return $this->renderHtmlInline($node);
         }
 
@@ -5958,6 +5964,10 @@ final class MarkdownWriter
     private function renderStrikeout(AstNode $node): string
     {
         if (!$this->markdownExtensionEnabled('strikeout')) {
+            if ($this->markdownSemanticBracketedFallbackEnabled('strikeout')) {
+                return $this->renderAttributedSemanticSpan($node, 'strikeout');
+            }
+
             return $this->renderHtmlInline($node);
         }
 
@@ -5971,6 +5981,10 @@ final class MarkdownWriter
     private function renderScript(AstNode $node, string $semanticClass, string $delimiter): string
     {
         if (!$this->markdownExtensionEnabled($semanticClass)) {
+            if ($this->markdownSemanticBracketedFallbackEnabled($semanticClass)) {
+                return $this->renderAttributedSemanticSpan($node, $semanticClass);
+            }
+
             return $this->renderHtmlInline($node);
         }
 
@@ -5979,6 +5993,16 @@ final class MarkdownWriter
         }
 
         return $this->delimitScriptContent($delimiter, $this->renderInlineLabelInlines($node->children));
+    }
+
+    private function markdownSemanticBracketedFallbackEnabled(string $extension): bool
+    {
+        if (!$this->markdownExtensionEnabled('bracketed_spans')) {
+            return false;
+        }
+
+        return $this->markdownExtensionExplicitOverride($extension) !== false
+            || $this->markdownExtensionExplicitOverride('bracketed_spans') === true;
     }
 
     private function renderAttributedSemanticSpan(AstNode $node, string $semanticClass): string
@@ -6248,6 +6272,26 @@ final class MarkdownWriter
         }
 
         return $enabled;
+    }
+
+    private function markdownExtensionExplicitOverride(string $extension): ?bool
+    {
+        $extension = $this->normalizeMarkdownExtensionName($extension);
+        $override = null;
+
+        foreach ($this->writerFormatExtensionOverrides() as $name => $state) {
+            if ($this->normalizeMarkdownExtensionName($name) === $extension) {
+                $override = $state;
+            }
+        }
+
+        foreach ($this->configuredMarkdownExtensionOverrides() as $name => $state) {
+            if ($this->normalizeMarkdownExtensionName($name) === $extension) {
+                $override = $state;
+            }
+        }
+
+        return $override;
     }
 
     private function defaultMarkdownExtensionEnabled(string $extension): bool
