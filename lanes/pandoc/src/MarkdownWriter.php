@@ -1440,6 +1440,10 @@ final class MarkdownWriter
             return true;
         }
 
+        if ($node->type === 'definition_list' && !$this->markdownExtensionEnabled('definition_lists')) {
+            return true;
+        }
+
         if ($node->type === 'code_block' && $this->requestsHtmlMarkdownFormat($node->attr('markdownCodeBlockFormat', ''))) {
             return true;
         }
@@ -1845,9 +1849,8 @@ final class MarkdownWriter
     private function definitionBodyNeedsDetachedMarker(AstNode $definition): bool
     {
         foreach ($definition->children as $child) {
-            return in_array($child->type, [
+            return $this->isListBlock($child) || in_array($child->type, [
                 'code_block',
-                'definition_list',
                 'div',
                 'heading',
                 'line_block',
@@ -6176,7 +6179,7 @@ final class MarkdownWriter
             'fenced_code_attribute' => 'fenced_code_attributes',
             'citation' => 'citations',
             'code_attributes' => 'inline_code_attributes',
-            'definition_list', 'definition-lists', 'definition-list' => 'definition_lists',
+            'definition_list', 'definition-lists', 'definition-list', 'dlists' => 'definition_lists',
             'div_attributes',
             'native_div',
             'native_divs' => 'fenced_divs',
