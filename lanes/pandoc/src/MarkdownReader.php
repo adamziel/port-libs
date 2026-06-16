@@ -434,7 +434,7 @@ final class MarkdownReader
                 continue;
             }
             $this->flushListStack($listStack, $blocks);
-            $paragraph[] = trim($line);
+            $paragraph[] = rtrim(ltrim($line, " \t"), "\t");
         }
         $this->flushParagraph($paragraph, $blocks);
         $this->flushListStack($listStack, $blocks);
@@ -957,7 +957,7 @@ final class MarkdownReader
             return null;
         }
 
-        $label = $this->parseBracketedLabel($line, $offset);
+        $label = $this->parseBracketedLabel($line, $offset, false);
         if ($label === null || !$this->isValidReferenceLabel($label['text']) || ($line[$label['next']] ?? '') !== ':') {
             return null;
         }
@@ -1233,7 +1233,11 @@ final class MarkdownReader
                 $attrs = $this->parseCodeInfo($info);
                 $attrs['text'] = implode("\n", $content);
                 $rawAttribute = $this->tryParseRawAttributeSpec($info, 0);
-                if ($rawAttribute !== null && $rawAttribute['next'] === strlen($info)) {
+                if (
+                    $rawAttribute !== null
+                    && $rawAttribute['next'] === strlen($info)
+                    && $this->rawAttributeFormatEnabled($rawAttribute['format'])
+                ) {
                     $index = $cursor;
 
                     return $this->rawBlockNode($rawAttribute['format'], $attrs['text']);
@@ -1253,7 +1257,11 @@ final class MarkdownReader
         $attrs = $this->parseCodeInfo($info);
         $attrs['text'] = implode("\n", $content);
         $rawAttribute = $this->tryParseRawAttributeSpec($info, 0);
-        if ($rawAttribute !== null && $rawAttribute['next'] === strlen($info)) {
+        if (
+            $rawAttribute !== null
+            && $rawAttribute['next'] === strlen($info)
+            && $this->rawAttributeFormatEnabled($rawAttribute['format'])
+        ) {
             $index = $cursor - 1;
 
             return $this->rawBlockNode($rawAttribute['format'], $attrs['text']);
@@ -5836,7 +5844,13 @@ final class MarkdownReader
 
     private function htmlRawHtmlEnabled(): bool
     {
-        return (bool) ($this->options['htmlRawHtml'] ?? $this->options['rawHtml'] ?? true);
+        $options = $this->options;
+        if (array_key_exists('htmlRawHtml', $options) && !array_key_exists('rawHtml', $options)) {
+            $options['rawHtml'] = $options['htmlRawHtml'];
+        }
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::rawHtmlEnabled($options, true);
     }
 
     private function htmlElementIsCheckboxInput(\DOMElement $element): bool
@@ -10096,6 +10110,14 @@ final class MarkdownReader
 
         while ($offset < $length) {
             if ($text[$offset] === "\n") {
+                if (preg_match('/ {2,}$/', $buffer) === 1) {
+                    $buffer = rtrim($buffer, ' ');
+                    $this->flushText($buffer, $nodes);
+                    $nodes[] = new AstNode('linebreak');
+                    $offset++;
+                    continue;
+                }
+
                 $this->flushText($buffer, $nodes);
                 $nodes[] = new AstNode('softbreak');
                 $offset++;
@@ -10124,7 +10146,7 @@ final class MarkdownReader
                     }
                     $next = $end + $tickCount;
                     $rawAttribute = $this->rawAttributeEnabled() ? $this->tryParseRawAttributeSpec($text, $next) : null;
-                    if ($rawAttribute !== null) {
+                    if ($rawAttribute !== null && $this->rawAttributeFormatEnabled($rawAttribute['format'])) {
                         $this->flushText($buffer, $nodes);
                         $nodes[] = $this->rawInlineNode($rawAttribute['format'], $code);
                         $offset = $rawAttribute['next'];
@@ -10980,6 +11002,11 @@ final class MarkdownReader
             return null;
         }
 
+        $linkLabel = $this->parseBracketedLabel($text, $offset);
+        if ($linkLabel !== null && in_array($text[$linkLabel['next']] ?? '', ['(', '['], true)) {
+            return null;
+        }
+
         $content = substr($text, $offset + 2, $end - $offset - 2);
         if ($content === '') {
             return null;
@@ -11596,24 +11623,24 @@ final class MarkdownReader
         return explode('+', $format, 2)[0];
     }
 
-    private function rawBlockNode(string $format, string $text): AstNode
+    private function rawAttributeFormatEnabled(string $format): bool
     {
-        $normalized = strtolower($format);
-        if (in_array($normalized, ['html', 'html4', 'html5'], true)) {
-            return new AstNode('raw_html', [
-                'format' => $format,
-                'html' => $text,
-                'text' => $text,
-            ]);
+        $baseFormat = $this->rawAttributeFormatBase($format);
+        if ($this->isRawAttributeHtmlFormat($format)) {
+            return $this->htmlRawHtmlEnabled();
         }
-        if ($normalized === 'tex') {
-            return new AstNode('raw_tex', [
-                'format' => $format,
-                'tex' => $text,
-                'text' => $text,
-            ]);
+        if (in_array($baseFormat, ['tex', 'latex', 'context'], true)) {
+            return $this->rawTexEnabled();
+        }
+        if ($baseFormat === 'markdown') {
+            return $this->rawMarkdownEnabled();
         }
 
+        return true;
+    }
+
+    private function rawBlockNode(string $format, string $text): AstNode
+    {
         return new AstNode('raw_block', [
             'format' => $format,
             'text' => $text,
@@ -11626,6 +11653,14 @@ final class MarkdownReader
         $options['format'] = $this->markdownFormatWithExtensionOption();
 
         return MarkdownFormatProfile::rawTexEnabled($options, true);
+    }
+
+    private function rawMarkdownEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::rawMarkdownEnabled($options, true);
     }
 
     /**
