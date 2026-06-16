@@ -145,8 +145,11 @@ final class MarkdownReader
             'bare_uri_autolinks' => true,
             'bracketed_spans' => true,
             'citations' => true,
+            'east_asian_line_breaks' => false,
             'emoji' => true,
             'footnotes' => true,
+            'hard_line_breaks' => false,
+            'ignore_line_breaks' => false,
             'inline_attributes' => true,
             'mark' => true,
             'numbered_examples' => true,
@@ -211,15 +214,7 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('/^([A-Za-z0-9_]+)/', strtolower(trim($format)), $m) !== 1) {
-            return null;
-        }
-
-        return match ($m[1]) {
-            'commonmark', 'commonmark_x', 'gfm', 'markdown', 'markdown_github',
-            'markdown_mmd', 'markdown_phpextra', 'markdown_strict', 'pandoc' => $m[1],
-            default => null,
-        };
+        return MarkdownFormatProfile::canonicalFormat($format);
     }
 
     /**
@@ -233,7 +228,8 @@ final class MarkdownReader
         }
 
         $overrides = [];
-        if (preg_match_all('/([+-])([A-Za-z0-9_]+)/', strtolower($format), $matches, PREG_SET_ORDER) !== false) {
+        $suffix = $this->markdownFormatExtensionSuffix(strtolower(trim($format)));
+        if (preg_match_all('/([+-])([A-Za-z0-9_]+)/', $suffix, $matches, PREG_SET_ORDER) !== false) {
             foreach ($matches as $match) {
                 $overrides[$this->normalizeMarkdownExtensionName($match[2])] = $match[1] === '+';
             }
@@ -242,13 +238,53 @@ final class MarkdownReader
         return $overrides;
     }
 
+    private function markdownFormatExtensionSuffix(string $format): string
+    {
+        $candidates = [
+            'markdown_github',
+            'markdown-github',
+            'markdown_phpextra',
+            'markdown-php-extra',
+            'markdown_strict',
+            'markdown-strict',
+            'markdown_mmd',
+            'markdown-mmd',
+            'commonmark_x',
+            'commonmark-x',
+            'commonmark',
+            'markdown',
+            'pandoc',
+            'gfm',
+            'md',
+        ];
+
+        foreach ($candidates as $candidate) {
+            if ($format === $candidate) {
+                return '';
+            }
+
+            if (str_starts_with($format, $candidate . '+') || str_starts_with($format, $candidate . '-')) {
+                return substr($format, strlen($candidate));
+            }
+        }
+
+        $plus = strpos($format, '+');
+        $minus = strpos($format, '-');
+        $positions = array_filter([$plus, $minus], static fn (int|false $position): bool => $position !== false);
+
+        return $positions === [] ? '' : substr($format, min($positions));
+    }
+
     private function normalizeMarkdownExtensionName(string $extension): string
     {
         return match (str_replace('-', '_', strtolower(trim($extension)))) {
             'autolink_bare_uris', 'bare_autolinks', 'gfm_auto_identifiers', 'gfm_autolinks' => 'bare_uri_autolinks',
             'bracketed_span' => 'bracketed_spans',
             'citation' => 'citations',
+            'east_asian_line_break', 'east_asian_linebreaks' => 'east_asian_line_breaks',
             'emoji_shortcode', 'emoji_shortcodes' => 'emoji',
+            'hard_line_break', 'hard_linebreaks' => 'hard_line_breaks',
+            'ignore_line_break', 'ignore_linebreaks' => 'ignore_line_breaks',
             'inline_attribute', 'link_attributes', 'markdown_attribute' => 'inline_attributes',
             'raw_attributes' => 'raw_attribute',
             'subscripts' => 'subscript',
@@ -18546,6 +18582,18 @@ final class MarkdownReader
                     continue;
                 }
 
+                if ($this->markdownExtensionEnabled('hard_line_breaks')) {
+                    $this->flushText($buffer, $nodes);
+                    $nodes[] = new AstNode('linebreak');
+                    $offset++;
+                    continue;
+                }
+
+                if ($this->markdownExtensionEnabled('ignore_line_breaks')) {
+                    $offset++;
+                    continue;
+                }
+
                 if ($this->shouldSuppressEastAsianSoftBreak($buffer, $nodes, $text, $offset)) {
                     $offset++;
                     continue;
@@ -22382,7 +22430,7 @@ final class MarkdownReader
      */
     private function shouldSuppressEastAsianSoftBreak(string $buffer, array $nodes, string $text, int $newlineOffset): bool
     {
-        if (($this->options['eastAsianLineBreaks'] ?? false) !== true) {
+        if (($this->options['eastAsianLineBreaks'] ?? false) !== true && !$this->markdownExtensionEnabled('east_asian_line_breaks')) {
             return false;
         }
 
