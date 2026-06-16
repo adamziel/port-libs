@@ -17670,7 +17670,7 @@ HTML);
         $t->contains('<time', $inlineTime->attr('html'));
         $t->contains('datetime="2026-06-09"', $inlineTime->attr('html'));
     },
-    'maps upstream html reader mark highlights as raw review markup' => static function (TestRunner $t): void {
+    'maps upstream html reader mark highlights as semantic inline fallback' => static function (TestRunner $t): void {
         $mark = '<mark data-source="batch-54">needs review</mark>';
         $document = (new MarkdownReader())->read($mark . "\n\nAfter the mark highlight.");
         $blockHtml = $document->children[0] ?? new AstNode('missing');
@@ -17689,8 +17689,10 @@ HTML);
         $inlineMark = $paragraph->children[1] ?? new AstNode('missing');
 
         $t->same('paragraph', $paragraph->type);
-        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
-        $t->same('<mark data-source="batch-54">needs review</mark>', $inlineMark->attr('html'));
+        $t->same(['text', 'span'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['mark'], $inlineMark->attr('classes'));
+        $t->same(['source' => 'batch-54'], $inlineMark->attr('attributes'));
+        $t->same('needs review', $inlineMark->children[0]->attr('text'));
     },
     'maps upstream html reader abbr elements as raw review markup' => static function (TestRunner $t): void {
         $abbr = '<abbr title="Portable Document Format" data-source="batch-55">PDF</abbr>';

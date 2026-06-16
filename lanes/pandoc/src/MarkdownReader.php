@@ -13217,32 +13217,38 @@ final class MarkdownReader
         }
 
         $name = strtolower($node->localName);
-        if (in_array($name, ['abbr', 'address', 'animate', 'animatemotion', 'animatetransform', 'annotation', 'annotation-xml', 'area', 'audio', 'base', 'bdi', 'bdo', 'button', 'canvas', 'circle', 'cite', 'clippath', 'data', 'datalist', 'defs', 'desc', 'details', 'dfn', 'dialog', 'ellipse', 'embed', 'feblend', 'fecomposite', 'fedropshadow', 'feflood', 'fegaussianblur', 'feoffset', 'fieldset', 'filter', 'foreignobject', 'form', 'g', 'hgroup', 'iframe', 'image', 'input', 'label', 'legend', 'line', 'lineargradient', 'link', 'maligngroup', 'malignmark', 'map', 'marker', 'mark', 'mask', 'math', 'maction', 'metadata', 'menclose', 'merror', 'menu', 'meta', 'meter', 'mfenced', 'mfrac', 'mglyph', 'mi', 'mlabeledtr', 'mlongdiv', 'mmultiscripts', 'mn', 'mo', 'mover', 'mpadded', 'mpath', 'mphantom', 'mprescripts', 'mroot', 'mrow', 'ms', 'mscarries', 'mscarry', 'msgroup', 'msline', 'mspace', 'msqrt', 'msrow', 'mstack', 'mstyle', 'msub', 'msubsup', 'msup', 'mtable', 'mtd', 'mtext', 'mtr', 'munder', 'munderover', 'none', 'object', 'optgroup', 'option', 'output', 'param', 'path', 'pattern', 'picture', 'polygon', 'polyline', 'progress', 'radialgradient', 'rect', 'rp', 'rt', 'ruby', 'search', 'select', 'semantics', 'set', 'slot', 'small', 'source', 'stop', 'summary', 'svg', 'switch', 'symbol', 'template', 'text', 'textarea', 'textpath', 'time', 'track', 'tspan', 'use', 'var', 'video', 'view', 'wbr'], true)) {
+        if (in_array($name, ['abbr', 'address', 'animate', 'animatemotion', 'animatetransform', 'annotation', 'annotation-xml', 'area', 'audio', 'base', 'bdi', 'bdo', 'button', 'canvas', 'circle', 'cite', 'clippath', 'data', 'datalist', 'defs', 'desc', 'details', 'dfn', 'dialog', 'ellipse', 'embed', 'feblend', 'fecomposite', 'fedropshadow', 'feflood', 'fegaussianblur', 'feoffset', 'fieldset', 'filter', 'foreignobject', 'form', 'g', 'hgroup', 'iframe', 'image', 'input', 'label', 'legend', 'line', 'lineargradient', 'link', 'maligngroup', 'malignmark', 'map', 'marker', 'mask', 'math', 'maction', 'metadata', 'menclose', 'merror', 'menu', 'meta', 'meter', 'mfenced', 'mfrac', 'mglyph', 'mi', 'mlabeledtr', 'mlongdiv', 'mmultiscripts', 'mn', 'mo', 'mover', 'mpadded', 'mpath', 'mphantom', 'mprescripts', 'mroot', 'mrow', 'ms', 'mscarries', 'mscarry', 'msgroup', 'msline', 'mspace', 'msqrt', 'msrow', 'mstack', 'mstyle', 'msub', 'msubsup', 'msup', 'mtable', 'mtd', 'mtext', 'mtr', 'munder', 'munderover', 'none', 'object', 'optgroup', 'option', 'output', 'param', 'path', 'pattern', 'picture', 'polygon', 'polyline', 'progress', 'radialgradient', 'rect', 'rp', 'rt', 'ruby', 'search', 'select', 'semantics', 'set', 'slot', 'small', 'source', 'stop', 'summary', 'svg', 'switch', 'symbol', 'template', 'text', 'textarea', 'textpath', 'time', 'track', 'tspan', 'use', 'var', 'video', 'view', 'wbr'], true)) {
             return [new AstNode('raw_html_inline', ['html' => XmlHtml5Dom::serializeHtmlFragment($node)])];
         }
 
         $children = $this->parseHtmlInlineChildren($node);
 
         if (in_array($name, ['strong', 'b'], true)) {
-            return $this->wrapHtmlInlineWithBoundaryWhitespace('strong', [], $children);
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('strong', $this->htmlElementPandocAttrs($node), $children);
         }
         if (in_array($name, ['em', 'i'], true)) {
-            return $this->wrapHtmlInlineWithBoundaryWhitespace('emph', [], $children);
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('emph', $this->htmlElementPandocAttrs($node), $children);
         }
         if ($name === 'sup') {
-            return $this->wrapHtmlInlineWithBoundaryWhitespace('superscript', [], $children);
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('superscript', $this->htmlElementPandocAttrs($node), $children);
         }
         if ($name === 'sub') {
-            return $this->wrapHtmlInlineWithBoundaryWhitespace('subscript', [], $children);
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('subscript', $this->htmlElementPandocAttrs($node), $children);
         }
-        if ($name === 'span' && $this->htmlElementHasSmallCapsStyle($node)) {
-            return $this->wrapHtmlInlineWithBoundaryWhitespace('small_caps', [], $children);
+        if ($name === 'mark') {
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('span', $this->htmlElementSemanticInlineAttrs($node, 'mark'), $children);
+        }
+        if ($name === 'span') {
+            $semantic = $this->htmlSpanSemanticInline($node);
+            if ($semantic !== null) {
+                return $this->wrapHtmlInlineWithBoundaryWhitespace($semantic['type'], $semantic['attrs'], $children);
+            }
         }
         if (in_array($name, ['u', 'ins'], true)) {
-            return $this->wrapHtmlInlineWithBoundaryWhitespace('underline', [], $children);
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('underline', $this->htmlElementPandocAttrs($node), $children);
         }
         if (in_array($name, ['s', 'strike', 'del'], true)) {
-            return $this->wrapHtmlInlineWithBoundaryWhitespace('strikeout', [], $children);
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('strikeout', $this->htmlElementPandocAttrs($node), $children);
         }
         if (in_array($name, ['code', 'kbd', 'samp'], true)) {
             return [new AstNode('code', ['text' => trim(preg_replace('/\s+/', ' ', $node->textContent) ?? $node->textContent)])];
@@ -13354,15 +13360,200 @@ final class MarkdownReader
         return new AstNode('image', $attrs, $children);
     }
 
-    private function htmlElementHasSmallCapsStyle(\DOMElement $element): bool
+    /**
+     * @return array{type:string, attrs:array<string, mixed>}|null
+     */
+    private function htmlSpanSemanticInline(\DOMElement $element): ?array
     {
-        $style = strtolower($element->getAttribute('style'));
-        if ($style === '') {
-            return false;
+        $classSemantic = $this->htmlElementLeadingSemanticClass($element);
+        if ($classSemantic !== null) {
+            $attrs = $classSemantic['type'] === 'span'
+                ? $this->htmlElementSemanticInlineAttrs($element, 'mark')
+                : $this->htmlElementSemanticInlineAttrs($element, null, $classSemantic['class']);
+
+            return [
+                'type' => $classSemantic['type'],
+                'attrs' => $attrs,
+            ];
         }
 
-        return preg_match('/(?:^|;)\s*font-variant\s*:\s*small-caps\b/', $style) === 1
-            || preg_match('/(?:^|;)\s*font-variant-caps\s*:\s*small-caps\b/', $style) === 1;
+        $styleSemantic = $this->htmlElementStyleSemanticInlineType($element);
+        if ($styleSemantic === null) {
+            return null;
+        }
+
+        return [
+            'type' => $styleSemantic,
+            'attrs' => $styleSemantic === 'span'
+                ? $this->htmlElementSemanticInlineAttrs($element, 'mark')
+                : $this->htmlElementPandocAttrs($element),
+        ];
+    }
+
+    /**
+     * @return array{class:string, type:string}|null
+     */
+    private function htmlElementLeadingSemanticClass(\DOMElement $element): ?array
+    {
+        $classes = preg_split('/\s+/', trim($element->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($classes === []) {
+            return null;
+        }
+
+        $class = strtolower($classes[0]);
+        $type = match ($class) {
+            'mark', 'highlight', 'highlighted' => 'span',
+            'smallcaps', 'small-caps' => 'small_caps',
+            'underline', 'underlined' => 'underline',
+            'strikeout', 'strikethrough', 'strike-through' => 'strikeout',
+            'superscript', 'super' => 'superscript',
+            'subscript', 'sub' => 'subscript',
+            default => null,
+        };
+
+        return $type === null ? null : ['class' => $classes[0], 'type' => $type];
+    }
+
+    private function htmlElementStyleSemanticInlineType(\DOMElement $element): ?string
+    {
+        if ($this->htmlElementHasSmallCapsStyle($element)) {
+            return 'small_caps';
+        }
+        if ($this->htmlElementHasUnderlineStyle($element)) {
+            return 'underline';
+        }
+        if ($this->htmlElementHasStrikeoutStyle($element)) {
+            return 'strikeout';
+        }
+        if ($this->htmlElementHasSuperscriptStyle($element)) {
+            return 'superscript';
+        }
+        if ($this->htmlElementHasSubscriptStyle($element)) {
+            return 'subscript';
+        }
+        if ($this->htmlElementHasMarkStyle($element)) {
+            return 'span';
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlElementSemanticInlineAttrs(\DOMElement $element, ?string $classToAdd = null, ?string $leadingClassToRemove = null): array
+    {
+        $attrs = $this->htmlElementPandocAttrs($element);
+        $classes = [];
+        if (isset($attrs['classes']) && is_array($attrs['classes'])) {
+            foreach ($attrs['classes'] as $class) {
+                $class = trim((string) $class);
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
+            }
+        }
+
+        if ($leadingClassToRemove !== null && $classes !== []) {
+            $first = strtolower($classes[0]);
+            if ($first === strtolower($leadingClassToRemove)) {
+                array_shift($classes);
+            }
+        }
+
+        if ($classToAdd !== null && !in_array($classToAdd, $classes, true)) {
+            array_unshift($classes, $classToAdd);
+        }
+
+        if ($classes === []) {
+            unset($attrs['classes']);
+        } else {
+            $attrs['classes'] = array_values($classes);
+        }
+
+        $htmlAttributes = isset($attrs['htmlAttributes']) && is_array($attrs['htmlAttributes'])
+            ? $attrs['htmlAttributes']
+            : [];
+        if ($classes === []) {
+            unset($htmlAttributes['class']);
+        } else {
+            $htmlAttributes['class'] = implode(' ', $classes);
+        }
+        if ($htmlAttributes === []) {
+            unset($attrs['htmlAttributes']);
+        } else {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
+    }
+
+    private function htmlElementHasSmallCapsStyle(\DOMElement $element): bool
+    {
+        return $this->htmlStyleDeclarationContains($element, 'font-variant', 'small-caps')
+            || $this->htmlStyleDeclarationContains($element, 'font-variant-caps', 'small-caps');
+    }
+
+    private function htmlElementHasUnderlineStyle(\DOMElement $element): bool
+    {
+        return $this->htmlStyleDeclarationContains($element, 'text-decoration', 'underline')
+            || $this->htmlStyleDeclarationContains($element, 'text-decoration-line', 'underline');
+    }
+
+    private function htmlElementHasStrikeoutStyle(\DOMElement $element): bool
+    {
+        return $this->htmlStyleDeclarationContains($element, 'text-decoration', 'line-through')
+            || $this->htmlStyleDeclarationContains($element, 'text-decoration-line', 'line-through');
+    }
+
+    private function htmlElementHasSuperscriptStyle(\DOMElement $element): bool
+    {
+        return $this->htmlStyleDeclarationContains($element, 'vertical-align', 'super');
+    }
+
+    private function htmlElementHasSubscriptStyle(\DOMElement $element): bool
+    {
+        return $this->htmlStyleDeclarationContains($element, 'vertical-align', 'sub');
+    }
+
+    private function htmlElementHasMarkStyle(\DOMElement $element): bool
+    {
+        foreach (['background-color', 'background'] as $property) {
+            $value = $this->htmlStyleDeclarationValue($element, $property);
+            if ($value === null) {
+                continue;
+            }
+
+            $normalized = strtolower(trim($value));
+            if ($normalized !== '' && !in_array($normalized, ['none', 'transparent', 'inherit', 'initial', 'unset'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function htmlStyleDeclarationContains(\DOMElement $element, string $property, string $needle): bool
+    {
+        $value = $this->htmlStyleDeclarationValue($element, $property);
+
+        return $value !== null && preg_match('/(?:^|[\s,])' . preg_quote($needle, '/') . '(?:$|[\s,])/i', $value) === 1;
+    }
+
+    private function htmlStyleDeclarationValue(\DOMElement $element, string $property): ?string
+    {
+        $style = $element->getAttribute('style');
+        if (trim($style) === '') {
+            return null;
+        }
+
+        foreach (preg_split('/;/', $style) ?: [] as $declaration) {
+            if (preg_match('/^\s*' . preg_quote($property, '/') . '\s*:\s*(.*?)\s*$/i', $declaration, $m) === 1) {
+                return trim($m[1]);
+            }
+        }
+
+        return null;
     }
 
     /**
