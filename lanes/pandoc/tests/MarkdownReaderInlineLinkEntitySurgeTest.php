@@ -115,7 +115,8 @@ $escapedPunctuationCases = [
 foreach ($escapedPunctuationCases as $name => [$escaped, $literal]) {
     $tests["maps upstream reference label escaped {$name}"] = static function (TestRunner $t) use ($readFirstLink, $slug, $name, $escaped, $literal): void {
         $url = '/escaped-reference-' . $slug($name);
-        $markdown = "[escaped {$escaped} label]\n\n[escaped {$literal} label]: {$url} \"Escaped {$literal} title\"";
+        $titleLiteral = $literal === '"' ? '\\"' : $literal;
+        $markdown = "[escaped {$escaped} label]\n\n[escaped {$literal} label]: {$url} \"Escaped {$titleLiteral} title\"";
         $link = $readFirstLink($markdown);
 
         $t->same('link', $link->type);

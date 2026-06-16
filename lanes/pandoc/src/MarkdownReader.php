@@ -7899,7 +7899,10 @@ final class MarkdownReader
 
     private function isValidReferenceLabel(string $label): bool
     {
-        return $this->referenceLabelLength($this->canonicalReferenceLabelText($label)) <= self::MAX_REFERENCE_LABEL_CHARACTERS;
+        $canonical = $this->canonicalReferenceLabelText($label);
+
+        return $canonical !== ''
+            && $this->referenceLabelLength($canonical) <= self::MAX_REFERENCE_LABEL_CHARACTERS;
     }
 
     private function canonicalReferenceLabelText(string $label): string
@@ -20780,7 +20783,7 @@ final class MarkdownReader
             return null;
         }
 
-        $target = $this->parseLinkDestinationAndTitle(substr($text, $openParenOffset + 1, $close - $openParenOffset - 1));
+        $target = $this->parseInlineLinkDestinationAndTitle(substr($text, $openParenOffset + 1, $close - $openParenOffset - 1));
         if ($target === null) {
             return null;
         }
@@ -20874,6 +20877,29 @@ final class MarkdownReader
     /**
      * @return array{url:string, title:string}|null
      */
+    private function parseInlineLinkDestinationAndTitle(string $content): ?array
+    {
+        $trimmed = trim($content);
+        if (
+            $trimmed !== ''
+            && ctype_space($content[0] ?? '')
+            && $this->looksLikeLinkTitleStart($trimmed)
+        ) {
+            $title = $this->parseLinkTitle($trimmed);
+            if ($title !== null) {
+                return [
+                    'url' => '',
+                    'title' => $title,
+                ];
+            }
+        }
+
+        return $this->parseLinkDestinationAndTitle($content);
+    }
+
+    /**
+     * @return array{url:string, title:string}|null
+     */
     private function parseLinkDestinationAndTitle(string $content): ?array
     {
         $content = trim($content);
@@ -20902,7 +20928,12 @@ final class MarkdownReader
             ];
         }
 
-        [$destination, $titleSource] = $this->splitBareLinkDestinationAndTitle($content);
+        $destinationAndTitle = $this->splitBareLinkDestinationAndTitle($content);
+        if ($destinationAndTitle === null) {
+            return null;
+        }
+
+        [$destination, $titleSource] = $destinationAndTitle;
         $destination = trim($destination);
         if ($destination === '') {
             return null;
@@ -20926,9 +20957,9 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{0:string, 1:string|null}
+     * @return array{0:string, 1:string|null}|null
      */
-    private function splitBareLinkDestinationAndTitle(string $content): array
+    private function splitBareLinkDestinationAndTitle(string $content): ?array
     {
         $length = strlen($content);
         for ($cursor = 0; $cursor < $length; $cursor++) {
@@ -20938,6 +20969,9 @@ final class MarkdownReader
 
             $title = ltrim(substr($content, $cursor + 1));
             if ($title === '' || $this->parseLinkTitle($title) === null) {
+                if ($this->looksLikeLinkTitleStart($title)) {
+                    return null;
+                }
                 continue;
             }
 
@@ -21055,7 +21089,30 @@ final class MarkdownReader
             return null;
         }
 
-        return $this->decodeHtmlEntities($this->unescapeLinkComponent(substr($text, 1, -1)));
+        $inner = substr($text, 1, -1);
+        if (!$this->isValidLinkTitleInner($inner, $close)) {
+            return null;
+        }
+
+        return $this->decodeHtmlEntities($this->unescapeLinkComponent($inner));
+    }
+
+    private function isValidLinkTitleInner(string $inner, string $close): bool
+    {
+        $length = strlen($inner);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $inner[$offset];
+            if ($char === '\\') {
+                $offset++;
+                continue;
+            }
+
+            if ($char === $close || ($close === ')' && $char === '(')) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function unescapeLinkComponent(string $text): string

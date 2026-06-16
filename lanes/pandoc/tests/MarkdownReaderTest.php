@@ -751,7 +751,7 @@ return [
             '[URL and title](/url/ "title").',
             '[URL and title](/url/  "title preceded by two spaces").',
             "[URL and title](/url/\t\"title preceded by a tab\").",
-            '[URL and title](/url/ "title with "quotes" in it")',
+            '[URL and title](/url/ "title with \"quotes\" in it")',
             "[URL and title](/url/ 'title with single quotes')",
             '[with\_underscore](/url/with_underscore)',
             '[Email link](mailto:nobody@nowhere.net)',
@@ -800,9 +800,9 @@ return [
             '',
             'Foo [bar][].',
             '',
-            'Foo [biz](/url/ "Title with "quote" inside").',
+            'Foo [biz](/url/ "Title with \"quote\" inside").',
             '',
-            '  [bar]: /url/ "Title with "quotes" inside"',
+            '  [bar]: /url/ "Title with \"quotes\" inside"',
         ]));
 
         $t->same('link', $document->children[0]->children[1]->type);
