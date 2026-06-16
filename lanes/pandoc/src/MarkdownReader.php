@@ -16592,6 +16592,10 @@ final class MarkdownReader
 
     private function canLineContinueBlockQuoteParagraphLazily(string $line): bool
     {
+        if ($this->markdownExtensionEnabled('footnotes') && $this->tryParseFootnoteDefinitionStart($this->expandTabsToSpaces($line)) !== null) {
+            return false;
+        }
+
         return $this->canLineContinueParagraphLazily($line);
     }
 
@@ -18819,7 +18823,7 @@ final class MarkdownReader
                 }
             }
 
-            $inlineNote = ($this->resolveFootnoteReferences && $this->markdownExtensionEnabled('footnotes'))
+            $inlineNote = $this->markdownExtensionEnabled('footnotes')
                 ? $this->tryParseInlineNote($text, $offset)
                 : null;
             if ($inlineNote !== null) {
