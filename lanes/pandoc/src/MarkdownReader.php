@@ -89,7 +89,7 @@ final class MarkdownReader
     private bool $nativeSpanInlineEnabled = false;
 
     /**
-     * @param array{format?: string, extensions?: list<string>|array<string, bool>, literateHaskell?: bool, yamlMetadata?: bool, titleBlock?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool, sectionDivs?: bool, nativeSpans?: bool} $options
+     * @param array{format?: string, extensions?: string|list<string>|array<string, bool|string>, literateHaskell?: bool, yamlMetadata?: bool, titleBlock?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool, sectionDivs?: bool, nativeSpans?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -137,9 +137,12 @@ final class MarkdownReader
             'definition_lists' => true,
             'east_asian_line_breaks' => false,
             'emoji' => true,
+            'fenced_code_attributes' => true,
+            'fenced_divs' => true,
             'footnotes' => true,
             'grid_tables' => true,
             'hard_line_breaks' => false,
+            'header_attributes' => true,
             'ignore_line_breaks' => false,
             'inline_attributes' => true,
             'line_blocks' => true,
@@ -185,7 +188,9 @@ final class MarkdownReader
                     'abbreviations' => true,
                     'bracketed_spans' => true,
                     'definition_lists' => true,
+                    'fenced_code_attributes' => true,
                     'footnotes' => true,
+                    'header_attributes' => true,
                     'inline_attributes' => true,
                     'grid_tables' => true,
                     'multiline_tables' => true,
@@ -200,8 +205,10 @@ final class MarkdownReader
                     'bracketed_spans' => true,
                     'citations' => true,
                     'definition_lists' => true,
+                    'fenced_code_attributes' => true,
                     'footnotes' => true,
                     'grid_tables' => true,
+                    'header_attributes' => true,
                     'inline_attributes' => true,
                     'multiline_tables' => true,
                     'pipe_tables' => true,
@@ -322,8 +329,11 @@ final class MarkdownReader
             'citation' => 'citations',
             'east_asian_line_break', 'east_asian_linebreaks' => 'east_asian_line_breaks',
             'emoji_shortcode', 'emoji_shortcodes' => 'emoji',
+            'block_code_attributes', 'code_block_attributes', 'codeblock_attributes', 'fenced_code_attribute' => 'fenced_code_attributes',
+            'div_attribute', 'div_attributes', 'fenced_div', 'native_div', 'native_divs' => 'fenced_divs',
             'grid_table', 'gridtables' => 'grid_tables',
             'hard_line_break', 'hard_linebreaks' => 'hard_line_breaks',
+            'heading_attributes', 'heading_attrs', 'header_attribute' => 'header_attributes',
             'ignore_line_break', 'ignore_linebreaks' => 'ignore_line_breaks',
             'inline_attribute', 'link_attributes', 'markdown_attribute' => 'inline_attributes',
             'line_block' => 'line_blocks',
@@ -436,7 +446,9 @@ final class MarkdownReader
                 $blocks[] = $blockQuote;
                 continue;
             }
-            $fencedDivBlock = $paragraph === [] && $listStack === [] ? $this->tryReadFencedDivBlock($lines, $index) : null;
+            $fencedDivBlock = $paragraph === [] && $listStack === [] && $this->markdownExtensionEnabled('fenced_divs')
+                ? $this->tryReadFencedDivBlock($lines, $index)
+                : null;
             if ($fencedDivBlock !== null) {
                 $blocks[] = $fencedDivBlock;
                 continue;
@@ -601,7 +613,9 @@ final class MarkdownReader
                 $blocks[] = new AstNode('horizontal_rule');
                 continue;
             }
-            $lineBlock = $paragraph === [] && $listStack === [] ? $this->tryReadLineBlock($lines, $index) : null;
+            $lineBlock = $paragraph === [] && $listStack === [] && $this->markdownExtensionEnabled('line_blocks')
+                ? $this->tryReadLineBlock($lines, $index)
+                : null;
             if ($lineBlock !== null) {
                 $blocks[] = $lineBlock;
                 continue;
@@ -8489,7 +8503,10 @@ final class MarkdownReader
         $classes = [];
         $attributes = [];
 
-        if (preg_match('/^(.*?)[ \t]*\{([^{}]+)\}[ \t]*$/', $text, $attrs) === 1) {
+        if (
+            $this->markdownExtensionEnabled('header_attributes')
+            && preg_match('/^(.*?)[ \t]*\{([^{}]+)\}[ \t]*$/', $text, $attrs) === 1
+        ) {
             $text = rtrim($attrs[1]);
             [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($attrs[2]);
             if ($stripClosingAtxFence) {
@@ -9328,6 +9345,10 @@ final class MarkdownReader
      */
     private function matchFencedDivOpening(string $line): ?array
     {
+        if (!$this->markdownExtensionEnabled('fenced_divs')) {
+            return null;
+        }
+
         $line = $this->expandTabsToSpaces($line);
         if (preg_match('/^ {0,3}(:{3,})(?:[ \t]+(.*?))?[ \t]*$/', $line, $m) !== 1) {
             return null;
@@ -9377,6 +9398,12 @@ final class MarkdownReader
         }
 
         return strlen($m[1]) >= $openingLength;
+    }
+
+    private function isEnabledFencedDivClosing(string $line, int $openingLength): bool
+    {
+        return $this->markdownExtensionEnabled('fenced_divs')
+            && $this->isFencedDivClosing($line, $openingLength);
     }
 
     /**
@@ -16611,11 +16638,13 @@ final class MarkdownReader
             : '/^ {0,3}(?:<!--|<\?|<!|<\/?[A-Za-z])/';
 
         if (
-            preg_match('/^ {0,3}(?:#{1,6}\s+|`{3,}|~{3,}|:{3,})/', $expanded) === 1
+            preg_match('/^ {0,3}(?:#{1,6}\s+|`{3,}|~{3,})/', $expanded) === 1
+            || $this->matchFencedDivOpening($expanded) !== null
+            || $this->isEnabledFencedDivClosing($expanded, 3)
             || preg_match($htmlBlockStartPattern, $expanded) === 1
             || ($this->blockQuoteParagraphInterruptionEnabled() && $this->isBlockQuoteLine($expanded))
             || preg_match('/^ {0,3}[:~]\s+/', $expanded) === 1
-            || preg_match('/^ {0,3}\|/', $expanded) === 1
+            || ($this->markdownExtensionEnabled('line_blocks') && preg_match('/^ {0,3}\|/', $expanded) === 1)
             || $this->isRawTexBlockStart($expanded)
             || $this->isHorizontalRule($expanded)
         ) {
@@ -17163,7 +17192,7 @@ final class MarkdownReader
             || $this->isBlockQuoteLine($line)
             || $this->isIndentedCodeLine($line)
             || $this->matchFencedDivOpening($line) !== null
-            || $this->isFencedDivClosing($line, 3)
+            || $this->isEnabledFencedDivClosing($line, 3)
             || $this->isCommonMarkParagraphInterruptingRawHtmlBlockStart($line)
             || $this->isCommonMarkGenericRawHtmlBlockStart($line)
         ) {
@@ -17171,7 +17200,7 @@ final class MarkdownReader
         }
 
         return preg_match('/^ {0,3}(?:`{3,}|~{3,})/', $line) === 1
-            || preg_match('/^ {0,3}\|/', $line) === 1
+            || ($this->markdownExtensionEnabled('line_blocks') && preg_match('/^ {0,3}\|/', $line) === 1)
             || preg_match('/^ {0,3}\+[=-]/', $line) === 1
             || $this->isListItemContinuationRawTexBlockStart($line);
     }
@@ -17426,7 +17455,7 @@ final class MarkdownReader
             || $this->isHorizontalRule($line)
             || $this->tryParseMarkdownHeading($line) !== null
             || $this->matchFencedDivOpening($line) !== null
-            || $this->isFencedDivClosing($line, 3)
+            || $this->isEnabledFencedDivClosing($line, 3)
             || preg_match('/^ {0,3}(`{3,}|~{3,})/', $line) === 1
             || $this->isRawTexBlockStart($line)
             || $this->isCommonMarkParagraphInterruptingRawHtmlBlockStart($line);
@@ -17517,7 +17546,6 @@ final class MarkdownReader
         }
 
         foreach ([
-            'tryReadLineBlock',
             'tryReadTableWithLeadingCaption',
             'tryReadGridTable',
             'tryReadSimpleTable',
@@ -18209,7 +18237,7 @@ final class MarkdownReader
         $attributes = [];
         $id = null;
 
-        if (str_starts_with($info, '{') && str_ends_with($info, '}')) {
+        if ($this->markdownExtensionEnabled('fenced_code_attributes') && str_starts_with($info, '{') && str_ends_with($info, '}')) {
             $inside = trim(substr($info, 1, -1));
             [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($inside);
         } else {
@@ -18435,7 +18463,7 @@ final class MarkdownReader
      */
     private function matchDefinitionMarker(string $line): ?array
     {
-        if ($this->matchFencedDivOpening($line) !== null || $this->isFencedDivClosing($line, 3)) {
+        if ($this->matchFencedDivOpening($line) !== null || $this->isEnabledFencedDivClosing($line, 3)) {
             return null;
         }
         if (preg_match('/^\s{0,4}:{3,}/', $line) === 1) {
