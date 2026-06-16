@@ -64,60 +64,70 @@ $markers = [
         'next' => '- next',
         'list' => 'bullet_list',
         'attrs' => ['marker' => '-'],
+        'profile' => 'standard',
     ],
     'plus bullet' => [
         'marker' => '+ ',
         'next' => '+ next',
         'list' => 'bullet_list',
         'attrs' => ['marker' => '+'],
+        'profile' => 'standard',
     ],
     'star bullet' => [
         'marker' => '* ',
         'next' => '* next',
         'list' => 'bullet_list',
         'attrs' => ['marker' => '*'],
+        'profile' => 'standard',
     ],
     'decimal period' => [
         'marker' => '1. ',
         'next' => '2. next',
         'list' => 'ordered_list',
         'attrs' => ['start' => 1, 'style' => 'decimal', 'delimiter' => 'period'],
+        'profile' => 'standard',
     ],
     'decimal paren' => [
         'marker' => '1) ',
         'next' => '2) next',
         'list' => 'ordered_list',
         'attrs' => ['start' => 1, 'style' => 'decimal', 'delimiter' => 'one_paren'],
+        'profile' => 'standard',
     ],
     'parenthesized decimal' => [
         'marker' => '(1) ',
         'next' => '(2) next',
         'list' => 'ordered_list',
         'attrs' => ['start' => 1, 'style' => 'decimal', 'delimiter' => 'two_parens'],
+        'profile' => 'fancy',
     ],
     'default ordered' => [
         'marker' => '#. ',
         'next' => '#. next',
         'list' => 'ordered_list',
         'attrs' => ['start' => 1, 'style' => 'default', 'delimiter' => 'default'],
+        'profile' => 'fancy',
     ],
     'numbered example' => [
         'marker' => '(@) ',
         'next' => '(@) next',
         'list' => 'ordered_list',
         'attrs' => ['start' => 1, 'style' => 'example', 'delimiter' => 'two_parens'],
+        'profile' => 'example',
     ],
     'upper alpha' => [
         'marker' => 'A.  ',
         'next' => 'B.  next',
         'list' => 'ordered_list',
         'attrs' => ['start' => 1, 'style' => 'upper_alpha', 'delimiter' => 'period'],
+        'profile' => 'fancy',
     ],
     'upper roman' => [
         'marker' => 'I.  ',
         'next' => 'II.  next',
         'list' => 'ordered_list',
         'attrs' => ['start' => 1, 'style' => 'upper_roman', 'delimiter' => 'period'],
+        'profile' => 'fancy',
     ],
 ];
 
@@ -188,7 +198,7 @@ $variants = [
     ],
 ];
 
-$enabledFormats = [
+$standardEnabledFormats = [
     'default' => null,
     'markdown' => 'markdown',
     'commonmark_x' => 'commonmark_x',
@@ -197,13 +207,49 @@ $enabledFormats = [
     'strict plus task lists' => 'markdown_strict+task_lists',
 ];
 
-$disabledFormats = [
+$fancyEnabledFormats = [
+    'default' => null,
+    'markdown' => 'markdown',
+    'commonmark_x' => 'commonmark_x',
+    'gfm plus fancy lists' => 'gfm+fancy_lists',
+    'commonmark plus task and fancy lists' => 'commonmark+task_lists+fancy_lists',
+    'strict plus task and fancy lists' => 'markdown_strict+task_lists+fancy_lists',
+];
+
+$exampleEnabledFormats = [
+    'default' => null,
+    'markdown' => 'markdown',
+    'commonmark_x' => 'commonmark_x',
+    'gfm plus example lists' => 'gfm+example_lists',
+    'commonmark plus task and example lists' => 'commonmark+task_lists+example_lists',
+    'strict plus task and numbered examples' => 'markdown_strict+task_lists+numbered_examples',
+];
+
+$standardDisabledFormats = [
     'commonmark' => 'commonmark',
     'markdown strict' => 'markdown_strict',
     'php extra' => 'markdown_phpextra',
     'multimarkdown' => 'markdown_mmd',
     'markdown minus task lists' => 'markdown-task_lists',
     'gfm minus task lists' => 'gfm-task_lists',
+];
+
+$fancyDisabledFormats = [
+    'commonmark plus fancy lists' => 'commonmark+fancy_lists',
+    'markdown strict plus fancy lists' => 'markdown_strict+fancy_lists',
+    'php extra plus fancy lists' => 'markdown_phpextra+fancy_lists',
+    'multimarkdown plus fancy lists' => 'markdown_mmd+fancy_lists',
+    'markdown minus task lists' => 'markdown-task_lists',
+    'gfm plus fancy lists minus task lists' => 'gfm+fancy_lists-task_lists',
+];
+
+$exampleDisabledFormats = [
+    'commonmark plus example lists' => 'commonmark+example_lists',
+    'markdown strict plus numbered examples' => 'markdown_strict+numbered_examples',
+    'php extra plus numbered examples' => 'markdown_phpextra+numbered_examples',
+    'multimarkdown plus example lists' => 'markdown_mmd+example_lists',
+    'markdown minus task lists' => 'markdown-task_lists',
+    'gfm plus example lists minus task lists' => 'gfm+example_lists-task_lists',
 ];
 
 $assertListAttrs = static function (TestRunner $t, AstNode $list, array $case, string $label): void {
@@ -223,8 +269,12 @@ foreach ($markers as $markerName => $marker) {
                 $marker,
                 $buildVariant,
                 $continuationIndent,
-                $enabledFormats,
-                $disabledFormats,
+                $standardEnabledFormats,
+                $fancyEnabledFormats,
+                $exampleEnabledFormats,
+                $standardDisabledFormats,
+                $fancyDisabledFormats,
+                $exampleDisabledFormats,
                 $read,
                 $assertListAttrs,
                 $collectTaskStates,
@@ -232,6 +282,16 @@ foreach ($markers as $markerName => $marker) {
                 $listItemText
             ): void {
                 $case = $buildVariant($marker, $continuationIndent($marker));
+                $enabledFormats = match ($marker['profile']) {
+                    'fancy' => $fancyEnabledFormats,
+                    'example' => $exampleEnabledFormats,
+                    default => $standardEnabledFormats,
+                };
+                $disabledFormats = match ($marker['profile']) {
+                    'fancy' => $fancyDisabledFormats,
+                    'example' => $exampleDisabledFormats,
+                    default => $standardDisabledFormats,
+                };
 
                 foreach ($enabledFormats as $formatName => $format) {
                     $document = $read($format, $case['markdown']);

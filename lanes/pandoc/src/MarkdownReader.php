@@ -143,6 +143,7 @@ final class MarkdownReader
             'definition_lists' => true,
             'east_asian_line_breaks' => false,
             'emoji' => true,
+            'fancy_lists' => true,
             'fenced_code_attributes' => true,
             'fenced_divs' => true,
             'footnotes' => true,
@@ -336,6 +337,8 @@ final class MarkdownReader
             'definition_list' => 'definition_lists',
             'east_asian_line_break', 'east_asian_linebreaks' => 'east_asian_line_breaks',
             'emoji_shortcode', 'emoji_shortcodes' => 'emoji',
+            'example_list', 'example_lists', 'numbered_example' => 'numbered_examples',
+            'fancy_list', 'fancy_ordered_list', 'fancy_ordered_lists' => 'fancy_lists',
             'block_code_attributes', 'code_block_attributes', 'codeblock_attributes', 'fenced_code_attribute' => 'fenced_code_attributes',
             'div_attribute', 'div_attributes', 'fenced_div', 'native_div', 'native_divs' => 'fenced_divs',
             'grid_table', 'gridtables' => 'grid_tables',
@@ -18042,7 +18045,9 @@ final class MarkdownReader
         }
 
         $expanded = $this->expandTabsToSpaces($line);
-        $example = $this->matchNumberedExampleMarker($expanded);
+        $example = $this->markdownExtensionEnabled('numbered_examples')
+            ? $this->matchNumberedExampleMarker($expanded)
+            : null;
         if ($example !== null) {
             return [
                 'indent' => $example['indent'],
@@ -18079,7 +18084,9 @@ final class MarkdownReader
             ];
         }
 
-        if (preg_match('/^( *)#([.)])(.*)$/', $expanded, $m) === 1) {
+        $fancyListsEnabled = $this->markdownExtensionEnabled('fancy_lists');
+
+        if ($fancyListsEnabled && preg_match('/^( *)#([.)])(.*)$/', $expanded, $m) === 1) {
             $tail = $this->splitListMarkerTail($m[3]);
             if ($tail === null) {
                 return null;
@@ -18100,7 +18107,7 @@ final class MarkdownReader
             ];
         }
 
-        if (preg_match('/^( *)\(([0-9]{1,9}|[A-Za-z]+)\)(.*)$/', $expanded, $m) === 1) {
+        if ($fancyListsEnabled && preg_match('/^( *)\(([0-9]{1,9}|[A-Za-z]+)\)(.*)$/', $expanded, $m) === 1) {
             $tail = $this->splitListMarkerTail($m[3]);
             if ($tail === null) {
                 return null;
@@ -18148,7 +18155,7 @@ final class MarkdownReader
             ];
         }
 
-        if (preg_match('/^( *)([A-Za-z]+)([.)])(.*)$/', $expanded, $m) === 1) {
+        if ($fancyListsEnabled && preg_match('/^( *)([A-Za-z]+)([.)])(.*)$/', $expanded, $m) === 1) {
             $tail = $this->splitListMarkerTail($m[4]);
             if ($tail === null) {
                 return null;
