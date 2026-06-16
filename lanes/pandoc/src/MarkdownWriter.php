@@ -1152,11 +1152,54 @@ final class MarkdownWriter
             return true;
         }
 
+        if ($node->type === 'code_block' && $this->shouldRenderCodeBlockHtmlFallback($node)) {
+            return true;
+        }
+
         if ($node->type !== 'bullet_list' && $node->type !== 'ordered_list') {
             return false;
         }
 
         return $this->listHasHtmlOnlyAttributes($node);
+    }
+
+    private function shouldRenderCodeBlockHtmlFallback(AstNode $node): bool
+    {
+        if (!$this->rawHtmlEnabled() || $this->fencedCodeAttributesEnabled()) {
+            return false;
+        }
+
+        $attrs = $this->linkAttrTuple($node);
+        if ($attrs['id'] !== '' || $attrs['attributes'] !== []) {
+            return true;
+        }
+
+        if (count($attrs['classes']) <= 1) {
+            return isset($attrs['classes'][0]) && !$this->isCodeBlockInfoString($attrs['classes'][0]);
+        }
+
+        return true;
+    }
+
+    private function fencedCodeAttributesEnabled(): bool
+    {
+        $enabled = MarkdownFormatProfile::rawAttributeEnabled($this->options, true);
+
+        foreach ($this->writerFormatExtensionOverrides() as $name => $state) {
+            $normalized = $this->normalizeMarkdownExtensionName($name);
+            if ($normalized === 'raw_attribute' || $normalized === 'fenced_code_attributes') {
+                $enabled = $state;
+            }
+        }
+
+        foreach ($this->configuredMarkdownExtensionOverrides() as $name => $state) {
+            $normalized = $this->normalizeMarkdownExtensionName((string) $name);
+            if ($normalized === 'raw_attribute' || $normalized === 'fenced_code_attributes') {
+                $enabled = $state;
+            }
+        }
+
+        return $enabled;
     }
 
     private function requestsHtmlMarkdownFormat(mixed $format): bool
@@ -4205,7 +4248,7 @@ final class MarkdownWriter
     private function renderCodeBlock(AstNode $node, int $indent): array
     {
         if (
-            !$this->markdownExtensionEnabled('fenced_code_attributes')
+            !$this->fencedCodeAttributesEnabled()
             && $this->codeBlockRequiresFencedCodeAttributes($node)
         ) {
             return $this->renderHtmlBlockFallback($node, $indent);
@@ -5284,6 +5327,7 @@ final class MarkdownWriter
             'heading_attrs',
             'header_attribute' => 'header_attributes',
             'link_attribute', 'link_attrs', 'image_attributes' => 'link_attributes',
+            'raw_attributes' => 'raw_attribute',
             'raw_latex', 'latex_macros' => 'raw_tex',
             'tex_math', 'math_dollars' => 'tex_math_dollars',
             'wiki_links' => 'wikilinks',
