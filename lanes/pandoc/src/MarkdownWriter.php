@@ -1804,6 +1804,7 @@ final class MarkdownWriter
         foreach ($definition->children as $child) {
             return in_array($child->type, [
                 'code_block',
+                'definition_list',
                 'div',
                 'heading',
                 'line_block',
