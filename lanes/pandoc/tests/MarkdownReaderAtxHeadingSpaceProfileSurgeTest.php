@@ -42,7 +42,7 @@ $compactParagraphCases = [
 $relaxedProfiles = [
     'markdown suffix' => ['format' => 'markdown-space_in_atx_header'],
     'pandoc alias suffix' => ['format' => 'pandoc-space_in_atx_header'],
-    'upstream 3512 relaxed auto identifiers off' => ['format' => 'markdown-auto_identifiers-space_in_atx_header'],
+    'upstream 3512 relaxed auto identifiers off' => ['format' => 'markdown-auto_identifiers-space_in_atx_header', 'autoId' => false],
     'configured array override' => ['format' => 'markdown', 'extensions' => ['space_in_atx_header' => false]],
     'configured string override' => ['format' => 'markdown', 'extensions' => '-space_in_atx_header'],
 ];
@@ -104,7 +104,8 @@ return [
                     $t->same('heading', $heading->type, $label);
                     $t->same($case['level'], $heading->attr('level'), $label);
                     $t->same($case['text'], $inlineText($heading), $label);
-                    $t->same($case['id'], $heading->attr('id'), $label);
+                    $expectedId = (($options['autoId'] ?? true) === false && $case['id'] !== 'manual') ? '' : $case['id'];
+                    $t->same($expectedId, $heading->attr('id', ''), $label);
                     $mapped++;
                 }
             }

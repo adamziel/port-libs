@@ -342,6 +342,7 @@ final class MarkdownReader
     private function normalizeMarkdownExtensionName(string $extension): string
     {
         return match (str_replace('-', '_', strtolower(trim($extension)))) {
+            'auto_identifier', 'auto_id', 'auto_ids' => 'auto_identifiers',
             'autolink_bare_uris', 'bare_autolinks', 'gfm_auto_identifiers', 'gfm_autolinks' => 'bare_uri_autolinks',
             'bracketed_span' => 'bracketed_spans',
             'citation' => 'citations',
@@ -8329,12 +8330,21 @@ final class MarkdownReader
                 continue;
             }
 
-            $id = $heading['id'] ?? $this->uniqueMarkdownHeadingId(
-                $this->slugifyMarkdownHeading($heading['text']),
-                $usedIds
-            );
-            if (isset($heading['id'])) {
+            $id = $heading['id'] ?? null;
+            if ($id === null && $this->autoIdentifiersEnabled()) {
+                $id = $this->uniqueMarkdownHeadingId(
+                    $this->slugifyMarkdownHeading($heading['text']),
+                    $usedIds
+                );
+            } elseif (isset($heading['id'])) {
                 $usedIds[$heading['id']] = ($usedIds[$heading['id']] ?? 0) + 1;
+            }
+
+            if ($id === null) {
+                if ($setext) {
+                    $index = $heading['endIndex'];
+                }
+                continue;
             }
 
             $idsByLine[$index] = $id;
@@ -8775,6 +8785,11 @@ final class MarkdownReader
     private function headerAttributesEnabled(): bool
     {
         return $this->markdownExtensionEnabled('header_attributes');
+    }
+
+    private function autoIdentifiersEnabled(): bool
+    {
+        return $this->markdownExtensionEnabled('auto_identifiers');
     }
 
     private function fencedDivsEnabled(): bool
