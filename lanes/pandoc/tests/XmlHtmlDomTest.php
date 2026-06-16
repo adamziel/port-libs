@@ -6098,6 +6098,69 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(true, $submitButton['effectiveDisabled']);
         $t->same('<form id="import-form"><label for="format">Format</label><input id="format" list="format-options" name="format" placeholder="Choose format" required><datalist id="format-options"><option label="Word" value="docx"></option><option value="epub">EPUB</option><option>ODT</option></datalist><fieldset disabled><legend>Batch <button id="legend-action">Keep enabled</button></legend><label>Confirm <input checked id="confirm" name="confirm" type="checkbox"></label><select id="state" name="state" required><option value="draft">Draft</option></select><textarea id="notes" name="notes" placeholder="Reviewer note">Ready</textarea><button id="submit" name="save" type="submit" value="1">Save</button></fieldset></form>', $html);
     },
+    'summarizes html input datalist idref associations for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form>'
+                . '<input id="color" name="color" list="colors">'
+                . '<input id="missing" name="missing" list="missing-options">'
+                . '<input id="invalid" name="invalid" list="bad id">'
+                . '<input id="duplicate" name="duplicate" list="dupe-options">'
+                . '<datalist id="colors"><option value="red" label="Red"></option><option>Blue</option></datalist>'
+                . '<datalist id="dupe-options"><option value="csv"></option></datalist>'
+                . '<datalist id="dupe-options"><option value="tsv"></option></datalist>'
+                . '</form>',
+            'input datalist association review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+
+        $form = $summary[0];
+        $resolved = $form['children'][0];
+        $missing = $form['children'][1];
+        $invalid = $form['children'][2];
+        $duplicate = $form['children'][3];
+        $expectedOptions = [
+            ['value' => 'red', 'label' => 'Red', 'text' => '', 'disabled' => false],
+            ['value' => 'Blue', 'label' => 'Blue', 'text' => 'Blue', 'disabled' => false],
+        ];
+
+        $t->same('input-list-datalist-idref-review', $resolved['datalistReviewPolicy']);
+        $t->same('colors', $resolved['listReferenceRaw']);
+        $t->same('colors', $resolved['listReferenceId']);
+        $t->same(true, $resolved['listReferenceValid']);
+        $t->same('resolved', $resolved['datalistAssociationState']);
+        $t->same(true, $resolved['datalistResolved']);
+        $t->same(1, $resolved['datalistTargetCount']);
+        $t->same(2, $resolved['datalistOptionCount']);
+        $t->same($expectedOptions, $resolved['datalistOptions']);
+        $t->same('colors', $resolved['datalistTargets'][0]['id']);
+        $t->same(['red', 'Blue'], $resolved['datalistTargets'][0]['optionValues']);
+        $t->same([], $resolved['datalistIssues']);
+
+        $t->same('missing-datalist', $missing['datalistAssociationState']);
+        $t->same(false, $missing['datalistResolved']);
+        $t->same(0, $missing['datalistTargetCount']);
+        $t->same([], $missing['datalistOptions']);
+        $t->same(['missing-datalist-target'], $missing['datalistIssueCodes']);
+        $t->same('missing-options', $missing['datalistIssues'][0]['listReferenceId']);
+
+        $t->same('invalid-reference', $invalid['datalistAssociationState']);
+        $t->same(false, $invalid['listReferenceValid']);
+        $t->same(0, $invalid['datalistTargetCount']);
+        $t->same([], $invalid['datalistOptions']);
+        $t->same(['invalid-datalist-list-reference'], $invalid['datalistIssueCodes']);
+        $t->same('bad id', $invalid['datalistIssues'][0]['listReferenceRaw']);
+
+        $t->same('duplicate-datalist', $duplicate['datalistAssociationState']);
+        $t->same(false, $duplicate['datalistResolved']);
+        $t->same(2, $duplicate['datalistTargetCount']);
+        $t->same(1, $duplicate['datalistOptionCount']);
+        $t->same([['value' => 'csv', 'label' => '', 'text' => '', 'disabled' => false]], $duplicate['datalistOptions']);
+        $t->same(['csv'], $duplicate['datalistTargets'][0]['optionValues']);
+        $t->same(['tsv'], $duplicate['datalistTargets'][1]['optionValues']);
+        $t->same(['duplicate-datalist-target-id'], $duplicate['datalistIssueCodes']);
+        $t->same(2, $duplicate['datalistIssues'][0]['count']);
+        json_encode([$resolved, $missing, $invalid, $duplicate], JSON_THROW_ON_ERROR);
+    },
     'summarizes html fieldset legend diagnostics and disabled control buckets for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form><fieldset id="outer" disabled><legend>Outer <button id="legend-action" name="legend-action">Go</button></legend><input id="title" name="title"><legend>Second <input id="second" name="second"></legend><fieldset id="inner"><legend>Inner</legend><textarea id="inner-note" name="inner-note">N</textarea></fieldset><button id="save" name="save">Save</button></fieldset><fieldset id="missing"><input id="missing-control" name="missing-control"></fieldset></form>',

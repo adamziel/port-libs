@@ -14619,7 +14619,7 @@ final class XmlHtmlDom
             }
             if ($node->hasAttribute('list')) {
                 $summary['list'] = $node->getAttribute('list');
-                $summary['datalistOptions'] = self::datalistOptionsForControl($node);
+                $summary += self::datalistAssociationSummary($node, $node->getAttribute('list'));
             }
             if (self::isInputSubmitterType($inputType)) {
                 $summary['submitter'] = self::formSubmitterSummary($node);
@@ -22654,18 +22654,106 @@ final class XmlHtmlDom
     private static function datalistOptionsForControl(\DOMElement $control): array
     {
         $listId = $control->getAttribute('list');
-        $document = $control->ownerDocument;
-        if ($listId === '' || !$document instanceof \DOMDocument) {
+        if (!self::isHtmlIdReferenceToken($listId)) {
             return [];
         }
 
-        foreach ($document->getElementsByTagName('datalist') as $datalist) {
-            if ($datalist instanceof \DOMElement && $datalist->getAttribute('id') === $listId) {
-                return self::datalistOptionSummaries($datalist);
+        $targets = self::datalistTargetElementsForControl($control, $listId);
+        $target = $targets[0] ?? null;
+
+        return $target instanceof \DOMElement ? self::datalistOptionSummaries($target) : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function datalistAssociationSummary(\DOMElement $control, string $listRaw): array
+    {
+        $listId = $listRaw === '' ? null : $listRaw;
+        $valid = $listId !== null && self::isHtmlIdReferenceToken($listId);
+        $targets = $valid ? self::datalistTargetElementsForControl($control, $listId) : [];
+        $target = $targets[0] ?? null;
+        $options = $target instanceof \DOMElement ? self::datalistOptionSummaries($target) : [];
+        $issues = [];
+
+        if (!$valid) {
+            $issues[] = [
+                'code' => 'invalid-datalist-list-reference',
+                'listReferenceRaw' => $listRaw,
+            ];
+        } elseif ($targets === []) {
+            $issues[] = [
+                'code' => 'missing-datalist-target',
+                'listReferenceId' => $listId,
+            ];
+        } elseif (count($targets) > 1) {
+            $issues[] = [
+                'code' => 'duplicate-datalist-target-id',
+                'listReferenceId' => $listId,
+                'count' => count($targets),
+            ];
+        }
+
+        return [
+            'datalistReviewPolicy' => 'input-list-datalist-idref-review',
+            'listReferenceRaw' => $listRaw,
+            'listReferenceId' => $listId,
+            'listReferenceValid' => $valid,
+            'datalistAssociationState' => !$valid
+                ? 'invalid-reference'
+                : ($targets === [] ? 'missing-datalist' : (count($targets) > 1 ? 'duplicate-datalist' : 'resolved')),
+            'datalistResolved' => $valid && count($targets) === 1,
+            'datalistTargetCount' => count($targets),
+            'datalistOptionCount' => count($options),
+            'datalistOptions' => $options,
+            'datalistTargets' => array_map(
+                static fn (\DOMElement $target): array => self::datalistTargetSummary($target),
+                $targets
+            ),
+            'datalistIssues' => $issues,
+            'datalistIssueCodes' => array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ),
+        ];
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function datalistTargetElementsForControl(\DOMElement $control, string $listId): array
+    {
+        $root = self::htmlFragmentScope($control);
+        if (!$root instanceof \DOMElement) {
+            return [];
+        }
+
+        $targets = [];
+        foreach (self::descendantHtmlElements($root, 'datalist') as $datalist) {
+            if ($datalist->getAttribute('id') === $listId) {
+                $targets[] = $datalist;
             }
         }
 
-        return [];
+        return $targets;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function datalistTargetSummary(\DOMElement $datalist): array
+    {
+        $options = self::datalistOptionSummaries($datalist);
+
+        return [
+            'id' => self::attributeOrNull($datalist, 'id'),
+            'optionCount' => count($options),
+            'optionValues' => array_values(array_map(
+                static fn (array $option): string => (string) $option['value'],
+                $options
+            )),
+            'options' => $options,
+        ];
     }
 
     /**
