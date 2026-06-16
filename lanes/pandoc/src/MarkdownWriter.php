@@ -7015,6 +7015,13 @@ final class MarkdownWriter
             return true;
         }
 
+        if (in_array($extension, ['inline_code_attributes', 'link_attributes'], true)) {
+            $legacyInlineAttributes = $this->markdownExtensionExplicitOverride('inline_attributes');
+            if ($this->markdownExtensionExplicitOverride($extension) === null && $legacyInlineAttributes !== null) {
+                return $legacyInlineAttributes;
+            }
+        }
+
         return $enabled;
     }
 
@@ -7166,6 +7173,7 @@ final class MarkdownWriter
         return match ($extension) {
             'attributes' => 'attributes',
             'native_spans', 'span_attributes' => 'bracketed_spans',
+            'bracketed_span' => 'bracketed_spans',
             'block_code_attributes',
             'code_block_attributes',
             'codeblock_attributes',
@@ -7185,17 +7193,22 @@ final class MarkdownWriter
             'hard_line_break', 'hard_linebreak', 'hardlinebreak', 'hard_linebreaks', 'hardlinebreaks' => 'hard_line_breaks',
             'heading_attributes',
             'heading_attrs',
-            'header_attribute' => 'header_attributes',
+            'header_attribute',
+            'header_attrs' => 'header_attributes',
             'footnote' => 'footnotes',
+            'inline_attribute', 'markdown_attribute' => 'inline_attributes',
             'lhs', 'literatehaskell', 'literate_haskell' => 'literate_haskell',
             'link_attribute', 'link_attrs', 'image_attributes' => 'link_attributes',
+            'line_block' => 'line_blocks',
             'pipe_table', 'pipe-table', 'pipetables', 'table', 'tables' => 'pipe_tables',
             'raw_attributes' => 'raw_attribute',
             'raw_latex', 'latex_macros' => 'raw_tex',
             'simple_table', 'simple-table', 'simpletables' => 'simple_tables',
-            'task_list', 'task-list', 'gfm_task_lists' => 'task_lists',
+            'subscripts' => 'subscript',
+            'superscripts' => 'superscript',
+            'task_list', 'task-list', 'tasklist', 'tasklists', 'gfm_task_lists' => 'task_lists',
             'tex_math', 'math_dollars' => 'tex_math_dollars',
-            'wiki_links' => 'wikilinks',
+            'wiki_link', 'wiki_links', 'wikilink' => 'wikilinks',
             default => $extension,
         };
     }
