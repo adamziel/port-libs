@@ -12088,6 +12088,9 @@ final class MarkdownReader
     private function htmlOrderedListStyle(\DOMElement $list): string
     {
         $type = trim($list->getAttribute('type'));
+        if ($type === '1') {
+            return 'decimal';
+        }
         if ($type === 'a') {
             return 'lower_alpha';
         }
