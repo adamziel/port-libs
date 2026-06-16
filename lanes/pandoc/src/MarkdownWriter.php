@@ -4830,7 +4830,7 @@ final class MarkdownWriter
      */
     private function renderBlockQuote(AstNode $node, int $indent): array
     {
-        $body = $this->renderBlockCollection($node->children);
+        $body = $this->renderBlockCollection($node->children, $this->hasDirectHeadingBlock($node->children));
         $prefix = str_repeat(' ', $indent) . '>';
         if ($body === '') {
             return [$prefix];
@@ -4842,6 +4842,20 @@ final class MarkdownWriter
         }
 
         return $lines;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function hasDirectHeadingBlock(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if ($node->type === 'heading') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -7159,6 +7173,33 @@ final class MarkdownWriter
      */
     private function renderBlockCollection(array $nodes, bool $sectionBoundaries = false): string
     {
+        if ($sectionBoundaries && $this->referenceLocation() === 'end_of_section') {
+            return $this->renderScopedSectionBlockCollection($nodes);
+        }
+
+        return $this->renderBlockCollectionBody($nodes, $sectionBoundaries);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderScopedSectionBlockCollection(array $nodes): string
+    {
+        $outerState = $this->capturePendingDefinitionState();
+        $this->clearPendingDefinitionState();
+
+        try {
+            return $this->renderBlockCollectionBody($nodes, true);
+        } finally {
+            $this->restorePendingDefinitionState($outerState);
+        }
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderBlockCollectionBody(array $nodes, bool $sectionBoundaries = false): string
+    {
         $blocks = [];
         $previous = null;
         foreach ($nodes as $node) {
@@ -7182,6 +7223,35 @@ final class MarkdownWriter
         }
 
         return implode("\n\n", $blocks);
+    }
+
+    /**
+     * @return array{notes:list<array{label:string, node:AstNode}>, references:list<array{label:string, url:string, title:string, attrs:array<string, mixed>}>, abbreviations:array<string, string>}
+     */
+    private function capturePendingDefinitionState(): array
+    {
+        return [
+            'notes' => $this->notes,
+            'references' => $this->references,
+            'abbreviations' => $this->abbreviationDefinitions,
+        ];
+    }
+
+    private function clearPendingDefinitionState(): void
+    {
+        $this->notes = [];
+        $this->references = [];
+        $this->abbreviationDefinitions = [];
+    }
+
+    /**
+     * @param array{notes:list<array{label:string, node:AstNode}>, references:list<array{label:string, url:string, title:string, attrs:array<string, mixed>}>, abbreviations:array<string, string>} $state
+     */
+    private function restorePendingDefinitionState(array $state): void
+    {
+        $this->notes = $state['notes'];
+        $this->references = $state['references'];
+        $this->abbreviationDefinitions = $state['abbreviations'];
     }
 
     /**
