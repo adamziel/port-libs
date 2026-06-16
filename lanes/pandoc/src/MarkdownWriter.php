@@ -1463,7 +1463,7 @@ final class MarkdownWriter
 
     private function fencedCodeAttributesEnabled(): bool
     {
-        $enabled = MarkdownFormatProfile::rawAttributeEnabled($this->options, true);
+        $enabled = $this->rawAttributeEnabled();
 
         foreach ($this->writerFormatExtensionOverrides() as $name => $state) {
             $normalized = $this->normalizeMarkdownExtensionName($name);
@@ -1475,6 +1475,25 @@ final class MarkdownWriter
         foreach ($this->configuredMarkdownExtensionOverrides() as $name => $state) {
             $normalized = $this->normalizeMarkdownExtensionName((string) $name);
             if ($normalized === 'raw_attribute' || $normalized === 'fenced_code_attributes') {
+                $enabled = $state;
+            }
+        }
+
+        return $enabled;
+    }
+
+    private function rawAttributeEnabled(): bool
+    {
+        $enabled = MarkdownFormatProfile::rawAttributeEnabled($this->options, true);
+
+        foreach ($this->writerFormatExtensionOverrides() as $name => $state) {
+            if ($this->normalizeMarkdownExtensionName($name) === 'raw_attribute') {
+                $enabled = $state;
+            }
+        }
+
+        foreach ($this->configuredMarkdownExtensionOverrides() as $name => $state) {
+            if ($this->normalizeMarkdownExtensionName((string) $name) === 'raw_attribute') {
                 $enabled = $state;
             }
         }
@@ -5689,6 +5708,10 @@ final class MarkdownWriter
     private function renderMath(AstNode $node): string
     {
         if (!$this->markdownExtensionEnabled('tex_math_dollars')) {
+            return $this->renderHtmlInline($node);
+        }
+
+        if ($this->hasMarkdownAttributeTuple($node) && !$this->rawAttributeEnabled()) {
             return $this->renderHtmlInline($node);
         }
 
