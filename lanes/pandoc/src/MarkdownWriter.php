@@ -5880,7 +5880,7 @@ final class MarkdownWriter
      */
     private function renderLink(AstNode $node, array $following, bool $allowAutolink = true): string
     {
-        $wikiLink = $this->markdownExtensionEnabled('wikilinks') ? $this->renderWikiLink($node) : null;
+        $wikiLink = $this->wikiLinksEnabled() ? $this->renderWikiLink($node) : null;
         if ($wikiLink !== null) {
             return $wikiLink;
         }
@@ -7045,6 +7045,62 @@ final class MarkdownWriter
         return $override;
     }
 
+    private function wikiLinksEnabled(): bool
+    {
+        $state = null;
+
+        foreach ($this->writerFormatExtensionOverrides() as $name => $enabled) {
+            $state = $this->wikiLinksEnabledOverride((string) $name, $enabled, $state);
+        }
+
+        foreach ($this->configuredMarkdownExtensionOverrides() as $name => $enabled) {
+            $state = $this->wikiLinksEnabledOverride((string) $name, $enabled, $state);
+        }
+
+        if ($state !== null) {
+            return $state;
+        }
+
+        return $this->markdownExtensionEnabled('wikilinks');
+    }
+
+    private function wikiLinksEnabledOverride(string $extension, bool $enabled, ?bool $current): ?bool
+    {
+        return in_array($this->normalizeMarkdownExtensionName($extension), [
+            'wikilinks',
+            'wikilinks_title_after_pipe',
+            'wikilinks_title_before_pipe',
+        ], true) ? $enabled : $current;
+    }
+
+    private function wikiLinkTitleAfterPipe(): bool
+    {
+        $direction = null;
+
+        foreach ($this->writerFormatExtensionOverrides() as $name => $enabled) {
+            $direction = $this->wikiLinkDirectionOverride((string) $name, $enabled, $direction);
+        }
+
+        foreach ($this->configuredMarkdownExtensionOverrides() as $name => $enabled) {
+            $direction = $this->wikiLinkDirectionOverride((string) $name, $enabled, $direction);
+        }
+
+        return $direction === 'after';
+    }
+
+    private function wikiLinkDirectionOverride(string $extension, bool $enabled, ?string $current): ?string
+    {
+        if (!$enabled) {
+            return $current;
+        }
+
+        return match ($this->normalizeMarkdownExtensionName($extension)) {
+            'wikilinks_title_after_pipe' => 'after',
+            'wikilinks_title_before_pipe' => 'before',
+            default => $current,
+        };
+    }
+
     private function defaultMarkdownExtensionEnabled(string $extension): bool
     {
         if ($extension === 'attributes' || $extension === 'literate_haskell') {
@@ -7209,6 +7265,8 @@ final class MarkdownWriter
             'task_list', 'task-list', 'tasklist', 'tasklists', 'gfm_task_lists' => 'task_lists',
             'tex_math', 'math_dollars' => 'tex_math_dollars',
             'wiki_link', 'wiki_links', 'wikilink' => 'wikilinks',
+            'wikilink_title_after_pipe', 'wikilinks_title_after_pipe' => 'wikilinks_title_after_pipe',
+            'wikilink_title_before_pipe', 'wikilinks_title_before_pipe' => 'wikilinks_title_before_pipe',
             default => $extension,
         };
     }
@@ -8471,7 +8529,12 @@ final class MarkdownWriter
             return '[[' . $target . ']]';
         }
 
-        return '[[' . $this->escapeWikiLinkComponent($label) . '|' . $target . ']]';
+        $title = $this->escapeWikiLinkComponent($label);
+        if ($this->wikiLinkTitleAfterPipe()) {
+            return '[[' . $target . '|' . $title . ']]';
+        }
+
+        return '[[' . $title . '|' . $target . ']]';
     }
 
     private function escapeWikiLinkComponent(string $text): string
