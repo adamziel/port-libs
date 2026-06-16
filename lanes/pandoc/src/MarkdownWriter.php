@@ -1867,8 +1867,8 @@ final class MarkdownWriter
 
     private function orderedListMarker(AstNode $node, AstNode $item, int $number, int $index): string
     {
-        $style = $this->orderedListMarkerStyle($node);
-        $delimiter = $this->orderedListMarkerDelimiter($node);
+        $style = $this->orderedListMarkerStyleForOutput($node);
+        $delimiter = $this->orderedListMarkerDelimiterForOutput($node, $style);
 
         if ($style === 'example') {
             return $this->padOrderedListMarker('(@' . $this->numberedExampleLabel($item, $node, $index) . ')');
@@ -1984,7 +1984,7 @@ final class MarkdownWriter
      */
     private function collectNumberedExampleLabelsFromNode(AstNode $node, array &$labels): void
     {
-        if ($node->type === 'ordered_list' && $this->orderedListMarkerStyle($node) === 'example') {
+        if ($node->type === 'ordered_list' && $this->orderedListMarkerStyleForOutput($node) === 'example') {
             $index = 0;
             foreach ($node->children as $item) {
                 if ($item->type !== 'list_item') {
@@ -5748,6 +5748,8 @@ final class MarkdownWriter
                 'citations',
                 'definition_lists',
                 'emoji',
+                'example_lists',
+                'fancy_lists',
                 'fenced_code_attributes',
                 'fenced_divs',
                 'footnotes',
@@ -5778,6 +5780,8 @@ final class MarkdownWriter
                 'bracketed_spans',
                 'citations',
                 'definition_lists',
+                'example_lists',
+                'fancy_lists',
                 'fenced_code_attributes',
                 'fenced_divs',
                 'footnotes',
@@ -5803,6 +5807,8 @@ final class MarkdownWriter
             return !in_array($extension, [
                 'citations',
                 'definition_lists',
+                'example_lists',
+                'fancy_lists',
                 'fenced_code_attributes',
                 'fenced_divs',
                 'footnotes',
@@ -5860,6 +5866,8 @@ final class MarkdownWriter
             'multiline_table', 'multiline_tables' => 'multiline_tables',
             'pipe_table', 'pipetables', 'table', 'tables' => 'pipe_tables',
             'emoji_shortcode', 'emoji_shortcodes' => 'emoji',
+            'example_list', 'numbered_example_list', 'numbered_example_lists' => 'example_lists',
+            'fancy_list', 'fancy_ordered_list', 'fancy_ordered_lists' => 'fancy_lists',
             'heading_attributes',
             'heading_attrs',
             'header_attribute' => 'header_attributes',
@@ -7846,7 +7854,7 @@ final class MarkdownWriter
 
         return $previous->type === 'ordered_list'
             && $current->type === 'ordered_list'
-            && $this->orderedListMarkerStyle($previous) === $this->orderedListMarkerStyle($current);
+            && $this->orderedListMarkerStyleForOutput($previous) === $this->orderedListMarkerStyleForOutput($current);
     }
 
     private function needsListItemBlockSeparator(AstNode $previous, AstNode $current): bool
@@ -7889,6 +7897,20 @@ final class MarkdownWriter
         };
     }
 
+    private function orderedListMarkerStyleForOutput(AstNode $node): string
+    {
+        $style = $this->orderedListMarkerStyle($node);
+        if ($style === 'example') {
+            return $this->markdownExtensionEnabled('example_lists') ? 'example' : 'decimal';
+        }
+
+        if ($style === 'decimal') {
+            return 'decimal';
+        }
+
+        return $this->markdownExtensionEnabled('fancy_lists') ? $style : 'decimal';
+    }
+
     private function orderedListMarkerDelimiter(AstNode $node): string
     {
         $delimiter = $this->normalizeOrderedListEnum((string) $node->attr('delimiter', 'period'));
@@ -7900,6 +7922,20 @@ final class MarkdownWriter
             'period' => 'period',
             default => 'period',
         };
+    }
+
+    private function orderedListMarkerDelimiterForOutput(AstNode $node, string $style): string
+    {
+        if ($style === 'example') {
+            return 'two_parens';
+        }
+
+        $delimiter = $this->orderedListMarkerDelimiter($node);
+        if ($delimiter === 'two_parens' && !$this->markdownExtensionEnabled('fancy_lists')) {
+            return 'period';
+        }
+
+        return $delimiter;
     }
 
     private function normalizeOrderedListEnum(string $value): string
