@@ -27708,6 +27708,67 @@ XML);
         ]));
         $t->same('Direct Schema Field Packet :: Series Desk :: Archive Division :: source review :: Vol. Rev. :: 3rd :: 2026c :: migration, review :: migration; review', $styled->renderBibliographyEntry('direct-schema-fields'));
     },
+    'normalizes bounded direct csl subdivision aliases into division metadata' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-subdivision-alias',
+                'type' => 'report',
+                'title' => 'Direct Subdivision Alias Packet',
+                'author' => [
+                    ['literal' => 'Archive Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'subdivision' => 'Media Migration Unit',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-subdivision-alias');
+        $t->same('Media Migration Unit', $item['division'] ?? null);
+        $t->same('Media Migration Unit', $item['raw']['subdivision'] ?? null);
+        $t->same('Archive Desk. Direct Subdivision Alias Packet. 2026. Division: Media Migration Unit.', $processor->renderBibliographyEntry('direct-subdivision-alias'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Subdivision Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-subdivision-alias-review</id>
+    <updated>2026-06-16T19:15:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="division"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="division"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Direct CSL Subdivision Alias Review', $summary['title'] ?? null);
+        $t->same('division', $citationChildren[1]['variable'] ?? null);
+        $t->same('division', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('[Archive Desk | Media Migration Unit]', $styled->renderCitationCluster([
+            $citation('direct-subdivision-alias', '[@direct-subdivision-alias]'),
+        ]));
+        $t->same('Direct Subdivision Alias Packet :: Media Migration Unit', $styled->renderBibliographyEntry('direct-subdivision-alias'));
+
+        $document = (new MarkdownReader())->read('Direct subdivision metadata [@direct-subdivision-alias] remains visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct subdivision metadata [Archive Desk | Media Migration Unit] remains visible.</p>', $blocks);
+        $t->contains('<dt>Archive Desk 2026</dt><dd>Direct Subdivision Alias Packet :: Media Migration Unit</dd>', $blocks);
+    },
     'renders bounded direct csl volume title text aliases with short forms' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
             [
