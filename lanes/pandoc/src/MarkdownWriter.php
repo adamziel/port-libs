@@ -4180,7 +4180,28 @@ final class MarkdownWriter
 
     private function escapeHtml(string $value): string
     {
-        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $escaped = htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return $this->encodeHtmlWhitespaceEntities($escaped);
+    }
+
+    private function encodeHtmlWhitespaceEntities(string $text): string
+    {
+        $encoded = '';
+        $length = strlen($text);
+
+        for ($offset = 0; $offset < $length; $offset++) {
+            $entity = $this->textWhitespaceEntity($text, $offset);
+            if ($entity !== null) {
+                $encoded .= $entity['entity'];
+                $offset += $entity['bytes'] - 1;
+                continue;
+            }
+
+            $encoded .= $text[$offset];
+        }
+
+        return $encoded;
     }
 
     /**
@@ -7195,6 +7216,14 @@ final class MarkdownWriter
             return null;
         }
 
+        return $this->textWhitespaceEntity($text, $offset);
+    }
+
+    /**
+     * @return array{entity:string, bytes:int}|null
+     */
+    private function textWhitespaceEntity(string $text, int $offset): ?array
+    {
         $char = $text[$offset] ?? '';
         if ($char === "\t") {
             return ['entity' => '&#9;', 'bytes' => 1];
