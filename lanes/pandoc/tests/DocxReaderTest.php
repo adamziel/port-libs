@@ -7409,7 +7409,7 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->contains('# Imported Packet', $markdown);
-        $t->contains('Reviewer ***summary*** keeps [source link](https://example.test/source-packet?post=42&step=docx) and a line\\', $markdown);
+        $t->contains('Reviewer **_summary_** keeps [source link](https://example.test/source-packet?post=42&step=docx) and a line\\', $markdown);
         $t->contains('[^1]', $markdown);
         $t->contains('![DOCX hero alt](word/media/hero.png "Hero title")', $markdown);
         $t->contains('| Status | Needs media review |', $markdown);
@@ -7966,8 +7966,8 @@ return [
         $t->same('muted', $muted->children[0]->children[0]->children[0]->attr('text'));
 
         $t->contains('[*emphasis*]{.docx-highlight .docx-highlight-yellow .docx-language data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR"}', $markdown);
-        $t->contains('[***[alert]{.underline}***]{.docx-highlight .docx-highlight-yellow .docx-language .docx-shading data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR" data-docx-shading-fill="FFE699"}', $markdown);
-        $t->contains('[***[override]{.underline}***]{.docx-shading .docx-highlight .docx-highlight-green .docx-language data-docx-shading-fill="FFE699" data-docx-highlight="green" data-docx-lang="es-ES" lang="es-ES"}', $markdown);
+        $t->contains('[**_[alert]{.underline}_**]{.docx-highlight .docx-highlight-yellow .docx-language .docx-shading data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR" data-docx-shading-fill="FFE699"}', $markdown);
+        $t->contains('[**_[override]{.underline}_**]{.docx-shading .docx-highlight .docx-highlight-green .docx-language data-docx-shading-fill="FFE699" data-docx-highlight="green" data-docx-lang="es-ES" lang="es-ES"}', $markdown);
         $t->contains('[**[muted]{.underline}**]{.docx-shading .docx-language data-docx-shading-fill="FFE699" data-docx-lang="de-DE" lang="de-DE"}', $markdown);
 
         $t->contains('<span class="docx-highlight docx-highlight-yellow docx-language" data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR"><em>emphasis</em></span>', $blocks);
@@ -8038,7 +8038,7 @@ return [
         $t->same('Muted inherited paragraph style.', $muted->children[0]->children[0]->children[0]->attr('text'));
 
         $t->contains('[*Base paragraph style run.*]{.docx-highlight .docx-highlight-cyan .docx-color .docx-color-005a9c .docx-language data-docx-highlight="cyan" data-docx-color="005A9C" data-docx-lang="en-US" lang="en-US"}', $markdown);
-        $t->contains('[***[[character term]{.underline}]{.smallcaps}***]{.docx-color .docx-color-005a9c .docx-language .docx-shading .docx-highlight .docx-highlight-green data-docx-color="005A9C" data-docx-lang="en-US" lang="en-US" data-docx-shading-fill="FFF2CC" data-docx-highlight="green"}', $markdown);
+        $t->contains('[**_[[character term]{.underline}]{.smallcaps}_**]{.docx-color .docx-color-005a9c .docx-language .docx-shading .docx-highlight .docx-highlight-green data-docx-color="005A9C" data-docx-lang="en-US" lang="en-US" data-docx-shading-fill="FFF2CC" data-docx-highlight="green"}', $markdown);
         $t->contains('[[direct override]{.underline}]{.smallcaps}]{.docx-color .docx-color-005a9c .docx-shading .docx-language data-docx-color="005A9C" data-docx-shading-fill="FFF2CC" data-docx-lang="fr-FR" lang="fr-FR"}', $markdown);
         $t->contains('<span class="docx-highlight docx-highlight-cyan docx-color docx-color-005a9c docx-language" data-docx-highlight="cyan" data-docx-color="005A9C" data-docx-lang="en-US" lang="en-US"><em>Base paragraph style run.</em></span>', $blocks);
         $t->contains('<span class="docx-color docx-color-005a9c docx-shading docx-language" data-docx-color="005A9C" data-docx-shading-fill="FFF2CC" data-docx-lang="fr-FR" lang="fr-FR"><span style="font-variant:small-caps"><u>direct override</u></span></span>', $blocks);

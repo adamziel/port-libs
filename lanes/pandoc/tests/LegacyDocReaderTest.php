@@ -6027,7 +6027,7 @@ return [
         $t->same('Formatted review', $document->children[0]->children[0]->children[0]->children[0]->children[0]->attr('text'));
 
         $t->contains('<p><strong><em><u>Formatted review</u></em></strong> plain import</p>', $blocks);
-        $t->contains('***[Formatted review]{.underline}*** plain import', $markdown);
+        $t->contains('**_[Formatted review]{.underline}_** plain import', $markdown);
         foreach (['sprmCFBold', 'sprmCFItalic', 'sprmCKul', 'sprmCFVanish', 'metadata-only-native-review'] as $metadataText) {
             $t->true(!str_contains($blocks, $metadataText), 'Legacy DOC CHPX formatting metadata should not render into WordPress blocks');
             $t->true(!str_contains($markdown, $metadataText), 'Legacy DOC CHPX formatting metadata should not render into Markdown');

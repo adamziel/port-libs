@@ -52,6 +52,9 @@ final class MarkdownWriter
 
     private int $textWhitespaceEntitySuppression = 0;
 
+    /** @var list<array{type:string, delimiter:string}> */
+    private array $inlineDelimiterStack = [];
+
     /**
      * @param array{format?: string, extensions?: mixed, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, wrap?: string, columns?: int, wrapColumns?: int, writerColumns?: int, lineWidth?: int, yamlMetadata?: bool, titleBlock?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool, autoHtmlTables?: bool, semanticTableHtmlFallback?: bool, tableStyle?: string, markdownTableFormat?: string} $options
      */
@@ -82,6 +85,7 @@ final class MarkdownWriter
         $this->fancyOrderedMarkerEscapeSuppression = 0;
         $this->plainTextTriggerEscapeSuppression = 0;
         $this->textWhitespaceEntitySuppression = 0;
+        $this->inlineDelimiterStack = [];
 
         $blocks = [];
         $titleMetadataBlock = $this->titleBlockEnabled()
@@ -5127,8 +5131,8 @@ final class MarkdownWriter
             'softbreak' => $this->softBreakMarkdown(),
             'linebreak' => "\\\n",
             'code' => $this->renderCode($node),
-            'emph' => $this->delimitInlineContent('*', '*', $this->renderInlineLabelInlines($node->children)),
-            'strong' => $this->delimitInlineContent('**', '**', $this->renderInlineLabelInlines($node->children)),
+            'emph' => $this->renderEmphasis($node),
+            'strong' => $this->renderStrong($node),
             'strikeout' => $this->renderStrikeout($node),
             'superscript' => $this->renderScript($node, 'superscript', '^'),
             'subscript' => $this->renderScript($node, 'subscript', '~'),
@@ -5144,6 +5148,81 @@ final class MarkdownWriter
             'raw_tex', 'raw_inline', 'raw_markdown', 'raw_html_inline' => $this->renderRawInline($node),
             'note' => $this->renderNoteReference($node),
             default => $this->renderInlines($node->children),
+        };
+    }
+
+    private function renderEmphasis(AstNode $node): string
+    {
+        return $this->renderDelimitedEmphasis($node, 'emph', 1);
+    }
+
+    private function renderStrong(AstNode $node): string
+    {
+        return $this->renderDelimitedEmphasis($node, 'strong', 2);
+    }
+
+    private function renderDelimitedEmphasis(AstNode $node, string $type, int $runLength): string
+    {
+        $delimiter = $this->emphasisDelimiter($node, $type);
+        $marker = str_repeat($delimiter, $runLength);
+
+        $this->inlineDelimiterStack[] = [
+            'type' => $type,
+            'delimiter' => $delimiter,
+        ];
+        try {
+            $content = $this->renderInlineLabelInlines($node->children);
+        } finally {
+            array_pop($this->inlineDelimiterStack);
+        }
+
+        return $this->delimitInlineContent($marker, $marker, $content);
+    }
+
+    private function emphasisDelimiter(AstNode $node, string $type): string
+    {
+        $explicit = $this->explicitEmphasisDelimiter($node, $type);
+        if ($explicit !== null) {
+            return $explicit;
+        }
+
+        $parent = $this->inlineDelimiterStack[array_key_last($this->inlineDelimiterStack)] ?? null;
+        if (is_array($parent)) {
+            return $parent['delimiter'] === '*' ? '_' : '*';
+        }
+
+        return '*';
+    }
+
+    private function explicitEmphasisDelimiter(AstNode $node, string $type): ?string
+    {
+        $keys = $type === 'strong'
+            ? ['strongDelimiter', 'markdownStrongDelimiter', 'emphasisDelimiter', 'markdownDelimiter', 'sourceDelimiter', 'delimiter']
+            : ['emphDelimiter', 'markdownEmphDelimiter', 'emphasisDelimiter', 'markdownDelimiter', 'sourceDelimiter', 'delimiter'];
+
+        foreach ($keys as $key) {
+            $value = $node->attr($key);
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $delimiter = $this->normalizeEmphasisDelimiter((string) $value);
+            if ($delimiter !== null) {
+                return $delimiter;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeEmphasisDelimiter(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return match ($value) {
+            '*', '**', 'asterisk', 'asterisks', 'star', 'stars' => '*',
+            '_', '__', 'underscore', 'underscores' => '_',
+            default => null,
         };
     }
 
@@ -5526,7 +5605,7 @@ final class MarkdownWriter
             return $this->renderHtmlInline($node);
         }
 
-        $text = $this->nodeText($node, ['text', 'literal', 'code', 'value', 'content', 'string']);
+        $text = $this->normalizeCodeSpanText($this->nodeText($node, ['text', 'literal', 'code', 'value', 'content', 'string']));
         $delimiter = str_repeat('`', max(1, $this->longestBacktickRun($text) + 1));
         $allSpaces = $text !== '' && strspn($text, ' ') === strlen($text);
         if (str_contains($text, '`') || (!$allSpaces && (str_starts_with($text, ' ') || str_ends_with($text, ' ')))) {
@@ -5534,6 +5613,11 @@ final class MarkdownWriter
         }
 
         return $delimiter . $text . $delimiter . $this->renderLinkAttributes($node);
+    }
+
+    private function normalizeCodeSpanText(string $text): string
+    {
+        return str_replace("\n", ' ', str_replace(["\r\n", "\r"], "\n", $text));
     }
 
     private function renderSpan(AstNode $node): string

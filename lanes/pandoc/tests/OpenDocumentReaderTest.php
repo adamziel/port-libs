@@ -215,7 +215,7 @@ return [
 
         $t->contains('# ODT import packet', $markdown);
         $t->contains('## Review checklist', $markdown);
-        $t->contains('Reviewer ***summary***  keeps [source link](https://example.test/source.odt?post=42)\\', $markdown);
+        $t->contains('Reviewer **_summary_**  keeps [source link](https://example.test/source.odt?post=42)\\', $markdown);
         $t->contains('and ^ODT^ notes[^1]', $markdown);
         $t->contains('- Confirm media map', $markdown);
         $t->contains('c)  Legal review', $markdown);
