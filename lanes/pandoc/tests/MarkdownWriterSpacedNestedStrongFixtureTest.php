@@ -13,35 +13,115 @@ $emph = static fn (array $children): AstNode => new AstNode('emph', [], $childre
 $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
 $document = static fn (array $children): AstNode => new AstNode('document', [], [$paragraph($children)]);
 
-$tests = [];
+$describeInlines = static function (array $nodes) use (&$describeInlines): array {
+    $described = [];
+    foreach ($nodes as $node) {
+        if ($node->type === 'text') {
+            $described[] = 'text:' . $node->attr('text', '');
+            continue;
+        }
 
-$tests['records markdown writer spaced nested strong fixture mapped case count'] =
-    static function (TestRunner $t): void {
-        $t->same(1, 1);
-    };
+        if ($node->type === 'emph' || $node->type === 'strong') {
+            $described[] = $node->type . '(' . implode('|', $describeInlines($node->children)) . ')';
+            continue;
+        }
 
-$tests['maps upstream markdown writer emph strong with spaces 10696 fixture'] =
-    static function (TestRunner $t) use ($document, $emph, $space, $strong, $text): void {
-        $markdown = (new MarkdownWriter())->write($document([
+        $described[] = $node->type;
+    }
+
+    return $described;
+};
+
+$fixtureCases = [
+    'prefix text spaced node suffix text' => [
+        'children' => [
+            $emph([
+                $text('f'),
+                $strong([$space(), $text('d'), $space()]),
+                $text('l'),
+            ]),
+        ],
+        'expected' => '*f **d** l*',
+        'shape' => ['emph(text:f |strong(text:d)|text: l)'],
+        'text' => 'f d l',
+    ],
+    'prefix text spaced node outer suffix text' => [
+        'children' => [
             $emph([
                 $text('f'),
                 $strong([$space(), $text('d'), $space()]),
             ]),
             $text('l'),
-        ]));
+        ],
+        'expected' => '*f **d*** l',
+        'shape' => ['emph(text:f |strong(text:d))', 'text: l'],
+        'text' => 'f d l',
+    ],
+    'prefix text spaced node' => [
+        'children' => [
+            $emph([
+                $text('f'),
+                $strong([$space(), $text('d'), $space()]),
+            ]),
+        ],
+        'expected' => '*f **d*** ',
+        'shape' => ['emph(text:f |strong(text:d))'],
+        'text' => 'f d',
+    ],
+    'spaced node suffix text' => [
+        'children' => [
+            $emph([
+                $strong([$space(), $text('d'), $space()]),
+                $text('l'),
+            ]),
+        ],
+        'expected' => ' ***d** l*',
+        'shape' => ['emph(strong(text:d)|text: l)'],
+        'text' => 'd l',
+    ],
+    'text payload with outer spaces' => [
+        'children' => [
+            $emph([
+                $text('f'),
+                $strong([$text(' d ')]),
+                $text('l'),
+            ]),
+        ],
+        'expected' => '*f **d** l*',
+        'shape' => ['emph(text:f |strong(text:d)|text: l)'],
+        'text' => 'f d l',
+    ],
+];
 
-        $t->same('*f **d*** l', $markdown);
+$formats = ['markdown', 'commonmark', 'gfm'];
+$mappedCaseCount = count($fixtureCases) * count($formats);
 
-        $roundTrip = (new MarkdownReader())->read($markdown);
-        $paragraph = $roundTrip->children[0] ?? null;
-        $outer = $paragraph instanceof AstNode ? ($paragraph->children[0] ?? null) : null;
-        $inner = $outer instanceof AstNode ? ($outer->children[1] ?? null) : null;
-        $tail = $paragraph instanceof AstNode ? ($paragraph->children[1] ?? null) : null;
+$tests = [];
 
-        $t->true($outer instanceof AstNode && $outer->type === 'emph', 'Expected outer emphasis after round-trip');
-        $t->true($inner instanceof AstNode && $inner->type === 'strong', 'Expected nested strong after round-trip');
-        $t->same('d', $inner instanceof AstNode ? ($inner->children[0]->attr('text') ?? null) : null);
-        $t->same(' l', $tail instanceof AstNode ? ($tail->attr('text') ?? null) : null);
+$tests['records markdown writer spaced nested strong fixture mapped case count'] =
+    static function (TestRunner $t) use ($mappedCaseCount): void {
+        $t->same(15, $mappedCaseCount);
     };
+
+foreach ($formats as $format) {
+    foreach ($fixtureCases as $label => $case) {
+        $tests["maps upstream {$format} writer emph strong with spaces 10696 fixture {$label}"] =
+            static function (TestRunner $t) use ($case, $describeInlines, $document, $format): void {
+                $options = ['format' => $format];
+                $markdown = (new MarkdownWriter($options))->write($document($case['children']));
+
+                $t->same($case['expected'], $markdown);
+
+                $roundTrip = (new MarkdownReader($options))->read($markdown);
+                $paragraph = $roundTrip->children[0] ?? null;
+
+                $t->true($paragraph instanceof AstNode && $paragraph->type === 'paragraph', 'Expected paragraph after round-trip');
+                if ($paragraph instanceof AstNode) {
+                    $t->same($case['shape'], $describeInlines($paragraph->children), $markdown);
+                    $t->same($case['text'], $paragraph->attr('text'));
+                }
+            };
+    }
+}
 
 return $tests;
