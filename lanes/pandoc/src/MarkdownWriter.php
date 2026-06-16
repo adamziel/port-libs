@@ -8581,7 +8581,17 @@ final class MarkdownWriter
 
     private function linkUrl(AstNode $node): string
     {
-        $url = $this->scalarAttr($node, ['url', 'href', 'src', 'uri']);
+        $url = $this->scalarAttr($node, [
+            'url',
+            'href',
+            'src',
+            'uri',
+            'linkUrl',
+            'targetUrl',
+            'destinationUrl',
+            'sourceUrl',
+            'imageUrl',
+        ]);
         if ($url !== '') {
             return $url;
         }
@@ -8591,7 +8601,16 @@ final class MarkdownWriter
 
     private function linkTitle(AstNode $node): string
     {
-        $title = $this->scalarAttr($node, ['title', 'titleText', 'tooltip']);
+        $title = $this->scalarAttr($node, [
+            'title',
+            'titleText',
+            'tooltip',
+            'linkTitle',
+            'targetTitle',
+            'destinationTitle',
+            'sourceTitle',
+            'imageTitle',
+        ]);
         if ($title !== '') {
             return $title;
         }
@@ -8607,7 +8626,17 @@ final class MarkdownWriter
                 return (string) $value;
             }
             if (is_array($value)) {
-                $url = $this->targetArrayPart($value, 0, ['url', 'href', 'src', 'uri']);
+                $url = $this->targetArrayPart($value, 0, [
+                    'url',
+                    'href',
+                    'src',
+                    'uri',
+                    'linkUrl',
+                    'targetUrl',
+                    'destinationUrl',
+                    'sourceUrl',
+                    'imageUrl',
+                ]);
                 if ($url !== '') {
                     return $url;
                 }
@@ -8625,7 +8654,16 @@ final class MarkdownWriter
                 continue;
             }
 
-            $title = $this->targetArrayPart($value, 1, ['title', 'titleText', 'tooltip']);
+            $title = $this->targetArrayPart($value, 1, [
+                'title',
+                'titleText',
+                'tooltip',
+                'linkTitle',
+                'targetTitle',
+                'destinationTitle',
+                'sourceTitle',
+                'imageTitle',
+            ]);
             if ($title !== '') {
                 return $title;
             }
