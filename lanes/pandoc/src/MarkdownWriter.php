@@ -1347,6 +1347,10 @@ final class MarkdownWriter
 
     private function paragraphWrapColumns(): ?int
     {
+        if ($this->hardLineBreaksEnabled()) {
+            return null;
+        }
+
         $wrap = $this->options['wrap'] ?? null;
         $wrapMode = is_scalar($wrap) ? strtolower(trim((string) $wrap)) : null;
         if (in_array($wrapMode, ['none', 'preserve', 'nowrap'], true)) {
@@ -5613,7 +5617,7 @@ final class MarkdownWriter
             'text' => $this->renderTextInline($node, $following, $escapeDefinitionMarker, $escapeLeadingAttributeBrace),
             'space' => ' ',
             'softbreak' => $this->softBreakMarkdown(),
-            'linebreak' => "\\\n",
+            'linebreak' => $this->lineBreakMarkdown(),
             'code' => $this->renderCode($node),
             'emph' => $this->renderEmphasis($node),
             'strong' => $this->renderStrong($node),
@@ -6640,7 +6644,35 @@ final class MarkdownWriter
 
     private function softBreakMarkdown(): string
     {
+        if (!array_key_exists('softBreak', $this->options) && $this->hardLineBreaksEnabled()) {
+            return ' ';
+        }
+
         return (string) ($this->options['softBreak'] ?? 'preserve') === 'space' ? ' ' : "\n";
+    }
+
+    private function lineBreakMarkdown(): string
+    {
+        return $this->hardLineBreaksEnabled() ? "\n" : "\\\n";
+    }
+
+    private function hardLineBreaksEnabled(): bool
+    {
+        $enabled = false;
+
+        foreach ($this->writerFormatExtensionOverrides() as $name => $state) {
+            if ($this->normalizeMarkdownExtensionName($name) === 'hard_line_breaks') {
+                $enabled = $state;
+            }
+        }
+
+        foreach ($this->configuredMarkdownExtensionOverrides() as $name => $state) {
+            if ($this->normalizeMarkdownExtensionName((string) $name) === 'hard_line_breaks') {
+                $enabled = $state;
+            }
+        }
+
+        return $enabled;
     }
 
     /**
