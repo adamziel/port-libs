@@ -51,7 +51,7 @@ final class MarkdownWriter
     private int $plainTextTriggerEscapeSuppression = 0;
 
     /**
-     * @param array{format?: string, extensions?: mixed, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, yamlMetadata?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool, autoHtmlTables?: bool, semanticTableHtmlFallback?: bool, tableStyle?: string, markdownTableFormat?: string} $options
+     * @param array{format?: string, extensions?: mixed, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, wrap?: string, columns?: int, wrapColumns?: int, writerColumns?: int, lineWidth?: int, yamlMetadata?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool, autoHtmlTables?: bool, semanticTableHtmlFallback?: bool, tableStyle?: string, markdownTableFormat?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -997,7 +997,7 @@ final class MarkdownWriter
         }
 
         return match ($node->type) {
-            'paragraph', 'plain' => [str_repeat(' ', $indent) . $this->renderInlines($node->children)],
+            'paragraph', 'plain' => $this->renderParagraph($node, $indent),
             'heading' => $this->renderHeading($node, $indent),
             'figure' => $this->renderFigure($node, $indent),
             'bullet_list' => $this->renderList($node, false, $indent),
@@ -1012,6 +1012,111 @@ final class MarkdownWriter
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => $this->renderRawBlock($node, $indent),
             default => [],
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderParagraph(AstNode $node, int $indent): array
+    {
+        $markdown = $this->renderInlines($node->children);
+        $lines = $this->paragraphLines($node, $markdown);
+        $prefix = str_repeat(' ', $indent);
+
+        return array_map(
+            static fn (string $line): string => $prefix . $line,
+            $lines
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function paragraphLines(AstNode $node, string $markdown): array
+    {
+        $columns = $this->paragraphWrapColumns();
+        if ($columns === null || !$this->canSoftWrapParagraph($node)) {
+            return explode("\n", $markdown);
+        }
+
+        $lines = [];
+        foreach (explode("\n", $markdown) as $line) {
+            foreach (UnicodeText::wrapByDisplayWidth($line, $columns) as $wrappedLine) {
+                $lines[] = $this->escapeWrappedParagraphLineStart($wrappedLine);
+            }
+        }
+
+        return $lines === [] ? [''] : $lines;
+    }
+
+    private function paragraphWrapColumns(): ?int
+    {
+        $wrap = $this->options['wrap'] ?? null;
+        if (is_scalar($wrap) && in_array(strtolower(trim((string) $wrap)), ['none', 'preserve', 'nowrap'], true)) {
+            return null;
+        }
+
+        foreach (['columns', 'wrapColumns', 'writerColumns', 'lineWidth'] as $name) {
+            $value = $this->options[$name] ?? null;
+            if (is_numeric($value) && (int) $value > 0) {
+                return (int) $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function canSoftWrapParagraph(AstNode $node): bool
+    {
+        foreach ($node->children as $child) {
+            if (!in_array($child->type, ['text', 'space', 'softbreak'], true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function escapeWrappedParagraphLineStart(string $line): string
+    {
+        $indent = strspn($line, " \t");
+        $prefix = substr($line, 0, $indent);
+        $tail = substr($line, $indent);
+        if ($tail === '' || $indent > 3) {
+            return $line;
+        }
+
+        if ($this->startsWithAtxHeadingMarker($tail) || preg_match('/^#([.)])(?=[ \t]|$)/', $tail) === 1) {
+            return $prefix . '\\' . $tail;
+        }
+
+        if ($this->startsWithSetextEqualsUnderline($tail)) {
+            return $prefix . '\\' . $tail;
+        }
+
+        if ($this->startsWithDashUnderlineOrThematicBreak($tail)) {
+            $dashRun = strspn($tail, '-');
+
+            return $prefix . str_repeat('\\-', $dashRun) . substr($tail, $dashRun);
+        }
+
+        if ($this->startsWithBulletListMarker($tail) || $this->startsWithDefinitionMarker($tail)) {
+            return $prefix . '\\' . $tail;
+        }
+
+        if (preg_match('/^([0-9]+)([.)])(?=[ \t]|$)/', $tail, $match) === 1) {
+            return $prefix . $match[1] . '\\' . $match[2] . substr($tail, strlen($match[1]) + 1);
+        }
+
+        if ($this->startsWithParenthesizedOrderedListMarker($tail, $indent > 0)) {
+            return $prefix . '\\' . $tail;
+        }
+
+        if ($this->matchFancyOrderedListMarker($tail, $match, $indent > 0)) {
+            return $prefix . $match[1] . '\\' . $match[2] . substr($tail, strlen($match[1]) + 1);
+        }
+
+        return $line;
     }
 
     /**
@@ -1158,21 +1263,42 @@ final class MarkdownWriter
         }
 
         $level = max(1, min(6, (int) $node->attr('level', 1)));
-        $text = $this->renderInlines($node->children);
+        $text = $this->normalizeHeadingMarkdown($this->renderInlines($node->children));
         $attrs = $this->renderLinkAttributes($node);
-        if ($attrs !== '') {
-            $text .= ' ' . $attrs;
-        }
         $prefix = str_repeat(' ', $indent);
 
         if ($indent === 0 && (bool) ($this->options['setextHeadings'] ?? false) && ($level === 1 || $level === 2)) {
+            $setextText = $attrs === '' ? $text : $text . ' ' . $attrs;
+
             return [
-                $text,
-                str_repeat($level === 1 ? '=' : '-', max(1, strlen($text))),
+                $setextText,
+                str_repeat($level === 1 ? '=' : '-', max(1, strlen($setextText))),
             ];
         }
 
+        $text = $this->escapeAtxHeadingClosingSequence($text);
+        if ($attrs !== '') {
+            $text .= ' ' . $attrs;
+        }
+
         return [$prefix . str_repeat('#', $level) . ' ' . $text];
+    }
+
+    private function normalizeHeadingMarkdown(string $text): string
+    {
+        $text = preg_replace('/[ \t]*\n[ \t]*/', ' ', $text) ?? $text;
+        $text = preg_replace('/[ \t]+/', ' ', $text) ?? $text;
+
+        return trim($text);
+    }
+
+    private function escapeAtxHeadingClosingSequence(string $text): string
+    {
+        return preg_replace_callback(
+            '/([ \t]+)(#+)([ \t]*)\z/',
+            static fn (array $match): string => $match[1] . '\\' . $match[2] . $match[3],
+            $text
+        ) ?? $text;
     }
 
     /**
