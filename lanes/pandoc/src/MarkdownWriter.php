@@ -7678,6 +7678,11 @@ final class MarkdownWriter
     private function renderNoteDefinition(string $label, AstNode $node): string
     {
         $body = $this->renderBlockCollection($node->children);
+        $nestedDefinitions = $this->pendingDefinitionBlocks();
+        if ($nestedDefinitions !== []) {
+            $body .= ($body === '' ? '' : "\n\n") . implode("\n\n", $nestedDefinitions);
+        }
+
         if ($body === '') {
             return '[^' . $label . ']:';
         }

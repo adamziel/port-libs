@@ -80,7 +80,7 @@ $bodyCases = [
             'expected' => [
                 '> [^' . $label . ']: Outer nested note body [^' . $innerLabel . '] closes.',
                 '>',
-                '> [^' . $innerLabel . ']: Inner nested body ' . $label . '.',
+                '>     [^' . $innerLabel . ']: Inner nested body ' . $label . '.',
             ],
         ];
     },
