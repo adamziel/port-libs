@@ -21617,16 +21617,34 @@ final class MarkdownReader
     {
         do {
             $previous = $candidate;
-            $candidate = rtrim($candidate, ".,;:!?");
+            $candidate = $this->trimUnescapedBareUriTrailingPunctuation($candidate);
             foreach ([['(', ')'], ['[', ']'], ['{', '}']] as [$open, $close]) {
                 while (
                     str_ends_with($candidate, $close)
+                    && !$this->isEscapedInlinePosition($candidate, strlen($candidate) - 1)
                     && substr_count($candidate, $close) > substr_count($candidate, $open)
                 ) {
                     $candidate = substr($candidate, 0, -1);
                 }
             }
         } while ($candidate !== $previous);
+
+        return $candidate;
+    }
+
+    private function trimUnescapedBareUriTrailingPunctuation(string $candidate): string
+    {
+        while ($candidate !== '') {
+            $offset = strlen($candidate) - 1;
+            if (!str_contains('.,;:!?', $candidate[$offset])) {
+                break;
+            }
+            if ($this->isEscapedInlinePosition($candidate, $offset)) {
+                break;
+            }
+
+            $candidate = substr($candidate, 0, -1);
+        }
 
         return $candidate;
     }
