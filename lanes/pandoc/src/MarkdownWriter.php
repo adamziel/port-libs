@@ -56,7 +56,7 @@ final class MarkdownWriter
     private array $inlineDelimiterStack = [];
 
     /**
-     * @param array{format?: string, extensions?: mixed, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, wrap?: string, columns?: int, wrapColumns?: int, writerColumns?: int, lineWidth?: int, yamlMetadata?: bool, titleBlock?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool, autoHtmlTables?: bool, semanticTableHtmlFallback?: bool, tableStyle?: string, markdownTableFormat?: string} $options
+     * @param array{format?: string, extensions?: mixed, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string, wrap?: string, columns?: int, wrapColumns?: int, writerColumns?: int, lineWidth?: int, yamlMetadata?: bool, titleBlock?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, literateHaskell?: bool, fencedCodeBlockStyle?: string, fencedCodeBlocks?: bool, htmlTableAutoFallback?: bool, autoHtmlTables?: bool, semanticTableHtmlFallback?: bool, tableStyle?: string, markdownTableFormat?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -1288,7 +1288,7 @@ final class MarkdownWriter
      */
     private function renderBlock(AstNode $node, int $indent): array
     {
-        if ($this->shouldRenderHtmlBlockFallback($node)) {
+        if ($this->shouldRenderHtmlBlockFallback($node, $indent)) {
             return $this->renderHtmlBlockFallback($node, $indent);
         }
 
@@ -1455,7 +1455,7 @@ final class MarkdownWriter
         );
     }
 
-    private function shouldRenderHtmlBlockFallback(AstNode $node): bool
+    private function shouldRenderHtmlBlockFallback(AstNode $node, int $indent): bool
     {
         if ($this->requestsHtmlMarkdownFormat($node->attr('markdownBlockFormat', $node->attr('markdownFormat', '')))) {
             return $this->rawHtmlEnabled();
@@ -1485,6 +1485,10 @@ final class MarkdownWriter
 
         if ($node->type === 'blockquote' && $this->hasHtmlOnlyAttributes($node)) {
             return $this->rawHtmlEnabled();
+        }
+
+        if ($node->type === 'code_block' && $this->shouldRenderLiterateHaskellCodeBlock($node, $indent)) {
+            return false;
         }
 
         if ($node->type === 'code_block' && $this->shouldRenderCodeBlockHtmlFallback($node)) {
@@ -4934,6 +4938,10 @@ final class MarkdownWriter
      */
     private function renderCodeBlock(AstNode $node, int $indent): array
     {
+        if ($this->shouldRenderLiterateHaskellCodeBlock($node, $indent)) {
+            return $this->renderLiterateHaskellCodeBlock($node, $indent);
+        }
+
         if (
             !$this->fencedCodeAttributesEnabled()
             && $this->codeBlockRequiresFencedCodeAttributes($node)
@@ -4954,6 +4962,91 @@ final class MarkdownWriter
         }
 
         return $this->renderIndentedCodeBlock($node, $indent);
+    }
+
+    private function shouldRenderLiterateHaskellCodeBlock(AstNode $node, int $indent): bool
+    {
+        if (
+            $indent !== 0
+            || !$this->literateHaskellEnabled()
+            || (bool) ($this->options['fencedCodeBlocks'] ?? false)
+        ) {
+            return false;
+        }
+
+        $attrs = $this->linkAttrTuple($node);
+        if ($attrs['id'] !== '' || $attrs['attributes'] !== []) {
+            return false;
+        }
+
+        $classes = $this->literateHaskellCodeBlockClasses($node, $attrs['classes']);
+        if ($classes === []) {
+            return false;
+        }
+
+        foreach ($classes as $class) {
+            if (!in_array($class, ['haskell', 'hs', 'lhs', 'literate', 'literate_haskell', 'sourcecode'], true)) {
+                return false;
+            }
+        }
+
+        return in_array('haskell', $classes, true)
+            || in_array('hs', $classes, true)
+            || in_array('lhs', $classes, true)
+            || in_array('literate_haskell', $classes, true);
+    }
+
+    /**
+     * @param list<string> $classes
+     * @return list<string>
+     */
+    private function literateHaskellCodeBlockClasses(AstNode $node, array $classes): array
+    {
+        $normalized = [];
+        foreach ($classes as $class) {
+            $class = strtolower(str_replace(['-', '_'], '_', $class));
+            if ($class !== '') {
+                $normalized[] = $class;
+            }
+        }
+
+        if ($normalized !== []) {
+            return array_values(array_unique($normalized));
+        }
+
+        $info = $this->codeBlockInfo($node);
+        if ($info === '') {
+            return [];
+        }
+
+        foreach (preg_split('/\s+/', strtolower(str_replace(['-', '_'], '_', $info))) ?: [] as $token) {
+            if ($token !== '') {
+                $normalized[] = $token;
+            }
+        }
+
+        return array_values(array_unique($normalized));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderLiterateHaskellCodeBlock(AstNode $node, int $indent): array
+    {
+        $classes = $this->literateHaskellCodeBlockClasses($node, $this->linkAttrTuple($node)['classes']);
+        $marker = in_array('literate', $classes, true)
+            || in_array('lhs', $classes, true)
+            || in_array('literate_haskell', $classes, true)
+            ? '>'
+            : '<';
+        $prefix = str_repeat(' ', $indent) . $marker;
+        $lines = [];
+
+        foreach (explode("\n", (string) $node->attr('text', '')) as $line) {
+            $lines[] = $line === '' ? $prefix : $prefix . ' ' . $line;
+        }
+
+        return $lines;
     }
 
     /**
@@ -6254,6 +6347,12 @@ final class MarkdownWriter
         return $this->markdownExtensionEnabled('raw_markdown');
     }
 
+    private function literateHaskellEnabled(): bool
+    {
+        return ($this->options['literateHaskell'] ?? false) === true
+            || $this->markdownExtensionEnabled('literate_haskell');
+    }
+
     private function markdownExtensionEnabled(string $extension): bool
     {
         $extension = $this->normalizeMarkdownExtensionName($extension);
@@ -6296,6 +6395,10 @@ final class MarkdownWriter
 
     private function defaultMarkdownExtensionEnabled(string $extension): bool
     {
+        if ($extension === 'literate_haskell') {
+            return false;
+        }
+
         $format = $this->writerFormatBase();
         if ($format === null || $format === 'commonmark_x') {
             return true;
@@ -6432,6 +6535,7 @@ final class MarkdownWriter
             'heading_attrs',
             'header_attribute' => 'header_attributes',
             'footnote' => 'footnotes',
+            'lhs', 'literatehaskell', 'literate_haskell' => 'literate_haskell',
             'link_attribute', 'link_attrs', 'image_attributes' => 'link_attributes',
             'pipe_table', 'pipe-table', 'pipetables', 'table', 'tables' => 'pipe_tables',
             'raw_attributes' => 'raw_attribute',
