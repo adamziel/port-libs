@@ -7682,7 +7682,10 @@ final class MarkdownReader
             return [];
         }
 
-        $reader = new self(array_replace($this->options, ['yamlMetadata' => false]));
+        $reader = new self(array_replace($this->options, [
+            'yamlMetadata' => false,
+            'titleBlock' => false,
+        ]));
 
         return $reader->read($markdown)->children;
     }
