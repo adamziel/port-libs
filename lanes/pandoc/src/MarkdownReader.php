@@ -8594,12 +8594,7 @@ final class MarkdownReader
 
     private function plainMarkdownHeadingText(string $text): string
     {
-        $text = preg_replace('/!\[([^\]]*)\]\([^)]+\)/', '$1', $text) ?? $text;
-        $text = preg_replace('/\[([^\]]+)\]\([^)]+\)/', '$1', $text) ?? $text;
-        $text = preg_replace('/`+([^`]*)`+/', '$1', $text) ?? $text;
-        $text = str_replace(['*', '_', '~', '^'], '', $text);
-
-        return $this->decodeHtmlEntities(trim($text));
+        return trim($this->paragraphTextFromInlines($this->parseInlines($text)));
     }
 
     /**
