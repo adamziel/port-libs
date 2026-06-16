@@ -140,13 +140,15 @@ return [
             ["```\nunterminated", 'code_block', ['text' => 'unterminated']],
             ["```\n````", 'code_block', ['text' => '']],
             ["~~~~\n~~~\n~~~~", 'code_block', ['text' => '~~~']],
+            ["```\ncode\n```   ", 'code_block', ['text' => 'code']],
+            ["```\ncode\n``` suffix", 'code_block', ['text' => "code\n``` suffix"]],
             ["```{=html}\n<div></div>\n```", 'raw_block', ['text' => '<div></div>', 'format' => 'html']],
             ["~~~ info with spaces\nx\n~~~", 'code_block', ['text' => 'x', 'classes' => ['info'], 'info' => 'info with spaces']],
             ["```\n<a>\n```", 'code_block', ['text' => '<a>']],
             ["``\nnot fence", 'paragraph', ['text' => '`` not fence']],
         ];
 
-        $t->same(13, count($cases));
+        $t->same(15, count($cases));
 
         foreach ($cases as [$markdown, $type, $attrs]) {
             $node = $reader->read($markdown)->children[0] ?? new AstNode('missing');
@@ -158,6 +160,6 @@ return [
     },
 
     'records commonmark surge mapped-case count' => static function (TestRunner $t): void {
-        $t->same(54, 14 + 13 + 14 + 13);
+        $t->same(56, 14 + 13 + 14 + 15);
     },
 ];
