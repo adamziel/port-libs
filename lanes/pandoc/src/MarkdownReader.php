@@ -160,6 +160,7 @@ final class MarkdownReader
             'raw_tex' => true,
             'smart' => true,
             'strikeout' => true,
+            'task_lists' => true,
             'subscript' => true,
             'superscript' => true,
             'tex_math_double_backslash' => true,
@@ -181,6 +182,7 @@ final class MarkdownReader
                     'emoji' => true,
                     'raw_html' => true,
                     'strikeout' => true,
+                    'task_lists' => true,
                 ]
             ),
             'markdown_phpextra' => array_replace(
@@ -263,6 +265,7 @@ final class MarkdownReader
             'subscripts' => 'subscript',
             'superscripts' => 'superscript',
             'tex_math', 'tex_math_single_backslashes' => 'tex_math_single_backslash',
+            'task_list', 'tasklists', 'tasklist' => 'task_lists',
             'tex_math_double_backslashes' => 'tex_math_double_backslash',
             'tex_math_dollar' => 'tex_math_dollars',
             'wiki_links' => 'wikilinks',
@@ -16694,7 +16697,7 @@ final class MarkdownReader
             array_push($parts, ...$block['blocks']);
             $loose = $loose || $block['loose'];
         } elseif ($firstText !== '') {
-            $task = $this->stripTaskListMarker($firstText);
+            $task = $this->markdownExtensionEnabled('task_lists') ? $this->stripTaskListMarker($firstText) : null;
             if ($task !== null) {
                 $taskChecked = $task['checked'];
                 $firstText = $task['text'];
