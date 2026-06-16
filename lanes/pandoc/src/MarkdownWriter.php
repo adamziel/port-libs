@@ -4332,14 +4332,14 @@ final class MarkdownWriter
     /**
      * @param list<AstNode> $following
      */
-    private function renderLink(AstNode $node, array $following): string
+    private function renderLink(AstNode $node, array $following, bool $allowAutolink = true): string
     {
         $wikiLink = $this->markdownExtensionEnabled('wikilinks') ? $this->renderWikiLink($node) : null;
         if ($wikiLink !== null) {
             return $wikiLink;
         }
 
-        if ($this->canRenderAutolink($node)) {
+        if ($allowAutolink && $this->canRenderAutolink($node)) {
             return '<' . $this->autolinkText($node) . '>';
         }
 
@@ -4372,7 +4372,8 @@ final class MarkdownWriter
 
         return '!' . $this->renderLink(
             new AstNode('link', $this->imageLinkAttrs($node), $this->imageLabelNodesForLink($node)),
-            $following
+            $following,
+            false
         );
     }
 
@@ -4642,7 +4643,8 @@ final class MarkdownWriter
 
         $text = $this->nodeText($node, ['text', 'literal', 'code', 'value', 'content', 'string']);
         $delimiter = str_repeat('`', max(1, $this->longestBacktickRun($text) + 1));
-        if (str_contains($text, '`') || str_starts_with($text, ' ') || str_ends_with($text, ' ')) {
+        $allSpaces = $text !== '' && strspn($text, ' ') === strlen($text);
+        if (str_contains($text, '`') || (!$allSpaces && (str_starts_with($text, ' ') || str_ends_with($text, ' ')))) {
             $text = ' ' . $text . ' ';
         }
 
@@ -6423,7 +6425,7 @@ final class MarkdownWriter
     private function linkDestinationNeedsAngles(string $url): bool
     {
         return $url === ''
-            || preg_match('/[\s\x00-\x1F\x7F<>()"\']/u', $url) === 1;
+            || preg_match('/[\\\\\s\x00-\x1F\x7F<>()"\']/u', $url) === 1;
     }
 
     /**
