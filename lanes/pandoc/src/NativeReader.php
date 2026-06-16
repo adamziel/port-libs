@@ -455,6 +455,21 @@ final class NativeReader
             return $this->plainMetaValue($value);
         }
 
+        $constructor = $this->taggedMetaConstructor($value);
+        if ($constructor === null) {
+            throw new \InvalidArgumentException('Unsupported Pandoc native JSON meta constructor: ' . $value['t']);
+        }
+
+        if ($constructor === 'MetaMap') {
+            foreach ($this->metaMapContent($value['c'] ?? null) as $item) {
+                $this->metaValue($item);
+            }
+        } elseif ($constructor === 'MetaList') {
+            foreach ($this->metaConstructorListContent($value['c'] ?? null, 'Pandoc native JSON MetaList content') as $item) {
+                $this->metaValue($item);
+            }
+        }
+
         return $value;
     }
 

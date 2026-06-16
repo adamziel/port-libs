@@ -15325,6 +15325,37 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [new AstNode('unsupported_block')])));
         $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [new AstNode('paragraph', [], [new AstNode('citation')])])));
     },
+    'validates malformed native metadata constructors without shelling out' => static function (TestRunner $t): void {
+        $reader = new NativeReader();
+
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->read(json_encode([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'review' => ['t' => 'VendorMeta', 'c' => 'opaque'],
+            ],
+            'blocks' => [],
+        ], JSON_THROW_ON_ERROR)));
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->read(json_encode([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'review' => ['t' => 'MetaMap', 'c' => [
+                    'queue' => ['t' => 'MetaString', 'c' => 'native-review'],
+                    'bad' => ['t' => 'VendorMeta', 'c' => 'nested'],
+                ]],
+            ],
+            'blocks' => [],
+        ], JSON_THROW_ON_ERROR)));
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->read(json_encode([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'review' => ['t' => 'MetaList', 'c' => [
+                    ['t' => 'MetaString', 'c' => 'native-review'],
+                    ['t' => 'VendorMeta', 'c' => 'nested'],
+                ]],
+            ],
+            'blocks' => [],
+        ], JSON_THROW_ON_ERROR)));
+    },
     'renders wordpress blocks from pandoc json filter input' => static function (TestRunner $t): void {
         $json = <<<'JSON'
 {
