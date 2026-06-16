@@ -119,7 +119,10 @@ foreach (array_slice($controlCases, 4, 10, true) as $name => $code) {
         };
 }
 
-foreach (array_slice($controlCases, 14, 10, true) as $name => $code) {
+$angleAutolinkControlCases = ['shift-out' => $controlCases['shift-out']]
+    + array_slice($controlCases, 14, 10, true);
+
+foreach ($angleAutolinkControlCases as $name => $code) {
     $tests["maps upstream markdown angle autolink control-byte destination {$name}"] =
         static function (TestRunner $t) use ($readFirstNode, $html, $name, $code): void {
             $encoded = sprintf('%%%02X', $code);
