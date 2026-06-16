@@ -6047,17 +6047,14 @@ final class MarkdownWriter
             return $this->canUseShortcutReference(array_slice($following, 1));
         }
 
+        $withoutLeadingSpace = ltrim($text, " \t\r\n");
         if ($this->startsWithReferenceSuffixConflict($text)) {
             return false;
         }
 
-        $withoutLeadingSpace = ltrim($text, " \t\r\n");
         if ($withoutLeadingSpace !== $text) {
-            if ($withoutLeadingSpace !== '') {
-                return !str_starts_with($withoutLeadingSpace, '[');
-            }
-
-            return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
+            return $withoutLeadingSpace !== ''
+                || $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
         }
 
         return true;
@@ -6080,13 +6077,13 @@ final class MarkdownWriter
         if ($next->type === 'text') {
             $text = (string) $next->attr('text', '');
 
-            return $text === '' || !str_starts_with(ltrim($text, " \t\r\n"), '[');
+            return $text === '' || !$this->startsWithReferenceSuffixConflict($text);
         }
 
         if ($next->type === 'raw_inline' || $next->type === 'raw_markdown' || $next->type === 'raw_html_inline') {
             $raw = (string) $next->attr('text', $next->attr('markdown', $next->attr('html', '')));
 
-            return !str_starts_with(ltrim($raw, " \t\r\n"), '[');
+            return !$this->startsWithReferenceSuffixConflict($raw);
         }
 
         return true;
@@ -6094,11 +6091,15 @@ final class MarkdownWriter
 
     private function startsWithReferenceSuffixConflict(string $text): bool
     {
+        $text = ltrim($text, " \t\r\n");
+        if ($text === '') {
+            return false;
+        }
+
         return str_starts_with($text, '[')
             || str_starts_with($text, '(')
             || str_starts_with($text, ':')
-            || str_starts_with($text, '{')
-            || str_starts_with($text, ' [');
+            || str_starts_with($text, '{');
     }
 
     private function inlineStartsWithReferenceSuffixConflict(AstNode $node): bool
