@@ -145,6 +145,7 @@ final class MarkdownReader
             'bare_uri_autolinks' => true,
             'bracketed_spans' => true,
             'citations' => true,
+            'definition_lists' => true,
             'east_asian_line_breaks' => false,
             'emoji' => true,
             'footnotes' => true,
@@ -186,6 +187,7 @@ final class MarkdownReader
                 [
                     'abbreviations' => true,
                     'bracketed_spans' => true,
+                    'definition_lists' => true,
                     'footnotes' => true,
                     'inline_attributes' => true,
                     'raw_html' => true,
@@ -196,6 +198,7 @@ final class MarkdownReader
                 [
                     'bracketed_spans' => true,
                     'citations' => true,
+                    'definition_lists' => true,
                     'footnotes' => true,
                     'inline_attributes' => true,
                     'raw_html' => true,
@@ -16116,6 +16119,10 @@ final class MarkdownReader
      */
     private function canStartDefinitionListAt(array $lines, int $index): bool
     {
+        if (!$this->markdownExtensionEnabled('definition_lists')) {
+            return false;
+        }
+
         if (!$this->canStartDefinitionTerm($lines[$index] ?? '')) {
             return false;
         }
@@ -17244,6 +17251,10 @@ final class MarkdownReader
      */
     private function isListItemContinuationDefinitionListStartAt(array $lines, int $cursor, int $contentIndent): bool
     {
+        if (!$this->markdownExtensionEnabled('definition_lists')) {
+            return false;
+        }
+
         $line = $this->stripIndentColumns($lines[$cursor] ?? '', $contentIndent);
         if (!$this->canStartDefinitionTerm($line)) {
             return false;
@@ -18158,6 +18169,10 @@ final class MarkdownReader
      */
     private function tryReadDefinitionList(array $lines, int &$index): ?AstNode
     {
+        if (!$this->markdownExtensionEnabled('definition_lists')) {
+            return null;
+        }
+
         $cursor = $index;
         $count = count($lines);
         $items = [];
