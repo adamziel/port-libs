@@ -7356,6 +7356,10 @@ final class MarkdownWriter
             return false;
         }
 
+        if ($next->type === 'space') {
+            return $this->canUseShortcutReferenceAfterExplicitSpace(array_slice($following, 1));
+        }
+
         if ($next->type === 'softbreak' || $next->type === 'linebreak') {
             return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
         }
@@ -7413,6 +7417,31 @@ final class MarkdownWriter
             $raw = (string) $next->attr('text', $next->attr('markdown', $next->attr('html', '')));
 
             return !$this->startsWithReferenceSuffixConflict($raw);
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function canUseShortcutReferenceAfterExplicitSpace(array $following): bool
+    {
+        $next = $following[0] ?? null;
+        if ($next === null) {
+            return true;
+        }
+
+        if ($next->type === 'citation' || $next->type === 'citation_group') {
+            return false;
+        }
+
+        if ($next->type === 'space') {
+            return $this->canUseShortcutReferenceAfterExplicitSpace(array_slice($following, 1));
+        }
+
+        if ($next->type === 'text' && (string) $next->attr('text', '') === '') {
+            return $this->canUseShortcutReferenceAfterExplicitSpace(array_slice($following, 1));
         }
 
         return true;
