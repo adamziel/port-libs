@@ -7767,7 +7767,7 @@ final class MarkdownReader
 
     private function isAbbreviationDefinitionLine(string $line): bool
     {
-        return preg_match('/^ {0,3}\*\[[^\]\r\n]+\]:[ \t]*(.*)$/', $line) === 1;
+        return $this->tryParseAbbreviationDefinitionLine($line, false) !== null;
     }
 
     /**
@@ -7798,19 +7798,62 @@ final class MarkdownReader
                 continue;
             }
 
-            if (preg_match('/^ {0,3}\*\[([^\]\r\n]+)\]:[ \t]*(\S.*)?$/u', $line, $m) === 1) {
-                $term = trim($this->decodeHtmlEntities($m[1]));
-                $title = trim($this->decodeHtmlEntities($m[2] ?? ''));
-                if ($term !== '' && $title !== '') {
-                    $abbreviations[$term] = $title;
-                    continue;
-                }
+            $abbreviation = $this->tryParseAbbreviationDefinitionLine($line);
+            if ($abbreviation !== null) {
+                $abbreviations[$abbreviation['term']] = $abbreviation['title'];
+                continue;
             }
 
             $content[] = $line;
         }
 
         return [$content, $this->sortedAbbreviationDefinitions($abbreviations)];
+    }
+
+    /**
+     * @return array{term:string, title:string}|null
+     */
+    private function tryParseAbbreviationDefinitionLine(string $line, bool $requireTitle = true): ?array
+    {
+        if (preg_match('/^ {0,3}/', $line, $indent) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($indent[0]);
+        if (($line[$offset] ?? '') !== '*') {
+            return null;
+        }
+
+        $label = $this->parseBracketedLabel($line, $offset + 1, false);
+        if ($label === null || ($line[$label['next']] ?? '') !== ':') {
+            return null;
+        }
+
+        $term = $this->canonicalAbbreviationTermText($label['text']);
+        $title = $this->canonicalAbbreviationTitleText(substr($line, $label['next'] + 1));
+        if ($term === '' || ($requireTitle && $title === '')) {
+            return null;
+        }
+
+        return [
+            'term' => $term,
+            'title' => $title,
+        ];
+    }
+
+    private function canonicalAbbreviationTermText(string $term): string
+    {
+        $term = $this->decodeHtmlEntities($this->unescapeLinkComponent($term));
+
+        return trim(preg_replace('/\s+/u', ' ', $term) ?? $term);
+    }
+
+    private function canonicalAbbreviationTitleText(string $title): string
+    {
+        $title = trim($title);
+        $title = $this->decodeHtmlEntities($this->unescapeLinkComponent($title));
+
+        return trim($title);
     }
 
     /**
