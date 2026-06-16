@@ -224,6 +224,10 @@ $cases = [
         'markdown' => "<review-block data-x=\"1\">\ncustom raw\n\nAfter",
         'raw' => "<review-block data-x=\"1\">\ncustom raw",
     ],
+    '51 basefont blank-terminated raw block' => [
+        'markdown' => "<basefont color=\"red\" face=\"serif\">\nlegacy font metadata\n\nAfter",
+        'raw' => "<basefont color=\"red\" face=\"serif\">\nlegacy font metadata",
+    ],
 ];
 
 $tests = [];
@@ -247,7 +251,7 @@ foreach ($cases as $name => $case) {
 }
 
 $tests['records markdown raw html block surge mapped-case count'] = static function (TestRunner $t) use ($cases): void {
-    $t->same(50, count($cases));
+    $t->same(51, count($cases));
 };
 
 return $tests;
