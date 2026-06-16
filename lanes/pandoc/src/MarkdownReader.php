@@ -568,7 +568,9 @@ final class MarkdownReader
                 $blocks[] = $listBlock;
                 continue;
             }
-            $indentedCodeBlock = $listStack === [] ? $this->tryReadIndentedCodeBlock($lines, $index) : null;
+            $indentedCodeBlock = $listStack === [] && ($paragraph === [] || $this->indentedCodeBlockInterruptsParagraph())
+                ? $this->tryReadIndentedCodeBlock($lines, $index)
+                : null;
             if ($indentedCodeBlock !== null) {
                 $this->flushParagraph($paragraph, $blocks);
                 $blocks[] = $indentedCodeBlock;
@@ -17960,6 +17962,11 @@ final class MarkdownReader
         return $this->countIndentColumns($line) >= 4;
     }
 
+    private function indentedCodeBlockInterruptsParagraph(): bool
+    {
+        return !in_array($this->markdownFormatBase(), ['commonmark', 'commonmark_x', 'gfm', 'markdown_github'], true);
+    }
+
     private function stripCodeIndent(string $line): string
     {
         return $this->stripIndentColumns($line, 4);
@@ -17976,9 +17983,31 @@ final class MarkdownReader
             return $line;
         }
 
-        $spaces = min($indent, strspn($line, ' '));
+        $column = 0;
+        $offset = 0;
+        $length = strlen($line);
+        while ($offset < $length && $column < $indent) {
+            if ($line[$offset] === ' ') {
+                $column++;
+                $offset++;
+                continue;
+            }
 
-        return substr($line, $spaces);
+            if ($line[$offset] === "\t") {
+                $tabWidth = 4 - ($column % 4);
+                if ($column + $tabWidth <= $indent) {
+                    $column += $tabWidth;
+                    $offset++;
+                    continue;
+                }
+
+                return str_repeat(' ', $column + $tabWidth - $indent) . substr($line, $offset + 1);
+            }
+
+            break;
+        }
+
+        return substr($line, $offset);
     }
 
     /**
