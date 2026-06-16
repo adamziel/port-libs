@@ -295,6 +295,10 @@ final class MarkdownWriter
             return [];
         }
 
+        if (is_array($value) && $this->allAstNodes(array_values($value))) {
+            return $this->titleBlockContentLines($this->renderInlines(array_values($value)));
+        }
+
         if (!is_scalar($value)) {
             return null;
         }
@@ -334,6 +338,11 @@ final class MarkdownWriter
             return $joinAuthors && $authors !== [] ? [implode('; ', $authors)] : $authors;
         }
 
+        $inlineAuthors = $this->titleBlockAuthorInlineValueLines($metadata);
+        if ($inlineAuthors !== null) {
+            return $joinAuthors && $inlineAuthors !== [] ? [implode('; ', $inlineAuthors)] : $inlineAuthors;
+        }
+
         $authors = $this->titleBlockAuthorValues($metadata);
         if ($authors === null) {
             return null;
@@ -357,6 +366,54 @@ final class MarkdownWriter
         }
 
         return $joinAuthors && $lines !== [] ? [implode('; ', $lines)] : $lines;
+    }
+
+    /**
+     * @param array<string|int, mixed> $metadata
+     * @return list<string>|null
+     */
+    private function titleBlockAuthorInlineValueLines(array $metadata): ?array
+    {
+        if (array_key_exists('author', $metadata)) {
+            $value = $metadata['author'];
+        } elseif (array_key_exists('authors', $metadata)) {
+            $value = $metadata['authors'];
+        } else {
+            return null;
+        }
+
+        if (!is_array($value)) {
+            return null;
+        }
+
+        if ($this->allAstNodes(array_values($value))) {
+            $authorLines = $this->titleBlockContentLines($this->renderInlines(array_values($value)));
+            if ($authorLines === null || count($authorLines) !== 1) {
+                return null;
+            }
+
+            $authorLine = trim($authorLines[0]);
+            return $authorLine === '' ? [] : [$authorLine];
+        }
+
+        $lines = [];
+        foreach (array_values($value) as $author) {
+            if (!is_array($author) || !$this->allAstNodes(array_values($author))) {
+                return null;
+            }
+
+            $authorLines = $this->titleBlockContentLines($this->renderInlines(array_values($author)));
+            if ($authorLines === null || count($authorLines) !== 1) {
+                return null;
+            }
+
+            $authorLine = trim($authorLines[0]);
+            if ($authorLine !== '') {
+                $lines[] = $authorLine;
+            }
+        }
+
+        return $lines;
     }
 
     /**
