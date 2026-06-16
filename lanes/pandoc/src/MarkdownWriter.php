@@ -4420,6 +4420,77 @@ final class MarkdownWriter
     }
 
     /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderLinkLabelInlines(array $nodes): string
+    {
+        return $this->balanceEscapedBracketLabelMarkdown($this->renderBracketedLabelInlines($nodes));
+    }
+
+    private function balanceEscapedBracketLabelMarkdown(string $markdown): string
+    {
+        $tokens = [];
+        $stack = [];
+        $length = strlen($markdown);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $markdown[$offset];
+            if ($char !== '[' && $char !== ']') {
+                continue;
+            }
+
+            $slashStart = $offset;
+            while ($slashStart > 0 && $markdown[$slashStart - 1] === '\\') {
+                $slashStart--;
+            }
+
+            $slashCount = $offset - $slashStart;
+            if ($slashCount % 2 === 0) {
+                continue;
+            }
+
+            $tokenIndex = count($tokens);
+            $tokens[] = [
+                'bracket' => $char,
+                'escapeOffset' => $offset - 1,
+                'matched' => false,
+            ];
+
+            if ($char === '[') {
+                $stack[] = $tokenIndex;
+                continue;
+            }
+
+            if ($stack !== []) {
+                $openIndex = array_pop($stack);
+                $tokens[$openIndex]['matched'] = true;
+                $tokens[$tokenIndex]['matched'] = true;
+            }
+        }
+
+        $removeEscapeOffsets = [];
+        foreach ($tokens as $token) {
+            if ($token['matched'] === true) {
+                $removeEscapeOffsets[$token['escapeOffset']] = true;
+            }
+        }
+
+        if ($removeEscapeOffsets === []) {
+            return $markdown;
+        }
+
+        $balanced = '';
+        for ($offset = 0; $offset < $length; $offset++) {
+            if (isset($removeEscapeOffsets[$offset])) {
+                continue;
+            }
+
+            $balanced .= $markdown[$offset];
+        }
+
+        return $balanced;
+    }
+
+    /**
      * @param list<AstNode> $following
      */
     private function renderInline(
@@ -4480,7 +4551,7 @@ final class MarkdownWriter
         $title = $this->linkTitle($node);
         $titleMarkdown = $title === '' ? '' : ' "' . $this->escapeLinkTitle($title) . '"';
 
-        return '[' . $this->renderBracketedLabelInlines($node->children) . ']('
+        return '[' . $this->renderLinkLabelInlines($node->children) . ']('
             . $this->renderLinkDestination($this->linkUrl($node))
             . $titleMarkdown
             . ')'
@@ -4508,7 +4579,7 @@ final class MarkdownWriter
      */
     private function renderReferenceLink(AstNode $node, array $following): string
     {
-        $labelText = $this->renderBracketedLabelInlines($node->children);
+        $labelText = $this->renderLinkLabelInlines($node->children);
         $plainLabel = $this->normalizeReferenceLabelText($this->plainInlineText($node->children));
         $referenceLabel = $this->registerReference(
             $plainLabel,
@@ -4522,7 +4593,7 @@ final class MarkdownWriter
             return '[' . $labelText . ']';
         }
 
-        $suffix = $referenceLabel === $plainLabel ? '[]' : '[' . $referenceLabel . ']';
+        $suffix = $referenceLabel === $plainLabel ? '[]' : '[' . $this->renderReferenceLabelText($referenceLabel) . ']';
 
         return '[' . $labelText . ']' . $suffix;
     }
@@ -5343,7 +5414,7 @@ final class MarkdownWriter
         if ($this->requiresGeneratedReferenceLabel($label)) {
             $actualLabel = $this->nextGeneratedReferenceLabel();
         } else {
-            $key = strtolower($label);
+            $key = $this->referenceLabelKey($label);
             $use = $this->referenceLabelUses[$key] ?? 0;
             $this->referenceLabelUses[$key] = $use + 1;
             $actualLabel = $use === 0 && !isset($this->referenceUsedLabels[$key])
@@ -5351,7 +5422,7 @@ final class MarkdownWriter
                 : $this->nextGeneratedReferenceLabel();
         }
 
-        $this->referenceUsedLabels[strtolower($actualLabel)] = true;
+        $this->referenceUsedLabels[$this->referenceLabelKey($actualLabel)] = true;
         $this->referenceTargetLabels[$targetKey] = $actualLabel;
         $this->references[] = [
             'label' => $actualLabel,
@@ -5366,9 +5437,7 @@ final class MarkdownWriter
     private function requiresGeneratedReferenceLabel(string $label): bool
     {
         return $label === ''
-            || strlen($label) > 999
-            || str_contains($label, '[')
-            || str_contains($label, ']');
+            || $this->referenceLabelLength($label) > 999;
     }
 
     private function nextGeneratedReferenceLabel(): string
@@ -5376,7 +5445,7 @@ final class MarkdownWriter
         do {
             $this->lastReferenceIndex++;
             $candidate = (string) $this->lastReferenceIndex;
-        } while (isset($this->referenceUsedLabels[strtolower($candidate)]));
+        } while (isset($this->referenceUsedLabels[$this->referenceLabelKey($candidate)]));
 
         return $candidate;
     }
@@ -6114,7 +6183,41 @@ final class MarkdownWriter
 
     private function normalizeReferenceLabelText(string $label): string
     {
-        return trim(preg_replace('/\s+/', ' ', $label) ?? $label);
+        return trim(preg_replace('/\s+/u', ' ', $label) ?? $label);
+    }
+
+    private function referenceLabelKey(string $label): string
+    {
+        $label = UnicodeText::normalize($label)['text'];
+        if (defined('MB_CASE_FOLD') && function_exists('mb_convert_case')) {
+            return mb_convert_case($label, MB_CASE_FOLD, 'UTF-8');
+        }
+
+        if (function_exists('mb_strtolower')) {
+            return mb_strtolower($label, 'UTF-8');
+        }
+
+        return strtolower($label);
+    }
+
+    private function referenceLabelLength(string $label): int
+    {
+        if (function_exists('mb_strlen')) {
+            $length = mb_strlen($label, 'UTF-8');
+            if ($length !== false) {
+                return $length;
+            }
+        }
+
+        return strlen($label);
+    }
+
+    private function renderReferenceLabelText(string $label): string
+    {
+        $escaped = str_replace('\\', '\\\\', $label);
+        $escaped = str_replace(['[', ']'], ['\\[', '\\]'], $escaped);
+
+        return $this->balanceEscapedBracketLabelMarkdown($escaped);
     }
 
     /**
@@ -6240,7 +6343,7 @@ final class MarkdownWriter
             : ' "' . $this->escapeLinkTitle($reference['title']) . '"';
         $attrs = $this->renderAttributesTuple($reference['attrs']);
 
-        return '  [' . $reference['label'] . ']: '
+        return '  [' . $this->renderReferenceLabelText($reference['label']) . ']: '
             . $this->renderLinkDestination($reference['url'])
             . $title
             . ($attrs === '' ? '' : ' ' . $attrs);

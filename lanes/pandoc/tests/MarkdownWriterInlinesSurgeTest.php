@@ -273,9 +273,9 @@ $referenceCases = [
         'children' => [new AstNode('link', ['url' => '/empty'], [])],
         'expected' => "[][1]\n\n  [1]: /empty",
     ],
-    'bracket label generates numeric definition label' => [
+    'bracket label keeps balanced definition label' => [
         'children' => [$link('/bracket', 'bracket [label]')],
-        'expected' => "[bracket \\[label\\]][1]\n\n  [1]: /bracket",
+        'expected' => "[bracket [label]]\n\n  [bracket [label]]: /bracket",
     ],
     'case insensitive duplicate labels generate numeric definition label' => [
         'children' => [

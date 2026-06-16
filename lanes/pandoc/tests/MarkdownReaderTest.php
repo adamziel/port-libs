@@ -10258,7 +10258,7 @@ MD;
         $t->same('citation', $authorInText->type);
         $t->same('doe2020', $authorInText->attr('id'));
     },
-    'maps upstream markdown writer inline escaping and generated reference labels' => static function (TestRunner $t): void {
+    'maps upstream markdown writer inline escaping and balanced reference labels' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $link = static fn (string $url, string $label): AstNode => new AstNode('link', [
             'url' => $url,
@@ -10278,11 +10278,11 @@ MD;
         ]);
 
         $t->same(implode("\n", [
-            '\\# Heading-looking source \\-- \\... \\::: \\![draft\\] \\~\\~gone\\~\\~ a_b \\*stars\\* \\_under\\_ \\`tick\\` \\| \\^ \\~ \\$ \\<tag\\> \\> \\&ouml; \\\\macro [bracket \\[label\\]][1] and [bracket \\[again\\]][1] then [normal] and [normal][2]',
+            '\\# Heading-looking source \\-- \\... \\::: \\![draft\\] \\~\\~gone\\~\\~ a_b \\*stars\\* \\_under\\_ \\`tick\\` \\| \\^ \\~ \\$ \\<tag\\> \\> \\&ouml; \\\\macro [bracket [label]] and [bracket [again]][bracket [label]] then [normal] and [normal][1]',
             '',
-            '  [1]: /review',
+            '  [bracket [label]]: /review',
             '  [normal]: /other',
-            '  [2]: /other-2',
+            '  [1]: /other-2',
         ]), (new MarkdownWriter(['referenceLinks' => true]))->write($document));
     },
     'maps upstream markdown writer uri email autolinks and link attributes' => static function (TestRunner $t): void {

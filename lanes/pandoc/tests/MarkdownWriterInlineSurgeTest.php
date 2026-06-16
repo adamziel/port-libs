@@ -152,9 +152,9 @@ function markdown_writer_inline_surge_cases(): array
                 'attributes' => ['data-id' => '42', 'title' => 'inline attr'],
             ], [markdown_writer_surge_text('review')]),
         ], '[review](/review){#review-link .source .tracked data-id="42" title="inline attr"}'),
-        'escapes brackets inside link label' => $inlineCase([
+        'balances brackets inside link label' => $inlineCase([
             markdown_writer_surge_link(['url' => '/url'], [markdown_writer_surge_text('a [b] label')]),
-        ], '[a \\[b\\] label](/url)'),
+        ], '[a [b] label](/url)'),
         'renders simple image alt text' => $inlineCase([
             markdown_writer_surge_image(['url' => 'media/review.png', 'alt' => 'Review image']),
         ], '![Review image](media/review.png)'),
@@ -309,11 +309,11 @@ function markdown_writer_inline_surge_cases(): array
             'expected' => "[][1]\n\n  [1]: /empty",
             'options' => ['referenceLinks' => true],
         ],
-        'renders generated reference label for bracketed label text' => [
+        'renders balanced reference label for bracketed label text' => [
             'document' => markdown_writer_surge_inline_doc([
                 markdown_writer_surge_link(['url' => '/bad'], [markdown_writer_surge_text('Bad [label]')]),
             ]),
-            'expected' => "[Bad \\[label\\]][1]\n\n  [1]: /bad",
+            'expected' => "[Bad [label]]\n\n  [Bad [label]]: /bad",
             'options' => ['referenceLinks' => true],
         ],
         'renders reference definition title and attributes' => [
