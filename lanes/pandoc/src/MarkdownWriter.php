@@ -6921,7 +6921,7 @@ final class MarkdownWriter
         }
 
         $lines = explode("\n", $body);
-        if ($this->noteDefinitionStartsWithIndentedCodeBlock($node)) {
+        if ($this->noteDefinitionStartsWithDetachedBlock($node)) {
             $rendered = '[^' . $label . ']:';
             foreach ($lines as $line) {
                 $rendered .= "\n" . ($line === '' ? '' : '    ' . $line);
@@ -6939,11 +6939,18 @@ final class MarkdownWriter
         return $rendered;
     }
 
-    private function noteDefinitionStartsWithIndentedCodeBlock(AstNode $node): bool
+    private function noteDefinitionStartsWithDetachedBlock(AstNode $node): bool
     {
         $first = $node->children[0] ?? null;
+        if (!$first instanceof AstNode) {
+            return false;
+        }
 
-        return $first instanceof AstNode && $this->rendersIndentedCodeBlock($first);
+        if ($this->rendersIndentedCodeBlock($first)) {
+            return true;
+        }
+
+        return !in_array($first->type, ['paragraph', 'plain', 'bullet_list', 'ordered_list'], true);
     }
 
     /**
