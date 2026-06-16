@@ -17381,10 +17381,111 @@ final class XmlHtmlDom
             ];
         }
 
-        return [
+        $summary = [
             'list' => $name === 'menu' ? 'menu' : 'unordered',
             'markerType' => self::attributeOrNull($element, 'type'),
         ];
+
+        return $name === 'menu'
+            ? $summary + self::menuCommandListSummary($element)
+            : $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function menuCommandListSummary(\DOMElement $menu): array
+    {
+        $items = [];
+        $commandControls = [];
+
+        foreach (self::childHtmlElements($menu, 'li') as $index => $item) {
+            $commands = self::menuItemCommandControlSummaries($item);
+            $items[] = [
+                'index' => $index,
+                'text' => self::normalizedText($item),
+                'commandControlCount' => count($commands),
+                'commandLabels' => array_values(array_map(
+                    static fn (array $command): string => (string) ($command['label'] ?? ''),
+                    $commands
+                )),
+                'commands' => $commands,
+            ];
+            array_push($commandControls, ...$commands);
+        }
+
+        return [
+            'menuReview' => 'command-list',
+            'menuItemCount' => count($items),
+            'menuCommandItemCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => (int) ($item['commandControlCount'] ?? 0) > 0
+            )),
+            'menuCommandControlCount' => count($commandControls),
+            'menuCommandLabels' => array_values(array_map(
+                static fn (array $command): string => (string) ($command['label'] ?? ''),
+                $commandControls
+            )),
+            'menuCommandControls' => $commandControls,
+            'menuItems' => $items,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function menuItemCommandControlSummaries(\DOMElement $item): array
+    {
+        $commands = [];
+        foreach ($item->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = self::htmlElementName($candidate);
+            if ($name === 'button') {
+                $type = self::buttonType($candidate);
+                $summary = [
+                    'tag' => 'button',
+                    'type' => $type,
+                    'id' => self::attributeOrNull($candidate, 'id'),
+                    'name' => self::attributeOrNull($candidate, 'name'),
+                    'value' => $candidate->getAttribute('value'),
+                    'label' => self::normalizedText($candidate),
+                    'disabled' => $candidate->hasAttribute('disabled'),
+                    'effectiveDisabled' => self::isEffectivelyDisabledFormControl($candidate),
+                    'submitButton' => self::isButtonSubmitButton($candidate),
+                ];
+
+                $commands[] = $summary + self::buttonCommandSummary($candidate);
+                continue;
+            }
+
+            if ($name !== 'input') {
+                continue;
+            }
+
+            $type = self::inputType($candidate);
+            if (!in_array($type, ['button', 'image', 'reset', 'submit'], true)) {
+                continue;
+            }
+
+            $value = $candidate->getAttribute('value');
+            $label = $value !== '' ? $value : self::attributeOrNull($candidate, 'alt');
+            $commands[] = [
+                'tag' => 'input',
+                'type' => $type,
+                'id' => self::attributeOrNull($candidate, 'id'),
+                'name' => self::attributeOrNull($candidate, 'name'),
+                'value' => $value,
+                'label' => $label,
+                'disabled' => $candidate->hasAttribute('disabled'),
+                'effectiveDisabled' => self::isEffectivelyDisabledFormControl($candidate),
+                'submitButton' => self::isInputSubmitterType($type),
+            ];
+        }
+
+        return $commands;
     }
 
     /**

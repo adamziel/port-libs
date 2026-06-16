@@ -4461,6 +4461,57 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(null, $invalidItem['value']);
         $t->same('<ol id="steps" reversed start="3" type="A"><li value="7">Inspect</li><li>Repair<ol start="-2" type="i"><li value="-1">Nested</li></ol></li></ol><ul id="bullets" type="square"><li>Loose</li></ul><menu id="actions"><li value="4">Action</li></menu><ol id="invalid" start="abc"><li value="bad">Invalid</li></ol>', $html);
     },
+    'summarizes html menu command controls for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<menu id="packet-actions" type="toolbar"><li><button id="open-panel" type="button" commandfor="review-panel" command="show-popover">Open panel</button></li>'
+                . '<li><input type="submit" name="decision" value="Approve"></li><li><button disabled>Publish</button></li><li><span>Informational note</span></li></menu>'
+                . '<aside id="review-panel" popover="manual">Panel</aside>',
+            'menu command review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/menu-command-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $menu = $summary[0];
+        $open = $menu['menuCommandControls'][0];
+        $approve = $menu['menuCommandControls'][1];
+        $publish = $menu['menuCommandControls'][2];
+
+        $t->same('menu', $menu['list']);
+        $t->same('toolbar', $menu['markerType']);
+        $t->same('command-list', $menu['menuReview']);
+        $t->same(4, $menu['menuItemCount']);
+        $t->same(3, $menu['menuCommandItemCount']);
+        $t->same(3, $menu['menuCommandControlCount']);
+        $t->same(['Open panel', 'Approve', 'Publish'], $menu['menuCommandLabels']);
+        $t->same('Open panel', $menu['menuItems'][0]['commandLabels'][0] ?? null);
+        $t->same(0, $menu['menuItems'][3]['commandControlCount']);
+
+        $t->same('button', $open['tag']);
+        $t->same('button', $open['type']);
+        $t->same('show-popover', $open['command']);
+        $t->same('review-panel', $open['commandFor']);
+        $t->same(true, $open['commandInvokesTarget']);
+        $t->same('popover', $open['commandTargetKind']);
+        $t->same('manual', $open['commandTarget']['popoverState'] ?? null);
+        $t->same(false, $open['submitButton']);
+
+        $t->same('input', $approve['tag']);
+        $t->same('submit', $approve['type']);
+        $t->same('decision', $approve['name']);
+        $t->same('Approve', $approve['label']);
+        $t->same(true, $approve['submitButton']);
+
+        $t->same(true, $publish['disabled']);
+        $t->same(true, $publish['effectiveDisabled']);
+        $t->same(true, $publish['submitButton']);
+        $t->same('<menu id="packet-actions" type="toolbar"><li><button command="show-popover" commandfor="review-panel" id="open-panel" type="button">Open panel</button></li><li><input name="decision" type="submit" value="Approve"></li><li><button disabled>Publish</button></li><li><span>Informational note</span></li></menu><aside id="review-panel" popover="manual">Panel</aside>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/menu-command-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html definition list term and description groups for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<dl id="glossary"><dt>Term <em>one</em></dt><dt>Alias</dt><dd>Definition <strong>primary</strong></dd><dd>Secondary note</dd><dt>Next</dt><dd><p>Nested text</p><dl><dt>Inner</dt><dd>Inside</dd></dl></dd></dl>'
