@@ -88,11 +88,17 @@ final class MarkdownReader
 
     private bool $nativeSpanInlineEnabled = false;
 
+    private bool $typographicSmartQuoteParsingEnabled;
+
     /**
-     * @param array{format?: string, extensions?: string|list<string>|array<string, bool|string>, literateHaskell?: bool, yamlMetadata?: bool, titleBlock?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool, sectionDivs?: bool, nativeSpans?: bool} $options
+     * @param array{format?: string, extensions?: string|list<string>|array<string, bool|string>, literateHaskell?: bool, yamlMetadata?: bool, titleBlock?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool, sectionDivs?: bool, nativeSpans?: bool, typographicSmartQuotes?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
+        $this->typographicSmartQuoteParsingEnabled = $this->readerBoolFlag(
+            $options['typographicSmartQuotes'] ?? false,
+            false
+        );
     }
 
     private function markdownExtensionEnabled(string $extension): bool
@@ -7416,7 +7422,7 @@ final class MarkdownReader
                     $meta['author'] = $authors;
                     $meta['authors'] = $authors;
                     $meta['authorInlines'] = array_map(
-                        fn (string $author): array => $this->parseInlines($author),
+                        fn (string $author): array => $this->metadataInlines([$author]),
                         $authors
                     );
                     continue;
@@ -7766,7 +7772,7 @@ final class MarkdownReader
             $meta['author'] = $authors;
             $meta['authors'] = $authors;
             $meta['authorInlines'] = array_map(
-                fn (string $author): array => $this->parseInlines($author),
+                fn (string $author): array => $this->metadataInlines([$author]),
                 $authors
             );
         }
@@ -7785,7 +7791,14 @@ final class MarkdownReader
      */
     private function metadataInlines(array $lines): array
     {
-        return $this->parseInlines(implode("\n", $lines));
+        $previous = $this->typographicSmartQuoteParsingEnabled;
+        $this->typographicSmartQuoteParsingEnabled = false;
+
+        try {
+            return $this->parseInlines(implode("\n", $lines));
+        } finally {
+            $this->typographicSmartQuoteParsingEnabled = $previous;
+        }
     }
 
     /**
@@ -22187,6 +22200,13 @@ final class MarkdownReader
      */
     private function tryParseSmartQuote(string $text, int $offset): ?array
     {
+        if ($this->typographicSmartQuoteParsingEnabled) {
+            $typographic = $this->tryParseTypographicSmartQuote($text, $offset);
+            if ($typographic !== null) {
+                return $typographic;
+            }
+        }
+
         $delimiter = $text[$offset] ?? '';
         if ($delimiter !== '"' && $delimiter !== "'") {
             return null;
@@ -22209,6 +22229,111 @@ final class MarkdownReader
             ),
             'next' => $end + 1,
         ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseTypographicSmartQuote(string $text, int $offset): ?array
+    {
+        $open = substr($text, $offset, 3);
+        $pairs = [
+            "\u{201C}" => ["\u{201D}", 'double'],
+            "\u{2018}" => ["\u{2019}", 'single'],
+        ];
+
+        if (!isset($pairs[$open]) || !$this->canOpenTypographicSmartQuote($text, $offset, $open)) {
+            return null;
+        }
+
+        [$close, $kind] = $pairs[$open];
+        $contentOffset = $offset + strlen($open);
+        $end = $this->findClosingTypographicSmartQuote($text, $contentOffset, $close);
+        if ($end === null || $end === $contentOffset) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode(
+                'quoted',
+                ['kind' => $kind],
+                $this->parseInlines(substr($text, $contentOffset, $end - $contentOffset))
+            ),
+            'next' => $end + strlen($close),
+        ];
+    }
+
+    private function canOpenTypographicSmartQuote(string $text, int $offset, string $open): bool
+    {
+        if ($this->isEscapedInlinePosition($text, $offset)) {
+            return false;
+        }
+
+        $after = substr($text, $offset + strlen($open));
+        if ($after === '' || preg_match('/\A\s/u', $after) === 1) {
+            return false;
+        }
+
+        return !$this->hasWordCharacterBeforeOffset($text, $offset);
+    }
+
+    private function findClosingTypographicSmartQuote(string $text, int $offset, string $close): ?int
+    {
+        $length = strlen($text);
+        $closeLength = strlen($close);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($text[$cursor] === '`') {
+                $tickCount = $this->countBackticks($text, $cursor);
+                $end = $this->findMatchingBacktickRun($text, $cursor + $tickCount, $tickCount);
+                if ($end !== null) {
+                    $cursor = $end + $tickCount - 1;
+                }
+                continue;
+            }
+
+            if (substr($text, $cursor, 2) === '^[' && !$this->isEscapedInlinePosition($text, $cursor)) {
+                $end = $this->findClosingInlineNoteBracket($text, $cursor + 2);
+                if ($end !== null) {
+                    $cursor = $end;
+                }
+                continue;
+            }
+
+            if (
+                substr($text, $cursor, $closeLength) === $close
+                && $this->canCloseTypographicSmartQuote($text, $cursor, $close)
+            ) {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    private function canCloseTypographicSmartQuote(string $text, int $offset, string $close): bool
+    {
+        if ($this->isEscapedInlinePosition($text, $offset)) {
+            return false;
+        }
+
+        if (preg_match('/\s\z/u', substr($text, 0, $offset)) === 1) {
+            return false;
+        }
+
+        if ($close === "\u{2019}") {
+            $beforeIsWord = preg_match('/[\pL\pN]\z/u', substr($text, 0, $offset)) === 1;
+            $afterIsWord = preg_match('/\A[\pL\pN]/u', substr($text, $offset + strlen($close))) === 1;
+            if ($beforeIsWord && $afterIsWord) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function canOpenSmartQuote(string $text, int $offset, string $delimiter): bool
