@@ -8485,6 +8485,85 @@ XML;
         $t->same(strlen(gzdeflate($font)), $byExtension['otf']['byteExposurePolicyCompressedByteLengths']['obfuscated-font-bytes-blocked']);
     },
 
+    'summarizes EPUB package inventory ZIP compression method buckets for review handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $chapter = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Compression buckets</h1></body></html>';
+        $navXml = '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Compression buckets</a></li></ol></nav></body></html>';
+        $cover = 'PNG-COVER';
+        $audio = 'AUDIO-UNSUPPORTED';
+        $note = 'review note';
+        $opfWithCompressionBuckets = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:package-compression-buckets</dc:identifier>
+    <dc:title>Package Compression Buckets</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="audio" href="audio/theme.mp3" media-type="audio/mpeg"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml, 'method' => 8],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithCompressionBuckets, 'method' => 8],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml, 'method' => 8],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => $chapter, 'method' => 8],
+            ['name' => 'EPUB/images/cover.png', 'data' => $cover, 'method' => 0],
+            ['name' => 'EPUB/audio/theme.mp3', 'data' => $audio, 'method' => 12],
+            ['name' => 'EPUB/notes/source.txt', 'data' => $note, 'method' => 0],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $byDirectory = [];
+        foreach ($inventory['directorySummaries'] as $directory) {
+            $byDirectory[$directory['directory']] = $directory;
+        }
+        $byExtension = [];
+        foreach ($inventory['extensionSummaries'] as $extension) {
+            $byExtension[$extension['extension'] ?? '(none)'] = $extension;
+        }
+        $deflatedBytes = strlen($epubContainerXml) + strlen($opfWithCompressionBuckets) + strlen($navXml) + strlen($chapter);
+        $deflatedCompressedBytes = strlen(gzdeflate($epubContainerXml))
+            + strlen(gzdeflate($opfWithCompressionBuckets))
+            + strlen(gzdeflate($navXml))
+            + strlen(gzdeflate($chapter));
+        $storedBytes = strlen(EpubPackage::EPUB_MIMETYPE) + strlen($cover) + strlen($note);
+
+        $t->same($inventory, $summary['wordpressImport']['packageInventory']);
+        $t->same([
+            'deflated' => 4,
+            'stored' => 3,
+            'unsupported' => 1,
+        ], $inventory['compressionMethodCounts']);
+        $t->same([
+            'deflated' => $deflatedBytes,
+            'stored' => $storedBytes,
+            'unsupported' => strlen($audio),
+        ], $inventory['compressionMethodByteLengths']);
+        $t->same([
+            'deflated' => $deflatedCompressedBytes,
+            'stored' => $storedBytes,
+            'unsupported' => strlen($audio),
+        ], $inventory['compressionMethodCompressedByteLengths']);
+        $t->same(['deflated' => 1], $byDirectory['META-INF']['compressionMethodCounts']);
+        $t->same(['deflated' => 3], $byDirectory['EPUB']['compressionMethodCounts']);
+        $t->same(['unsupported' => 1], $byDirectory['EPUB/audio']['compressionMethodCounts']);
+        $t->same(['stored' => 1], $byDirectory['EPUB/images']['compressionMethodCounts']);
+        $t->same(['stored' => 1], $byExtension['(none)']['compressionMethodCounts']);
+        $t->same(['deflated' => 2], $byExtension['xhtml']['compressionMethodCounts']);
+        $t->same($deflatedCompressedBytes, array_sum($inventory['compressionMethodCompressedByteLengths']) - $storedBytes - strlen($audio));
+        $t->same(strlen($audio), $byExtension['mp3']['compressionMethodByteLengths']['unsupported']);
+        $t->same(strlen($cover), $byExtension['png']['compressionMethodCompressedByteLengths']['stored']);
+        $t->same('unsupported', $inventory['byPackagePath']['EPUB/audio/theme.mp3']['compressionMethodName']);
+        $t->same('stored', $inventory['byPackagePath']['EPUB/images/cover.png']['compressionMethodName']);
+    },
+
     'summarizes EPUB reading order ZIP byte provenance for compact handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
         $chapter = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Readable</h1></body></html>';
         $locked = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Locked</h1></body></html>';

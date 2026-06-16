@@ -9084,6 +9084,9 @@ final class EpubPackage
         $resourceKindCounts = [];
         $resourceKindByteLengths = [];
         $resourceKindCompressedByteLengths = [];
+        $compressionMethodCounts = [];
+        $compressionMethodByteLengths = [];
+        $compressionMethodCompressedByteLengths = [];
         $byteExposurePolicyCounts = [];
         $byteExposurePolicyByteLengths = [];
         $byteExposurePolicyCompressedByteLengths = [];
@@ -9361,6 +9364,12 @@ final class EpubPackage
             }
 
             $provenance = self::zipEntryProvenance($entry);
+            $compressionMethodName = is_string($provenance['compressionMethodName'] ?? null)
+                ? $provenance['compressionMethodName']
+                : 'unknown';
+            $compressionMethodCounts[$compressionMethodName] = ($compressionMethodCounts[$compressionMethodName] ?? 0) + 1;
+            $compressionMethodByteLengths[$compressionMethodName] = ($compressionMethodByteLengths[$compressionMethodName] ?? 0) + $entry->uncompressedSize;
+            $compressionMethodCompressedByteLengths[$compressionMethodName] = ($compressionMethodCompressedByteLengths[$compressionMethodName] ?? 0) + $entry->compressedSize;
             if (($provenance['compressionSupported'] ?? false) !== true) {
                 ++$unsupportedCompressionMethodCount;
                 $unsupportedCompressionPartNames[$partName] = true;
@@ -9498,6 +9507,9 @@ final class EpubPackage
         ksort($resourceKindCounts, SORT_STRING);
         ksort($resourceKindByteLengths, SORT_STRING);
         ksort($resourceKindCompressedByteLengths, SORT_STRING);
+        ksort($compressionMethodCounts, SORT_STRING);
+        ksort($compressionMethodByteLengths, SORT_STRING);
+        ksort($compressionMethodCompressedByteLengths, SORT_STRING);
         ksort($byteExposurePolicyCounts, SORT_STRING);
         ksort($byteExposurePolicyByteLengths, SORT_STRING);
         ksort($byteExposurePolicyCompressedByteLengths, SORT_STRING);
@@ -9577,6 +9589,9 @@ final class EpubPackage
             'resourceKindCounts' => $resourceKindCounts,
             'resourceKindByteLengths' => $resourceKindByteLengths,
             'resourceKindCompressedByteLengths' => $resourceKindCompressedByteLengths,
+            'compressionMethodCounts' => $compressionMethodCounts,
+            'compressionMethodByteLengths' => $compressionMethodByteLengths,
+            'compressionMethodCompressedByteLengths' => $compressionMethodCompressedByteLengths,
             'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'byteExposurePolicyByteLengths' => $byteExposurePolicyByteLengths,
             'byteExposurePolicyCompressedByteLengths' => $byteExposurePolicyCompressedByteLengths,
@@ -11992,6 +12007,9 @@ final class EpubPackage
             'blockedEntryCount' => 0,
             'roleCounts' => [],
             'resourceKindCounts' => [],
+            'compressionMethodCounts' => [],
+            'compressionMethodByteLengths' => [],
+            'compressionMethodCompressedByteLengths' => [],
             'byteExposurePolicyCounts' => [],
             'byteExposurePolicyByteLengths' => [],
             'byteExposurePolicyCompressedByteLengths' => [],
@@ -12034,6 +12052,15 @@ final class EpubPackage
             ++$summary['unsupportedCompressionMethodCount'];
         }
 
+        $compressionMethodName = is_string($entry['compressionMethodName'] ?? null) && $entry['compressionMethodName'] !== ''
+            ? $entry['compressionMethodName']
+            : 'unknown';
+        $summary['compressionMethodCounts'][$compressionMethodName] = ($summary['compressionMethodCounts'][$compressionMethodName] ?? 0) + 1;
+        $summary['compressionMethodByteLengths'][$compressionMethodName] = ($summary['compressionMethodByteLengths'][$compressionMethodName] ?? 0)
+            + (int) ($entry['byteLength'] ?? 0);
+        $summary['compressionMethodCompressedByteLengths'][$compressionMethodName] = ($summary['compressionMethodCompressedByteLengths'][$compressionMethodName] ?? 0)
+            + (int) ($entry['compressedByteLength'] ?? 0);
+
         if (($entry['canExposeBytes'] ?? false) === true) {
             ++$summary['exposableEntryCount'];
         } else {
@@ -12074,6 +12101,9 @@ final class EpubPackage
         foreach ($summaries as $key => $summary) {
             ksort($summary['roleCounts'], SORT_STRING);
             ksort($summary['resourceKindCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            ksort($summary['compressionMethodByteLengths'], SORT_STRING);
+            ksort($summary['compressionMethodCompressedByteLengths'], SORT_STRING);
             ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
             ksort($summary['byteExposurePolicyByteLengths'], SORT_STRING);
             ksort($summary['byteExposurePolicyCompressedByteLengths'], SORT_STRING);
