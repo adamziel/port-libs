@@ -1,0 +1,154 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\WordPressBlockWriter;
+
+$listType = static fn (string $marker): string => $marker === '- ' ? 'bullet_list' : 'ordered_list';
+
+$findFirstNode = null;
+$findFirstNode = static function (AstNode $node, string $type) use (&$findFirstNode): AstNode {
+    if ($node->type === $type) {
+        return $node;
+    }
+
+    foreach ($node->children as $child) {
+        $match = $findFirstNode($child, $type);
+        if ($match->type === $type) {
+            return $match;
+        }
+    }
+
+    return new AstNode('missing');
+};
+
+$collectTypes = null;
+$collectTypes = static function (AstNode $node) use (&$collectTypes): array {
+    $types = [$node->type];
+    foreach ($node->children as $child) {
+        array_push($types, ...$collectTypes($child));
+    }
+
+    return $types;
+};
+
+$codeMarkerCases = [
+    'in text' => [
+        'source' => 'If `(1) x`, then `2`',
+        'codes' => ['(1) x', '2'],
+        'text' => 'If , then ',
+    ],
+    'hash marker at start' => [
+        'source' => '`#. x`',
+        'codes' => ['#. x'],
+        'text' => '',
+    ],
+    'bullet marker at start' => [
+        'source' => '`- x`',
+        'codes' => ['- x'],
+        'text' => '',
+    ],
+    'hash marker after literal backticks' => [
+        'source' => '`x``#. x`',
+        'codes' => ['x``#. x'],
+        'text' => '',
+    ],
+    'bullet marker after literal backticks' => [
+        'source' => '`x``- x`',
+        'codes' => ['x``- x'],
+        'text' => '',
+    ],
+];
+
+$blankNestedCases = [
+    'bullet then bullet bullet' => ['- ', '- ', '- '],
+    'bullet then ordered bullet' => ['- ', '1. ', '- '],
+    'ordered then bullet ordered' => ['1. ', '- ', '1. '],
+    'ordered then ordered bullet' => ['1. ', '1. ', '- '],
+];
+
+$tests = [];
+
+foreach (['- ', '1. '] as $marker) {
+    foreach ($codeMarkerCases as $name => $case) {
+        $tests["maps upstream inline code list marker literal {$marker}{$name}"] =
+            static function (TestRunner $t) use ($case, $collectTypes, $findFirstNode, $listType, $marker): void {
+                $document = (new MarkdownReader())->read($marker . $case['source']);
+                $list = $document->children[0] ?? new AstNode('missing');
+                $item = $list->children[0] ?? new AstNode('missing');
+                $codes = array_values(array_filter(
+                    $item->children,
+                    static fn (AstNode $node): bool => $node->type === 'code'
+                ));
+                $blocks = (new WordPressBlockWriter())->write($document);
+
+                $t->same($listType($marker), $list->type);
+                $t->same(1, count($list->children));
+                $t->same($case['source'], $item->attr('text'));
+                $t->same(false, in_array('bullet_list', array_slice($collectTypes($item), 1), true));
+                $t->same(false, in_array('ordered_list', array_slice($collectTypes($item), 1), true));
+                $t->same($case['codes'], array_map(static fn (AstNode $node): string => $node->attr('text'), $codes));
+                foreach ($case['codes'] as $codeText) {
+                    $t->contains('<code>' . htmlspecialchars($codeText, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</code>', $blocks);
+                }
+
+                if ($case['text'] !== '') {
+                    $t->same('code', $findFirstNode($item, 'code')->type);
+                    $t->contains('then', $blocks);
+                }
+            };
+    }
+}
+
+foreach ($blankNestedCases as $name => $markers) {
+    $tests["maps upstream blank-line inline code list marker nesting {$name}"] =
+        static function (TestRunner $t) use ($listType, $markers): void {
+            [$outerMarker, $middleMarker, $innerMarker] = $markers;
+            $document = (new MarkdownReader())->read(implode("\n", [
+                $outerMarker . '`text',
+                '',
+                '    ' . $middleMarker . 'y',
+                '',
+                '    ' . $innerMarker . 'x`',
+            ]));
+            $outer = $document->children[0] ?? new AstNode('missing');
+            $outerItem = $outer->children[0] ?? new AstNode('missing');
+            $nestedLists = array_values(array_filter(
+                $outerItem->children,
+                static fn (AstNode $node): bool => in_array($node->type, ['bullet_list', 'ordered_list'], true)
+            ));
+
+            $t->same($listType($outerMarker), $outer->type);
+            $t->same('paragraph', ($outerItem->children[0] ?? new AstNode('missing'))->type);
+            $t->same('`text', ($outerItem->children[0] ?? new AstNode('missing'))->attr('text'));
+
+            if ($middleMarker === $innerMarker) {
+                $grouped = $nestedLists[0] ?? new AstNode('missing');
+                $t->same(1, count($nestedLists));
+                $t->same($listType($middleMarker), $grouped->type);
+                $t->same(2, count($grouped->children));
+                $t->same('y', ($grouped->children[0] ?? new AstNode('missing'))->attr('text'));
+                $t->same('x`', ($grouped->children[1] ?? new AstNode('missing'))->attr('text'));
+
+                return;
+            }
+
+            $middle = $nestedLists[0] ?? new AstNode('missing');
+            $inner = $nestedLists[1] ?? new AstNode('missing');
+
+            $t->same(2, count($nestedLists));
+            $t->same($listType($middleMarker), $middle->type);
+            $t->same('y', ($middle->children[0] ?? new AstNode('missing'))->attr('text'));
+            $t->same($listType($innerMarker), $inner->type);
+            $t->same('x`', ($inner->children[0] ?? new AstNode('missing'))->attr('text'));
+        };
+}
+
+$tests['records upstream inline code list marker mapped-case count'] =
+    static function (TestRunner $t) use ($codeMarkerCases, $blankNestedCases): void {
+        $t->same(14, (2 * count($codeMarkerCases)) + count($blankNestedCases));
+    };
+
+return $tests;
