@@ -210,11 +210,8 @@ final class MarkdownReader
     private function markdownFormatBase(): ?string
     {
         $format = $this->options['format'] ?? null;
-        if (!is_string($format) || trim($format) === '') {
-            return null;
-        }
 
-        return MarkdownFormatProfile::canonicalFormat($format);
+        return MarkdownFormatProfile::canonicalMarkdownFormat($format);
     }
 
     /**
@@ -228,51 +225,11 @@ final class MarkdownReader
         }
 
         $overrides = [];
-        $suffix = $this->markdownFormatExtensionSuffix(strtolower(trim($format)));
-        if (preg_match_all('/([+-])([A-Za-z0-9_]+)/', $suffix, $matches, PREG_SET_ORDER) !== false) {
-            foreach ($matches as $match) {
-                $overrides[$this->normalizeMarkdownExtensionName($match[2])] = $match[1] === '+';
-            }
+        foreach (MarkdownFormatProfile::markdownExtensionOverrides($format) as $extension => $enabled) {
+            $overrides[$this->normalizeMarkdownExtensionName($extension)] = $enabled;
         }
 
         return $overrides;
-    }
-
-    private function markdownFormatExtensionSuffix(string $format): string
-    {
-        $candidates = [
-            'markdown_github',
-            'markdown-github',
-            'markdown_phpextra',
-            'markdown-php-extra',
-            'markdown_strict',
-            'markdown-strict',
-            'markdown_mmd',
-            'markdown-mmd',
-            'commonmark_x',
-            'commonmark-x',
-            'commonmark',
-            'markdown',
-            'pandoc',
-            'gfm',
-            'md',
-        ];
-
-        foreach ($candidates as $candidate) {
-            if ($format === $candidate) {
-                return '';
-            }
-
-            if (str_starts_with($format, $candidate . '+') || str_starts_with($format, $candidate . '-')) {
-                return substr($format, strlen($candidate));
-            }
-        }
-
-        $plus = strpos($format, '+');
-        $minus = strpos($format, '-');
-        $positions = array_filter([$plus, $minus], static fn (int|false $position): bool => $position !== false);
-
-        return $positions === [] ? '' : substr($format, min($positions));
     }
 
     private function normalizeMarkdownExtensionName(string $extension): string

@@ -5598,24 +5598,7 @@ final class MarkdownWriter
 
     private function formatBase(string $format): ?string
     {
-        $format = strtolower(trim($format));
-        if ($format === '') {
-            return null;
-        }
-
-        if (MarkdownFormatProfile::rawFamily($format) === 'markdown') {
-            return MarkdownFormatProfile::canonicalFormat($format);
-        }
-
-        $parts = preg_split('/(?=[+-])/', $format, 2) ?: [$format];
-        $base = str_replace('-', '_', ltrim((string) ($parts[0] ?? ''), '+'));
-        $base = match ($base) {
-            'markdown+github' => 'markdown_github',
-            'markdown+strict' => 'markdown_strict',
-            default => $base,
-        };
-
-        return $base === '' ? null : $base;
+        return MarkdownFormatProfile::canonicalMarkdownFormat($format);
     }
 
     /**
@@ -5628,49 +5611,7 @@ final class MarkdownWriter
             return [];
         }
 
-        $format = strtolower(trim((string) $format));
-        $base = $this->writerFormatBase();
-        $remainder = $format;
-        if ($base !== null) {
-            foreach ($this->writerFormatBaseAliases($base) as $alias) {
-                if (
-                    $format === $alias
-                    || str_starts_with($format, $alias . '+')
-                    || str_starts_with($format, $alias . '-')
-                ) {
-                    $remainder = substr($format, strlen($alias));
-                    break;
-                }
-            }
-        }
-
-        preg_match_all('/([+-])([A-Za-z0-9_-]+)/', $remainder, $matches, PREG_SET_ORDER);
-        $overrides = [];
-        foreach ($matches as $match) {
-            $overrides[$match[2]] = $match[1] === '+';
-        }
-
-        return $overrides;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function writerFormatBaseAliases(string $base): array
-    {
-        $aliases = match ($base) {
-            'gfm' => ['markdown_github', 'markdown-github', 'gfm'],
-            'commonmark_x' => ['commonmark_x', 'commonmark-x'],
-            'markdown_mmd' => ['markdown_mmd', 'markdown-mmd'],
-            'markdown_phpextra' => ['markdown_phpextra', 'markdown-php-extra'],
-            'markdown_strict' => ['markdown_strict', 'markdown-strict'],
-            'markdown' => ['markdown', 'pandoc', 'md'],
-            default => [$base, str_replace('_', '-', $base)],
-        };
-
-        usort($aliases, static fn (string $left, string $right): int => strlen($right) <=> strlen($left));
-
-        return array_values(array_unique($aliases));
+        return MarkdownFormatProfile::markdownExtensionOverrides($format);
     }
 
     /**

@@ -37,6 +37,17 @@ final class MarkdownFormatProfile
         'commonmark-x' => 'commonmark_x',
     ];
 
+    /** @var array<string, string> */
+    private const PLUS_FORMAT_ALIASES = [
+        'markdown+github' => 'gfm',
+        'markdown+strict' => 'markdown_strict',
+        'markdown+mmd' => 'markdown_mmd',
+        'markdown+multimarkdown' => 'markdown_mmd',
+        'markdown+php_extra' => 'markdown_phpextra',
+        'markdown+php-extra' => 'markdown_phpextra',
+        'markdown+phpextra' => 'markdown_phpextra',
+    ];
+
     /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool}> */
     private const DEFAULTS = [
         'markdown' => [
@@ -99,26 +110,16 @@ final class MarkdownFormatProfile
 
     public static function canonicalFormat(mixed $format): string
     {
+        return self::canonicalMarkdownFormat($format) ?? 'markdown';
+    }
+
+    public static function canonicalMarkdownFormat(mixed $format): ?string
+    {
         if (!is_scalar($format)) {
-            return 'markdown';
+            return null;
         }
 
-        $normalized = strtolower(trim((string) $format));
-        if ($normalized === '') {
-            return 'markdown';
-        }
-
-        foreach (self::FORMAT_CANDIDATES as $candidate) {
-            if (
-                $normalized === $candidate
-                || str_starts_with($normalized, $candidate . '+')
-                || str_starts_with($normalized, $candidate . '-')
-            ) {
-                return self::FORMAT_ALIASES[$candidate] ?? $candidate;
-            }
-        }
-
-        return 'markdown';
+        return self::markdownFormatParts($format)['base'];
     }
 
     public static function rawFamily(string $format): ?string
@@ -135,17 +136,80 @@ final class MarkdownFormatProfile
             return 'tex';
         }
 
-        foreach (self::FORMAT_CANDIDATES as $candidate) {
-            if (
-                $normalized === $candidate
-                || str_starts_with($normalized, $candidate . '+')
-                || str_starts_with($normalized, $candidate . '-')
-            ) {
-                return 'markdown';
-            }
+        if (self::canonicalMarkdownFormat($format) !== null) {
+            return 'markdown';
         }
 
         return null;
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    public static function markdownExtensionOverrides(mixed $format): array
+    {
+        $parts = self::markdownFormatParts($format);
+        $suffix = $parts['suffix'];
+        if ($suffix === '') {
+            return [];
+        }
+
+        if (preg_match_all('/([+-])([A-Za-z0-9_]+)/', $suffix, $matches, PREG_SET_ORDER) === false) {
+            return [];
+        }
+
+        $overrides = [];
+        foreach ($matches as $match) {
+            $overrides[strtolower($match[2])] = $match[1] === '+';
+        }
+
+        return $overrides;
+    }
+
+    /**
+     * @return array{base: ?string, suffix: string}
+     */
+    private static function markdownFormatParts(mixed $format): array
+    {
+        if (!is_scalar($format)) {
+            return ['base' => null, 'suffix' => ''];
+        }
+
+        $normalized = strtolower(trim((string) $format));
+        if ($normalized === '') {
+            return ['base' => null, 'suffix' => ''];
+        }
+
+        foreach (self::PLUS_FORMAT_ALIASES as $alias => $canonical) {
+            if ($normalized === $alias) {
+                return ['base' => $canonical, 'suffix' => ''];
+            }
+
+            foreach (['+', '-'] as $delimiter) {
+                $prefix = $alias . $delimiter;
+                if (str_starts_with($normalized, $prefix)) {
+                    return ['base' => $canonical, 'suffix' => substr($normalized, strlen($alias))];
+                }
+            }
+        }
+
+        foreach (self::FORMAT_CANDIDATES as $candidate) {
+            if ($normalized === $candidate) {
+                return ['base' => self::FORMAT_ALIASES[$candidate] ?? $candidate, 'suffix' => ''];
+            }
+
+            foreach (['+', '-'] as $delimiter) {
+                $prefix = $candidate . $delimiter;
+                if (str_starts_with($normalized, $prefix)) {
+                    return [
+                        'base' => self::FORMAT_ALIASES[$candidate] ?? $candidate,
+                        'suffix' => substr($normalized, strlen($candidate)),
+                    ];
+                }
+            }
+        }
+
+        return ['base' => null, 'suffix' => ''];
     }
 
     /**

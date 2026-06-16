@@ -197,14 +197,17 @@ $allFeatureFormats = [
     'markdown' => 'markdown',
     'pandoc' => 'pandoc',
     'commonmark_x' => 'commonmark_x',
+    'commonmark-x' => 'commonmark-x',
 ];
 
-$strictFormats = ['markdown_strict', 'commonmark'];
-$gfmFormats = ['gfm', 'markdown_github'];
+$strictFormats = ['markdown_strict', 'markdown-strict', 'markdown+strict', 'commonmark'];
+$gfmFormats = ['gfm', 'markdown_github', 'markdown-github', 'markdown+github'];
 $gfmEnabled = ['strikeout', 'emoji', 'bare uri'];
 $gfmDisabled = array_values(array_diff(array_keys($featureProbes), $gfmEnabled));
+$phpExtraFormats = ['markdown_phpextra', 'markdown-php-extra', 'markdown+php_extra', 'markdown+php-extra', 'markdown+phpextra'];
 $phpExtraEnabled = ['bracketed span', 'inline code attributes'];
 $phpExtraDisabled = array_values(array_diff(array_keys($featureProbes), $phpExtraEnabled));
+$mmdFormats = ['markdown_mmd', 'markdown-mmd', 'markdown+mmd', 'markdown+multimarkdown'];
 $mmdEnabled = ['citation', 'dollar math', 'bracketed span', 'inline code attributes'];
 $mmdDisabled = array_values(array_diff(array_keys($featureProbes), $mmdEnabled));
 
@@ -219,7 +222,7 @@ return [
                 }
             }
 
-            $t->same(52, $mapped);
+            $t->same(65, $mapped);
         },
     'maps upstream strict and commonmark flavor profiles with pandoc extensions literal' =>
         static function (TestRunner $t) use ($strictFormats, $featureProbes, $assertAbsent): void {
@@ -231,7 +234,7 @@ return [
                 }
             }
 
-            $t->same(26, $mapped);
+            $t->same(52, $mapped);
         },
     'maps upstream gfm and github markdown flavor profile extension split' =>
         static function (TestRunner $t) use ($gfmFormats, $gfmEnabled, $gfmDisabled, $assertPresent, $assertAbsent): void {
@@ -247,29 +250,33 @@ return [
                 }
             }
 
-            $t->same(26, $mapped);
+            $t->same(52, $mapped);
         },
     'maps upstream php extra and multimarkdown flavor profile extension split' =>
-        static function (TestRunner $t) use ($phpExtraEnabled, $phpExtraDisabled, $mmdEnabled, $mmdDisabled, $assertPresent, $assertAbsent): void {
+        static function (TestRunner $t) use ($phpExtraFormats, $phpExtraEnabled, $phpExtraDisabled, $mmdFormats, $mmdEnabled, $mmdDisabled, $assertPresent, $assertAbsent): void {
             $mapped = 0;
-            foreach ($phpExtraEnabled as $feature) {
-                $assertPresent($t, 'markdown_phpextra', $feature);
-                $mapped++;
+            foreach ($phpExtraFormats as $format) {
+                foreach ($phpExtraEnabled as $feature) {
+                    $assertPresent($t, $format, $feature);
+                    $mapped++;
+                }
+                foreach ($phpExtraDisabled as $feature) {
+                    $assertAbsent($t, $format, $feature);
+                    $mapped++;
+                }
             }
-            foreach ($phpExtraDisabled as $feature) {
-                $assertAbsent($t, 'markdown_phpextra', $feature);
-                $mapped++;
-            }
-            foreach ($mmdEnabled as $feature) {
-                $assertPresent($t, 'markdown_mmd', $feature);
-                $mapped++;
-            }
-            foreach ($mmdDisabled as $feature) {
-                $assertAbsent($t, 'markdown_mmd', $feature);
-                $mapped++;
+            foreach ($mmdFormats as $format) {
+                foreach ($mmdEnabled as $feature) {
+                    $assertPresent($t, $format, $feature);
+                    $mapped++;
+                }
+                foreach ($mmdDisabled as $feature) {
+                    $assertAbsent($t, $format, $feature);
+                    $mapped++;
+                }
             }
 
-            $t->same(26, $mapped);
+            $t->same(117, $mapped);
         },
     'maps upstream markdown format suffix extension overrides' =>
         static function (TestRunner $t) use ($featureProbes, $assertPresent, $assertAbsent): void {
@@ -291,6 +298,6 @@ return [
         },
     'records upstream markdown flavor profile surge mapped-case count' =>
         static function (TestRunner $t): void {
-            $t->same(146, 52 + 26 + 26 + 26 + 16);
+            $t->same(302, 65 + 52 + 52 + 117 + 16);
         },
 ];

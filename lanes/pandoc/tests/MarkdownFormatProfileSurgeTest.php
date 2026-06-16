@@ -15,11 +15,23 @@ $profileCases = [
     ['format' => 'pandoc', 'canonical' => 'markdown', 'yamlMetadata' => true, 'titleBlock' => true, 'rawAttribute' => true, 'rawTex' => true],
     ['format' => 'commonmark', 'canonical' => 'commonmark', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
     ['format' => 'commonmark_x', 'canonical' => 'commonmark_x', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => true, 'rawTex' => true, 'writerRawTex' => true],
+    ['format' => 'commonmark-x', 'canonical' => 'commonmark_x', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => true, 'rawTex' => true, 'writerRawTex' => true],
     ['format' => 'gfm', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
     ['format' => 'markdown_github', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
+    ['format' => 'markdown-github', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
+    ['format' => 'markdown+github', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
     ['format' => 'markdown_mmd', 'canonical' => 'markdown_mmd', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
+    ['format' => 'markdown-mmd', 'canonical' => 'markdown_mmd', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
+    ['format' => 'markdown+mmd', 'canonical' => 'markdown_mmd', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
+    ['format' => 'markdown+multimarkdown', 'canonical' => 'markdown_mmd', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
     ['format' => 'markdown_phpextra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
+    ['format' => 'markdown-php-extra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
+    ['format' => 'markdown+php_extra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
+    ['format' => 'markdown+php-extra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
+    ['format' => 'markdown+phpextra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
     ['format' => 'markdown_strict', 'canonical' => 'markdown_strict', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
+    ['format' => 'markdown-strict', 'canonical' => 'markdown_strict', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
+    ['format' => 'markdown+strict', 'canonical' => 'markdown_strict', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
 ];
 
 $slug = static function (string $format): string {
@@ -284,7 +296,7 @@ foreach ($overrideCases as $case) {
 
 $tests['records upstream markdown format profile surge mapped-case count'] =
     static function (TestRunner $t) use ($profileCases, $overrideCases): void {
-        $t->same(82, count($profileCases) * 8 + count($overrideCases));
+        $t->same(178, count($profileCases) * 8 + count($overrideCases));
     };
 
 return $tests;
