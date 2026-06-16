@@ -18778,11 +18778,9 @@ final class MarkdownReader
                 $tickCount = $this->countBackticks($text, $offset);
                 $end = $this->findMatchingBacktickRun($text, $offset + $tickCount, $tickCount);
                 if ($end !== null && $end > $offset + $tickCount) {
-                    $code = substr($text, $offset + $tickCount, $end - $offset - $tickCount);
-                    $code = str_replace(["\r\n", "\r", "\n"], ' ', $code);
-                    if (strlen($code) >= 2 && $code[0] === ' ' && $code[strlen($code) - 1] === ' ' && trim($code) !== '') {
-                        $code = substr($code, 1, -1);
-                    }
+                    $code = $this->normalizeCodeSpanText(
+                        substr($text, $offset + $tickCount, $end - $offset - $tickCount)
+                    );
                     $next = $end + $tickCount;
                     $rawAttribute = $this->markdownExtensionEnabled('raw_attribute')
                         ? $this->tryParseRawInlineAttributeSpec($text, $next)
@@ -22635,6 +22633,21 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function normalizeCodeSpanText(string $code): string
+    {
+        $code = str_replace(["\r\n", "\r", "\n"], ' ', $code);
+        if (
+            strlen($code) >= 2
+            && $code[0] === ' '
+            && $code[strlen($code) - 1] === ' '
+            && strspn($code, ' ') !== strlen($code)
+        ) {
+            return substr($code, 1, -1);
+        }
+
+        return $code;
     }
 
     /**
