@@ -1788,9 +1788,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            $content = $line->children === []
-                ? $this->escapeText((string) $line->attr('text', ''))
-                : $this->renderInlines($line->children);
+            $content = $this->renderLineBlockLineContent($line);
             $content = $this->normalizeLineBlockIndentationMarkdown($content);
             $lines[] = rtrim($prefix . ($content === '' ? '' : ' ' . $content));
         }
@@ -1810,6 +1808,15 @@ final class MarkdownWriter
             $content,
             1
         ) ?? $content;
+    }
+
+    private function renderLineBlockLineContent(AstNode $line): string
+    {
+        if ($line->children === []) {
+            return $this->escapeText($this->nodeText($line));
+        }
+
+        return $this->renderInlines($line->children);
     }
 
     /**
