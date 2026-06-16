@@ -18244,6 +18244,9 @@ final class MarkdownReader
         if ($this->matchFencedDivOpening($line) !== null || $this->isFencedDivClosing($line, 3)) {
             return null;
         }
+        if (preg_match('/^\s{0,4}:{3,}/', $line) === 1) {
+            return null;
+        }
         if (preg_match('/^\s{0,4}~{3,}/', $line) === 1) {
             return null;
         }

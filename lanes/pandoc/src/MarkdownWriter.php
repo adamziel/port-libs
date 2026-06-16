@@ -1533,7 +1533,17 @@ final class MarkdownWriter
     private function definitionBodyNeedsDetachedMarker(AstNode $definition): bool
     {
         foreach ($definition->children as $child) {
-            return in_array($child->type, ['code_block', 'heading', 'line_block', 'table'], true);
+            return in_array($child->type, [
+                'code_block',
+                'div',
+                'heading',
+                'line_block',
+                'raw_block',
+                'raw_html',
+                'raw_markdown',
+                'raw_tex',
+                'table',
+            ], true);
         }
 
         return false;
