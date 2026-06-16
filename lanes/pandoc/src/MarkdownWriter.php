@@ -7066,6 +7066,7 @@ final class MarkdownWriter
             'emoji_shortcode', 'emoji_shortcodes' => 'emoji',
             'example_list', 'numbered_example', 'numbered_examples', 'numbered_example_list', 'numbered_example_lists' => 'example_lists',
             'fancy_list', 'fancy_ordered_list', 'fancy_ordered_lists' => 'fancy_lists',
+            'hard_line_break', 'hard_linebreak', 'hardlinebreak', 'hard_linebreaks', 'hardlinebreaks' => 'hard_line_breaks',
             'heading_attributes',
             'heading_attrs',
             'header_attribute' => 'header_attributes',
