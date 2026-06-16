@@ -88,12 +88,19 @@ final class MarkdownWriter
         $this->inlineDelimiterStack = [];
 
         $blocks = [];
+        $metadata = $document->attr('meta', []);
+        $yamlMetadataEnabled = $this->yamlMetadataEnabled();
         $titleMetadataBlock = $this->titleBlockEnabled()
-            ? $this->renderTitleMetadataBlock($document->attr('meta', []))
+            ? $this->renderTitleMetadataBlock($metadata, !$yamlMetadataEnabled)
             : null;
-        if ($titleMetadataBlock !== null && $titleMetadataBlock !== []) {
-            $blocks[] = implode("\n", $titleMetadataBlock);
-        } elseif ($titleMetadataBlock === null && $this->yamlMetadataEnabled()) {
+        if (
+            $yamlMetadataEnabled
+            && (
+                $titleMetadataBlock === null
+                || $this->explicitYamlMetadataRequested()
+                || $this->titleBlockMetadataNeedsYaml($metadata)
+            )
+        ) {
             $this->yamlMetadataExplicitCollectionTags = $this->yamlMetadataExplicitCollectionTags(
                 $document->attr('yamlMetadataCollectionProvenance', [])
             );
@@ -106,10 +113,12 @@ final class MarkdownWriter
             $this->yamlMetadataTrailingCommentsByPath = $this->yamlMetadataTrailingCommentsByPath(
                 $document->attr('yamlMetadataCommentProvenance', [])
             );
-            $metadataBlock = $this->renderYamlMetadataBlock($document->attr('meta', []));
+            $metadataBlock = $this->renderYamlMetadataBlock($metadata);
             if ($metadataBlock !== []) {
                 $blocks[] = implode("\n", $metadataBlock);
             }
+        } elseif ($titleMetadataBlock !== null && $titleMetadataBlock !== []) {
+            $blocks[] = implode("\n", $titleMetadataBlock);
         }
 
         foreach ($document->children as $index => $node) {
@@ -158,13 +167,13 @@ final class MarkdownWriter
     /**
      * @return list<string>|null Null means metadata needs YAML or should be omitted when YAML is disabled.
      */
-    private function renderTitleMetadataBlock(mixed $metadata): ?array
+    private function renderTitleMetadataBlock(mixed $metadata, bool $joinAuthors = false): ?array
     {
         if (!is_array($metadata)) {
             return [];
         }
 
-        $fields = $this->titleBlockMetadataFields($metadata);
+        $fields = $this->titleBlockMetadataFields($metadata, $joinAuthors);
         if ($fields === null) {
             return null;
         }
@@ -204,18 +213,14 @@ final class MarkdownWriter
      * @param array<string|int, mixed> $metadata
      * @return array{0:list<string>, 1:list<string>, 2:list<string>}|null
      */
-    private function titleBlockMetadataFields(array $metadata): ?array
+    private function titleBlockMetadataFields(array $metadata, bool $joinAuthors): ?array
     {
-        if (!$this->hasOnlyTitleBlockMetadataFields($metadata)) {
-            return null;
-        }
-
         $titleLines = $this->titleBlockScalarFieldLines($metadata, 'title', 'titleInlines');
         if ($titleLines === null) {
             return null;
         }
 
-        $authorLines = $this->titleBlockAuthorFieldLines($metadata);
+        $authorLines = $this->titleBlockAuthorFieldLines($metadata, $joinAuthors);
         if ($authorLines === null) {
             return null;
         }
@@ -256,6 +261,20 @@ final class MarkdownWriter
         return true;
     }
 
+    private function titleBlockMetadataNeedsYaml(mixed $metadata): bool
+    {
+        if (!is_array($metadata)) {
+            return false;
+        }
+
+        if (!$this->hasOnlyTitleBlockMetadataFields($metadata)) {
+            return true;
+        }
+
+        $author = $metadata['author'] ?? null;
+        return is_string($author) && str_contains($author, ';');
+    }
+
     /**
      * @param array<string|int, mixed> $metadata
      * @return list<string>|null
@@ -287,7 +306,7 @@ final class MarkdownWriter
      * @param array<string|int, mixed> $metadata
      * @return list<string>|null
      */
-    private function titleBlockAuthorFieldLines(array $metadata): ?array
+    private function titleBlockAuthorFieldLines(array $metadata, bool $joinAuthors): ?array
     {
         if (array_key_exists('authorInlines', $metadata)) {
             $authorInlines = $metadata['authorInlines'];
@@ -295,7 +314,7 @@ final class MarkdownWriter
                 return null;
             }
 
-            $lines = [];
+            $authors = [];
             foreach (array_values($authorInlines) as $author) {
                 if (!is_array($author) || !$this->allAstNodes(array_values($author))) {
                     return null;
@@ -306,10 +325,13 @@ final class MarkdownWriter
                     return null;
                 }
 
-                $lines[] = $authorLines[0];
+                $authorLine = trim($authorLines[0]);
+                if ($authorLine !== '') {
+                    $authors[] = $authorLine;
+                }
             }
 
-            return $lines;
+            return $joinAuthors && $authors !== [] ? [implode('; ', $authors)] : $authors;
         }
 
         $authors = $this->titleBlockAuthorValues($metadata);
@@ -320,14 +342,21 @@ final class MarkdownWriter
         $lines = [];
         foreach ($authors as $author) {
             $authorLines = $this->titleBlockContentLines($author);
-            if ($authorLines === null || count($authorLines) !== 1 || str_contains($authorLines[0], ';')) {
+            if ($authorLines === null || count($authorLines) !== 1) {
                 return null;
             }
 
-            $lines[] = $authorLines[0];
+            $authorLine = trim($authorLines[0]);
+            if (!$joinAuthors && str_contains($authorLine, ';')) {
+                return null;
+            }
+
+            if ($authorLine !== '') {
+                $lines[] = $authorLine;
+            }
         }
 
-        return $lines;
+        return $joinAuthors && $lines !== [] ? [implode('; ', $lines)] : $lines;
     }
 
     /**
@@ -336,24 +365,15 @@ final class MarkdownWriter
      */
     private function titleBlockAuthorValues(array $metadata): ?array
     {
-        $author = $metadata['author'] ?? null;
-        $authors = $metadata['authors'] ?? null;
-
-        if ($author === null && $authors === null) {
-            return [];
+        if (array_key_exists('author', $metadata)) {
+            return $this->titleBlockStringList($metadata['author']);
         }
 
-        $authorValues = $this->titleBlockStringList($author);
-        $authorsValues = $this->titleBlockStringList($authors);
-        if ($authorValues === null || $authorsValues === null) {
-            return null;
+        if (array_key_exists('authors', $metadata)) {
+            return $this->titleBlockStringList($metadata['authors']);
         }
 
-        if ($authorValues !== [] && $authorsValues !== [] && $authorValues !== $authorsValues) {
-            return null;
-        }
-
-        return $authorValues !== [] ? $authorValues : $authorsValues;
+        return [];
     }
 
     /**
@@ -5953,6 +5973,17 @@ final class MarkdownWriter
     private function yamlMetadataEnabled(): bool
     {
         return MarkdownFormatProfile::yamlMetadataEnabled($this->options, false);
+    }
+
+    private function explicitYamlMetadataRequested(): bool
+    {
+        if (array_key_exists('yamlMetadata', $this->options)) {
+            return MarkdownFormatProfile::yamlMetadataEnabled($this->options, false);
+        }
+
+        $overrides = MarkdownFormatProfile::markdownExtensionOverrides($this->options['format'] ?? null);
+
+        return ($overrides['yaml_metadata_block'] ?? false) === true;
     }
 
     private function titleBlockEnabled(): bool
