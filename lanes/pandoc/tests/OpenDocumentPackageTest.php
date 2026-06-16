@@ -3433,6 +3433,87 @@ XML;
         $t->same(true, $inventory['parts']['ObjectReplacements/preview.png']['objectReplacementPackagePart']);
         $t->same(1, count($summary['mediaParts']), 'object replacement sidecars must stay out of document media handoff');
     },
+    'reports compact ODT layout-cache sidecar as metadata-only package review data' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $layoutCacheBytes = 'LAYOUT-CACHE-BYTES';
+        $manifest = str_replace(
+            '</manifest:manifest>',
+            '  <manifest:file-entry manifest:media-type="application/binary" manifest:full-path="layout-cache" manifest:size="' . strlen($layoutCacheBytes) . '"/>' . "\n"
+            . '</manifest:manifest>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'layout-cache', 'data' => $layoutCacheBytes, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $layoutCaches = $summary['packageLayoutCaches'];
+        $layoutCache = $layoutCaches['items'][0];
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory'];
+
+        $t->same(1, $layoutCaches['count']);
+        $t->same(1, $layoutCaches['readableCount']);
+        $t->same(1, $layoutCaches['declaredCount']);
+        $t->same(0, $layoutCaches['undeclaredCount']);
+        $t->same(0, $layoutCaches['missingCount']);
+        $t->same(0, $layoutCaches['encryptedCount']);
+        $t->same(0, $layoutCaches['invalidMediaTypeCount']);
+        $t->same('layout-cache-package-bytes-blocked', $layoutCaches['byteExposurePolicy']);
+        $t->same('layout-cache-metadata-only', $layoutCaches['reviewPolicy']);
+
+        $t->same('layout-cache', $layoutCache['packagePath']);
+        $t->same('application/binary', $layoutCache['mediaType']);
+        $t->same(['application/binary', 'application/octet-stream'], $layoutCache['expectedMediaTypes']);
+        $t->same(true, $layoutCache['valid']);
+        $t->same(strlen($layoutCacheBytes), $layoutCache['byteLength']);
+        $t->same(sprintf('%08x', crc32($layoutCacheBytes)), $layoutCache['crc32']);
+        $t->same(false, $layoutCache['canExposeAsDocumentMedia']);
+        $t->same('layout-cache-package-bytes-blocked', $layoutCache['byteExposurePolicy']);
+        $t->same([], $layoutCache['issues']);
+
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+        $t->same(1, $summary['manifestReview']['layoutCachePartCount']);
+        $t->same(true, $reviewByPath['layout-cache']['layoutCachePackagePart']);
+        $t->same(false, $reviewByPath['layout-cache']['canExposeBytes']);
+        $t->same(null, $reviewByPath['layout-cache']['byteLength']);
+        $t->same(strlen($layoutCacheBytes), $reviewByPath['layout-cache']['storedByteLength']);
+        $t->same('layout-cache-package-bytes-blocked', $reviewByPath['layout-cache']['byteExposurePolicy']);
+        $t->same('layout-cache', $reviewByPath['layout-cache']['manifestMediaFamily']);
+        $t->same(1, $summary['manifestReview']['manifestMediaFamilyCounts']['layout-cache']);
+        $t->same(1, $inventory['layoutCachePartCount']);
+        $t->same(1, $inventory['roleCounts']['layout-cache']);
+        $t->same(['layout-cache', 'manifest-declared'], $inventory['parts']['layout-cache']['roles']);
+        $t->same(true, $inventory['parts']['layout-cache']['layoutCachePackagePart']);
+        $t->same(false, $inventory['parts']['layout-cache']['canExposeBytes']);
+
+        $missing = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest))->summarize()['packageLayoutCaches']['items'][0];
+        $t->same(false, $missing['exists']);
+        $t->same(['odf-layout-cache-missing-package-part'], $missing['issues']);
+
+        $invalidManifest = str_replace('manifest:media-type="application/binary"', 'manifest:media-type="image/png"', $manifest);
+        $invalid = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $invalidManifest,
+            extraParts: [
+                ['name' => 'layout-cache', 'data' => $layoutCacheBytes, 'compressionMethod' => 0],
+            ],
+        ))->summarize()['packageLayoutCaches']['items'][0];
+        $t->same(false, $invalid['valid']);
+        $t->same(['odf-layout-cache-invalid-media-type'], $invalid['issues']);
+
+        $undeclaredSummary = OpenDocumentPackage::fromPackage($buildOdtPackage(extraParts: [
+            ['name' => 'layout-cache', 'data' => $layoutCacheBytes, 'compressionMethod' => 0],
+        ]))->summarize();
+        $undeclared = $undeclaredSummary['packageLayoutCaches']['items'][0];
+        $t->same(false, $undeclared['declared']);
+        $t->same(true, $undeclared['undeclared']);
+        $t->same(['odf-layout-cache-undeclared-package-part'], $undeclared['issues']);
+        $t->same(['layout-cache', 'undeclared-package-entry'], $undeclaredSummary['packageInventory']['parts']['layout-cache']['roles']);
+    },
     'reports compact ODT RDF metadata sidecars as package review metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $rdfXml = <<<'XML'
 <rdf:RDF

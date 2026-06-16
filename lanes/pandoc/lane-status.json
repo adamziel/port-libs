@@ -47,15 +47,15 @@
   "mappedXmlHtmlDomJatsFundingBacklinkCases": 2,
   "xmlHtmlDomJatsFundingBacklinkAssertions": 126,
   "odfOdtShipReadiness": {
-    "date": "2026-06-15",
+    "date": "2026-06-16",
     "verdict": "ship-ready",
     "scope": "Native PHP ODF/ODT input import for OpenDocument text packages, including package manifest, styles/content ingestion, metadata, embedded media/objects, and downstream Markdown/WordPress writer handoff.",
     "upstreamFormatCases": 20,
     "upstreamFormatAssertions": 575,
-    "localMappedCases": 85,
-    "localFocusedAssertions": 6756,
-    "caseCoveragePercent": 425,
-    "assertionCoveragePercent": 1175,
+    "localMappedCases": 86,
+    "localFocusedAssertions": 7022,
+    "caseCoveragePercent": 430,
+    "assertionCoveragePercent": 1221.2,
     "localFocusedTestFiles": [
       "lanes/pandoc/tests/OdfOdtShipReadinessStatusTest.php",
       "lanes/pandoc/tests/OdfReaderTest.php",
@@ -63,27 +63,27 @@
       "lanes/pandoc/tests/OpenDocumentReaderTest.php",
       "lanes/pandoc/tests/OpenDocumentPackageTest.php"
     ],
-    "localFocusedTestCases": 236,
+    "localFocusedTestCases": 248,
     "verification": {
       "json": "jq empty lanes/pandoc/lane-status.json",
       "diffCheck": "git diff --check -- progress.md lanes/pandoc/lane-status.json",
       "focusedOdfOdtTests": {
         "command": "php tools/run-tests.php lanes/pandoc/tests/OdfOdtShipReadinessStatusTest.php lanes/pandoc/tests/OdfReaderTest.php lanes/pandoc/tests/OdtReaderTest.php lanes/pandoc/tests/OpenDocumentReaderTest.php lanes/pandoc/tests/OpenDocumentPackageTest.php",
         "files": 5,
-        "assertions": 6756,
+        "assertions": 7022,
         "failures": 0
       },
       "fullPandocTests": {
         "command": "php tools/run-tests.php lanes/pandoc/tests",
-        "files": 46,
-        "assertions": 86330,
+        "files": 195,
+        "assertions": 169995,
         "failures": 0
       }
     },
     "remainingCriticalGaps": [],
     "uncoveredUpstreamCriticalTests": [],
     "evidence": [
-      "Manifest/package ingestion covers mimetype, META-INF/manifest.xml, URI-encoded paths, directory declarations, raw ZIP name/order provenance, mimetype local-header placement and extra-field preflight, manifest encryption method summaries, manifest and local-header handoff ordering, media-type parameters, media-family classification including generic media type fallback from package paths, preferred-view-mode token diagnostics, custom attributes, declared sizes, encryption metadata and aggregate encryption review buckets, missing package parts, unsupported-compression bytes, thumbnails, signatures, Configurations2, scripts, RDF, object replacements, and embedded object packages.",
+      "Manifest/package ingestion covers mimetype, META-INF/manifest.xml, URI-encoded paths, directory declarations, raw ZIP name/order provenance, mimetype local-header placement and extra-field preflight, manifest encryption method summaries, manifest and local-header handoff ordering, media-type parameters, media-family classification including generic media type fallback from package paths, preferred-view-mode token diagnostics, custom attributes, declared sizes, encryption metadata and aggregate encryption review buckets, missing package parts, unsupported-compression bytes, thumbnails, signatures, Configurations2, scripts, RDF, object replacements, layout-cache package sidecars, and embedded object packages.",
       "Styles/content ingestion covers style diagnostics, list styles, headings, paragraphs, sections, tables, captions, annotations, fields, forms, indexes, metadata fields, settings, embedded images, MathML objects, charts, OLE placeholders, and Markdown/WordPress writer handoff.",
       "No external Pandoc, office suite, TeX, browser, Node, online service, live provider, or external validator is required for the readiness call."
     ],
@@ -517,8 +517,8 @@
   "mappedPdfStructureNamespaceCases": 1,
   "pdfStructureNamespaceAssertions": 9,
   "mappedOdfCompactObjectReplacementPackageCases": 1,
-  "mappedOdfReaderMetadataOnlySidecarPolicyCases": 4,
-  "odfReaderMetadataOnlySidecarPolicyAssertions": 39,
+  "mappedOdfReaderMetadataOnlySidecarPolicyCases": 5,
+  "odfReaderMetadataOnlySidecarPolicyAssertions": 128,
   "odfCompactObjectReplacementPackageAssertions": 47,
   "mappedDocxOpenXmlChartEmbeddedPackageCases": 1,
   "docxOpenXmlChartEmbeddedPackageAssertions": 58,

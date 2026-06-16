@@ -12198,6 +12198,109 @@ XML;
         $t->same(1, count($result['media']), 'object replacement sidecars must stay out of document media handoff');
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
     },
+    'reports ODT layout-cache sidecar as metadata-only package review data' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $layoutCacheBytes = 'LAYOUT-CACHE-BYTES';
+        $manifestWithLayoutCache = str_replace(
+            '</manifest:manifest>',
+            '  <manifest:file-entry manifest:full-path="layout-cache" manifest:media-type="application/binary" manifest:size="' . strlen($layoutCacheBytes) . '"/>' . "\n"
+            . '</manifest:manifest>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithLayoutCache, null, null, [
+            ['name' => 'layout-cache', 'data' => $layoutCacheBytes, 'compressionMethod' => 0],
+        ]));
+        $layoutCaches = $result['packageLayoutCaches'];
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestByPart[$item['part']] = $item;
+            }
+        }
+        $itemsByPart = [];
+        foreach ($layoutCaches['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+
+        $t->same($layoutCaches, $result['document']->attr('packageLayoutCaches'));
+        $t->same($layoutCaches, $result['metadata']['odfPackageLayoutCaches']);
+        $t->same($layoutCaches, $result['importReport']['packageLayoutCaches']);
+        $t->same(1, $layoutCaches['count']);
+        $t->same(1, $layoutCaches['readableCount']);
+        $t->same(1, $layoutCaches['declaredCount']);
+        $t->same(0, $layoutCaches['undeclaredCount']);
+        $t->same(0, $layoutCaches['missingCount']);
+        $t->same(0, $layoutCaches['encryptedCount']);
+        $t->same(0, $layoutCaches['invalidMediaTypeCount']);
+        $t->same(0, $layoutCaches['issueCount']);
+        $t->same('layout-cache-package-bytes-blocked', $layoutCaches['byteExposurePolicy']);
+        $t->same('layout-cache-metadata-only', $layoutCaches['reviewPolicy']);
+
+        $declared = $itemsByPart['layout-cache'];
+        $t->same('application/binary', $declared['mediaType']);
+        $t->same('application/binary', $declared['mediaTypeBase']);
+        $t->same(['application/binary', 'application/octet-stream'], $declared['expectedMediaTypes']);
+        $t->same(true, $declared['declared']);
+        $t->same(true, $declared['valid']);
+        $t->same(strlen($layoutCacheBytes), $declared['byteLength']);
+        $t->same(sprintf('%08x', crc32($layoutCacheBytes)), $declared['crc32']);
+        $t->same(false, $declared['canExposeAsDocumentMedia']);
+        $t->same('layout-cache-package-bytes-blocked', $declared['byteExposurePolicy']);
+        $t->same('layout-cache-metadata-only', $declared['reviewPolicy']);
+        $t->same([], $declared['issues']);
+
+        $manifestLayoutCache = $manifestByPart['layout-cache'];
+        $t->same(true, $manifestLayoutCache['layoutCachePackagePart']);
+        $t->same(false, $manifestLayoutCache['canExposeBytes']);
+        $t->same(null, $manifestLayoutCache['byteLength']);
+        $t->same(strlen($layoutCacheBytes), $manifestLayoutCache['storedByteLength']);
+        $t->same(null, $manifestLayoutCache['byteSha256']);
+        $t->same('layout-cache-package-bytes-blocked', $manifestLayoutCache['byteExposurePolicy']);
+        $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'));
+        $t->same(1, $provenance['layoutCachePartCount']);
+        $t->same(1, $provenance['roleCounts']['layout-cache']);
+        $t->same(['layout-cache', 'manifest-declared'], $provenance['parts']['layout-cache']['roles']);
+
+        $missingResult = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithLayoutCache));
+        $missing = $missingResult['packageLayoutCaches']['items'][0];
+        $t->same(false, $missing['exists']);
+        $t->same(['odf-layout-cache-missing-package-part'], $missing['issues']);
+        $t->same('layout-cache-package-bytes-blocked', $missing['byteExposurePolicy']);
+
+        $invalidManifest = str_replace('manifest:media-type="application/binary"', 'manifest:media-type="image/png"', $manifestWithLayoutCache);
+        $invalidResult = (new OdfReader())->readPackage($buildOdtPackage(null, $invalidManifest, null, null, [
+            ['name' => 'layout-cache', 'data' => $layoutCacheBytes, 'compressionMethod' => 0],
+        ]));
+        $invalid = $invalidResult['packageLayoutCaches']['items'][0];
+        $t->same(false, $invalid['valid']);
+        $t->same(['odf-layout-cache-invalid-media-type'], $invalid['issues']);
+        $t->same(['Pictures/hero.png'], array_column($invalidResult['media'], 'part'));
+
+        $encryptedManifest = str_replace(
+            '<manifest:file-entry manifest:full-path="layout-cache" manifest:media-type="application/binary" manifest:size="' . strlen($layoutCacheBytes) . '"/>',
+            '<manifest:file-entry manifest:full-path="layout-cache" manifest:media-type="application/binary" manifest:size="' . strlen($layoutCacheBytes) . '"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="layout-cache-checksum"/></manifest:file-entry>',
+            $manifestWithLayoutCache
+        );
+        $encryptedResult = (new OdfReader())->readPackage($buildOdtPackage(null, $encryptedManifest, null, null, [
+            ['name' => 'layout-cache', 'data' => $layoutCacheBytes, 'compressionMethod' => 0],
+        ]));
+        $encrypted = $encryptedResult['packageLayoutCaches']['items'][0];
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same(['odf-layout-cache-encrypted-package-part'], $encrypted['issues']);
+        $t->same('encrypted-resource-bytes-blocked', $encrypted['byteExposurePolicy']);
+
+        $undeclaredResult = (new OdfReader())->readPackage($buildOdtPackage(null, null, null, null, [
+            ['name' => 'layout-cache', 'data' => $layoutCacheBytes, 'compressionMethod' => 0],
+        ]));
+        $undeclared = $undeclaredResult['packageLayoutCaches']['items'][0];
+        $t->same(false, $undeclared['declared']);
+        $t->same(true, $undeclared['undeclared']);
+        $t->same('application/binary', $undeclared['mediaType']);
+        $t->same(['odf-layout-cache-undeclared-package-part'], $undeclared['issues']);
+        $t->same(['layout-cache', 'undeclared-package-entry'], $undeclaredResult['importReport']['manifest']['packageProvenance']['parts']['layout-cache']['roles']);
+    },
     'preserves ODT raw ZIP entry name provenance in package review' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $decodedName = "Pictures/caf\xc3\xa9.png";
         $rawName = "Pictures/caf\x82.png";
