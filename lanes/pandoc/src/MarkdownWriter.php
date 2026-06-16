@@ -1151,6 +1151,14 @@ final class MarkdownWriter
             return true;
         }
 
+        if (
+            ($node->type === 'bullet_list' || $node->type === 'ordered_list')
+            && !$this->markdownExtensionEnabled('task_lists')
+            && $this->htmlListHasTaskItems($node)
+        ) {
+            return true;
+        }
+
         if ($node->type === 'blockquote' && $this->hasHtmlOnlyAttributes($node)) {
             return true;
         }
@@ -1414,6 +1422,10 @@ final class MarkdownWriter
      */
     private function renderDefinitionList(AstNode $node, int $indent): array
     {
+        if (!$this->markdownExtensionEnabled('definition_lists')) {
+            return $this->renderHtmlBlockFallback($node, $indent);
+        }
+
         $lines = [];
         $prefix = str_repeat(' ', $indent);
 
@@ -3163,7 +3175,8 @@ final class MarkdownWriter
             'math' => '<span class="math ' . ($node->attr('display') === true ? 'display' : 'inline') . '">'
                 . $this->escapeHtml((string) $node->attr('text', ''))
                 . '</span>',
-            'citation', 'citation_group', 'note' => $this->escapeHtml($this->renderInline($node)),
+            'citation', 'citation_group' => $this->renderCitationHtmlInline($node),
+            'note' => $this->renderFootnoteHtmlInline($node),
             'raw_html_inline' => (string) $node->attr('text', $node->attr('html', '')),
             'raw_inline' => $this->isHtmlRawFormat(strtolower((string) $node->attr('format', '')))
                 ? (string) $node->attr('text', $node->attr('html', ''))
@@ -4706,6 +4719,10 @@ final class MarkdownWriter
 
     private function renderNoteReference(AstNode $node): string
     {
+        if (!$this->markdownExtensionEnabled('footnotes')) {
+            return $this->renderFootnoteHtmlInline($node);
+        }
+
         $label = $this->registerNoteLabel($node);
         $this->notes[] = [
             'label' => $label,
@@ -4757,6 +4774,15 @@ final class MarkdownWriter
 
     private function renderCitation(AstNode $node): string
     {
+        if (!$this->markdownExtensionEnabled('citations')) {
+            return $this->renderCitationHtmlInline($node);
+        }
+
+        return $this->citationMarkdown($node);
+    }
+
+    private function citationMarkdown(AstNode $node): string
+    {
         $explicit = $this->explicitCitationMarkdown($node);
         if ($explicit !== null) {
             return $explicit;
@@ -4785,6 +4811,15 @@ final class MarkdownWriter
 
     private function renderCitationGroup(AstNode $node): string
     {
+        if (!$this->markdownExtensionEnabled('citations')) {
+            return $this->renderCitationHtmlInline($node);
+        }
+
+        return $this->citationGroupMarkdown($node);
+    }
+
+    private function citationGroupMarkdown(AstNode $node): string
+    {
         $explicit = $this->explicitCitationMarkdown($node);
         if ($explicit !== null) {
             return $explicit;
@@ -4796,6 +4831,51 @@ final class MarkdownWriter
         }
 
         return '[' . implode('; ', array_map(fn (AstNode $citation): string => $this->citationItemMarkdown($citation), $citations)) . ']';
+    }
+
+    private function renderCitationHtmlInline(AstNode $node): string
+    {
+        $attrs = ['class' => 'citation'];
+        $cites = $this->citationDataCites($node);
+        if ($cites !== '') {
+            $attrs['data-cites'] = $cites;
+        }
+
+        $markdown = $node->type === 'citation_group'
+            ? $this->citationGroupMarkdown($node)
+            : $this->citationMarkdown($node);
+
+        return '<span' . $this->renderHtmlAttributes($attrs) . '>'
+            . $this->escapeHtml($markdown)
+            . '</span>';
+    }
+
+    private function citationDataCites(AstNode $node): string
+    {
+        if ($node->type === 'citation') {
+            return $this->citationId($node);
+        }
+
+        $ids = [];
+        foreach ($this->citationGroupChildren($node) as $citation) {
+            $id = $this->citationId($citation);
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return implode(' ', $ids);
+    }
+
+    private function renderFootnoteHtmlInline(AstNode $node): string
+    {
+        if (count($node->children) === 1 && in_array($node->children[0]->type, ['paragraph', 'plain'], true)) {
+            $body = $this->renderHtmlInlines($node->children[0]->children);
+        } else {
+            $body = $this->renderHtmlBlocks($node->children);
+        }
+
+        return '<span class="footnote">' . $body . '</span>';
     }
 
     private function explicitCitationMarkdown(AstNode $node): ?string
@@ -5343,9 +5423,12 @@ final class MarkdownWriter
             return !in_array($extension, [
                 'abbreviations',
                 'bracketed_spans',
+                'citations',
+                'definition_lists',
                 'emoji',
                 'fenced_code_attributes',
                 'fenced_divs',
+                'footnotes',
                 'grid_tables',
                 'header_attributes',
                 'inline_code_attributes',
@@ -5359,6 +5442,7 @@ final class MarkdownWriter
                 'strikeout',
                 'subscript',
                 'superscript',
+                'task_lists',
                 'tex_math_dollars',
                 'underline',
                 'wikilinks',
@@ -5369,8 +5453,11 @@ final class MarkdownWriter
             return !in_array($extension, [
                 'abbreviations',
                 'bracketed_spans',
+                'citations',
+                'definition_lists',
                 'fenced_code_attributes',
                 'fenced_divs',
+                'footnotes',
                 'grid_tables',
                 'header_attributes',
                 'inline_code_attributes',
@@ -5390,21 +5477,35 @@ final class MarkdownWriter
 
         if ($format === 'markdown_strict') {
             return !in_array($extension, [
+                'citations',
+                'definition_lists',
                 'fenced_code_attributes',
                 'fenced_divs',
+                'footnotes',
                 'grid_tables',
                 'header_attributes',
                 'line_blocks',
                 'multiline_tables',
                 'pipe_tables',
                 'simple_tables',
+                'task_lists',
             ], true);
         }
 
-        if ($format === 'markdown_mmd' || $format === 'markdown_phpextra') {
+        if ($format === 'markdown_mmd') {
             return !in_array($extension, [
                 'fenced_divs',
                 'line_blocks',
+                'task_lists',
+            ], true);
+        }
+
+        if ($format === 'markdown_phpextra') {
+            return !in_array($extension, [
+                'citations',
+                'fenced_divs',
+                'line_blocks',
+                'task_lists',
             ], true);
         }
 
@@ -5422,7 +5523,9 @@ final class MarkdownWriter
             'code_block_attributes',
             'codeblock_attributes',
             'fenced_code_attribute' => 'fenced_code_attributes',
+            'citation' => 'citations',
             'code_attributes' => 'inline_code_attributes',
+            'definition_list', 'definition-lists', 'definition-list' => 'definition_lists',
             'div_attributes',
             'native_div',
             'native_divs' => 'fenced_divs',
@@ -5433,10 +5536,13 @@ final class MarkdownWriter
             'heading_attributes',
             'heading_attrs',
             'header_attribute' => 'header_attributes',
+            'footnote' => 'footnotes',
             'link_attribute', 'link_attrs', 'image_attributes' => 'link_attributes',
+            'pipe_table', 'pipe-table', 'pipetables', 'table', 'tables' => 'pipe_tables',
             'raw_attributes' => 'raw_attribute',
             'raw_latex', 'latex_macros' => 'raw_tex',
-            'simple_table', 'simpletables' => 'simple_tables',
+            'simple_table', 'simple-table', 'simpletables' => 'simple_tables',
+            'task_list', 'task-list', 'gfm_task_lists' => 'task_lists',
             'tex_math', 'math_dollars' => 'tex_math_dollars',
             'wiki_links' => 'wikilinks',
             default => $extension,
@@ -5460,9 +5566,12 @@ final class MarkdownWriter
             return null;
         }
 
-        $format = str_replace('-', '_', $format);
+        if (MarkdownFormatProfile::rawFamily($format) === 'markdown') {
+            return MarkdownFormatProfile::canonicalFormat($format);
+        }
+
         $parts = preg_split('/(?=[+-])/', $format, 2) ?: [$format];
-        $base = ltrim((string) ($parts[0] ?? ''), '+');
+        $base = str_replace('-', '_', ltrim((string) ($parts[0] ?? ''), '+'));
         $base = match ($base) {
             'markdown+github' => 'markdown_github',
             'markdown+strict' => 'markdown_strict',
@@ -5482,14 +5591,49 @@ final class MarkdownWriter
             return [];
         }
 
-        $format = str_replace('-', '_', strtolower(trim((string) $format)));
-        preg_match_all('/([+-])([A-Za-z0-9_]+)/', $format, $matches, PREG_SET_ORDER);
+        $format = strtolower(trim((string) $format));
+        $base = $this->writerFormatBase();
+        $remainder = $format;
+        if ($base !== null) {
+            foreach ($this->writerFormatBaseAliases($base) as $alias) {
+                if (
+                    $format === $alias
+                    || str_starts_with($format, $alias . '+')
+                    || str_starts_with($format, $alias . '-')
+                ) {
+                    $remainder = substr($format, strlen($alias));
+                    break;
+                }
+            }
+        }
+
+        preg_match_all('/([+-])([A-Za-z0-9_-]+)/', $remainder, $matches, PREG_SET_ORDER);
         $overrides = [];
         foreach ($matches as $match) {
             $overrides[$match[2]] = $match[1] === '+';
         }
 
         return $overrides;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function writerFormatBaseAliases(string $base): array
+    {
+        $aliases = match ($base) {
+            'gfm' => ['markdown_github', 'markdown-github', 'gfm'],
+            'commonmark_x' => ['commonmark_x', 'commonmark-x'],
+            'markdown_mmd' => ['markdown_mmd', 'markdown-mmd'],
+            'markdown_phpextra' => ['markdown_phpextra', 'markdown-php-extra'],
+            'markdown_strict' => ['markdown_strict', 'markdown-strict'],
+            'markdown' => ['markdown', 'pandoc', 'md'],
+            default => [$base, str_replace('_', '-', $base)],
+        };
+
+        usort($aliases, static fn (string $left, string $right): int => strlen($right) <=> strlen($left));
+
+        return array_values(array_unique($aliases));
     }
 
     /**
