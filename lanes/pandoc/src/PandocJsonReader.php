@@ -1824,11 +1824,16 @@ final class PandocJsonReader
         }
 
         $label = $this->readInlines($this->listContent($labelContent, ucfirst($type) . ' label'));
-        $attrs = array_merge($attrs, [
+        $targetAttrs = [
             'url' => $target[0],
             'title' => $target[1],
             'targetNative' => $targetNative,
-        ]);
+        ];
+        if ($this->isTaggedConstructor($targetNative, 'Target')) {
+            $targetAttrs['targetConstructor'] = 'Target';
+        }
+
+        $attrs = array_merge($attrs, $targetAttrs);
         if ($type === 'image') {
             $alt = trim($this->plainText($label));
             if ($alt !== '') {
@@ -1844,13 +1849,34 @@ final class PandocJsonReader
      */
     private function targetTupleContent(mixed $value, string $context): array
     {
+        if ($this->isTaggedConstructor($value, 'Target')) {
+            $target = $this->singleWrappedTupleContent($value['c'] ?? null, $context);
+            if (count($target) < 2) {
+                throw new \InvalidArgumentException("{$context} must have at least 2 entries");
+            }
+
+            return [$target, $value];
+        }
+
         $native = $this->listContent($value, $context);
         $target = $native;
         if (
             count($target) === 1
             && is_array($target[0])
-            && array_is_list($target[0])
         ) {
+            if ($this->isTaggedConstructor($target[0], 'Target')) {
+                $wrappedTarget = $this->singleWrappedTupleContent($target[0]['c'] ?? null, $context);
+                if (count($wrappedTarget) < 2) {
+                    throw new \InvalidArgumentException("{$context} must have at least 2 entries");
+                }
+
+                return [$wrappedTarget, $native];
+            }
+
+            if (!array_is_list($target[0])) {
+                return [$target, $native];
+            }
+
             $target = $this->listContent($target[0], $context);
         }
 

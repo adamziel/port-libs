@@ -5117,6 +5117,115 @@ return [
             }
         }
     },
+    'accepts tagged target tuple constructors for link and image payloads' => static function (TestRunner $t): void {
+        $linkTarget = [
+            'https://example.test/tagged?x=1#review',
+            'Tagged source',
+            ['reviewQueue' => 'tagged-link-target', 'sourceOrdinal' => 31],
+        ];
+        $imageTarget = [
+            'media/tagged-cover.png',
+            'Tagged cover',
+            ['reviewQueue' => 'tagged-image-target', 'sourceOrdinal' => 32],
+        ];
+        $linkTargetConstructor = [
+            't' => 'Target',
+            'c' => $linkTarget,
+            'reviewQueue' => 'target-link-constructor',
+        ];
+        $imageTargetConstructor = [
+            't' => 'Target',
+            'c' => [$imageTarget],
+            'reviewQueue' => 'target-image-constructor',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Link', 'c' => [
+                        ['target-link', ['review-link'], [['data-origin', 'target']]],
+                        [['t' => 'Str', 'c' => 'target']],
+                        $linkTargetConstructor,
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Image', 'c' => [
+                        ['target-image', ['review-image'], [['data-origin', 'asset']]],
+                        [
+                            ['t' => 'Str', 'c' => 'Tagged'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'cover'],
+                        ],
+                        $imageTargetConstructor,
+                    ]],
+                ]],
+            ],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $link = $document->children[0]->children[0];
+            $image = $document->children[0]->children[2];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('link', array_replace($link->attrs, ['classes' => ['rebuilt-link']]), $link->children),
+                    new AstNode('space'),
+                    new AstNode('image', array_replace($image->attrs, ['id' => 'rebuilt-image']), $image->children),
+                ]),
+            ]);
+
+            $t->same('Target', $link->attr('targetConstructor'), "{$source} link records target constructor");
+            $t->same($linkTargetConstructor, $link->attr('targetNative'), "{$source} link keeps target constructor payload");
+            $t->same($linkTarget[0], $link->attr('url'), "{$source} link target url");
+            $t->same($linkTarget[1], $link->attr('title'), "{$source} link target title");
+            $t->same('Target', $image->attr('targetConstructor'), "{$source} image records target constructor");
+            $t->same($imageTargetConstructor, $image->attr('targetNative'), "{$source} image keeps single-wrapped target constructor payload");
+            $t->same($imageTarget[0], $image->attr('url'), "{$source} image target url");
+            $t->same($imageTarget[1], $image->attr('title'), "{$source} image target title");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($packet['blocks'], $encoded['blocks'], "{$source} {$writer} writer preserves unchanged target constructors");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedLink = $encoded['blocks'][0]['c'][0];
+                $encodedImage = $encoded['blocks'][0]['c'][2];
+
+                $t->same(['rebuilt-link'], $encodedLink['c'][0][1], "{$source} {$writer} writer regenerates edited link attrs");
+                $t->same('rebuilt-image', $encodedImage['c'][0][0], "{$source} {$writer} writer regenerates edited image attrs");
+                $t->same($linkTargetConstructor, $encodedLink['c'][2], "{$source} {$writer} writer preserves tagged link target");
+                $t->same($imageTargetConstructor, $encodedImage['c'][2], "{$source} {$writer} writer preserves tagged image target");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [
+                    new AstNode('paragraph', [], [
+                        new AstNode('link', array_replace($link->attrs, ['url' => 'https://example.test/edited']), $link->children),
+                        new AstNode('space'),
+                        new AstNode('image', array_replace($image->attrs, ['title' => 'Edited tagged cover']), $image->children),
+                    ]),
+                ])),
+                'native' => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [
+                    new AstNode('paragraph', [], [
+                        new AstNode('link', array_replace($link->attrs, ['url' => 'https://example.test/edited']), $link->children),
+                        new AstNode('space'),
+                        new AstNode('image', array_replace($image->attrs, ['title' => 'Edited tagged cover']), $image->children),
+                    ]),
+                ])), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same(['https://example.test/edited', 'Tagged source'], $encoded['blocks'][0]['c'][0]['c'][2], "{$source} {$writer} edited link target drops tagged sidecar");
+                $t->same(['media/tagged-cover.png', 'Edited tagged cover'], $encoded['blocks'][0]['c'][2]['c'][2], "{$source} {$writer} edited image target drops tagged sidecar");
+            }
+        }
+    },
     'records quote and math native enum payloads on json and native ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],

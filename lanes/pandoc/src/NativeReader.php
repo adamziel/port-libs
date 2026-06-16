@@ -1977,11 +1977,16 @@ final class NativeReader
             throw new \InvalidArgumentException('Pandoc native JSON Link target must contain URL and title strings');
         }
 
-        $attrs = array_replace($attrs, [
+        $targetAttrs = [
             'url' => $target[0],
             'title' => $target[1],
             'targetNative' => $targetNative,
-        ]);
+        ];
+        if ($this->isTaggedConstructor($targetNative, 'Target')) {
+            $targetAttrs['targetConstructor'] = 'Target';
+        }
+
+        $attrs = array_replace($attrs, $targetAttrs);
 
         return new AstNode('link', $attrs, $this->inlines($label));
     }
@@ -2010,11 +2015,16 @@ final class NativeReader
         }
 
         $label = $this->inlines($labelContent);
-        $attrs = array_replace($attrs, [
+        $targetAttrs = [
             'url' => $target[0],
             'title' => $target[1],
             'targetNative' => $targetNative,
-        ]);
+        ];
+        if ($this->isTaggedConstructor($targetNative, 'Target')) {
+            $targetAttrs['targetConstructor'] = 'Target';
+        }
+
+        $attrs = array_replace($attrs, $targetAttrs);
         $alt = trim($this->plainTextFromInlines($label));
         if ($alt !== '') {
             $attrs['alt'] = $alt;
@@ -2028,13 +2038,26 @@ final class NativeReader
      */
     private function targetTupleContent(mixed $value, string $context): array
     {
+        if ($this->isTaggedConstructor($value, 'Target')) {
+            $target = $this->singleWrappedTupleContent($value['c'] ?? null, $context);
+
+            return [$target, $value];
+        }
+
         $native = $this->listContent($value, $context);
         $target = $native;
         if (
             count($target) === 1
             && is_array($target[0])
-            && array_is_list($target[0])
         ) {
+            if ($this->isTaggedConstructor($target[0], 'Target')) {
+                return [$this->singleWrappedTupleContent($target[0]['c'] ?? null, $context), $native];
+            }
+
+            if (!array_is_list($target[0])) {
+                return [$target, $native];
+            }
+
             $target = $this->listContent($target[0], $context);
         }
 

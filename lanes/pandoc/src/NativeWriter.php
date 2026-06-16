@@ -57,6 +57,7 @@ final class NativeWriter
         'shortCaptionMaybeConstructor',
         'shortCaptionMaybeNative',
         'shortCaptionNative',
+        'targetConstructor',
         'targetNative',
     ];
 
@@ -2683,14 +2684,21 @@ final class NativeWriter
      */
     private function targetTuplePayload(mixed $native): ?array
     {
-        if (!is_array($native) || !array_is_list($native)) {
+        if (!is_array($native)) {
             return null;
+        }
+
+        if (!array_is_list($native)) {
+            if (($native['t'] ?? null) !== 'Target') {
+                return null;
+            }
+
+            return $this->targetTuplePayload($native['c'] ?? null);
         }
 
         if (
             count($native) === 1
             && is_array($native[0])
-            && array_is_list($native[0])
         ) {
             return $this->targetTuplePayload($native[0]);
         }
