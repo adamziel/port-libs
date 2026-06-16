@@ -3145,11 +3145,11 @@ final class MarkdownWriter
     private function renderHtmlInline(AstNode $node): string
     {
         return match ($node->type) {
-            'text' => $this->escapeHtml((string) $node->attr('text', '')),
+            'text' => $this->escapeHtml($this->nodeText($node)),
             'space' => ' ',
             'softbreak', 'linebreak' => '<br />',
             'code' => '<code' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
-                . $this->escapeHtml((string) $node->attr('text', ''))
+                . $this->escapeHtml($this->nodeText($node, ['text', 'literal', 'code', 'value', 'content', 'string']))
                 . '</code>',
             'emph' => '<em>' . $this->renderHtmlInlines($node->children) . '</em>',
             'strong' => '<strong>' . $this->renderHtmlInlines($node->children) . '</strong>',
@@ -3172,18 +3172,27 @@ final class MarkdownWriter
                 . ((string) $node->attr('kind', 'double') === 'single' ? '&rsquo;' : '&rdquo;'),
             'link' => $this->renderHtmlLink($node),
             'image' => $this->renderHtmlImage($node),
-            'math' => '<span class="math ' . ($node->attr('display') === true ? 'display' : 'inline') . '">'
-                . $this->escapeHtml((string) $node->attr('text', ''))
-                . '</span>',
+            'math' => $this->renderHtmlMath($node),
             'citation', 'citation_group' => $this->renderCitationHtmlInline($node),
             'note' => $this->renderFootnoteHtmlInline($node),
-            'raw_html_inline' => (string) $node->attr('text', $node->attr('html', '')),
-            'raw_inline' => $this->isHtmlRawFormat(strtolower((string) $node->attr('format', '')))
-                ? (string) $node->attr('text', $node->attr('html', ''))
+            'raw_html_inline' => $this->rawText($node, ['text', 'html', 'raw', 'content', 'literal', 'value']),
+            'raw_inline' => $this->isHtmlRawFormat(strtolower($this->rawFormat($node)))
+                ? $this->rawText($node, ['text', 'html', 'raw', 'content', 'literal', 'value'])
                 : $this->escapeHtml($this->renderRawInline($node)),
             'raw_markdown', 'raw_tex' => $this->escapeHtml($this->renderRawInline($node)),
             default => $this->renderHtmlInlines($node->children),
         };
+    }
+
+    private function renderHtmlMath(AstNode $node): string
+    {
+        $attrs = $this->htmlAttributeMap($node);
+        $this->appendHtmlClass($attrs, $node->attr('display') === true ? 'display' : 'inline');
+        $this->appendHtmlClass($attrs, 'math');
+
+        return '<span' . $this->renderHtmlAttributes($attrs) . '>'
+            . $this->escapeHtml($this->nodeText($node, ['text', 'formula', 'math', 'value', 'literal', 'content', 'string']))
+            . '</span>';
     }
 
     private function renderHtmlSemanticSpan(AstNode $node, string $class): string
@@ -3199,9 +3208,9 @@ final class MarkdownWriter
     private function renderHtmlLink(AstNode $node): string
     {
         $attrs = $this->htmlAttributeMap($node);
-        $title = (string) $node->attr('title', '');
+        $title = $this->linkTitle($node);
         unset($attrs['href'], $attrs['title']);
-        $attrs['href'] = (string) $node->attr('url', '');
+        $attrs['href'] = $this->linkUrl($node);
         if ($title !== '') {
             $attrs['title'] = $title;
         }
@@ -3214,10 +3223,13 @@ final class MarkdownWriter
     private function renderHtmlImage(AstNode $node): string
     {
         $attrs = $this->htmlAttributeMap($node);
-        $title = (string) $node->attr('title', '');
+        $title = $this->linkTitle($node);
         unset($attrs['src'], $attrs['alt'], $attrs['title']);
-        $attrs['src'] = (string) $node->attr('url', '');
-        $attrs['alt'] = (string) $node->attr('alt', $this->plainInlineText($node->children));
+        $attrs['src'] = $this->linkUrl($node);
+        $attrs['alt'] = $this->imageAlt($node);
+        if ($attrs['alt'] === '') {
+            $attrs['alt'] = $this->plainInlineText($node->children);
+        }
         if ($title !== '') {
             $attrs['title'] = $title;
         }
@@ -3260,23 +3272,40 @@ final class MarkdownWriter
             }
         }
 
-        if (isset($source['id']) && is_scalar($source['id']) && trim((string) $source['id']) !== '' && !isset($attrs['id'])) {
-            $attrs['id'] = trim((string) $source['id']);
+        foreach (['id', 'identifier', 'anchor'] as $name) {
+            if (!isset($source[$name]) || !is_scalar($source[$name]) || isset($attrs['id'])) {
+                continue;
+            }
+
+            $id = $this->normalizeAttributeIdentifierToken((string) $source[$name]);
+            if ($id !== '') {
+                $attrs['id'] = $id;
+            }
         }
 
         $classes = [];
         if (isset($attrs['class'])) {
             $classes = preg_split('/\s+/', trim($attrs['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         }
-        foreach ($this->normalizedClassList($source['classes'] ?? $source['className'] ?? null) as $class) {
-            $classes[] = $class;
+        foreach (['classes', 'class', 'className'] as $name) {
+            if (!array_key_exists($name, $source)) {
+                continue;
+            }
+
+            foreach ($this->normalizedClassList($source[$name]) as $class) {
+                $classes[] = $class;
+            }
         }
         if ($classes !== []) {
             $attrs['class'] = implode(' ', array_values(array_unique($classes)));
         }
 
-        $attributes = $source['attributes'] ?? [];
-        if (is_array($attributes)) {
+        foreach (['attributes', 'keyvals', 'keyValues', 'attributePairs', 'dataAttributes'] as $sourceName) {
+            $attributes = $source[$sourceName] ?? [];
+            if (!is_array($attributes)) {
+                continue;
+            }
+
             foreach ($this->normalizedAttributePairs($attributes) as $name => $value) {
                 $name = strtolower($name);
                 if ($name !== '' && !isset($attrs[$name])) {
