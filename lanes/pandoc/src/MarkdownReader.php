@@ -15793,7 +15793,7 @@ final class MarkdownReader
         }
 
         $delimiterCells = $this->splitPipeTableRow($lines[$index + 1]);
-        if ($delimiterCells === null || count($delimiterCells) !== count($headerCells)) {
+        if ($delimiterCells === null) {
             return null;
         }
 
@@ -15803,6 +15803,19 @@ final class MarkdownReader
         }
 
         $columnCount = count($delimiter['alignments']);
+        if (count($headerCells) !== $columnCount) {
+            $headerListMarker = $this->matchListMarker($lines[$index], $index);
+            if ($headerListMarker !== null && $headerListMarker['indent'] <= 3) {
+                return null;
+            }
+        }
+
+        $rowRepairs = [];
+        $headerRepair = $this->pipeTableRowRepairRecord('head', 0, count($headerCells), $columnCount);
+        if ($headerRepair !== null) {
+            $rowRepairs[] = $headerRepair;
+        }
+        $headerCells = $this->normalizePipeTableRow($headerCells, $columnCount);
         $cursor = $index + 2;
         $bodyRows = [];
         $count = count($lines);
@@ -15812,6 +15825,10 @@ final class MarkdownReader
                 break;
             }
 
+            $rowRepair = $this->pipeTableRowRepairRecord('body', count($bodyRows), count($row), $columnCount);
+            if ($rowRepair !== null) {
+                $rowRepairs[] = $rowRepair;
+            }
             $bodyRows[] = $this->normalizePipeTableRow($row, $columnCount);
             $cursor++;
         }
@@ -15829,7 +15846,7 @@ final class MarkdownReader
         $children = [];
         if (!$headerIsEmpty) {
             $children[] = new AstNode('table_head', [], [
-                $this->buildTableRow($this->normalizePipeTableRow($headerCells, $columnCount), true),
+                $this->buildTableRow($headerCells, true),
             ]);
         } else {
             $children[] = new AstNode('table_head');
@@ -15848,10 +15865,31 @@ final class MarkdownReader
         if ($delimiter['widths'] !== null) {
             $attrs['widths'] = $delimiter['widths'];
         }
+        if ($rowRepairs !== []) {
+            $attrs['pipeTableRowRepairs'] = $rowRepairs;
+        }
 
         $index = $cursor - 1;
 
         return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $children));
+    }
+
+    /**
+     * @return array{section:string, row:int, sourceCells:int, columnCount:int, action:string}|null
+     */
+    private function pipeTableRowRepairRecord(string $section, int $row, int $sourceCells, int $columnCount): ?array
+    {
+        if ($sourceCells === $columnCount) {
+            return null;
+        }
+
+        return [
+            'section' => $section,
+            'row' => $row,
+            'sourceCells' => $sourceCells,
+            'columnCount' => $columnCount,
+            'action' => $sourceCells < $columnCount ? 'pad' : 'truncate',
+        ];
     }
 
     /**
