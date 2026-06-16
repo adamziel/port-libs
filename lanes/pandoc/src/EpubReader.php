@@ -745,12 +745,25 @@ final class EpubReader
         $cssResourceReport = $this->cssResourceReport($package, $manifest, $manifestByPart);
         $remoteResources = self::remoteResourceReport($manifest, $xhtmlAssets, $xhtmlResourceReport, $cssResourceReport);
         $resourceProperties = self::resourcePropertyReport($manifest, $xhtmlAssets);
+        $packageVersion = trim($root->getAttribute('version'));
+        $packageSummary = [
+            'id' => $packageId,
+            'version' => $packageVersion,
+            'uniqueIdentifierId' => $uniqueIdentifier === '' ? null : $uniqueIdentifier,
+            'opfPart' => $opfPart,
+            'language' => $packageLanguage,
+            'direction' => $packageDirection,
+            'base' => $packageBase,
+            'attributeCount' => count($packageAttributes),
+            'customAttributeCount' => count($packageCustomAttributes),
+            'authoring' => $packageAuthoring['summary'],
+        ];
 
         return [
             'metadata' => $metadata,
             'package' => [
                 'id' => $packageId,
-                'version' => trim($root->getAttribute('version')),
+                'version' => $packageVersion,
                 'uniqueIdentifierId' => $uniqueIdentifier === '' ? null : $uniqueIdentifier,
                 'uniqueIdentifier' => $metadata['uniqueIdentifier'],
                 'opfPart' => $opfPart,
@@ -762,6 +775,7 @@ final class EpubReader
                 'customAttributes' => $packageCustomAttributes,
                 'customAttributeCount' => count($packageCustomAttributes),
                 'authoring' => $packageAuthoring,
+                'summary' => $packageSummary,
                 'refinements' => self::metadataRefinementsForId($refinementsById, $packageId),
                 'linkedResources' => self::metadataLinkedResourcesForId($linkedResourcesById, $packageId),
                 'prefix' => $prefixReport['raw'],
@@ -5185,6 +5199,33 @@ final class EpubReader
             $conflicts,
             static fn (array $diagnostic): bool => (int) ($diagnostic['customAttributeCount'] ?? 0) > 0
         ));
+        $baseResolutionPolicy = $base === null ? null : 'reported-not-applied-to-package-paths';
+        $summary = [
+            'language' => $language,
+            'direction' => $direction,
+            'base' => $base,
+            'attributeCount' => count($attributes),
+            'structuralAttributeCount' => count($structuralAttributes),
+            'customAttributeCount' => count($customAttributes),
+            'hasCustomAttributes' => $customAttributes !== [],
+            'hasBase' => $base !== null,
+            'baseResolutionPolicy' => $baseResolutionPolicy,
+            'baseResolutionMetadataOnly' => $base !== null,
+            'baseResolutionAppliesToPackagePaths' => false,
+            'baseSourceCount' => count($baseSources),
+            'languageSourceCount' => count($languageSources),
+            'directionSourceCount' => count($directionSources),
+            'duplicateAuthoringFields' => $duplicateFields,
+            'duplicateAuthoringFieldCount' => count($duplicateFields),
+            'conflictCount' => count($conflicts),
+            'customConflictCount' => $customConflictCount,
+            'hasConflicts' => $conflicts !== [],
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticTypes' => array_map(
+                static fn (array $diagnostic): string => (string) ($diagnostic['type'] ?? ''),
+                $diagnostics
+            ),
+        ];
 
         return [
             'present' => $attributes !== [],
@@ -5199,11 +5240,11 @@ final class EpubReader
             'customAttributeCount' => count($customAttributes),
             'hasCustomAttributes' => $customAttributes !== [],
             'hasBase' => $base !== null,
-            'baseResolutionPolicy' => $base === null ? null : 'reported-not-applied-to-package-paths',
+            'baseResolutionPolicy' => $baseResolutionPolicy,
             'baseResolution' => [
                 'metadataOnly' => $base !== null,
                 'appliesToPackagePaths' => false,
-                'policy' => $base === null ? null : 'reported-not-applied-to-package-paths',
+                'policy' => $baseResolutionPolicy,
             ],
             'baseSources' => $baseSources,
             'baseSourceCount' => count($baseSources),
@@ -5218,6 +5259,7 @@ final class EpubReader
             'customConflictCount' => $customConflictCount,
             'hasConflicts' => $conflicts !== [],
             'diagnostics' => $diagnostics,
+            'summary' => $summary,
         ];
     }
 

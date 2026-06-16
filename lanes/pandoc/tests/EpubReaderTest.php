@@ -523,10 +523,14 @@ return [
         $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithPackageConflicts));
         $package = $result['package'];
         $authoring = $package['authoring'];
+        $summary = $package['summary'];
+        $authoringSummary = $authoring['summary'];
 
         $t->same('en', $package['language']);
         $t->same('rtl', $package['direction']);
         $t->same('https://example.invalid/packages/source/', $package['base']);
+        $t->same(11, $package['attributeCount']);
+        $t->same(6, $package['customAttributeCount']);
         $t->same(11, $authoring['attributeCount']);
         $t->same(5, $authoring['structuralAttributeCount']);
         $t->same(6, $authoring['customAttributeCount']);
@@ -561,10 +565,36 @@ return [
         $t->same(false, $authoring['baseResolution']['appliesToPackagePaths']);
         $t->same(true, $authoring['baseResolution']['metadataOnly']);
 
+        $t->same('en', $summary['language']);
+        $t->same('rtl', $summary['direction']);
+        $t->same('https://example.invalid/packages/source/', $summary['base']);
+        $t->same(11, $summary['attributeCount']);
+        $t->same(6, $summary['customAttributeCount']);
+        $t->same($authoringSummary, $summary['authoring']);
+        $t->same(5, $authoringSummary['structuralAttributeCount']);
+        $t->same(3, $authoringSummary['duplicateAuthoringFieldCount']);
+        $t->same(['base', 'language', 'direction'], $authoringSummary['duplicateAuthoringFields']);
+        $t->same(3, $authoringSummary['conflictCount']);
+        $t->same(3, $authoringSummary['customConflictCount']);
+        $t->same(true, $authoringSummary['hasConflicts']);
+        $t->same(true, $authoringSummary['baseResolutionMetadataOnly']);
+        $t->same(false, $authoringSummary['baseResolutionAppliesToPackagePaths']);
+        $t->same('reported-not-applied-to-package-paths', $authoringSummary['baseResolutionPolicy']);
+        $t->same([
+            'conflicting-opf-package-base-authoring',
+            'conflicting-opf-package-language-authoring',
+            'conflicting-opf-package-direction-authoring',
+        ], $authoringSummary['diagnosticTypes']);
+
         $t->same($package, $result['importReport']['package']);
+        $t->same($summary, $result['importReport']['package']['summary']);
+        $t->same($summary, $result['document']->attr('package')['summary']);
         $t->same($authoring, $result['metadata']['packageAuthoring']);
         $t->same($authoring, $result['importReport']['metadata']['packageAuthoring']);
         $t->same($authoring, $result['document']->attr('metadata')['packageAuthoring']);
+        $t->same($authoringSummary, $result['metadata']['packageAuthoring']['summary']);
+        $t->same($authoringSummary, $result['importReport']['metadata']['packageAuthoring']['summary']);
+        $t->same($authoringSummary, $result['document']->attr('metadata')['packageAuthoring']['summary']);
         $t->same($authoring, $result['document']->attr('package')['authoring']);
     },
     'preserves OPF metadata container authoring attributes for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
