@@ -13570,6 +13570,159 @@ return [
             }
         }
     },
+    'preserves scalar enum helper sidecars through regenerated json and native writers' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'OrderedList', 'c' => [
+                    [5, 'LowerRoman', 'TwoParens'],
+                    [[
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Scalar'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'list'],
+                        ]],
+                    ]],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [
+                        'SingleQuote',
+                        [['t' => 'Str', 'c' => 'scalar quote']],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [
+                        'DisplayMath',
+                        'E = mc^2',
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Cite', 'c' => [
+                        [[
+                            'citationId' => 'scalar-cite',
+                            'citationPrefix' => [],
+                            'citationSuffix' => [],
+                            'citationMode' => 'SuppressAuthor',
+                            'citationNoteNum' => 7,
+                            'citationHash' => 707,
+                        ]],
+                        [['t' => 'Str', 'c' => '@scalar-cite']],
+                    ]],
+                ]],
+                ['t' => 'Table', 'c' => [
+                    ['scalar-helper-table', ['json-native'], []],
+                    ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                    [['AlignCenter', 'ColWidthDefault']],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [[
+                        't' => 'TableBody',
+                        'c' => [
+                            ['', [], []],
+                            ['t' => 'RowHeadColumns', 'c' => 0],
+                            [],
+                            [[
+                                't' => 'Row',
+                                'c' => [
+                                    ['', [], []],
+                                    [[
+                                        't' => 'Cell',
+                                        'c' => [
+                                            ['', [], []],
+                                            'AlignRight',
+                                            ['t' => 'RowSpan', 'c' => 1],
+                                            ['t' => 'ColSpan', 'c' => 1],
+                                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Cell']]]],
+                                        ],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ]],
+            ],
+        ];
+
+        $stripWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+        $rebuiltInline = static function (AstNode $node) use ($stripWrapper): AstNode {
+            $attrs = $stripWrapper($node);
+            unset($attrs['citationNative'], $attrs['citationRecordsNative']);
+
+            return new AstNode($node->type, $attrs, $node->children);
+        };
+        $rebuiltTable = static function (AstNode $table) use ($stripWrapper): AstNode {
+            $body = $table->children[0];
+            $row = $body->children[0];
+            $cell = $row->children[0];
+
+            return new AstNode('table', $stripWrapper($table), [
+                new AstNode('table_body', $stripWrapper($body), [
+                    new AstNode('table_row', $stripWrapper($row), [
+                        new AstNode('table_cell', $stripWrapper($cell), $cell->children),
+                    ]),
+                ]),
+            ]);
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $list = $document->children[0];
+            $paragraph = $document->children[1];
+            $table = $document->children[2];
+            $cell = $table->children[0]->children[0]->children[0];
+
+            $t->same('lower_roman', $list->attr('style'), "{$source} scalar list style");
+            $t->same('two_parens', $list->attr('delimiter'), "{$source} scalar list delimiter");
+            $t->same('LowerRoman', $list->attr('listStyleNative'), "{$source} scalar list style sidecar");
+            $t->same('TwoParens', $list->attr('listDelimiterNative'), "{$source} scalar list delimiter sidecar");
+            $t->same('single', $paragraph->children[0]->attr('kind'), "{$source} scalar quote kind");
+            $t->same('SingleQuote', $paragraph->children[0]->attr('quoteTypeNative'), "{$source} scalar quote sidecar");
+            $t->same(true, $paragraph->children[2]->attr('display'), "{$source} scalar math display");
+            $t->same('DisplayMath', $paragraph->children[2]->attr('mathTypeNative'), "{$source} scalar math sidecar");
+            $t->same('suppress_author', $paragraph->children[4]->attr('mode'), "{$source} scalar citation mode");
+            $t->same('SuppressAuthor', $paragraph->children[4]->attr('citationModeNative'), "{$source} scalar citation sidecar");
+            $t->same(['center'], $table->attr('alignments'), "{$source} scalar table alignment");
+            $t->same([null], $table->attr('widths'), "{$source} scalar table width");
+            $t->same(['AlignCenter'], $table->attr('alignmentNatives'), "{$source} scalar table alignment sidecar");
+            $t->same(['ColWidthDefault'], $table->attr('columnWidthNatives'), "{$source} scalar table width sidecar");
+            $t->same('right', $cell->attr('align'), "{$source} scalar cell alignment");
+            $t->same('AlignRight', $cell->attr('alignmentNative'), "{$source} scalar cell alignment sidecar");
+
+            $rebuiltDocument = new AstNode('document', $document->attrs, [
+                new AstNode('ordered_list', $stripWrapper($list), $list->children),
+                new AstNode('paragraph', $stripWrapper($paragraph), array_map(
+                    static fn (AstNode $child): AstNode => $rebuiltInline($child),
+                    $paragraph->children
+                )),
+                $rebuiltTable($table),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuiltDocument),
+                'native' => json_decode((new NativeWriter())->write($rebuiltDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedListAttrs = $encoded['blocks'][0]['c'][0];
+                $encodedInlines = $encoded['blocks'][1]['c'];
+                $encodedCitation = $encodedInlines[4]['c'][0][0];
+                $encodedTable = $encoded['blocks'][2];
+                $encodedCell = $encodedTable['c'][4][0]['c'][3][0]['c'][1][0]['c'];
+
+                $t->same('LowerRoman', $encodedListAttrs[1], "{$source} {$writer} preserves scalar list style");
+                $t->same('TwoParens', $encodedListAttrs[2], "{$source} {$writer} preserves scalar list delimiter");
+                $t->same('SingleQuote', $encodedInlines[0]['c'][0], "{$source} {$writer} preserves scalar quote helper");
+                $t->same('DisplayMath', $encodedInlines[2]['c'][0], "{$source} {$writer} preserves scalar math helper");
+                $t->same('SuppressAuthor', $encodedCitation['citationMode'], "{$source} {$writer} preserves scalar citation mode");
+                $t->same(['AlignCenter', 'ColWidthDefault'], $encodedTable['c'][2][0], "{$source} {$writer} preserves scalar column spec helpers");
+                $t->same('AlignRight', $encodedCell[1], "{$source} {$writer} preserves scalar cell alignment helper");
+            }
+        }
+    },
     'preserves tagged ordered list attribute constructors through rebuilt writers' => static function (TestRunner $t): void {
         $styleNative = ['t' => 'LowerAlpha', 'reviewQueue' => 'list-attribute-style'];
         $delimiterNative = ['t' => 'TwoParens', 'reviewQueue' => 'list-attribute-delimiter'];

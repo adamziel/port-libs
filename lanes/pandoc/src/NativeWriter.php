@@ -986,7 +986,7 @@ final class NativeWriter
             $alignment = is_array($alignments) ? (string) ($alignments[$index] ?? 'default') : 'default';
             $width = is_array($widths) ? ($widths[$index] ?? null) : null;
             $spec = [
-                $this->taggedNativeAt($alignmentNatives, $index, $this->tableAlignmentConstructor($alignment))
+                $this->enumNativeAt($alignmentNatives, $index, $this->tableAlignmentConstructor($alignment))
                     ?? ['t' => $this->tableAlignmentConstructor($alignment)],
                 $this->columnWidthNativeAt($columnWidthNatives, $index, $width)
                     ?? (is_int($width) || is_float($width) ? ['t' => 'ColWidth', 'c' => (float) $width] : ['t' => 'ColWidthDefault']),
@@ -1068,7 +1068,7 @@ final class NativeWriter
             $blocks = $this->childrenAsBlocks($cell);
             $payload = [
                 $this->attrTuple($cell),
-                $this->taggedNative($cell->attr('alignmentNative'), $this->tableAlignmentConstructor((string) $cell->attr('align', 'default')))
+                $this->enumNative($cell->attr('alignmentNative'), $this->tableAlignmentConstructor((string) $cell->attr('align', 'default')))
                     ?? ['t' => $this->tableAlignmentConstructor((string) $cell->attr('align', 'default'))],
                 $this->integerConstructorNative($cell->attr('rowSpanNative'), 'RowSpan', max(1, (int) $cell->attr('rowspan', 1)))
                     ?? ['t' => 'RowSpan', 'c' => max(1, (int) $cell->attr('rowspan', 1))],
@@ -2557,12 +2557,27 @@ final class NativeWriter
         };
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function enumFromNative(AstNode $node, string $nativeAttr, string $constructor): array
+    private function enumFromNative(AstNode $node, string $nativeAttr, string $constructor): mixed
     {
-        return $this->taggedNative($node->attr($nativeAttr), $constructor) ?? ['t' => $constructor];
+        return $this->enumNative($node->attr($nativeAttr), $constructor) ?? ['t' => $constructor];
+    }
+
+    private function enumNative(mixed $native, string $constructor): mixed
+    {
+        if (is_string($native) && $native === $constructor) {
+            return $native;
+        }
+
+        return $this->taggedNative($native, $constructor);
+    }
+
+    private function enumNativeAt(mixed $natives, int $index, string $constructor): mixed
+    {
+        if (!is_array($natives) || !array_is_list($natives) || !array_key_exists($index, $natives)) {
+            return null;
+        }
+
+        return $this->enumNative($natives[$index], $constructor);
     }
 
     /**
@@ -2581,31 +2596,20 @@ final class NativeWriter
         return $native;
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function taggedNativeAt(mixed $natives, int $index, string $constructor): ?array
-    {
-        if (!is_array($natives) || !array_is_list($natives) || !array_key_exists($index, $natives)) {
-            return null;
-        }
-
-        return $this->taggedNative($natives[$index], $constructor);
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function columnWidthNativeAt(mixed $natives, int $index, mixed $width): ?array
+    private function columnWidthNativeAt(mixed $natives, int $index, mixed $width): mixed
     {
         $constructor = is_int($width) || is_float($width) ? 'ColWidth' : 'ColWidthDefault';
-        $native = $this->taggedNativeAt($natives, $index, $constructor);
+        $native = $this->enumNativeAt($natives, $index, $constructor);
         if ($native === null) {
             return null;
         }
 
         if ($constructor === 'ColWidthDefault') {
             return $native;
+        }
+
+        if (!is_array($native)) {
+            return null;
         }
 
         $content = $this->singleWrappedScalarContent($native['c'] ?? null);
