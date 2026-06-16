@@ -327,6 +327,7 @@ final class MarkdownReader
             'autolink_bare_uris', 'bare_autolinks', 'gfm_auto_identifiers', 'gfm_autolinks' => 'bare_uri_autolinks',
             'bracketed_span' => 'bracketed_spans',
             'citation' => 'citations',
+            'definition_list' => 'definition_lists',
             'east_asian_line_break', 'east_asian_linebreaks' => 'east_asian_line_breaks',
             'emoji_shortcode', 'emoji_shortcodes' => 'emoji',
             'block_code_attributes', 'code_block_attributes', 'codeblock_attributes', 'fenced_code_attribute' => 'fenced_code_attributes',
@@ -18459,25 +18460,34 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{marker:string, content:string}|null
+     * @return array{indent:int, marker:string, content:string}|null
      */
     private function matchDefinitionMarker(string $line): ?array
     {
         if ($this->matchFencedDivOpening($line) !== null || $this->isEnabledFencedDivClosing($line, 3)) {
             return null;
         }
-        if (preg_match('/^\s{0,4}:{3,}/', $line) === 1) {
-            return null;
-        }
-        if (preg_match('/^\s{0,4}~{3,}/', $line) === 1) {
+
+        $expanded = $this->expandTabsToSpaces($line);
+        if (
+            preg_match('/^ {0,3}:{3,}/', $expanded) === 1
+            || preg_match('/^ {0,3}~{3,}/', $expanded) === 1
+        ) {
             return null;
         }
 
-        if (preg_match('/^\s{0,4}([:~])\s*(.*)$/', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}([:~])( *)(.*)$/', $expanded, $m) !== 1) {
             return null;
         }
 
-        return ['marker' => $m[1], 'content' => $m[2]];
+        $padding = strlen($m[2]);
+        $content = str_repeat(' ', max(0, $padding - 3)) . $m[3];
+
+        return [
+            'indent' => strlen($m[0]) - strlen(ltrim($m[0], ' ')),
+            'marker' => $m[1],
+            'content' => $content,
+        ];
     }
 
     /**
@@ -18487,7 +18497,7 @@ final class MarkdownReader
     {
         $blankBeforeNextDefinition = false;
         $marker = $this->matchDefinitionMarker($lines[$cursor]);
-        $blocks = $marker === null ? [] : $this->parseDefinitionBlocks(trim($marker['content']));
+        $blocks = $marker === null ? [] : $this->parseDefinitionBlocks($marker['content']);
         $cursor++;
         $count = count($lines);
 
@@ -18519,9 +18529,13 @@ final class MarkdownReader
                     $blocks[] = $block;
                 }
                 continue;
-            } else {
-                $this->appendLazyDefinitionLine($blocks, trim($line));
             }
+
+            if ($this->canStartAdjacentDefinitionItemAt($lines, $cursor, (int) ($marker['indent'] ?? 0))) {
+                break;
+            }
+
+            $this->appendLazyDefinitionLine($blocks, trim($line));
             $cursor++;
         }
 
@@ -18574,6 +18588,25 @@ final class MarkdownReader
         return str_starts_with($line, '    ') || str_starts_with($line, "\t");
     }
 
+    /**
+     * @param list<string> $lines
+     */
+    private function canStartAdjacentDefinitionItemAt(array $lines, int $index, int $currentMarkerIndent): bool
+    {
+        if ($currentMarkerIndent !== 0 || !$this->canStartDefinitionTerm($lines[$index] ?? '')) {
+            return false;
+        }
+
+        $cursor = $index + 1;
+        if ($cursor < count($lines) && trim($lines[$cursor]) === '') {
+            $cursor++;
+        }
+
+        $marker = $this->matchDefinitionMarker($lines[$cursor] ?? '');
+
+        return $marker !== null && $marker['indent'] === 0;
+    }
+
     private function stripDefinitionContinuationIndent(string $line): string
     {
         if (str_starts_with($line, "\t")) {
@@ -18608,11 +18641,16 @@ final class MarkdownReader
      */
     private function parseDefinitionBlocks(string $content): array
     {
-        if ($content === '') {
+        if (rtrim($content) === '') {
             return [];
         }
 
-        if (preg_match('/^(?:[-*+]|\d{1,9}[.)]|#\.|>)\s+/', $content) === 1) {
+        $content = rtrim($content);
+        if (
+            $content !== ltrim($content)
+            || $this->isListItemBlockStartLine($content)
+            || preg_match('/^(?:[-*+]|\d{1,9}[.)]|#\.|>)\s+/', $content) === 1
+        ) {
             return $this->read($content)->children;
         }
 
