@@ -8906,7 +8906,8 @@ XML;
         $t->contains('[^1]', $markdown);
         $t->contains('c.  Legal review', $markdown);
         $t->contains('![Hero alt text](Pictures/hero.png "Hero title")', $markdown);
-        $t->contains('| Status', $markdown);
+        $t->contains('<table data-odf-table-name="Audit" data-odf-table-column-count="2">', $markdown);
+        $t->contains('<th scope="col"><p>Status</p></th>', $markdown);
         $t->contains('Ready for review', $markdown);
 
         $t->contains('<!-- wp:heading {"level":1} -->', $blocks);

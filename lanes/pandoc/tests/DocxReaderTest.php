@@ -8410,10 +8410,9 @@ return [
         $t->same('rowspan', $geometry['sections'][0]['rows'][1]['slots'][0]['covering'] ?? null);
         json_encode($geometry, JSON_THROW_ON_ERROR);
 
-        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
-        $t->contains('| Review scope | | Status |', $normalizedMarkdown);
-        $t->contains('| | | Ready |', $normalizedMarkdown);
-        $t->contains('| Owner | Migration desk | |', $normalizedMarkdown);
+        $t->contains('<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>', $markdown);
+        $t->contains('<tr><td><p>Ready</p></td></tr>', $markdown);
+        $t->contains('<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>', $markdown);
         $t->contains('<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>', $blocks);
         $t->contains('<tr><td><p>Ready</p></td></tr>', $blocks);
         $t->contains('<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>', $blocks);
@@ -8486,9 +8485,8 @@ return [
         $t->same('fixed', $geometry['sourceAttributes']['attributes']['data-docx-table-layout'] ?? null);
         $t->same('width:90%; margin-left:18pt', $geometry['sourceAttributes']['htmlAttributes']['style'] ?? null);
 
-        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
-        $t->contains('| Source field | Review value |', $normalizedMarkdown);
-        $t->true(!str_contains($markdown, 'data-docx-table-width'), 'Pipe-table Markdown handoff should not leak DOCX table layout metadata');
+        $t->contains('data-docx-table-width-percent="90"', $markdown);
+        $t->contains('<td><p>Source field</p></td><td><p>Review value</p></td>', $markdown);
 
         $t->contains('<table class="docx-table-style docx-table-style-sourcereviewtable docx-table-width docx-table-width-pct docx-table-align docx-table-align-center docx-table-indent docx-table-indent-dxa docx-table-layout docx-table-layout-fixed" style="width:90%; margin-left:18pt" data-docx-table-style="SourceReviewTable" data-docx-table-width-type="pct" data-docx-table-width-value="4500" data-docx-table-width-percent="90" data-docx-table-align="center" data-docx-table-indent-type="dxa" data-docx-table-indent-value="360" data-docx-table-indent-left-points="18" data-docx-table-layout="fixed">', $blocks);
     },
@@ -8568,10 +8566,9 @@ return [
         $t->same('12', $overrideGeometry['sourceAttributes']['attributes']['data-docx-table-indent-left-points'] ?? null);
         $t->same('fixed', $overrideGeometry['sourceAttributes']['attributes']['data-docx-table-layout'] ?? null);
 
-        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
-        $t->contains('| Inherited source field | Inherited review value |', $normalizedMarkdown);
-        $t->contains('| Direct override field | Direct override value |', $normalizedMarkdown);
-        $t->true(!str_contains($markdown, 'data-docx-table-style-name'), 'Pipe-table Markdown handoff should not leak inherited DOCX table style metadata');
+        $t->contains('data-docx-table-style-name="Derived Review Table"', $markdown);
+        $t->contains('<td><p>Inherited source field</p></td><td><p>Inherited review value</p></td>', $markdown);
+        $t->contains('<td><p>Direct override field</p></td><td><p>Direct override value</p></td>', $markdown);
 
         $t->contains('class="docx-table-indent docx-table-indent-dxa docx-table-layout docx-table-layout-fixed docx-table-style-definition docx-table-width docx-table-width-pct docx-table-align docx-table-align-end docx-table-style docx-table-style-derivedreviewtable"', $blocks);
         $t->contains('style="margin-left:12pt; width:84%"', $blocks);
@@ -8649,11 +8646,10 @@ return [
         $t->same('F3F6FA', $sourceAttributes['data-docx-table-style-region-2-cell-shading-fill'] ?? null);
         $t->same('EADCF8', $sourceAttributes['data-docx-table-style-region-3-cell-shading-fill'] ?? null);
 
-        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
-        $t->contains('Styled header', $normalizedMarkdown);
-        $t->contains('Reviewer status', $normalizedMarkdown);
-        $t->contains('Final owner', $normalizedMarkdown);
-        $t->true(!str_contains($markdown, 'data-docx-table-style-region-count'), 'Pipe-table Markdown handoff should not leak table-level conditional style inventory metadata');
+        $t->contains('Styled header', $markdown);
+        $t->contains('Reviewer status', $markdown);
+        $t->contains('Final owner', $markdown);
+        $t->contains('data-docx-table-style-region-count="3"', $markdown);
 
         $t->contains('class="docx-table-width docx-table-width-pct docx-table-align docx-table-align-center docx-table-style-definition docx-table-style-conditional docx-table-style-conditional-first-row docx-table-style-conditional-band-1-horz docx-table-style-conditional-last-row docx-table-style docx-table-style-conditionalreviewtable"', $blocks);
         $t->contains('data-docx-table-style-region-count="3"', $blocks);
@@ -8724,7 +8720,7 @@ return [
         $t->contains('data-docx-table-style-paragraph-region="firstRow"', $markdown);
         $t->contains('data-docx-table-style-run-region="band1Horz"', $markdown);
         $t->contains('data-docx-highlight="yellow"', $markdown);
-        $t->true(!str_contains($markdown, 'data-docx-table-style-cell-region'), 'Pipe-table Markdown handoff should not leak table cell HTML metadata');
+        $t->contains('data-docx-table-style-cell-region="firstRow"', $markdown);
 
         $t->contains('data-docx-table-style-row-region="firstRow"', $blocks);
         $t->contains('data-docx-table-style-row-region="band1Horz"', $blocks);
@@ -8865,7 +8861,7 @@ return [
         $t->contains('data-docx-table-style-paragraph-region="nwCell"', $markdown);
         $t->contains('data-docx-table-style-run-region="seCell"', $markdown);
         $t->contains('data-docx-color="38761D"', $markdown);
-        $t->true(!str_contains($markdown, 'data-docx-table-style-cell-region'), 'Pipe-table Markdown handoff should not leak table cell HTML metadata');
+        $t->contains('data-docx-table-style-cell-region="nwCell"', $markdown);
 
         $t->contains('data-docx-table-style-region-types="firstRow firstCol lastCol nwCell neCell swCell seCell"', $blocks);
         $t->contains('data-docx-table-style-cell-region="nwCell"', $blocks);
@@ -8997,9 +8993,9 @@ return [
         $t->same('center', $geometry['coverage'][1]['sourceAttributes']['attributes']['data-docx-cell-vertical-align'] ?? null);
         $t->same('middle', $geometry['coverage'][1]['sourceAttributes']['htmlAttributes']['valign'] ?? null);
 
-        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
-        $t->contains('| Top aligned source note | Centered reviewer status |', $normalizedMarkdown);
-        $t->true(!str_contains($markdown, 'data-docx-cell-vertical-align'), 'Pipe-table Markdown handoff should not leak DOCX cell vertical alignment metadata');
+        $t->contains('data-docx-cell-vertical-align="top"', $markdown);
+        $t->contains('data-docx-cell-vertical-align="center"', $markdown);
+        $t->contains('<p>Top aligned source note</p>', $markdown);
         $t->contains('<td class="docx-cell-vertical-align docx-cell-vertical-align-top" valign="top" data-docx-cell-vertical-align="top"><p>Top aligned source note</p></td>', $blocks);
         $t->contains('<td class="docx-cell-vertical-align docx-cell-vertical-align-center" valign="middle" data-docx-cell-vertical-align="center"><p>Centered reviewer status</p></td>', $blocks);
         $t->contains('<td class="docx-cell-vertical-align docx-cell-vertical-align-bottom" valign="bottom" data-docx-cell-vertical-align="bottom"><p>Bottom aligned media audit</p></td><td><p>Plain fallback cell</p></td>', $blocks);
@@ -9043,9 +9039,9 @@ return [
         $t->same('accent2', $geometry['coverage'][1]['sourceAttributes']['attributes']['data-docx-cell-shading-theme-fill'] ?? null);
         $t->same(['docx-cell-shading', 'docx-cell-shading-clear', 'docx-cell-fill-d9eaf7'], $geometry['coverage'][0]['sourceAttributes']['classes'] ?? null);
 
-        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
-        $t->contains('| Highlighted source cell | Theme shaded review cell |', $normalizedMarkdown);
-        $t->true(!str_contains($markdown, 'data-docx-cell-shading'), 'Pipe-table Markdown handoff should not leak DOCX cell shading metadata');
+        $t->contains('data-docx-cell-shading-fill="D9EAF7"', $markdown);
+        $t->contains('data-docx-cell-shading-theme-fill="accent2"', $markdown);
+        $t->contains('<p>Highlighted source cell</p>', $markdown);
         $t->contains('<td class="docx-cell-shading docx-cell-shading-clear docx-cell-fill-d9eaf7" data-docx-cell-shading-val="clear" data-docx-cell-shading-fill="D9EAF7" data-docx-cell-shading-color="auto" style="background-color:#D9EAF7"><p>Highlighted source cell</p></td>', $blocks);
         $t->contains('<td class="docx-cell-shading docx-cell-shading-pct15" data-docx-cell-shading-val="pct15" data-docx-cell-shading-theme-fill="accent2" data-docx-cell-shading-theme-fill-tint="66" data-docx-cell-shading-theme-color="text1"><p>Theme shaded review cell</p></td>', $blocks);
         $t->contains('<td><p>No shading fallback</p></td><td><p>Plain cell</p></td>', $blocks);
@@ -9098,10 +9094,9 @@ return [
         $t->true(!isset($geometry['coverage'][3]['sourceAttributes']), 'DOCX nil cell width should not appear in the geometry source-attribute packet');
         $t->true(!isset($geometry['coverage'][4]['sourceAttributes']), 'Unsupported DOCX cell width should not appear in the geometry source-attribute packet');
 
-        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
-        $t->contains('| Fixed shaded source cell | Half width review cell |', $normalizedMarkdown);
-        $t->contains('| Auto width cell | Nil width fallback |', $normalizedMarkdown);
-        $t->true(!str_contains($markdown, 'data-docx-cell-width'), 'Pipe-table Markdown handoff should not leak DOCX cell width metadata');
+        $t->contains('data-docx-cell-width-points="120"', $markdown);
+        $t->contains('data-docx-cell-width-percent="50"', $markdown);
+        $t->contains('<p>Auto width cell</p>', $markdown);
         $t->contains('<td class="docx-cell-width docx-cell-width-dxa docx-cell-shading docx-cell-shading-clear docx-cell-fill-d9eaf7" data-docx-cell-width-type="dxa" data-docx-cell-width-value="2400" data-docx-cell-width-points="120" data-docx-cell-shading-val="clear" data-docx-cell-shading-fill="D9EAF7" data-docx-cell-shading-color="auto" style="width:120pt; background-color:#D9EAF7"><p>Fixed shaded source cell</p></td>', $blocks);
         $t->contains('<td class="docx-cell-width docx-cell-width-pct" data-docx-cell-width-type="pct" data-docx-cell-width-value="2500" data-docx-cell-width-percent="50" style="width:50%"><p>Half width review cell</p></td>', $blocks);
         $t->contains('<td class="docx-cell-width docx-cell-width-auto" data-docx-cell-width-type="auto" data-docx-cell-width-value="0"><p>Auto width cell</p></td><td><p>Nil width fallback</p></td>', $blocks);
@@ -9167,9 +9162,9 @@ return [
         $t->same('auto', $geometry['coverage'][1]['sourceAttributes']['attributes']['data-docx-cell-margin-left-type'] ?? null);
         $t->true(!isset($geometry['coverage'][2]['sourceAttributes']), 'Disabled DOCX cell margin should not appear in geometry source-attribute packet');
 
-        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
-        $t->contains('| Padded review scope | Legacy margin edge |', $normalizedMarkdown);
-        $t->true(!str_contains($markdown, 'data-docx-cell-margin'), 'Pipe-table Markdown handoff should not leak DOCX cell margin metadata');
+        $t->contains('data-docx-cell-margin-top-points="6"', $markdown);
+        $t->contains('data-docx-cell-margin-right-points="18"', $markdown);
+        $t->contains('<p>Padded review scope</p>', $markdown);
         $t->contains('<td class="docx-cell-width docx-cell-width-dxa docx-cell-margin docx-cell-margin-top docx-cell-margin-start docx-cell-margin-bottom docx-cell-margin-end docx-cell-margin-dxa docx-cell-margin-pct docx-cell-shading docx-cell-shading-clear docx-cell-fill-eaf2f8" data-docx-cell-width-type="dxa" data-docx-cell-width-value="1800" data-docx-cell-width-points="90" data-docx-cell-margin-top-type="dxa"', $blocks);
         $t->contains('style="width:90pt; padding-top:6pt; padding-inline-start:12pt; padding-bottom:3pt; padding-inline-end:10%; background-color:#EAF2F8"><p>Padded review scope</p></td>', $blocks);
         $t->contains('<td class="docx-cell-margin docx-cell-margin-left docx-cell-margin-right docx-cell-margin-auto docx-cell-margin-dxa" data-docx-cell-margin-left-type="auto" data-docx-cell-margin-left-value="0" data-docx-cell-margin-right-type="dxa" data-docx-cell-margin-right-value="360" data-docx-cell-margin-right-points="18" style="padding-right:18pt"><p>Legacy margin edge</p></td>', $blocks);
@@ -9295,9 +9290,9 @@ return [
         $t->same('border-top:0.75pt dotted #999999', $geometry['coverage'][1]['sourceAttributes']['htmlAttributes']['style'] ?? null);
         $t->true(!isset($geometry['coverage'][2]['sourceAttributes']), 'Disabled DOCX table-cell border should not appear in geometry source-attribute packet');
 
-        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
-        $t->contains('| Bordered source cell | Theme border review cell |', $normalizedMarkdown);
-        $t->true(!str_contains($markdown, 'data-docx-cell-border'), 'Pipe-table Markdown handoff should not leak DOCX cell border metadata');
+        $t->contains('data-docx-cell-border-top-val="single"', $markdown);
+        $t->contains('data-docx-cell-border-tl2br-val="dashDot"', $markdown);
+        $t->contains('<p>Bordered source cell</p>', $markdown);
         $t->contains('<td class="docx-cell-width docx-cell-width-dxa docx-cell-border docx-cell-border-top docx-cell-border-top-single docx-cell-border-left docx-cell-border-left-dashed docx-cell-border-bottom docx-cell-border-bottom-double docx-cell-shading docx-cell-shading-clear docx-cell-fill-f2f2f2" data-docx-cell-width-type="dxa" data-docx-cell-width-value="1800" data-docx-cell-width-points="90" data-docx-cell-border-top-val="single"', $blocks);
         $t->contains('style="width:90pt; border-top:1pt solid #4F81BD; border-bottom:2pt double #C00000; background-color:#F2F2F2"><p>Bordered source cell</p></td>', $blocks);
         $t->contains('<td class="docx-cell-border docx-cell-border-inside-h docx-cell-border-inside-h-dotted docx-cell-border-inside-v docx-cell-border-inside-v-single docx-cell-border-tl2br docx-cell-border-tl2br-dash-dot" data-docx-cell-border-inside-h-val="dotted"', $blocks);
@@ -9355,10 +9350,9 @@ return [
         $t->same('auto', $geometry['sections'][0]['rows'][2]['sourceAttributes']['attributes']['data-docx-table-row-height-rule'] ?? null);
         $t->true(!isset($geometry['sections'][0]['rows'][3]['sourceAttributes']), 'Unsupported DOCX row-height rules should not appear in the geometry source-attribute packet');
 
-        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
-        $t->contains('| Reviewer field | Status |', $normalizedMarkdown);
-        $t->contains('| Long source note | Keep with row |', $normalizedMarkdown);
-        $t->true(!str_contains($markdown, 'data-docx-table-row'), 'Pipe-table Markdown handoff should not leak DOCX table-row metadata');
+        $t->contains('data-docx-table-row-repeat-header="true"', $markdown);
+        $t->contains('data-docx-table-row-cant-split="true"', $markdown);
+        $t->contains('<p>Reviewer field</p>', $markdown);
         $t->contains('<tr class="docx-table-row-repeat-header docx-table-row-height docx-table-row-height-exact" data-docx-table-row-repeat-header="true" data-docx-table-row-height-rule="exact" data-docx-table-row-height-value="420" data-docx-table-row-height-points="21" style="height:21pt"><td><p>Reviewer field</p></td><td><p>Status</p></td></tr>', $blocks);
         $t->contains('<tr class="docx-table-row-cant-split docx-table-row-height docx-table-row-height-at-least" data-docx-table-row-cant-split="true" data-docx-table-row-height-rule="atLeast" data-docx-table-row-height-value="360" data-docx-table-row-height-points="18" style="min-height:18pt"><td><p>Long source note</p></td><td><p>Keep with row</p></td></tr>', $blocks);
         $t->contains('<tr class="docx-table-row-height docx-table-row-height-auto" data-docx-table-row-height-rule="auto" data-docx-table-row-height-value="480" data-docx-table-row-height-points="24"><td><p>Plain continuation</p></td><td><p>Can split</p></td></tr>', $blocks);
@@ -9441,10 +9435,9 @@ return [
         $t->same('2', $geometry['coverage'][10]['sourceAttributes']['attributes']['data-docx-omitted-grid-count'] ?? null);
         $t->same('2', $geometry['coverage'][11]['sourceAttributes']['attributes']['data-docx-omitted-grid-index'] ?? null);
 
-        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
-        $t->contains('| | Needs review | Import desk | |', $normalizedMarkdown);
-        $t->contains('| Archive packet | Queued | | |', $normalizedMarkdown);
-        $t->true(!str_contains($markdown, 'data-docx-omitted'), 'Pipe-table Markdown handoff should not leak DOCX omitted-grid metadata');
+        $t->contains('data-docx-omitted-table-cell="before"', $markdown);
+        $t->contains('data-docx-omitted-table-cell="after"', $markdown);
+        $t->contains('<p>Needs review</p>', $markdown);
         $t->contains('<tr class="docx-table-row-grid-before docx-table-row-width-before docx-table-row-width-before-dxa docx-table-row-grid-after docx-table-row-width-after docx-table-row-width-after-pct" data-docx-table-row-grid-before="1" data-docx-table-row-width-before-type="dxa" data-docx-table-row-width-before-value="1200" data-docx-table-row-width-before-points="60" data-docx-table-row-grid-after="1" data-docx-table-row-width-after-type="pct" data-docx-table-row-width-after-value="2500" data-docx-table-row-width-after-percent="50">', $blocks);
         $t->contains('<td class="docx-omitted-table-cell docx-omitted-table-cell-before" data-docx-omitted-table-cell="before" data-docx-omitted-grid-count="1" data-docx-omitted-grid-index="1" aria-hidden="true"></td><td><p>Needs review</p></td><td><p>Import desk</p></td><td class="docx-omitted-table-cell docx-omitted-table-cell-after" data-docx-omitted-table-cell="after" data-docx-omitted-grid-count="1" data-docx-omitted-grid-index="1" aria-hidden="true"></td>', $blocks);
         $t->contains('<tr class="docx-table-row-grid-after docx-table-row-width-after docx-table-row-width-after-auto" data-docx-table-row-grid-after="2" data-docx-table-row-width-after-type="auto" data-docx-table-row-width-after-value="0"><td><p>Archive packet</p></td><td><p>Queued</p></td><td class="docx-omitted-table-cell docx-omitted-table-cell-after" data-docx-omitted-table-cell="after" data-docx-omitted-grid-count="2" data-docx-omitted-grid-index="1" aria-hidden="true"></td><td class="docx-omitted-table-cell docx-omitted-table-cell-after" data-docx-omitted-table-cell="after" data-docx-omitted-grid-count="2" data-docx-omitted-grid-index="2" aria-hidden="true"></td></tr>', $blocks);

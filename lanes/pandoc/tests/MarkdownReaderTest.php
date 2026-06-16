@@ -11687,7 +11687,7 @@ MD;
             '',
         ]), (new MarkdownWriter())->write($document));
     },
-    'maps upstream markdown writer table span degradation to rectangular pipe rows' => static function (TestRunner $t): void {
+    'maps upstream markdown writer table span fallback to html rows' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('table', [
                 'captionInlines' => [
@@ -11735,13 +11735,17 @@ MD;
         ]);
 
         $t->same(implode("\n", [
-            '| Review scope                     |                |  Status |',
-            '|:-------------------------------|:------------:|------:|',
-            '| Media audit                      | posts \\| pages |   ready |',
-            '|                                  |  attachments   | blocked |',
-            '| Reviewer note across all columns |                |         |',
-            '',
-            ': Grid span review',
+            '<table>',
+            '  <caption>Grid span review</caption>',
+            '  <thead>',
+            '    <tr><th scope="colgroup" colspan="2" style="text-align:left">Review scope</th><th scope="col" style="text-align:right">Status</th></tr>',
+            '  </thead>',
+            '  <tbody>',
+            '    <tr><td rowspan="2" style="text-align:left">Media audit</td><td style="text-align:center">posts | pages</td><td style="text-align:right">ready</td></tr>',
+            '    <tr><td style="text-align:center">attachments</td><td style="text-align:right">blocked</td></tr>',
+            '    <tr><td colspan="3" style="text-align:left">Reviewer note across all columns</td></tr>',
+            '  </tbody>',
+            '</table>',
         ]), (new MarkdownWriter())->write($document));
     },
     'maps upstream markdown writer multi block table cell fallback safely inside pipe rows' => static function (TestRunner $t): void {

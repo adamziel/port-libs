@@ -2440,15 +2440,18 @@ final class MarkdownWriter
     {
         $autoFallback = (bool) ($this->options['htmlTableAutoFallback'] ?? false)
             || (bool) ($this->options['autoHtmlTables'] ?? false);
+        $requiresDefaultHtmlFallback = $this->tableRequiresDefaultHtmlFallback($node, $columnCount);
+        $requiresHtmlFallback = $this->tableRequiresHtmlFallback($node, $columnCount);
 
         return $columnCount > 0
             && (
                 $this->markdownTableFormat($node) === 'html'
                 || $this->tableRequestsHtmlFallback($node)
-                || ($autoFallback && $this->tableRequiresHtmlFallback($node, $columnCount))
+                || $requiresDefaultHtmlFallback
+                || ($autoFallback && $requiresHtmlFallback)
                 || (
                     $this->tableRequestsSemanticHtmlFallback($node)
-                    && $this->tableRequiresHtmlFallback($node, $columnCount)
+                    && $requiresHtmlFallback
                 )
             );
     }
@@ -2515,6 +2518,81 @@ final class MarkdownWriter
         return false;
     }
 
+    private function tableRequiresDefaultHtmlFallback(AstNode $node, int $columnCount): bool
+    {
+        if (
+            $this->tableHasDefaultHtmlOnlyAttributes($node)
+            || $this->tableHasColumnSourceAttributes($node)
+        ) {
+            return true;
+        }
+
+        foreach ($node->children as $section) {
+            if ($section->type === 'table_head') {
+                if ($this->nodeHasSourceAttributes($section)) {
+                    return true;
+                }
+
+                foreach ($section->children as $row) {
+                    if ($row->type === 'table_row' && $this->tableRowRequiresDefaultHtmlFallback($row, true)) {
+                        return true;
+                    }
+                }
+
+                continue;
+            }
+
+            if ($section->type === 'table_body') {
+                if ($this->nodeHasSourceAttributes($section)) {
+                    return true;
+                }
+
+                if (TableGeometry::rowHeadColumns($section, $columnCount) > 0) {
+                    return true;
+                }
+
+                $headRows = $this->tableBodyHeadRows($section);
+                foreach ($headRows as $row) {
+                    if ($this->tableRowRequiresDefaultHtmlFallback($row, true)) {
+                        return true;
+                    }
+                }
+
+                foreach ($section->children as $row) {
+                    if (
+                        $row->type === 'table_row'
+                        && !in_array($row, $headRows, true)
+                        && $this->tableRowRequiresDefaultHtmlFallback($row, false)
+                    ) {
+                        return true;
+                    }
+                }
+
+                continue;
+            }
+
+            if ($section->type === 'table_foot') {
+                if ($this->nodeHasSourceAttributes($section)) {
+                    return true;
+                }
+
+                foreach ($section->children as $row) {
+                    if ($row->type === 'table_row' && $this->tableRowRequiresDefaultHtmlFallback($row, false)) {
+                        return true;
+                    }
+                }
+
+                continue;
+            }
+
+            if ($section->type === 'table_row' && $this->tableRowRequiresDefaultHtmlFallback($section, false)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function tableColumnCount(AstNode $node): int
     {
         $columnCount = TableGeometry::columnCount($node);
@@ -2567,6 +2645,25 @@ final class MarkdownWriter
         return false;
     }
 
+    private function tableRowRequiresDefaultHtmlFallback(AstNode $row, bool $headerRow): bool
+    {
+        if ($this->nodeHasSourceAttributes($row)) {
+            return true;
+        }
+
+        if (!$headerRow && $row->attr('header') === true) {
+            return true;
+        }
+
+        foreach ($row->children as $cell) {
+            if ($cell->type === 'table_cell' && $this->tableCellRequiresDefaultHtmlFallback($cell, $headerRow)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function tableHasHtmlOnlyAttributes(AstNode $node): bool
     {
         if ($this->stringMapAttrNonEmpty($node, 'htmlAttributes')) {
@@ -2584,6 +2681,49 @@ final class MarkdownWriter
             }
 
             if (!$this->isMarkdownTableAttribute((string) $name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function tableHasDefaultHtmlOnlyAttributes(AstNode $node): bool
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (is_array($htmlAttributes)) {
+            foreach ($htmlAttributes as $name => $value) {
+                if (!is_scalar($value) || trim((string) $value) === '') {
+                    continue;
+                }
+
+                $name = strtolower((string) $name);
+                if ($name === 'id' || $name === 'class' || $this->isReviewMetadataHtmlAttribute($name)) {
+                    continue;
+                }
+
+                if (!$this->isMarkdownTableAttribute($name)) {
+                    return true;
+                }
+            }
+        }
+
+        $attributes = $node->attr('attributes', []);
+        if (!is_array($attributes)) {
+            return false;
+        }
+
+        foreach ($attributes as $name => $value) {
+            if (!is_scalar($value) || trim((string) $value) === '') {
+                continue;
+            }
+
+            $name = strtolower((string) $name);
+            if ($this->isReviewMetadataHtmlAttribute($name)) {
+                continue;
+            }
+
+            if (!$this->isMarkdownTableAttribute($name)) {
                 return true;
             }
         }
@@ -2637,6 +2777,32 @@ final class MarkdownWriter
         }
 
         if ((bool) $cell->attr('header', false)) {
+            return true;
+        }
+
+        if (in_array((string) $cell->attr('align', ''), ['left', 'right', 'center'], true)) {
+            return true;
+        }
+
+        if (in_array((string) $cell->attr('valign', ''), ['baseline', 'top', 'middle', 'bottom'], true)) {
+            return true;
+        }
+
+        return $this->nodeHasSourceAttributes($cell)
+            || $this->nodeListHasHtmlAttributes($cell->children);
+    }
+
+    private function tableCellRequiresDefaultHtmlFallback(AstNode $cell, bool $headerRow): bool
+    {
+        if ($this->tableCellColspan($cell) > 1) {
+            return true;
+        }
+
+        if ($this->tableCellRawRowspan($cell) !== 1) {
+            return true;
+        }
+
+        if (!$headerRow && (bool) $cell->attr('header', false)) {
             return true;
         }
 
