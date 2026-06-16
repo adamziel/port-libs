@@ -19822,6 +19822,14 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($text[$cursor] === '<') {
+                $end = $this->bracketedLabelRawHtmlInlineSkipEnd($text, $cursor);
+                if ($end !== null) {
+                    $cursor = $end - 1;
+                }
+                continue;
+            }
+
             if ($text[$cursor] === '[') {
                 $depth++;
                 continue;
