@@ -565,6 +565,10 @@ final class OpenDocumentPackage
                 'customManifestAttributeNames' => is_array($manifestEntry) ? ($manifestEntry['customManifestAttributeNames'] ?? []) : [],
                 'customManifestAttributes' => is_array($manifestEntry) ? ($manifestEntry['customManifestAttributes'] ?? []) : [],
                 'customManifestAttributeMap' => is_array($manifestEntry) ? ($manifestEntry['customManifestAttributeMap'] ?? []) : [],
+                'manifestNamespaceDeclarationCount' => is_array($manifestEntry) ? ($manifestEntry['manifestNamespaceDeclarationCount'] ?? 0) : 0,
+                'manifestNamespaceDeclarationNames' => is_array($manifestEntry) ? ($manifestEntry['manifestNamespaceDeclarationNames'] ?? []) : [],
+                'manifestNamespaceDeclarations' => is_array($manifestEntry) ? ($manifestEntry['manifestNamespaceDeclarations'] ?? []) : [],
+                'manifestNamespaceDeclarationMap' => is_array($manifestEntry) ? ($manifestEntry['manifestNamespaceDeclarationMap'] ?? []) : [],
                 'manifestDeclaredSize' => is_array($manifestEntry) ? $manifestEntry['declaredSize'] : null,
                 'manifestDeclaredSizeMismatch' => is_array($manifestEntry) && ($manifestEntry['declaredSizeMismatch'] ?? false) === true,
                 'manifestMissingMediaType' => is_array($manifestEntry) && ($manifestEntry['missingMediaType'] ?? false) === true,
@@ -3520,6 +3524,10 @@ final class OpenDocumentPackage
             'manifestRootCustomAttributeNames' => $manifestRootAttributes['customAttributeNames'] ?? [],
             'manifestRootCustomAttributes' => $manifestRootAttributes['customAttributes'] ?? [],
             'manifestRootCustomAttributeMap' => $manifestRootAttributes['customAttributeMap'] ?? [],
+            'manifestRootNamespaceDeclarationCount' => $manifestRootAttributes['namespaceDeclarationCount'] ?? 0,
+            'manifestRootNamespaceDeclarationNames' => $manifestRootAttributes['namespaceDeclarationNames'] ?? [],
+            'manifestRootNamespaceDeclarations' => $manifestRootAttributes['namespaceDeclarations'] ?? [],
+            'manifestRootNamespaceDeclarationMap' => $manifestRootAttributes['namespaceDeclarationMap'] ?? [],
             'manifestCustomAttributeEntryCount' => 0,
             'manifestCustomAttributeCount' => 0,
             'manifestCustomAttributeNames' => [],
@@ -3604,6 +3612,10 @@ final class OpenDocumentPackage
                     'customManifestAttributeNames' => $entry['customManifestAttributeNames'] ?? [],
                     'customManifestAttributes' => $customManifestAttributes,
                     'customManifestAttributeMap' => $entry['customManifestAttributeMap'] ?? [],
+                    'manifestNamespaceDeclarationCount' => $entry['manifestNamespaceDeclarationCount'] ?? 0,
+                    'manifestNamespaceDeclarationNames' => $entry['manifestNamespaceDeclarationNames'] ?? [],
+                    'manifestNamespaceDeclarations' => $entry['manifestNamespaceDeclarations'] ?? [],
+                    'manifestNamespaceDeclarationMap' => $entry['manifestNamespaceDeclarationMap'] ?? [],
                 ];
             }
             if (($entry['uriEncodedPackageReference'] ?? false) === true) {
@@ -4114,6 +4126,10 @@ final class OpenDocumentPackage
             'customManifestAttributeNames' => $entry['customManifestAttributeNames'] ?? [],
             'customManifestAttributes' => $entry['customManifestAttributes'] ?? [],
             'customManifestAttributeMap' => $entry['customManifestAttributeMap'] ?? [],
+            'manifestNamespaceDeclarationCount' => $entry['manifestNamespaceDeclarationCount'] ?? 0,
+            'manifestNamespaceDeclarationNames' => $entry['manifestNamespaceDeclarationNames'] ?? [],
+            'manifestNamespaceDeclarations' => $entry['manifestNamespaceDeclarations'] ?? [],
+            'manifestNamespaceDeclarationMap' => $entry['manifestNamespaceDeclarationMap'] ?? [],
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
@@ -4189,6 +4205,10 @@ final class OpenDocumentPackage
             'customManifestAttributeNames' => $entry['customManifestAttributeNames'] ?? [],
             'customManifestAttributes' => $entry['customManifestAttributes'] ?? [],
             'customManifestAttributeMap' => $entry['customManifestAttributeMap'] ?? [],
+            'manifestNamespaceDeclarationCount' => $entry['manifestNamespaceDeclarationCount'] ?? 0,
+            'manifestNamespaceDeclarationNames' => $entry['manifestNamespaceDeclarationNames'] ?? [],
+            'manifestNamespaceDeclarations' => $entry['manifestNamespaceDeclarations'] ?? [],
+            'manifestNamespaceDeclarationMap' => $entry['manifestNamespaceDeclarationMap'] ?? [],
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
@@ -4432,6 +4452,10 @@ final class OpenDocumentPackage
                 'customManifestAttributeNames' => $attributeProvenance['customAttributeNames'],
                 'customManifestAttributes' => $attributeProvenance['customAttributes'],
                 'customManifestAttributeMap' => $attributeProvenance['customAttributeMap'],
+                'manifestNamespaceDeclarationCount' => $attributeProvenance['namespaceDeclarationCount'],
+                'manifestNamespaceDeclarationNames' => $attributeProvenance['namespaceDeclarationNames'],
+                'manifestNamespaceDeclarations' => $attributeProvenance['namespaceDeclarations'],
+                'manifestNamespaceDeclarationMap' => $attributeProvenance['namespaceDeclarationMap'],
                 'missingMediaType' => $missingMediaType,
                 'encrypted' => $encryption !== null,
                 'encryption' => $encryption,
@@ -4455,7 +4479,11 @@ final class OpenDocumentPackage
      *     customAttributeCount:int,
      *     customAttributeNames:list<string>,
      *     customAttributes:list<array<string, mixed>>,
-     *     customAttributeMap:array<string, string>
+     *     customAttributeMap:array<string, string>,
+     *     namespaceDeclarationCount:int,
+     *     namespaceDeclarationNames:list<string>,
+     *     namespaceDeclarations:list<array<string, mixed>>,
+     *     namespaceDeclarationMap:array<string, string>
      * }
      */
     private static function manifestFileEntryAttributeProvenance(\DOMElement $element): array
@@ -4471,7 +4499,11 @@ final class OpenDocumentPackage
      *     customAttributeCount:int,
      *     customAttributeNames:list<string>,
      *     customAttributes:list<array<string, mixed>>,
-     *     customAttributeMap:array<string, string>
+     *     customAttributeMap:array<string, string>,
+     *     namespaceDeclarationCount:int,
+     *     namespaceDeclarationNames:list<string>,
+     *     namespaceDeclarations:list<array<string, mixed>>,
+     *     namespaceDeclarationMap:array<string, string>
      * }
      */
     private static function manifestRootAttributeProvenance(\DOMElement $element): array
@@ -4488,7 +4520,11 @@ final class OpenDocumentPackage
      *     customAttributeCount:int,
      *     customAttributeNames:list<string>,
      *     customAttributes:list<array<string, mixed>>,
-     *     customAttributeMap:array<string, string>
+     *     customAttributeMap:array<string, string>,
+     *     namespaceDeclarationCount:int,
+     *     namespaceDeclarationNames:list<string>,
+     *     namespaceDeclarations:list<array<string, mixed>>,
+     *     namespaceDeclarationMap:array<string, string>
      * }
      */
     private static function manifestElementAttributeProvenance(\DOMElement $element, array $structuralAttributes): array
@@ -4496,9 +4532,42 @@ final class OpenDocumentPackage
         $attributes = [];
         $customAttributes = [];
         $customAttributeMap = [];
+        $namespaceDeclarations = self::manifestElementNamespaceDeclarations($element);
+        $namespaceDeclarationMap = array_map(
+            static fn (array $declaration): string => $declaration['namespaceUri'],
+            $namespaceDeclarations
+        );
         if ($element->hasAttributes()) {
             foreach ($element->attributes as $attribute) {
-                if (!$attribute instanceof \DOMAttr || $attribute->namespaceURI === self::XMLNS_NAMESPACE) {
+                if (!$attribute instanceof \DOMAttr) {
+                    continue;
+                }
+
+                if ($attribute->prefix !== '' && is_string($attribute->namespaceURI) && $attribute->namespaceURI !== '' && $attribute->prefix !== 'xmlns') {
+                    $namespaceName = 'xmlns:' . $attribute->prefix;
+                    if (!isset($namespaceDeclarations[$namespaceName])) {
+                        $namespaceDeclarations[$namespaceName] = [
+                            'name' => $namespaceName,
+                            'declaredPrefix' => $attribute->prefix,
+                            'namespaceUri' => $attribute->namespaceURI,
+                            'default' => false,
+                        ];
+                        $namespaceDeclarationMap[$namespaceName] = $attribute->namespaceURI;
+                    }
+                }
+
+                if ($attribute->namespaceURI === self::XMLNS_NAMESPACE) {
+                    $name = $attribute->name === 'xmlns'
+                        ? 'xmlns'
+                        : 'xmlns:' . $attribute->localName;
+                    $declaredPrefix = $attribute->name === 'xmlns' ? '' : $attribute->localName;
+                    $namespaceDeclarations[$name] = [
+                        'name' => $name,
+                        'declaredPrefix' => $declaredPrefix,
+                        'namespaceUri' => $attribute->value,
+                        'default' => $declaredPrefix === '',
+                    ];
+                    $namespaceDeclarationMap[$name] = $attribute->value;
                     continue;
                 }
 
@@ -4532,6 +4601,8 @@ final class OpenDocumentPackage
         ksort($attributes, SORT_STRING);
         ksort($customAttributes, SORT_STRING);
         ksort($customAttributeMap, SORT_STRING);
+        ksort($namespaceDeclarations, SORT_STRING);
+        ksort($namespaceDeclarationMap, SORT_STRING);
 
         return [
             'attributeCount' => count($attributes),
@@ -4541,7 +4612,43 @@ final class OpenDocumentPackage
             'customAttributeNames' => array_keys($customAttributes),
             'customAttributes' => array_values($customAttributes),
             'customAttributeMap' => $customAttributeMap,
+            'namespaceDeclarationCount' => count($namespaceDeclarations),
+            'namespaceDeclarationNames' => array_keys($namespaceDeclarations),
+            'namespaceDeclarations' => array_values($namespaceDeclarations),
+            'namespaceDeclarationMap' => $namespaceDeclarationMap,
         ];
+    }
+
+    /**
+     * @return array<string, array{name:string, declaredPrefix:string, namespaceUri:string, default:bool}>
+     */
+    private static function manifestElementNamespaceDeclarations(\DOMElement $element): array
+    {
+        $xpath = new \DOMXPath($element->ownerDocument);
+        $nodes = $xpath->query('namespace::*', $element);
+        if ($nodes === false) {
+            return [];
+        }
+
+        $declarations = [];
+        foreach ($nodes as $node) {
+            if (!$node instanceof \DOMNameSpaceNode || $node->nodeName === 'xmlns:xml') {
+                continue;
+            }
+
+            $name = $node->nodeName;
+            $declaredPrefix = $name === 'xmlns' ? '' : $node->localName;
+            $declarations[$name] = [
+                'name' => $name,
+                'declaredPrefix' => $declaredPrefix,
+                'namespaceUri' => (string) $node->nodeValue,
+                'default' => $declaredPrefix === '',
+            ];
+        }
+
+        ksort($declarations, SORT_STRING);
+
+        return $declarations;
     }
 
     /**

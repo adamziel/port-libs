@@ -181,6 +181,10 @@ final class OdfReader
                 'rootCustomAttributeNames' => $manifestRootAttributes['customAttributeNames'] ?? [],
                 'rootCustomAttributes' => $manifestRootAttributes['customAttributes'] ?? [],
                 'rootCustomAttributeMap' => $manifestRootAttributes['customAttributeMap'] ?? [],
+                'rootNamespaceDeclarationCount' => $manifestRootAttributes['namespaceDeclarationCount'] ?? 0,
+                'rootNamespaceDeclarationNames' => $manifestRootAttributes['namespaceDeclarationNames'] ?? [],
+                'rootNamespaceDeclarations' => $manifestRootAttributes['namespaceDeclarations'] ?? [],
+                'rootNamespaceDeclarationMap' => $manifestRootAttributes['namespaceDeclarationMap'] ?? [],
                 'mimetypeEntry' => $mimetypeEntry,
                 'items' => $manifest,
                 'mediaTypeSummary' => $manifestMediaTypeSummary,
@@ -271,6 +275,10 @@ final class OdfReader
                     'rootCustomAttributeNames' => $manifestRootAttributes['customAttributeNames'] ?? [],
                     'rootCustomAttributes' => $manifestRootAttributes['customAttributes'] ?? [],
                     'rootCustomAttributeMap' => $manifestRootAttributes['customAttributeMap'] ?? [],
+                    'rootNamespaceDeclarationCount' => $manifestRootAttributes['namespaceDeclarationCount'] ?? 0,
+                    'rootNamespaceDeclarationNames' => $manifestRootAttributes['namespaceDeclarationNames'] ?? [],
+                    'rootNamespaceDeclarations' => $manifestRootAttributes['namespaceDeclarations'] ?? [],
+                    'rootNamespaceDeclarationMap' => $manifestRootAttributes['namespaceDeclarationMap'] ?? [],
                     'mimetypeEntry' => $mimetypeEntry,
                     'items' => $manifest,
                     'mediaTypeSummary' => $manifestMediaTypeSummary,
@@ -546,6 +554,10 @@ final class OdfReader
                 'customManifestAttributeNames' => $attributeProvenance['customAttributeNames'],
                 'customManifestAttributes' => $attributeProvenance['customAttributes'],
                 'customManifestAttributeMap' => $attributeProvenance['customAttributeMap'],
+                'manifestNamespaceDeclarationCount' => $attributeProvenance['namespaceDeclarationCount'],
+                'manifestNamespaceDeclarationNames' => $attributeProvenance['namespaceDeclarationNames'],
+                'manifestNamespaceDeclarations' => $attributeProvenance['namespaceDeclarations'],
+                'manifestNamespaceDeclarationMap' => $attributeProvenance['namespaceDeclarationMap'],
                 'declaredSize' => $declaredSize['value'],
                 'declaredSizeRaw' => $declaredSize['raw'],
                 'declaredSizeValid' => $declaredSize['valid'],
@@ -673,7 +685,11 @@ final class OdfReader
      *     customAttributeCount:int,
      *     customAttributeNames:list<string>,
      *     customAttributes:list<array<string, mixed>>,
-     *     customAttributeMap:array<string, string>
+     *     customAttributeMap:array<string, string>,
+     *     namespaceDeclarationCount:int,
+     *     namespaceDeclarationNames:list<string>,
+     *     namespaceDeclarations:list<array<string, mixed>>,
+     *     namespaceDeclarationMap:array<string, string>
      * }
      */
     private function manifestFileEntryAttributeProvenance(\DOMElement $element): array
@@ -689,7 +705,11 @@ final class OdfReader
      *     customAttributeCount:int,
      *     customAttributeNames:list<string>,
      *     customAttributes:list<array<string, mixed>>,
-     *     customAttributeMap:array<string, string>
+     *     customAttributeMap:array<string, string>,
+     *     namespaceDeclarationCount:int,
+     *     namespaceDeclarationNames:list<string>,
+     *     namespaceDeclarations:list<array<string, mixed>>,
+     *     namespaceDeclarationMap:array<string, string>
      * }
      */
     private function manifestRootAttributeProvenance(\DOMElement $element): array
@@ -706,7 +726,11 @@ final class OdfReader
      *     customAttributeCount:int,
      *     customAttributeNames:list<string>,
      *     customAttributes:list<array<string, mixed>>,
-     *     customAttributeMap:array<string, string>
+     *     customAttributeMap:array<string, string>,
+     *     namespaceDeclarationCount:int,
+     *     namespaceDeclarationNames:list<string>,
+     *     namespaceDeclarations:list<array<string, mixed>>,
+     *     namespaceDeclarationMap:array<string, string>
      * }
      */
     private function manifestElementAttributeProvenance(\DOMElement $element, array $structuralAttributes): array
@@ -714,9 +738,42 @@ final class OdfReader
         $attributes = [];
         $customAttributes = [];
         $customAttributeMap = [];
+        $namespaceDeclarations = $this->manifestElementNamespaceDeclarations($element);
+        $namespaceDeclarationMap = array_map(
+            static fn (array $declaration): string => $declaration['namespaceUri'],
+            $namespaceDeclarations
+        );
         if ($element->hasAttributes()) {
             foreach ($element->attributes as $attribute) {
-                if (!$attribute instanceof \DOMAttr || $attribute->namespaceURI === self::XMLNS_NS) {
+                if (!$attribute instanceof \DOMAttr) {
+                    continue;
+                }
+
+                if ($attribute->prefix !== '' && is_string($attribute->namespaceURI) && $attribute->namespaceURI !== '' && $attribute->prefix !== 'xmlns') {
+                    $namespaceName = 'xmlns:' . $attribute->prefix;
+                    if (!isset($namespaceDeclarations[$namespaceName])) {
+                        $namespaceDeclarations[$namespaceName] = [
+                            'name' => $namespaceName,
+                            'declaredPrefix' => $attribute->prefix,
+                            'namespaceUri' => $attribute->namespaceURI,
+                            'default' => false,
+                        ];
+                        $namespaceDeclarationMap[$namespaceName] = $attribute->namespaceURI;
+                    }
+                }
+
+                if ($attribute->namespaceURI === self::XMLNS_NS) {
+                    $name = $attribute->name === 'xmlns'
+                        ? 'xmlns'
+                        : 'xmlns:' . $attribute->localName;
+                    $declaredPrefix = $attribute->name === 'xmlns' ? '' : $attribute->localName;
+                    $namespaceDeclarations[$name] = [
+                        'name' => $name,
+                        'declaredPrefix' => $declaredPrefix,
+                        'namespaceUri' => $attribute->value,
+                        'default' => $declaredPrefix === '',
+                    ];
+                    $namespaceDeclarationMap[$name] = $attribute->value;
                     continue;
                 }
 
@@ -750,6 +807,8 @@ final class OdfReader
         ksort($attributes, SORT_STRING);
         ksort($customAttributes, SORT_STRING);
         ksort($customAttributeMap, SORT_STRING);
+        ksort($namespaceDeclarations, SORT_STRING);
+        ksort($namespaceDeclarationMap, SORT_STRING);
 
         return [
             'attributeCount' => count($attributes),
@@ -759,7 +818,43 @@ final class OdfReader
             'customAttributeNames' => array_keys($customAttributes),
             'customAttributes' => array_values($customAttributes),
             'customAttributeMap' => $customAttributeMap,
+            'namespaceDeclarationCount' => count($namespaceDeclarations),
+            'namespaceDeclarationNames' => array_keys($namespaceDeclarations),
+            'namespaceDeclarations' => array_values($namespaceDeclarations),
+            'namespaceDeclarationMap' => $namespaceDeclarationMap,
         ];
+    }
+
+    /**
+     * @return array<string, array{name:string, declaredPrefix:string, namespaceUri:string, default:bool}>
+     */
+    private function manifestElementNamespaceDeclarations(\DOMElement $element): array
+    {
+        $xpath = new \DOMXPath($element->ownerDocument);
+        $nodes = $xpath->query('namespace::*', $element);
+        if ($nodes === false) {
+            return [];
+        }
+
+        $declarations = [];
+        foreach ($nodes as $node) {
+            if (!$node instanceof \DOMNameSpaceNode || $node->nodeName === 'xmlns:xml') {
+                continue;
+            }
+
+            $name = $node->nodeName;
+            $declaredPrefix = $name === 'xmlns' ? '' : $node->localName;
+            $declarations[$name] = [
+                'name' => $name,
+                'declaredPrefix' => $declaredPrefix,
+                'namespaceUri' => (string) $node->nodeValue,
+                'default' => $declaredPrefix === '',
+            ];
+        }
+
+        ksort($declarations, SORT_STRING);
+
+        return $declarations;
     }
 
     /**
@@ -1158,6 +1253,10 @@ final class OdfReader
                 'customManifestAttributeNames' => $item['customManifestAttributeNames'] ?? [],
                 'customManifestAttributes' => $item['customManifestAttributes'] ?? [],
                 'customManifestAttributeMap' => $item['customManifestAttributeMap'] ?? [],
+                'manifestNamespaceDeclarationCount' => $item['manifestNamespaceDeclarationCount'] ?? 0,
+                'manifestNamespaceDeclarationNames' => $item['manifestNamespaceDeclarationNames'] ?? [],
+                'manifestNamespaceDeclarations' => $item['manifestNamespaceDeclarations'] ?? [],
+                'manifestNamespaceDeclarationMap' => $item['manifestNamespaceDeclarationMap'] ?? [],
                 'exists' => ($item['exists'] ?? false) === true,
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
@@ -1199,6 +1298,10 @@ final class OdfReader
                     'customManifestAttributeNames' => $item['customManifestAttributeNames'] ?? [],
                     'customManifestAttributes' => $customManifestAttributes,
                     'customManifestAttributeMap' => $item['customManifestAttributeMap'] ?? [],
+                    'manifestNamespaceDeclarationCount' => $item['manifestNamespaceDeclarationCount'] ?? 0,
+                    'manifestNamespaceDeclarationNames' => $item['manifestNamespaceDeclarationNames'] ?? [],
+                    'manifestNamespaceDeclarations' => $item['manifestNamespaceDeclarations'] ?? [],
+                    'manifestNamespaceDeclarationMap' => $item['manifestNamespaceDeclarationMap'] ?? [],
                 ];
             }
             if (is_string($part) && $part !== '') {
@@ -1310,6 +1413,10 @@ final class OdfReader
                 'customManifestAttributeNames' => is_array($manifestItem) ? ($manifestItem['customManifestAttributeNames'] ?? []) : [],
                 'customManifestAttributes' => is_array($manifestItem) ? ($manifestItem['customManifestAttributes'] ?? []) : [],
                 'customManifestAttributeMap' => is_array($manifestItem) ? ($manifestItem['customManifestAttributeMap'] ?? []) : [],
+                'manifestNamespaceDeclarationCount' => is_array($manifestItem) ? ($manifestItem['manifestNamespaceDeclarationCount'] ?? 0) : 0,
+                'manifestNamespaceDeclarationNames' => is_array($manifestItem) ? ($manifestItem['manifestNamespaceDeclarationNames'] ?? []) : [],
+                'manifestNamespaceDeclarations' => is_array($manifestItem) ? ($manifestItem['manifestNamespaceDeclarations'] ?? []) : [],
+                'manifestNamespaceDeclarationMap' => is_array($manifestItem) ? ($manifestItem['manifestNamespaceDeclarationMap'] ?? []) : [],
                 'manifestDiagnostics' => is_array($manifestItem) ? ($manifestItem['diagnostics'] ?? []) : [],
                 'manifestEncryption' => is_array($manifestItem) ? $manifestItem['encryption'] : null,
                 'manifestEncryptionRecordCount' => is_array($manifestItem) && is_array($manifestItem['encryption'] ?? null)
@@ -1413,6 +1520,10 @@ final class OdfReader
             'manifestRootCustomAttributeNames' => $manifestRootAttributes['customAttributeNames'] ?? [],
             'manifestRootCustomAttributes' => $manifestRootAttributes['customAttributes'] ?? [],
             'manifestRootCustomAttributeMap' => $manifestRootAttributes['customAttributeMap'] ?? [],
+            'manifestRootNamespaceDeclarationCount' => $manifestRootAttributes['namespaceDeclarationCount'] ?? 0,
+            'manifestRootNamespaceDeclarationNames' => $manifestRootAttributes['namespaceDeclarationNames'] ?? [],
+            'manifestRootNamespaceDeclarations' => $manifestRootAttributes['namespaceDeclarations'] ?? [],
+            'manifestRootNamespaceDeclarationMap' => $manifestRootAttributes['namespaceDeclarationMap'] ?? [],
             'manifestFileEntryCount' => count($manifestFileEntryOrder),
             'manifestFileEntryOrder' => $manifestFileEntryOrder,
             'manifestByteExposurePolicyCounts' => $manifestByteExposurePolicyCounts,

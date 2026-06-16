@@ -543,6 +543,100 @@ return [
         );
         $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $decodedPathConflictManifest)));
     },
+    'preserves compact ODT manifest namespace declarations for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            ],
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:loext="urn:libreoffice:manifest" xmlns:wp="urn:wordpress:review" manifest:version="1.3" wp:packet="root-review">',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml" xmlns:asset="urn:wordpress:asset-review" asset:state="canonical"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7" xmlns:media="urn:wordpress:media-review" media:role="cover"/>',
+            ],
+            $manifestXml
+        );
+
+        $package = $buildOdtPackage(manifest: $manifest);
+        $odt = OpenDocumentPackage::fromPackage($package);
+        $summary = $odt->summarize();
+        $root = $odt->manifestRootAttributes();
+        $rootDeclarations = [];
+        foreach ($root['namespaceDeclarations'] as $declaration) {
+            $rootDeclarations[$declaration['name']] = $declaration;
+        }
+        $content = $odt->manifestEntry('content.xml');
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $order = $summary['manifestReview']['manifestFileEntryOrder'];
+        $inventory = $summary['packageInventory']['parts'];
+        $readerResult = (new OdfReader())->readPackage($package);
+        $readerManifest = $readerResult['document']->attr('manifest');
+        $readerProvenance = $readerResult['importReport']['manifest']['packageProvenance'];
+        $expectedRootNamespaceMap = [
+            'xmlns:loext' => 'urn:libreoffice:manifest',
+            'xmlns:manifest' => OpenDocumentPackage::MANIFEST_NAMESPACE,
+            'xmlns:wp' => 'urn:wordpress:review',
+        ];
+        $expectedContentNamespaceMap = [
+            'xmlns:asset' => 'urn:wordpress:asset-review',
+            'xmlns:loext' => 'urn:libreoffice:manifest',
+            'xmlns:manifest' => OpenDocumentPackage::MANIFEST_NAMESPACE,
+            'xmlns:wp' => 'urn:wordpress:review',
+        ];
+        $expectedHeroNamespaceMap = [
+            'xmlns:loext' => 'urn:libreoffice:manifest',
+            'xmlns:manifest' => OpenDocumentPackage::MANIFEST_NAMESPACE,
+            'xmlns:media' => 'urn:wordpress:media-review',
+            'xmlns:wp' => 'urn:wordpress:review',
+        ];
+
+        $t->same(3, $root['namespaceDeclarationCount']);
+        $t->same(['xmlns:loext', 'xmlns:manifest', 'xmlns:wp'], $root['namespaceDeclarationNames']);
+        $t->same($expectedRootNamespaceMap, $root['namespaceDeclarationMap']);
+        $t->same('wp', $rootDeclarations['xmlns:wp']['declaredPrefix']);
+        $t->same('urn:wordpress:review', $rootDeclarations['xmlns:wp']['namespaceUri']);
+        $t->same(false, $rootDeclarations['xmlns:wp']['default']);
+        $t->same(1, $root['customAttributeCount']);
+        $t->same(['wp:packet' => 'root-review'], $root['customAttributeMap']);
+
+        $t->same(3, $summary['manifestReview']['manifestRootNamespaceDeclarationCount']);
+        $t->same($expectedRootNamespaceMap, $summary['manifestRootAttributes']['namespaceDeclarationMap']);
+        $t->same($expectedRootNamespaceMap, $summary['manifestReview']['manifestRootNamespaceDeclarationMap']);
+
+        $t->same(4, $content['manifestNamespaceDeclarationCount']);
+        $t->same(['xmlns:asset', 'xmlns:loext', 'xmlns:manifest', 'xmlns:wp'], $content['manifestNamespaceDeclarationNames']);
+        $t->same($expectedContentNamespaceMap, $content['manifestNamespaceDeclarationMap']);
+        $t->same(['asset:state' => 'canonical'], $content['customManifestAttributeMap']);
+        $t->same(4, $hero['manifestNamespaceDeclarationCount']);
+        $t->same($expectedHeroNamespaceMap, $hero['manifestNamespaceDeclarationMap']);
+        $t->same(['media:role' => 'cover'], $hero['customManifestAttributeMap']);
+
+        $t->same(4, $reviewByPath['content.xml']['manifestNamespaceDeclarationCount']);
+        $t->same($expectedContentNamespaceMap, $reviewByPath['content.xml']['manifestNamespaceDeclarationMap']);
+        $t->same($expectedHeroNamespaceMap, $reviewByPath['Pictures/hero.png']['manifestNamespaceDeclarationMap']);
+        $t->same($expectedContentNamespaceMap, $order[1]['manifestNamespaceDeclarationMap']);
+        $t->same($expectedHeroNamespaceMap, $order[4]['manifestNamespaceDeclarationMap']);
+
+        $t->same(4, $inventory['content.xml']['manifestNamespaceDeclarationCount']);
+        $t->same($expectedContentNamespaceMap, $inventory['content.xml']['manifestNamespaceDeclarationMap']);
+        $t->same($expectedHeroNamespaceMap, $inventory['Pictures/hero.png']['manifestNamespaceDeclarationMap']);
+
+        $t->same(3, $readerManifest['rootNamespaceDeclarationCount']);
+        $t->same($expectedRootNamespaceMap, $readerManifest['rootNamespaceDeclarationMap']);
+        $t->same(3, $readerProvenance['manifestRootNamespaceDeclarationCount']);
+        $t->same($expectedRootNamespaceMap, $readerProvenance['manifestRootNamespaceDeclarationMap']);
+        $t->same(4, $readerProvenance['manifestFileEntryOrder'][1]['manifestNamespaceDeclarationCount']);
+        $t->same($expectedContentNamespaceMap, $readerProvenance['manifestFileEntryOrder'][1]['manifestNamespaceDeclarationMap']);
+        $t->same($expectedHeroNamespaceMap, $readerProvenance['manifestFileEntryOrder'][4]['manifestNamespaceDeclarationMap']);
+        $t->same(4, $readerProvenance['parts']['content.xml']['manifestNamespaceDeclarationCount']);
+        $t->same($expectedContentNamespaceMap, $readerProvenance['parts']['content.xml']['manifestNamespaceDeclarationMap']);
+        $t->same($expectedHeroNamespaceMap, $readerProvenance['parts']['Pictures/hero.png']['manifestNamespaceDeclarationMap']);
+    },
     'preserves ODT compact manifest root version preferred view and encryption provenance' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifest = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.4">
