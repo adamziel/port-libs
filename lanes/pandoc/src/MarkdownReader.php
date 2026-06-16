@@ -19184,7 +19184,10 @@ final class MarkdownReader
 
         while ($offset < $length) {
             if ($text[$offset] === "\n") {
-                if (preg_match('/ {2,}\z/', $buffer) === 1) {
+                if (
+                    preg_match('/ {2,}\z/', $buffer) === 1
+                    && !$this->isInsideInlineHtmlTagAtOffset($text, $offset)
+                ) {
                     $buffer = rtrim($buffer, ' ');
                     $this->flushText($buffer, $nodes);
                     $nodes[] = new AstNode('linebreak');
@@ -19192,7 +19195,10 @@ final class MarkdownReader
                     continue;
                 }
 
-                if ($this->markdownExtensionEnabled('hard_line_breaks')) {
+                if (
+                    $this->markdownExtensionEnabled('hard_line_breaks')
+                    && !$this->isInsideInlineHtmlTagAtOffset($text, $offset)
+                ) {
                     $this->flushText($buffer, $nodes);
                     $nodes[] = new AstNode('linebreak');
                     $offset++;
@@ -19219,6 +19225,7 @@ final class MarkdownReader
                 $text[$offset] === '\\'
                 && ($text[$offset + 1] ?? '') === "\n"
                 && !$this->isEscapedInlinePosition($text, $offset)
+                && !$this->isInsideInlineHtmlTagAtOffset($text, $offset + 1)
             ) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = new AstNode('linebreak');
@@ -19497,6 +19504,75 @@ final class MarkdownReader
         $this->flushText($buffer, $nodes);
 
         return $nodes;
+    }
+
+    private function isInsideInlineHtmlTagAtOffset(string $text, int $offset): bool
+    {
+        $length = min($offset, strlen($text));
+        $endMarker = null;
+        $quote = null;
+
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            if ($endMarker !== null) {
+                if ($quote !== null) {
+                    if ($text[$cursor] === $quote) {
+                        $quote = null;
+                    }
+                    continue;
+                }
+
+                if ($endMarker === '>') {
+                    if ($text[$cursor] === '"' || $text[$cursor] === "'") {
+                        $quote = $text[$cursor];
+                        continue;
+                    }
+
+                    if ($text[$cursor] === '>') {
+                        $endMarker = null;
+                    }
+                    continue;
+                }
+
+                if (substr($text, $cursor, strlen($endMarker)) === $endMarker) {
+                    $cursor += strlen($endMarker) - 1;
+                    $endMarker = null;
+                }
+                continue;
+            }
+
+            if (($text[$cursor] ?? '') !== '<' || $this->isEscapedInlinePosition($text, $cursor)) {
+                continue;
+            }
+
+            $endMarker = $this->inlineHtmlEndMarkerAt($text, $cursor);
+        }
+
+        return $endMarker !== null;
+    }
+
+    private function inlineHtmlEndMarkerAt(string $text, int $offset): ?string
+    {
+        if (substr($text, $offset, 4) === '<!--') {
+            return '-->';
+        }
+
+        if (substr($text, $offset, 9) === '<![CDATA[') {
+            return ']]>';
+        }
+
+        if (substr($text, $offset, 2) === '<?') {
+            return '?>';
+        }
+
+        if (preg_match('/\G<![A-Za-z]/', $text, $m, 0, $offset) === 1) {
+            return '>';
+        }
+
+        if (preg_match('/\G<\/?[A-Za-z][A-Za-z0-9-]*/', $text, $m, 0, $offset) === 1) {
+            return '>';
+        }
+
+        return null;
     }
 
     /**
