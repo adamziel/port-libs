@@ -1256,6 +1256,45 @@ final class EpubPackage
             ], $extra);
         };
 
+        $validationDiagnostics = self::compactDiagnosticList($validationReport['diagnostics'] ?? []);
+        $validationDomainValidity = [];
+        $validationDomainDiagnosticCounts = [];
+        foreach (['rootfiles', 'metadata', 'manifest', 'spine', 'ncx', 'navigation'] as $domain) {
+            $domainReport = is_array($validationReport[$domain] ?? null) ? $validationReport[$domain] : [];
+            $validationDomainValidity[$domain] = ($domainReport['valid'] ?? true) === true;
+            $validationDomainDiagnosticCounts[$domain] = is_int($domainReport['diagnosticCount'] ?? null)
+                ? (int) $domainReport['diagnosticCount']
+                : count(self::compactDiagnosticList($domainReport['diagnostics'] ?? []));
+        }
+        $appendCase(
+            'package-validation',
+            'validation',
+            'EPUB package validation',
+            1,
+            $validationDiagnostics,
+            [
+                'reviewRequired' => ($validationReport['valid'] ?? true) !== true || $validationDiagnostics !== [],
+                'valid' => ($validationReport['valid'] ?? false) === true,
+                'packageVersion' => is_string($validationReport['packageVersion'] ?? null) ? $validationReport['packageVersion'] : '',
+                'epub3' => ($validationReport['epub3'] ?? false) === true,
+                'packageDiagnosticCount' => is_int($validationReport['diagnosticCount'] ?? null)
+                    ? (int) $validationReport['diagnosticCount']
+                    : count($validationDiagnostics),
+                'rootfileCount' => (int) ($validationReport['rootfileCount'] ?? 0),
+                'alternateRootfileCount' => (int) ($validationReport['alternateRootfileCount'] ?? 0),
+                'manifestItemCount' => (int) ($validationReport['manifest']['itemCount'] ?? 0),
+                'spineItemCount' => (int) ($validationReport['spine']['itemCount'] ?? 0),
+                'navigationEntryCount' => (int) ($validationReport['navigation']['entryCount'] ?? 0),
+                'navigationSectionCount' => (int) ($validationReport['navigation']['sectionCount'] ?? 0),
+                'invalidDomains' => array_keys(array_filter(
+                    $validationDomainValidity,
+                    static fn (bool $valid): bool => !$valid,
+                )),
+                'domainValidity' => $validationDomainValidity,
+                'domainDiagnosticCounts' => $validationDomainDiagnosticCounts,
+            ],
+        );
+
         $refinementsById = is_array($metadata['refinementsById'] ?? null)
             ? $metadata['refinementsById']
             : [];

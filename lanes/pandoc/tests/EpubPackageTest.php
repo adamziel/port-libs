@@ -5561,12 +5561,13 @@ XML;
         $report = $summary['compactPackageReport'];
         $casesById = $report['casesById'];
 
-        $t->same(17, $report['caseCount']);
-        $t->same(15, $report['presentCaseCount']);
+        $t->same(18, $report['caseCount']);
+        $t->same(16, $report['presentCaseCount']);
         $t->same(0, $report['diagnosticCaseCount']);
         $t->same(0, $report['diagnosticCount']);
         $t->same([], $report['diagnosticTypes']);
         $t->same([
+            'package-validation',
             'metadata-refinements',
             'metadata-collection-membership',
             'metadata-item-authoring',
@@ -5586,6 +5587,7 @@ XML;
             'ocf-sidecars',
         ], $report['caseIds']);
         $t->same([
+            'package-validation',
             'metadata-refinements',
             'metadata-item-authoring',
             'package-links',
@@ -5603,6 +5605,7 @@ XML;
             'ocf-sidecars',
         ], $report['presentCaseIds']);
         $t->same([
+            'package-validation' => 1,
             'metadata-refinements' => 2,
             'metadata-collection-membership' => 0,
             'metadata-item-authoring' => 7,
@@ -5622,6 +5625,7 @@ XML;
             'ocf-sidecars' => 2,
         ], $report['caseCounts']);
         $t->same([
+            'validation' => 1,
             'metadata' => 10,
             'ocf' => 3,
             'navigation' => 2,
@@ -5633,6 +5637,27 @@ XML;
             'encryption' => 1,
         ], $report['domainCounts']);
 
+        $t->same(true, $casesById['package-validation']['valid']);
+        $t->same('3.0', $casesById['package-validation']['packageVersion']);
+        $t->same(true, $casesById['package-validation']['epub3']);
+        $t->same(0, $casesById['package-validation']['packageDiagnosticCount']);
+        $t->same([], $casesById['package-validation']['invalidDomains']);
+        $t->same([
+            'rootfiles' => true,
+            'metadata' => true,
+            'manifest' => true,
+            'spine' => true,
+            'ncx' => true,
+            'navigation' => true,
+        ], $casesById['package-validation']['domainValidity']);
+        $t->same([
+            'rootfiles' => 0,
+            'metadata' => 0,
+            'manifest' => 0,
+            'spine' => 0,
+            'ncx' => 0,
+            'navigation' => 0,
+        ], $casesById['package-validation']['domainDiagnosticCounts']);
         $t->same(['title-main', 'creator'], $casesById['metadata-refinements']['targetIds']);
         $t->same(1, $casesById['metadata-refinements']['packageLinkCount']);
         $t->same(0, $casesById['metadata-collection-membership']['itemCount']);
@@ -5735,7 +5760,7 @@ XML;
         $packageLinks = $report['casesById']['package-links'];
         $containerLinks = $report['casesById']['container-links'];
 
-        $t->same(17, $report['caseCount']);
+        $t->same(18, $report['caseCount']);
         $t->true(in_array('package-links', $report['presentCaseIds'], true));
         $t->true(in_array('container-links', $report['presentCaseIds'], true));
         $t->same(['package-links', 'container-links'], $report['diagnosticCaseIds']);
@@ -5814,13 +5839,40 @@ XML;
 
         $t->true(in_array('manifest-resource-kinds', $report['caseIds'], true));
         $t->true(in_array('manifest-resource-properties', $report['caseIds'], true));
-        $t->same(['manifest-resource-properties'], $report['diagnosticCaseIds']);
-        $t->same(['manifest-resource-kinds', 'manifest-resource-properties'], $report['reviewRequiredCaseIds']);
-        $t->same(1, $report['diagnosticCount']);
-        $t->same(['unknown-manifest-property-prefix'], $report['diagnosticTypes']);
-        $t->same('unknown-manifest-property-prefix', $report['diagnostics'][0]['type']);
-        $t->same('chapter', $report['diagnostics'][0]['manifestId']);
+        $t->same(['package-validation', 'manifest-resource-properties'], $report['diagnosticCaseIds']);
+        $t->same(['package-validation', 'manifest-resource-kinds', 'manifest-resource-properties'], $report['reviewRequiredCaseIds']);
+        $t->same(3, $report['diagnosticCount']);
+        $t->same(['external-manifest-href-target', 'missing-manifest-href-target', 'unknown-manifest-property-prefix'], $report['diagnosticTypes']);
+        $t->same('package-validation', $report['diagnostics'][0]['caseId']);
+        $t->same('external-manifest-href-target', $report['diagnostics'][0]['type']);
+        $t->same('remote', $report['diagnostics'][0]['id']);
+        $t->same('package-validation', $report['diagnostics'][1]['caseId']);
+        $t->same('missing-manifest-href-target', $report['diagnostics'][1]['type']);
+        $t->same('missing', $report['diagnostics'][1]['id']);
+        $t->same('manifest-resource-properties', $report['diagnostics'][2]['caseId']);
+        $t->same('unknown-manifest-property-prefix', $report['diagnostics'][2]['type']);
+        $t->same('chapter', $report['diagnostics'][2]['manifestId']);
 
+        $packageValidation = $report['casesById']['package-validation'];
+        $t->same(false, $packageValidation['valid']);
+        $t->same(['manifest'], $packageValidation['invalidDomains']);
+        $t->same(2, $packageValidation['packageDiagnosticCount']);
+        $t->same([
+            'rootfiles' => true,
+            'metadata' => true,
+            'manifest' => false,
+            'spine' => true,
+            'ncx' => true,
+            'navigation' => true,
+        ], $packageValidation['domainValidity']);
+        $t->same([
+            'rootfiles' => 0,
+            'metadata' => 0,
+            'manifest' => 2,
+            'spine' => 0,
+            'ncx' => 0,
+            'navigation' => 0,
+        ], $packageValidation['domainDiagnosticCounts']);
         $t->same(5, $resourceKinds['itemCount']);
         $t->same([
             'image' => 1,
@@ -5988,6 +6040,30 @@ XML;
         $t->same($validation, $summary['validation']);
         $t->same($validation, $summary['wordpressImport']['packageValidation']);
         $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+
+        $compactValidation = $summary['compactPackageReport']['casesById']['package-validation'];
+        $t->same(true, in_array('package-validation', $summary['compactPackageReport']['diagnosticCaseIds'], true));
+        $t->same(false, $compactValidation['valid']);
+        $t->same(7, $compactValidation['diagnosticCount']);
+        $t->same(7, $compactValidation['packageDiagnosticCount']);
+        $t->same(['metadata', 'manifest', 'spine'], $compactValidation['invalidDomains']);
+        $t->same([
+            'rootfiles' => true,
+            'metadata' => false,
+            'manifest' => false,
+            'spine' => false,
+            'ncx' => true,
+            'navigation' => true,
+        ], $compactValidation['domainValidity']);
+        $t->same([
+            'rootfiles' => 0,
+            'metadata' => 2,
+            'manifest' => 4,
+            'spine' => 1,
+            'ncx' => 0,
+            'navigation' => 0,
+        ], $compactValidation['domainDiagnosticCounts']);
+        $t->same(array_column($validation['diagnostics'], 'type'), $compactValidation['diagnosticTypes']);
     },
 
     'reports malformed EPUB3 nav documents without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml): void {
