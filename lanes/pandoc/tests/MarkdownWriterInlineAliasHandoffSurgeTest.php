@@ -156,9 +156,81 @@ $cases = [
     'span class string mark uses mark shorthand' => $aliasCase([
         $aliasNode('span', ['class' => 'mark'], [$aliasText('marked')]),
     ], '==marked=='),
+    'span class string marked alias uses mark shorthand' => $aliasCase([
+        $aliasNode('span', ['class' => 'marked'], [$aliasText('marked')]),
+    ], '==marked=='),
+    'span class string highlighted alias uses mark shorthand' => $aliasCase([
+        $aliasNode('span', ['class' => 'highlighted'], [$aliasText('marked')]),
+    ], '==marked=='),
+    'span className marked alias escapes unsafe mark delimiter' => $aliasCase([
+        $aliasNode('span', ['className' => 'marked'], [$aliasText('a == b')]),
+    ], '[a \=\= b]{.marked}'),
+    'span className highlighted alias escapes unsafe mark delimiter' => $aliasCase([
+        $aliasNode('span', ['className' => 'highlighted'], [$aliasText('a == b')]),
+    ], '[a \=\= b]{.highlighted}'),
     'abbreviation className and attributePairs emit definition' => $aliasCase([
         $aliasNode('span', ['className' => 'abbr', 'attributePairs' => [['title', 'Hypertext Markup Language']]], [$aliasText('HTML')]),
     ], "HTML\n\n*[HTML]: Hypertext Markup Language"),
+    'abbreviation class alias with titleText emits definition' => $aliasCase([
+        $aliasNode('span', ['className' => 'abbreviation', 'titleText' => 'Cascading Style Sheets'], [$aliasText('CSS')]),
+    ], "CSS\n\n*[CSS]: Cascading Style Sheets"),
+    'acronym class alias with acronymTitle emits definition' => $aliasCase([
+        $aliasNode('span', ['className' => 'acronym', 'acronymTitle' => 'Portable Network Graphics'], [$aliasText('PNG')]),
+    ], "PNG\n\n*[PNG]: Portable Network Graphics"),
+    'abbreviation abbr-title attribute alias emits definition' => $aliasCase([
+        $aliasNode('span', ['className' => 'abbr', 'attributes' => ['abbr-title' => 'Extensible Markup Language']], [$aliasText('XML')]),
+    ], "XML\n\n*[XML]: Extensible Markup Language"),
+    'abbreviation-title attribute alias emits definition' => $aliasCase([
+        $aliasNode('span', ['className' => 'abbreviation', 'attributes' => ['abbreviation-title' => 'Internet Protocol']], [$aliasText('IP')]),
+    ], "IP\n\n*[IP]: Internet Protocol"),
+    'acronym underscore title attribute alias emits definition' => $aliasCase([
+        $aliasNode('span', ['className' => 'acronym', 'attributes' => ['acronym_title' => 'Scalable Vector Graphics']], [$aliasText('SVG')]),
+    ], "SVG\n\n*[SVG]: Scalable Vector Graphics"),
+    'abbreviation expansion attribute alias emits definition' => $aliasCase([
+        $aliasNode('span', ['className' => 'abbreviation', 'attributes' => ['expansion' => 'Representational State Transfer']], [$aliasText('REST')]),
+    ], "REST\n\n*[REST]: Representational State Transfer"),
+    'abbreviation definition attribute alias emits definition' => $aliasCase([
+        $aliasNode('span', ['className' => 'abbr', 'attributes' => ['definition' => 'Application Programming Interface']], [$aliasText('API')]),
+    ], "API\n\n*[API]: Application Programming Interface"),
+    'emoji gemoji class data-gemoji alias renders shortcode' => $aliasCase([
+        $aliasNode('span', ['class' => 'gemoji', 'attributes' => ['data-gemoji' => 'grin']], [$aliasText("\u{1F601}")]),
+    ], ':grin:'),
+    'emoji shortcode class shortcode alias strips colons' => $aliasCase([
+        $aliasNode('span', ['class' => 'emoji-shortcode', 'attributes' => ['shortcode' => ':wave:']], [$aliasText("\u{1F44B}")]),
+    ], ':wave:'),
+    'emoji underscore class emoji-alias renders shortcode' => $aliasCase([
+        $aliasNode('span', ['class' => 'emoji_shortcode', 'attributes' => ['emoji-alias' => 'package']], [$aliasText("\u{1F4E6}")]),
+    ], ':package:'),
+    'emoji data shortcode alias renders shortcode' => $aliasCase([
+        $aliasNode('span', ['class' => 'emoji', 'attributes' => ['data-shortcode' => 'gear']], [$aliasText("\u{2699}\u{FE0F}")]),
+    ], ':gear:'),
+    'emoji source emojiAlias renders shortcode' => $aliasCase([
+        $aliasNode('span', ['class' => 'emoji', 'emojiAlias' => 'link'], [$aliasText("\u{1F517}")]),
+    ], ':link:'),
+    'emoji source markdownEmojiAlias strips colons' => $aliasCase([
+        $aliasNode('span', ['class' => 'emoji', 'markdownEmojiAlias' => ':calendar:'], [$aliasText("\u{1F4C6}")]),
+    ], ':calendar:'),
+    'emoji source emojiShortcode renders shortcode' => $aliasCase([
+        $aliasNode('span', ['class' => 'emoji', 'emojiShortcode' => 'book'], [$aliasText("\u{1F4D6}")]),
+    ], ':book:'),
+    'emoji source shortcode renders shortcode' => $aliasCase([
+        $aliasNode('span', ['class' => 'emoji', 'shortcode' => ':bulb:'], [$aliasText("\u{1F4A1}")]),
+    ], ':bulb:'),
+    'emoji source gemoji renders shortcode' => $aliasCase([
+        $aliasNode('span', ['class' => 'emoji', 'gemoji' => 'computer'], [$aliasText("\u{1F4BB}")]),
+    ], ':computer:'),
+    'emoji source emoji attr renders shortcode' => $aliasCase([
+        $aliasNode('span', ['class' => 'emoji', 'emoji' => 'camera'], [$aliasText("\u{1F4F7}")]),
+    ], ':camera:'),
+    'emoji multi semantic classes render shortcode' => $aliasCase([
+        $aliasNode('span', ['classes' => ['emoji', 'gemoji'], 'attributes' => ['data-emoji' => 'key']], [$aliasText("\u{1F511}")]),
+    ], ':key:'),
+    'emoji data emoji alias renders shortcode' => $aliasCase([
+        $aliasNode('span', ['class' => 'emoji', 'attributes' => ['data-emoji-alias' => 'clipboard']], [$aliasText("\u{1F4CB}")]),
+    ], ':clipboard:'),
+    'emoji plain source alias without class renders shortcode' => $aliasCase([
+        $aliasNode('span', ['emojiAlias' => 'printer'], [$aliasText("\u{1F5A8}\u{FE0F}")]),
+    ], ':printer:'),
     'small caps identifier keeps semantic class first' => $aliasCase([
         $aliasNode('small_caps', ['identifier' => 'caps', 'class' => 'review'], [$aliasText('Caps')]),
     ], '[Caps]{#caps .smallcaps .review}'),
@@ -208,7 +280,7 @@ $cases = [
 
 $tests = [
     'records markdown writer inline alias handoff surge mapped case count' => static function (TestRunner $t) use ($cases): void {
-        $t->same(56, count($cases));
+        $t->same(80, count($cases));
     },
 ];
 

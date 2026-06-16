@@ -6341,15 +6341,18 @@ final class MarkdownWriter
         $attrs = $this->linkAttrTuple($node);
         if (
             $attrs['id'] !== ''
-            || $attrs['classes'] !== ['abbr']
-            || count($attrs['attributes']) !== 1
-            || !isset($attrs['attributes']['title'])
+            || count($attrs['classes']) !== 1
+            || !$this->isMarkdownAbbreviationClass($attrs['classes'][0])
         ) {
             return null;
         }
 
+        [$title, $remainingAttributes] = $this->markdownAbbreviationTitle($node, $attrs['attributes']);
+        if ($remainingAttributes !== []) {
+            return null;
+        }
+
         $term = $this->plainInlineText($node->children);
-        $title = trim((string) $attrs['attributes']['title']);
         if (
             $term === ''
             || $title === ''
@@ -6362,6 +6365,51 @@ final class MarkdownWriter
         }
 
         return ['term' => $term, 'title' => $title];
+    }
+
+    private function isMarkdownAbbreviationClass(string $class): bool
+    {
+        return in_array($class, ['abbr', 'abbreviation', 'acronym'], true);
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array{0:string, 1:array<string, string>}
+     */
+    private function markdownAbbreviationTitle(AstNode $node, array $attributes): array
+    {
+        $title = '';
+        $remaining = [];
+        foreach ($attributes as $name => $value) {
+            $normalized = str_replace('_', '-', strtolower(trim((string) $name)));
+            if (
+                in_array(
+                    $normalized,
+                    ['title', 'abbr-title', 'abbreviation-title', 'acronym-title', 'expansion', 'definition'],
+                    true
+                )
+            ) {
+                if ($title === '') {
+                    $title = trim($value);
+                }
+                continue;
+            }
+
+            $remaining[$name] = $value;
+        }
+
+        if ($title === '') {
+            $title = trim($this->scalarAttr($node, [
+                'titleText',
+                'abbrTitle',
+                'abbreviationTitle',
+                'acronymTitle',
+                'expansion',
+                'definition',
+            ]));
+        }
+
+        return [$title, $remaining];
     }
 
     private function isMarkdownMarkSpan(AstNode $node, string $content): bool
@@ -6380,7 +6428,7 @@ final class MarkdownWriter
 
     private function isMarkdownMarkClass(?string $class): bool
     {
-        return $class === 'mark' || $class === 'highlight';
+        return in_array($class, ['mark', 'highlight', 'marked', 'highlighted'], true);
     }
 
     private function renderSmallCaps(AstNode $node): string
@@ -6462,16 +6510,28 @@ final class MarkdownWriter
     private function markdownEmojiAlias(AstNode $node, string $content): ?string
     {
         $attrs = $this->linkAttrTuple($node);
-        if (
-            $attrs['id'] !== ''
-            || $attrs['classes'] !== ['emoji']
-            || count($attrs['attributes']) !== 1
-            || !isset($attrs['attributes']['data-emoji'])
-        ) {
+        if ($attrs['id'] !== '') {
             return null;
         }
 
-        $alias = (string) $attrs['attributes']['data-emoji'];
+        $nonEmojiClasses = [];
+        foreach ($attrs['classes'] as $class) {
+            if (!$this->isMarkdownEmojiClass($class)) {
+                $nonEmojiClasses[] = $class;
+            }
+        }
+        if ($nonEmojiClasses !== []) {
+            return null;
+        }
+
+        [$attributeAlias, $remainingAttributes] = $this->markdownEmojiAttributeAlias($attrs['attributes']);
+        if ($remainingAttributes !== []) {
+            return null;
+        }
+
+        $alias = $attributeAlias !== ''
+            ? $attributeAlias
+            : $this->markdownEmojiSourceAlias($node);
         if (
             preg_match('/\A[A-Za-z0-9_+-]+\z/', $alias) !== 1
             || !MarkdownEmojiAliases::aliasMatchesGlyph($alias, $content)
@@ -6480,6 +6540,65 @@ final class MarkdownWriter
         }
 
         return $content === '' ? null : $alias;
+    }
+
+    private function isMarkdownEmojiClass(string $class): bool
+    {
+        return in_array($class, ['emoji', 'gemoji', 'emoji-shortcode', 'emoji_shortcode'], true);
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array{0:string, 1:array<string, string>}
+     */
+    private function markdownEmojiAttributeAlias(array $attributes): array
+    {
+        $alias = '';
+        $remaining = [];
+        foreach ($attributes as $name => $value) {
+            $normalized = str_replace('_', '-', strtolower(trim((string) $name)));
+            if (
+                in_array(
+                    $normalized,
+                    ['data-emoji', 'emoji', 'emoji-alias', 'data-emoji-alias', 'data-gemoji', 'gemoji', 'shortcode', 'data-shortcode'],
+                    true
+                )
+            ) {
+                if ($alias === '') {
+                    $alias = $this->normalizeEmojiAlias($value);
+                }
+                continue;
+            }
+
+            $remaining[$name] = $value;
+        }
+
+        return [$alias, $remaining];
+    }
+
+    private function markdownEmojiSourceAlias(AstNode $node): string
+    {
+        $alias = $this->scalarAttr($node, [
+            'emojiAlias',
+            'markdownEmojiAlias',
+            'emojiShortcode',
+            'emoji_shortcode',
+            'shortcode',
+            'gemoji',
+            'emoji',
+        ]);
+
+        return $this->normalizeEmojiAlias($alias);
+    }
+
+    private function normalizeEmojiAlias(string $alias): string
+    {
+        $alias = trim($alias);
+        if (strlen($alias) > 2 && str_starts_with($alias, ':') && str_ends_with($alias, ':')) {
+            return substr($alias, 1, -1);
+        }
+
+        return $alias;
     }
 
     private function renderQuoted(AstNode $node): string
