@@ -20360,6 +20360,10 @@ final class MarkdownReader
                 $text .= (string) $node->attr('tex', '');
                 continue;
             }
+            if ($node->type === 'raw_inline') {
+                $text .= (string) $node->attr('text', '');
+                continue;
+            }
             if ($node->type === 'softbreak') {
                 $text .= "\n";
                 continue;
@@ -20388,6 +20392,10 @@ final class MarkdownReader
             }
             if ($node->type === 'raw_tex') {
                 $text .= (string) $node->attr('tex', '');
+                continue;
+            }
+            if ($node->type === 'raw_inline') {
+                $text .= (string) $node->attr('text', '');
                 continue;
             }
             if ($node->type === 'softbreak') {
@@ -21499,10 +21507,25 @@ final class MarkdownReader
     private function bracketedLabelInlineSkipEnd(string $text, int $offset): ?int
     {
         if (($text[$offset] ?? '') === '`') {
-            $tickCount = $this->countBackticks($text, $offset);
-            $end = $this->findMatchingBacktickRun($text, $offset + $tickCount, $tickCount);
+            return $this->bracketedLabelCodeSpanSkipEnd($text, $offset);
+        }
 
-            return $end === null ? null : $end + $tickCount;
+        $math = $this->bracketedLabelMathSkipEnd($text, $offset);
+        if ($math !== null) {
+            $next = $math;
+            if ($this->markdownExtensionEnabled('inline_attributes')) {
+                $attribute = $this->tryParseInlineAttributeSpec($text, $next);
+                if ($attribute !== null) {
+                    return $attribute['next'];
+                }
+            }
+
+            return $next;
+        }
+
+        $rawTex = $this->rawTexEnabled() ? $this->tryParseRawTexInline($text, $offset) : null;
+        if ($rawTex !== null) {
+            return $rawTex['next'];
         }
 
         if (($text[$offset] ?? '') === '<') {
@@ -21510,6 +21533,54 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function bracketedLabelMathSkipEnd(string $text, int $offset): ?int
+    {
+        $prefix = substr($text, $offset, 3);
+        if (
+            ($text[$offset] ?? '') !== '$'
+            && substr($prefix, 0, 2) !== '\\('
+            && $prefix !== '\\\\('
+            && $prefix !== '\\\\['
+        ) {
+            return null;
+        }
+
+        $math = $this->tryParseMath($text, $offset);
+
+        return $math['next'] ?? null;
+    }
+
+    private function bracketedLabelCodeSpanSkipEnd(string $text, int $offset): ?int
+    {
+        $tickCount = $this->countBackticks($text, $offset);
+        $end = $this->findMatchingBacktickRun($text, $offset + $tickCount, $tickCount);
+        if ($end === null) {
+            return null;
+        }
+
+        $next = $end + $tickCount;
+        $rawAttribute = $this->rawAttributeEnabled()
+            ? $this->tryParseRawInlineAttributeSpec($text, $next)
+            : null;
+        if ($rawAttribute !== null) {
+            return $rawAttribute['next'];
+        }
+
+        if ($this->markdownExtensionEnabled('inline_attributes')) {
+            $attribute = $this->tryParseInlineAttributeSpec($text, $next);
+            if ($attribute !== null) {
+                return $attribute['next'];
+            }
+        }
+
+        $literalAttribute = $this->tryParseSpacedInlineAttributeLiteral($text, $next);
+        if ($literalAttribute !== null) {
+            return $literalAttribute['next'];
+        }
+
+        return $next;
     }
 
     private function bracketedLabelRawHtmlInlineSkipEnd(string $text, int $offset): ?int
