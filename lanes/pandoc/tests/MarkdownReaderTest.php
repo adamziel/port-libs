@@ -6861,17 +6861,14 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(null, $document->attr('meta'));
-        $t->same(5, count($document->children));
+        $t->same(3, count($document->children));
         $t->same('horizontal_rule', $document->children[0]->type);
         $t->same('paragraph', $document->children[1]->type);
-        $t->same('code_block', $document->children[2]->type);
-        $t->same('paragraph', $document->children[3]->type);
-        $t->same('heading', $document->children[4]->type);
+        $t->same('heading', $document->children[2]->type);
         $t->contains('title: Tab indented', $document->children[1]->attr('text'));
-        $t->same('status: queued', $document->children[2]->attr('text'));
-        $t->same('tab-indent-body', $document->children[4]->attr('id'));
-        $t->contains("<p>title: Tab indented <strong>Packet</strong>\nreview:</p>", $blocks);
-        $t->contains('<pre class="wp-block-code"><code>status: queued</code></pre>', $blocks);
+        $t->contains('review: status: queued ' . "\u{2026}", $document->children[1]->attr('text'));
+        $t->same('tab-indent-body', $document->children[2]->attr('id'));
+        $t->contains("<p>title: Tab indented <strong>Packet</strong>\nreview:\nstatus: queued\n" . "\u{2026}" . '</p>', $blocks);
         $t->contains('<h1 id="tab-indent-body">Tab indent body</h1>', $blocks);
     },
     'keeps malformed pandoc yaml multiline flow collections as markdown body' => static function (TestRunner $t): void {

@@ -119,8 +119,7 @@ $bodyCases = [
     'indented code continuation' => [
         'source' => "Opening\n        code line",
         'summary' => [
-            ['type' => 'paragraph', 'text' => 'Opening'],
-            ['type' => 'code_block', 'text' => 'code line'],
+            ['type' => 'paragraph', 'text' => 'Opening code line'],
         ],
     ],
     'raw html continuation' => [

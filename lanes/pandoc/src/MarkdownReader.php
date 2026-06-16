@@ -18000,7 +18000,9 @@ final class MarkdownReader
 
     private function indentedCodeBlockInterruptsParagraph(): bool
     {
-        return !in_array($this->markdownFormatBase(), ['commonmark', 'commonmark_x', 'gfm', 'markdown_github'], true);
+        $format = $this->markdownFormatBase();
+
+        return $format !== null && !in_array($format, ['commonmark', 'commonmark_x', 'gfm', 'markdown_github'], true);
     }
 
     private function stripCodeIndent(string $line): string
@@ -18475,14 +18477,20 @@ final class MarkdownReader
      */
     private function joinParagraphLines(array $paragraph): string
     {
+        $last = array_key_last($paragraph);
+        if ($last !== null) {
+            $paragraph[$last] = rtrim($paragraph[$last], ' ');
+        }
+
         return implode("\n", $paragraph);
     }
 
     private function normalizeParagraphLine(string $line): string
     {
+        $expanded = $this->expandTabsToSpaces($line);
         $trimmed = trim($line);
 
-        return preg_match('/ {2,}\z/', $line) === 1 ? $trimmed . '  ' : $trimmed;
+        return preg_match('/ {2,}\z/', $expanded) === 1 ? $trimmed . '  ' : $trimmed;
     }
 
     /**
@@ -22421,7 +22429,7 @@ final class MarkdownReader
             return;
         }
 
-        $nodes[] = new AstNode('text', ['text' => $this->decodeHtmlEntities($buffer)]);
+        $nodes[] = new AstNode('text', ['text' => $this->decodeHtmlEntities($this->expandTabsToSpaces($buffer))]);
         $buffer = '';
     }
 
