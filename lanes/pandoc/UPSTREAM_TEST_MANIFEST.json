@@ -5,11 +5,11 @@
   "upstream": {
     "name": "jgm/pandoc",
     "url": "https://github.com/jgm/pandoc",
-    "commit": "pandoc-markdown-profile-attribute-extension-harvest-9d52781882",
+    "commit": "pandoc-markdown-reader-numbered-example-raw-block-boundary-surge-39e8c2743a",
     "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
     "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-    "mapped": 15757,
-    "latestSlice": "pandoc-markdown-profile-attribute-extension-harvest maps 105 Markdown/CommonMark/GFM/PHP Extra/MultiMarkdown profile attribute extension cases after rebase onto current main 9d52781882. MarkdownReader honors upstream-style inline_code_attributes, link_attributes, attributes, and numbered example aliases across code spans, links, images, autolinks, and example-list markers; PHP Extra defaults now enable link attributes without enabling inline code attributes, and MultiMarkdown defaults keep inline code/link attribute tuples disabled unless requested. MarkdownWriter honors inline_code_attributes/link_attributes/attributes tuple gating and numbered_examples aliases while markdown_strict, markdown_phpextra, and markdown_mmd defaults now fall back when inline-code attribute tuple extensions are absent. Upstream Pandoc source inspected at 850c7b9613aa7beb1aed8c2c1f7abb01eaf3023e. No Pandoc, cmark/commonmark runners, Cabal/Haskell runners, browser renderers, Node tooling, online services, live provider tests, live-service provider tests, or external validators are invoked. phpPass moves 15997 -> 16102, phpFail remains 0, mapped upstream manifest cases move 15652 -> 15757, root mapped inventory moves 15607 -> 15712, mappedMarkdownProfileAttributeExtensionHarvestCases = 105, and markdownProfileAttributeExtensionHarvestAssertions = 354. Verification passed php -l for MarkdownReader.php, MarkdownWriter.php, MarkdownProfileAttributeExtensionHarvestTest.php, MarkdownReaderFlavorProfileSurgeTest.php, and MarkdownReaderLineBreakProfileSurgeTest.php; focused MarkdownProfileAttributeExtensionHarvestTest.php passed 1 file, 354 assertions, 0 failures; focused MarkdownReaderFlavorProfileSurgeTest.php passed 1 file, 716 assertions, 0 failures; affected Markdown profile cluster passed 11 files, 3483 assertions, 0 failures; profile alias regression set passed 3 files, 1346 assertions, 0 failures; full lanes/pandoc/tests passed 191 files, 169153 assertions, 0 failures; PHP JSON status/manifest validation; git diff --check; and conflict-marker scan.",
+    "mapped": 15807,
+    "latestSlice": "pandoc-markdown-reader-numbered-example-raw-block-boundary-surge maps 50 upstream Markdown reader numbered-example raw block boundary cases after rebase onto current main 39e8c2743a. MarkdownReader now skips raw HTML blocks and raw TeX environments during numbered-example pre-scan while preserving addressable numbered examples inside native Markdown divs, so labels that appear only inside raw content no longer resolve later (@label) references. No Pandoc, cmark/commonmark runners, Cabal/Haskell runners, browser renderers, Node tooling, online services, live provider tests, live-service provider tests, or external validators are invoked. phpPass moves 16102 -> 16152, phpFail remains 0, mapped upstream manifest cases move 15757 -> 15807, root mapped inventory remains 15712, mappedMarkdownReaderNumberedExampleRawBlockBoundaryCases = 50, and markdownReaderNumberedExampleRawBlockBoundaryAssertions = 206. Verification passed php -l for MarkdownReader.php and MarkdownReaderNumberedExampleRawBlockBoundarySurgeTest.php; focused MarkdownReaderNumberedExampleRawBlockBoundarySurgeTest.php passed 1 file, 206 assertions, 0 failures; focused Markdown reader raw-block cluster passed 5 files, 12917 assertions, 0 failures; full lanes/pandoc/tests passed 192 files, 169359 assertions, 0 failures; jq and PHP JSON status/manifest validation; git diff --check; and conflict-marker scan.",
     "mappedMarkdownReaderBlockListSurgeCases": 380,
     "markdownReaderBlockListSurgeAssertions": 11667,
     "mappedOdfPackageFontFormatProvenanceCases": 6,
@@ -60,8 +60,8 @@
     "opcRawZipCentralDirectoryManifestAssertions": 37,
     "mappedZipCentralDirectorySignaturePolicyCases": 2,
     "zipCentralDirectorySignaturePolicyAssertions": 30,
-    "status": "Markdown profile attribute extension harvest is verified after rebase onto current main 9d52781882; phpFail remains 0.",
-    "latestFocusedSource": "2026-06-16 Markdown profile attribute extension harvest verified after rebase onto current main 9d52781882; focused MarkdownProfileAttributeExtensionHarvestTest.php passed 1 file, 354 assertions, 0 failures; focused MarkdownReaderFlavorProfileSurgeTest.php passed 1 file, 716 assertions, 0 failures; affected Markdown profile cluster passed 11 files, 3483 assertions, 0 failures; profile alias regression set passed 3 files, 1346 assertions, 0 failures; full lanes/pandoc/tests passed 191 files, 169153 assertions, 0 failures.",
+    "status": "Markdown reader numbered-example raw block boundary surge is verified after rebase onto current main 39e8c2743a; phpFail remains 0.",
+    "latestFocusedSource": "2026-06-16 Markdown reader numbered-example raw block boundary surge verified after rebase onto current main 39e8c2743a; focused MarkdownReaderNumberedExampleRawBlockBoundarySurgeTest.php passed 1 file, 206 assertions, 0 failures; focused Markdown reader raw-block cluster passed 5 files, 12917 assertions, 0 failures; full lanes/pandoc/tests passed 192 files, 169359 assertions, 0 failures.",
     "mappedPandocFormatReaderEvidenceBatchCases": 6,
     "pandocFormatReaderEvidenceBatchAssertions": 200,
     "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -911,7 +911,9 @@
     "mappedMarkdownReaderSetextThematicBoundarySurgeCases": 75,
     "markdownReaderSetextThematicBoundarySurgeAssertions": 242,
     "mappedMarkdownProfileAttributeExtensionHarvestCases": 105,
-    "markdownProfileAttributeExtensionHarvestAssertions": 354
+    "markdownProfileAttributeExtensionHarvestAssertions": 354,
+    "mappedMarkdownReaderNumberedExampleRawBlockBoundaryCases": 50,
+    "markdownReaderNumberedExampleRawBlockBoundaryAssertions": 206
   },
   "benchmarkDenominator": {
     "status": "Markdown reader raw/code profile override surge passed validation after rebase onto current main fbe503b2c0; phpFail remains 0.",

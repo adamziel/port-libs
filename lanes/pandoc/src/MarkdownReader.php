@@ -8134,7 +8134,8 @@ final class MarkdownReader
         $fenceChar = null;
         $fenceLength = 0;
 
-        foreach ($lines as $index => $line) {
+        for ($index = 0, $count = count($lines); $index < $count; $index++) {
+            $line = $lines[$index];
             if ($fenceChar !== null) {
                 if ($this->isClosingCodeFence($line, $fenceChar, $fenceLength)) {
                     $fenceChar = null;
@@ -8146,6 +8147,12 @@ final class MarkdownReader
             if (preg_match('/^ {0,3}(`{3,}|~{3,})/', $line, $fence) === 1) {
                 $fenceChar = $fence[1][0];
                 $fenceLength = strlen($fence[1]);
+                continue;
+            }
+
+            $rawBlockEnd = $this->numberedExampleRawBlockEnd($lines, $index);
+            if ($rawBlockEnd !== null) {
+                $index = $rawBlockEnd;
                 continue;
             }
 
@@ -8162,6 +8169,135 @@ final class MarkdownReader
         }
 
         return [$references, $numbersByLine];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function numberedExampleRawBlockEnd(array $lines, int $index): ?int
+    {
+        if ($this->rawHtmlEnabled()) {
+            if ($this->numberedExampleNativeDivBlockEnd($lines, $index) === null) {
+                $rawHtmlIndex = $index;
+                if ($this->tryReadRawHtmlBlock($lines, $rawHtmlIndex) instanceof AstNode) {
+                    return $rawHtmlIndex;
+                }
+            }
+        }
+
+        return $this->numberedExampleRawTexEnvironmentBlockEnd($lines, $index);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function numberedExampleNativeDivBlockEnd(array $lines, int $index): ?int
+    {
+        $opening = $this->matchHtmlDivOpening($lines[$index] ?? '');
+        if ($opening === null) {
+            return null;
+        }
+
+        if ($opening['selfClosing']) {
+            return $index;
+        }
+
+        $content = [];
+        $depth = 1;
+        $openingIndex = $index;
+        $cursor = $index;
+        $count = count($lines);
+        $firstLineOffset = $opening['offset'] + $opening['length'];
+
+        while ($cursor < $count) {
+            $segment = $cursor === $index ? substr($lines[$cursor], $firstLineOffset) : $lines[$cursor];
+            $lineContent = '';
+            $offset = 0;
+            while (true) {
+                $nextOpen = $this->findHtmlTag($segment, 'div', $offset, false);
+                $nextClose = $this->findHtmlTag($segment, 'div', $offset, true);
+
+                if ($nextOpen === null && $nextClose === null) {
+                    $lineContent .= substr($segment, $offset);
+                    break;
+                }
+
+                if ($nextOpen !== null && ($nextClose === null || $nextOpen['offset'] < $nextClose['offset'])) {
+                    if (!$nextOpen['selfClosing']) {
+                        $depth++;
+                    }
+                    $lineContent .= substr($segment, $offset, $nextOpen['offset'] + $nextOpen['length'] - $offset);
+                    $offset = $nextOpen['offset'] + $nextOpen['length'];
+                    continue;
+                }
+
+                if ($nextClose === null) {
+                    break;
+                }
+
+                $depth--;
+                if ($depth === 0) {
+                    return $cursor;
+                }
+
+                $lineContent .= substr($segment, $offset, $nextClose['offset'] + $nextClose['length'] - $offset);
+                $offset = $nextClose['offset'] + $nextClose['length'];
+            }
+
+            $content[] = $lineContent;
+            $cursor++;
+        }
+
+        if ($this->divBlockContentIsBlank($content)) {
+            return max($openingIndex, $count - 1);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function numberedExampleRawTexEnvironmentBlockEnd(array $lines, int $index): ?int
+    {
+        if (!$this->rawTexEnabled()) {
+            return null;
+        }
+
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}\\\\begin\{([^}\s]+)\}/', $line, $m) === 1) {
+            $closingPattern = '/\\\\end\{' . preg_quote($m[1], '/') . '\}/';
+            for ($cursor = $index; $cursor < count($lines); $cursor++) {
+                if (preg_match($closingPattern, $lines[$cursor]) === 1) {
+                    return $cursor;
+                }
+            }
+
+            return null;
+        }
+
+        if (preg_match('/^ {0,3}\\\\start\[([^\]\r\n]+)]\s*$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        $environment = $m[1];
+        $startPattern = '/^ {0,3}\\\\start\[' . preg_quote($environment, '/') . ']\s*$/';
+        $stopPattern = '/^ {0,3}\\\\stop\[' . preg_quote($environment, '/') . ']\s*$/';
+        $depth = 0;
+        for ($cursor = $index; $cursor < count($lines); $cursor++) {
+            $current = rtrim($lines[$cursor]);
+            if (preg_match($startPattern, $current) === 1) {
+                $depth++;
+            }
+            if (preg_match($stopPattern, $current) === 1) {
+                $depth--;
+                if ($depth === 0) {
+                    return $cursor;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
