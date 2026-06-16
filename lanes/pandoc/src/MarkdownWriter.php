@@ -8565,7 +8565,75 @@ final class MarkdownWriter
 
         $schemeLength = strlen($match[1]);
 
-        return $schemeLength >= 2 && $schemeLength <= 32;
+        if ($schemeLength < 2 || $schemeLength > 32) {
+            return false;
+        }
+
+        if ($this->commonmarkAutolinksEnabled()) {
+            return true;
+        }
+
+        return $this->isPandocMarkdownAutolinkScheme($match[1]);
+    }
+
+    private function commonmarkAutolinksEnabled(): bool
+    {
+        $override = $this->markdownExtensionExplicitOverride('commonmark_autolinks');
+        if ($override !== null) {
+            return $override;
+        }
+
+        $format = $this->writerFormatBase();
+        return in_array($format, ['commonmark', 'commonmark_x', 'gfm'], true);
+    }
+
+    private function isPandocMarkdownAutolinkScheme(string $scheme): bool
+    {
+        $scheme = strtolower($scheme);
+
+        return in_array($scheme, [
+            'about',
+            'cid',
+            'data',
+            'dav',
+            'dict',
+            'dns',
+            'doi',
+            'file',
+            'ftp',
+            'geo',
+            'git',
+            'gopher',
+            'http',
+            'https',
+            'imap',
+            'info',
+            'ipp',
+            'ipps',
+            'irc',
+            'ircs',
+            'ldap',
+            'mailto',
+            'mid',
+            'news',
+            'nfs',
+            'nntp',
+            'pop',
+            'rtsp',
+            'rtsps',
+            'sip',
+            'sips',
+            'sms',
+            'svn',
+            'tag',
+            'tel',
+            'telnet',
+            'urn',
+            'webcal',
+            'ws',
+            'wss',
+            'xmpp',
+        ], true);
     }
 
     private function isValidEmailAutolinkText(string $text): bool
