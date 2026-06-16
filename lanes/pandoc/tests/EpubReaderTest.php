@@ -1785,6 +1785,47 @@ XML;
         $t->same(false, $rootfiles[2]['canExposeBytes']);
         $t->same($result['container'], $result['importReport']['container']);
     },
+    'preserves EPUB container rootfile full-path suffix provenance in reader handoff' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml): void {
+        $suffixedContainer = str_replace(
+            '<rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/>',
+            '<rootfile full-path="OEBPS/package.opf?profile=primary#rendition" media-type="application/oebps-package+xml"/>',
+            $containerXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(null, $suffixedContainer));
+        $rootfile = $result['container']['rootfiles'][0];
+        $rendition = $result['renditions']['items'][0];
+
+        $t->same('/OEBPS/package.opf', $result['opfPart']);
+        $t->same('/OEBPS/package.opf', $result['container']['opfPart']);
+        $t->same(0, $result['container']['selectedRootfileIndex']);
+        $t->same(1, $result['container']['fullPathSuffixRootfileCount']);
+        $t->same(2, $result['container']['rootfileDiagnosticCount']);
+        $t->same(['rootfile-full-path-query-component', 'rootfile-full-path-fragment-component'], array_column($result['container']['rootfileDiagnostics'], 'type'));
+
+        $t->same('OEBPS/package.opf?profile=primary#rendition', $rootfile['fullPath']);
+        $t->same('/OEBPS/package.opf?profile=primary#rendition', $rootfile['target']);
+        $t->same('/OEBPS/package.opf', $rootfile['path']);
+        $t->same(true, $rootfile['fullPathHasSuffix']);
+        $t->same(true, $rootfile['fullPathHasQuery']);
+        $t->same('profile=primary', $rootfile['fullPathQuery']);
+        $t->same(true, $rootfile['fullPathHasFragment']);
+        $t->same('rendition', $rootfile['fullPathFragment']);
+        $t->same(true, $rootfile['exists']);
+        $t->same(true, $rootfile['selected']);
+        $t->same(['rootfile-full-path-query-component', 'rootfile-full-path-fragment-component'], array_column($rootfile['diagnostics'], 'type'));
+        $t->same('profile=primary', $rootfile['diagnostics'][0]['query']);
+        $t->same('rendition', $rootfile['diagnostics'][1]['fragment']);
+
+        $t->same('OEBPS/package.opf?profile=primary#rendition', $rendition['fullPath']);
+        $t->same('/OEBPS/package.opf?profile=primary#rendition', $rendition['target']);
+        $t->same(true, $rendition['fullPathHasSuffix']);
+        $t->same('profile=primary', $rendition['fullPathQuery']);
+        $t->same('rendition', $rendition['fullPathFragment']);
+        $t->same($rootfile['diagnostics'], $rendition['diagnostics']);
+        $t->same($result['renditions'], $result['document']->attr('renditions'));
+        $t->same($result['container'], $result['importReport']['container']);
+    },
     'preserves EPUB container rootfile media-type parameters in reader rendition handoff' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $alternateOpfXml): void {
         $parameterizedContainer = str_replace(
             'media-type="application/oebps-package+xml"/>',

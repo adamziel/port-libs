@@ -278,6 +278,9 @@ final class EpubReader
      *     opfPart:string,
      *     selectedRootfileIndex:int,
      *     rootfiles:list<array<string, mixed>>,
+     *     rootfileDiagnosticCount:int,
+     *     rootfileDiagnostics:list<array<string, mixed>>,
+     *     fullPathSuffixRootfileCount:int,
      *     linkCount:int,
      *     links:list<array<string, mixed>>,
      *     linksByRel:array<string, list<array<string, mixed>>>,
@@ -302,6 +305,8 @@ final class EpubReader
         }
 
         $rootfiles = [];
+        $rootfileDiagnostics = [];
+        $fullPathSuffixRootfileCount = 0;
         foreach (self::childElements($rootfilesElement, 'rootfile', self::OCF_CONTAINER_NS) as $index => $rootfile) {
             $path = trim($rootfile->getAttribute('full-path'));
             $mediaType = trim($rootfile->getAttribute('media-type'));
@@ -309,16 +314,57 @@ final class EpubReader
                 throw new \RuntimeException('EPUB rootfile is missing full-path');
             }
 
-            $part = OpcPackagePath::canonicalPartName($path);
+            $pathSuffixOffset = strcspn($path, '?#');
+            $pathPart = substr($path, 0, $pathSuffixOffset);
+            $targetSuffix = substr($path, $pathSuffixOffset);
+            $part = OpcPackagePath::canonicalPartName($pathPart);
+            $target = $part . $targetSuffix;
+            $suffixFields = self::rootfileFullPathSuffixFields($target);
             $mediaTypeReport = self::rootfileMediaTypeReport($mediaType);
             $exists = $package->has($part);
             $provenance = self::zipEntryProvenance($exists ? $package->entry($part) : null);
             $attributes = self::rootfileElementAttributes($rootfile);
             $customAttributes = self::rootfileCustomAttributes($attributes);
+            $itemDiagnostics = [];
+            if ($suffixFields['fullPathHasQuery']) {
+                $itemDiagnostics[] = [
+                    'type' => 'rootfile-full-path-query-component',
+                    'fullPath' => $path,
+                    'target' => $target,
+                    'path' => $part,
+                    'query' => $suffixFields['fullPathQuery'],
+                    'message' => 'EPUB container rootfile full-path includes a query component; reader loads the package part and preserves the suffix for review',
+                ];
+            }
+            if ($suffixFields['fullPathHasFragment']) {
+                $itemDiagnostics[] = [
+                    'type' => 'rootfile-full-path-fragment-component',
+                    'fullPath' => $path,
+                    'target' => $target,
+                    'path' => $part,
+                    'fragment' => $suffixFields['fullPathFragment'],
+                    'message' => 'EPUB container rootfile full-path includes a fragment component; reader loads the package part and preserves the suffix for review',
+                ];
+            }
+            if ($itemDiagnostics !== []) {
+                ++$fullPathSuffixRootfileCount;
+                foreach ($itemDiagnostics as $diagnostic) {
+                    $rootfileDiagnostics[] = [
+                        'index' => $index,
+                    ] + $diagnostic;
+                }
+            }
+
             $rootfiles[] = [
                 'index' => $index,
                 'fullPath' => $path,
+                'target' => $target,
                 'path' => $part,
+                'fullPathHasQuery' => $suffixFields['fullPathHasQuery'],
+                'fullPathQuery' => $suffixFields['fullPathQuery'],
+                'fullPathHasFragment' => $suffixFields['fullPathHasFragment'],
+                'fullPathFragment' => $suffixFields['fullPathFragment'],
+                'fullPathHasSuffix' => $suffixFields['fullPathHasSuffix'],
                 'mediaType' => $mediaType,
                 'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
                 'baseMediaType' => $mediaTypeReport['baseMediaType'],
@@ -340,6 +386,7 @@ final class EpubReader
                 'compressionSupported' => $provenance['compressionSupported'],
                 'crc32' => $provenance['crc32'],
                 'canExposeBytes' => $provenance['canExposeBytes'],
+                'diagnostics' => $itemDiagnostics,
                 'selected' => false,
             ];
         }
@@ -383,6 +430,9 @@ final class EpubReader
             'opfPart' => $selected['path'],
             'selectedRootfileIndex' => $selectedIndex,
             'rootfiles' => $rootfiles,
+            'rootfileDiagnosticCount' => count($rootfileDiagnostics),
+            'rootfileDiagnostics' => $rootfileDiagnostics,
+            'fullPathSuffixRootfileCount' => $fullPathSuffixRootfileCount,
             'linkCount' => count($links['items']),
             'links' => $links['items'],
             'linksByRel' => self::linksByRel($links['items']),
@@ -900,6 +950,43 @@ final class EpubReader
     }
 
     /**
+     * @return array{
+     *     fullPathHasQuery:bool,
+     *     fullPathQuery:?string,
+     *     fullPathHasFragment:bool,
+     *     fullPathFragment:?string,
+     *     fullPathHasSuffix:bool
+     * }
+     */
+    private static function rootfileFullPathSuffixFields(string $target): array
+    {
+        $suffixOffset = strcspn($target, '?#');
+        $suffix = substr($target, $suffixOffset);
+        $query = null;
+        $fragment = null;
+
+        if (str_starts_with($suffix, '?')) {
+            $fragmentOffset = strpos($suffix, '#');
+            if ($fragmentOffset === false) {
+                $query = substr($suffix, 1);
+            } else {
+                $query = substr($suffix, 1, $fragmentOffset - 1);
+                $fragment = substr($suffix, $fragmentOffset + 1);
+            }
+        } elseif (str_starts_with($suffix, '#')) {
+            $fragment = substr($suffix, 1);
+        }
+
+        return [
+            'fullPathHasQuery' => $query !== null,
+            'fullPathQuery' => $query,
+            'fullPathHasFragment' => $fragment !== null,
+            'fullPathFragment' => $fragment,
+            'fullPathHasSuffix' => $suffix !== '',
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $rootfile
      *
      * @return array<string, mixed>
@@ -951,6 +1038,14 @@ final class EpubReader
             'fullPath' => is_string($rootfile['fullPath'] ?? null)
                 ? $rootfile['fullPath']
                 : ltrim((string) ($rootfile['path'] ?? ''), '/'),
+            'target' => is_string($rootfile['target'] ?? null)
+                ? $rootfile['target']
+                : (string) ($rootfile['path'] ?? ''),
+            'fullPathHasQuery' => (bool) ($rootfile['fullPathHasQuery'] ?? false),
+            'fullPathQuery' => is_string($rootfile['fullPathQuery'] ?? null) ? $rootfile['fullPathQuery'] : null,
+            'fullPathHasFragment' => (bool) ($rootfile['fullPathHasFragment'] ?? false),
+            'fullPathFragment' => is_string($rootfile['fullPathFragment'] ?? null) ? $rootfile['fullPathFragment'] : null,
+            'fullPathHasSuffix' => (bool) ($rootfile['fullPathHasSuffix'] ?? false),
             'attributes' => $attributes,
             'attributeCount' => is_int($rootfile['attributeCount'] ?? null)
                 ? $rootfile['attributeCount']
@@ -984,7 +1079,7 @@ final class EpubReader
             'renditionProperties' => self::renditionProperties($metadata),
             'manifestCount' => is_array($opf['manifest'] ?? null) ? count($opf['manifest']) : null,
             'spineCount' => is_array($opf['spine'] ?? null) ? count($opf['spine']) : null,
-            'diagnostics' => [],
+            'diagnostics' => is_array($rootfile['diagnostics'] ?? null) ? array_values($rootfile['diagnostics']) : [],
             'renditionLayout' => is_array($metadata['renditionLayout'] ?? null)
                 ? $metadata['renditionLayout']
                 : self::metadataRenditionLayoutReport($metadata),
@@ -1011,7 +1106,7 @@ final class EpubReader
             'renditionLayout' => self::metadataRenditionLayoutReport([]),
             'manifestCount' => null,
             'spineCount' => null,
-            'diagnostics' => [],
+            'diagnostics' => is_array($rootfile['diagnostics'] ?? null) ? array_values($rootfile['diagnostics']) : [],
         ]);
 
         if (($rootfile['exists'] ?? false) !== true) {
