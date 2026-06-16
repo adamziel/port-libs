@@ -5125,18 +5125,43 @@ final class MarkdownWriter
         $format = strtolower($this->rawFormat($node));
         if (($node->type === 'raw_html' || $this->isHtmlRawFormat($format)) && $this->rawFormatAllowed($format, 'html')) {
             $text = $this->rawText($node, ['text', 'html', 'raw', 'content', 'literal', 'value']);
+            $lines = $this->rawHtmlBlockLines($text);
         } elseif (($node->type === 'raw_markdown' || $this->isMarkdownRawFormat($format)) && $this->rawFormatAllowed($format, 'markdown')) {
             $text = $this->rawText($node, ['text', 'markdown', 'raw', 'content', 'literal', 'value']);
+            $lines = explode("\n", $text);
         } elseif (($node->type === 'raw_tex' || $this->isTexRawFormat($format)) && $this->rawFormatAllowed($format, 'tex')) {
             $text = $this->rawText($node, ['text', 'tex', 'raw', 'content', 'literal', 'value']);
+            $lines = explode("\n", $text);
         } else {
+            return [];
+        }
+
+        if ($lines === []) {
             return [];
         }
 
         return array_map(
             static fn (string $line): string => str_repeat(' ', $indent) . $line,
-            explode("\n", $text)
+            $lines
         );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function rawHtmlBlockLines(string $text): array
+    {
+        $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $text));
+
+        while ($lines !== [] && trim($lines[0]) === '') {
+            array_shift($lines);
+        }
+
+        while ($lines !== [] && trim($lines[array_key_last($lines)]) === '') {
+            array_pop($lines);
+        }
+
+        return $lines;
     }
 
     private function renderRawInline(AstNode $node): string
@@ -5217,6 +5242,11 @@ final class MarkdownWriter
 
     private function isHtmlRawFormat(string $format): bool
     {
+        $normalized = strtolower(trim($format));
+        if (in_array($normalized, ['raw_html', 'raw-html'], true)) {
+            return true;
+        }
+
         return MarkdownFormatProfile::rawFamily($format) === 'html';
     }
 
