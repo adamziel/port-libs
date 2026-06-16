@@ -1458,7 +1458,7 @@ final class MarkdownWriter
     private function shouldRenderHtmlBlockFallback(AstNode $node): bool
     {
         if ($this->requestsHtmlMarkdownFormat($node->attr('markdownBlockFormat', $node->attr('markdownFormat', '')))) {
-            return true;
+            return $this->rawHtmlEnabled();
         }
 
         if (($node->type === 'bullet_list' || $node->type === 'ordered_list' || $node->type === 'definition_list')
@@ -1472,7 +1472,7 @@ final class MarkdownWriter
         }
 
         if ($node->type === 'code_block' && $this->requestsHtmlMarkdownFormat($node->attr('markdownCodeBlockFormat', ''))) {
-            return true;
+            return $this->rawHtmlEnabled();
         }
 
         if (
@@ -1484,7 +1484,7 @@ final class MarkdownWriter
         }
 
         if ($node->type === 'blockquote' && $this->hasHtmlOnlyAttributes($node)) {
-            return true;
+            return $this->rawHtmlEnabled();
         }
 
         if ($node->type === 'code_block' && $this->shouldRenderCodeBlockHtmlFallback($node)) {
@@ -4897,7 +4897,9 @@ final class MarkdownWriter
             !$this->fencedCodeAttributesEnabled()
             && $this->codeBlockRequiresFencedCodeAttributes($node)
         ) {
-            return $this->renderHtmlBlockFallback($node, $indent);
+            return $this->rawHtmlEnabled()
+                ? $this->renderHtmlBlockFallback($node, $indent)
+                : $this->renderPortableCodeBlock($node, $indent);
         }
 
         $attrs = $this->renderCodeBlockAttributes($node);
@@ -4910,6 +4912,38 @@ final class MarkdownWriter
             return $this->renderFencedCodeBlock($node, ' ' . $info, $indent);
         }
 
+        return $this->renderIndentedCodeBlock($node, $indent);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderPortableCodeBlock(AstNode $node, int $indent): array
+    {
+        $attrs = $this->linkAttrTuple($node);
+        foreach ($attrs['classes'] as $class) {
+            if ($this->isCodeBlockInfoString($class)) {
+                return $this->renderFencedCodeBlock($node, $class, $indent);
+            }
+        }
+
+        $info = $this->codeBlockInfo($node);
+        if ($info !== '') {
+            return $this->renderFencedCodeBlock($node, ' ' . $info, $indent);
+        }
+
+        if ((bool) ($this->options['fencedCodeBlocks'] ?? false)) {
+            return $this->renderFencedCodeBlock($node, '', $indent);
+        }
+
+        return $this->renderIndentedCodeBlock($node, $indent);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderIndentedCodeBlock(AstNode $node, int $indent): array
+    {
         $lines = [];
         $prefix = str_repeat(' ', $indent + 4);
         foreach (explode("\n", (string) $node->attr('text', '')) as $line) {
