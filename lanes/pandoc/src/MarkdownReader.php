@@ -7879,6 +7879,15 @@ final class MarkdownReader
                 continue;
             }
 
+            $opaqueEnd = $this->markdownPrepassOpaqueBlockEnd($lines, $index);
+            if ($opaqueEnd !== null) {
+                for ($copy = $index; $copy <= $opaqueEnd; $copy++) {
+                    $content[] = $lines[$copy];
+                }
+                $index = $opaqueEnd;
+                continue;
+            }
+
             $expanded = $this->expandTabsToSpaces($line);
             $footnote = $this->markdownExtensionEnabled('footnotes') ? $this->tryParseFootnoteDefinitionStart($expanded) : null;
             if ($footnote !== null) {
@@ -7931,7 +7940,8 @@ final class MarkdownReader
         $fenceChar = null;
         $fenceLength = 0;
 
-        foreach ($lines as $line) {
+        for ($index = 0, $count = count($lines); $index < $count; $index++) {
+            $line = $lines[$index];
             if ($fenceChar !== null) {
                 $content[] = $line;
                 if ($this->isClosingCodeFence($line, $fenceChar, $fenceLength)) {
@@ -7948,6 +7958,15 @@ final class MarkdownReader
                 continue;
             }
 
+            $opaqueEnd = $this->markdownPrepassOpaqueBlockEnd($lines, $index);
+            if ($opaqueEnd !== null) {
+                for ($copy = $index; $copy <= $opaqueEnd; $copy++) {
+                    $content[] = $lines[$copy];
+                }
+                $index = $opaqueEnd;
+                continue;
+            }
+
             $abbreviation = $this->tryParseAbbreviationDefinitionLine($line);
             if ($abbreviation !== null) {
                 $abbreviations[$abbreviation['term']] = $abbreviation['title'];
@@ -7958,6 +7977,100 @@ final class MarkdownReader
         }
 
         return [$content, $this->sortedAbbreviationDefinitions($abbreviations)];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownPrepassOpaqueBlockEnd(array $lines, int $index): ?int
+    {
+        $divEnd = $this->htmlDivBlockEndForPrepass($lines, $index);
+        if ($divEnd !== null) {
+            return $divEnd;
+        }
+
+        if (!$this->rawHtmlEnabled()) {
+            return null;
+        }
+
+        $rawHtmlEnd = $index;
+        if (!$this->tryReadRawHtmlBlock($lines, $rawHtmlEnd) instanceof AstNode) {
+            return null;
+        }
+
+        return $rawHtmlEnd;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function htmlDivBlockEndForPrepass(array $lines, int $index): ?int
+    {
+        $line = $this->expandTabsToSpaces($lines[$index] ?? '');
+        $indent = strspn($line, ' ');
+        if ($indent > 3 || ($line[$indent] ?? '') !== '<') {
+            return null;
+        }
+
+        $html = $this->readRawHtmlInlineTagSource($line, $indent);
+        if ($html === null) {
+            return null;
+        }
+
+        if (preg_match('~^<([A-Za-z][A-Za-z0-9-]*)(?=[\s>/])~u', $html, $m) !== 1) {
+            return null;
+        }
+
+        $tag = strtolower($m[1]);
+        if ($tag !== 'div') {
+            return null;
+        }
+
+        if (preg_match('~/\s*>\z~', $html) === 1) {
+            return $index;
+        }
+
+        $depth = 1;
+        $cursor = $index;
+        $count = count($lines);
+        $firstLineOffset = $indent + strlen($html);
+
+        while ($cursor < $count) {
+            $currentLine = $this->expandTabsToSpaces($lines[$cursor]);
+            $segment = $cursor === $index ? substr($currentLine, $firstLineOffset) : $currentLine;
+            $offset = 0;
+            while (true) {
+                $nextOpen = $this->findHtmlTag($segment, $tag, $offset, false);
+                $nextClose = $this->findHtmlTag($segment, $tag, $offset, true);
+
+                if ($nextOpen === null && $nextClose === null) {
+                    break;
+                }
+
+                if ($nextOpen !== null && ($nextClose === null || $nextOpen['offset'] < $nextClose['offset'])) {
+                    if (!$nextOpen['selfClosing']) {
+                        $depth++;
+                    }
+                    $offset = $nextOpen['offset'] + $nextOpen['length'];
+                    continue;
+                }
+
+                if ($nextClose === null) {
+                    break;
+                }
+
+                $depth--;
+                if ($depth === 0) {
+                    return $cursor;
+                }
+
+                $offset = $nextClose['offset'] + $nextClose['length'];
+            }
+
+            $cursor++;
+        }
+
+        return null;
     }
 
     /**
@@ -8317,9 +8430,31 @@ final class MarkdownReader
         $idsByLine = [];
         $references = [];
         $usedIds = [];
+        $fenceChar = null;
+        $fenceLength = 0;
 
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
             $line = $lines[$index];
+            if ($fenceChar !== null) {
+                if ($this->isClosingCodeFence($line, $fenceChar, $fenceLength)) {
+                    $fenceChar = null;
+                    $fenceLength = 0;
+                }
+                continue;
+            }
+
+            if (preg_match('/^ {0,3}(`{3,}|~{3,})/', $line, $fence) === 1) {
+                $fenceChar = $fence[1][0];
+                $fenceLength = strlen($fence[1]);
+                continue;
+            }
+
+            $opaqueEnd = $this->markdownPrepassOpaqueBlockEnd($lines, $index);
+            if ($opaqueEnd !== null) {
+                $index = $opaqueEnd;
+                continue;
+            }
+
             $heading = $this->tryParseMarkdownHeading($line);
             $setext = false;
             if ($heading === null) {

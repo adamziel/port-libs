@@ -2849,5 +2849,7 @@
   "mappedOdfManifestControlBytePathCases": 1,
   "odfManifestControlBytePathAssertions": 2,
   "mappedEpubReaderRootfileSuffixProvenanceCases": 1,
-  "epubReaderRootfileSuffixProvenanceAssertions": 27
+  "epubReaderRootfileSuffixProvenanceAssertions": 27,
+  "mappedMarkdownReaderRawHtmlReferenceBoundarySurgeCases": 10,
+  "markdownReaderRawHtmlReferenceBoundarySurgeAssertions": 69
 }
