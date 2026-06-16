@@ -448,6 +448,19 @@ final class MarkdownReader
                     continue;
                 }
             }
+            if (
+                $paragraph !== []
+                && $listStack === []
+                && $this->blockQuoteParagraphInterruptionEnabled()
+                && $this->isBlockQuoteLine($line)
+            ) {
+                $this->flushParagraph($paragraph, $blocks);
+                $blockQuote = $this->tryReadBlockQuote($lines, $index);
+                if ($blockQuote !== null) {
+                    $blocks[] = $blockQuote;
+                    continue;
+                }
+            }
             if ($rawHtmlEnabled && $paragraph === [] && $listStack === [] && $this->trySkipEmptyHtmlCommentSeparator($lines, $index, $blocks)) {
                 continue;
             }
@@ -16487,6 +16500,7 @@ final class MarkdownReader
         if (
             preg_match('/^ {0,3}(?:#{1,6}\s+|`{3,}|~{3,}|:{3,})/', $expanded) === 1
             || preg_match($htmlBlockStartPattern, $expanded) === 1
+            || ($this->blockQuoteParagraphInterruptionEnabled() && $this->isBlockQuoteLine($expanded))
             || preg_match('/^ {0,3}[:~]\s+/', $expanded) === 1
             || preg_match('/^ {0,3}\|/', $expanded) === 1
             || $this->isRawTexBlockStart($expanded)
@@ -16498,6 +16512,15 @@ final class MarkdownReader
         $marker = $this->matchListMarker($expanded);
 
         return $marker === null || $marker['indent'] > 3;
+    }
+
+    private function blockQuoteParagraphInterruptionEnabled(): bool
+    {
+        return in_array(
+            $this->markdownFormatBase(),
+            ['commonmark', 'commonmark_x', 'gfm', 'markdown_github'],
+            true
+        );
     }
 
     private function stripBlockQuoteMarker(string $line): string
