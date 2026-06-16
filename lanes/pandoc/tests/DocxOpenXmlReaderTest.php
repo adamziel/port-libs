@@ -1571,6 +1571,95 @@ XML;
         $t->same('kind=thumb', $thumbnail['relationships'][0]['targetQuery']);
         $t->same('cover', $thumbnail['relationships'][0]['targetFragment']);
     },
+    'summarizes docx external relationship target policy for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rMailSource" Type="' . $hyperlinkType . '" Target="mailto:review@example.test" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rNetworkPreview" Type="' . $hyperlinkType . '" Target="//cdn.example.test/review.html?mode=preview#source" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeFile" Type="' . $hyperlinkType . '" Target="file:///C:/source/review.docx" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeScript" Type="' . $imageType . '" Target="javascript:alert(1)" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $relationships = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships'];
+        $hyperlinks = $package['relationshipTypes'][$hyperlinkType];
+        $images = $package['relationshipTypes'][$imageType];
+        $externalTargets = $summary['externalRelationshipTargets'];
+        $unsafeTargets = $summary['unsafeExternalRelationshipTargets'];
+
+        $t->same(5, $summary['externalRelationshipCount']);
+        $t->same(3, $summary['externalRelationshipTargetAllowedCount']);
+        $t->same(2, $summary['externalRelationshipTargetUnsafeCount']);
+        $t->same([
+            'absolute-uri' => 4,
+            'network-path-reference' => 1,
+        ], $summary['externalRelationshipTargetKindCounts']);
+        $t->same([
+            '(none)' => 1,
+            'file' => 1,
+            'https' => 1,
+            'javascript' => 1,
+            'mailto' => 1,
+        ], $summary['externalRelationshipTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme' => 2], $summary['externalRelationshipTargetIssueCounts']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithUnsafeExternalTargets']);
+        $t->same(['rUnsafeFile', 'rUnsafeScript'], array_column($unsafeTargets, 'id'));
+
+        $t->same('absolute-uri', $relationships['rLink']['externalTargetKind']);
+        $t->same('https', $relationships['rLink']['externalTargetScheme']);
+        $t->same(true, $relationships['rLink']['externalTargetAllowed']);
+        $t->same([], $relationships['rLink']['externalTargetIssues']);
+        $t->same('absolute-uri', $relationships['rMailSource']['externalTargetKind']);
+        $t->same('mailto', $relationships['rMailSource']['externalTargetScheme']);
+        $t->same(true, $relationships['rMailSource']['externalTargetAllowed']);
+        $t->same('network-path-reference', $relationships['rNetworkPreview']['externalTargetKind']);
+        $t->same(null, $relationships['rNetworkPreview']['externalTargetScheme']);
+        $t->same(true, $relationships['rNetworkPreview']['externalTargetAllowed']);
+        $t->same('mode=preview', $relationships['rNetworkPreview']['targetQuery']);
+        $t->same('source', $relationships['rNetworkPreview']['targetFragment']);
+        $t->same('file', $relationships['rUnsafeFile']['externalTargetScheme']);
+        $t->same(false, $relationships['rUnsafeFile']['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $relationships['rUnsafeFile']['externalTargetIssues']);
+        $t->same('javascript', $relationships['rUnsafeScript']['externalTargetScheme']);
+        $t->same(false, $relationships['rUnsafeScript']['externalTargetAllowed']);
+
+        $t->same(['rLink', 'rMailSource', 'rNetworkPreview', 'rUnsafeFile', 'rUnsafeScript'], array_column($externalTargets, 'id'));
+        $t->same([true, true, true, false, false], array_column($externalTargets, 'externalTargetAllowed'));
+
+        $t->same(4, $hyperlinks['externalCount']);
+        $t->same(3, $hyperlinks['allowedExternalTargetCount']);
+        $t->same(1, $hyperlinks['unsafeExternalTargetCount']);
+        $t->same([
+            'absolute-uri' => 3,
+            'network-path-reference' => 1,
+        ], $hyperlinks['externalTargetKindCounts']);
+        $t->same([
+            '(none)' => 1,
+            'file' => 1,
+            'https' => 1,
+            'mailto' => 1,
+        ], $hyperlinks['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme' => 1], $hyperlinks['externalTargetIssueCounts']);
+        $t->same(['rUnsafeFile'], array_column($hyperlinks['unsafeExternalTargets'], 'id'));
+        $t->same('file', $hyperlinks['relationships'][3]['externalTargetScheme']);
+        $t->same(false, $hyperlinks['relationships'][3]['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $hyperlinks['relationships'][3]['externalTargetIssues']);
+
+        $t->same(1, $images['externalCount']);
+        $t->same(0, $images['allowedExternalTargetCount']);
+        $t->same(1, $images['unsafeExternalTargetCount']);
+        $t->same(['javascript' => 1], $images['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme' => 1], $images['externalTargetIssueCounts']);
+        $t->same(['rUnsafeScript'], array_column($images['unsafeExternalTargets'], 'id'));
+    },
     'summarizes docx relationship target part extension buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
