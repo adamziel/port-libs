@@ -1,0 +1,340 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\TableGeometry;
+use PortLibs\Pandoc\WordPressBlockWriter;
+
+$tableFixtures = [
+    'pipe' => [
+        'markdown' => implode("\n", [
+            '| Metric | Value |',
+            '|:-------|------:|',
+            '| Queue  | 12    |',
+        ]),
+        'extension' => 'pipe_tables',
+        'expected' => ['Metric', 'Value', 'Queue', '12'],
+        'alignments' => ['left', 'right'],
+    ],
+    'simple' => [
+        'markdown' => implode("\n", [
+            'Metric  Value',
+            '------  -----',
+            'Queue   12',
+        ]),
+        'extension' => 'simple_tables',
+        'expected' => ['Metric', 'Value', 'Queue', '12'],
+        'alignments' => ['default', 'default'],
+    ],
+    'grid' => [
+        'markdown' => implode("\n", [
+            '+--------+-------+',
+            '| Metric | Value |',
+            '+========+=======+',
+            '| Queue  | 12    |',
+            '+--------+-------+',
+        ]),
+        'extension' => 'grid_tables',
+        'expected' => ['Metric', 'Value', 'Queue', '12'],
+        'alignments' => ['default', 'default'],
+    ],
+];
+
+$multilineFixture = [
+    'markdown' => implode("\n", [
+        '--------------------------',
+        'Metric            Value',
+        '----------------  --------',
+        'Queue             12',
+        '                  ready',
+        '--------------------------',
+    ]),
+    'extension' => 'multiline_tables',
+    'expected' => ['Metric', 'Value', 'Queue', "12\nready"],
+    'alignments' => ['left', 'left'],
+];
+
+$captionedTable = static function (string $table, string $position, string $caption): string {
+    return $position === 'before-table'
+        ? $caption . "\n\n" . $table
+        : $table . "\n\n" . $caption;
+};
+
+$firstTable = null;
+$firstTable = static function (AstNode $node) use (&$firstTable): AstNode {
+    if ($node->type === 'table') {
+        return $node;
+    }
+
+    foreach ($node->children as $child) {
+        $match = $firstTable($child);
+        if ($match->type === 'table') {
+            return $match;
+        }
+    }
+
+    return new AstNode('missing');
+};
+
+$plainInlineText = null;
+$plainInlineText = static function (array $nodes) use (&$plainInlineText): string {
+    $text = '';
+    foreach ($nodes as $node) {
+        if (!$node instanceof AstNode) {
+            continue;
+        }
+        if ($node->type === 'text' || $node->type === 'code') {
+            $text .= (string) $node->attr('text', '');
+            continue;
+        }
+        if ($node->type === 'softbreak' || $node->type === 'linebreak') {
+            $text .= "\n";
+            continue;
+        }
+
+        $text .= $plainInlineText($node->children);
+    }
+
+    return $text;
+};
+
+$cellText = static function (AstNode $table, string $section, int $row, int $column) use ($plainInlineText): string {
+    $sectionNode = $section === 'head' ? $table->children[0] : $table->children[1];
+    $rowNode = $sectionNode->children[$row] ?? new AstNode('missing');
+    $cell = $rowNode->children[$column] ?? new AstNode('missing');
+
+    return $plainInlineText($cell->children);
+};
+
+$assertTableParsed = static function (TestRunner $t, AstNode $document, array $fixture, string $position, string $marker, string $caption) use ($firstTable, $cellText): void {
+    $table = $firstTable($document);
+    $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+    $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
+    $blocks = (new WordPressBlockWriter())->write($document);
+    [$head0, $head1, $body0, $body1] = $fixture['expected'];
+
+    $t->same('table', $table->type);
+    $t->same($fixture['alignments'], $table->attr('alignments'));
+    $t->same($caption, $table->attr('caption'));
+    $t->same($position, $table->attr('captionSource')['position'] ?? null);
+    $t->same($marker, $table->attr('captionSource')['marker'] ?? null);
+    $t->same($position === 'before-table' ? 'before-table' : 'after-table', $packet['summary']['captionPlacement'] ?? null);
+    $t->same($head0, $cellText($table, 'head', 0, 0));
+    $t->same($head1, $cellText($table, 'head', 0, 1));
+    $t->same($body0, $cellText($table, 'body', 0, 0));
+    $t->same($body1, $cellText($table, 'body', 0, 1));
+    $t->contains($caption, $markdown);
+    $t->contains('<figcaption', $blocks);
+};
+
+$assertTableDisabled = static function (TestRunner $t, AstNode $document, string $sourceNeedle) use ($firstTable): void {
+    $table = $firstTable($document);
+    $markdown = (new MarkdownWriter())->write($document);
+
+    $t->same('missing', $table->type);
+    $t->contains($sourceNeedle, $markdown);
+};
+
+$profileCases = [
+    'default enables all table syntaxes' => [
+        'options' => [],
+        'enabled' => ['pipe', 'simple', 'grid', 'multiline'],
+    ],
+    'markdown enables all table syntaxes' => [
+        'options' => ['format' => 'markdown'],
+        'enabled' => ['pipe', 'simple', 'grid', 'multiline'],
+    ],
+    'commonmark x enables all table syntaxes' => [
+        'options' => ['format' => 'commonmark_x'],
+        'enabled' => ['pipe', 'simple', 'grid', 'multiline'],
+    ],
+    'commonmark disables table syntaxes' => [
+        'options' => ['format' => 'commonmark'],
+        'enabled' => [],
+    ],
+    'strict disables table syntaxes' => [
+        'options' => ['format' => 'markdown_strict'],
+        'enabled' => [],
+    ],
+    'gfm enables pipe tables only' => [
+        'options' => ['format' => 'gfm'],
+        'enabled' => ['pipe'],
+    ],
+    'github markdown enables pipe tables only' => [
+        'options' => ['format' => 'markdown_github'],
+        'enabled' => ['pipe'],
+    ],
+    'commonmark suffix enables pipe only' => [
+        'options' => ['format' => 'commonmark+pipe_tables'],
+        'enabled' => ['pipe'],
+    ],
+    'commonmark suffix enables simple only' => [
+        'options' => ['format' => 'commonmark+simple_tables'],
+        'enabled' => ['simple'],
+    ],
+    'commonmark suffix enables grid only' => [
+        'options' => ['format' => 'commonmark+grid_tables'],
+        'enabled' => ['grid'],
+    ],
+    'commonmark suffix enables multiline only' => [
+        'options' => ['format' => 'commonmark+multiline_tables'],
+        'enabled' => ['multiline'],
+    ],
+    'strict suffix enables pipe and grid' => [
+        'options' => ['format' => 'markdown_strict+pipe_tables+grid_tables'],
+        'enabled' => ['pipe', 'grid'],
+    ],
+    'markdown suffix disables pipe only' => [
+        'options' => ['format' => 'markdown-pipe_tables'],
+        'enabled' => ['simple', 'grid', 'multiline'],
+    ],
+    'markdown suffix disables simple only' => [
+        'options' => ['format' => 'markdown-simple_tables'],
+        'enabled' => ['pipe', 'grid', 'multiline'],
+    ],
+    'markdown suffix disables grid only' => [
+        'options' => ['format' => 'markdown-grid_tables'],
+        'enabled' => ['pipe', 'simple', 'multiline'],
+    ],
+    'markdown suffix disables multiline only' => [
+        'options' => ['format' => 'markdown-multiline_tables'],
+        'enabled' => ['pipe', 'simple', 'grid'],
+    ],
+    'associative enables pipe on commonmark' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['pipe_tables' => true]],
+        'enabled' => ['pipe'],
+    ],
+    'associative enables simple on commonmark' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['simple_tables' => true]],
+        'enabled' => ['simple'],
+    ],
+    'associative enables grid on commonmark' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['grid_tables' => true]],
+        'enabled' => ['grid'],
+    ],
+    'associative enables multiline on commonmark' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['multiline_tables' => true]],
+        'enabled' => ['multiline'],
+    ],
+    'token list enables pipe and simple on strict' => [
+        'options' => ['format' => 'markdown_strict', 'extensions' => ['+pipe_tables', '+simple_tables']],
+        'enabled' => ['pipe', 'simple'],
+    ],
+    'string list enables grid and multiline on strict' => [
+        'options' => ['format' => 'markdown_strict', 'extensions' => '+grid_tables +multiline_tables'],
+        'enabled' => ['grid', 'multiline'],
+    ],
+    'comma list disables pipe and grid on markdown' => [
+        'options' => ['extensions' => '-pipe_tables,-grid_tables'],
+        'enabled' => ['simple', 'multiline'],
+    ],
+    'alias table enables pipe on commonmark' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['tables' => true]],
+        'enabled' => ['pipe'],
+    ],
+    'alias pipe table enables pipe on commonmark' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['pipe_table' => true]],
+        'enabled' => ['pipe'],
+    ],
+    'alias simple table enables simple on commonmark' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['simple_table' => true]],
+        'enabled' => ['simple'],
+    ],
+    'alias grid table enables grid on commonmark' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['grid_table' => true]],
+        'enabled' => ['grid'],
+    ],
+    'alias multiline table enables multiline on commonmark' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['multiline_table' => true]],
+        'enabled' => ['multiline'],
+    ],
+    'boolean strings disable pipe and simple' => [
+        'options' => ['extensions' => ['pipe_tables' => 'false', 'simple_tables' => '0']],
+        'enabled' => ['grid', 'multiline'],
+    ],
+    'boolean strings enable grid and multiline on commonmark' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['grid_tables' => 'true', 'multiline_tables' => 'yes']],
+        'enabled' => ['grid', 'multiline'],
+    ],
+];
+
+$tests = [];
+$caseCount = 0;
+
+foreach ($profileCases as $profileName => $profile) {
+    foreach ($tableFixtures as $tableName => $fixture) {
+        foreach (['before-table' => 'Table:', 'after-table' => ':'] as $position => $marker) {
+            $caseCount++;
+            $enabled = in_array($tableName, $profile['enabled'], true);
+            $caseId = str_pad((string) $caseCount, 3, '0', STR_PAD_LEFT);
+            $caption = "Table profile caption {$caseId}";
+            $markdown = $captionedTable($fixture['markdown'], $position, "{$marker} {$caption}");
+
+            $tests["maps upstream markdown reader table profile {$caseId} {$profileName} {$tableName} {$position}"] =
+                static function (TestRunner $t) use ($profile, $markdown, $enabled, $fixture, $position, $marker, $caption, $assertTableParsed, $assertTableDisabled): void {
+                    $document = (new MarkdownReader($profile['options']))->read($markdown);
+
+                    if ($enabled) {
+                        $assertTableParsed($t, $document, $fixture, $position, $marker, $caption);
+                        return;
+                    }
+
+                    $assertTableDisabled($t, $document, $fixture['expected'][0]);
+                };
+        }
+    }
+}
+
+$multilineProfileCases = [
+    'default enables multiline table syntax' => [
+        'options' => [],
+        'enabled' => true,
+    ],
+    'commonmark disables multiline table syntax' => [
+        'options' => ['format' => 'commonmark'],
+        'enabled' => false,
+    ],
+    'commonmark suffix enables multiline table syntax' => [
+        'options' => ['format' => 'commonmark+multiline_tables'],
+        'enabled' => true,
+    ],
+    'strict configured enables multiline table syntax' => [
+        'options' => ['format' => 'markdown_strict', 'extensions' => ['+multiline_tables']],
+        'enabled' => true,
+    ],
+    'markdown configured disables multiline table syntax' => [
+        'options' => ['extensions' => ['multiline_tables' => false, 'simple_tables' => false]],
+        'enabled' => false,
+    ],
+];
+
+foreach ($multilineProfileCases as $profileName => $profile) {
+    foreach (['before-table' => 'Table:', 'after-table' => ':'] as $position => $marker) {
+        $caseCount++;
+        $caseId = str_pad((string) $caseCount, 3, '0', STR_PAD_LEFT);
+        $caption = "Table profile caption {$caseId}";
+        $markdown = $captionedTable($multilineFixture['markdown'], $position, "{$marker} {$caption}");
+
+        $tests["maps upstream markdown reader multiline table profile {$caseId} {$profileName} {$position}"] =
+            static function (TestRunner $t) use ($profile, $markdown, $multilineFixture, $position, $marker, $caption, $assertTableParsed, $assertTableDisabled): void {
+                $document = (new MarkdownReader($profile['options']))->read($markdown);
+
+                if ($profile['enabled']) {
+                    $assertTableParsed($t, $document, $multilineFixture, $position, $marker, $caption);
+                    return;
+                }
+
+                $assertTableDisabled($t, $document, $multilineFixture['expected'][0]);
+            };
+    }
+}
+
+$tests['records upstream markdown reader table profile surge mapped-case count'] =
+    static function (TestRunner $t) use ($caseCount): void {
+        $t->same(190, $caseCount);
+    };
+
+return $tests;

@@ -117,19 +117,8 @@ final class MarkdownReader
             $profile[$extension] = $enabled;
         }
 
-        $configuredExtensions = $this->options['extensions'] ?? [];
-        if (is_array($configuredExtensions)) {
-            foreach ($configuredExtensions as $key => $value) {
-                if (is_int($key)) {
-                    if (is_string($value) && $value !== '') {
-                        $enabled = $value[0] !== '-';
-                        $profile[$this->normalizeMarkdownExtensionName(ltrim($value, '+-'))] = $enabled;
-                    }
-                    continue;
-                }
-
-                $profile[$this->normalizeMarkdownExtensionName((string) $key)] = (bool) $value;
-            }
+        foreach ($this->configuredMarkdownExtensionOverrides() as $extension => $enabled) {
+            $profile[$extension] = $enabled;
         }
 
         return $this->markdownExtensionProfile = $profile;
@@ -149,15 +138,19 @@ final class MarkdownReader
             'east_asian_line_breaks' => false,
             'emoji' => true,
             'footnotes' => true,
+            'grid_tables' => true,
             'hard_line_breaks' => false,
             'ignore_line_breaks' => false,
             'inline_attributes' => true,
             'line_blocks' => true,
             'mark' => true,
+            'multiline_tables' => true,
             'numbered_examples' => true,
+            'pipe_tables' => true,
             'raw_attribute' => true,
             'raw_html' => true,
             'raw_tex' => true,
+            'simple_tables' => true,
             'smart' => true,
             'strikeout' => true,
             'task_lists' => true,
@@ -180,6 +173,7 @@ final class MarkdownReader
                 [
                     'bare_uri_autolinks' => true,
                     'emoji' => true,
+                    'pipe_tables' => true,
                     'raw_html' => true,
                     'strikeout' => true,
                     'task_lists' => true,
@@ -193,7 +187,11 @@ final class MarkdownReader
                     'definition_lists' => true,
                     'footnotes' => true,
                     'inline_attributes' => true,
+                    'grid_tables' => true,
+                    'multiline_tables' => true,
+                    'pipe_tables' => true,
                     'raw_html' => true,
+                    'simple_tables' => true,
                 ]
             ),
             'markdown_mmd' => array_replace(
@@ -203,8 +201,12 @@ final class MarkdownReader
                     'citations' => true,
                     'definition_lists' => true,
                     'footnotes' => true,
+                    'grid_tables' => true,
                     'inline_attributes' => true,
+                    'multiline_tables' => true,
+                    'pipe_tables' => true,
                     'raw_html' => true,
+                    'simple_tables' => true,
                     'tex_math_dollars' => true,
                     'tex_math_single_backslash' => true,
                 ]
@@ -249,6 +251,69 @@ final class MarkdownReader
         return $overrides;
     }
 
+    /**
+     * @return array<string, bool>
+     */
+    private function configuredMarkdownExtensionOverrides(): array
+    {
+        $extensions = $this->options['extensions'] ?? [];
+        if (is_string($extensions)) {
+            $extensions = preg_split('/[\s,]+/', trim($extensions), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+
+        if (!is_array($extensions)) {
+            return [];
+        }
+
+        $overrides = [];
+        foreach ($extensions as $name => $value) {
+            if (is_int($name)) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+
+                $token = trim((string) $value);
+                if ($token === '') {
+                    continue;
+                }
+
+                $enabled = true;
+                if ($token[0] === '+' || $token[0] === '-') {
+                    $enabled = $token[0] === '+';
+                    $token = substr($token, 1);
+                }
+
+                if ($token !== '') {
+                    $overrides[$this->normalizeMarkdownExtensionName($token)] = $enabled;
+                }
+                continue;
+            }
+
+            if (!is_scalar($name)) {
+                continue;
+            }
+
+            $extension = $this->normalizeMarkdownExtensionName((string) $name);
+            if (is_bool($value)) {
+                $overrides[$extension] = $value;
+                continue;
+            }
+
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $normalized = strtolower(trim((string) $value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                $overrides[$extension] = true;
+            } elseif (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                $overrides[$extension] = false;
+            }
+        }
+
+        return $overrides;
+    }
+
     private function normalizeMarkdownExtensionName(string $extension): string
     {
         return match (str_replace('-', '_', strtolower(trim($extension)))) {
@@ -257,11 +322,15 @@ final class MarkdownReader
             'citation' => 'citations',
             'east_asian_line_break', 'east_asian_linebreaks' => 'east_asian_line_breaks',
             'emoji_shortcode', 'emoji_shortcodes' => 'emoji',
+            'grid_table', 'gridtables' => 'grid_tables',
             'hard_line_break', 'hard_linebreaks' => 'hard_line_breaks',
             'ignore_line_break', 'ignore_linebreaks' => 'ignore_line_breaks',
             'inline_attribute', 'link_attributes', 'markdown_attribute' => 'inline_attributes',
             'line_block' => 'line_blocks',
+            'multiline_table', 'multiline_tables' => 'multiline_tables',
+            'pipe_table', 'pipetables', 'table', 'tables' => 'pipe_tables',
             'raw_attributes' => 'raw_attribute',
+            'simple_table', 'simpletables' => 'simple_tables',
             'subscripts' => 'subscript',
             'superscripts' => 'superscript',
             'tex_math', 'tex_math_single_backslashes' => 'tex_math_single_backslash',
@@ -14049,6 +14118,10 @@ final class MarkdownReader
      */
     private function tryReadGridTable(array $lines, int &$index): ?AstNode
     {
+        if (!$this->markdownExtensionEnabled('grid_tables')) {
+            return null;
+        }
+
         $rectangular = $this->tryReadRectangularGridTable($lines, $index);
         if ($rectangular instanceof AstNode) {
             return $rectangular;
@@ -14688,6 +14761,12 @@ final class MarkdownReader
      */
     private function tryReadSimpleTable(array $lines, int &$index): ?AstNode
     {
+        $simpleTablesEnabled = $this->markdownExtensionEnabled('simple_tables');
+        $multilineTablesEnabled = $this->markdownExtensionEnabled('multiline_tables');
+        if (!$simpleTablesEnabled && !$multilineTablesEnabled) {
+            return null;
+        }
+
         if (!isset($lines[$index + 1])) {
             return null;
         }
@@ -14696,9 +14775,15 @@ final class MarkdownReader
             return null;
         }
 
-        $multilineTable = $this->tryReadMultilineSimpleTableWithHeader($lines, $index);
-        if ($multilineTable !== null) {
-            return $multilineTable;
+        if ($multilineTablesEnabled) {
+            $multilineTable = $this->tryReadMultilineSimpleTableWithHeader($lines, $index);
+            if ($multilineTable !== null) {
+                return $multilineTable;
+            }
+        }
+
+        if (!$simpleTablesEnabled) {
+            return null;
         }
 
         $headerColumns = $this->parseSimpleTableDelimiter($lines[$index + 1]);
@@ -15852,6 +15937,10 @@ final class MarkdownReader
      */
     private function tryReadPipeTable(array $lines, int &$index): ?AstNode
     {
+        if (!$this->markdownExtensionEnabled('pipe_tables')) {
+            return null;
+        }
+
         if (!isset($lines[$index + 1])) {
             return null;
         }
