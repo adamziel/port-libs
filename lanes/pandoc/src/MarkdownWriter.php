@@ -8162,7 +8162,15 @@ final class MarkdownWriter
 
     private function citationId(AstNode $node): string
     {
-        return $this->scalarAttr($node, ['id', 'citationId', 'identifier']);
+        $id = $this->scalarAttr($node, ['id', 'citationId', 'identifier']);
+        if ($id !== '') {
+            return $id;
+        }
+
+        $native = $this->citationNativeRecordPayload($node);
+        $nativeId = $native['citationId'] ?? null;
+
+        return is_scalar($nativeId) ? (string) $nativeId : '';
     }
 
     private function citationMode(AstNode $node): string
@@ -8172,7 +8180,25 @@ final class MarkdownWriter
             return $this->normalizeCitationMode($mode);
         }
 
-        return $this->normalizeCitationMode($this->scalarAttr($node, ['citationModeConstructor', 'citationMode']));
+        $mode = $this->scalarAttr($node, ['citationModeConstructor', 'citationMode']);
+        if ($mode !== '') {
+            return $this->normalizeCitationMode($mode);
+        }
+
+        $mode = $this->citationNativeModeConstructor($node->attr('citationModeNative'));
+        if ($mode !== '') {
+            return $this->normalizeCitationMode($mode);
+        }
+
+        $native = $this->citationNativeRecordPayload($node);
+        if ($native !== null) {
+            $mode = $this->citationNativeModeConstructor($native['citationMode'] ?? null);
+            if ($mode !== '') {
+                return $this->normalizeCitationMode($mode);
+            }
+        }
+
+        return 'normal';
     }
 
     private function normalizeCitationMode(string $mode): string
@@ -8201,7 +8227,116 @@ final class MarkdownWriter
             }
         }
 
+        if ($name === 'prefix' || $name === 'suffix') {
+            return $this->citationNativeAffixInlines($citation, $name);
+        }
+
         return '';
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function citationNativeRecordPayload(AstNode $citation): ?array
+    {
+        $native = $citation->attr('citationNative');
+        if (!is_array($native) || array_is_list($native)) {
+            return null;
+        }
+
+        if (($native['t'] ?? null) === 'Citation') {
+            return $this->citationNativePayloadObject($native['c'] ?? null);
+        }
+
+        return $native;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function citationNativePayloadObject(mixed $content): ?array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && !array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
+        return is_array($content) && !array_is_list($content) ? $content : null;
+    }
+
+    private function citationNativeModeConstructor(mixed $native): string
+    {
+        if (is_scalar($native)) {
+            return (string) $native;
+        }
+
+        if (is_array($native) && is_scalar($native['t'] ?? null)) {
+            return (string) $native['t'];
+        }
+
+        return '';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationNativeAffixInlines(AstNode $citation, string $name): array
+    {
+        $nativeAttr = $name === 'prefix' ? 'citationPrefixNative' : 'citationSuffixNative';
+        $native = $citation->attr($nativeAttr);
+        if (is_array($native) && $native !== []) {
+            $inlines = $this->citationNativeInlines($native);
+            if ($inlines !== []) {
+                return $inlines;
+            }
+        }
+
+        $record = $this->citationNativeRecordPayload($citation);
+        if ($record === null) {
+            return [];
+        }
+
+        $field = $name === 'prefix' ? 'citationPrefix' : 'citationSuffix';
+        $native = $record[$field] ?? null;
+        if (!is_array($native) || $native === []) {
+            return [];
+        }
+
+        return $this->citationNativeInlines($native);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationNativeInlines(array $native): array
+    {
+        if (!array_is_list($native)) {
+            return [];
+        }
+
+        try {
+            $document = (new PandocJsonReader())->readPacket([
+                'pandoc-api-version' => [1, 23, 1],
+                'meta' => [],
+                'blocks' => [
+                    ['t' => 'Para', 'c' => $native],
+                ],
+            ]);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $paragraph = $document->children[0] ?? null;
+        if (!$paragraph instanceof AstNode || $paragraph->type !== 'paragraph') {
+            return [];
+        }
+
+        return $paragraph->children;
     }
 
     /**
