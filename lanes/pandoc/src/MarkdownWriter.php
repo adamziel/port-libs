@@ -2303,7 +2303,7 @@ final class MarkdownWriter
 
     private function canRenderInitialListCodeBlock(AstNode $node): bool
     {
-        $text = (string) $node->attr('text', '');
+        $text = $this->codeBlockText($node);
 
         return $node->type === 'code_block'
             && $text !== ''
@@ -2326,7 +2326,7 @@ final class MarkdownWriter
         $markerPadding = strlen($marker) - strlen(rtrim($marker, ' '));
         $additionalPadding = str_repeat(' ', max(0, 5 - $markerPadding));
         $continuationIndent = $indent + strlen($marker) + strlen($additionalPadding);
-        $codeLines = explode("\n", (string) $node->attr('text', ''));
+        $codeLines = explode("\n", $this->codeBlockText($node));
         $first = array_shift($codeLines);
 
         $lines[] = rtrim($prefix . $additionalPadding . (string) $first);
@@ -3731,7 +3731,7 @@ final class MarkdownWriter
                 . $this->renderHtmlBlocks($node->children)
                 . '</blockquote>',
             'code_block' => '<pre><code' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
-                . $this->escapeHtml((string) $node->attr('text', ''))
+                . $this->escapeHtml($this->codeBlockText($node))
                 . '</code></pre>',
             'horizontal_rule' => '<hr />',
             'div' => '<div' . $this->renderHtmlAttributes($this->htmlAttributeMap($node)) . '>'
@@ -5243,7 +5243,7 @@ final class MarkdownWriter
         $prefix = str_repeat(' ', $indent) . $marker;
         $lines = [];
 
-        foreach (explode("\n", (string) $node->attr('text', '')) as $line) {
+        foreach (explode("\n", $this->codeBlockText($node)) as $line) {
             $lines[] = $line === '' ? $prefix : $prefix . ' ' . $line;
         }
 
@@ -5281,7 +5281,7 @@ final class MarkdownWriter
     {
         $lines = [];
         $prefix = str_repeat(' ', $indent + 4);
-        foreach (explode("\n", (string) $node->attr('text', '')) as $line) {
+        foreach (explode("\n", $this->codeBlockText($node)) as $line) {
             $lines[] = $prefix . $line;
         }
 
@@ -5311,7 +5311,7 @@ final class MarkdownWriter
 
         $lines = [];
         $prefix = str_repeat(' ', $indent + 4);
-        foreach (explode("\n", (string) $node->attr('text', '')) as $line) {
+        foreach (explode("\n", $this->codeBlockText($node)) as $line) {
             $lines[] = $prefix . $line;
         }
 
@@ -5362,13 +5362,18 @@ final class MarkdownWriter
         return trim(preg_replace('/[ \t\r\n]+/', ' ', (string) $info) ?? (string) $info);
     }
 
+    private function codeBlockText(AstNode $node): string
+    {
+        return $this->nodeText($node, ['text', 'literal', 'code', 'value', 'content', 'string']);
+    }
+
     /**
      * @return list<string>
      */
     private function renderFencedCodeBlock(AstNode $node, string $attrs, int $indent): array
     {
         $prefix = str_repeat(' ', $indent);
-        $text = (string) $node->attr('text', '');
+        $text = $this->codeBlockText($node);
         $fenceChar = (string) ($this->options['fencedCodeBlockStyle'] ?? 'backtick') === 'tilde' ? '~' : '`';
         if ($fenceChar === '`' && str_contains($attrs, '`')) {
             $fenceChar = '~';
@@ -7987,7 +7992,7 @@ final class MarkdownWriter
         }
 
         if ($node->type === 'code_block') {
-            return trim((string) $node->attr('text', ''));
+            return trim($this->codeBlockText($node));
         }
 
         return $this->plainBlockText($node->children);
