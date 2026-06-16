@@ -19447,17 +19447,6 @@ final class MarkdownReader
         }
 
         if (($text[$offset] ?? '') === '[') {
-            if (preg_match('/\G\[@([A-Za-z0-9_:.#\/$%&+?<>~|-]+)\]/u', $text, $m, 0, $offset) === 1) {
-                return [
-                    'node' => new AstNode(
-                        'citation',
-                        ['id' => $m[1], 'text' => $m[0], 'mode' => 'normal'],
-                        [new AstNode('text', ['text' => $m[0]])]
-                    ),
-                    'next' => $offset + strlen($m[0]),
-                ];
-            }
-
             return $this->tryParseBracketedCitationCluster($text, $offset);
         }
 
@@ -19475,12 +19464,15 @@ final class MarkdownReader
             $next = $braced['next'];
             $citationText = substr($text, $offset, $next - $offset);
             $citationId = $braced['id'];
-        } elseif (preg_match('/\G@([A-Za-z0-9_:.#\/$%&+?<>~|-]*[A-Za-z0-9_#\/$%&+?<>~|-])/u', $text, $m, 0, $offset) === 1) {
-            $next = $offset + strlen($m[0]);
-            $citationText = $m[0];
-            $citationId = $m[1];
         } else {
-            return null;
+            $simple = $this->parseSimpleCitationIdentifier($text, $offset + 1);
+            if ($simple === null) {
+                return null;
+            }
+
+            $next = $simple['next'];
+            $citationText = substr($text, $offset, $next - $offset);
+            $citationId = $simple['id'];
         }
 
         $attrs = ['id' => $citationId, 'text' => $citationText, 'mode' => 'author_in_text'];
@@ -19509,6 +19501,10 @@ final class MarkdownReader
     {
         $label = $this->parseBracketedLabel($text, $offset);
         if ($label === null || !str_contains($label['text'], '@')) {
+            return null;
+        }
+
+        if ($this->shouldPreferBracketedSpanOverCitation($text, $label['next'])) {
             return null;
         }
 
@@ -19557,6 +19553,12 @@ final class MarkdownReader
         ];
     }
 
+    private function shouldPreferBracketedSpanOverCitation(string $text, int $offset): bool
+    {
+        return $this->markdownExtensionEnabled('bracketed_spans')
+            && $this->tryParseInlineAttributeSpec($text, $offset) !== null;
+    }
+
     /**
      * @return list<string>
      */
@@ -19573,6 +19575,14 @@ final class MarkdownReader
             if ($char === '\\') {
                 $cursor++;
                 continue;
+            }
+
+            if ($char === '&') {
+                $entityEnd = $this->htmlEntityEndOffset($text, $cursor);
+                if ($entityEnd !== null) {
+                    $cursor = $entityEnd;
+                    continue;
+                }
             }
 
             if ($char === '{') {
@@ -19635,12 +19645,13 @@ final class MarkdownReader
             'mode' => $match['suppressAuthor'] ? 'suppress_author' : 'normal',
         ];
         if ($prefix !== '') {
-            $attrs['prefix'] = $prefix;
+            $attrs['prefix'] = $this->citationAffixAttribute($prefix);
         }
         if ($tail !== '') {
             $locator = $this->normalizeBracketedCitationTail($tail);
-            $locatorParts = $this->inferBracketedCitationLocatorParts($locator);
-            $attrs['locator'] = $locator;
+            $locatorAttribute = $this->citationAffixAttribute($locator);
+            $locatorParts = $this->inferBracketedCitationLocatorParts($this->citationAffixPlainText($locatorAttribute));
+            $attrs['locator'] = $locatorAttribute;
             $attrs['locatorLabel'] = $locatorParts['label'];
             $attrs['locatorValue'] = $locatorParts['value'];
         }
@@ -19648,6 +19659,64 @@ final class MarkdownReader
         return new AstNode('citation', $attrs, [
             new AstNode('text', ['text' => $item]),
         ]);
+    }
+
+    /**
+     * @return string|list<AstNode>
+     */
+    private function citationAffixAttribute(string $text): string|array
+    {
+        $normalized = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+        if ($normalized === '') {
+            return '';
+        }
+
+        $inlines = $this->parseCitationAffixInlines($normalized);
+        if (
+            count($inlines) === 1
+            && $inlines[0]->type === 'text'
+            && $inlines[0]->attr('text') === $normalized
+        ) {
+            return $normalized;
+        }
+
+        return $inlines;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseCitationAffixInlines(string $text): array
+    {
+        $previousProfile = $this->markdownExtensionProfile;
+        $profile = $this->markdownExtensionProfile();
+        $profile['citations'] = false;
+        $this->markdownExtensionProfile = $profile;
+
+        try {
+            return $this->parseInlines($text);
+        } finally {
+            $this->markdownExtensionProfile = $previousProfile;
+        }
+    }
+
+    /**
+     * @param string|list<AstNode> $value
+     */
+    private function citationAffixPlainText(string|array $value): string
+    {
+        return is_array($value)
+            ? $this->plainTextFromInlines($value)
+            : trim($value);
+    }
+
+    private function htmlEntityEndOffset(string $text, int $offset): ?int
+    {
+        if (preg_match('/\G&(?:#[0-9]{1,7}|#[xX][0-9A-Fa-f]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});/u', $text, $m, 0, $offset) !== 1) {
+            return null;
+        }
+
+        return $offset + strlen($m[0]) - 1;
     }
 
     /**
@@ -19702,7 +19771,7 @@ final class MarkdownReader
      */
     private function parseSimpleCitationIdentifier(string $text, int $offset): ?array
     {
-        if (preg_match('/\G([A-Za-z0-9_](?:[A-Za-z0-9_]|[:.#\/$%&+?<>~|-](?=[A-Za-z0-9_]))*)/u', $text, $m, 0, $offset) !== 1) {
+        if (preg_match('/\G([\p{L}\p{N}_](?:[\p{L}\p{N}\p{M}_]|[:.#\/$%&+?<>~|-](?=[\p{L}\p{N}_]))*(?:[#\/$%&+?<>~|-])?)/u', $text, $m, 0, $offset) !== 1) {
             return null;
         }
 
@@ -19884,7 +19953,7 @@ final class MarkdownReader
 
         return [
             'source' => substr($text, $offset, $next - $offset),
-            'label' => $label['text'],
+            'label' => $this->citationAffixAttribute($label['text']),
             'next' => $next,
         ];
     }
