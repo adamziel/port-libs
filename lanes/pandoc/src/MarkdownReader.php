@@ -334,7 +334,7 @@ final class MarkdownReader
             'div_attribute', 'div_attributes', 'fenced_div', 'native_div', 'native_divs' => 'fenced_divs',
             'grid_table', 'gridtables' => 'grid_tables',
             'hard_line_break', 'hard_linebreaks' => 'hard_line_breaks',
-            'heading_attributes', 'heading_attrs', 'header_attribute' => 'header_attributes',
+            'heading_attributes', 'heading_attrs', 'header_attribute', 'header_attrs' => 'header_attributes',
             'ignore_line_break', 'ignore_linebreaks' => 'ignore_line_breaks',
             'code_attribute', 'code_attributes', 'fenced_code_attribute' => 'fenced_code_attributes',
             'inline_attribute', 'link_attributes', 'markdown_attribute' => 'inline_attributes',
@@ -448,7 +448,7 @@ final class MarkdownReader
                 $blocks[] = $blockQuote;
                 continue;
             }
-            $fencedDivBlock = $paragraph === [] && $listStack === [] && $this->markdownExtensionEnabled('fenced_divs')
+            $fencedDivBlock = $paragraph === [] && $listStack === [] && $this->fencedDivsEnabled()
                 ? $this->tryReadFencedDivBlock($lines, $index)
                 : null;
             if ($fencedDivBlock !== null) {
@@ -8505,10 +8505,7 @@ final class MarkdownReader
         $classes = [];
         $attributes = [];
 
-        if (
-            $this->markdownExtensionEnabled('header_attributes')
-            && preg_match('/^(.*?)[ \t]*\{([^{}]+)\}[ \t]*$/', $text, $attrs) === 1
-        ) {
+        if ($this->headerAttributesEnabled() && preg_match('/^(.*?)[ \t]*\{([^{}]+)\}[ \t]*$/', $text, $attrs) === 1) {
             $text = rtrim($attrs[1]);
             [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($attrs[2]);
             if ($stripClosingAtxFence) {
@@ -8602,6 +8599,16 @@ final class MarkdownReader
         }
 
         return $this->unescapeMarkdownAttributeToken(substr($source, $start, $offset - $start));
+    }
+
+    private function headerAttributesEnabled(): bool
+    {
+        return $this->markdownExtensionEnabled('header_attributes');
+    }
+
+    private function fencedDivsEnabled(): bool
+    {
+        return $this->markdownExtensionEnabled('fenced_divs');
     }
 
     private function unescapeMarkdownAttributeToken(string $text): string
@@ -17193,8 +17200,10 @@ final class MarkdownReader
             || $this->isHorizontalRule($line)
             || $this->isBlockQuoteLine($line)
             || $this->isIndentedCodeLine($line)
-            || $this->matchFencedDivOpening($line) !== null
-            || $this->isEnabledFencedDivClosing($line, 3)
+            || ($this->fencedDivsEnabled() && (
+                $this->matchFencedDivOpening($line) !== null
+                || $this->isFencedDivClosing($line, 3)
+            ))
             || $this->isCommonMarkParagraphInterruptingRawHtmlBlockStart($line)
             || $this->isCommonMarkGenericRawHtmlBlockStart($line)
         ) {
@@ -17456,8 +17465,10 @@ final class MarkdownReader
             || $this->isIndentedCodeLine($line)
             || $this->isHorizontalRule($line)
             || $this->tryParseMarkdownHeading($line) !== null
-            || $this->matchFencedDivOpening($line) !== null
-            || $this->isEnabledFencedDivClosing($line, 3)
+            || ($this->fencedDivsEnabled() && (
+                $this->matchFencedDivOpening($line) !== null
+                || $this->isFencedDivClosing($line, 3)
+            ))
             || preg_match('/^ {0,3}(`{3,}|~{3,})/', $line) === 1
             || $this->isRawTexBlockStart($line)
             || $this->isCommonMarkParagraphInterruptingRawHtmlBlockStart($line);
@@ -18465,7 +18476,13 @@ final class MarkdownReader
      */
     private function matchDefinitionMarker(string $line): ?array
     {
-        if ($this->matchFencedDivOpening($line) !== null || $this->isEnabledFencedDivClosing($line, 3)) {
+        if (
+            $this->fencedDivsEnabled()
+            && ($this->matchFencedDivOpening($line) !== null || $this->isFencedDivClosing($line, 3))
+        ) {
+            return null;
+        }
+        if (preg_match('/^\s{0,4}~{3,}/', $line) === 1) {
             return null;
         }
 
