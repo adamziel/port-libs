@@ -18782,7 +18782,7 @@ final class MarkdownReader
                         substr($text, $offset + $tickCount, $end - $offset - $tickCount)
                     );
                     $next = $end + $tickCount;
-                    $rawAttribute = $this->markdownExtensionEnabled('raw_attribute')
+                    $rawAttribute = $this->rawAttributeEnabled()
                         ? $this->tryParseRawInlineAttributeSpec($text, $next)
                         : null;
                     if ($rawAttribute !== null) {
@@ -18847,7 +18847,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $rawTex = $this->markdownExtensionEnabled('raw_tex') ? $this->tryParseRawTexInline($text, $offset) : null;
+            $rawTex = $this->rawTexEnabled() ? $this->tryParseRawTexInline($text, $offset) : null;
             if ($rawTex !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $rawTex['node'];
@@ -18984,7 +18984,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $rawHtmlInline = ($allowLinks && $this->markdownExtensionEnabled('raw_html')) ? $this->tryParseRawHtmlInline($text, $offset) : null;
+            $rawHtmlInline = ($allowLinks && $this->rawHtmlEnabled()) ? $this->tryParseRawHtmlInline($text, $offset) : null;
             if ($rawHtmlInline !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $rawHtmlInline['node'];
@@ -22805,25 +22805,62 @@ final class MarkdownReader
 
     private function rawAttributeEnabled(): bool
     {
-        return MarkdownFormatProfile::rawAttributeEnabled($this->options, true);
+        return $this->rawExtensionEnabled('raw_attribute', 'rawAttribute', true);
     }
 
     private function rawTexEnabled(): bool
     {
-        return MarkdownFormatProfile::rawTexEnabled($this->options, true);
+        return $this->rawExtensionEnabled('raw_tex', 'rawTex', true);
     }
 
     private function rawHtmlEnabled(): bool
     {
-        return MarkdownFormatProfile::rawHtmlEnabled($this->options, true);
+        return $this->rawExtensionEnabled('raw_html', 'rawHtml', true);
+    }
+
+    private function rawMarkdownEnabled(): bool
+    {
+        return $this->rawExtensionEnabled('raw_markdown', 'rawMarkdown', true);
+    }
+
+    private function rawExtensionEnabled(string $extension, string $option, bool $default): bool
+    {
+        if (array_key_exists($option, $this->options)) {
+            return $this->readerBoolFlag($this->options[$option], $default);
+        }
+
+        return $this->markdownExtensionEnabled($extension);
+    }
+
+    private function readerBoolFlag(mixed $value, bool $default): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return $value !== 0;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return $default;
     }
 
     private function rawFormatEnabled(string $format): bool
     {
         return match (MarkdownFormatProfile::rawFamily($format)) {
-            'html' => MarkdownFormatProfile::rawHtmlEnabled($this->options, true),
-            'tex' => MarkdownFormatProfile::rawTexEnabled($this->options, true),
-            'markdown' => MarkdownFormatProfile::rawMarkdownEnabled($this->options, true),
+            'html' => $this->rawHtmlEnabled(),
+            'tex' => $this->rawTexEnabled(),
+            'markdown' => $this->rawMarkdownEnabled(),
             default => false,
         };
     }
