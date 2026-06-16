@@ -2067,6 +2067,22 @@ final class MarkdownWriter
 
     private function markdownTableFormat(AstNode $node): string
     {
+        $format = $this->requestedMarkdownTableFormat($node);
+        if ($format === 'html' || $this->markdownTableFormatEnabled($format)) {
+            return $format;
+        }
+
+        foreach ($this->markdownTableFallbackFormats($format) as $candidate) {
+            if ($this->markdownTableFormatEnabled($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return 'html';
+    }
+
+    private function requestedMarkdownTableFormat(AstNode $node): string
+    {
         $format = $node->attr(
             'markdownTableFormat',
             $this->options['markdownTableFormat'] ?? $this->options['tableStyle'] ?? ''
@@ -2078,10 +2094,31 @@ final class MarkdownWriter
         $format = strtolower(trim(str_replace('_', '-', (string) $format)));
 
         return match ($format) {
+            'html', 'raw-html' => 'html',
             'simple', 'simple-table', 'simple-tables' => 'simple',
             'grid', 'grid-table', 'grid-tables' => 'grid',
             default => 'pipe',
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function markdownTableFallbackFormats(string $requested): array
+    {
+        return array_values(array_unique([$requested, 'pipe', 'simple', 'grid']));
+    }
+
+    private function markdownTableFormatEnabled(string $format): bool
+    {
+        $extension = match ($format) {
+            'pipe' => 'pipe_tables',
+            'simple' => 'simple_tables',
+            'grid' => 'grid_tables',
+            default => null,
+        };
+
+        return $extension !== null && $this->markdownExtensionEnabled($extension);
     }
 
     private function shouldRenderHtmlTable(AstNode $node, int $columnCount): bool
@@ -2091,7 +2128,8 @@ final class MarkdownWriter
 
         return $columnCount > 0
             && (
-                $this->tableRequestsHtmlFallback($node)
+                $this->markdownTableFormat($node) === 'html'
+                || $this->tableRequestsHtmlFallback($node)
                 || ($autoFallback && $this->tableRequiresHtmlFallback($node, $columnCount))
                 || (
                     $this->tableRequestsSemanticHtmlFallback($node)
@@ -5253,12 +5291,16 @@ final class MarkdownWriter
                 'emoji',
                 'fenced_code_attributes',
                 'fenced_divs',
+                'grid_tables',
                 'header_attributes',
                 'inline_code_attributes',
                 'link_attributes',
                 'line_blocks',
                 'mark',
+                'multiline_tables',
+                'pipe_tables',
                 'raw_tex',
+                'simple_tables',
                 'strikeout',
                 'subscript',
                 'superscript',
@@ -5274,12 +5316,15 @@ final class MarkdownWriter
                 'bracketed_spans',
                 'fenced_code_attributes',
                 'fenced_divs',
+                'grid_tables',
                 'header_attributes',
                 'inline_code_attributes',
                 'link_attributes',
                 'line_blocks',
                 'mark',
+                'multiline_tables',
                 'raw_tex',
+                'simple_tables',
                 'subscript',
                 'superscript',
                 'tex_math_dollars',
@@ -5292,8 +5337,12 @@ final class MarkdownWriter
             return !in_array($extension, [
                 'fenced_code_attributes',
                 'fenced_divs',
+                'grid_tables',
                 'header_attributes',
                 'line_blocks',
+                'multiline_tables',
+                'pipe_tables',
+                'simple_tables',
             ], true);
         }
 
@@ -5322,6 +5371,9 @@ final class MarkdownWriter
             'div_attributes',
             'native_div',
             'native_divs' => 'fenced_divs',
+            'grid_table', 'gridtables' => 'grid_tables',
+            'multiline_table', 'multiline_tables' => 'multiline_tables',
+            'pipe_table', 'pipetables', 'table', 'tables' => 'pipe_tables',
             'emoji_shortcode', 'emoji_shortcodes' => 'emoji',
             'heading_attributes',
             'heading_attrs',
@@ -5329,6 +5381,7 @@ final class MarkdownWriter
             'link_attribute', 'link_attrs', 'image_attributes' => 'link_attributes',
             'raw_attributes' => 'raw_attribute',
             'raw_latex', 'latex_macros' => 'raw_tex',
+            'simple_table', 'simpletables' => 'simple_tables',
             'tex_math', 'math_dollars' => 'tex_math_dollars',
             'wiki_links' => 'wikilinks',
             default => $extension,
