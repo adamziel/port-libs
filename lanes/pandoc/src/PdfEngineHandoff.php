@@ -8157,8 +8157,14 @@ final class PdfEngineHandoff
                 $creationTimestampEntries[] = $creationTimestampEnvironment;
             }
             $deterministicTimestampCount = 0;
+            $invalidHistoryCount = 0;
             $invalidTimestampCount = 0;
             $unixTimestampCount = 0;
+            foreach ($creationTimestampHistory as $entry) {
+                if (!is_array($entry) || ($entry['safe'] ?? false) !== true) {
+                    ++$invalidHistoryCount;
+                }
+            }
             foreach ($creationTimestampEntries as $entry) {
                 if (!is_array($entry)) {
                     ++$invalidTimestampCount;
@@ -8188,6 +8194,7 @@ final class PdfEngineHandoff
                 'deterministic' => ($creationTimestamp['deterministic'] ?? false) === true,
                 'historyEntryCount' => $creationTimestampHistory === [] ? (int) ($creationTimestamp !== []) : count($creationTimestampHistory),
                 'deterministicTimestampCount' => $deterministicTimestampCount,
+                'invalidHistoryCount' => $invalidHistoryCount,
                 'invalidTimestampCount' => $invalidTimestampCount,
                 'unixTimestampCount' => $unixTimestampCount,
                 'overrideCount' => count($creationTimestampOverrides),

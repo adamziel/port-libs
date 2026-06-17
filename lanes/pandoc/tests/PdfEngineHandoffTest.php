@@ -1743,6 +1743,82 @@ return [
         $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
     },
 
+    'maps typst creation timestamp history into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $environmentTimestamp = '1700000000';
+        $selectedTimestamp = '1700000100';
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/creation-timestamp-matrix-details.pdf',
+            'source' => '= Typst Creation Timestamp Matrix Detail Packet',
+            'engineOptions' => [
+                '--creation-timestamp=not-a-time',
+                '--creation-timestamp',
+                $selectedTimestamp,
+            ],
+            'engineEnvironment' => [
+                'SOURCE_DATE_EPOCH' => $environmentTimestamp,
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst creation timestamp matrix detail packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/creation-timestamp-matrix-details.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/creation-timestamp-matrix-details.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $matrix = $plan['typstBoundaryMatrix'];
+        $cases = [];
+        foreach ($matrix['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+        $details = $cases['creation-timestamp']['details'];
+
+        $t->same([
+            'environment-shadows',
+            'boundary-overrides',
+            'output-format',
+            'creation-timestamp',
+        ], array_column($matrix['cases'], 'case'));
+        $t->same('review', $matrix['reviewStatus']);
+        $t->same(4, $matrix['caseCount']);
+        $t->same(3, $matrix['reviewCaseCount']);
+        $t->same(3, $cases['creation-timestamp']['observed']);
+        $t->same($selectedTimestamp, $details['raw']);
+        $t->same('unix-seconds', $details['kind']);
+        $t->same(1700000100, $details['timestamp']);
+        $t->same(gmdate('Y-m-d\TH:i:s\Z', 1700000100), $details['iso8601']);
+        $t->same(true, $details['deterministic']);
+        $t->same(2, $details['historyEntryCount']);
+        $t->same(2, $details['deterministicTimestampCount']);
+        $t->same(1, $details['invalidHistoryCount']);
+        $t->same(1, $details['invalidTimestampCount']);
+        $t->same(2, $details['unixTimestampCount']);
+        $t->same(1, $details['overrideCount']);
+        $t->same($environmentTimestamp, $details['environmentRaw']);
+        $t->same(1700000000, $details['environmentTimestamp']);
+        $t->same(gmdate('Y-m-d\TH:i:s\Z', 1700000000), $details['environmentIso8601']);
+        $t->same('SOURCE_DATE_EPOCH', $details['environmentVariable']);
+        $t->same(true, $details['environmentShadowed']);
+        $t->same('engine-option', $details['shadowedBy']);
+        $t->same($selectedTimestamp, $details['selected']);
+        $t->same(null, $details['source']);
+        $t->contains('creation-timestamp:creation-timestamp-boundary-overridden', implode(',', $matrix['issues']));
+        $t->contains('creation-timestamp:creation-timestamp-environment-shadowed', implode(',', $matrix['issues']));
+        $t->contains('creation-timestamp:creation-timestamp-invalid-boundary', implode(',', $matrix['issues']));
+        $t->contains('typst-boundary-matrix-cases:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-review-cases:3', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'preserves typst font path environment uri provenance without splitting scheme boundary' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $fontUri = 'https://fonts.example.invalid/typst';
