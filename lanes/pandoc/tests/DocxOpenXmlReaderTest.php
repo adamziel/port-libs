@@ -5726,6 +5726,102 @@ XML;
         $t->same(['embeddings/package.bin'], $embeddings['targetParts']);
         $t->same(2, $summary['externalRelationshipCount']);
     },
+    'summarizes docx relationship target base names for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/review/shared.xml" ContentType="application/xml; profile=target-base-name"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootSharedBase" Type="' . $customXmlRel . '" Target="/customXml/shared.xml?root=base#custom"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rWordSharedBase" Type="' . $customXmlRel . '" Target="review/shared.xml?doc=base#word"/>' . "\n" .
+            '  <Relationship Id="rMissingSharedPng" Type="' . $imageRel . '" Target="media/missing/shared.png?missing=1#image"/>' . "\n" .
+            '  <Relationship Id="rMissingUntypedBase" Type="' . $packageRel . '" Target="raw/missing.bin?raw=1#bin"/>' . "\n" .
+            '  <Relationship Id="rExternalSharedBase" Type="' . $hyperlinkRel . '" Target="https://example.test/shared.xml" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/header/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderSharedPng" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/shared.png"/>
+</Relationships>
+XML;
+        $parts['customXml/shared.xml'] = '<shared-root/>';
+        $parts['word/review/shared.xml'] = '<shared-word/>';
+        $parts['word/media/shared.png'] = 'shared png bytes';
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $baseNames = [];
+        foreach ($summary['relationshipTargetBaseNames'] as $baseName) {
+            $baseNames[$baseName['baseName']] = $baseName;
+        }
+
+        $t->same(6, $summary['relationshipTargetBaseNameCount']);
+        $t->same([
+            'core.xml' => 1,
+            'document.xml' => 1,
+            'missing.bin' => 1,
+            'review.png' => 1,
+            'shared.png' => 2,
+            'shared.xml' => 2,
+        ], $summary['relationshipTargetBaseNameCounts']);
+        $t->same([
+            'core.xml' => 1,
+            'document.xml' => 1,
+            'review.png' => 1,
+            'shared.png' => 1,
+            'shared.xml' => 2,
+        ], $summary['relationshipTargetExistingBaseNameCounts']);
+        $t->same(['missing.bin' => 1, 'shared.png' => 1], $summary['relationshipTargetMissingBaseNameCounts']);
+        $t->same(2, $summary['duplicateRelationshipTargetBaseNameCount']);
+        $t->same(['shared.png', 'shared.xml'], $summary['duplicateRelationshipTargetBaseNames']);
+        $t->same(['core.xml', 'document.xml', 'missing.bin', 'review.png', 'shared.png', 'shared.xml'], array_column($summary['relationshipTargetBaseNames'], 'baseName'));
+
+        $sharedXml = $baseNames['shared.xml'];
+        $t->same(2, $sharedXml['relationshipCount']);
+        $t->same(2, $sharedXml['existingTargetCount']);
+        $t->same(0, $sharedXml['missingTargetCount']);
+        $t->same(1, $sharedXml['parameterizedTargetCount']);
+        $t->same(['default' => 1, 'override' => 1], $sharedXml['contentTypeSourceCounts']);
+        $t->same(['/', 'word/document.xml'], $sharedXml['sourceParts']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $sharedXml['relationshipParts']);
+        $t->same(['rRootSharedBase', 'rWordSharedBase'], $sharedXml['relationshipIds']);
+        $t->same(['application/xml', 'application/xml; profile=target-base-name'], $sharedXml['contentTypes']);
+        $t->same(['customXml/shared.xml', 'word/review/shared.xml'], $sharedXml['targetParts']);
+
+        $sharedPng = $baseNames['shared.png'];
+        $t->same(2, $sharedPng['relationshipCount']);
+        $t->same(1, $sharedPng['existingTargetCount']);
+        $t->same(1, $sharedPng['missingTargetCount']);
+        $t->same(['default' => 2], $sharedPng['contentTypeSourceCounts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/header/_rels/header1.xml.rels'], $sharedPng['relationshipParts']);
+        $t->same(['rMissingSharedPng', 'rHeaderSharedPng'], $sharedPng['relationshipIds']);
+        $t->same(['word/media/missing/shared.png', 'word/media/shared.png'], $sharedPng['targetParts']);
+
+        $missing = $baseNames['missing.bin'];
+        $t->same(1, $missing['relationshipCount']);
+        $t->same(0, $missing['existingTargetCount']);
+        $t->same(1, $missing['missingTargetCount']);
+        $t->same(['missing' => 1], $missing['contentTypeSourceCounts']);
+        $t->same(['rMissingUntypedBase'], $missing['relationshipIds']);
+        $t->same(['word/raw/missing.bin'], $missing['targetParts']);
+        $t->same(2, $summary['externalRelationshipCount']);
+    },
     'summarizes docx relationship type package matrix rollups for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';

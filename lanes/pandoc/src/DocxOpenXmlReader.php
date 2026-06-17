@@ -10556,6 +10556,10 @@ final class DocxOpenXmlReader
         $relationshipTargetExistingDirectoryCounts = [];
         $relationshipTargetMissingDirectoryCounts = [];
         $relationshipTargetDirectories = [];
+        $relationshipTargetBaseNameCounts = [];
+        $relationshipTargetExistingBaseNameCounts = [];
+        $relationshipTargetMissingBaseNameCounts = [];
+        $relationshipTargetBaseNames = [];
         $relationshipTargetContentTypeCounts = [];
         $relationshipTargetContentTypeSourceCounts = [];
         $relationshipTargetContentTypes = [];
@@ -10893,6 +10897,9 @@ final class DocxOpenXmlReader
                     $targetDirectory = is_array($targetInventory) && is_string($targetInventory['directory'] ?? null)
                         ? $targetInventory['directory']
                         : $this->packagePartDirectory($targetPart);
+                    $targetBaseName = is_array($targetInventory) && is_string($targetInventory['baseName'] ?? null)
+                        ? $targetInventory['baseName']
+                        : $this->packagePartBaseName($targetPart);
                     $targetContentTypeBase = is_string($relationship['contentTypeBase'] ?? null)
                         ? $relationship['contentTypeBase']
                         : '';
@@ -11004,6 +11011,56 @@ final class DocxOpenXmlReader
                     }
                     if (($relationship['contentTypeHasParameters'] ?? false) === true) {
                         ++$relationshipTargetDirectories[$targetDirectory]['parameterizedTargetCount'];
+                    }
+
+                    if (!isset($relationshipTargetBaseNames[$targetBaseName])) {
+                        $relationshipTargetBaseNames[$targetBaseName] = [
+                            'baseName' => $targetBaseName,
+                            'relationshipCount' => 0,
+                            'existingTargetCount' => 0,
+                            'missingTargetCount' => 0,
+                            'parameterizedTargetCount' => 0,
+                            'contentTypeSourceCounts' => [],
+                            'sourceParts' => [],
+                            'relationshipParts' => [],
+                            'relationshipIds' => [],
+                            'relationshipTypes' => [],
+                            'contentTypes' => [],
+                            'targetParts' => [],
+                        ];
+                    }
+
+                    ++$relationshipTargetBaseNames[$targetBaseName]['relationshipCount'];
+                    $relationshipTargetBaseNameCounts[$targetBaseName] =
+                        ($relationshipTargetBaseNameCounts[$targetBaseName] ?? 0) + 1;
+                    $relationshipTargetBaseNames[$targetBaseName]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                        ($relationshipTargetBaseNames[$targetBaseName]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                    $this->appendUniqueString(
+                        $relationshipTargetBaseNames[$targetBaseName]['sourceParts'],
+                        is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetBaseNames[$targetBaseName]['relationshipParts'],
+                        is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetBaseNames[$targetBaseName]['relationshipIds'],
+                        is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                    );
+                    $this->appendUniqueString($relationshipTargetBaseNames[$targetBaseName]['relationshipTypes'], $type);
+                    $this->appendUniqueString($relationshipTargetBaseNames[$targetBaseName]['contentTypes'], $targetContentType);
+                    $this->appendUniqueString($relationshipTargetBaseNames[$targetBaseName]['targetParts'], $targetPart);
+                    if (($relationship['exists'] ?? false) === true) {
+                        ++$relationshipTargetBaseNames[$targetBaseName]['existingTargetCount'];
+                        $relationshipTargetExistingBaseNameCounts[$targetBaseName] =
+                            ($relationshipTargetExistingBaseNameCounts[$targetBaseName] ?? 0) + 1;
+                    } else {
+                        ++$relationshipTargetBaseNames[$targetBaseName]['missingTargetCount'];
+                        $relationshipTargetMissingBaseNameCounts[$targetBaseName] =
+                            ($relationshipTargetMissingBaseNameCounts[$targetBaseName] ?? 0) + 1;
+                    }
+                    if (($relationship['contentTypeHasParameters'] ?? false) === true) {
+                        ++$relationshipTargetBaseNames[$targetBaseName]['parameterizedTargetCount'];
                     }
 
                     if (!isset($relationshipTargetContentTypes[$targetContentTypeKey])) {
@@ -11238,6 +11295,18 @@ final class DocxOpenXmlReader
             ksort($targetDirectorySummary['contentTypeSourceCounts']);
         }
         unset($targetDirectorySummary);
+        ksort($relationshipTargetBaseNameCounts);
+        ksort($relationshipTargetExistingBaseNameCounts);
+        ksort($relationshipTargetMissingBaseNameCounts);
+        ksort($relationshipTargetBaseNames);
+        foreach ($relationshipTargetBaseNames as &$targetBaseNameSummary) {
+            ksort($targetBaseNameSummary['contentTypeSourceCounts']);
+        }
+        unset($targetBaseNameSummary);
+        $duplicateRelationshipTargetBaseNames = array_values(array_filter(
+            array_keys($relationshipTargetBaseNameCounts),
+            static fn (string $baseName): bool => ($relationshipTargetBaseNameCounts[$baseName] ?? 0) > 1,
+        ));
         ksort($relationshipTargetContentTypeCounts);
         ksort($relationshipTargetContentTypeSourceCounts);
         ksort($relationshipTargetContentTypes);
@@ -11471,6 +11540,13 @@ final class DocxOpenXmlReader
             'relationshipTargetExistingDirectoryCounts' => $relationshipTargetExistingDirectoryCounts,
             'relationshipTargetMissingDirectoryCounts' => $relationshipTargetMissingDirectoryCounts,
             'relationshipTargetDirectories' => array_values($relationshipTargetDirectories),
+            'relationshipTargetBaseNameCount' => count($relationshipTargetBaseNames),
+            'relationshipTargetBaseNameCounts' => $relationshipTargetBaseNameCounts,
+            'relationshipTargetExistingBaseNameCounts' => $relationshipTargetExistingBaseNameCounts,
+            'relationshipTargetMissingBaseNameCounts' => $relationshipTargetMissingBaseNameCounts,
+            'duplicateRelationshipTargetBaseNameCount' => count($duplicateRelationshipTargetBaseNames),
+            'duplicateRelationshipTargetBaseNames' => $duplicateRelationshipTargetBaseNames,
+            'relationshipTargetBaseNames' => array_values($relationshipTargetBaseNames),
             'relationshipTargetContentTypeCounts' => $relationshipTargetContentTypeCounts,
             'relationshipTargetContentTypeSourceCounts' => $relationshipTargetContentTypeSourceCounts,
             'relationshipTargetParameterizedContentTypeCount' => $relationshipTargetParameterizedContentTypeCount,
