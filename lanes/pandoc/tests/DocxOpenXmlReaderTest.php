@@ -833,6 +833,67 @@ return [
         $t->same(['missing' => 1], $byDirectory['customXml']['contentTypeSourceCounts']);
         $t->same(['package-part' => 1], $byDirectory['customXml']['roleCounts']);
     },
+    'summarizes docx package part top-level segments for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/item1.xml'] = '<review>custom payload</review>';
+        $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';
+        $parts['docProps/thumbnail.png'] = 'thumbnail preview bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $segments = $summary['partTopLevelSegments'];
+        $bySegment = [];
+        foreach ($segments as $segment) {
+            $bySegment[$segment['topLevelSegment']] = $segment;
+        }
+
+        $t->same(5, $summary['partTopLevelSegmentCount']);
+        $t->same(['[Content_Types].xml', '_rels', 'customXml', 'docProps', 'word'], array_column($segments, 'topLevelSegment'));
+        $t->same('[Content_Types].xml', $inventory['[Content_Types].xml']['topLevelSegment']);
+        $t->same('_rels', $inventory['_rels/.rels']['topLevelSegment']);
+        $t->same('word', $inventory['word/document.xml']['topLevelSegment']);
+        $t->same('customXml', $inventory['customXml/raw-review.bin']['topLevelSegment']);
+
+        $t->same(1, $bySegment['[Content_Types].xml']['partCount']);
+        $t->same(['[Content_Types].xml'], $bySegment['[Content_Types].xml']['partNames']);
+        $t->same(['content-types' => 1], $bySegment['[Content_Types].xml']['roleCounts']);
+
+        $t->same(1, $bySegment['_rels']['partCount']);
+        $t->same(1, $bySegment['_rels']['relationshipPartCount']);
+        $t->same(['package-relationships' => 1, 'relationship-part' => 1], $bySegment['_rels']['roleCounts']);
+
+        $t->same(5, $bySegment['word']['partCount']);
+        $t->same(1, $bySegment['word']['relationshipPartCount']);
+        $t->same(0, $bySegment['word']['missingContentTypePartCount']);
+        $t->same(['word', 'word/_rels', 'word/media'], $bySegment['word']['directories']);
+        $t->same(['default' => 4, 'override' => 1], $bySegment['word']['contentTypeSourceCounts']);
+        $t->same(
+            [
+                'document-relationship-target' => 1,
+                'office-document' => 1,
+                'office-document-relationships' => 1,
+                'package-part' => 2,
+                'relationship-part' => 1,
+                'root-relationship-target' => 1,
+            ],
+            $bySegment['word']['roleCounts']
+        );
+
+        $t->same(2, $bySegment['customXml']['partCount']);
+        $t->same(strlen($parts['customXml/item1.xml']) + strlen($parts['customXml/raw-review.bin']), $bySegment['customXml']['byteLength']);
+        $t->same(1, $bySegment['customXml']['missingContentTypePartCount']);
+        $t->same(['customXml'], $bySegment['customXml']['directories']);
+        $t->same(['customXml/item1.xml', 'customXml/raw-review.bin'], $bySegment['customXml']['partNames']);
+        $t->same(['default' => 1, 'missing' => 1], $bySegment['customXml']['contentTypeSourceCounts']);
+        $t->same(['package-part' => 2], $bySegment['customXml']['roleCounts']);
+
+        $t->same(2, $bySegment['docProps']['partCount']);
+        $t->same(['docProps'], $bySegment['docProps']['directories']);
+        $t->same(['docProps/core.xml', 'docProps/thumbnail.png'], $bySegment['docProps']['partNames']);
+        $t->same(['default' => 1, 'override' => 1], $bySegment['docProps']['contentTypeSourceCounts']);
+    },
     'summarizes docx package part path depths for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

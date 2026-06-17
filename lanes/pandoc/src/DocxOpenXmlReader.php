@@ -9975,6 +9975,7 @@ final class DocxOpenXmlReader
         unset($contentTypeParameter);
 
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
+        $partTopLevelSegments = $this->packagePartTopLevelSegmentSummary($partInventory);
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
         $partBaseNames = $this->packagePartBaseNameSummary($partInventory);
@@ -10674,6 +10675,7 @@ final class DocxOpenXmlReader
         return [
             'partCount' => count($partInventory),
             'partDirectoryCount' => count($partDirectories),
+            'partTopLevelSegmentCount' => count($partTopLevelSegments),
             'partPathDepthCount' => count($partPathDepths),
             'maxPartPathSegmentCount' => $maxPartPathSegmentCount,
             'maxPartDirectoryDepth' => max(0, $maxPartPathSegmentCount - 1),
@@ -10817,6 +10819,7 @@ final class DocxOpenXmlReader
             'roleByteLengths' => $roleByteLengths,
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'partDirectories' => $partDirectories,
+            'partTopLevelSegments' => $partTopLevelSegments,
             'partPathDepths' => $partPathDepths,
             'deepestParts' => $deepestParts,
             'partExtensions' => $partExtensions,
@@ -11043,6 +11046,70 @@ final class DocxOpenXmlReader
         }
 
         return array_values($directories);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartTopLevelSegmentSummary(array $partInventory): array
+    {
+        $segments = [];
+        foreach ($partInventory as $partName => $part) {
+            $topLevelSegment = is_string($part['topLevelSegment'] ?? null)
+                ? $part['topLevelSegment']
+                : $this->packagePartTopLevelSegment((string) $partName);
+            if (!isset($segments[$topLevelSegment])) {
+                $segments[$topLevelSegment] = [
+                    'topLevelSegment' => $topLevelSegment,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'directories' => [],
+                    'contentTypeSourceCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                ];
+            }
+
+            ++$segments[$topLevelSegment]['partCount'];
+            $segments[$topLevelSegment]['byteLength'] += (int) ($part['bytes'] ?? 0);
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory((string) $partName);
+            $segments[$topLevelSegment]['directories'][$directory] = true;
+            $segments[$topLevelSegment]['partNames'][] = (string) $partName;
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$segments[$topLevelSegment]['relationshipPartCount'];
+            }
+
+            $contentTypeSource = (string) ($part['contentTypeSource'] ?? 'missing');
+            if ($contentTypeSource === 'missing') {
+                ++$segments[$topLevelSegment]['missingContentTypePartCount'];
+            }
+            $segments[$topLevelSegment]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($segments[$topLevelSegment]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $segments[$topLevelSegment]['roleCounts'][$role] =
+                    ($segments[$topLevelSegment]['roleCounts'][$role] ?? 0) + 1;
+            }
+        }
+
+        ksort($segments, SORT_STRING);
+        foreach ($segments as $segment => $summary) {
+            $directories = array_keys($summary['directories']);
+            sort($directories, SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $summary['directories'] = $directories;
+            $segments[$segment] = $summary;
+        }
+
+        return array_values($segments);
     }
 
     /**
@@ -14012,6 +14079,7 @@ final class DocxOpenXmlReader
                 'directoryDepth' => $this->packagePartDirectoryDepth($directory),
                 'baseName' => $this->packagePartBaseName($partName),
                 'pathSegments' => $pathSegments,
+                'topLevelSegment' => $pathSegments[0] ?? '',
                 'pathSegmentCount' => count($pathSegments),
                 'partExtension' => $partExtension,
                 'partExtensionDefaultDeclared' => $partExtension !== null && isset($contentTypes['defaults'][$partExtension]),
@@ -14077,6 +14145,11 @@ final class DocxOpenXmlReader
             explode('/', trim($directory, '/')),
             static fn (string $segment): bool => $segment !== '',
         )));
+    }
+
+    private function packagePartTopLevelSegment(string $partName): string
+    {
+        return $this->packagePartPathSegments($partName)[0] ?? '';
     }
 
     private function packagePartExtension(string $partName): ?string
