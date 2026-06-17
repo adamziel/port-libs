@@ -1252,6 +1252,88 @@ XML;
         $t->same(['(missing)' => 1], $untyped['contentTypeBaseCounts']);
         $t->same(['missing' => 1], $untyped['contentTypeSourceCounts']);
     },
+    'summarizes docx package part path segments for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/embeddings/review-cache/data.bin" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rEmbeddedSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/review-cache/data.bin"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/embeddings/review-cache/data.bin'] = str_repeat('E', 41);
+        $parts['customXml/review-cache/data.bin'] = str_repeat('M', 17);
+        $parts['customXml/review-cache/meta.xml'] = '<meta/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $bySegment = [];
+        foreach ($summary['partPathSegments'] as $segment) {
+            $bySegment[$segment['segment']] = $segment;
+        }
+
+        $t->same(17, $summary['partPathSegmentCount']);
+        $t->same(27, $summary['partPathSegmentOccurrenceCount']);
+        $t->same(
+            ['.rels', '[Content_Types].xml', '_rels', 'core.xml', 'customXml', 'data.bin', 'docProps', 'document.xml', 'document.xml.rels', 'embeddings', 'media', 'meta.xml', 'numbering.xml', 'review-cache', 'review.png', 'styles.xml', 'word'],
+            array_column($summary['partPathSegments'], 'segment')
+        );
+        $t->same(['word', 'embeddings', 'review-cache', 'data.bin'], $inventory['word/embeddings/review-cache/data.bin']['pathSegments']);
+        $t->same(['customXml', 'review-cache', 'data.bin'], $inventory['customXml/review-cache/data.bin']['pathSegments']);
+        $t->same('override', $inventory['word/embeddings/review-cache/data.bin']['contentTypeSource']);
+        $t->same('missing', $inventory['customXml/review-cache/data.bin']['contentTypeSource']);
+        $t->same(['document-relationship-target', 'embedded-package'], $inventory['word/embeddings/review-cache/data.bin']['roles']);
+
+        $reviewCache = $bySegment['review-cache'];
+        $t->same('review-cache', $reviewCache['caseFoldSegment']);
+        $t->same(3, $reviewCache['occurrenceCount']);
+        $t->same(3, $reviewCache['partCount']);
+        $t->same(65, $reviewCache['byteLength']);
+        $t->same(1, $reviewCache['missingContentTypePartCount']);
+        $t->same([1 => 2, 2 => 1], $reviewCache['pathSegmentIndexCounts']);
+        $t->same(['customXml/review-cache', 'word/embeddings/review-cache'], $reviewCache['directories']);
+        $t->same(['customXml/review-cache/data.bin', 'customXml/review-cache/meta.xml', 'word/embeddings/review-cache/data.bin'], $reviewCache['partNames']);
+        $t->same(['default' => 1, 'missing' => 1, 'override' => 1], $reviewCache['contentTypeSourceCounts']);
+        $t->same(
+            [
+                '(missing)' => 1,
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 1,
+                'application/xml' => 1,
+            ],
+            $reviewCache['contentTypeBaseCounts']
+        );
+        $t->same(['document-relationship-target' => 1, 'embedded-package' => 1, 'package-part' => 2], $reviewCache['roleCounts']);
+        $t->same('word/embeddings/review-cache/data.bin', $reviewCache['largestPart']['partName']);
+        $t->same(41, $reviewCache['largestPart']['bytes']);
+        $t->same(hash('sha256', $parts['word/embeddings/review-cache/data.bin']), $reviewCache['largestPart']['sha256']);
+
+        $dataBin = $bySegment['data.bin'];
+        $t->same(2, $dataBin['occurrenceCount']);
+        $t->same(2, $dataBin['partCount']);
+        $t->same(58, $dataBin['byteLength']);
+        $t->same(1, $dataBin['missingContentTypePartCount']);
+        $t->same([2 => 1, 3 => 1], $dataBin['pathSegmentIndexCounts']);
+        $t->same(['customXml/review-cache', 'word/embeddings/review-cache'], $dataBin['directories']);
+        $t->same(['(missing)' => 1, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 1], $dataBin['contentTypeBaseCounts']);
+        $t->same(['missing' => 1, 'override' => 1], $dataBin['contentTypeSourceCounts']);
+        $t->same(['document-relationship-target' => 1, 'embedded-package' => 1, 'package-part' => 1], $dataBin['roleCounts']);
+        $t->same('word/embeddings/review-cache/data.bin', $dataBin['largestPart']['partName']);
+
+        $word = $bySegment['word'];
+        $t->same(6, $word['partCount']);
+        $t->same(6, $word['occurrenceCount']);
+        $t->same(['word', 'word/_rels', 'word/embeddings/review-cache', 'word/media'], $word['directories']);
+        $t->same(['default' => 4, 'override' => 2], $word['contentTypeSourceCounts']);
+        $t->same(2, $word['roleCounts']['document-relationship-target']);
+        $t->same(1, $word['roleCounts']['embedded-package']);
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

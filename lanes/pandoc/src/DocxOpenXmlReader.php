@@ -10336,6 +10336,11 @@ final class DocxOpenXmlReader
 
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
         $partTopLevelSegments = $this->packagePartTopLevelSegmentSummary($partInventory);
+        $partPathSegments = $this->packagePartPathSegmentSummary($partInventory);
+        $partPathSegmentOccurrenceCount = 0;
+        foreach ($partPathSegments as $partPathSegment) {
+            $partPathSegmentOccurrenceCount += (int) ($partPathSegment['occurrenceCount'] ?? 0);
+        }
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
         $partBaseNames = $this->packagePartBaseNameSummary($partInventory);
@@ -11086,6 +11091,8 @@ final class DocxOpenXmlReader
             'partCount' => count($partInventory),
             'partDirectoryCount' => count($partDirectories),
             'partTopLevelSegmentCount' => count($partTopLevelSegments),
+            'partPathSegmentCount' => count($partPathSegments),
+            'partPathSegmentOccurrenceCount' => $partPathSegmentOccurrenceCount,
             'partPathDepthCount' => count($partPathDepths),
             'maxPartPathSegmentCount' => $maxPartPathSegmentCount,
             'maxPartDirectoryDepth' => max(0, $maxPartPathSegmentCount - 1),
@@ -11251,6 +11258,7 @@ final class DocxOpenXmlReader
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'partDirectories' => $partDirectories,
             'partTopLevelSegments' => $partTopLevelSegments,
+            'partPathSegments' => $partPathSegments,
             'partPathDepths' => $partPathDepths,
             'deepestParts' => $deepestParts,
             'partExtensions' => $partExtensions,
@@ -11719,6 +11727,134 @@ final class DocxOpenXmlReader
             sort($directories, SORT_STRING);
             sort($summary['partNames'], SORT_STRING);
             ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $summary['directories'] = $directories;
+            $segments[$segment] = $summary;
+        }
+
+        return array_values($segments);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartPathSegmentSummary(array $partInventory): array
+    {
+        $segments = [];
+        $partsSeenBySegment = [];
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $pathSegments = is_array($part['pathSegments'] ?? null)
+                ? array_values(array_filter(
+                    array_map(
+                        static fn (mixed $segment): string => is_scalar($segment) ? (string) $segment : '',
+                        $part['pathSegments'],
+                    ),
+                    static fn (string $segment): bool => $segment !== '',
+                ))
+                : $this->packagePartPathSegments($partName);
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory($partName);
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName($partName);
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null)
+                ? $part['contentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'baseName' => $baseName,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+
+            foreach ($pathSegments as $pathSegmentIndex => $segment) {
+                if (!isset($segments[$segment])) {
+                    $segments[$segment] = [
+                        'segment' => $segment,
+                        'caseFoldSegment' => $this->packagePartCaseFoldKey($segment),
+                        'occurrenceCount' => 0,
+                        'partCount' => 0,
+                        'byteLength' => 0,
+                        'relationshipPartCount' => 0,
+                        'missingContentTypePartCount' => 0,
+                        'pathSegmentIndexCounts' => [],
+                        'directories' => [],
+                        'contentTypeSourceCounts' => [],
+                        'contentTypeBaseCounts' => [],
+                        'roleCounts' => [],
+                        'partNames' => [],
+                        'largestPart' => null,
+                    ];
+                }
+
+                ++$segments[$segment]['occurrenceCount'];
+                $segments[$segment]['pathSegmentIndexCounts'][$pathSegmentIndex] =
+                    ($segments[$segment]['pathSegmentIndexCounts'][$pathSegmentIndex] ?? 0) + 1;
+
+                if (isset($partsSeenBySegment[$segment][$partName])) {
+                    continue;
+                }
+
+                $partsSeenBySegment[$segment][$partName] = true;
+                ++$segments[$segment]['partCount'];
+                $segments[$segment]['byteLength'] += $bytes;
+                $segments[$segment]['partNames'][] = $partName;
+                $segments[$segment]['directories'][$directory] = true;
+                if (($part['isRelationshipPart'] ?? false) === true) {
+                    ++$segments[$segment]['relationshipPartCount'];
+                }
+                if ($contentTypeSource === 'missing') {
+                    ++$segments[$segment]['missingContentTypePartCount'];
+                }
+                $segments[$segment]['contentTypeSourceCounts'][$contentTypeSource] =
+                    ($segments[$segment]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+                $segments[$segment]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                    ($segments[$segment]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+                foreach (($part['roles'] ?? []) as $role) {
+                    $role = (string) $role;
+                    $segments[$segment]['roleCounts'][$role] =
+                        ($segments[$segment]['roleCounts'][$role] ?? 0) + 1;
+                }
+
+                $largestPart = $segments[$segment]['largestPart'];
+                if (
+                    !is_array($largestPart)
+                    || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                    || (
+                        $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                        && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                    )
+                ) {
+                    $segments[$segment]['largestPart'] = $partSummary;
+                }
+            }
+        }
+
+        ksort($segments, SORT_STRING);
+        foreach ($segments as $segment => $summary) {
+            $directories = array_keys($summary['directories']);
+            sort($directories, SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['pathSegmentIndexCounts'], SORT_NUMERIC);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
             ksort($summary['roleCounts'], SORT_STRING);
             $summary['directories'] = $directories;
             $segments[$segment] = $summary;
