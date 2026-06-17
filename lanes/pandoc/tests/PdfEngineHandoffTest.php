@@ -4610,6 +4610,78 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $invalidResult['artifactProvenanceReview']['issues']));
     },
 
+    'maps typst creation timestamp histories into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $timestamp = '1700000000';
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/timestamp-matrix-history.pdf',
+            'source' => '= Typst Timestamp Matrix History Packet',
+            'engineOptions' => [
+                '--creation-timestamp=not-a-time',
+                '--creation-timestamp',
+                $timestamp,
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst timestamp matrix history packet\n%%EOF\n";
+        $expectedCase = [
+            'case' => 'creation-timestamp',
+            'reviewStatus' => 'review',
+            'observed' => 1,
+            'details' => [
+                'timestamp' => 1700000000,
+                'iso8601' => gmdate('Y-m-d\TH:i:s\Z', 1700000000),
+                'deterministic' => true,
+                'historyEntryCount' => 2,
+                'deterministicTimestampCount' => 1,
+                'invalidTimestampCount' => 1,
+                'overrideCount' => 1,
+                'environmentShadowed' => false,
+                'environmentVariable' => null,
+                'environmentTimestamp' => null,
+                'selected' => null,
+            ],
+            'issues' => [
+                'creation-timestamp-boundary-overridden',
+                'creation-timestamp-invalid-boundary',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/timestamp-matrix-history.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/timestamp-matrix-history.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $planCases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $planCases[$case['case']] = $case;
+        }
+        $resultCases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $resultCases[$case['case']] = $case;
+        }
+
+        $t->same(['boundary-overrides', 'output-format', 'creation-timestamp'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(3, $plan['typstBoundaryMatrix']['issueCount']);
+        $t->same($expectedCase, $planCases['creation-timestamp']);
+        $t->contains('creation-timestamp:creation-timestamp-boundary-overridden', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('creation-timestamp:creation-timestamp-invalid-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('typst-boundary-matrix-review-cases:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-issues:3', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedCase, $resultCases['creation-timestamp']);
+        $t->same($plan['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'preserves shadowed typst source date epoch provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $environmentTimestamp = '1700000000';

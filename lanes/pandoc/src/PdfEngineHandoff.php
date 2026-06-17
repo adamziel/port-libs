@@ -7970,12 +7970,46 @@ final class PdfEngineHandoff
         $creationTimestamp = is_array($provenance['creationTimestamp'] ?? null) ? $provenance['creationTimestamp'] : [];
         $creationTimestampEnvironment = is_array($provenance['creationTimestampEnvironment'] ?? null) ? $provenance['creationTimestampEnvironment'] : [];
         if ($creationTimestamp !== [] || $creationTimestampEnvironment !== []) {
-            $creationTimestampIssues = array_merge($entryIssues($creationTimestamp), $entryIssues($creationTimestampEnvironment));
+            $creationTimestampHistory = is_array($provenance['creationTimestampHistory'] ?? null) ? $provenance['creationTimestampHistory'] : [];
+            $creationTimestampOverrides = array_values(array_filter(
+                is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+                static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'creationTimestamp'
+            ));
+            $creationTimestampEntries = $creationTimestampHistory === []
+                ? ($creationTimestamp === [] ? [] : [$creationTimestamp])
+                : $creationTimestampHistory;
+            $deterministicTimestampCount = 0;
+            $invalidTimestampCount = 0;
+            foreach ($creationTimestampEntries as $timestampEntry) {
+                if (!is_array($timestampEntry)) {
+                    ++$invalidTimestampCount;
+                    continue;
+                }
+                if (($timestampEntry['deterministic'] ?? false) === true) {
+                    ++$deterministicTimestampCount;
+                }
+                if (($timestampEntry['safe'] ?? false) !== true) {
+                    ++$invalidTimestampCount;
+                }
+            }
+            $creationTimestampIssues = array_merge(
+                $entryIssues($creationTimestamp),
+                $entryIssues($creationTimestampEnvironment),
+                $listIssues($creationTimestampHistory),
+                $optionIssues($creationTimestampOverrides)
+            );
             $appendCase('creation-timestamp', $creationTimestampIssues === [] ? 'ok' : 'review', (int) ($creationTimestamp !== []) + (int) ($creationTimestampEnvironment !== []), [
                 'timestamp' => is_int($creationTimestamp['timestamp'] ?? null) ? $creationTimestamp['timestamp'] : null,
                 'iso8601' => is_string($creationTimestamp['iso8601'] ?? null) ? $creationTimestamp['iso8601'] : null,
                 'deterministic' => ($creationTimestamp['deterministic'] ?? false) === true,
+                'historyEntryCount' => count($creationTimestampEntries),
+                'deterministicTimestampCount' => $deterministicTimestampCount,
+                'invalidTimestampCount' => $invalidTimestampCount,
+                'overrideCount' => count($creationTimestampOverrides),
                 'environmentShadowed' => is_string($creationTimestampEnvironment['shadowedBy'] ?? null),
+                'environmentVariable' => is_string($creationTimestampEnvironment['environmentVariable'] ?? null) ? $creationTimestampEnvironment['environmentVariable'] : null,
+                'environmentTimestamp' => is_int($creationTimestampEnvironment['timestamp'] ?? null) ? $creationTimestampEnvironment['timestamp'] : null,
+                'selected' => is_string($creationTimestampEnvironment['selected'] ?? null) ? $creationTimestampEnvironment['selected'] : null,
             ], $creationTimestampIssues);
         }
 
