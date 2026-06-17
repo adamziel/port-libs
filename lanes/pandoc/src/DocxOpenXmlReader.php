@@ -11475,14 +11475,18 @@ final class DocxOpenXmlReader
                     'byteLength' => 0,
                     'relationshipPartCount' => 0,
                     'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
                     'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
                     'roleCounts' => [],
                     'partNames' => [],
+                    'largestPart' => null,
                 ];
             }
 
             ++$directories[$directory]['partCount'];
-            $directories[$directory]['byteLength'] += (int) ($part['bytes'] ?? 0);
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $directories[$directory]['byteLength'] += $bytes;
             $directories[$directory]['partNames'][] = (string) $partName;
             if (($part['isRelationshipPart'] ?? false) === true) {
                 ++$directories[$directory]['relationshipPartCount'];
@@ -11492,19 +11496,50 @@ final class DocxOpenXmlReader
             if ($contentTypeSource === 'missing') {
                 ++$directories[$directory]['missingContentTypePartCount'];
             }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$directories[$directory]['parameterizedPartCount'];
+            }
             $directories[$directory]['contentTypeSourceCounts'][$contentTypeSource] =
                 ($directories[$directory]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $directories[$directory]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($directories[$directory]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
 
             foreach (($part['roles'] ?? []) as $role) {
                 $role = (string) $role;
                 $directories[$directory]['roleCounts'][$role] =
                     ($directories[$directory]['roleCounts'][$role] ?? 0) + 1;
             }
+
+            $partSummary = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName((string) $partName),
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $directories[$directory]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $directories[$directory]['largestPart'] = $partSummary;
+            }
         }
 
         ksort($directories, SORT_STRING);
         foreach ($directories as $directory => $summary) {
             ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
             ksort($summary['roleCounts'], SORT_STRING);
             $directories[$directory] = $summary;
         }

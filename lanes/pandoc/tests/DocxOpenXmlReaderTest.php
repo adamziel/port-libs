@@ -941,6 +941,84 @@ return [
         $t->same(['docProps/core.xml', 'docProps/thumbnail.png'], $bySegment['docProps']['partNames']);
         $t->same(['default' => 1, 'override' => 1], $bySegment['docProps']['contentTypeSourceCounts']);
     },
+    'summarizes docx package directory content type buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '<Default Extension="xml" ContentType="application/xml"/>',
+            '<Default Extension="xml" ContentType="application/xml; profile=directory-bucket"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/custom/profile.xml'] = 'custom directory profile bytes';
+        $parts['customXml/no-type.bin'] = 'missing directory type bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $directories = [];
+        foreach ($summary['partDirectories'] as $directory) {
+            $directories[$directory['directory']] = $directory;
+        }
+
+        $t->same(8, $summary['partDirectoryCount']);
+        $t->same([
+            '/',
+            '_rels',
+            'customXml',
+            'docProps',
+            'word',
+            'word/_rels',
+            'word/custom',
+            'word/media',
+        ], array_column($summary['partDirectories'], 'directory'));
+
+        $root = $directories['/'];
+        $t->same(1, $root['partCount']);
+        $t->same(1, $root['parameterizedPartCount']);
+        $t->same(['application/xml' => 1], $root['contentTypeBaseCounts']);
+        $t->same(['default' => 1], $root['contentTypeSourceCounts']);
+        $t->same('[Content_Types].xml', $root['largestPart']['partName']);
+        $t->same('application/xml; profile=directory-bucket', $root['largestPart']['contentType']);
+        $t->same(['content-types'], $root['largestPart']['roles']);
+
+        $word = $directories['word'];
+        $t->same(3, $word['partCount']);
+        $t->same(2, $word['parameterizedPartCount']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/xml' => 2,
+        ], $word['contentTypeBaseCounts']);
+        $t->same(['default' => 2, 'override' => 1], $word['contentTypeSourceCounts']);
+        $t->same('word/document.xml', $word['largestPart']['partName']);
+        $t->same('document.xml', $word['largestPart']['baseName']);
+        $t->same(hash('sha256', $parts['word/document.xml']), $word['largestPart']['sha256']);
+        $t->same(['office-document', 'root-relationship-target'], $word['largestPart']['roles']);
+
+        $custom = $directories['word/custom'];
+        $t->same(1, $custom['partCount']);
+        $t->same(1, $custom['parameterizedPartCount']);
+        $t->same(['application/xml' => 1], $custom['contentTypeBaseCounts']);
+        $t->same(['default' => 1], $custom['contentTypeSourceCounts']);
+        $t->same(['word/custom/profile.xml'], $custom['partNames']);
+        $t->same('word/custom/profile.xml', $custom['largestPart']['partName']);
+        $t->same('application/xml', $custom['largestPart']['contentTypeBase']);
+        $t->same(hash('sha256', $parts['word/custom/profile.xml']), $custom['largestPart']['sha256']);
+
+        $missing = $directories['customXml'];
+        $t->same(1, $missing['partCount']);
+        $t->same(0, $missing['parameterizedPartCount']);
+        $t->same(1, $missing['missingContentTypePartCount']);
+        $t->same(['(missing)' => 1], $missing['contentTypeBaseCounts']);
+        $t->same(['missing' => 1], $missing['contentTypeSourceCounts']);
+        $t->same('customXml/no-type.bin', $missing['largestPart']['partName']);
+        $t->same('', $missing['largestPart']['contentTypeBase']);
+        $t->same('missing', $missing['largestPart']['contentTypeSource']);
+        $t->same(['package-part'], $missing['largestPart']['roles']);
+
+        $media = $directories['word/media'];
+        $t->same(0, $media['parameterizedPartCount']);
+        $t->same(['image/png' => 1], $media['contentTypeBaseCounts']);
+        $t->same('word/media/review.png', $media['largestPart']['partName']);
+    },
     'summarizes docx package part path depths for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
