@@ -6462,6 +6462,77 @@ XML;
         $t->same(null, $byKind['comments']['contentTypeMatchesExpected']);
         $t->same([], $byKind['comments']['issues']);
     },
+    'preserves docx selected openxml root namespace declaration provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/review-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '  <Relationship Id="rTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/review-theme.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="w15">
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+        $parts['word/theme/review-theme.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Namespace Review Theme">
+  <a:themeElements/>
+</a:theme>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $byKind = $selected['byKind'];
+
+        $t->same(17, $selected['count']);
+        $t->same(6, $selected['existingCount']);
+        $t->same(4, $selected['relationshipSelectedCount']);
+        $t->same(6, $selected['rootPrefixedCount']);
+        $t->same(2, $selected['rootAttributeCount']);
+        $t->same(13, $selected['rootNamespaceDeclarationCount']);
+        $t->same(['w', 'r', 'wp', 'a', 'pic', 'cp', 'dc', 'dcterms', 'mc'], $selected['rootNamespacePrefixes']);
+        $t->same(6, $summary['selectedXmlPartRootPrefixedCount']);
+        $t->same(2, $summary['selectedXmlPartRootAttributeCount']);
+        $t->same(13, $summary['selectedXmlPartRootNamespaceDeclarationCount']);
+        $t->same($selected['rootNamespacePrefixes'], $summary['selectedXmlPartRootNamespacePrefixes']);
+
+        $t->same('w:document', $byKind['document']['rootQualifiedName']);
+        $t->same('w', $byKind['document']['rootPrefix']);
+        $t->same(0, $byKind['document']['rootAttributeCount']);
+        $t->same(5, $byKind['document']['rootNamespaceDeclarationCount']);
+        $t->same(['w', 'r', 'wp', 'a', 'pic'], $byKind['document']['rootNamespacePrefixes']);
+
+        $t->same('w:settings', $byKind['settings']['rootQualifiedName']);
+        $t->same('w', $byKind['settings']['rootPrefix']);
+        $t->same(1, $byKind['settings']['rootAttributeCount']);
+        $t->same(2, $byKind['settings']['rootNamespaceDeclarationCount']);
+        $t->same(['w', 'mc'], $byKind['settings']['rootNamespacePrefixes']);
+
+        $t->same('a:theme', $byKind['theme']['rootQualifiedName']);
+        $t->same('a', $byKind['theme']['rootPrefix']);
+        $t->same(1, $byKind['theme']['rootAttributeCount']);
+        $t->same(1, $byKind['theme']['rootNamespaceDeclarationCount']);
+        $t->same(['a'], $byKind['theme']['rootNamespacePrefixes']);
+
+        $t->same(null, $byKind['comments']['rootQualifiedName']);
+        $t->same(null, $byKind['comments']['rootPrefix']);
+        $t->same(0, $byKind['comments']['rootAttributeCount']);
+        $t->same(0, $byKind['comments']['rootNamespaceDeclarationCount']);
+        $t->same([], $byKind['comments']['rootNamespacePrefixes']);
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],

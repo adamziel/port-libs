@@ -570,6 +570,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartIssueCount'] = $selectedXmlParts['issueCount'];
         $packageProvenance['summary']['selectedXmlPartInvalidXmlCount'] = $selectedXmlParts['invalidXmlCount'];
         $packageProvenance['summary']['selectedXmlPartIssueKinds'] = $selectedXmlParts['issueKinds'];
+        $packageProvenance['summary']['selectedXmlPartRootPrefixedCount'] = $selectedXmlParts['rootPrefixedCount'];
+        $packageProvenance['summary']['selectedXmlPartRootAttributeCount'] = $selectedXmlParts['rootAttributeCount'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarationCount'] = $selectedXmlParts['rootNamespaceDeclarationCount'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespacePrefixes'] = $selectedXmlParts['rootNamespacePrefixes'];
         $packageProvenance['summary']['stylesWithEffectsPart'] = $stylesWithEffectsPart['partName'];
         $packageProvenance['summary']['stylesWithEffectsExists'] = $stylesWithEffectsPart['exists'];
         $packageProvenance['summary']['stylesWithEffectsRelationshipId'] = $stylesWithEffectsPart['relationship']['id'] ?? null;
@@ -9712,6 +9716,23 @@ final class DocxOpenXmlReader
             }
         }
 
+        $rootNamespacePrefixes = [];
+        $rootAttributeCount = 0;
+        $rootNamespaceDeclarationCount = 0;
+        $rootPrefixedCount = 0;
+        foreach ($items as $item) {
+            $rootAttributeCount += (int) ($item['rootAttributeCount'] ?? 0);
+            $rootNamespaceDeclarationCount += (int) ($item['rootNamespaceDeclarationCount'] ?? 0);
+            if (($item['rootPrefix'] ?? null) !== null) {
+                ++$rootPrefixedCount;
+            }
+            foreach (($item['rootNamespacePrefixes'] ?? []) as $prefix) {
+                if (is_string($prefix)) {
+                    $this->appendUniqueString($rootNamespacePrefixes, $prefix);
+                }
+            }
+        }
+
         return [
             'count' => count($items),
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
@@ -9727,6 +9748,10 @@ final class DocxOpenXmlReader
             'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-xml', $item['issues'], true))),
             'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-content-type', $item['issues'], true))),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'rootPrefixedCount' => $rootPrefixedCount,
+            'rootAttributeCount' => $rootAttributeCount,
+            'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
+            'rootNamespacePrefixes' => $rootNamespacePrefixes,
             'issueCount' => $issueCount,
             'issueKinds' => $issueKinds,
             'byKind' => $byKind,
@@ -9784,6 +9809,11 @@ final class DocxOpenXmlReader
             'expectedRootLocalName' => $expectedRootLocalName,
             'rootNamespace' => null,
             'rootLocalName' => null,
+            'rootQualifiedName' => null,
+            'rootPrefix' => null,
+            'rootAttributeCount' => 0,
+            'rootNamespaceDeclarationCount' => 0,
+            'rootNamespacePrefixes' => [],
             'validRoot' => null,
             'xmlParseError' => null,
             'expectedContentTypeBase' => $expectedContentTypeBase,
@@ -9846,6 +9876,11 @@ final class DocxOpenXmlReader
 
         $item['rootNamespace'] = $root['namespace'];
         $item['rootLocalName'] = $root['localName'];
+        $item['rootQualifiedName'] = $root['qualifiedName'];
+        $item['rootPrefix'] = $root['prefix'];
+        $item['rootAttributeCount'] = $root['attributeCount'];
+        $item['rootNamespaceDeclarationCount'] = $root['namespaceDeclarationCount'];
+        $item['rootNamespacePrefixes'] = $root['namespacePrefixes'];
         $item['validRoot'] = $root['namespace'] === $expectedRootNamespace && $root['localName'] === $expectedRootLocalName;
         if ($item['validRoot'] === false) {
             $item['issues'][] = 'unexpected-root';
@@ -9855,7 +9890,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{validXml:bool, xmlParseError:?string, namespace:?string, localName:?string}
+     * @return array{validXml:bool, xmlParseError:?string, namespace:?string, localName:?string, qualifiedName:?string, prefix:?string, attributeCount:int, namespaceDeclarationCount:int, namespacePrefixes:list<string>}
      */
     private function xmlRootProvenance(string $xml, string $partName): array
     {
@@ -9866,6 +9901,11 @@ final class DocxOpenXmlReader
                 'xmlParseError' => $this->lastXmlPreflightError($xml, $partName),
                 'namespace' => null,
                 'localName' => null,
+                'qualifiedName' => null,
+                'prefix' => null,
+                'attributeCount' => 0,
+                'namespaceDeclarationCount' => 0,
+                'namespacePrefixes' => [],
             ];
         }
 
@@ -9876,14 +9916,61 @@ final class DocxOpenXmlReader
                 'xmlParseError' => 'missing XML document element',
                 'namespace' => null,
                 'localName' => null,
+                'qualifiedName' => null,
+                'prefix' => null,
+                'attributeCount' => 0,
+                'namespaceDeclarationCount' => 0,
+                'namespacePrefixes' => [],
             ];
         }
+
+        $attributeCount = 0;
+        foreach ($root->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+            if ($attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/' || $attribute->nodeName === 'xmlns') {
+                continue;
+            }
+
+            ++$attributeCount;
+        }
+        $namespaceDeclarations = $this->rootNamespaceDeclarations($xml);
 
         return [
             'validXml' => true,
             'xmlParseError' => null,
             'namespace' => $root->namespaceURI,
             'localName' => $root->localName,
+            'qualifiedName' => $root->tagName,
+            'prefix' => $root->prefix === '' ? null : $root->prefix,
+            'attributeCount' => $attributeCount,
+            'namespaceDeclarationCount' => $namespaceDeclarations['count'],
+            'namespacePrefixes' => $namespaceDeclarations['prefixes'],
+        ];
+    }
+
+    /**
+     * @return array{count:int, prefixes:list<string>}
+     */
+    private function rootNamespaceDeclarations(string $xml): array
+    {
+        if (preg_match('/<(?![?!])([A-Za-z_][A-Za-z0-9_.:-]*)([^>]*)>/s', $xml, $rootMatch) !== 1) {
+            return [
+                'count' => 0,
+                'prefixes' => [],
+            ];
+        }
+
+        $prefixes = [];
+        preg_match_all('/\sxmlns(?::([A-Za-z_][A-Za-z0-9_.-]*))?\s*=\s*(["\'])(.*?)\2/s', (string) $rootMatch[2], $matches, PREG_SET_ORDER);
+        foreach ($matches as $match) {
+            $this->appendUniqueString($prefixes, ($match[1] ?? '') === '' ? 'default' : (string) $match[1]);
+        }
+
+        return [
+            'count' => count($matches),
+            'prefixes' => $prefixes,
         ];
     }
 
