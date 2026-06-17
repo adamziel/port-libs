@@ -678,6 +678,15 @@ final class DocxOpenXmlReader
                 $packageProvenance['summary']['mailMergeRecipientDataIssueCount'] = count($recipientData['issues'] ?? []);
             }
         }
+        $themeFontLanguage = $settings['themeFontLanguage'] ?? null;
+        if (is_array($themeFontLanguage)) {
+            $packageProvenance['summary']['settingsThemeFontLanguageAttributeCount'] = count($themeFontLanguage);
+        }
+        $colorSchemeMapping = $settings['colorSchemeMapping'] ?? null;
+        if (is_array($colorSchemeMapping)) {
+            $packageProvenance['summary']['settingsColorSchemeMappingAttributeCount'] = count($colorSchemeMapping);
+            $packageProvenance['summary']['settingsColorSchemeMappingKeys'] = array_keys($colorSchemeMapping);
+        }
         $documentVariableDetails = $settings['documentVariableDetails'] ?? null;
         if (is_array($documentVariableDetails)) {
             $packageProvenance['summary']['settingsDocumentVariableCount'] = (int) ($documentVariableDetails['count'] ?? 0);
@@ -12439,6 +12448,35 @@ final class DocxOpenXmlReader
                 if ($value !== '') {
                     $settings[$key] = $value;
                 }
+            }
+        }
+
+        $themeFontLanguage = $this->firstElement($xpath, '/w:settings/w:themeFontLang', $dom);
+        if ($themeFontLanguage instanceof \DOMElement) {
+            $themeFontLanguageSettings = $this->wordAttributeMap($themeFontLanguage, ['val', 'eastAsia', 'bidi']);
+            if ($themeFontLanguageSettings !== []) {
+                $settings['themeFontLanguage'] = $themeFontLanguageSettings;
+            }
+        }
+
+        $colorSchemeMapping = $this->firstElement($xpath, '/w:settings/w:clrSchemeMapping', $dom);
+        if ($colorSchemeMapping instanceof \DOMElement) {
+            $colorSchemeMappingSettings = $this->wordAttributeMap($colorSchemeMapping, [
+                'bg1',
+                't1',
+                'bg2',
+                't2',
+                'accent1',
+                'accent2',
+                'accent3',
+                'accent4',
+                'accent5',
+                'accent6',
+                'hyperlink',
+                'followedHyperlink',
+            ]);
+            if ($colorSchemeMappingSettings !== []) {
+                $settings['colorSchemeMapping'] = $colorSchemeMappingSettings;
             }
         }
 

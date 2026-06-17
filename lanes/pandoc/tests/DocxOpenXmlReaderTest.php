@@ -5857,6 +5857,82 @@ XML;
         $t->same(false, $settings['savePolicy']['embedSystemFonts']);
         $t->same(true, $settings['savePolicy']['saveSubsetFonts']);
     },
+    'preserves docx settings theme font language and color scheme mapping metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/review-theme-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rThemeSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../docSettings/review-theme-settings.xml?theme=review#mapping"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docSettings/review-theme-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:themeFontLang w:val="en-US" w:eastAsia="ja-JP" w:bidi="ar-SA"/>
+  <w:clrSchemeMapping w:bg1="light1" w:t1="dark1" w:bg2="light2" w:t2="dark2" w:accent1="accent1" w:accent2="accent2" w:accent3="accent3" w:accent4="accent4" w:accent5="accent5" w:accent6="accent6" w:hyperlink="hyperlink" w:followedHyperlink="followedHyperlink"/>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $settings = $docx['settings'];
+        $summary = $docx['packageProvenance']['summary'];
+        $inventory = $docx['packageProvenance']['parts']['docSettings/review-theme-settings.xml'];
+        $selectedSettings = $docx['packageProvenance']['selectedXmlParts']['byKind']['settings'];
+
+        $t->same('docSettings/review-theme-settings.xml', $docx['settingsPart']);
+        $t->same('rThemeSettings', $docx['settingsRelationship']['id']);
+        $t->same('../docSettings/review-theme-settings.xml?theme=review#mapping', $docx['settingsRelationship']['target']);
+        $t->same('docSettings/review-theme-settings.xml', $docx['settingsRelationship']['targetPart']);
+        $t->same('theme=review', $docx['settingsRelationship']['targetQuery']);
+        $t->same('mapping', $docx['settingsRelationship']['targetFragment']);
+        $t->same('settings', $selectedSettings['rootLocalName']);
+        $t->same(true, $selectedSettings['contentTypeMatchesExpected']);
+        $t->true(in_array('settings', $inventory['roles'], true), 'settings inventory role missing');
+        $t->same(1, $summary['roleCounts']['settings']);
+
+        $t->same([
+            'val' => 'en-US',
+            'eastAsia' => 'ja-JP',
+            'bidi' => 'ar-SA',
+        ], $settings['themeFontLanguage']);
+        $t->same([
+            'bg1' => 'light1',
+            't1' => 'dark1',
+            'bg2' => 'light2',
+            't2' => 'dark2',
+            'accent1' => 'accent1',
+            'accent2' => 'accent2',
+            'accent3' => 'accent3',
+            'accent4' => 'accent4',
+            'accent5' => 'accent5',
+            'accent6' => 'accent6',
+            'hyperlink' => 'hyperlink',
+            'followedHyperlink' => 'followedHyperlink',
+        ], $settings['colorSchemeMapping']);
+        $t->same(3, $summary['settingsThemeFontLanguageAttributeCount']);
+        $t->same(12, $summary['settingsColorSchemeMappingAttributeCount']);
+        $t->same([
+            'bg1',
+            't1',
+            'bg2',
+            't2',
+            'accent1',
+            'accent2',
+            'accent3',
+            'accent4',
+            'accent5',
+            'accent6',
+            'hyperlink',
+            'followedHyperlink',
+        ], $summary['settingsColorSchemeMappingKeys']);
+    },
     'summarizes docx settings document variables for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
