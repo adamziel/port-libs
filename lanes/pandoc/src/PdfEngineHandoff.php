@@ -8025,27 +8025,35 @@ final class PdfEngineHandoff
 
         $creationTimestamp = is_array($provenance['creationTimestamp'] ?? null) ? $provenance['creationTimestamp'] : [];
         $creationTimestampEnvironment = is_array($provenance['creationTimestampEnvironment'] ?? null) ? $provenance['creationTimestampEnvironment'] : [];
-        if ($creationTimestamp !== [] || $creationTimestampEnvironment !== []) {
-            $creationTimestampHistory = is_array($provenance['creationTimestampHistory'] ?? null) ? $provenance['creationTimestampHistory'] : [];
-            $creationTimestampOverrides = array_values(array_filter(
-                is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
-                static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'creationTimestamp'
-            ));
-            $creationTimestampEntries = $creationTimestampHistory === []
-                ? ($creationTimestamp === [] ? [] : [$creationTimestamp])
-                : $creationTimestampHistory;
+        $creationTimestampHistory = is_array($provenance['creationTimestampHistory'] ?? null) ? $provenance['creationTimestampHistory'] : [];
+        $creationTimestampOverrides = array_values(array_filter(
+            is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+            static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'creationTimestamp'
+        ));
+        if ($creationTimestamp !== [] || $creationTimestampEnvironment !== [] || $creationTimestampHistory !== []) {
+            $creationTimestampEntries = $creationTimestampHistory;
+            if ($creationTimestampEntries === [] && $creationTimestamp !== []) {
+                $creationTimestampEntries[] = $creationTimestamp;
+            }
+            if ($creationTimestampEnvironment !== []) {
+                $creationTimestampEntries[] = $creationTimestampEnvironment;
+            }
             $deterministicTimestampCount = 0;
             $invalidTimestampCount = 0;
-            foreach ($creationTimestampEntries as $timestampEntry) {
-                if (!is_array($timestampEntry)) {
+            $unixTimestampCount = 0;
+            foreach ($creationTimestampEntries as $entry) {
+                if (!is_array($entry)) {
                     ++$invalidTimestampCount;
                     continue;
                 }
-                if (($timestampEntry['deterministic'] ?? false) === true) {
+                if (($entry['deterministic'] ?? false) === true) {
                     ++$deterministicTimestampCount;
                 }
-                if (($timestampEntry['safe'] ?? false) !== true) {
+                if (($entry['safe'] ?? false) !== true) {
                     ++$invalidTimestampCount;
+                }
+                if (($entry['kind'] ?? null) === 'unix-seconds') {
+                    ++$unixTimestampCount;
                 }
             }
             $creationTimestampIssues = array_merge(
@@ -8054,18 +8062,23 @@ final class PdfEngineHandoff
                 $listIssues($creationTimestampHistory),
                 $optionIssues($creationTimestampOverrides)
             );
-            $appendCase('creation-timestamp', $creationTimestampIssues === [] ? 'ok' : 'review', (int) ($creationTimestamp !== []) + (int) ($creationTimestampEnvironment !== []), [
+            $appendCase('creation-timestamp', $creationTimestampIssues === [] ? 'ok' : 'review', count($creationTimestampEntries), [
                 'timestamp' => is_int($creationTimestamp['timestamp'] ?? null) ? $creationTimestamp['timestamp'] : null,
                 'iso8601' => is_string($creationTimestamp['iso8601'] ?? null) ? $creationTimestamp['iso8601'] : null,
                 'deterministic' => ($creationTimestamp['deterministic'] ?? false) === true,
-                'historyEntryCount' => count($creationTimestampEntries),
+                'historyEntryCount' => $creationTimestampHistory === [] ? (int) ($creationTimestamp !== []) : count($creationTimestampHistory),
                 'deterministicTimestampCount' => $deterministicTimestampCount,
                 'invalidTimestampCount' => $invalidTimestampCount,
+                'unixTimestampCount' => $unixTimestampCount,
                 'overrideCount' => count($creationTimestampOverrides),
                 'environmentShadowed' => is_string($creationTimestampEnvironment['shadowedBy'] ?? null),
-                'environmentVariable' => is_string($creationTimestampEnvironment['environmentVariable'] ?? null) ? $creationTimestampEnvironment['environmentVariable'] : null,
+                'environmentVariable' => is_string($creationTimestamp['environmentVariable'] ?? null)
+                    ? $creationTimestamp['environmentVariable']
+                    : (is_string($creationTimestampEnvironment['environmentVariable'] ?? null) ? $creationTimestampEnvironment['environmentVariable'] : null),
                 'environmentTimestamp' => is_int($creationTimestampEnvironment['timestamp'] ?? null) ? $creationTimestampEnvironment['timestamp'] : null,
+                'environmentSelected' => is_string($creationTimestampEnvironment['selected'] ?? null) ? $creationTimestampEnvironment['selected'] : null,
                 'selected' => is_string($creationTimestampEnvironment['selected'] ?? null) ? $creationTimestampEnvironment['selected'] : null,
+                'source' => is_string($creationTimestamp['source'] ?? null) ? $creationTimestamp['source'] : null,
             ], $creationTimestampIssues);
         }
 
