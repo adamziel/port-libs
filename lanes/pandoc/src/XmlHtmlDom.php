@@ -18098,20 +18098,27 @@ final class XmlHtmlDom
 
         if (array_key_exists('part', $attributes)) {
             $parts = self::partTokenListSummary($attributes['part']);
+            $summary['partReviewPolicy'] = 'html-part-token-list-review';
             $summary['partRaw'] = $attributes['part'];
             $summary['partTokens'] = $parts['tokens'];
             $summary['partNames'] = $parts['names'];
             $summary['invalidPartTokens'] = $parts['invalid'];
+            $summary['duplicatePartTokens'] = $parts['duplicates'];
+            $summary['partIssueCodes'] = $parts['issueCodes'];
             $summary['partValid'] = $parts['valid'];
         }
 
         if (array_key_exists('exportparts', $attributes)) {
             $exportParts = self::exportPartsSummary($attributes['exportparts']);
+            $summary['exportPartsReviewPolicy'] = 'html-exportparts-mapping-review';
             $summary['exportPartsRaw'] = $attributes['exportparts'];
             $summary['exportParts'] = $exportParts['items'];
             $summary['exportPartNames'] = $exportParts['names'];
             $summary['exportPartAliases'] = $exportParts['aliases'];
             $summary['invalidExportParts'] = $exportParts['invalid'];
+            $summary['duplicateExportPartNames'] = $exportParts['duplicateNames'];
+            $summary['duplicateExportPartAliases'] = $exportParts['duplicateAliases'];
+            $summary['exportPartsIssueCodes'] = $exportParts['issueCodes'];
             $summary['exportPartsValid'] = $exportParts['valid'];
         }
 
@@ -20303,34 +20310,49 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{tokens:list<string>, names:list<string>, invalid:list<string>, valid:bool}
+     * @return array{tokens:list<string>, names:list<string>, invalid:list<string>, duplicates:list<string>, issueCodes:list<string>, valid:bool}
      */
     private static function partTokenListSummary(string $value): array
     {
         $tokens = self::spaceSeparatedTokens($value);
         $names = [];
         $invalid = [];
+        $duplicates = [];
         foreach ($tokens as $token) {
             if (!self::isHtmlReferenceToken($token)) {
                 $invalid[] = $token;
                 continue;
             }
 
-            if (!in_array($token, $names, true)) {
-                $names[] = $token;
+            if (in_array($token, $names, true)) {
+                if (!in_array($token, $duplicates, true)) {
+                    $duplicates[] = $token;
+                }
+                continue;
             }
+
+            $names[] = $token;
+        }
+        $issueCodes = [];
+        if ($invalid !== []) {
+            $issueCodes[] = 'invalid-part-token';
+        }
+        if ($duplicates !== []) {
+            $issueCodes[] = 'duplicate-part-token';
         }
 
         return [
             'tokens' => $tokens,
             'names' => $names,
             'invalid' => $invalid,
+            'duplicates' => $duplicates,
+            'issueCodes' => $issueCodes,
             'valid' => $tokens !== [] && $invalid === [],
         ];
     }
 
     /**
-     * @return array{items:list<array<string, mixed>>, names:list<string>, aliases:list<string>, invalid:list<string>, valid:bool}
+     * @return array{items:list<array<string, mixed>>, names:list<string>, aliases:list<string>, invalid:list<string>, duplicateNames:list<string>, duplicateAliases:list<string>, issueCodes:list<string>, valid:bool}
      */
     private static function exportPartsSummary(string $value): array
     {
@@ -20338,6 +20360,8 @@ final class XmlHtmlDom
         $names = [];
         $aliases = [];
         $invalid = [];
+        $allNames = [];
+        $allAliases = [];
         foreach (explode(',', $value) as $rawItem) {
             $raw = trim($rawItem);
             if ($raw === '') {
@@ -20353,6 +20377,8 @@ final class XmlHtmlDom
             if (!$valid) {
                 $invalid[] = $raw;
             } else {
+                $allNames[] = $source;
+                $allAliases[] = $alias;
                 if (!in_array($source, $names, true)) {
                     $names[] = $source;
                 }
@@ -20369,12 +20395,27 @@ final class XmlHtmlDom
                 'valid' => $valid,
             ];
         }
+        $duplicateNames = self::duplicateStringValues($allNames);
+        $duplicateAliases = self::duplicateStringValues($allAliases);
+        $issueCodes = [];
+        if ($invalid !== []) {
+            $issueCodes[] = 'invalid-exportparts-mapping';
+        }
+        if ($duplicateNames !== []) {
+            $issueCodes[] = 'duplicate-exportparts-source';
+        }
+        if ($duplicateAliases !== []) {
+            $issueCodes[] = 'duplicate-exportparts-alias';
+        }
 
         return [
             'items' => $items,
             'names' => $names,
             'aliases' => $aliases,
             'invalid' => $invalid,
+            'duplicateNames' => $duplicateNames,
+            'duplicateAliases' => $duplicateAliases,
+            'issueCodes' => $issueCodes,
             'valid' => $items !== [] && $invalid === [],
         ];
     }
