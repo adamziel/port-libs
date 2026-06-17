@@ -19009,6 +19009,8 @@ final class XmlHtmlDom
         ) + [
             'directionImplicitDefault' => true,
             'directionImplicitDefaultElement' => 'bdi',
+            'bdiDirectionReviewPolicy' => 'html-bdi-default-direction-review',
+            'bdiDirectionDefaulted' => true,
         ];
     }
 

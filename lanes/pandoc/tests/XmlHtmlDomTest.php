@@ -6325,6 +6325,126 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/definition-term-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html bdi default direction isolation for reviewer handoff' => static function (TestRunner $t): void {
+        $rtl = "\u{05E9}\u{05DC}\u{05D5}\u{05DD}";
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="rtl-shell" dir="rtl"><bdi id="sku">SKU-42</bdi><bdi id="hebrew">&#x05E9;&#x05DC;&#x05D5;&#x05DD;</bdi><bdi id="neutral">123</bdi><bdi id="explicit" dir="ltr">Explicit</bdi><span id="plain">Plain</span></section>',
+            'bdi default direction isolation review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/bdi-default-direction-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $section = $summary[0];
+        $sku = $section['children'][0];
+        $hebrew = $section['children'][1];
+        $neutral = $section['children'][2];
+        $explicit = $section['children'][3];
+        $plain = $section['children'][4];
+
+        $t->same('rtl', $section['effectiveDirection']);
+        $t->same('rtl', $section['effectiveDirectionResolved']);
+        $t->same(false, $section['directionInherited']);
+        $t->same('self-dir', $section['directionSource']);
+        $t->same('bidirectional-isolate', $sku['textSemantic']);
+        $t->same('auto', $sku['textDirection']);
+        $t->same(true, $sku['textDirectionImplicitDefault']);
+        $t->same('auto', $sku['effectiveDirectionRaw']);
+        $t->same('auto', $sku['effectiveDirection']);
+        $t->same('ltr', $sku['effectiveDirectionResolved']);
+        $t->same(false, $sku['directionInherited']);
+        $t->same('implicit-bdi-dir-auto', $sku['directionSource']);
+        $t->same('bdi', $sku['directionSourceElement']);
+        $t->same('sku', $sku['directionSourceElementId']);
+        $t->same(true, $sku['directionImplicitDefault']);
+        $t->same('bdi', $sku['directionImplicitDefaultElement']);
+        $t->same('html-bdi-default-direction-review', $sku['bdiDirectionReviewPolicy']);
+        $t->same(true, $sku['bdiDirectionDefaulted']);
+        $t->same('html-dir-auto-first-strong-review', $sku['directionAutoReviewPolicy']);
+        $t->same('first-strong-ltr', $sku['directionAutoState']);
+        $t->same('ltr', $sku['directionAutoResolvedDirection']);
+        $t->same('ltr', $sku['directionAutoFirstStrongDirection']);
+        $t->same('S', $sku['directionAutoFirstStrongCharacter']);
+        $t->same(0, $sku['directionAutoFirstStrongIndex']);
+        $t->same(6, $sku['directionAutoTextLength']);
+        $t->same(false, $sku['directionAutoInherited']);
+        $t->same('html-dir-auto-first-strong-character-review', $sku['dirAutoReviewPolicy']);
+        $t->same('ltr', $sku['dirAutoResolvedDirection']);
+        $t->same(true, $sku['dirAutoResolved']);
+        $t->same(false, $sku['dirAutoNeutral']);
+        $t->same(false, $sku['dirAutoInherited']);
+        $t->same('bdi', $sku['dirAutoSourceElement']);
+        $t->same('sku', $sku['dirAutoSourceElementId']);
+        $t->same('S', $sku['dirAutoFirstStrongCharacter']);
+        $t->same('L', $sku['dirAutoFirstStrongBidiClass']);
+        $t->same(0, $sku['dirAutoFirstStrongCharacterOffset']);
+        $t->same(0, $sku['dirAutoFirstStrongByteOffset']);
+
+        $t->same($rtl, $hebrew['text']);
+        $t->same('auto', $hebrew['effectiveDirection']);
+        $t->same('rtl', $hebrew['effectiveDirectionResolved']);
+        $t->same('implicit-bdi-dir-auto', $hebrew['directionSource']);
+        $t->same(true, $hebrew['directionImplicitDefault']);
+        $t->same('html-bdi-default-direction-review', $hebrew['bdiDirectionReviewPolicy']);
+        $t->same(true, $hebrew['bdiDirectionDefaulted']);
+        $t->same('first-strong-rtl', $hebrew['directionAutoState']);
+        $t->same('rtl', $hebrew['directionAutoResolvedDirection']);
+        $t->same('rtl', $hebrew['directionAutoFirstStrongDirection']);
+        $t->same("\u{05E9}", $hebrew['directionAutoFirstStrongCharacter']);
+        $t->same(0, $hebrew['directionAutoFirstStrongIndex']);
+        $t->same(false, $hebrew['directionAutoInherited']);
+        $t->same('rtl', $hebrew['dirAutoResolvedDirection']);
+        $t->same(true, $hebrew['dirAutoResolved']);
+        $t->same(false, $hebrew['dirAutoNeutral']);
+        $t->same(false, $hebrew['dirAutoInherited']);
+        $t->same('bdi', $hebrew['dirAutoSourceElement']);
+        $t->same('hebrew', $hebrew['dirAutoSourceElementId']);
+        $t->same("\u{05E9}", $hebrew['dirAutoFirstStrongCharacter']);
+        $t->same('R', $hebrew['dirAutoFirstStrongBidiClass']);
+        $t->same(0, $hebrew['dirAutoFirstStrongCharacterOffset']);
+        $t->same(0, $hebrew['dirAutoFirstStrongByteOffset']);
+
+        $t->same('auto', $neutral['effectiveDirection']);
+        $t->same(null, $neutral['effectiveDirectionResolved']);
+        $t->same('implicit-bdi-dir-auto', $neutral['directionSource']);
+        $t->same(true, $neutral['directionImplicitDefault']);
+        $t->same('html-bdi-default-direction-review', $neutral['bdiDirectionReviewPolicy']);
+        $t->same(true, $neutral['bdiDirectionDefaulted']);
+        $t->same('no-strong-character', $neutral['directionAutoState']);
+        $t->same('ltr', $neutral['directionAutoResolvedDirection']);
+        $t->same(null, $neutral['directionAutoFirstStrongDirection']);
+        $t->same(null, $neutral['directionAutoFirstStrongCharacter']);
+        $t->same(null, $neutral['directionAutoFirstStrongIndex']);
+        $t->same(null, $neutral['dirAutoResolvedDirection']);
+        $t->same(false, $neutral['dirAutoResolved']);
+        $t->same(true, $neutral['dirAutoNeutral']);
+        $t->same(false, $neutral['dirAutoInherited']);
+        $t->same('neutral', $neutral['dirAutoSourceElementId']);
+        $t->same(null, $neutral['dirAutoFirstStrongCharacter']);
+        $t->same(null, $neutral['dirAutoFirstStrongBidiClass']);
+        $t->same(null, $neutral['dirAutoFirstStrongCharacterOffset']);
+        $t->same(null, $neutral['dirAutoFirstStrongByteOffset']);
+
+        $t->same('ltr', $explicit['textDirection']);
+        $t->same('ltr', $explicit['effectiveDirectionRaw']);
+        $t->same('ltr', $explicit['effectiveDirection']);
+        $t->same('ltr', $explicit['effectiveDirectionResolved']);
+        $t->same('self-dir', $explicit['directionSource']);
+        $t->same(false, array_key_exists('bdiDirectionDefaulted', $explicit));
+        $t->same(false, array_key_exists('dirAutoReviewPolicy', $explicit));
+
+        $t->same('rtl', $plain['effectiveDirection']);
+        $t->same('rtl', $plain['effectiveDirectionResolved']);
+        $t->same(true, $plain['directionInherited']);
+        $t->same('ancestor-dir', $plain['directionSource']);
+        $t->same('rtl-shell', $plain['directionSourceElementId']);
+        $t->same('<section dir="rtl" id="rtl-shell"><bdi id="sku">SKU-42</bdi><bdi id="hebrew">' . $rtl . '</bdi><bdi id="neutral">123</bdi><bdi dir="ltr" id="explicit">Explicit</bdi><span id="plain">Plain</span></section>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/bdi-default-direction-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html emphasis and importance semantics for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><em>Stress</em><strong>Important</strong><b>Keyword</b><i>Taxon</i></p>',
