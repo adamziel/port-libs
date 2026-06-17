@@ -177,9 +177,97 @@ final class XmlHtmlDomFragment
 
     private static function sourceForDeclarationScan(string $source): string
     {
-        $source = preg_replace('/<!--(?:[^-]|-(?!-))*-->/s', '', $source) ?? $source;
+        $length = strlen($source);
+        $scan = '';
+        $offset = 0;
 
-        return preg_replace('/<!\[CDATA\[(?:[^\]]|\](?!\]>))*\]\]>/s', '', $source) ?? $source;
+        while ($offset < $length) {
+            if (str_starts_with(substr($source, $offset, 4), '<!--')) {
+                $commentEnd = strpos($source, '-->', $offset + 4);
+                if ($commentEnd === false) {
+                    $scan .= substr($source, $offset);
+                    break;
+                }
+
+                $commentLength = $commentEnd + 3 - $offset;
+                $scan .= str_repeat(' ', $commentLength);
+                $offset += $commentLength;
+                continue;
+            }
+
+            if (str_starts_with(substr($source, $offset, 9), '<![CDATA[')) {
+                $cdataEnd = strpos($source, ']]>', $offset + 9);
+                if ($cdataEnd === false) {
+                    $scan .= substr($source, $offset);
+                    break;
+                }
+
+                $cdataLength = $cdataEnd + 3 - $offset;
+                $scan .= str_repeat(' ', $cdataLength);
+                $offset += $cdataLength;
+                continue;
+            }
+
+            if ($source[$offset] === '<' && self::isHtmlTagStartForDeclarationScan($source, $offset)) {
+                [$tagSource, $nextOffset] = self::maskQuotedTagAttributeValuesForDeclarationScan($source, $offset);
+                $scan .= $tagSource;
+                $offset = $nextOffset;
+                continue;
+            }
+
+            $scan .= $source[$offset];
+            ++$offset;
+        }
+
+        return $scan;
+    }
+
+    private static function isHtmlTagStartForDeclarationScan(string $source, int $offset): bool
+    {
+        $length = strlen($source);
+        $nameOffset = $offset + 1;
+        if ($nameOffset >= $length) {
+            return false;
+        }
+
+        if ($source[$nameOffset] === '/') {
+            ++$nameOffset;
+        }
+
+        return $nameOffset < $length && preg_match('/[A-Za-z]/', $source[$nameOffset]) === 1;
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function maskQuotedTagAttributeValuesForDeclarationScan(string $source, int $offset): array
+    {
+        $length = strlen($source);
+        $tag = '';
+
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if ($char === '"' || $char === "'") {
+                $quoteEnd = strpos($source, $char, $offset + 1);
+                if ($quoteEnd === false) {
+                    $tag .= substr($source, $offset);
+
+                    return [$tag, $length];
+                }
+
+                $tag .= $char . str_repeat(' ', $quoteEnd - $offset - 1) . $char;
+                $offset = $quoteEnd + 1;
+                continue;
+            }
+
+            $tag .= $char;
+            ++$offset;
+            if ($char === '>') {
+                break;
+            }
+        }
+
+        return [$tag, $offset];
     }
 
     private static function assertNoNullByte(string $source, string $label): void
