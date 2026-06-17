@@ -19925,6 +19925,7 @@ final class XmlHtmlDom
             $summary['itemProperties'] = $properties['values'];
             $summary['invalidItemProperties'] = $properties['invalid'];
             $summary['itemPropValid'] = $properties['valid'];
+            $summary += self::microdataPropertyValueSummary($element);
         }
 
         if (array_key_exists('itemtype', $attributes)) {
@@ -19956,6 +19957,46 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function microdataPropertyValueSummary(\DOMElement $element): array
+    {
+        $name = self::htmlElementName($element);
+        $attribute = match ($name) {
+            'meta' => 'content',
+            'audio', 'embed', 'iframe', 'img', 'source', 'track', 'video' => 'src',
+            'a', 'area', 'link' => 'href',
+            'object' => 'data',
+            'data', 'meter' => 'value',
+            'time' => self::attributeOrNull($element, 'datetime') === null ? null : 'datetime',
+            default => null,
+        };
+
+        if ($attribute !== null) {
+            $raw = self::attributeOrNull($element, $attribute);
+            $value = $raw === null ? null : trim($raw);
+
+            return [
+                'itemValueSource' => 'attribute',
+                'itemValueSourceAttribute' => $attribute,
+                'itemValueRaw' => $raw,
+                'itemValue' => $value === '' ? null : $value,
+                'itemValueValid' => $value !== null && $value !== '',
+            ];
+        }
+
+        $text = self::normalizedText($element);
+
+        return [
+            'itemValueSource' => 'text',
+            'itemValueSourceAttribute' => null,
+            'itemValueRaw' => $text,
+            'itemValue' => $text === '' ? null : $text,
+            'itemValueValid' => $text !== '',
+        ];
     }
 
     /**

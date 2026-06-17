@@ -5304,6 +5304,65 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/microdata-attribute-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html microdata property values for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article itemscope itemtype="https://schema.org/Article">'
+                . '<meta itemprop="headline" content="  Hidden title  ">'
+                . '<a itemprop="url" href="./article.html?draft=1">Article</a>'
+                . '<img itemprop="image" src="cover.png" alt="Cover">'
+                . '<data itemprop="wordCount" value="1234">1,234 words</data>'
+                . '<time itemprop="datePublished" datetime="2026-06-17">June 17</time>'
+                . '<p itemprop="description">  Summary <strong>text</strong>  </p>'
+                . '<meta itemprop="empty" content="">'
+                . '</article>',
+            'microdata property value review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/microdata-property-value-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $headline = $article['children'][0];
+        $url = $article['children'][1];
+        $image = $article['children'][2];
+        $wordCount = $article['children'][3];
+        $date = $article['children'][4];
+        $description = $article['children'][5];
+        $empty = $article['children'][6];
+
+        $t->same('headline', $headline['itemPropRaw']);
+        $t->same('attribute', $headline['itemValueSource']);
+        $t->same('content', $headline['itemValueSourceAttribute']);
+        $t->same('  Hidden title  ', $headline['itemValueRaw']);
+        $t->same('Hidden title', $headline['itemValue']);
+        $t->same(true, $headline['itemValueValid']);
+
+        $t->same('href', $url['itemValueSourceAttribute']);
+        $t->same('./article.html?draft=1', $url['itemValue']);
+        $t->same('src', $image['itemValueSourceAttribute']);
+        $t->same('cover.png', $image['itemValue']);
+        $t->same('value', $wordCount['itemValueSourceAttribute']);
+        $t->same('1234', $wordCount['itemValue']);
+        $t->same('datetime', $date['itemValueSourceAttribute']);
+        $t->same('2026-06-17', $date['itemValue']);
+        $t->same('text', $description['itemValueSource']);
+        $t->same(null, $description['itemValueSourceAttribute']);
+        $t->same('Summary text', $description['itemValue']);
+        $t->same('content', $empty['itemValueSourceAttribute']);
+        $t->same('', $empty['itemValueRaw']);
+        $t->same(null, $empty['itemValue']);
+        $t->same(false, $empty['itemValueValid']);
+
+        $t->same(
+            '<article itemscope itemtype="https://schema.org/Article"><meta content="  Hidden title  " itemprop="headline"><a href="./article.html?draft=1" itemprop="url">Article</a><img alt="Cover" itemprop="image" src="cover.png"><data itemprop="wordCount" value="1234">1,234 words</data><time datetime="2026-06-17" itemprop="datePublished">June 17</time><p itemprop="description">  Summary <strong>text</strong>  </p><meta content="" itemprop="empty"></article>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/microdata-property-value-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html rdfa semantic attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="review-rdfa" vocab="https://schema.org/" typeof="Article ReviewNewsArticle bad&lt;term" about="./articles/42" prefix="dc: http://purl.org/dc/terms/ schema: https://schema.org/ bad-prefix javascript:alert(1) dangling:" inlist="inlist">'
