@@ -1645,5 +1645,7 @@
   "mappedMarkdownReaderAngleEmailDomainBoundaryCompletionCases": 12,
   "markdownReaderAngleEmailDomainBoundaryCompletionAssertions": 40,
   "mappedMarkdownReaderInlineNoteCitationFixtureCases": 1,
-  "markdownReaderInlineNoteCitationFixtureAssertions": 31
+  "markdownReaderInlineNoteCitationFixtureAssertions": 31,
+  "mappedXmlHtmlDomAnchorPositioningReviewCases": 1,
+  "xmlHtmlDomAnchorPositioningReviewAssertions": 41
 }

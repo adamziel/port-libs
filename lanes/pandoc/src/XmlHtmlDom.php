@@ -17859,6 +17859,10 @@ final class XmlHtmlDom
             $summary['virtualKeyboardPolicyValid'] = $virtualKeyboardPolicy !== null;
         }
 
+        if (array_key_exists('anchor', $attributes)) {
+            $summary += self::anchorPositioningSummary($element, $attributes['anchor']);
+        }
+
         if (array_key_exists('popover', $attributes)) {
             $popover = self::popoverState($attributes['popover']);
             $summary['popoverRaw'] = $attributes['popover'];
@@ -17885,6 +17889,76 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function anchorPositioningSummary(\DOMElement $element, string $anchorRaw): array
+    {
+        $anchorTarget = trim($anchorRaw);
+        $anchorTargetValid = $anchorTarget !== '' && self::isHtmlIdReferenceToken($anchorTarget);
+        $target = $anchorTargetValid ? self::htmlElementById($element, $anchorTarget) : null;
+        $issues = [];
+
+        if ($anchorTarget === '') {
+            $issues[] = ['code' => 'missing-html-anchor-positioning-target'];
+        } elseif (!$anchorTargetValid) {
+            $issues[] = [
+                'code' => 'invalid-html-anchor-positioning-target',
+                'anchorRaw' => $anchorRaw,
+            ];
+        } elseif (!$target instanceof \DOMElement) {
+            $issues[] = [
+                'code' => 'missing-html-anchor-positioning-target-element',
+                'anchorTarget' => $anchorTarget,
+            ];
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'anchorPositioningReviewPolicy' => 'html-anchor-positioning-target-review',
+            'anchorRaw' => $anchorRaw,
+            'anchorTarget' => $anchorTarget === '' ? null : $anchorTarget,
+            'anchorTargetValid' => $anchorTargetValid,
+            'anchorTargetFound' => $target instanceof \DOMElement,
+            'anchorTargetKind' => self::anchorPositioningTargetKind($target, $anchorTarget, $anchorTargetValid),
+            'anchorTargetElement' => $target instanceof \DOMElement ? self::anchorPositioningTargetSummary($target) : null,
+            'anchorIssues' => $issues,
+            'anchorIssueCodes' => $issueCodes,
+            'anchorReferencesTarget' => $issues === [],
+        ];
+    }
+
+    private static function anchorPositioningTargetKind(
+        ?\DOMElement $target,
+        string $anchorTarget,
+        bool $anchorTargetValid
+    ): string {
+        if ($target instanceof \DOMElement) {
+            return 'element';
+        }
+        if ($anchorTarget === '') {
+            return 'missing-reference';
+        }
+
+        return $anchorTargetValid ? 'missing-target' : 'invalid-reference';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function anchorPositioningTargetSummary(\DOMElement $target): array
+    {
+        return [
+            'tag' => self::htmlElementName($target),
+            'id' => self::attributeOrNull($target, 'id'),
+            'text' => self::normalizedText($target),
+        ];
     }
 
     /**

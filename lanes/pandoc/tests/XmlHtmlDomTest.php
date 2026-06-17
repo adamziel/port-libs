@@ -6877,6 +6877,81 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/button-command-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html anchor positioning target provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<button id="badge">Badge anchor</button>'
+                . '<aside id="tooltip" anchor="badge" popover>Tooltip copy</aside>'
+                . '<div id="missing-panel" anchor="missing-anchor">Missing target</div>'
+                . '<div id="bad-panel" anchor="bad target">Bad target</div>'
+                . '<div id="empty-panel" anchor="">Empty target</div>',
+            'anchor positioning review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/anchor-positioning-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $anchorElement = $summary[0];
+        $tooltip = $summary[1];
+        $missing = $summary[2];
+        $bad = $summary[3];
+        $empty = $summary[4];
+
+        $t->same('button', $anchorElement['name']);
+        $t->same('badge', $anchorElement['elementId']);
+        $t->same('html-anchor-positioning-target-review', $tooltip['anchorPositioningReviewPolicy']);
+        $t->same('badge', $tooltip['anchorRaw']);
+        $t->same('badge', $tooltip['anchorTarget']);
+        $t->same(true, $tooltip['anchorTargetValid']);
+        $t->same(true, $tooltip['anchorTargetFound']);
+        $t->same('element', $tooltip['anchorTargetKind']);
+        $t->same('button', $tooltip['anchorTargetElement']['tag'] ?? null);
+        $t->same('badge', $tooltip['anchorTargetElement']['id'] ?? null);
+        $t->same('Badge anchor', $tooltip['anchorTargetElement']['text'] ?? null);
+        $t->same([], $tooltip['anchorIssues']);
+        $t->same([], $tooltip['anchorIssueCodes']);
+        $t->same(true, $tooltip['anchorReferencesTarget']);
+        $t->same('', $tooltip['popoverRaw']);
+        $t->same('auto', $tooltip['popoverState']);
+
+        $t->same('missing-anchor', $missing['anchorRaw']);
+        $t->same('missing-anchor', $missing['anchorTarget']);
+        $t->same(true, $missing['anchorTargetValid']);
+        $t->same(false, $missing['anchorTargetFound']);
+        $t->same('missing-target', $missing['anchorTargetKind']);
+        $t->same(null, $missing['anchorTargetElement']);
+        $t->same(['missing-html-anchor-positioning-target-element'], $missing['anchorIssueCodes']);
+        $t->same(false, $missing['anchorReferencesTarget']);
+
+        $t->same('bad target', $bad['anchorRaw']);
+        $t->same('bad target', $bad['anchorTarget']);
+        $t->same(false, $bad['anchorTargetValid']);
+        $t->same(false, $bad['anchorTargetFound']);
+        $t->same('invalid-reference', $bad['anchorTargetKind']);
+        $t->same(['invalid-html-anchor-positioning-target'], $bad['anchorIssueCodes']);
+        $t->same(false, $bad['anchorReferencesTarget']);
+
+        $t->same('', $empty['anchorRaw']);
+        $t->same(null, $empty['anchorTarget']);
+        $t->same(false, $empty['anchorTargetValid']);
+        $t->same(false, $empty['anchorTargetFound']);
+        $t->same('missing-reference', $empty['anchorTargetKind']);
+        $t->same(['missing-html-anchor-positioning-target'], $empty['anchorIssueCodes']);
+        $t->same(false, $empty['anchorReferencesTarget']);
+
+        $t->same(
+            '<button id="badge">Badge anchor</button>'
+                . '<aside anchor="badge" id="tooltip" popover="">Tooltip copy</aside>'
+                . '<div anchor="missing-anchor" id="missing-panel">Missing target</div>'
+                . '<div anchor="bad target" id="bad-panel">Bad target</div>'
+                . '<div anchor="" id="empty-panel">Empty target</div>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/anchor-positioning-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html insertion and deletion revision metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'

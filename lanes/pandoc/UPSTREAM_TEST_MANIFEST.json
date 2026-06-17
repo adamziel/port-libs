@@ -1005,7 +1005,9 @@
     "mappedMarkdownReaderAngleEmailDomainBoundaryCompletionCases": 12,
     "markdownReaderAngleEmailDomainBoundaryCompletionAssertions": 40,
     "mappedMarkdownReaderInlineNoteCitationFixtureCases": 1,
-    "markdownReaderInlineNoteCitationFixtureAssertions": 31
+    "markdownReaderInlineNoteCitationFixtureAssertions": 31,
+    "mappedXmlHtmlDomAnchorPositioningReviewCases": 1,
+    "xmlHtmlDomAnchorPositioningReviewAssertions": 41
   },
   "benchmarkDenominator": {
     "status": "Markdown reader inline-note citation fixture is verified after rebase onto current main e9ad72a84d; phpPass is 16936 and phpFail remains 0.",
@@ -2987,5 +2989,7 @@
   "mappedMarkdownReaderAngleEmailDomainBoundaryCompletionCases": 12,
   "markdownReaderAngleEmailDomainBoundaryCompletionAssertions": 40,
   "mappedMarkdownReaderInlineNoteCitationFixtureCases": 1,
-  "markdownReaderInlineNoteCitationFixtureAssertions": 31
+  "markdownReaderInlineNoteCitationFixtureAssertions": 31,
+  "mappedXmlHtmlDomAnchorPositioningReviewCases": 1,
+  "xmlHtmlDomAnchorPositioningReviewAssertions": 41
 }
