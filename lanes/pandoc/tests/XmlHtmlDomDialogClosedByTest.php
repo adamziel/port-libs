@@ -36,8 +36,12 @@ return [
         $t->same('any', $light['dialogClosedByState']);
         $t->same(true, $light['dialogClosedByValid']);
         $t->same(false, $light['dialogClosedByDefaulted']);
+        $t->same(false, $light['dialogClosedByAutoState']);
+        $t->same(null, $light['dialogClosedByAutoReason']);
+        $t->same('any', $light['dialogClosedByComputedStaticState']);
         $t->same(true, $light['dialogCloseRequestAllowed']);
         $t->same(true, $light['dialogLightDismissAllowed']);
+        $t->same(false, $light['dialogDeveloperCloseRequired']);
         $t->same([], $light['dialogClosedByIssueCodes']);
         $t->same(['ok'], $light['dialogCloseValues']);
 
@@ -46,6 +50,8 @@ return [
         $t->same('close-request', $request['dialogClosedByState']);
         $t->same(true, $request['dialogClosedByValid']);
         $t->same(false, $request['dialogClosedByDefaulted']);
+        $t->same(false, $request['dialogClosedByAutoState']);
+        $t->same('closerequest', $request['dialogClosedByComputedStaticState']);
         $t->same(true, $request['dialogCloseRequestAllowed']);
         $t->same(false, $request['dialogLightDismissAllowed']);
 
@@ -53,16 +59,24 @@ return [
         $t->same('none', $locked['dialogClosedByKeyword']);
         $t->same('none', $locked['dialogClosedByState']);
         $t->same(true, $locked['dialogClosedByValid']);
+        $t->same('none', $locked['dialogClosedByComputedStaticState']);
         $t->same(false, $locked['dialogCloseRequestAllowed']);
         $t->same(false, $locked['dialogLightDismissAllowed']);
+        $t->same(true, $locked['dialogDeveloperCloseRequired']);
 
         $t->same('dismiss', $bad['dialogClosedByRaw']);
         $t->same(null, $bad['dialogClosedByKeyword']);
         $t->same('auto', $bad['dialogClosedByState']);
         $t->same(false, $bad['dialogClosedByValid']);
         $t->same(true, $bad['dialogClosedByDefaulted']);
+        $t->same(true, $bad['dialogClosedByAutoState']);
+        $t->same('invalid-value-default', $bad['dialogClosedByAutoReason']);
+        $t->same('closerequest', $bad['dialogClosedByAutoModalState']);
+        $t->same('none', $bad['dialogClosedByAutoModelessState']);
+        $t->same('none', $bad['dialogClosedByComputedStaticState']);
         $t->same(null, $bad['dialogCloseRequestAllowed']);
         $t->same(null, $bad['dialogLightDismissAllowed']);
+        $t->same([['code' => 'invalid-dialog-closedby', 'closedByRaw' => 'dismiss']], $bad['dialogClosedByIssues']);
         $t->same(['invalid-dialog-closedby'], $bad['dialogClosedByIssueCodes']);
 
         $t->same(null, $plain['dialogClosedByRaw']);
@@ -70,6 +84,13 @@ return [
         $t->same('auto', $plain['dialogClosedByState']);
         $t->same(null, $plain['dialogClosedByValid']);
         $t->same(true, $plain['dialogClosedByDefaulted']);
+        $t->same(true, $plain['dialogClosedByAutoState']);
+        $t->same('missing-value-default', $plain['dialogClosedByAutoReason']);
+        $t->same('closerequest', $plain['dialogClosedByAutoModalState']);
+        $t->same('none', $plain['dialogClosedByAutoModelessState']);
+        $t->same('none', $plain['dialogClosedByComputedStaticState']);
+        $t->same(true, $plain['dialogDeveloperCloseRequired']);
+        $t->same([], $plain['dialogClosedByIssues']);
         $t->same([], $plain['dialogClosedByIssueCodes']);
 
         $t->same('p', $notDialog['name']);

@@ -23164,7 +23164,16 @@ final class XmlHtmlDom
             default => null,
         };
         $defaulted = $raw === null || $state === null;
-        $issues = $raw !== null && $state === null ? ['invalid-dialog-closedby'] : [];
+        $issueRecords = $raw !== null && $state === null
+            ? [['code' => 'invalid-dialog-closedby', 'closedByRaw' => $raw]]
+            : [];
+        $issues = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issueRecords
+        )));
+        $computedStaticState = $defaulted
+            ? 'none'
+            : ($state === 'close-request' ? 'closerequest' : $state);
 
         return [
             'dialogClosedByReviewPolicy' => 'html-dialog-closedby-policy-review',
@@ -23173,6 +23182,13 @@ final class XmlHtmlDom
             'dialogClosedByState' => $state ?? 'auto',
             'dialogClosedByValid' => $raw === null ? null : $state !== null,
             'dialogClosedByDefaulted' => $defaulted,
+            'dialogClosedByAutoState' => $defaulted,
+            'dialogClosedByAutoReason' => $defaulted
+                ? ($raw === null ? 'missing-value-default' : 'invalid-value-default')
+                : null,
+            'dialogClosedByAutoModalState' => $defaulted ? 'closerequest' : null,
+            'dialogClosedByAutoModelessState' => $defaulted ? 'none' : null,
+            'dialogClosedByComputedStaticState' => $computedStaticState,
             'dialogCloseRequestAllowed' => match ($state) {
                 'any', 'close-request' => true,
                 'none' => false,
@@ -23183,6 +23199,8 @@ final class XmlHtmlDom
                 'close-request', 'none' => false,
                 default => null,
             },
+            'dialogDeveloperCloseRequired' => $computedStaticState === 'none',
+            'dialogClosedByIssues' => $issueRecords,
             'dialogClosedByIssueCodes' => $issues,
         ];
     }
