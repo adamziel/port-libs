@@ -245,6 +245,8 @@
   "xmlHtmlDomFocusNavigationAssertions": 34,
   "mappedXmlHtmlDomSpellcheckInheritanceCases": 1,
   "xmlHtmlDomSpellcheckInheritanceAssertions": 33,
+  "mappedXmlHtmlDomInertInheritanceCases": 1,
+  "xmlHtmlDomInertInheritanceAssertions": 30,
   "mappedXmlHtmlDomContentEditableInheritanceCases": 1,
   "xmlHtmlDomContentEditableInheritanceAssertions": 33,
   "mappedXmlHtmlDomWritingAssistanceCases": 1,

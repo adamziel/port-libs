@@ -17712,6 +17712,8 @@ final class XmlHtmlDom
             $summary['inert'] = true;
         }
 
+        $summary += self::effectiveInertSummary($element, $attributes);
+
         if (array_key_exists('translate', $attributes)) {
             $translate = self::htmlTranslateState($attributes['translate']);
             $summary['translateRaw'] = $attributes['translate'];
@@ -17959,6 +17961,50 @@ final class XmlHtmlDom
             'id' => self::attributeOrNull($target, 'id'),
             'text' => self::normalizedText($target),
         ];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveInertSummary(\DOMElement $element, array $attributes): array
+    {
+        if (array_key_exists('inert', $attributes)) {
+            return self::inertProvenanceSummary($element, $attributes['inert'], false);
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (array_key_exists('inert', $ancestorAttributes)) {
+                return self::inertProvenanceSummary($ancestor, $ancestorAttributes['inert'], true);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function inertProvenanceSummary(
+        \DOMElement $source,
+        string $raw,
+        bool $inherited
+    ): array {
+        $summary = [
+            'effectiveInertRaw' => $raw,
+            'effectiveInert' => true,
+            'inertInherited' => $inherited,
+            'inertSource' => $inherited ? 'ancestor-inert' : 'self-inert',
+            'inertSourceElement' => self::htmlElementName($source),
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['inertSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
     }
 
     /**

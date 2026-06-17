@@ -130,6 +130,8 @@
     "xmlHtmlDomDialogStateAssertions": 34,
     "mappedXmlHtmlDomSpellcheckInheritanceCases": 1,
     "xmlHtmlDomSpellcheckInheritanceAssertions": 33,
+    "mappedXmlHtmlDomInertInheritanceCases": 1,
+    "xmlHtmlDomInertInheritanceAssertions": 30,
     "mappedXmlHtmlDomContentEditableInheritanceCases": 1,
     "xmlHtmlDomContentEditableInheritanceAssertions": 33,
     "mappedXmlHtmlDomTranslateInheritanceCases": 1,

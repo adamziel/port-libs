@@ -3843,6 +3843,61 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/spellcheck-inheritance-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes inherited html inert state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="modal-shell" inert><section id="body"><button id="cta">Save</button><span id="override" inert="false"><em id="nested">Nested</em></span></section></article>'
+                . '<section id="active"><button id="active-button">Active</button></section>',
+            'inert inheritance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/inert-inheritance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $body = $article['children'][0];
+        $button = $body['children'][0];
+        $override = $body['children'][1];
+        $nested = $override['children'][0];
+        $activeButton = $summary[1]['children'][0];
+
+        $t->same('article', $article['name']);
+        $t->same('', $article['inertRaw']);
+        $t->same(true, $article['inert']);
+        $t->same('', $article['effectiveInertRaw']);
+        $t->same(true, $article['effectiveInert']);
+        $t->same(false, $article['inertInherited']);
+        $t->same('self-inert', $article['inertSource']);
+
+        $t->true(!array_key_exists('inertRaw', $body));
+        $t->same(true, $body['effectiveInert']);
+        $t->same(true, $body['inertInherited']);
+        $t->same('article', $body['inertSourceElement']);
+        $t->same('modal-shell', $body['inertSourceElementId']);
+
+        $t->same(true, $button['effectiveInert']);
+        $t->same(true, $button['inertInherited']);
+        $t->same('modal-shell', $button['inertSourceElementId']);
+
+        $t->same('false', $override['inertRaw']);
+        $t->same(true, $override['inert']);
+        $t->same('false', $override['effectiveInertRaw']);
+        $t->same(true, $override['effectiveInert']);
+        $t->same(false, $override['inertInherited']);
+        $t->same('self-inert', $override['inertSource']);
+
+        $t->same(true, $nested['effectiveInert']);
+        $t->same(true, $nested['inertInherited']);
+        $t->same('span', $nested['inertSourceElement']);
+        $t->same('override', $nested['inertSourceElementId']);
+        $t->true(!array_key_exists('effectiveInert', $activeButton));
+        $t->contains('<article id="modal-shell" inert>', $html);
+        $t->contains('inert="false"', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/inert-inheritance-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes inherited html contenteditable state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="editor" contenteditable="plaintext-only"><p id="body">Body <span id="bad" contenteditable="maybe">Bad</span><span id="off" contenteditable="false"><em id="locked-child">Locked</em></span></p></article>'
