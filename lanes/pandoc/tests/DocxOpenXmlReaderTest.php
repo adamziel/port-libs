@@ -906,6 +906,52 @@ XML;
         $t->same(1, $byExtension['(none)']['missingContentTypePartCount']);
         $t->same(['customXml/no-extension'], $byExtension['(none)']['partNames']);
     },
+    'summarizes docx package part base names for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/item1.xml'] = '<customItem/>';
+        $parts['word/item1.xml'] = '<wordItem/>';
+        $parts['word/media/item1.xml'] = '<mediaItem/>';
+        $parts['customXml/review.png'] = 'custom review png bytes';
+        $parts['customXml/no-type.bin'] = 'untyped base-name bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $byBaseName = [];
+        foreach ($summary['partBaseNames'] as $baseName) {
+            $byBaseName[$baseName['baseName']] = $baseName;
+        }
+
+        $t->same(10, $summary['partBaseNameCount']);
+        $t->same(2, $summary['duplicatePartBaseNameCount']);
+        $t->same(['item1.xml', 'review.png'], $summary['duplicatePartBaseNames']);
+
+        $t->same(3, $byBaseName['item1.xml']['partCount']);
+        $t->same(
+            strlen($parts['customXml/item1.xml']) + strlen($parts['word/item1.xml']) + strlen($parts['word/media/item1.xml']),
+            $byBaseName['item1.xml']['byteLength']
+        );
+        $t->same(['customXml', 'word', 'word/media'], $byBaseName['item1.xml']['directories']);
+        $t->same(['customXml/item1.xml', 'word/item1.xml', 'word/media/item1.xml'], $byBaseName['item1.xml']['partNames']);
+        $t->same(['default' => 3], $byBaseName['item1.xml']['contentTypeSourceCounts']);
+        $t->same(['application/xml' => 3], $byBaseName['item1.xml']['contentTypeBaseCounts']);
+        $t->same(['package-part' => 3], $byBaseName['item1.xml']['roleCounts']);
+        $t->same('customXml/item1.xml', $byBaseName['item1.xml']['largestPart']['partName']);
+        $t->same(hash('sha256', $parts['customXml/item1.xml']), $byBaseName['item1.xml']['largestPart']['sha256']);
+
+        $t->same(2, $byBaseName['review.png']['partCount']);
+        $t->same(['customXml', 'word/media'], $byBaseName['review.png']['directories']);
+        $t->same(['image/png' => 2], $byBaseName['review.png']['contentTypeBaseCounts']);
+        $t->same(['default' => 2], $byBaseName['review.png']['contentTypeSourceCounts']);
+        $t->same(['document-relationship-target' => 1, 'package-part' => 1], $byBaseName['review.png']['roleCounts']);
+        $t->same('customXml/review.png', $byBaseName['review.png']['largestPart']['partName']);
+
+        $t->same(1, $byBaseName['no-type.bin']['partCount']);
+        $t->same(1, $byBaseName['no-type.bin']['missingContentTypePartCount']);
+        $t->same(['(missing)' => 1], $byBaseName['no-type.bin']['contentTypeBaseCounts']);
+        $t->same(['missing' => 1], $byBaseName['no-type.bin']['contentTypeSourceCounts']);
+        $t->same(['package-part' => 1], $byBaseName['no-type.bin']['roleCounts']);
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

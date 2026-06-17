@@ -9642,6 +9642,13 @@ final class DocxOpenXmlReader
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
+        $partBaseNames = $this->packagePartBaseNameSummary($partInventory);
+        $duplicatePartBaseNames = [];
+        foreach ($partBaseNames as $baseNameSummary) {
+            if ((int) ($baseNameSummary['partCount'] ?? 0) > 1) {
+                $duplicatePartBaseNames[] = (string) ($baseNameSummary['baseName'] ?? '');
+            }
+        }
         $partContentTypes = $this->packagePartContentTypeSummary($partInventory);
         $largestParts = $this->largestPackagePartSummary($partInventory);
         $largestPart = $largestParts[0] ?? null;
@@ -10340,6 +10347,9 @@ final class DocxOpenXmlReader
                 $deepestParts,
             )),
             'partExtensionCount' => count($partExtensions),
+            'partBaseNameCount' => count($partBaseNames),
+            'duplicatePartBaseNameCount' => count($duplicatePartBaseNames),
+            'duplicatePartBaseNames' => $duplicatePartBaseNames,
             'partContentTypeCount' => count($partContentTypes),
             'packageByteLength' => $packageByteLength,
             'largestPartCount' => count($largestParts),
@@ -10468,6 +10478,7 @@ final class DocxOpenXmlReader
             'partPathDepths' => $partPathDepths,
             'deepestParts' => $deepestParts,
             'partExtensions' => $partExtensions,
+            'partBaseNames' => $partBaseNames,
             'partContentTypes' => $partContentTypes,
             'largestPart' => $largestPart,
             'largestParts' => $largestParts,
@@ -10814,6 +10825,98 @@ final class DocxOpenXmlReader
         }
 
         return array_values($extensions);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartBaseNameSummary(array $partInventory): array
+    {
+        $baseNames = [];
+        foreach ($partInventory as $partName => $part) {
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName((string) $partName);
+            if (!isset($baseNames[$baseName])) {
+                $baseNames[$baseName] = [
+                    'baseName' => $baseName,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'directories' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$baseNames[$baseName]['partCount'];
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $baseNames[$baseName]['byteLength'] += $bytes;
+            $baseNames[$baseName]['partNames'][] = (string) $partName;
+            $this->appendUniqueString(
+                $baseNames[$baseName]['directories'],
+                is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory((string) $partName),
+            );
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$baseNames[$baseName]['relationshipPartCount'];
+            }
+
+            $contentTypeSource = (string) ($part['contentTypeSource'] ?? 'missing');
+            if ($contentTypeSource === 'missing') {
+                ++$baseNames[$baseName]['missingContentTypePartCount'];
+            }
+            $baseNames[$baseName]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($baseNames[$baseName]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $baseNames[$baseName]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($baseNames[$baseName]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $baseNames[$baseName]['roleCounts'][$role] =
+                    ($baseNames[$baseName]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory((string) $partName),
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $baseNames[$baseName]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $baseNames[$baseName]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($baseNames, SORT_STRING);
+        foreach ($baseNames as $baseName => $summary) {
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            sort($summary['directories'], SORT_STRING);
+            $baseNames[$baseName] = $summary;
+        }
+
+        return array_values($baseNames);
     }
 
     /**
