@@ -2647,6 +2647,68 @@ XML;
         $t->true(in_array('root-relationship-target', $package['parts']['_xmlsignatures/origin.sigs']['roles'], true), 'signature origin root target role missing');
         $t->true(in_array('relationship-target', $package['parts']['_xmlsignatures/sig1.xml']['roles'], true), 'signature XML relationship target role missing');
     },
+    'preserves docx digital signature package SHA-256 provenance for review handoff' => static function (TestRunner $t): void {
+        $originType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
+        $signatureType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+        $originBytes = "signed package origin bytes\n";
+        $signatureXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/document.xml">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>digest</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+  <ds:SignatureValue>value</ds:SignatureValue>
+</ds:Signature>
+XML;
+
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>' . "\n" .
+            '  <Override PartName="/_xmlsignatures/review-signature.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSignedOrigin" Type="' . $originType . '" Target="_xmlsignatures/origin.sigs"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['_xmlsignatures/origin.sigs'] = $originBytes;
+        $parts['_xmlsignatures/_rels/origin.sigs.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSignedPackage" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="review-signature.xml"/>
+</Relationships>
+XML;
+        $parts['_xmlsignatures/review-signature.xml'] = $signatureXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $signatures = $document->attr('docx')['packageProvenance']['digitalSignatures'];
+        $origin = $signatures['byOriginRelationshipId']['rSignedOrigin'];
+        $signature = $signatures['bySignatureRelationshipId']['rSignedPackage'];
+        $nestedSignature = $origin['signatures']['byRelationshipId']['rSignedPackage'];
+
+        $t->same(true, $signatures['present']);
+        $t->same(1, $signatures['originCount']);
+        $t->same(1, $signatures['signatureCount']);
+        $t->same('_xmlsignatures/origin.sigs', $origin['targetPart']);
+        $t->same(sprintf('%08x', crc32($originBytes)), $origin['crc32']);
+        $t->same(hash('sha256', $originBytes), $origin['sha256']);
+        $t->same('_xmlsignatures/review-signature.xml', $signature['targetPart']);
+        $t->same(sprintf('%08x', crc32($signatureXml)), $signature['crc32']);
+        $t->same(hash('sha256', $signatureXml), $signature['sha256']);
+        $t->same($signature['sha256'], $nestedSignature['sha256']);
+        $t->same(true, $signature['validXml']);
+        $t->same(true, $signature['validRoot']);
+        $t->same(false, $signature['cryptographicValidation']);
+        $t->same([], $signatures['issueCodes']);
+        $t->same('digital-signature-metadata-only', $signatures['reviewPolicy']);
+    },
     'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
