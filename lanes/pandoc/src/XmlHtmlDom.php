@@ -18225,7 +18225,63 @@ final class XmlHtmlDom
             $summary['directionSourceElementId'] = $sourceId;
         }
 
+        if ($direction === 'auto') {
+            $summary += self::directionAutoResolutionSummary($source);
+        }
+
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function directionAutoResolutionSummary(\DOMElement $source): array
+    {
+        $text = self::normalizedText($source);
+        $firstStrong = self::firstStrongTextDirection($text);
+
+        return [
+            'directionAutoReviewPolicy' => 'html-dir-auto-first-strong-review',
+            'directionAutoTextLength' => strlen($text),
+            'directionAutoHasStrongCharacter' => $firstStrong['direction'] !== null,
+            'directionAutoResolved' => $firstStrong['direction'],
+            'directionAutoFirstStrongCharacter' => $firstStrong['character'],
+            'directionAutoFirstStrongOffset' => $firstStrong['offset'],
+        ];
+    }
+
+    /**
+     * @return array{direction:'ltr'|'rtl'|null, character:string|null, offset:int|null}
+     */
+    private static function firstStrongTextDirection(string $text): array
+    {
+        $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+        if (!is_array($characters)) {
+            return ['direction' => null, 'character' => null, 'offset' => null];
+        }
+
+        foreach ($characters as $offset => $character) {
+            if (self::isRtlStrongCharacter($character)) {
+                return ['direction' => 'rtl', 'character' => $character, 'offset' => $offset];
+            }
+
+            if (self::isLtrStrongCharacter($character)) {
+                return ['direction' => 'ltr', 'character' => $character, 'offset' => $offset];
+            }
+        }
+
+        return ['direction' => null, 'character' => null, 'offset' => null];
+    }
+
+    private static function isRtlStrongCharacter(string $character): bool
+    {
+        return preg_match('/^[\x{0590}-\x{08FF}\x{FB1D}-\x{FDFF}\x{FE70}-\x{FEFF}]$/u', $character) === 1;
+    }
+
+    private static function isLtrStrongCharacter(string $character): bool
+    {
+        return preg_match('/^\p{L}$/u', $character) === 1
+            && !self::isRtlStrongCharacter($character);
     }
 
     private static function htmlDirectionState(string $value): ?string

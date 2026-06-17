@@ -4088,6 +4088,69 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/language-direction-inheritance-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html dir auto first-strong provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="latin" dir="auto">123 Review <span>body</span></section>'
+                . '<section id="hebrew" dir="AUTO">123 שלום</section>'
+                . '<section id="neutral" dir="auto">123 !?</section>'
+                . '<article id="ancestor" dir="auto">-- مراجعة <p id="child">Inherited child</p></article>',
+            'dir auto first-strong review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/dir-auto-first-strong-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $latin = $summary[0];
+        $hebrew = $summary[1];
+        $neutral = $summary[2];
+        $ancestor = $summary[3];
+        $child = $ancestor['children'][1];
+
+        $t->same('auto', $latin['dirRaw']);
+        $t->same('auto', $latin['direction']);
+        $t->same('auto', $latin['effectiveDirection']);
+        $t->same('html-dir-auto-first-strong-review', $latin['directionAutoReviewPolicy']);
+        $t->same(true, $latin['directionAutoHasStrongCharacter']);
+        $t->same('ltr', $latin['directionAutoResolved']);
+        $t->same('R', $latin['directionAutoFirstStrongCharacter']);
+        $t->same(4, $latin['directionAutoFirstStrongOffset']);
+        $t->same(strlen('123 Review body'), $latin['directionAutoTextLength']);
+
+        $t->same('AUTO', $hebrew['dirRaw']);
+        $t->same('auto', $hebrew['direction']);
+        $t->same('rtl', $hebrew['directionAutoResolved']);
+        $t->same('ש', $hebrew['directionAutoFirstStrongCharacter']);
+        $t->same(4, $hebrew['directionAutoFirstStrongOffset']);
+
+        $t->same('auto', $neutral['effectiveDirection']);
+        $t->same(false, $neutral['directionAutoHasStrongCharacter']);
+        $t->same(null, $neutral['directionAutoResolved']);
+        $t->same(null, $neutral['directionAutoFirstStrongCharacter']);
+        $t->same(null, $neutral['directionAutoFirstStrongOffset']);
+
+        $t->same('article', $ancestor['directionSourceElement']);
+        $t->same(false, $ancestor['directionInherited']);
+        $t->same('rtl', $ancestor['directionAutoResolved']);
+        $t->same('م', $ancestor['directionAutoFirstStrongCharacter']);
+        $t->same(3, $ancestor['directionAutoFirstStrongOffset']);
+
+        $t->same('p', $child['name']);
+        $t->same('auto', $child['effectiveDirection']);
+        $t->same(true, $child['directionInherited']);
+        $t->same('ancestor-dir', $child['directionSource']);
+        $t->same('article', $child['directionSourceElement']);
+        $t->same('ancestor', $child['directionSourceElementId']);
+        $t->same('rtl', $child['directionAutoResolved']);
+        $t->same('م', $child['directionAutoFirstStrongCharacter']);
+        $t->same(3, $child['directionAutoFirstStrongOffset']);
+
+        $t->same('<section dir="auto" id="latin">123 Review <span>body</span></section><section dir="AUTO" id="hebrew">123 שלום</section><section dir="auto" id="neutral">123 !?</section><article dir="auto" id="ancestor">-- مراجعة <p id="child">Inherited child</p></article>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/dir-auto-first-strong-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes inherited html spellcheck state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="checked" spellcheck="false"><p id="body"><span id="invalid" spellcheck="maybe">Invalid</span><span id="enabled" spellcheck="true"><em id="enabled-child">Enabled</em></span></p></article>'
