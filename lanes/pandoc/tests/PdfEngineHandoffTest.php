@@ -363,6 +363,11 @@ return [
             'systemFontAccessFlagCount' => 1,
             'embeddedFontAccessDisabled' => true,
             'embeddedFontAccessFlagCount' => 1,
+            'outputFormatControlCount' => 0,
+            'outputFormatEntryCount' => 0,
+            'outputFormatOptionCount' => 0,
+            'distinctOutputFormatCount' => 0,
+            'outputFormatIssueCount' => 0,
             'pdfExportControlCount' => 3,
             'featureGateCount' => 2,
             'executionPolicyPresent' => true,
@@ -410,6 +415,47 @@ return [
         $t->same(hash('sha256', $depfile), $result['producedArtifactsSha256']['build/boundary-summary.d']);
         $t->same(hash('sha256', $timingsBytes), $result['producedArtifactsSha256']['build/boundary-summary-timings.json']);
         $t->same($expectedSummary, $sequence['finalTypstBoundarySummary']);
+    },
+
+    'summarizes typst output format boundary controls' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/format-summary.pdf',
+            'source' => '= Typst Format Summary Packet',
+            'engineOptions' => [
+                '--format=svg',
+                '--format',
+                'pdf',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst output format summary packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/format-summary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/format-summary.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $summary = $plan['typstBoundarySummary'];
+
+        $t->same('review', $summary['reviewStatus']);
+        $t->same(1, $summary['outputFormatControlCount']);
+        $t->same(2, $summary['outputFormatEntryCount']);
+        $t->same(2, $summary['outputFormatOptionCount']);
+        $t->same(2, $summary['distinctOutputFormatCount']);
+        $t->same(3, $summary['outputFormatIssueCount']);
+        $t->same(2, $summary['issueCount']);
+        $t->contains('typst-boundary-summary-output-formats:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($summary, $result['typstBoundarySummary']);
+        $t->same($summary, $result['artifactProvenanceReview']['typstBoundarySummary']);
+        $t->same($summary, $sequence['finalTypstBoundarySummary']);
     },
 
     'plans typst font path list boundary provenance without executing' => static function (TestRunner $t) use ($document): void {

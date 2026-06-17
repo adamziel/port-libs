@@ -594,6 +594,9 @@ final class PdfEngineHandoff
             if ($typstBoundarySummary['fontAccessControlCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-font-access-controls:' . $typstBoundarySummary['fontAccessControlCount'];
             }
+            if (($typstBoundarySummary['outputFormatEntryCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-output-formats:' . $typstBoundarySummary['outputFormatEntryCount'];
+            }
             if ($typstBoundarySummary['issueCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-issues:' . $typstBoundarySummary['issueCount'];
             }
@@ -7648,6 +7651,27 @@ final class PdfEngineHandoff
         $embeddedFontAccessDisabled = ($embeddedFontAccess['embeddedFontAccess'] ?? null) === 'disabled';
         $systemFontAccessFlagCount = is_int($systemFontAccess['flagCount'] ?? null) ? $systemFontAccess['flagCount'] : 0;
         $embeddedFontAccessFlagCount = is_int($embeddedFontAccess['flagCount'] ?? null) ? $embeddedFontAccess['flagCount'] : 0;
+        $outputFormat = is_array($provenance['outputFormat'] ?? null) ? $provenance['outputFormat'] : [];
+        $outputFormatPolicy = is_array($provenance['outputFormatPolicy'] ?? null) ? $provenance['outputFormatPolicy'] : [];
+        $outputFormatOptions = array_values(array_filter(
+            is_array($outputFormatPolicy['formatOptions'] ?? null) ? $outputFormatPolicy['formatOptions'] : [],
+            static fn (mixed $format): bool => is_string($format) && $format !== ''
+        ));
+        $distinctOutputFormats = array_values(array_filter(
+            is_array($outputFormatPolicy['distinctFormats'] ?? null) ? $outputFormatPolicy['distinctFormats'] : [],
+            static fn (mixed $format): bool => is_string($format) && $format !== ''
+        ));
+        if ($distinctOutputFormats === [] && $outputFormatOptions !== []) {
+            $distinctOutputFormats = array_values(array_unique($outputFormatOptions));
+            sort($distinctOutputFormats);
+        }
+        $outputFormatIssues = array_values(array_filter(
+            is_array($outputFormatPolicy['issues'] ?? null) ? $outputFormatPolicy['issues'] : [],
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        ));
+        $outputFormatEntryCount = is_int($outputFormatPolicy['formatEntryCount'] ?? null)
+            ? $outputFormatPolicy['formatEntryCount']
+            : (int) ($outputFormat !== []);
         $pdfExport = is_array($provenance['pdfExport'] ?? null) ? $provenance['pdfExport'] : [];
         $pdfExportControlCount = 0;
         foreach ([
@@ -7701,6 +7725,11 @@ final class PdfEngineHandoff
             'systemFontAccessFlagCount' => $systemFontAccessFlagCount,
             'embeddedFontAccessDisabled' => $embeddedFontAccessDisabled,
             'embeddedFontAccessFlagCount' => $embeddedFontAccessFlagCount,
+            'outputFormatControlCount' => (int) ($outputFormat !== []),
+            'outputFormatEntryCount' => $outputFormatEntryCount,
+            'outputFormatOptionCount' => count($outputFormatOptions),
+            'distinctOutputFormatCount' => count($distinctOutputFormats),
+            'outputFormatIssueCount' => count($outputFormatIssues),
             'pdfExportControlCount' => $pdfExportControlCount,
             'featureGateCount' => is_array($provenance['featureGates'] ?? null) && is_int($provenance['featureGates']['featureCount'] ?? null) ? $provenance['featureGates']['featureCount'] : 0,
             'executionPolicyPresent' => is_array($provenance['executionPolicy'] ?? null),
