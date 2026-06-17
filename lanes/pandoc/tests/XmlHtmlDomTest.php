@@ -9003,6 +9003,71 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/link-resource-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html link blocking token provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<link rel="stylesheet preload" href="/critical.css" as="style" blocking="render render custom">'
+                . '<link rel="preconnect" href="https://fonts.example" blocking="layout">'
+                . '<link rel="author" href="/about" blocking>'
+                . '<link rel="stylesheet" href="/plain.css">',
+            'link blocking review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/link-blocking-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $critical = $summary[0];
+        $preconnect = $summary[1];
+        $emptyBlocking = $summary[2];
+        $plain = $summary[3];
+
+        $t->same('render render custom', $critical['blockingRaw']);
+        $t->same(['render', 'render', 'custom'], $critical['blockingTokens']);
+        $t->same('link-render-blocking-token-review', $critical['linkBlockingReviewPolicy']);
+        $t->same(true, $critical['linkBlockingAttributePresent']);
+        $t->same(['render', 'render', 'custom'], $critical['linkBlockingTokens']);
+        $t->same(['render' => 2, 'custom' => 1], $critical['linkBlockingTokenCounts']);
+        $t->same(['render'], $critical['duplicateLinkBlockingTokens']);
+        $t->same(['custom'], $critical['invalidLinkBlockingTokens']);
+        $t->same(true, $critical['linkRenderBlockingTokenPresent']);
+        $t->same(true, $critical['linkRenderBlockingResourceCandidate']);
+        $t->same('declared-render-blocking-resource', $critical['linkBlockingReviewKind']);
+        $t->same([
+            ['code' => 'invalid-link-blocking-token', 'blockingToken' => 'custom', 'count' => 1],
+            ['code' => 'duplicate-link-blocking-token', 'blockingToken' => 'render', 'count' => 2],
+        ], $critical['linkIssues']);
+        $t->same(['stylesheet', 'preload'], $critical['linkResourceKinds']);
+
+        $t->same(['layout' => 1], $preconnect['linkBlockingTokenCounts']);
+        $t->same(['layout'], $preconnect['invalidLinkBlockingTokens']);
+        $t->same([], $preconnect['duplicateLinkBlockingTokens']);
+        $t->same(false, $preconnect['linkRenderBlockingTokenPresent']);
+        $t->same(false, $preconnect['linkRenderBlockingResourceCandidate']);
+        $t->same('declared-non-render-token', $preconnect['linkBlockingReviewKind']);
+        $t->same([
+            ['code' => 'invalid-link-blocking-token', 'blockingToken' => 'layout', 'count' => 1],
+        ], $preconnect['linkIssues']);
+
+        $t->same(false, $emptyBlocking['linkHrefRequired']);
+        $t->same('', $emptyBlocking['blockingRaw']);
+        $t->same([], $emptyBlocking['linkBlockingTokens']);
+        $t->same([], $emptyBlocking['linkBlockingTokenCounts']);
+        $t->same(true, $emptyBlocking['linkBlockingAttributePresent']);
+        $t->same('empty-blocking-attribute', $emptyBlocking['linkBlockingReviewKind']);
+        $t->same([], $emptyBlocking['linkIssues']);
+
+        $t->same(null, $plain['blockingRaw']);
+        $t->same(false, $plain['linkBlockingAttributePresent']);
+        $t->same('not-declared', $plain['linkBlockingReviewKind']);
+        $t->same(true, $plain['linkRenderBlockingResourceCandidate']);
+        $t->same([], $plain['linkIssues']);
+
+        $t->same('<link as="style" blocking="render render custom" href="/critical.css" rel="stylesheet preload"><link blocking="layout" href="https://fonts.example" rel="preconnect"><link blocking="" href="/about" rel="author"><link href="/plain.css" rel="stylesheet">', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/link-blocking-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html figure caption state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<figure id="fig-review"><img src="chart.png" alt="Quarterly chart"><figcaption>Figure <strong>one</strong>: imports</figcaption><p>Fallback note</p><figcaption>Extra caption</figcaption></figure>'

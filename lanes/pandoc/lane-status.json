@@ -564,6 +564,8 @@
   "docxOpenXmlActiveXVbaSha256Assertions": 5,
   "mappedXmlHtmlDomLinkResourceReviewCases": 1,
   "xmlHtmlDomLinkResourceReviewAssertions": 38,
+  "mappedXmlHtmlDomLinkBlockingReviewCases": 1,
+  "xmlHtmlDomLinkBlockingReviewAssertions": 35,
   "mappedJsonNativeCiteSourceInlineCases": 1,
   "jsonNativeCiteSourceInlineAssertions": 36,
   "mappedDocxOpenXmlNoteInventoryRoleCases": 1,

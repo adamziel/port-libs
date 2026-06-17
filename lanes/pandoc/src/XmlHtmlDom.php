@@ -15150,6 +15150,7 @@ final class XmlHtmlDom
         if ($name === 'link') {
             $relRaw = self::attributeOrNull($element, 'rel');
             $imageSrcset = self::attributeOrNull($element, 'imagesrcset');
+            $blockingRaw = self::attributeOrNull($element, 'blocking');
 
             $summary = [
                 'documentMetadata' => 'link',
@@ -15168,6 +15169,8 @@ final class XmlHtmlDom
                 'imageSrcsetCandidates' => self::srcsetCandidateSummaries($imageSrcset),
                 'imageSizes' => self::attributeOrNull($element, 'imagesizes'),
                 'fetchpriority' => self::attributeOrNull($element, 'fetchpriority'),
+                'blockingRaw' => $blockingRaw,
+                'blockingTokens' => $blockingRaw === null ? [] : self::spaceSeparatedTokens($blockingRaw),
             ];
 
             return $summary + self::linkResourceReviewSummary($element, $relRaw);
@@ -15298,6 +15301,32 @@ final class XmlHtmlDom
         $preloadAsValid = !$hasPreload || ($as !== null && isset($preloadDestinations[$as]));
         $href = self::attributeOrNull($link, 'href');
         $hrefRequired = $resourceRelTokens !== [];
+        $blockingRaw = self::attributeOrNull($link, 'blocking');
+        $blockingTokens = $blockingRaw === null ? [] : self::spaceSeparatedTokens($blockingRaw);
+        $blockingTokenCounts = [];
+        foreach ($blockingTokens as $token) {
+            $lower = strtolower($token);
+            $blockingTokenCounts[$lower] = ($blockingTokenCounts[$lower] ?? 0) + 1;
+        }
+        $invalidBlockingTokens = array_values(array_filter(
+            array_keys($blockingTokenCounts),
+            static fn (string $token): bool => $token !== 'render'
+        ));
+        $duplicateBlockingTokens = array_values(array_filter(
+            array_keys($blockingTokenCounts),
+            static fn (string $token): bool => $blockingTokenCounts[$token] > 1
+        ));
+        $renderBlockingTokenPresent = isset($blockingTokenCounts['render']);
+        $renderBlockingResourceCandidate = in_array('stylesheet', $resourceKinds, true)
+            || in_array('preload', $resourceKinds, true)
+            || in_array('modulepreload', $resourceKinds, true);
+        $blockingReviewKind = match (true) {
+            $blockingRaw === null => 'not-declared',
+            $blockingTokens === [] => 'empty-blocking-attribute',
+            $renderBlockingTokenPresent && $renderBlockingResourceCandidate => 'declared-render-blocking-resource',
+            $renderBlockingTokenPresent => 'declared-render-blocking-non-resource',
+            default => 'declared-non-render-token',
+        };
         $issues = [];
 
         foreach ($invalid as $token) {
@@ -15313,6 +15342,20 @@ final class XmlHtmlDom
             $issues[] = ['code' => 'missing-preload-as'];
         } elseif ($hasPreload && !isset($preloadDestinations[$as])) {
             $issues[] = ['code' => 'invalid-preload-as', 'asRaw' => $asRaw];
+        }
+        foreach ($invalidBlockingTokens as $token) {
+            $issues[] = [
+                'code' => 'invalid-link-blocking-token',
+                'blockingToken' => $token,
+                'count' => $blockingTokenCounts[$token],
+            ];
+        }
+        foreach ($duplicateBlockingTokens as $token) {
+            $issues[] = [
+                'code' => 'duplicate-link-blocking-token',
+                'blockingToken' => $token,
+                'count' => $blockingTokenCounts[$token],
+            ];
         }
 
         return [
@@ -15332,6 +15375,15 @@ final class XmlHtmlDom
             'preloadAs' => $as === '' ? null : $as,
             'preloadAsRequired' => $hasPreload,
             'preloadAsValid' => $preloadAsValid,
+            'linkBlockingReviewPolicy' => 'link-render-blocking-token-review',
+            'linkBlockingAttributePresent' => $blockingRaw !== null,
+            'linkBlockingTokens' => $blockingTokens,
+            'linkBlockingTokenCounts' => $blockingTokenCounts,
+            'duplicateLinkBlockingTokens' => $duplicateBlockingTokens,
+            'invalidLinkBlockingTokens' => $invalidBlockingTokens,
+            'linkRenderBlockingTokenPresent' => $renderBlockingTokenPresent,
+            'linkRenderBlockingResourceCandidate' => $renderBlockingResourceCandidate,
+            'linkBlockingReviewKind' => $blockingReviewKind,
             'linkIssues' => $issues,
         ];
     }
