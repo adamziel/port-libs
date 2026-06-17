@@ -5773,11 +5773,15 @@ XML;
         $t->same(1, $attached['unresolvedCount']);
         $t->same(0, $attached['unexpectedRelationshipTypeCount']);
         $t->same(0, $attached['missingContentTypeCount']);
-        $t->same(1, $attached['issueCount']);
+        $t->same(2, $attached['issueCount']);
+        $t->same(['external-target-unsafe-scheme', 'unknown-relationship'], $attached['issueCodes']);
         $t->same(['rTemplate', 'rUnknown', 'rExternalTemplate'], $attached['relationshipIds']);
         $t->same(['rTemplate', 'rUnknown'], $attached['referencedRelationshipIds']);
         $t->same(['rExternalTemplate'], $attached['unreferencedRelationshipIds']);
         $t->same(['docSettings/templates/review-template.dotx'], $attached['partNames']);
+        $t->same(['file:///C:/Templates/team.dotx'], $attached['externalTargets']);
+        $t->same('attached-template-bytes-blocked', $attached['byteExposurePolicy']);
+        $t->same('attached-template-metadata-only', $attached['reviewPolicy']);
 
         $t->same(0, $template['index']);
         $t->same(true, $template['referenced']);
@@ -5790,12 +5794,17 @@ XML;
         $t->same('?rev=7#template', $template['targetReferenceSuffix']);
         $t->same(true, $template['exists']);
         $t->same(strlen('template package bytes'), $template['bytes']);
+        $t->same(strlen('template package bytes'), $template['byteLength']);
+        $t->same(sprintf('%08x', crc32('template package bytes')), $template['crc32']);
+        $t->same(hash('sha256', 'template package bytes'), $template['sha256']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml; profile=attached-template', $template['contentType']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml', $template['contentTypeBase']);
         $t->same(['profile' => 'attached-template'], $template['contentTypeParameterMap']);
         $t->same('override', $template['contentTypeSource']);
         $t->same('docSettings/review-settings.xml', $template['settingsPart']);
         $t->same('docSettings/_rels/review-settings.xml.rels', $template['settingsRelationshipsPart']);
+        $t->same('attached-template-bytes-blocked', $template['byteExposurePolicy']);
+        $t->same('attached-template-metadata-only', $template['reviewPolicy']);
         $t->same([], $template['issues']);
 
         $t->same(1, $unknown['index']);
@@ -5812,7 +5821,11 @@ XML;
         $t->same(null, $external['targetPart']);
         $t->same(false, $external['exists']);
         $t->same('', $external['contentType']);
-        $t->same([], $external['issues']);
+        $t->same('absolute-uri', $external['externalTargetKind']);
+        $t->same('file', $external['externalTargetScheme']);
+        $t->same(false, $external['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $external['externalTargetIssues']);
+        $t->same(['external-target-unsafe-scheme'], $external['issues']);
 
         $t->same('docSettings/review-settings.xml', $settingsRelationshipsPart['sourcePart']);
         $t->same(true, $settingsRelationshipsPart['sourceExists']);
@@ -5828,10 +5841,164 @@ XML;
         $t->same(['docSettings/templates/review-template.dotx'], $templateRelationshipType['targetParts']);
         $t->same(['file:///C:/Templates/team.dotx'], $templateRelationshipType['externalTargets']);
         $t->true(in_array('relationship-target', $templateInventory['roles'], true), 'attached template inventory role missing');
+        $t->true(in_array('attached-template', $templateInventory['roles'], true), 'attached template inventory role missing');
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml', $templateInventory['contentTypeBase']);
         $t->same(3, $package['summary']['attachedTemplateCount']);
+        $t->same(2, $package['summary']['attachedTemplateRelationshipCount']);
+        $t->same(2, $package['summary']['attachedTemplateReferencedCount']);
+        $t->same(1, $package['summary']['attachedTemplateUnreferencedRelationshipCount']);
+        $t->same(1, $package['summary']['attachedTemplateInternalCount']);
         $t->same(1, $package['summary']['attachedTemplateExternalCount']);
-        $t->same(1, $package['summary']['attachedTemplateIssueCount']);
+        $t->same(1, $package['summary']['attachedTemplateExistingCount']);
+        $t->same(0, $package['summary']['attachedTemplateMissingCount']);
+        $t->same(1, $package['summary']['attachedTemplateUnresolvedCount']);
+        $t->same(0, $package['summary']['attachedTemplateUnexpectedRelationshipTypeCount']);
+        $t->same(0, $package['summary']['attachedTemplateMissingContentTypeCount']);
+        $t->same(2, $package['summary']['attachedTemplateIssueCount']);
+        $t->same(['external-target-unsafe-scheme', 'unknown-relationship'], $package['summary']['attachedTemplateIssueCodes']);
+    },
+    'preserves docx attached template digest policy and diagnostics for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $attachedTemplateRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $templateBytes = 'attached template review package bytes';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/templates/review-template.dotm" ContentType="application/vnd.ms-word.template.macroEnabledTemplate.main+xml; profile=attached-template"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:attachedTemplate r:id="rTemplate"/>
+  <w:attachedTemplate r:id="rMissingTemplate"/>
+  <w:attachedTemplate r:id="rWrongType"/>
+  <w:attachedTemplate/>
+</w:settings>
+XML;
+        $parts['word/_rels/settings.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rTemplate" Type="{$attachedTemplateRel}" Target="templates/review-template.dotm?version=2#attached"/>
+  <Relationship Id="rMissingTemplate" Type="{$attachedTemplateRel}" Target="templates/missing-template.dotx"/>
+  <Relationship Id="rUnsafeExternalTemplate" Type="{$attachedTemplateRel}" Target="file:///C:/Templates/review-template.dotm" TargetMode="External"/>
+  <Relationship Id="rAllowedExternalTemplate" Type="{$attachedTemplateRel}" Target="https://example.test/templates/review-template.dotx?channel=stable#remote" TargetMode="External"/>
+  <Relationship Id="rWrongType" Type="{$imageRel}" Target="media/review.png"/>
+</Relationships>
+XML;
+        $parts['word/templates/review-template.dotm'] = $templateBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $attached = $docx['attachedTemplates'];
+        $summary = $docx['packageProvenance']['summary'];
+        $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
+        $inventory = $docx['packageProvenance']['parts'];
+        $template = $attached['byRelationshipId']['rTemplate'];
+        $missing = $attached['byRelationshipId']['rMissingTemplate'];
+        $wrongType = $attached['byRelationshipId']['rWrongType'];
+        $missingId = $attached['items'][3];
+        $unsafeExternal = $attached['byRelationshipId']['rUnsafeExternalTemplate'];
+        $allowedExternal = $attached['byRelationshipId']['rAllowedExternalTemplate'];
+
+        $t->same(6, $attached['count']);
+        $t->same(4, $attached['relationshipCount']);
+        $t->same(4, $attached['referencedCount']);
+        $t->same(2, $attached['unreferencedRelationshipCount']);
+        $t->same(2, $attached['internalCount']);
+        $t->same(2, $attached['externalCount']);
+        $t->same(1, $attached['existingCount']);
+        $t->same(1, $attached['missingCount']);
+        $t->same(1, $attached['unresolvedCount']);
+        $t->same(1, $attached['unexpectedRelationshipTypeCount']);
+        $t->same(1, $attached['missingContentTypeCount']);
+        $t->same(5, $attached['issueCount']);
+        $t->same([
+            'external-target-unsafe-scheme',
+            'missing-content-type',
+            'missing-in-package',
+            'missing-relationship-id',
+            'unexpected-relationship-type',
+        ], $attached['issueCodes']);
+        $t->same(['rTemplate', 'rMissingTemplate', 'rWrongType', 'rUnsafeExternalTemplate', 'rAllowedExternalTemplate'], $attached['relationshipIds']);
+        $t->same(['rTemplate', 'rMissingTemplate', 'rWrongType'], $attached['referencedRelationshipIds']);
+        $t->same(['rUnsafeExternalTemplate', 'rAllowedExternalTemplate'], $attached['unreferencedRelationshipIds']);
+        $t->same(['word/templates/review-template.dotm', 'word/templates/missing-template.dotx', 'word/media/review.png'], $attached['partNames']);
+        $t->same([
+            'file:///C:/Templates/review-template.dotm',
+            'https://example.test/templates/review-template.dotx?channel=stable#remote',
+        ], $attached['externalTargets']);
+        $t->same('attached-template-bytes-blocked', $attached['byteExposurePolicy']);
+        $t->same('attached-template-metadata-only', $attached['reviewPolicy']);
+
+        $t->same('templates/review-template.dotm?version=2#attached', $template['target']);
+        $t->same('word/templates/review-template.dotm?version=2#attached', $template['resolvedTarget']);
+        $t->same('word/templates/review-template.dotm', $template['targetPart']);
+        $t->same('version=2', $template['targetQuery']);
+        $t->same('attached', $template['targetFragment']);
+        $t->same(strlen($templateBytes), $template['byteLength']);
+        $t->same(sprintf('%08x', crc32($templateBytes)), $template['crc32']);
+        $t->same(hash('sha256', $templateBytes), $template['sha256']);
+        $t->same('application/vnd.ms-word.template.macroEnabledTemplate.main+xml; profile=attached-template', $template['contentType']);
+        $t->same('application/vnd.ms-word.template.macroenabledtemplate.main+xml', $template['contentTypeBase']);
+        $t->same(['profile' => 'attached-template'], $template['contentTypeParameterMap']);
+        $t->same('attached-template-bytes-blocked', $template['byteExposurePolicy']);
+        $t->same('attached-template-metadata-only', $template['reviewPolicy']);
+        $t->same([], $template['issues']);
+
+        $t->same(['missing-in-package', 'missing-content-type'], $missing['issues']);
+        $t->same('word/templates/missing-template.dotx', $missing['targetPart']);
+        $t->same(false, $missing['exists']);
+        $t->same(null, $missing['sha256']);
+
+        $t->same($imageRel, $wrongType['relationshipType']);
+        $t->same('word/media/review.png', $wrongType['targetPart']);
+        $t->same(['unexpected-relationship-type'], $wrongType['issues']);
+
+        $t->same('', $missingId['relationshipId']);
+        $t->same(['missing-relationship-id'], $missingId['issues']);
+
+        $t->same('file', $unsafeExternal['externalTargetScheme']);
+        $t->same(false, $unsafeExternal['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeExternal['issues']);
+        $t->same('https', $allowedExternal['externalTargetScheme']);
+        $t->same(true, $allowedExternal['externalTargetAllowed']);
+        $t->same('channel=stable', $allowedExternal['targetQuery']);
+        $t->same('remote', $allowedExternal['targetFragment']);
+        $t->same([], $allowedExternal['issues']);
+
+        $t->same(6, $summary['attachedTemplateCount']);
+        $t->same(4, $summary['attachedTemplateRelationshipCount']);
+        $t->same(4, $summary['attachedTemplateReferencedCount']);
+        $t->same(2, $summary['attachedTemplateUnreferencedRelationshipCount']);
+        $t->same(2, $summary['attachedTemplateInternalCount']);
+        $t->same(2, $summary['attachedTemplateExternalCount']);
+        $t->same(1, $summary['attachedTemplateExistingCount']);
+        $t->same(1, $summary['attachedTemplateMissingCount']);
+        $t->same(1, $summary['attachedTemplateUnresolvedCount']);
+        $t->same(1, $summary['attachedTemplateUnexpectedRelationshipTypeCount']);
+        $t->same(1, $summary['attachedTemplateMissingContentTypeCount']);
+        $t->same(5, $summary['attachedTemplateIssueCount']);
+        $t->same($attached['issueCodes'], $summary['attachedTemplateIssueCodes']);
+
+        $t->same('attachedTemplate', $relationshipTypes[$attachedTemplateRel]['label']);
+        $t->same(4, $relationshipTypes[$attachedTemplateRel]['count']);
+        $t->same(2, $relationshipTypes[$attachedTemplateRel]['internalCount']);
+        $t->same(2, $relationshipTypes[$attachedTemplateRel]['externalCount']);
+        $t->same(1, $relationshipTypes[$attachedTemplateRel]['unsafeExternalTargetCount']);
+        $t->same(['external-target-unsafe-scheme' => 1], $relationshipTypes[$attachedTemplateRel]['externalTargetIssueCounts']);
+        $t->same(['attached-template' => 1, 'relationship-target' => 1], $relationshipTypes[$attachedTemplateRel]['targetRoleCounts']);
+        $t->true(in_array('attached-template', $inventory['word/templates/review-template.dotm']['roles'], true), 'attached template inventory role missing');
+        $t->true(!isset($docx['media']['word/templates/review-template.dotm']), 'Attached template package should not be exposed as document media');
     },
     'preserves docx selected relationship target suffix provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

@@ -628,8 +628,18 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['contentControlIssueCount'] = $contentControls['issueCount'];
         $packageProvenance['summary']['contentControlIssueCodes'] = $contentControls['issueCodes'];
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
+        $packageProvenance['summary']['attachedTemplateRelationshipCount'] = $attachedTemplates['relationshipCount'];
+        $packageProvenance['summary']['attachedTemplateReferencedCount'] = $attachedTemplates['referencedCount'];
+        $packageProvenance['summary']['attachedTemplateUnreferencedRelationshipCount'] = $attachedTemplates['unreferencedRelationshipCount'];
+        $packageProvenance['summary']['attachedTemplateInternalCount'] = $attachedTemplates['internalCount'];
         $packageProvenance['summary']['attachedTemplateExternalCount'] = $attachedTemplates['externalCount'];
+        $packageProvenance['summary']['attachedTemplateExistingCount'] = $attachedTemplates['existingCount'];
+        $packageProvenance['summary']['attachedTemplateMissingCount'] = $attachedTemplates['missingCount'];
+        $packageProvenance['summary']['attachedTemplateUnresolvedCount'] = $attachedTemplates['unresolvedCount'];
+        $packageProvenance['summary']['attachedTemplateUnexpectedRelationshipTypeCount'] = $attachedTemplates['unexpectedRelationshipTypeCount'];
+        $packageProvenance['summary']['attachedTemplateMissingContentTypeCount'] = $attachedTemplates['missingContentTypeCount'];
         $packageProvenance['summary']['attachedTemplateIssueCount'] = $attachedTemplates['issueCount'];
+        $packageProvenance['summary']['attachedTemplateIssueCodes'] = $attachedTemplates['issueCodes'];
         $packageProvenance['summary']['fontTableEmbeddedFontCount'] = (int) ($fontTable['embeddedFontRelationshipCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontExistingCount'] = (int) ($fontTable['embeddedFontExistingCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontMissingCount'] = (int) ($fontTable['embeddedFontMissingCount'] ?? 0);
@@ -5685,11 +5695,24 @@ final class DocxOpenXmlReader
         }
 
         $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
         $issueCount = 0;
         foreach ($items as $item) {
             $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
             $issueCount += count($item['issues']);
         }
+        ksort($issueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -5711,8 +5734,13 @@ final class DocxOpenXmlReader
             'referencedRelationshipIds' => $referencedRelationshipIds,
             'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
             'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
+            'byteExposurePolicy' => 'attached-template-bytes-blocked',
+            'reviewPolicy' => 'attached-template-metadata-only',
         ];
     }
 
@@ -5748,6 +5776,9 @@ final class DocxOpenXmlReader
             'targetReferenceSuffix' => '',
             'exists' => false,
             'bytes' => 0,
+            'byteLength' => null,
+            'crc32' => null,
+            'sha256' => null,
             'contentType' => '',
             'contentTypeBase' => '',
             'contentTypeHasParameters' => false,
@@ -5757,8 +5788,14 @@ final class DocxOpenXmlReader
             'contentTypeSource' => 'missing',
             'defaultExtension' => null,
             'overridePartName' => null,
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'externalTargetIssues' => [],
             'settingsPart' => $settingsPart,
             'settingsRelationshipsPart' => $settingsRelationshipsPart,
+            'byteExposurePolicy' => 'attached-template-bytes-blocked',
+            'reviewPolicy' => 'attached-template-metadata-only',
             'relationship' => null,
             'issues' => [],
         ];
@@ -5789,6 +5826,9 @@ final class DocxOpenXmlReader
         $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
         $item['exists'] = $exists;
         $item['bytes'] = $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0;
+        $item['byteLength'] = $exists && $targetPart !== null ? strlen($parts[$targetPart]) : null;
+        $item['crc32'] = $exists && $targetPart !== null ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+        $item['sha256'] = $exists && $targetPart !== null ? hash('sha256', $parts[$targetPart]) : null;
         $item['contentType'] = $summary['contentType'];
         $item['contentTypeBase'] = $summary['contentTypeBase'];
         $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
@@ -5798,6 +5838,10 @@ final class DocxOpenXmlReader
         $item['contentTypeSource'] = $summary['contentTypeSource'];
         $item['defaultExtension'] = $summary['defaultExtension'];
         $item['overridePartName'] = $summary['overridePartName'];
+        $item['externalTargetKind'] = $summary['externalTargetKind'];
+        $item['externalTargetScheme'] = $summary['externalTargetScheme'];
+        $item['externalTargetAllowed'] = $summary['externalTargetAllowed'];
+        $item['externalTargetIssues'] = $summary['externalTargetIssues'];
         $item['relationship'] = $summary;
 
         if ($relationship['type'] !== self::ATTACHED_TEMPLATE_REL) {
@@ -5806,6 +5850,11 @@ final class DocxOpenXmlReader
         }
 
         if ($item['external'] === true) {
+            foreach ($summary['externalTargetIssues'] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $this->appendUniqueString($item['issues'], $issue);
+                }
+            }
             return $item;
         }
 
@@ -11150,6 +11199,7 @@ final class DocxOpenXmlReader
             self::COMMENTS_IDS_REL => 'comments-ids',
             self::PEOPLE_REL => 'people',
             self::SETTINGS_REL => 'settings',
+            self::ATTACHED_TEMPLATE_REL => 'attached-template',
             self::MAIL_MERGE_SOURCE_REL => 'mail-merge-source',
             self::MAIL_MERGE_HEADER_SOURCE_REL => 'mail-merge-header-source',
             self::MAIL_MERGE_RECIPIENT_DATA_REL, self::MAIL_MERGE_RECIPIENT_DATA_COMPAT_REL => 'mail-merge-recipient-data',
