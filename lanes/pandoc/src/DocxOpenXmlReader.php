@@ -11660,6 +11660,11 @@ final class DocxOpenXmlReader
                         'existingTargetPartByteLength' => 0,
                         'relationshipParts' => [],
                         'sourceParts' => [],
+                        'sourceKindCounts' => [],
+                        'sourceDirectoryCounts' => [],
+                        'sourceContentTypeCounts' => [],
+                        'sourceContentTypeSourceCounts' => [],
+                        'sourceRoleCounts' => [],
                         'targetParts' => [],
                         'existingTargetParts' => [],
                         'missingTargetParts' => [],
@@ -11696,8 +11701,38 @@ final class DocxOpenXmlReader
                     : count($contentTypeParameters);
                 $contentTypeSource = is_string($relationship['contentTypeSource'] ?? null) ? $relationship['contentTypeSource'] : '';
                 $targetContentTypeSource = $contentTypeSource === '' ? 'missing' : $contentTypeSource;
+                $sourceKind = is_string($relationship['relationshipSourceKind'] ?? null)
+                    ? $relationship['relationshipSourceKind']
+                    : 'invalid-source';
+                $sourceDirectory = is_string($relationship['sourceDirectory'] ?? null)
+                    ? $relationship['sourceDirectory']
+                    : '';
+                $sourceContentTypeBase = is_string($relationship['sourceContentTypeBase'] ?? null)
+                    ? $relationship['sourceContentTypeBase']
+                    : '';
+                $sourceContentTypeSource = is_string($relationship['sourceContentTypeSource'] ?? null)
+                    ? $relationship['sourceContentTypeSource']
+                    : '';
 
                 $types[$typeKey]['count']++;
+                $types[$typeKey]['sourceKindCounts'][$sourceKind] =
+                    ($types[$typeKey]['sourceKindCounts'][$sourceKind] ?? 0) + 1;
+                if ($sourceDirectory !== '') {
+                    $types[$typeKey]['sourceDirectoryCounts'][$sourceDirectory] =
+                        ($types[$typeKey]['sourceDirectoryCounts'][$sourceDirectory] ?? 0) + 1;
+                }
+                if ($sourceContentTypeBase !== '') {
+                    $types[$typeKey]['sourceContentTypeCounts'][$sourceContentTypeBase] =
+                        ($types[$typeKey]['sourceContentTypeCounts'][$sourceContentTypeBase] ?? 0) + 1;
+                }
+                if ($sourceContentTypeSource !== '') {
+                    $types[$typeKey]['sourceContentTypeSourceCounts'][$sourceContentTypeSource] =
+                        ($types[$typeKey]['sourceContentTypeSourceCounts'][$sourceContentTypeSource] ?? 0) + 1;
+                }
+                foreach (array_values(array_map('strval', $relationship['sourceRoles'] ?? [])) as $sourceRole) {
+                    $types[$typeKey]['sourceRoleCounts'][$sourceRole] =
+                        ($types[$typeKey]['sourceRoleCounts'][$sourceRole] ?? 0) + 1;
+                }
                 if ($external) {
                     $types[$typeKey]['externalCount']++;
                     $this->appendUniqueString($types[$typeKey]['externalTargets'], $target);
@@ -11824,6 +11859,11 @@ final class DocxOpenXmlReader
                     'id' => is_string($relationship['id'] ?? null) ? $relationship['id'] : '',
                     'sourcePart' => $sourcePart,
                     'relationshipsPart' => $relationshipsPart,
+                    'relationshipSourceKind' => $sourceKind,
+                    'sourceDirectory' => $sourceDirectory,
+                    'sourceContentTypeBase' => $sourceContentTypeBase === '' ? null : $sourceContentTypeBase,
+                    'sourceContentTypeSource' => $sourceContentTypeSource === '' ? null : $sourceContentTypeSource,
+                    'sourceRoles' => array_values(array_map('strval', $relationship['sourceRoles'] ?? [])),
                     'target' => $target,
                     'targetMode' => is_string($relationship['targetMode'] ?? null) ? $relationship['targetMode'] : '',
                     'resolvedTarget' => $resolvedTarget,
@@ -11858,6 +11898,11 @@ final class DocxOpenXmlReader
         }
 
         foreach ($types as &$type) {
+            ksort($type['sourceKindCounts']);
+            ksort($type['sourceDirectoryCounts']);
+            ksort($type['sourceContentTypeCounts']);
+            ksort($type['sourceContentTypeSourceCounts']);
+            ksort($type['sourceRoleCounts']);
             ksort($type['targetDirectoryCounts']);
             ksort($type['targetPartExtensionCounts']);
             ksort($type['externalTargetKindCounts']);

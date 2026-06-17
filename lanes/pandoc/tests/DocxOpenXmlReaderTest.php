@@ -2065,6 +2065,93 @@ XML;
         $t->same('digest=1', $package['relationshipParts']['word/_rels/source-digest.xml.rels']['relationships']['rSourceDigestImage']['targetQuery']);
         $t->same('image', $package['relationshipParts']['word/_rels/source-digest.xml.rels']['relationships']['rSourceDigestImage']['targetFragment']);
     },
+    'summarizes docx relationship type source rollups for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $parts['word/source-type.xml'] = '<sourceType/>';
+        $parts['word/media/root-type.png'] = 'root sourced image bytes';
+        $parts['word/media/source-type.png'] = 'package-part sourced image bytes';
+        $parts['word/media/content-types-type.png'] = 'content-types sourced image bytes';
+        $parts['word/media/missing-type.png'] = 'missing-source image bytes';
+        $parts['word/media/relationship-type.png'] = 'relationship-part sourced image bytes';
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootImageType" Type="' . $imageRel . '" Target="word/media/root-type.png"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['_rels/[Content_Types].xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rContentTypesImageType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/content-types-type.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source-type.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSourceImageType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-type.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-type-source.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingSourceImageType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-type.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/_rels/document.xml.rels.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRelationshipSourceImageType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/relationship-type.png"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $imageType = $package['relationshipTypes'][$imageRel];
+        $relationshipsById = [];
+        foreach ($imageType['relationships'] as $relationship) {
+            $relationshipsById[$relationship['id']] = $relationship;
+        }
+
+        $t->same(6, $imageType['count']);
+        $t->same(6, count($imageType['sourceParts']));
+        $t->same([
+            'content-types-item' => 1,
+            'missing-source' => 1,
+            'package-part' => 2,
+            'package-root' => 1,
+            'relationship-part' => 1,
+        ], $imageType['sourceKindCounts']);
+        $t->same([
+            '/' => 2,
+            'word' => 3,
+            'word/_rels' => 1,
+        ], $imageType['sourceDirectoryCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 1,
+            'application/xml' => 2,
+        ], $imageType['sourceContentTypeCounts']);
+        $t->same(['default' => 3, 'override' => 1], $imageType['sourceContentTypeSourceCounts']);
+        $t->same(1, $imageType['sourceRoleCounts']['content-types']);
+        $t->same(1, $imageType['sourceRoleCounts']['office-document']);
+        $t->same(1, $imageType['sourceRoleCounts']['office-document-relationships']);
+        $t->same(1, $imageType['sourceRoleCounts']['package-root']);
+        $t->true(($imageType['sourceRoleCounts']['package-part'] ?? 0) >= 1, 'package-part source role should be counted');
+        $t->same('package-root', $relationshipsById['rRootImageType']['relationshipSourceKind']);
+        $t->same('/', $relationshipsById['rRootImageType']['sourcePart']);
+        $t->same(['package-root'], $relationshipsById['rRootImageType']['sourceRoles']);
+        $t->same('content-types-item', $relationshipsById['rContentTypesImageType']['relationshipSourceKind']);
+        $t->same('[Content_Types].xml', $relationshipsById['rContentTypesImageType']['sourcePart']);
+        $t->same('application/xml', $relationshipsById['rContentTypesImageType']['sourceContentTypeBase']);
+        $t->same('missing-source', $relationshipsById['rMissingSourceImageType']['relationshipSourceKind']);
+        $t->same('word/missing-type-source.xml', $relationshipsById['rMissingSourceImageType']['sourcePart']);
+        $t->same([], $relationshipsById['rMissingSourceImageType']['sourceRoles']);
+        $t->same('relationship-part', $relationshipsById['rRelationshipSourceImageType']['relationshipSourceKind']);
+        $t->same('word/_rels/document.xml.rels', $relationshipsById['rRelationshipSourceImageType']['sourcePart']);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $relationshipsById['rRelationshipSourceImageType']['sourceContentTypeBase']);
+        $t->true(in_array('office-document-relationships', $relationshipsById['rRelationshipSourceImageType']['sourceRoles'], true), 'relationship-part source role should be preserved on type row');
+    },
     'summarizes docx relationships by type for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
