@@ -8497,6 +8497,35 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(false, $missingMode['shadowRootModeValid']);
         $t->same(['invalid-shadowroot-mode'], $missingMode['shadowRootDiagnosticCodes']);
     },
+    'serializes declarative shadow root custom element registry as a boolean attribute' => static function (TestRunner $t): void {
+        $shadowSource = '<slot name="title">Fallback</slot>';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="registry-host"><template shadowrootmode="closed" shadowrootcustomelementregistry shadowrootserializable>' . $shadowSource . '</template><h2 slot="title">Custom title</h2></article>',
+            'shadow root registry boolean review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $article = $summary[0];
+        $template = $article['children'][0];
+        $title = $article['children'][1];
+
+        $t->same('article', $article['name']);
+        $t->same('template', $template['name']);
+        $t->same(true, $template['declarativeShadowRoot']);
+        $t->same('closed', $template['shadowRootModeRaw']);
+        $t->same('closed', $template['shadowRootMode']);
+        $t->same(true, $template['shadowRootModeValid']);
+        $t->same(true, $template['shadowRootCustomElementRegistry']);
+        $t->same(true, $template['shadowRootSerializable']);
+        $t->same(false, $template['shadowRootClonable']);
+        $t->same(['title'], $template['shadowRootNamedSlotNames']);
+        $t->same(['Fallback'], $template['shadowRootSlotFallbackTexts']);
+        $t->same([], $template['shadowRootDiagnostics']);
+        $t->same('title', $title['slotName']);
+        $t->same('<article id="registry-host"><template shadowrootcustomelementregistry shadowrootmode="closed" shadowrootserializable>&lt;slot name="title"&gt;Fallback&lt;/slot&gt;</template><h2 slot="title">Custom title</h2></article>', $html);
+        $t->true(!str_contains($html, 'shadowrootcustomelementregistry=""'), 'Expected shadowrootcustomelementregistry to serialize as an HTML boolean attribute');
+    },
     'summarizes html template content across nested template and raw text sentinels' => static function (TestRunner $t): void {
         $templateSource = '<template data-inner="1"><p>Inner</p></template>'
             . '<noscript><script>const fallback = "</template>";</script><p>Fallback</p></noscript>'

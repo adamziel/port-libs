@@ -111,6 +111,7 @@ final class XmlHtmlDom
         'reversed' => true,
         'selected' => true,
         'shadowrootclonable' => true,
+        'shadowrootcustomelementregistry' => true,
         'shadowrootdelegatesfocus' => true,
         'shadowrootserializable' => true,
         'typemustmatch' => true,

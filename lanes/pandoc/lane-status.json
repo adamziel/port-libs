@@ -1508,6 +1508,8 @@
   "xmlHtmlDomMenuCommandReviewAssertions": 28,
   "mappedXmlHtmlDomDatalistAssociationCases": 1,
   "xmlHtmlDomDatalistAssociationAssertions": 32,
+  "mappedXmlHtmlDomShadowRootRegistryBooleanCases": 1,
+  "xmlHtmlDomShadowRootRegistryBooleanAssertions": 15,
   "mappedDocxStylesWithEffectsSelectedXmlCases": 1,
   "docxStylesWithEffectsSelectedXmlAssertions": 51,
   "mappedDocxOpenXmlPeoplePartCases": 1,
