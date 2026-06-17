@@ -284,6 +284,12 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   plus separate LaTeX and Markdown round-trip examples. The bounded PHP slice
   maps the three HTML task-list examples plus the LaTeX and Markdown
   writer-specific examples.
+- `test/command/cite-in-inline-note.md` command fixture inspected in this run:
+  the transcript covers one Markdown reader source line,
+  `foo^[bar [@doe]]`, whose native output is a paragraph with an inline
+  `Note` containing a normal-mode `Cite` node. The bounded PHP slice maps that
+  note-local citation shape and verifies native, Markdown, and WordPress
+  handoff without invoking Pandoc.
 - `src/Text/Pandoc/Writers/Markdown.hs` and `src/Text/Pandoc/Shared.hs`
   ordered-list writer path inspected in this run: Pandoc enables fancy list
   enumerators for Markdown, calls `orderedListMarkers`, preserves
@@ -597,6 +603,11 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   shortcut/implicit-header links keeps the real link separate, and
   `@cita [foo]` becomes one citation node with suffix text when `[foo]` is not
   otherwise a link.
+- The `test/command/cite-in-inline-note.md` command fixture is now mapped too:
+  `foo^[bar [@doe]]` remains one paragraph whose inline note body contains a
+  normal-mode `citation` node for `doe`; native output preserves `Cite` inside
+  `Note`, while Markdown and WordPress handoff keep the footnote source text
+  available for downstream citation processing.
 - Inline code spans, including the `test/markdown-reader-more.txt` cases where
   a trailing backslash is literal inside code, embedded newlines normalize to
   spaces, longer backtick delimiters permit literal backticks, and a blank line
