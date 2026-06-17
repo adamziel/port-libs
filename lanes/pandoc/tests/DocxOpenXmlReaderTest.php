@@ -7893,6 +7893,83 @@ XML;
         $t->same('scheme', $theme['colors']['items'][5]['kind']);
         $t->same('accent1', $theme['colors']['items'][5]['value']);
     },
+    'preserves docx theme color transform provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/color-transform-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rColorTransformTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/color-transform-theme.xml?palette=review#colors"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/theme/color-transform-theme.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Color Transform Review Theme">
+  <a:themeElements>
+    <a:clrScheme name="Transform Colors">
+      <a:dk1><a:sysClr val="windowText" lastClr="111111"/></a:dk1>
+      <a:accent1>
+        <a:srgbClr val="4472C4">
+          <a:lumMod val="65000"/>
+          <a:lumOff val="35000"/>
+          <a:alpha val="92000"/>
+        </a:srgbClr>
+      </a:accent1>
+      <a:accent2>
+        <a:prstClr val="orange">
+          <a:tint val="20000"/>
+          <a:satMod val="85000"/>
+        </a:prstClr>
+      </a:accent2>
+      <a:folHlink>
+        <a:schemeClr val="accent1">
+          <a:shade val="50000"/>
+        </a:schemeClr>
+      </a:folHlink>
+    </a:clrScheme>
+  </a:themeElements>
+</a:theme>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $theme = $docx['theme'];
+        $summary = $docx['packageProvenance']['summary'];
+        $accent1 = $theme['colors']['items'][1];
+        $accent2 = $theme['colors']['items'][2];
+        $followed = $theme['colors']['items'][3];
+
+        $t->same('word/theme/color-transform-theme.xml', $docx['themePart']);
+        $t->same('rColorTransformTheme', $docx['themeRelationship']['id']);
+        $t->same('palette=review', $docx['themeRelationship']['targetQuery']);
+        $t->same('colors', $docx['themeRelationship']['targetFragment']);
+        $t->same('Transform Colors', $theme['colors']['schemeName']);
+        $t->same(4, $theme['colors']['count']);
+        $t->same(6, $theme['colors']['transformCount']);
+        $t->same(['alpha', 'lumMod', 'lumOff', 'satMod', 'shade', 'tint'], $theme['colors']['transformNames']);
+        $t->same(6, $summary['themeColorTransformCount']);
+        $t->same(['alpha', 'lumMod', 'lumOff', 'satMod', 'shade', 'tint'], $summary['themeColorTransformNames']);
+        $t->same('4472C4', $theme['colors']['byName']['accent1']);
+        $t->same(3, $accent1['transformCount']);
+        $t->same([
+            ['name' => 'lumMod', 'value' => '65000'],
+            ['name' => 'lumOff', 'value' => '35000'],
+            ['name' => 'alpha', 'value' => '92000'],
+        ], $accent1['transforms']);
+        $t->same(['alpha', 'lumMod', 'lumOff'], $accent1['transformNames']);
+        $t->same(['lumMod' => '65000', 'lumOff' => '35000', 'alpha' => '92000'], $accent1['transformValuesByName']);
+        $t->same(2, $accent2['transformCount']);
+        $t->same(['satMod', 'tint'], $accent2['transformNames']);
+        $t->same('orange', $accent2['value']);
+        $t->same(1, $followed['transformCount']);
+        $t->same([['name' => 'shade', 'value' => '50000']], $followed['transforms']);
+        $t->same('accent1', $followed['value']);
+    },
     'resolves docx footnotes and endnotes from relationship targets' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

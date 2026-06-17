@@ -697,6 +697,11 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['themeSupplementalFontCount'] = (int) $themeFonts['supplementalFontCount'];
             $packageProvenance['summary']['themeSupplementalFontScripts'] = $themeFonts['supplementalFontScripts'] ?? [];
         }
+        $themeColors = $theme['colors'] ?? null;
+        if (is_array($themeColors) && isset($themeColors['transformCount'])) {
+            $packageProvenance['summary']['themeColorTransformCount'] = (int) $themeColors['transformCount'];
+            $packageProvenance['summary']['themeColorTransformNames'] = $themeColors['transformNames'] ?? [];
+        }
         $mailMerge = $settings['mailMerge'] ?? null;
         if (is_array($mailMerge)) {
             $packageProvenance['summary']['mailMergeRelationshipCount'] = (int) ($mailMerge['relationshipCount'] ?? 0);
@@ -14339,6 +14344,8 @@ final class DocxOpenXmlReader
 
         $items = [];
         $byName = [];
+        $transformCount = 0;
+        $transformNames = [];
         foreach ($colorScheme->childNodes as $child) {
             if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_A) {
                 continue;
@@ -14355,6 +14362,14 @@ final class DocxOpenXmlReader
             }
 
             $item = ['name' => $name] + $color;
+            if (isset($item['transformCount']) && is_int($item['transformCount'])) {
+                $transformCount += $item['transformCount'];
+                foreach (($item['transformNames'] ?? []) as $transformName) {
+                    if (is_string($transformName)) {
+                        $transformNames[$transformName] = true;
+                    }
+                }
+            }
             $items[] = $item;
             if (is_string($item['rgb'] ?? null) && $item['rgb'] !== '') {
                 $byName[$name] = $item['rgb'];
@@ -14373,6 +14388,12 @@ final class DocxOpenXmlReader
             'items' => $items,
             'byName' => $byName,
         ];
+        if ($transformCount > 0) {
+            $names = array_keys($transformNames);
+            sort($names, SORT_STRING);
+            $scheme['transformCount'] = $transformCount;
+            $scheme['transformNames'] = $names;
+        }
         $schemeName = trim($colorScheme->getAttribute('name'));
         if ($schemeName !== '') {
             $scheme = ['schemeName' => $schemeName] + $scheme;
@@ -14382,7 +14403,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{kind:string, value:?string, rgb:?string}|null
+     * @return array<string, mixed>|null
      */
     private function themeColorSchemeEntry(\DOMElement $container): ?array
     {
@@ -14397,21 +14418,21 @@ final class DocxOpenXmlReader
                     continue;
                 }
 
-                return [
+                return $this->themeColorEntryWithTransforms($child, [
                     'kind' => 'srgb',
                     'value' => $rgb,
                     'rgb' => $rgb,
-                ];
+                ]);
             }
 
             if ($child->localName === 'sysClr') {
                 $value = trim($child->getAttribute('val'));
 
-                return [
+                return $this->themeColorEntryWithTransforms($child, [
                     'kind' => 'system',
                     'value' => $value !== '' ? $value : null,
                     'rgb' => $this->normalizedRgb($child->getAttribute('lastClr')),
-                ];
+                ]);
             }
 
             if ($child->localName === 'prstClr') {
@@ -14420,11 +14441,11 @@ final class DocxOpenXmlReader
                     continue;
                 }
 
-                return [
+                return $this->themeColorEntryWithTransforms($child, [
                     'kind' => 'preset',
                     'value' => $value,
                     'rgb' => null,
-                ];
+                ]);
             }
 
             if ($child->localName === 'schemeClr') {
@@ -14433,15 +14454,99 @@ final class DocxOpenXmlReader
                     continue;
                 }
 
-                return [
+                return $this->themeColorEntryWithTransforms($child, [
                     'kind' => 'scheme',
                     'value' => $value,
                     'rgb' => null,
-                ];
+                ]);
             }
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private function themeColorEntryWithTransforms(\DOMElement $color, array $entry): array
+    {
+        $transforms = $this->themeColorTransforms($color);
+        if ($transforms['items'] === []) {
+            return $entry;
+        }
+
+        $entry['transformCount'] = count($transforms['items']);
+        $entry['transforms'] = $transforms['items'];
+        $entry['transformNames'] = $transforms['names'];
+        $entry['transformValuesByName'] = $transforms['valuesByName'];
+
+        return $entry;
+    }
+
+    /**
+     * @return array{items:list<array{name:string, value:?string}>, names:list<string>, valuesByName:array<string, string>}
+     */
+    private function themeColorTransforms(\DOMElement $color): array
+    {
+        $transformNames = [
+            'alpha' => true,
+            'alphaMod' => true,
+            'alphaOff' => true,
+            'blue' => true,
+            'blueMod' => true,
+            'blueOff' => true,
+            'comp' => true,
+            'gamma' => true,
+            'gray' => true,
+            'green' => true,
+            'greenMod' => true,
+            'greenOff' => true,
+            'hue' => true,
+            'hueMod' => true,
+            'hueOff' => true,
+            'inv' => true,
+            'invGamma' => true,
+            'lum' => true,
+            'lumMod' => true,
+            'lumOff' => true,
+            'red' => true,
+            'redMod' => true,
+            'redOff' => true,
+            'sat' => true,
+            'satMod' => true,
+            'satOff' => true,
+            'shade' => true,
+            'tint' => true,
+        ];
+        $items = [];
+        $names = [];
+        $valuesByName = [];
+
+        foreach ($color->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_A || !isset($transformNames[$child->localName])) {
+                continue;
+            }
+
+            $value = trim($child->getAttribute('val'));
+            $items[] = [
+                'name' => $child->localName,
+                'value' => $value !== '' ? $value : null,
+            ];
+            $names[$child->localName] = true;
+            if ($value !== '') {
+                $valuesByName[$child->localName] = $value;
+            }
+        }
+
+        $sortedNames = array_keys($names);
+        sort($sortedNames, SORT_STRING);
+
+        return [
+            'items' => $items,
+            'names' => $sortedNames,
+            'valuesByName' => $valuesByName,
+        ];
     }
 
     private function normalizedRgb(string $value): ?string
