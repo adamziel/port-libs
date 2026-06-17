@@ -211,6 +211,7 @@ final class PdfEngineHandoff
             $engine,
             $typstBoundaryProvenance,
             $typstBoundarySummary,
+            $sourceInput,
             $typstOutputFormatPolicy
         );
         $typstImportPathPolicy = $this->typstImportPathPolicyFor($engine, is_string($sourceBytes) ? $sourceBytes : null);
@@ -1359,6 +1360,7 @@ final class PdfEngineHandoff
             $engine,
             $typstBoundaryProvenance,
             $typstBoundarySummary,
+            $sourceInput,
             $typstOutputFormatPolicy,
             $typstReadBoundaryPolicy,
             $typstDependencyOutputPolicy,
@@ -7111,6 +7113,7 @@ final class PdfEngineHandoff
     /**
      * @param array<string, mixed> $provenance
      * @param array<string, mixed> $summary
+     * @param array<string, mixed> $sourceInput
      * @param array<string, mixed> $outputFormatPolicy
      * @param array<string, mixed> $readBoundaryPolicy
      * @param array<string, mixed> $dependencyOutputPolicy
@@ -7122,13 +7125,14 @@ final class PdfEngineHandoff
         string $engine,
         array $provenance,
         array $summary,
+        array $sourceInput = [],
         array $outputFormatPolicy = [],
         array $readBoundaryPolicy = [],
         array $dependencyOutputPolicy = [],
         array $packageDependencyPolicy = [],
         array $warningProvenance = []
     ): array {
-        if ($engine !== 'typst' || $provenance === []) {
+        if ($engine !== 'typst' || ($provenance === [] && $sourceInput === [])) {
             return [];
         }
 
@@ -7199,6 +7203,16 @@ final class PdfEngineHandoff
                 'issues' => $caseIssues,
             ];
         };
+
+        if ($sourceInput !== []) {
+            $sourceInputIssues = $entryIssues($sourceInput);
+            $appendCase('source-input', ($sourceInput['reviewStatus'] ?? 'ok') === 'ok' && $sourceInputIssues === [] ? 'ok' : 'review', 1, [
+                'mode' => is_string($sourceInput['mode'] ?? null) ? $sourceInput['mode'] : null,
+                'sourceFile' => is_string($sourceInput['sourceFile'] ?? null) ? $sourceInput['sourceFile'] : null,
+                'path' => is_string($sourceInput['path'] ?? null) ? $sourceInput['path'] : null,
+                'stagedAsFile' => ($sourceInput['stagedAsFile'] ?? false) === true,
+            ], $sourceInputIssues);
+        }
 
         $shadowEntries = [];
         foreach ([

@@ -161,6 +161,64 @@ return [
         $t->same($expectedReadPolicy, $sequence['finalTypstReadBoundaryPolicy']);
     },
 
+    'preserves typst stdin source input in boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = '= Typst Stdin Matrix Packet';
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => '-',
+            'outputPath' => 'build/stdin-matrix.pdf',
+            'source' => $source,
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst stdin matrix packet\n%%EOF\n";
+        $expectedSourceInput = [
+            'mode' => 'stdin',
+            'sourceFile' => '-',
+            'path' => null,
+            'stagedAsFile' => false,
+            'reviewStatus' => 'review',
+            'issues' => ['source-stdin-boundary'],
+        ];
+        $expectedSourceCase = [
+            'case' => 'source-input',
+            'reviewStatus' => 'review',
+            'observed' => 1,
+            'details' => [
+                'mode' => 'stdin',
+                'sourceFile' => '-',
+                'path' => null,
+                'stagedAsFile' => false,
+            ],
+            'issues' => ['source-stdin-boundary'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/stdin-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/stdin-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expectedSourceInput, $plan['sourceInput']);
+        $t->same(['source-input', 'output-format'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same($expectedSourceCase, $plan['typstBoundaryMatrix']['cases'][0]);
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(2, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(1, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(1, $plan['typstBoundaryMatrix']['issueCount']);
+        $t->contains('source-input:source-stdin-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('typst-boundary-matrix-cases:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedSourceCase, $result['typstBoundaryMatrix']['cases'][0]);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->contains('typst-source-input:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans typst boundary option provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
