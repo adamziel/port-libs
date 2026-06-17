@@ -5574,7 +5574,7 @@ final class DocxOpenXmlReader
             $dom = $this->loadXml($xml, $documentPart);
             $xpath = $this->xpath($dom);
             foreach ($this->elements($xpath, '//w:control') as $control) {
-                $relationshipId = $control->getAttributeNS(self::NS_R, 'id');
+                $relationshipId = $this->activeXRelationshipId($control);
                 $item = $this->activeXControlItem(
                     $parts,
                     $relationships[$relationshipId] ?? null,
@@ -5706,13 +5706,39 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @return string
+     */
+    private function activeXRelationshipId(\DOMElement $control): string
+    {
+        $relationshipId = trim($control->getAttributeNS(self::NS_R, 'id'));
+        if ($relationshipId !== '') {
+            return $relationshipId;
+        }
+
+        return trim($control->getAttribute('id'));
+    }
+
+    /**
+     * @return ?string
+     */
+    private function activeXControlAttribute(\DOMElement $control, string $localName): ?string
+    {
+        $value = $this->emptyStringToNull($control->getAttributeNS(self::NS_W, $localName));
+        if ($value !== null) {
+            return $value;
+        }
+
+        return $this->emptyStringToNull($control->getAttribute($localName));
+    }
+
+    /**
      * @return array{controlName:?string, shapeId:?string}
      */
     private function activeXControlDescriptor(\DOMElement $control): array
     {
         return [
-            'controlName' => $this->emptyStringToNull($control->getAttributeNS(self::NS_W, 'name')),
-            'shapeId' => $this->emptyStringToNull($control->getAttributeNS(self::NS_W, 'shapeid')),
+            'controlName' => $this->activeXControlAttribute($control, 'name'),
+            'shapeId' => $this->activeXControlAttribute($control, 'shapeid'),
         ];
     }
 

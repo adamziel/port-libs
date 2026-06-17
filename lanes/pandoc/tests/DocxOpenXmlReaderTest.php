@@ -4295,6 +4295,77 @@ XML;
         $t->true(in_array('activex-binary', $inventory['word/activeX/activeX1.bin']['roles'], true), 'ActiveX binary inventory role missing');
         $t->true(!isset($docx['media']['word/activeX/activeX1.bin']), 'ActiveX binary should not be exposed as document media');
     },
+    'recovers docx activex unqualified descriptor attributes for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $controlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/control';
+        $controlXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ax:ocx xmlns:ax="http://schemas.microsoft.com/office/2006/activeX" ax:classid="{33333333-4444-5555-6666-777777777777}" ax:persistence="persistPropertyBag"/>
+XML;
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/activeX/loose.xml" ContentType="application/vnd.ms-office.activeX+xml; profile=loose-descriptor"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rLooseActiveX" Type="' . $controlRel . '" Target="activeX/loose.xml?control=loose#ocx"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '    <w:tbl>',
+            '    <w:p><w:r><w:object><w:control id="rLooseActiveX" name="LooseButton" shapeid="_x0000_s4096"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:tbl>',
+            $parts['word/document.xml']
+        );
+        $parts['word/activeX/loose.xml'] = $controlXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $activeX = $docx['activeXControls'];
+        $summary = $docx['packageProvenance']['summary'];
+        $relationshipType = $docx['packageProvenance']['relationshipTypes'][$controlRel];
+        $inventory = $docx['packageProvenance']['parts'];
+        $control = $activeX['byRelationshipId']['rLooseActiveX'];
+
+        $t->same(1, $activeX['count']);
+        $t->same(1, $activeX['relationshipCount']);
+        $t->same(1, $activeX['referencedCount']);
+        $t->same(0, $activeX['unreferencedRelationshipCount']);
+        $t->same(1, $activeX['existingCount']);
+        $t->same(0, $activeX['issueCount']);
+        $t->same(['rLooseActiveX'], $activeX['relationshipIds']);
+        $t->same(['rLooseActiveX'], $activeX['referencedRelationshipIds']);
+        $t->same('rLooseActiveX', $control['relationshipId']);
+        $t->same('LooseButton', $control['controlName']);
+        $t->same('_x0000_s4096', $control['shapeId']);
+        $t->same('activeX/loose.xml?control=loose#ocx', $control['target']);
+        $t->same('word/activeX/loose.xml?control=loose#ocx', $control['resolvedTarget']);
+        $t->same('word/activeX/loose.xml', $control['targetPart']);
+        $t->same('control=loose', $control['targetQuery']);
+        $t->same('ocx', $control['targetFragment']);
+        $t->same('?control=loose#ocx', $control['targetReferenceSuffix']);
+        $t->same(true, $control['exists']);
+        $t->same(strlen($controlXml), $control['byteLength']);
+        $t->same(hash('sha256', $controlXml), $control['sha256']);
+        $t->same('application/vnd.ms-office.activeX+xml; profile=loose-descriptor', $control['contentType']);
+        $t->same('application/vnd.ms-office.activex+xml', $control['contentTypeBase']);
+        $t->same(['profile' => 'loose-descriptor'], $control['contentTypeParameterMap']);
+        $t->same(true, $control['validXml']);
+        $t->same(true, $control['validRoot']);
+        $t->same([], $control['issues']);
+        $t->same(true, $control['valid']);
+        $t->same(1, $summary['activeXControlCount']);
+        $t->same(1, $summary['activeXControlExistingCount']);
+        $t->same(0, $summary['activeXIssueCount']);
+        $t->same('control', $relationshipType['label']);
+        $t->same(['word/activeX/loose.xml'], $relationshipType['existingTargetParts']);
+        $t->true(in_array('activex-control', $inventory['word/activeX/loose.xml']['roles'], true), 'loose ActiveX control inventory role missing');
+        $t->true(!isset($docx['media']['word/activeX/loose.xml']), 'ActiveX control XML should not be exposed as document media');
+    },
     'reports docx vba project package provenance as metadata only' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $projectRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
