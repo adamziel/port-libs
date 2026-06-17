@@ -10365,6 +10365,15 @@ final class DocxOpenXmlReader
         $partBaseNames = $this->packagePartBaseNameSummary($partInventory);
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
+        $partContentTypeSyntaxSuffixes = $this->packagePartContentTypeSyntaxSuffixSummary($partInventory);
+        $partContentTypeSyntaxSuffixCounts = [];
+        $partContentTypeStructuredSyntaxPartCount = 0;
+        foreach ($partContentTypeSyntaxSuffixes as $syntaxSuffixSummary) {
+            $syntaxSuffixKey = (string) ($syntaxSuffixSummary['contentTypeSyntaxSuffixKey'] ?? '');
+            $partContentTypeSyntaxSuffixCounts[$syntaxSuffixKey] = (int) ($syntaxSuffixSummary['partCount'] ?? 0);
+            $partContentTypeStructuredSyntaxPartCount += (int) ($syntaxSuffixSummary['structuredSyntaxPartCount'] ?? 0);
+        }
+        ksort($partContentTypeSyntaxSuffixCounts, SORT_STRING);
         $duplicatePartBaseNames = [];
         foreach ($partBaseNames as $baseNameSummary) {
             if ((int) ($baseNameSummary['partCount'] ?? 0) > 1) {
@@ -11149,6 +11158,9 @@ final class DocxOpenXmlReader
             'partNameNonAsciiPartCount' => count($partNameCharacters['flagPartNames']['non-ascii'] ?? []),
             'partNameCharacterFlagCounts' => $partNameCharacters['flagCounts'],
             'partNameCharacterFlagPartNames' => $partNameCharacters['flagPartNames'],
+            'partContentTypeSyntaxSuffixCount' => count($partContentTypeSyntaxSuffixes),
+            'partContentTypeSyntaxSuffixCounts' => $partContentTypeSyntaxSuffixCounts,
+            'partContentTypeStructuredSyntaxPartCount' => $partContentTypeStructuredSyntaxPartCount,
             'partContentTypeCount' => count($partContentTypes),
             'contentTypeExtensionMismatchCount' => $contentTypeExtensionMismatches['count'],
             'contentTypeExtensionMismatchIssueCodes' => $contentTypeExtensionMismatches['issueCodes'],
@@ -11319,6 +11331,7 @@ final class DocxOpenXmlReader
             'partBaseNames' => $partBaseNames,
             'partCaseFoldBaseNames' => $partCaseFoldBaseNames,
             'partNameCharacterReviewParts' => $partNameCharacters['parts'],
+            'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
             'partContentTypes' => $partContentTypes,
             'partRoles' => $partRoles,
             'largestPart' => $largestPart,
@@ -11527,6 +11540,122 @@ final class DocxOpenXmlReader
         }
 
         return array_values($contentTypes);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartContentTypeSyntaxSuffixSummary(array $partInventory): array
+    {
+        $suffixes = [];
+        foreach ($partInventory as $partName => $part) {
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeSuffix = $this->contentTypeStructuredSyntaxSuffix($contentTypeBase);
+            $suffixKey = $contentTypeBase === '' ? '(missing)' : ($contentTypeSuffix ?? '(none)');
+            if (!isset($suffixes[$suffixKey])) {
+                $suffixes[$suffixKey] = [
+                    'contentTypeSyntaxSuffixKey' => $suffixKey,
+                    'contentTypeSyntaxSuffix' => $contentTypeSuffix,
+                    'hasStructuredSyntaxSuffix' => $contentTypeSuffix !== null,
+                    'partCount' => 0,
+                    'structuredSyntaxPartCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'contentTypes' => [],
+                    'contentTypeBaseCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'mediaTypeCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$suffixes[$suffixKey]['partCount'];
+            if ($contentTypeSuffix !== null) {
+                ++$suffixes[$suffixKey]['structuredSyntaxPartCount'];
+            }
+
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $suffixes[$suffixKey]['byteLength'] += $bytes;
+            $suffixes[$suffixKey]['partNames'][] = (string) $partName;
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$suffixes[$suffixKey]['relationshipPartCount'];
+            }
+            if ($contentTypeBase === '') {
+                ++$suffixes[$suffixKey]['missingContentTypePartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$suffixes[$suffixKey]['parameterizedPartCount'];
+            }
+
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $suffixes[$suffixKey]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($suffixes[$suffixKey]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $suffixes[$suffixKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($suffixes[$suffixKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            $mediaType = $this->contentTypeMediaTypeKey($contentTypeBase);
+            $suffixes[$suffixKey]['mediaTypeCounts'][$mediaType] =
+                ($suffixes[$suffixKey]['mediaTypeCounts'][$mediaType] ?? 0) + 1;
+
+            $this->appendUniqueString(
+                $suffixes[$suffixKey]['contentTypes'],
+                is_string($part['contentType'] ?? null) ? $part['contentType'] : null,
+            );
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $suffixes[$suffixKey]['roleCounts'][$role] =
+                    ($suffixes[$suffixKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory((string) $partName),
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName((string) $partName),
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSyntaxSuffix' => $contentTypeSuffix,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $suffixes[$suffixKey]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $suffixes[$suffixKey]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($suffixes, SORT_STRING);
+        foreach ($suffixes as $suffixKey => $summary) {
+            sort($summary['contentTypes'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['mediaTypeCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $suffixes[$suffixKey] = $summary;
+        }
+
+        return array_values($suffixes);
     }
 
     /**
@@ -16193,6 +16322,38 @@ final class DocxOpenXmlReader
             'contentTypeParameters' => $parameters,
             'contentTypeParameterMap' => $parameterMap,
         ];
+    }
+
+    private function contentTypeStructuredSyntaxSuffix(string $contentTypeBase): ?string
+    {
+        $slashPosition = strpos($contentTypeBase, '/');
+        if ($slashPosition === false) {
+            return null;
+        }
+
+        $subtype = substr($contentTypeBase, $slashPosition + 1);
+        $plusPosition = strrpos($subtype, '+');
+        if ($plusPosition === false || $plusPosition === strlen($subtype) - 1) {
+            return null;
+        }
+
+        $suffix = strtolower(substr($subtype, $plusPosition + 1));
+
+        return $suffix === '' ? null : $suffix;
+    }
+
+    private function contentTypeMediaTypeKey(string $contentTypeBase): string
+    {
+        if ($contentTypeBase === '') {
+            return '(missing)';
+        }
+
+        $slashPosition = strpos($contentTypeBase, '/');
+        if ($slashPosition === false || $slashPosition === 0) {
+            return '(invalid)';
+        }
+
+        return strtolower(substr($contentTypeBase, 0, $slashPosition));
     }
 
     /**

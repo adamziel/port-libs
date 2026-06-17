@@ -1447,6 +1447,90 @@ XML;
         $t->same('xml', $inventory['word/Diagram.XML']['partExtension']);
         $t->same(true, $inventory['word/Diagram.XML']['partExtensionWasNormalized']);
     },
+    'summarizes docx package part content type syntax suffix buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="json" ContentType="application/vnd.example.review+json; profile=docx-review"/>' . "\n" .
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Override PartName="/customXml/typed-data.xml" ContentType="application/vnd.example.custom+xml; profile=typed"/>' . "\n" .
+            '  <Override PartName="/word/media/vector.svg" ContentType="image/svg+xml; profile=vector"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/data.json'] = '{"review":true}';
+        $parts['customXml/raw.bin'] = 'raw binary content';
+        $parts['customXml/untyped'] = 'missing content type bytes';
+        $parts['customXml/typed-data.xml'] = '<typed/>';
+        $parts['word/media/vector.svg'] = '<svg xmlns="http://www.w3.org/2000/svg"/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $bySuffix = [];
+        foreach ($summary['partContentTypeSyntaxSuffixes'] as $suffix) {
+            $bySuffix[$suffix['contentTypeSyntaxSuffixKey']] = $suffix;
+        }
+
+        $t->same(4, $summary['partContentTypeSyntaxSuffixCount']);
+        $t->same(7, $summary['partContentTypeStructuredSyntaxPartCount']);
+        $t->same([
+            '(missing)' => 1,
+            '(none)' => 5,
+            'json' => 1,
+            'xml' => 6,
+        ], $summary['partContentTypeSyntaxSuffixCounts']);
+
+        $json = $bySuffix['json'];
+        $t->same('json', $json['contentTypeSyntaxSuffix']);
+        $t->same(true, $json['hasStructuredSyntaxSuffix']);
+        $t->same(1, $json['partCount']);
+        $t->same(1, $json['structuredSyntaxPartCount']);
+        $t->same(1, $json['parameterizedPartCount']);
+        $t->same(strlen($parts['customXml/data.json']), $json['byteLength']);
+        $t->same(['application/vnd.example.review+json; profile=docx-review'], $json['contentTypes']);
+        $t->same(['application/vnd.example.review+json' => 1], $json['contentTypeBaseCounts']);
+        $t->same(['default' => 1], $json['contentTypeSourceCounts']);
+        $t->same(['application' => 1], $json['mediaTypeCounts']);
+        $t->same(['package-part' => 1], $json['roleCounts']);
+        $t->same(['customXml/data.json'], $json['partNames']);
+        $t->same('customXml/data.json', $json['largestPart']['partName']);
+        $t->same('json', $json['largestPart']['contentTypeSyntaxSuffix']);
+
+        $xml = $bySuffix['xml'];
+        $t->same(6, $xml['partCount']);
+        $t->same(6, $xml['structuredSyntaxPartCount']);
+        $t->same(2, $xml['relationshipPartCount']);
+        $t->same(2, $xml['parameterizedPartCount']);
+        $t->same(['default' => 2, 'override' => 4], $xml['contentTypeSourceCounts']);
+        $t->same(['application' => 5, 'image' => 1], $xml['mediaTypeCounts']);
+        $t->same([
+            'application/vnd.example.custom+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 2,
+            'image/svg+xml' => 1,
+        ], $xml['contentTypeBaseCounts']);
+        $t->same(['_rels/.rels', 'customXml/typed-data.xml', 'docProps/core.xml', 'word/_rels/document.xml.rels', 'word/document.xml', 'word/media/vector.svg'], $xml['partNames']);
+        $t->same('word/document.xml', $xml['largestPart']['partName']);
+        $t->same('xml', $xml['largestPart']['contentTypeSyntaxSuffix']);
+
+        $none = $bySuffix['(none)'];
+        $t->same(null, $none['contentTypeSyntaxSuffix']);
+        $t->same(false, $none['hasStructuredSyntaxSuffix']);
+        $t->same(5, $none['partCount']);
+        $t->same(0, $none['structuredSyntaxPartCount']);
+        $t->same(0, $none['missingContentTypePartCount']);
+        $t->same(['application' => 4, 'image' => 1], $none['mediaTypeCounts']);
+        $t->same(['default' => 5], $none['contentTypeSourceCounts']);
+
+        $missing = $bySuffix['(missing)'];
+        $t->same(1, $missing['partCount']);
+        $t->same(1, $missing['missingContentTypePartCount']);
+        $t->same(['(missing)' => 1], $missing['contentTypeBaseCounts']);
+        $t->same(['missing' => 1], $missing['contentTypeSourceCounts']);
+        $t->same(['(missing)' => 1], $missing['mediaTypeCounts']);
+        $t->same('customXml/untyped', $missing['largestPart']['partName']);
+    },
     'summarizes docx package part base names for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/item1.xml'] = '<customItem/>';
