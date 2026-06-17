@@ -9852,6 +9852,12 @@ final class DocxOpenXmlReader
         $roleByteLengths = [];
         $contentTypeSourceCounts = [];
         $contentTypeSourceByteLengths = [];
+        $contentTypeParameterPartCount = 0;
+        $contentTypeParameterByteLength = 0;
+        $contentTypeParameterNameCounts = [];
+        $contentTypeParameterSourceCounts = [];
+        $contentTypeParameterValueCounts = [];
+        $contentTypeParameters = [];
         $packageByteLength = 0;
         $relationshipPartCount = 0;
         $relationshipPartByteLength = 0;
@@ -9862,6 +9868,56 @@ final class DocxOpenXmlReader
             $source = (string) ($part['contentTypeSource'] ?? 'missing');
             $contentTypeSourceCounts[$source] = ($contentTypeSourceCounts[$source] ?? 0) + 1;
             $contentTypeSourceByteLengths[$source] = ($contentTypeSourceByteLengths[$source] ?? 0) + $bytes;
+            $parameterMap = is_array($part['contentTypeParameterMap'] ?? null)
+                ? $part['contentTypeParameterMap']
+                : [];
+            if ($parameterMap !== []) {
+                ++$contentTypeParameterPartCount;
+                $contentTypeParameterByteLength += $bytes;
+                $contentTypeParameterSourceCounts[$source] =
+                    ($contentTypeParameterSourceCounts[$source] ?? 0) + 1;
+            }
+            foreach ($parameterMap as $parameterName => $parameterValue) {
+                if (!is_string($parameterName) || $parameterName === '') {
+                    continue;
+                }
+
+                $parameterValue = is_scalar($parameterValue) ? (string) $parameterValue : '';
+                $parameterValueKey = $parameterValue === '' ? '(empty)' : $parameterValue;
+                if (!isset($contentTypeParameters[$parameterName])) {
+                    $contentTypeParameters[$parameterName] = [
+                        'name' => $parameterName,
+                        'partCount' => 0,
+                        'valueCounts' => [],
+                        'contentTypeSourceCounts' => [],
+                        'contentTypeBases' => [],
+                        'contentTypes' => [],
+                        'partNames' => [],
+                    ];
+                }
+
+                $contentTypeParameterNameCounts[$parameterName] =
+                    ($contentTypeParameterNameCounts[$parameterName] ?? 0) + 1;
+                $contentTypeParameterValueCounts[$parameterName][$parameterValueKey] =
+                    ($contentTypeParameterValueCounts[$parameterName][$parameterValueKey] ?? 0) + 1;
+                ++$contentTypeParameters[$parameterName]['partCount'];
+                $contentTypeParameters[$parameterName]['valueCounts'][$parameterValueKey] =
+                    ($contentTypeParameters[$parameterName]['valueCounts'][$parameterValueKey] ?? 0) + 1;
+                $contentTypeParameters[$parameterName]['contentTypeSourceCounts'][$source] =
+                    ($contentTypeParameters[$parameterName]['contentTypeSourceCounts'][$source] ?? 0) + 1;
+                $this->appendUniqueString(
+                    $contentTypeParameters[$parameterName]['contentTypeBases'],
+                    is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : null,
+                );
+                $this->appendUniqueString(
+                    $contentTypeParameters[$parameterName]['contentTypes'],
+                    is_string($part['contentType'] ?? null) ? $part['contentType'] : null,
+                );
+                $this->appendUniqueString(
+                    $contentTypeParameters[$parameterName]['partNames'],
+                    is_string($part['partName'] ?? null) ? $part['partName'] : null,
+                );
+            }
             foreach (($part['roles'] ?? []) as $role) {
                 $role = (string) $role;
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -9880,6 +9936,19 @@ final class DocxOpenXmlReader
         ksort($roleByteLengths);
         ksort($contentTypeSourceCounts);
         ksort($contentTypeSourceByteLengths);
+        ksort($contentTypeParameterNameCounts);
+        ksort($contentTypeParameterSourceCounts);
+        ksort($contentTypeParameterValueCounts);
+        foreach ($contentTypeParameterValueCounts as &$parameterValueCounts) {
+            ksort($parameterValueCounts);
+        }
+        unset($parameterValueCounts);
+        ksort($contentTypeParameters);
+        foreach ($contentTypeParameters as &$contentTypeParameter) {
+            ksort($contentTypeParameter['contentTypeSourceCounts']);
+            ksort($contentTypeParameter['valueCounts']);
+        }
+        unset($contentTypeParameter);
 
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
@@ -10713,6 +10782,13 @@ final class DocxOpenXmlReader
             'contentTypeOverrideDeclarationIssues' => $contentTypesPart['overrideDeclarationIssues'] ?? [],
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'contentTypeSourceByteLengths' => $contentTypeSourceByteLengths,
+            'contentTypeParameterNameCount' => count($contentTypeParameters),
+            'contentTypeParameterPartCount' => $contentTypeParameterPartCount,
+            'contentTypeParameterByteLength' => $contentTypeParameterByteLength,
+            'contentTypeParameterNameCounts' => $contentTypeParameterNameCounts,
+            'contentTypeParameterSourceCounts' => $contentTypeParameterSourceCounts,
+            'contentTypeParameterValueCounts' => $contentTypeParameterValueCounts,
+            'contentTypeParameters' => array_values($contentTypeParameters),
             'roleCounts' => $roleCounts,
             'roleByteLengths' => $roleByteLengths,
             'relationshipTypeCounts' => $relationshipTypeCounts,

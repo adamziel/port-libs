@@ -1031,6 +1031,7 @@ XML;
         $docx = $document->attr('docx');
         $package = $docx['packageProvenance'];
         $contentTypesPart = $package['contentTypesPart'];
+        $summary = $package['summary'];
         $xmlDefault = $contentTypesPart['defaults']['xml'];
         $pngDefault = $contentTypesPart['defaults']['png'];
         $documentOverride = $contentTypesPart['overrides']['word/document.xml'];
@@ -1039,6 +1040,21 @@ XML;
         $mediaInventory = $package['parts']['word/media/review.png'];
         $mediaRelationship = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships']['rImage'];
         $image = $document->children[4]->children[1];
+        $parameterizedPartNames = [
+            '[Content_Types].xml',
+            'word/styles.xml',
+            'word/numbering.xml',
+            'word/document.xml',
+            'word/media/review.png',
+        ];
+        $parameterizedByteLength = array_sum(array_map(
+            static fn (string $partName): int => strlen($parts[$partName]),
+            $parameterizedPartNames,
+        ));
+        $parameterBuckets = [];
+        foreach ($summary['contentTypeParameters'] as $parameterBucket) {
+            $parameterBuckets[$parameterBucket['name']] = $parameterBucket;
+        }
 
         $t->same(true, $contentTypesPart['valid']);
         $t->same(3, $contentTypesPart['parameterizedContentTypeCount']);
@@ -1072,6 +1088,40 @@ XML;
         $t->same(['profile' => 'media-default'], $mediaRelationship['contentTypeParameterMap']);
         $t->same('image/png; profile=media-default', $docx['media']['word/media/review.png']['contentType']);
         $t->same('image/png; profile=media-default', $image->attr('contentType'));
+
+        $t->same(2, $summary['contentTypeParameterNameCount']);
+        $t->same(5, $summary['contentTypeParameterPartCount']);
+        $t->same($parameterizedByteLength, $summary['contentTypeParameterByteLength']);
+        $t->same(['charset' => 4, 'profile' => 5], $summary['contentTypeParameterNameCounts']);
+        $t->same(['default' => 4, 'override' => 1], $summary['contentTypeParameterSourceCounts']);
+        $t->same(['UTF-8' => 3, 'utf-8' => 1], $summary['contentTypeParameterValueCounts']['charset']);
+        $t->same(['main-doc' => 1, 'media-default' => 1, 'package-default' => 3], $summary['contentTypeParameterValueCounts']['profile']);
+
+        $charset = $parameterBuckets['charset'];
+        $t->same(4, $charset['partCount']);
+        $t->same(['UTF-8' => 3, 'utf-8' => 1], $charset['valueCounts']);
+        $t->same(['default' => 3, 'override' => 1], $charset['contentTypeSourceCounts']);
+        $t->same([
+            'application/xml',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+        ], $charset['contentTypeBases']);
+        $t->same([
+            '[Content_Types].xml',
+            'word/styles.xml',
+            'word/numbering.xml',
+            'word/document.xml',
+        ], $charset['partNames']);
+
+        $profile = $parameterBuckets['profile'];
+        $t->same(5, $profile['partCount']);
+        $t->same(['main-doc' => 1, 'media-default' => 1, 'package-default' => 3], $profile['valueCounts']);
+        $t->same(['default' => 4, 'override' => 1], $profile['contentTypeSourceCounts']);
+        $t->same([
+            'application/xml',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'image/png',
+        ], $profile['contentTypeBases']);
+        $t->same($parameterizedPartNames, $profile['partNames']);
     },
     'reports docx content type declaration collisions without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
