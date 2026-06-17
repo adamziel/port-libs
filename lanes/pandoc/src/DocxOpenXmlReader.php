@@ -214,6 +214,7 @@ final class DocxOpenXmlReader
         $stylesPart = $this->stylesPart($parts, $documentRelationships, $documentPart);
         $stylesWithEffectsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::STYLES_WITH_EFFECTS_REL, 'stylesWithEffects.xml');
         $styles = $this->readStyles($stylesPart['xml'], $stylesPart['partName']);
+        $styleReferences = $this->styleReferenceSummary($styles, $stylesPart['partName']);
         $latentStyles = $this->readLatentStyles($stylesPart['xml'], $stylesPart['partName']);
         $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
         $numbering = $this->readNumbering($numberingPart['xml'], $numberingPart['partName']);
@@ -717,6 +718,14 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaProjectIssueCount'] = $vbaProjects['issueCount'];
         $packageProvenance['summary']['vbaProjectIssueCodes'] = $vbaProjects['issueCodes'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
+        $packageProvenance['styleReferences'] = $styleReferences;
+        $packageProvenance['summary']['styleCount'] = $styleReferences['styleCount'];
+        $packageProvenance['summary']['styleReferencedStyleCount'] = $styleReferences['referencedStyleCount'];
+        $packageProvenance['summary']['styleReferenceTargetStyleCount'] = $styleReferences['targetStyleCount'];
+        $packageProvenance['summary']['styleReferenceCount'] = $styleReferences['referenceCount'];
+        $packageProvenance['summary']['styleReferenceKindCounts'] = $styleReferences['kindCounts'];
+        $packageProvenance['summary']['styleMissingReferenceCount'] = $styleReferences['missingReferenceCount'];
+        $packageProvenance['summary']['styleMissingReferenceTargetStyleIds'] = $styleReferences['missingTargetStyleIds'];
         if ($latentStyles !== []) {
             $packageProvenance['summary']['latentStyleExceptionCount'] = $latentStyles['exceptionCount'];
             $packageProvenance['summary']['latentStyleQuickFormatCount'] = $latentStyles['quickFormatCount'];
@@ -734,6 +743,7 @@ final class DocxOpenXmlReader
                 'packageProvenance' => $packageProvenance,
                 'stylesPart' => $stylesPart['partName'],
                 'styles' => $styles,
+                'styleReferences' => $styleReferences,
                 'stylesWithEffectsPart' => $stylesWithEffectsPart['partName'],
                 'latentStyles' => $latentStyles,
                 'numberingPart' => $numberingPart['partName'],
@@ -1143,7 +1153,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array<string, array{id:string, name:string, headingLevel:int|null}>
+     * @return array<string, array{id:string, type:string, name:string, headingLevel:int|null, basedOn:?string, next:?string, link:?string, numStyleLink:?string, styleLink:?string, referenceCount:int, missingReferenceCount:int, references:list<array{kind:string, targetStyleId:string, exists:bool}>, missingReferences:list<array{kind:string, targetStyleId:string}>}>
      */
     private function readStyles(string $xml, string $partName): array
     {
@@ -1153,9 +1163,18 @@ final class DocxOpenXmlReader
 
         $dom = $this->loadXml($xml, $partName);
         $xpath = $this->xpath($dom);
+        $declaredStyleIds = [];
+        foreach ($this->elements($xpath, '/w:styles/w:style[@w:styleId]') as $style) {
+            $styleId = trim($style->getAttributeNS(self::NS_W, 'styleId'));
+            if ($styleId !== '') {
+                $declaredStyleIds[$styleId] = true;
+            }
+        }
+
+        $referenceKinds = ['basedOn', 'next', 'link', 'numStyleLink', 'styleLink'];
         $styles = [];
         foreach ($this->elements($xpath, '/w:styles/w:style[@w:type="paragraph"]') as $style) {
-            $styleId = $style->getAttributeNS(self::NS_W, 'styleId');
+            $styleId = trim($style->getAttributeNS(self::NS_W, 'styleId'));
             if ($styleId === '') {
                 continue;
             }
@@ -1171,14 +1190,128 @@ final class DocxOpenXmlReader
                 $headingLevel = (int) $match[1];
             }
 
+            $referenceValues = [];
+            $references = [];
+            $missingReferences = [];
+            foreach ($referenceKinds as $kind) {
+                $targetStyleId = trim($this->childAttr($style, $kind, 'val'));
+                $referenceValues[$kind] = $targetStyleId === '' ? null : $targetStyleId;
+                if ($targetStyleId === '') {
+                    continue;
+                }
+
+                $exists = isset($declaredStyleIds[$targetStyleId]);
+                $references[] = [
+                    'kind' => $kind,
+                    'targetStyleId' => $targetStyleId,
+                    'exists' => $exists,
+                ];
+                if (!$exists) {
+                    $missingReferences[] = [
+                        'kind' => $kind,
+                        'targetStyleId' => $targetStyleId,
+                    ];
+                }
+            }
+
             $styles[$styleId] = [
                 'id' => $styleId,
+                'type' => 'paragraph',
                 'name' => $name,
                 'headingLevel' => $headingLevel,
+                'basedOn' => $referenceValues['basedOn'],
+                'next' => $referenceValues['next'],
+                'link' => $referenceValues['link'],
+                'numStyleLink' => $referenceValues['numStyleLink'],
+                'styleLink' => $referenceValues['styleLink'],
+                'referenceCount' => count($references),
+                'missingReferenceCount' => count($missingReferences),
+                'references' => $references,
+                'missingReferences' => $missingReferences,
             ];
         }
 
         return $styles;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @return array<string, mixed>
+     */
+    private function styleReferenceSummary(array $styles, string $partName): array
+    {
+        $kindCounts = [
+            'basedOn' => 0,
+            'next' => 0,
+            'link' => 0,
+            'numStyleLink' => 0,
+            'styleLink' => 0,
+        ];
+        $missingByKind = [
+            'basedOn' => 0,
+            'next' => 0,
+            'link' => 0,
+            'numStyleLink' => 0,
+            'styleLink' => 0,
+        ];
+        $referencedStyleIds = [];
+        $targetStyleIds = [];
+        $missingTargetStyleIds = [];
+        $stylesWithMissingReferences = [];
+        $referenceCount = 0;
+        $missingReferenceCount = 0;
+
+        foreach ($styles as $styleId => $style) {
+            $references = $style['references'] ?? [];
+            if (!is_array($references) || $references === []) {
+                continue;
+            }
+
+            $referencedStyleIds[] = (string) $styleId;
+            foreach ($references as $reference) {
+                if (!is_array($reference)) {
+                    continue;
+                }
+
+                $kind = (string) ($reference['kind'] ?? '');
+                $targetStyleId = (string) ($reference['targetStyleId'] ?? '');
+                if ($kind === '' || $targetStyleId === '') {
+                    continue;
+                }
+
+                if (!array_key_exists($kind, $kindCounts)) {
+                    $kindCounts[$kind] = 0;
+                    $missingByKind[$kind] = 0;
+                }
+                ++$referenceCount;
+                ++$kindCounts[$kind];
+                $targetStyleIds[$targetStyleId] = true;
+                if (($reference['exists'] ?? false) === true) {
+                    continue;
+                }
+
+                ++$missingReferenceCount;
+                ++$missingByKind[$kind];
+                $missingTargetStyleIds[$targetStyleId] = true;
+                $stylesWithMissingReferences[(string) $styleId] = true;
+            }
+        }
+
+        return [
+            'partName' => $partName,
+            'styleCount' => count($styles),
+            'referencedStyleCount' => count($referencedStyleIds),
+            'referencedStyleIds' => $referencedStyleIds,
+            'targetStyleCount' => count($targetStyleIds),
+            'targetStyleIds' => array_keys($targetStyleIds),
+            'referenceCount' => $referenceCount,
+            'kindCounts' => $kindCounts,
+            'missingReferenceCount' => $missingReferenceCount,
+            'missingByKind' => $missingByKind,
+            'missingTargetStyleCount' => count($missingTargetStyleIds),
+            'missingTargetStyleIds' => array_keys($missingTargetStyleIds),
+            'stylesWithMissingReferences' => array_keys($stylesWithMissingReferences),
+        ];
     }
 
     /**

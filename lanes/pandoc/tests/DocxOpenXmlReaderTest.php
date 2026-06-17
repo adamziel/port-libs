@@ -4723,6 +4723,105 @@ XML;
         $t->same(1, $summary['latentStyleLockedCount']);
         $t->same('heading', $document->children[0]->type);
     },
+    'summarizes docx paragraph style reference provenance for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/styles.xml'] = str_replace(
+            '</w:styles>',
+            '  <w:style w:type="paragraph" w:styleId="BaseReview">' . "\n" .
+            '    <w:name w:val="Base Review"/>' . "\n" .
+            '  </w:style>' . "\n" .
+            '  <w:style w:type="paragraph" w:styleId="ReviewHeading">' . "\n" .
+            '    <w:name w:val="Review Heading"/>' . "\n" .
+            '    <w:basedOn w:val="BaseReview"/>' . "\n" .
+            '    <w:next w:val="ReviewBody"/>' . "\n" .
+            '    <w:link w:val="ReviewHeadingChar"/>' . "\n" .
+            '    <w:numStyleLink w:val="ReviewNumbering"/>' . "\n" .
+            '    <w:pPr><w:outlineLvl w:val="1"/></w:pPr>' . "\n" .
+            '  </w:style>' . "\n" .
+            '  <w:style w:type="paragraph" w:styleId="ReviewBody">' . "\n" .
+            '    <w:name w:val="Review Body"/>' . "\n" .
+            '    <w:basedOn w:val="MissingBase"/>' . "\n" .
+            '    <w:styleLink w:val="ReviewHeadingChar"/>' . "\n" .
+            '  </w:style>' . "\n" .
+            '  <w:style w:type="character" w:styleId="ReviewHeadingChar">' . "\n" .
+            '    <w:name w:val="Review Heading Char"/>' . "\n" .
+            '  </w:style>' . "\n" .
+            '  <w:style w:type="numbering" w:styleId="ReviewNumbering">' . "\n" .
+            '    <w:name w:val="Review Numbering"/>' . "\n" .
+            '  </w:style>' . "\n" .
+            '</w:styles>',
+            $parts['word/styles.xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $styles = $docx['styles'];
+        $styleReferences = $docx['styleReferences'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $heading = $styles['ReviewHeading'];
+        $body = $styles['ReviewBody'];
+
+        $t->same('word/styles.xml', $styleReferences['partName']);
+        $t->same($styleReferences, $package['styleReferences']);
+        $t->same(4, $styleReferences['styleCount']);
+        $t->same(2, $styleReferences['referencedStyleCount']);
+        $t->same(['ReviewHeading', 'ReviewBody'], $styleReferences['referencedStyleIds']);
+        $t->same(5, $styleReferences['targetStyleCount']);
+        $t->same(['BaseReview', 'ReviewBody', 'ReviewHeadingChar', 'ReviewNumbering', 'MissingBase'], $styleReferences['targetStyleIds']);
+        $t->same(6, $styleReferences['referenceCount']);
+        $t->same([
+            'basedOn' => 2,
+            'next' => 1,
+            'link' => 1,
+            'numStyleLink' => 1,
+            'styleLink' => 1,
+        ], $styleReferences['kindCounts']);
+        $t->same(1, $styleReferences['missingReferenceCount']);
+        $t->same([
+            'basedOn' => 1,
+            'next' => 0,
+            'link' => 0,
+            'numStyleLink' => 0,
+            'styleLink' => 0,
+        ], $styleReferences['missingByKind']);
+        $t->same(1, $styleReferences['missingTargetStyleCount']);
+        $t->same(['MissingBase'], $styleReferences['missingTargetStyleIds']);
+        $t->same(['ReviewBody'], $styleReferences['stylesWithMissingReferences']);
+
+        $t->same('paragraph', $heading['type']);
+        $t->same(2, $heading['headingLevel']);
+        $t->same('BaseReview', $heading['basedOn']);
+        $t->same('ReviewBody', $heading['next']);
+        $t->same('ReviewHeadingChar', $heading['link']);
+        $t->same('ReviewNumbering', $heading['numStyleLink']);
+        $t->same(null, $heading['styleLink']);
+        $t->same(4, $heading['referenceCount']);
+        $t->same(0, $heading['missingReferenceCount']);
+        $t->same([
+            ['kind' => 'basedOn', 'targetStyleId' => 'BaseReview', 'exists' => true],
+            ['kind' => 'next', 'targetStyleId' => 'ReviewBody', 'exists' => true],
+            ['kind' => 'link', 'targetStyleId' => 'ReviewHeadingChar', 'exists' => true],
+            ['kind' => 'numStyleLink', 'targetStyleId' => 'ReviewNumbering', 'exists' => true],
+        ], $heading['references']);
+        $t->same([], $heading['missingReferences']);
+
+        $t->same('MissingBase', $body['basedOn']);
+        $t->same('ReviewHeadingChar', $body['styleLink']);
+        $t->same(2, $body['referenceCount']);
+        $t->same(1, $body['missingReferenceCount']);
+        $t->same([
+            ['kind' => 'basedOn', 'targetStyleId' => 'MissingBase'],
+        ], $body['missingReferences']);
+
+        $t->same(4, $summary['styleCount']);
+        $t->same(2, $summary['styleReferencedStyleCount']);
+        $t->same(5, $summary['styleReferenceTargetStyleCount']);
+        $t->same(6, $summary['styleReferenceCount']);
+        $t->same($styleReferences['kindCounts'], $summary['styleReferenceKindCounts']);
+        $t->same(1, $summary['styleMissingReferenceCount']);
+        $t->same(['MissingBase'], $summary['styleMissingReferenceTargetStyleIds']);
+    },
     'reports docx extended and custom package properties from root relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
