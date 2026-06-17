@@ -1519,6 +1519,103 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'preserves mixed typst font path environment provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/font-path-env-mixed.pdf',
+            'source' => '= Typst Mixed Font Path Environment Packet',
+            'engineOptions' => [
+                '--font-path=fonts/cli' . PATH_SEPARATOR . 'vendor/fonts',
+                '--ignore-system-fonts',
+            ],
+            'engineEnvironment' => [
+                'TYPST_FONT_PATHS' => 'env/fonts' . PATH_SEPARATOR . '/srv/shared-fonts',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst mixed font path environment packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [
+                ['raw' => 'fonts/cli', 'path' => 'fonts/cli', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'vendor/fonts', 'path' => 'vendor/fonts', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                [
+                    'raw' => 'env/fonts',
+                    'path' => 'env/fonts',
+                    'kind' => 'relative',
+                    'safe' => true,
+                    'issues' => [],
+                    'source' => 'environment',
+                    'environmentVariable' => 'TYPST_FONT_PATHS',
+                ],
+                [
+                    'raw' => '/srv/shared-fonts',
+                    'path' => '/srv/shared-fonts',
+                    'kind' => 'absolute',
+                    'safe' => false,
+                    'issues' => ['font-path-external-boundary'],
+                    'source' => 'environment',
+                    'environmentVariable' => 'TYPST_FONT_PATHS',
+                ],
+            ],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['font-path-external-boundary'],
+            'environmentVariables' => ['TYPST_FONT_PATHS'],
+            'fontPathPolicy' => [
+                'reviewStatus' => 'review',
+                'fontPathCount' => 4,
+                'safeFontPathCount' => 3,
+                'unsafeFontPathCount' => 1,
+                'relativeFontPathCount' => 3,
+                'workspaceFontPathCount' => 0,
+                'absoluteFontPathCount' => 1,
+                'uriFontPathCount' => 0,
+                'invalidFontPathCount' => 0,
+                'issues' => ['font-path-external-boundary'],
+            ],
+            'systemFonts' => [
+                'ignoreSystemFonts' => true,
+                'systemFontAccess' => 'disabled',
+                'flagCount' => 1,
+                'fontPathCount' => 4,
+                'issues' => [],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/font-path-env-mixed.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/font-path-env-mixed.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->same(4, $plan['typstBoundarySummary']['pathEntryCount']);
+        $t->same(4, $plan['typstBoundarySummary']['fontPathCount']);
+        $t->same(1, $plan['typstBoundarySummary']['unsafePathEntryCount']);
+        $t->same(1, $plan['typstBoundarySummary']['fontAccessControlCount']);
+        $t->contains('typst-boundary-environment:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-paths:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-path-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-path-unsafe:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-system-font-access:disabled', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-paths:4', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same($plan['typstBoundarySummary'], $result['typstBoundarySummary']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst invalid font environment flag provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

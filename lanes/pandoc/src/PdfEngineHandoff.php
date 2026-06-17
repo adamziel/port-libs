@@ -6502,6 +6502,7 @@ final class PdfEngineHandoff
         $rootEnvironmentVariable = null;
         $rootEnvironmentShadow = null;
         $fontPathEnvironmentVariable = null;
+        $fontPathEnvironmentValues = [];
         $packagePathEnvironmentVariable = null;
         $packagePathEnvironmentShadow = null;
         $packageCacheEnvironmentVariable = null;
@@ -6554,8 +6555,8 @@ final class PdfEngineHandoff
             )));
             $environmentVariables[] = 'TYPST_ROOT';
         }
-        if ($fontPathValues === [] && array_key_exists('TYPST_FONT_PATHS', $engineEnvironment)) {
-            $fontPathValues = $this->typstEnvironmentPathListValues($engineEnvironment['TYPST_FONT_PATHS']);
+        if (array_key_exists('TYPST_FONT_PATHS', $engineEnvironment)) {
+            $fontPathEnvironmentValues = $this->typstEnvironmentPathListValues($engineEnvironment['TYPST_FONT_PATHS']);
             $fontPathEnvironmentVariable = 'TYPST_FONT_PATHS';
             $environmentVariables[] = 'TYPST_FONT_PATHS';
         }
@@ -6648,7 +6649,7 @@ final class PdfEngineHandoff
             }
         }
 
-        if ($rootValues === [] && $rootEnvironmentShadow === null && $fontPathValues === [] && $certificateValues === [] && $certificateEnvironmentShadow === null && $packagePathValues === [] && $packagePathEnvironmentShadow === null && $packageCacheValues === [] && $packageCacheEnvironmentShadow === null && $inputVariableValues === [] && $creationTimestampValues === [] && $creationTimestampEnvironmentShadow === null && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $featureGateEnvironmentShadow === null && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $outputFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
+        if ($rootValues === [] && $rootEnvironmentShadow === null && $fontPathValues === [] && $fontPathEnvironmentValues === [] && $certificateValues === [] && $certificateEnvironmentShadow === null && $packagePathValues === [] && $packagePathEnvironmentShadow === null && $packageCacheValues === [] && $packageCacheEnvironmentShadow === null && $inputVariableValues === [] && $creationTimestampValues === [] && $creationTimestampEnvironmentShadow === null && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $featureGateEnvironmentShadow === null && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $outputFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -6658,9 +6659,15 @@ final class PdfEngineHandoff
             $rootValues
         );
         $root = $rootHistory === [] ? null : $rootHistory[count($rootHistory) - 1];
-        $fontPaths = array_map(
-            fn (string $value): array => $this->typstBoundaryPathEntryFromSource($value, 'font-path', $fontPathEnvironmentVariable),
-            $fontPathValues
+        $fontPaths = array_merge(
+            array_map(
+                fn (string $value): array => $this->typstBoundaryPathEntryFromSource($value, 'font-path', null),
+                $fontPathValues
+            ),
+            array_map(
+                fn (string $value): array => $this->typstBoundaryPathEntryFromSource($value, 'font-path', $fontPathEnvironmentVariable),
+                $fontPathEnvironmentValues
+            )
         );
         $fontPathPolicy = $this->typstFontPathPolicy($fontPaths);
         $certificates = array_map(
