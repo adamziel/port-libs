@@ -9988,6 +9988,7 @@ final class DocxOpenXmlReader
             }
         }
         $partContentTypes = $this->packagePartContentTypeSummary($partInventory);
+        $partRoles = $this->packagePartRoleSummary($partInventory);
         $largestParts = $this->largestPackagePartSummary($partInventory);
         $largestPart = $largestParts[0] ?? null;
         $maxPartPathSegmentCount = 0;
@@ -10690,6 +10691,7 @@ final class DocxOpenXmlReader
             'duplicatePartBaseNameCount' => count($duplicatePartBaseNames),
             'duplicatePartBaseNames' => $duplicatePartBaseNames,
             'partContentTypeCount' => count($partContentTypes),
+            'partRoleCount' => count($partRoles),
             'packageByteLength' => $packageByteLength,
             'largestPartCount' => count($largestParts),
             'largestPartName' => $largestPart['partName'] ?? null,
@@ -10827,6 +10829,7 @@ final class DocxOpenXmlReader
             'partExtensions' => $partExtensions,
             'partBaseNames' => $partBaseNames,
             'partContentTypes' => $partContentTypes,
+            'partRoles' => $partRoles,
             'largestPart' => $largestPart,
             'largestParts' => $largestParts,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
@@ -10992,6 +10995,112 @@ final class DocxOpenXmlReader
         }
 
         return array_values($contentTypes);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartRoleSummary(array $partInventory): array
+    {
+        $roles = [];
+        foreach ($partInventory as $partName => $part) {
+            $partRoles = array_values(array_filter(
+                array_map('strval', $part['roles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            ));
+            if ($partRoles === []) {
+                $partRoles = ['package-part'];
+            }
+
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory((string) $partName);
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null)
+                ? $part['contentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $partSummary = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => $directory,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => $partRoles,
+            ];
+
+            foreach ($partRoles as $role) {
+                if (!isset($roles[$role])) {
+                    $roles[$role] = [
+                        'role' => $role,
+                        'partCount' => 0,
+                        'byteLength' => 0,
+                        'relationshipPartCount' => 0,
+                        'missingContentTypePartCount' => 0,
+                        'parameterizedPartCount' => 0,
+                        'contentTypeSourceCounts' => [],
+                        'contentTypeBaseCounts' => [],
+                        'directories' => [],
+                        'partNames' => [],
+                        'largestPart' => null,
+                    ];
+                }
+
+                ++$roles[$role]['partCount'];
+                $roles[$role]['byteLength'] += $bytes;
+                $roles[$role]['partNames'][] = (string) $partName;
+                $roles[$role]['directories'][$directory] = true;
+                $roles[$role]['contentTypeSourceCounts'][$contentTypeSource] =
+                    ($roles[$role]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+                $roles[$role]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                    ($roles[$role]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+                if (($part['isRelationshipPart'] ?? false) === true) {
+                    ++$roles[$role]['relationshipPartCount'];
+                }
+                if ($contentTypeSource === 'missing') {
+                    ++$roles[$role]['missingContentTypePartCount'];
+                }
+                if (($part['contentTypeHasParameters'] ?? false) === true) {
+                    ++$roles[$role]['parameterizedPartCount'];
+                }
+
+                $largestPart = $roles[$role]['largestPart'];
+                if (
+                    !is_array($largestPart)
+                    || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                    || (
+                        $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                        && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                    )
+                ) {
+                    $roles[$role]['largestPart'] = $partSummary;
+                }
+            }
+        }
+
+        ksort($roles, SORT_STRING);
+        foreach ($roles as $role => $summary) {
+            $directories = array_keys($summary['directories']);
+            sort($directories, SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            $summary['directories'] = $directories;
+            $roles[$role] = $summary;
+        }
+
+        return array_values($roles);
     }
 
     /**

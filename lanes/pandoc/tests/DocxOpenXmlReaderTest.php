@@ -4712,6 +4712,107 @@ XML;
         $t->same(['package-part' => 1], $missing['roleCounts']);
         $t->same('customXml/no-type.bin', $missing['largestPart']['partName']);
     },
+    'summarizes docx package part roles for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $embeddedPackageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $embeddedContentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        $embeddedBytes = 'fake role bucket embedded workbook bytes';
+        $untypedBytes = 'role bucket untyped payload';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/embeddings/review.xlsx" ContentType="' . $embeddedContentType . '; profile=role-bucket"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rEmbeddedWorkbook" Type="' . $embeddedPackageRel . '" Target="embeddings/review.xlsx?sheet=1#ole"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/embeddings/review.xlsx'] = $embeddedBytes;
+        $parts['customXml/no-type.bin'] = $untypedBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $roles = [];
+        foreach ($summary['partRoles'] as $role) {
+            $roles[$role['role']] = $role;
+        }
+
+        $t->same(9, $summary['partRoleCount']);
+        $t->same([
+            'content-types',
+            'document-relationship-target',
+            'embedded-package',
+            'office-document',
+            'office-document-relationships',
+            'package-part',
+            'package-relationships',
+            'relationship-part',
+            'root-relationship-target',
+        ], array_column($summary['partRoles'], 'role'));
+
+        $documentTargets = $roles['document-relationship-target'];
+        $t->same(2, $documentTargets['partCount']);
+        $t->same(strlen($parts['word/media/review.png']) + strlen($embeddedBytes), $documentTargets['byteLength']);
+        $t->same(0, $documentTargets['relationshipPartCount']);
+        $t->same(0, $documentTargets['missingContentTypePartCount']);
+        $t->same(1, $documentTargets['parameterizedPartCount']);
+        $t->same(['default' => 1, 'override' => 1], $documentTargets['contentTypeSourceCounts']);
+        $t->same([
+            $embeddedContentType => 1,
+            'image/png' => 1,
+        ], $documentTargets['contentTypeBaseCounts']);
+        $t->same(['word/embeddings', 'word/media'], $documentTargets['directories']);
+        $t->same(['word/embeddings/review.xlsx', 'word/media/review.png'], $documentTargets['partNames']);
+        $t->same('word/embeddings/review.xlsx', $documentTargets['largestPart']['partName']);
+        $t->same(hash('sha256', $embeddedBytes), $documentTargets['largestPart']['sha256']);
+
+        $embedded = $roles['embedded-package'];
+        $t->same(1, $embedded['partCount']);
+        $t->same(1, $embedded['parameterizedPartCount']);
+        $t->same(['override' => 1], $embedded['contentTypeSourceCounts']);
+        $t->same([$embeddedContentType => 1], $embedded['contentTypeBaseCounts']);
+        $t->same(['word/embeddings/review.xlsx'], $embedded['partNames']);
+        $t->same(['document-relationship-target', 'embedded-package'], $embedded['largestPart']['roles']);
+
+        $packagePart = $roles['package-part'];
+        $t->same(3, $packagePart['partCount']);
+        $t->same(
+            strlen($parts['word/styles.xml']) + strlen($parts['word/numbering.xml']) + strlen($untypedBytes),
+            $packagePart['byteLength']
+        );
+        $t->same(1, $packagePart['missingContentTypePartCount']);
+        $t->same(['default' => 2, 'missing' => 1], $packagePart['contentTypeSourceCounts']);
+        $t->same(['(missing)' => 1, 'application/xml' => 2], $packagePart['contentTypeBaseCounts']);
+        $t->same(['customXml', 'word'], $packagePart['directories']);
+        $t->same(['customXml/no-type.bin', 'word/numbering.xml', 'word/styles.xml'], $packagePart['partNames']);
+        $t->same('word/numbering.xml', $packagePart['largestPart']['partName']);
+
+        $relationshipPart = $roles['relationship-part'];
+        $t->same(2, $relationshipPart['partCount']);
+        $t->same(2, $relationshipPart['relationshipPartCount']);
+        $t->same(['default' => 2], $relationshipPart['contentTypeSourceCounts']);
+        $t->same(['application/vnd.openxmlformats-package.relationships+xml' => 2], $relationshipPart['contentTypeBaseCounts']);
+        $t->same(['_rels', 'word/_rels'], $relationshipPart['directories']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $relationshipPart['partNames']);
+
+        $rootTargets = $roles['root-relationship-target'];
+        $t->same(2, $rootTargets['partCount']);
+        $t->same(['override' => 2], $rootTargets['contentTypeSourceCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+        ], $rootTargets['contentTypeBaseCounts']);
+        $t->same(['docProps/core.xml', 'word/document.xml'], $rootTargets['partNames']);
+
+        $t->same(1, $roles['content-types']['partCount']);
+        $t->same(1, $roles['office-document']['partCount']);
+        $t->same(1, $roles['office-document-relationships']['partCount']);
+        $t->same(1, $roles['package-relationships']['partCount']);
+    },
     'summarizes docx embedded object package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
