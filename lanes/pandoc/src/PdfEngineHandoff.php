@@ -16,6 +16,7 @@ final class PdfEngineHandoff
     private const MAX_DOCUMENT_SECURITY_STORE_STREAM_BYTES = 262144;
     private const MAX_PIECE_INFO_PRIVATE_STREAM_BYTES = 262144;
     private const MAX_LEGAL_ATTESTATION_STREAM_BYTES = 262144;
+    private const MAX_XFA_PACKET_BYTES = 262144;
     private const MAX_EMBEDDED_FONT_STREAM_BYTES = 262144;
     private const MAX_IMAGE_STREAM_BYTES = 262144;
     private const MAX_FORM_XOBJECT_STREAM_BYTES = 262144;
@@ -820,6 +821,7 @@ final class PdfEngineHandoff
      *     pdfCollectionPolicy: array<string, mixed>,
      *     pdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     pdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
+     *     pdfXfaPackets: list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
      *     pdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     pdfThreadPolicy: array<string, mixed>,
      *     pdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
@@ -1510,6 +1512,7 @@ final class PdfEngineHandoff
         $pdfCollectionPolicy = [];
         $pdfAcroFormMetadata = [];
         $pdfAcroFormCalculationOrder = [];
+        $pdfXfaPackets = [];
         $pdfThreads = [];
         $pdfThreadPolicy = [];
         $pdfCatalogPermissions = [];
@@ -1656,6 +1659,7 @@ final class PdfEngineHandoff
                 $pdfCollectionPolicy = $pdfInspection['collectionPolicy'];
                 $pdfAcroFormMetadata = $pdfInspection['acroFormMetadata'];
                 $pdfAcroFormCalculationOrder = $pdfInspection['acroFormCalculationOrder'];
+                $pdfXfaPackets = $pdfInspection['xfaPackets'];
                 $pdfThreads = $pdfInspection['threads'];
                 $pdfThreadPolicy = $pdfInspection['threadPolicy'];
                 $pdfCatalogPermissions = $pdfInspection['catalogPermissions'];
@@ -3606,6 +3610,39 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-acroform-xfa-packets:' . count($pdfAcroFormMetadata['xfaPacketNames']);
                     }
                 }
+                if ($pdfXfaPackets !== []) {
+                    $diagnostics[] = 'pdf-byte-xfa-packets:' . count($pdfXfaPackets);
+                    $xfaPacketNames = 0;
+                    $xfaPacketStreams = 0;
+                    $xfaPacketBytes = 0;
+                    $xfaPacketSkips = [];
+                    foreach ($pdfXfaPackets as $packet) {
+                        if (is_string($packet['packetName'] ?? null) && $packet['packetName'] !== '') {
+                            $xfaPacketNames++;
+                        }
+                        if (($packet['valueKind'] ?? null) === 'stream') {
+                            $xfaPacketStreams++;
+                        }
+                        if (is_int($packet['packetBytes'] ?? null)) {
+                            $xfaPacketBytes += $packet['packetBytes'];
+                        }
+                        if (is_string($packet['packetSkipped'] ?? null) && $packet['packetSkipped'] !== '') {
+                            $xfaPacketSkips[$packet['packetSkipped']] = true;
+                        }
+                    }
+                    if ($xfaPacketNames > 0) {
+                        $diagnostics[] = 'pdf-byte-xfa-packet-names:' . $xfaPacketNames;
+                    }
+                    if ($xfaPacketStreams > 0) {
+                        $diagnostics[] = 'pdf-byte-xfa-packet-streams:' . $xfaPacketStreams;
+                    }
+                    if ($xfaPacketBytes > 0) {
+                        $diagnostics[] = 'pdf-byte-xfa-packet-bytes:' . $xfaPacketBytes;
+                    }
+                    foreach (array_keys($xfaPacketSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-xfa-packet-skipped:' . $skipReason;
+                    }
+                }
                 if ($pdfAcroFormCalculationOrder !== []) {
                     $calculationFields = 0;
                     $missingCalculationFields = 0;
@@ -4967,6 +5004,7 @@ final class PdfEngineHandoff
             'pdfCollectionPolicy' => $pdfCollectionPolicy,
             'pdfAcroFormMetadata' => $pdfAcroFormMetadata,
             'pdfAcroFormCalculationOrder' => $pdfAcroFormCalculationOrder,
+            'pdfXfaPackets' => $pdfXfaPackets,
             'pdfThreads' => $pdfThreads,
             'pdfThreadPolicy' => $pdfThreadPolicy,
             'pdfCatalogPermissions' => $pdfCatalogPermissions,
@@ -5134,6 +5172,7 @@ final class PdfEngineHandoff
      *     finalPdfCollectionPolicy: array<string, mixed>,
      *     finalPdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     finalPdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
+     *     finalPdfXfaPackets: list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
      *     finalPdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     finalPdfThreadPolicy: array<string, mixed>,
      *     finalPdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
@@ -5457,6 +5496,7 @@ final class PdfEngineHandoff
             'finalPdfCollectionPolicy' => is_array($finalRun) && is_array($finalRun['pdfCollectionPolicy'] ?? null) ? $finalRun['pdfCollectionPolicy'] : [],
             'finalPdfAcroFormMetadata' => is_array($finalRun) && is_array($finalRun['pdfAcroFormMetadata'] ?? null) ? $finalRun['pdfAcroFormMetadata'] : [],
             'finalPdfAcroFormCalculationOrder' => is_array($finalRun) && is_array($finalRun['pdfAcroFormCalculationOrder'] ?? null) ? $finalRun['pdfAcroFormCalculationOrder'] : [],
+            'finalPdfXfaPackets' => is_array($finalRun) && is_array($finalRun['pdfXfaPackets'] ?? null) ? $finalRun['pdfXfaPackets'] : [],
             'finalPdfThreads' => is_array($finalRun) && is_array($finalRun['pdfThreads'] ?? null) ? $finalRun['pdfThreads'] : [],
             'finalPdfThreadPolicy' => is_array($finalRun) && is_array($finalRun['pdfThreadPolicy'] ?? null) ? $finalRun['pdfThreadPolicy'] : [],
             'finalPdfCatalogPermissions' => is_array($finalRun) && is_array($finalRun['pdfCatalogPermissions'] ?? null) ? $finalRun['pdfCatalogPermissions'] : [],
@@ -11428,6 +11468,7 @@ final class PdfEngineHandoff
      *     markedContentArtifacts:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
      *     collectionMetadata:array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     collectionPolicy:array<string, mixed>,
+     *     xfaPackets:list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
      *     threads:list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     threadPolicy:array<string, mixed>,
      *     catalogPermissions:list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
@@ -11665,6 +11706,7 @@ final class PdfEngineHandoff
             'collectionPolicy' => $this->summarizePdfCollectionPolicy($collectionMetadata, $embeddedFiles),
             'acroFormMetadata' => $this->extractPdfAcroFormMetadata($pdfBytes, $catalog),
             'acroFormCalculationOrder' => $this->extractPdfAcroFormCalculationOrder($pdfBytes, $catalog),
+            'xfaPackets' => $this->extractPdfXfaPackets($pdfBytes, $catalog),
             'threads' => $threads,
             'threadPolicy' => $this->summarizePdfThreadPolicy($threads),
             'catalogPermissions' => $catalogPermissions,
@@ -31804,6 +31846,166 @@ final class PdfEngineHandoff
             'calculationOrder' => $calculationOrder,
             'xfaPresent' => $xfaValue !== null,
             'xfaPacketNames' => $xfaValue === null ? [] : $this->extractPdfXfaPacketNames($xfaValue, $objects),
+        ];
+    }
+
+    /**
+     * @return list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>
+     */
+    private function extractPdfXfaPackets(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $acroForm = $this->extractPdfAcroFormDictionary($pdfBytes, $catalog);
+        if ($acroForm === null) {
+            return [];
+        }
+
+        $xfaValue = $this->extractPdfValueForName($acroForm, 'XFA');
+        if ($xfaValue === null) {
+            return [];
+        }
+
+        return $this->collectPdfXfaPacketsFromValue($xfaValue, $objects, 'AcroForm.XFA');
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>
+     */
+    private function collectPdfXfaPacketsFromValue(array $value, array $objects, string $source, int $depth = 0): array
+    {
+        if ($depth > 8) {
+            return [];
+        }
+
+        if ($value['kind'] === 'reference') {
+            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($body === null) {
+                return [];
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+            if ($resolved !== null && $resolved['kind'] === 'array' && $this->extractPdfStreamBytes($body) === null) {
+                return $this->collectPdfXfaPacketsFromValue($resolved, $objects, $source, $depth + 1);
+            }
+        }
+
+        if ($value['kind'] !== 'array') {
+            $summary = $this->summarizePdfXfaPacketValue(null, $value, $objects, $source, $depth);
+
+            return $summary === null ? [] : [$summary];
+        }
+
+        $packets = [];
+        $values = $this->pdfTopLevelArrayValues($value['value']);
+        for ($index = 0; $index < count($values); $index++) {
+            $packetName = null;
+            $packetValue = $values[$index];
+            $packetSource = $source . '[' . $index . ']';
+            if (
+                in_array($packetValue['kind'], ['hex', 'literal', 'name'], true)
+                && isset($values[$index + 1])
+            ) {
+                $packetName = trim($packetValue['value']);
+                $packetName = $packetName === '' ? null : $packetName;
+                $index++;
+                $packetValue = $values[$index];
+                $packetSource = $packetName === null
+                    ? $source . '[' . $index . ']'
+                    : $source . '[' . $packetName . ']';
+            }
+
+            $summary = $this->summarizePdfXfaPacketValue($packetName, $packetValue, $objects, $packetSource, $depth + 1);
+            if ($summary !== null) {
+                $packets[] = $summary;
+            }
+        }
+
+        return $packets;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}|null
+     */
+    private function summarizePdfXfaPacketValue(?string $packetName, array $value, array $objects, string $source, int $depth = 0): ?array
+    {
+        if ($depth > 8) {
+            return null;
+        }
+
+        $packetObject = null;
+        $filters = [];
+        $packetBytes = null;
+        $packetSha256 = null;
+        $packetSkipped = null;
+        $valueKind = $value['kind'];
+
+        if ($value['kind'] === 'reference') {
+            $packetObject = $value['value'];
+            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($body === null) {
+                return [
+                    'packetName' => $packetName,
+                    'packetObject' => $packetObject,
+                    'source' => $source,
+                    'valueKind' => 'missing',
+                    'filters' => [],
+                    'packetBytes' => null,
+                    'packetSha256' => null,
+                    'packetSkipped' => 'missing-object',
+                ];
+            }
+
+            if ($this->extractPdfStreamBytes($body) !== null) {
+                $stream = $this->summarizePdfStructuralStream($body, self::MAX_XFA_PACKET_BYTES);
+
+                return [
+                    'packetName' => $packetName,
+                    'packetObject' => $packetObject,
+                    'source' => $source,
+                    'valueKind' => 'stream',
+                    'filters' => $this->extractPdfFilterNames($body, $objects),
+                    'packetBytes' => $stream['bytes'],
+                    'packetSha256' => $stream['sha256'],
+                    'packetSkipped' => $stream['skipped'],
+                ];
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+            if ($resolved !== null) {
+                $summary = $this->summarizePdfXfaPacketValue($packetName, $resolved, $objects, $source, $depth + 1);
+                if ($summary !== null) {
+                    $summary['packetObject'] = $packetObject;
+                }
+
+                return $summary;
+            }
+
+            $valueKind = str_starts_with(ltrim($body), '<<') ? 'dictionary' : 'object';
+        } elseif (in_array($value['kind'], ['hex', 'literal', 'name'], true)) {
+            $bytes = $value['value'];
+            $packetBytes = strlen($bytes);
+            if ($packetBytes > self::MAX_XFA_PACKET_BYTES) {
+                $packetSkipped = 'too-large';
+            } else {
+                $packetSha256 = hash('sha256', $bytes);
+            }
+        } elseif ($value['kind'] === 'dictionary') {
+            $filters = $this->extractPdfFilterNames($value['value'], $objects);
+        }
+
+        return [
+            'packetName' => $packetName,
+            'packetObject' => $packetObject,
+            'source' => $source,
+            'valueKind' => $valueKind,
+            'filters' => $filters,
+            'packetBytes' => $packetBytes,
+            'packetSha256' => $packetSha256,
+            'packetSkipped' => $packetSkipped,
         ];
     }
 

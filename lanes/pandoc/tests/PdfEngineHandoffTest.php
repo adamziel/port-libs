@@ -16653,6 +16653,93 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfAcroFormMetadata']);
     },
 
+    'fake runner extracts bounded pdf xfa packet provenance from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/xfa-packets.pdf']);
+        $templatePacket = '<template xmlns="http://www.xfa.org/schema/xfa-template/3.3/"><subform name="review" /></template>';
+        $datasetsPacket = '<xfa:datasets xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"><xfa:data /></xfa:datasets>';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Tx /T (reviewer.name) /V (Migration Desk) >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R] /XFA [(template) 11 0 R (datasets) 12 0 R] >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Length ' . strlen($templatePacket) . ' >>',
+            'stream',
+            $templatePacket,
+            'endstream',
+            'endobj',
+            '12 0 obj',
+            '<< /Filter /FlateDecode /Length ' . strlen($datasetsPacket) . ' >>',
+            'stream',
+            $datasetsPacket,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/xfa-packets.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/xfa-packets.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'packetName' => 'template',
+                'packetObject' => '11 0 R',
+                'source' => 'AcroForm.XFA[template]',
+                'valueKind' => 'stream',
+                'filters' => [],
+                'packetBytes' => strlen($templatePacket),
+                'packetSha256' => hash('sha256', $templatePacket),
+                'packetSkipped' => null,
+            ],
+            [
+                'packetName' => 'datasets',
+                'packetObject' => '12 0 R',
+                'source' => 'AcroForm.XFA[datasets]',
+                'valueKind' => 'stream',
+                'filters' => ['FlateDecode'],
+                'packetBytes' => strlen($datasetsPacket),
+                'packetSha256' => null,
+                'packetSkipped' => 'filtered',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfXfaPackets']);
+        $t->contains('pdf-byte-xfa-packets:2', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-names:2', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-streams:2', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-bytes:' . (strlen($templatePacket) + strlen($datasetsPacket)), $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-skipped:filtered', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfXfaPackets']);
+    },
+
     'fake runner resolves bounded pdf acroform calculation order fields from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/acroform-calculation-order.pdf']);
