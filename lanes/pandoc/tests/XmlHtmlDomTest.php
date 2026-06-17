@@ -3776,6 +3776,77 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/direction-token-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html title advisory inheritance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="doc" title="Package note"><section id="child"><p id="leaf">Leaf</p><p id="empty" title=""><span id="reset-child">Reset</span></p><p id="self" title="Local note">Local</p></section></article>'
+                . '<aside id="plain"><span id="plain-child">Plain</span></aside>',
+            'title advisory inheritance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/title-advisory-inheritance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $section = $article['children'][0];
+        $leaf = $section['children'][0];
+        $empty = $section['children'][1];
+        $resetChild = $empty['children'][0];
+        $self = $section['children'][2];
+        $aside = $summary[1];
+        $plainChild = $aside['children'][0];
+
+        $t->same('Package note', $article['titleAttribute']);
+        $t->same('Package note', $article['effectiveTitleRaw']);
+        $t->same('Package note', $article['effectiveTitle']);
+        $t->same(false, $article['titleInherited']);
+        $t->same('self-title', $article['titleSource']);
+        $t->same('article', $article['titleSourceElement']);
+        $t->same('doc', $article['titleSourceElementId']);
+        $t->same(true, $article['titleAdvisoryAvailable']);
+        $t->same(false, $article['titleAdvisoryReset']);
+
+        $t->true(!array_key_exists('titleAttribute', $section));
+        $t->same('Package note', $section['effectiveTitle']);
+        $t->same(true, $section['titleInherited']);
+        $t->same('ancestor-title', $section['titleSource']);
+        $t->same('article', $section['titleSourceElement']);
+        $t->same('doc', $section['titleSourceElementId']);
+        $t->same('Package note', $leaf['effectiveTitle']);
+        $t->same(true, $leaf['titleInherited']);
+
+        $t->same('', $empty['titleAttribute']);
+        $t->same('', $empty['effectiveTitleRaw']);
+        $t->same(null, $empty['effectiveTitle']);
+        $t->same(false, $empty['titleInherited']);
+        $t->same('self-title', $empty['titleSource']);
+        $t->same(false, $empty['titleAdvisoryAvailable']);
+        $t->same(true, $empty['titleAdvisoryReset']);
+
+        $t->same('', $resetChild['effectiveTitleRaw']);
+        $t->same(null, $resetChild['effectiveTitle']);
+        $t->same(true, $resetChild['titleInherited']);
+        $t->same('p', $resetChild['titleSourceElement']);
+        $t->same('empty', $resetChild['titleSourceElementId']);
+        $t->same(false, $resetChild['titleAdvisoryAvailable']);
+        $t->same(true, $resetChild['titleAdvisoryReset']);
+
+        $t->same('Local note', $self['titleAttribute']);
+        $t->same('Local note', $self['effectiveTitle']);
+        $t->same(false, $self['titleInherited']);
+        $t->same(true, $self['titleAdvisoryAvailable']);
+
+        $t->true(!array_key_exists('effectiveTitle', $aside));
+        $t->true(!array_key_exists('effectiveTitle', $plainChild));
+        $t->same(
+            '<article id="doc" title="Package note"><section id="child"><p id="leaf">Leaf</p><p id="empty" title=""><span id="reset-child">Reset</span></p><p id="self" title="Local note">Local</p></section></article><aside id="plain"><span id="plain-child">Plain</span></aside>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/title-advisory-inheritance-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html nonce token metadata without raw token leakage for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<script id="valid-script" type="module" src="app.js" nonce="n0Nc3Token-42_=="></script>'

@@ -18019,6 +18019,7 @@ final class XmlHtmlDom
         }
 
         $summary += self::effectiveTitleAttributeSummary($element, $attributes);
+        $summary += self::effectiveTitleSummary($element, $attributes);
 
         if (array_key_exists('style', $attributes)) {
             $summary += self::styleAttributeSummary($attributes['style']);
@@ -18493,6 +18494,49 @@ final class XmlHtmlDom
             'id' => self::attributeOrNull($target, 'id'),
             'text' => self::normalizedText($target),
         ];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveTitleSummary(\DOMElement $element, array $attributes): array
+    {
+        if (array_key_exists('title', $attributes)) {
+            return self::titleProvenanceSummary($element, $attributes['title'], false);
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (array_key_exists('title', $ancestorAttributes)) {
+                return self::titleProvenanceSummary($ancestor, $ancestorAttributes['title'], true);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function titleProvenanceSummary(\DOMElement $source, string $raw, bool $inherited): array
+    {
+        $summary = [
+            'effectiveTitleRaw' => $raw,
+            'effectiveTitle' => $raw === '' ? null : $raw,
+            'titleInherited' => $inherited,
+            'titleSource' => $inherited ? 'ancestor-title' : 'self-title',
+            'titleSourceElement' => self::htmlElementName($source),
+            'titleAdvisoryAvailable' => $raw !== '',
+            'titleAdvisoryReset' => $raw === '',
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['titleSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
     }
 
     /**
