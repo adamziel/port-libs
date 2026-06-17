@@ -18414,6 +18414,7 @@ final class XmlHtmlDom
             'languageReviewPolicy' => 'html-language-tag-review',
             'languageAttributeReviewPolicy' => 'html-language-attribute-review',
             'languageSourceAttribute' => $sourceAttribute,
+            'languageAttribute' => $sourceAttribute,
             'languageRaw' => $raw,
             'language' => $language,
             'languageTag' => $languageTag,
@@ -18458,10 +18459,49 @@ final class XmlHtmlDom
             static fn (array $issue): string => (string) ($issue['code'] ?? ''),
             $issues
         )));
+        $declaredTags = [];
+        $declaredNormalized = [];
+        foreach (['lang', 'xml:lang'] as $attribute) {
+            if (!array_key_exists($attribute, $attributes)) {
+                continue;
+            }
+
+            $declaredTags[$attribute] = $attributes[$attribute];
+            $normalized = self::normalizeHtmlLanguageTag($attributes[$attribute]);
+            if ($normalized !== null) {
+                $declaredNormalized[$attribute] = $normalized;
+            }
+        }
+        $languageIssueCodeMap = [
+            'empty-lang-attribute' => 'empty-html-language-tag',
+            'empty-xml:lang-attribute' => 'empty-html-language-tag',
+            'invalid-lang-attribute' => 'invalid-html-language-tag',
+            'invalid-xml:lang-attribute' => 'invalid-html-language-tag',
+            'conflicting-language-attributes' => 'mismatched-html-language-declarations',
+        ];
+        $languageIssueCodes = array_values(array_unique(array_map(
+            static fn (string $code): string => $languageIssueCodeMap[$code] ?? $code,
+            $issueCodes
+        )));
 
         $summary['languageAttributeConflict'] = in_array('conflicting-language-attributes', $issueCodes, true);
         $summary['languageAttributeIssues'] = $issues;
         $summary['languageAttributeIssueCodes'] = $issueCodes;
+        $summary['languageIssues'] = array_map(
+            static function (array $issue) use ($languageIssueCodeMap): array {
+                $code = (string) ($issue['code'] ?? '');
+                $issue['code'] = $languageIssueCodeMap[$code] ?? $code;
+
+                return $issue;
+            },
+            $issues
+        );
+        $summary['languageIssueCodes'] = $languageIssueCodes;
+        if (count($declaredTags) > 1) {
+            $summary['languageDeclaredTags'] = $declaredTags;
+            $summary['languageDeclaredNormalized'] = $declaredNormalized;
+            $summary['languageDeclarationMismatch'] = $summary['languageAttributeConflict'];
+        }
 
         return $summary;
     }
@@ -18472,21 +18512,28 @@ final class XmlHtmlDom
      */
     private static function effectiveLanguageSummary(\DOMElement $element, array $attributes): array
     {
+        $firstInvalidCandidate = null;
         foreach (['lang', 'xml:lang'] as $attribute) {
             if (!array_key_exists($attribute, $attributes)) {
                 continue;
             }
 
-            $language = self::normalizeHtmlLanguageTag($attributes[$attribute]);
+            $raw = $attributes[$attribute];
+            if (trim($raw) === '') {
+                continue;
+            }
+
+            $language = self::normalizeHtmlLanguageTag($raw);
             if ($language !== null) {
                 return self::languageProvenanceSummary(
                     $element,
-                    $attributes[$attribute],
+                    $raw,
                     $language,
                     'self-' . $attribute,
                     false
                 );
             }
+            $firstInvalidCandidate ??= [$element, $raw, 'self-' . $attribute, false];
         }
 
         for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
@@ -18496,17 +18543,35 @@ final class XmlHtmlDom
                     continue;
                 }
 
-                $language = self::normalizeHtmlLanguageTag($ancestorAttributes[$attribute]);
+                $raw = $ancestorAttributes[$attribute];
+                if (trim($raw) === '') {
+                    continue;
+                }
+
+                $language = self::normalizeHtmlLanguageTag($raw);
                 if ($language !== null) {
                     return self::languageProvenanceSummary(
                         $ancestor,
-                        $ancestorAttributes[$attribute],
+                        $raw,
                         $language,
                         'ancestor-' . $attribute,
                         true
                     );
                 }
+                $firstInvalidCandidate ??= [$ancestor, $raw, 'ancestor-' . $attribute, true];
             }
+        }
+
+        if ($firstInvalidCandidate !== null) {
+            [$source, $raw, $sourceKind, $inherited] = $firstInvalidCandidate;
+
+            return self::languageProvenanceSummary(
+                $source,
+                $raw,
+                trim($raw),
+                $sourceKind,
+                $inherited
+            );
         }
 
         return [];
@@ -18522,10 +18587,12 @@ final class XmlHtmlDom
         string $sourceKind,
         bool $inherited
     ): array {
+        $normalized = self::normalizeHtmlLanguageTag($raw);
         $summary = [
             'effectiveLanguageRaw' => $raw,
-            'effectiveLanguage' => $language,
-            'effectiveLanguageValid' => true,
+            'effectiveLanguage' => $normalized ?? $language,
+            'effectiveLanguageNormalized' => $normalized,
+            'effectiveLanguageValid' => $normalized !== null,
             'languageInherited' => $inherited,
             'languageSource' => $sourceKind,
             'languageSourceElement' => self::htmlElementName($source),

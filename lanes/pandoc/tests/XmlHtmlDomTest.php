@@ -4079,6 +4079,85 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/draggable-token-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html language tag validity for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="primary" lang="EN-us">Hello</section>'
+                . '<p id="xml" xml:lang="fr-Latn-ca">Bonjour</p>'
+                . '<aside id="blank" lang="  ">Blank</aside>'
+                . '<div id="bad" lang="en US">Bad</div>'
+                . '<article id="mixed" lang="en" xml:lang="fr">Mixed</article>',
+            'language tag review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/language-tag-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $primary = $summary[0];
+        $xml = $summary[1];
+        $blank = $summary[2];
+        $bad = $summary[3];
+        $mixed = $summary[4];
+
+        $t->same('html-language-tag-review', $primary['languageReviewPolicy']);
+        $t->same('lang', $primary['languageAttribute']);
+        $t->same('EN-us', $primary['languageRaw']);
+        $t->same('EN-us', $primary['language']);
+        $t->same('en-US', $primary['languageNormalized']);
+        $t->same(true, $primary['languageValid']);
+        $t->same([], $primary['languageIssueCodes']);
+        $t->same('en-US', $primary['effectiveLanguageNormalized']);
+        $t->same(true, $primary['effectiveLanguageValid']);
+
+        $t->same('xml:lang', $xml['languageAttribute']);
+        $t->same('fr-Latn-ca', $xml['languageRaw']);
+        $t->same('fr-Latn-CA', $xml['languageNormalized']);
+        $t->same(true, $xml['languageValid']);
+        $t->same('self-xml:lang', $xml['languageSource']);
+        $t->same('fr-Latn-CA', $xml['effectiveLanguageNormalized']);
+        $t->same(true, $xml['effectiveLanguageValid']);
+
+        $t->same('  ', $blank['languageRaw']);
+        $t->same('', $blank['language']);
+        $t->same(null, $blank['languageNormalized']);
+        $t->same(false, $blank['languageValid']);
+        $t->same(['empty-html-language-tag'], $blank['languageIssueCodes']);
+        $t->true(!array_key_exists('effectiveLanguage', $blank));
+
+        $t->same('en US', $bad['languageRaw']);
+        $t->same(null, $bad['languageNormalized']);
+        $t->same(false, $bad['languageValid']);
+        $t->same(['invalid-html-language-tag'], $bad['languageIssueCodes']);
+        $t->same('en US', $bad['effectiveLanguage']);
+        $t->same(null, $bad['effectiveLanguageNormalized']);
+        $t->same(false, $bad['effectiveLanguageValid']);
+
+        $t->same('lang', $mixed['languageAttribute']);
+        $t->same('en', $mixed['languageNormalized']);
+        $t->same(true, $mixed['languageValid']);
+        $t->same(true, $mixed['languageAttributeConflict']);
+        $t->same(['conflicting-language-attributes'], $mixed['languageAttributeIssueCodes']);
+        $t->same(['mismatched-html-language-declarations'], $mixed['languageIssueCodes']);
+        $t->same(['lang' => 'en', 'xml:lang' => 'fr'], $mixed['languageDeclaredTags']);
+        $t->same(['lang' => 'en', 'xml:lang' => 'fr'], $mixed['languageDeclaredNormalized']);
+        $t->same(true, $mixed['languageDeclarationMismatch']);
+        $t->same('en', $mixed['effectiveLanguage']);
+        $t->same('en', $mixed['effectiveLanguageNormalized']);
+        $t->same(true, $mixed['effectiveLanguageValid']);
+
+        $t->same(
+            '<section id="primary" lang="EN-us">Hello</section>'
+                . '<p id="xml" xml:lang="fr-Latn-ca">Bonjour</p>'
+                . '<aside id="blank" lang="  ">Blank</aside>'
+                . '<div id="bad" lang="en US">Bad</div>'
+                . '<article id="mixed" lang="en" xml:lang="fr">Mixed</article>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/language-tag-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes inherited html language and direction for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="root" lang="en-US" dir="LTR"><section id="chapter"><p id="body" dir="sideways">Body <span id="quote" lang="fr-CA" dir="auto">Citation</span></p></section></article>'
