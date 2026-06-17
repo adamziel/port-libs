@@ -11837,9 +11837,43 @@ final class DocxOpenXmlReader
     {
         $segments = [];
         foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
             $topLevelSegment = is_string($part['topLevelSegment'] ?? null)
                 ? $part['topLevelSegment']
-                : $this->packagePartTopLevelSegment((string) $partName);
+                : $this->packagePartTopLevelSegment($partName);
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory($partName);
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName($partName);
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $contentType = is_string($part['contentType'] ?? null)
+                ? $part['contentType']
+                : '';
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null)
+                ? $part['contentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'baseName' => $baseName,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => $contentType,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+
             if (!isset($segments[$topLevelSegment])) {
                 $segments[$topLevelSegment] = [
                     'topLevelSegment' => $topLevelSegment,
@@ -11847,35 +11881,51 @@ final class DocxOpenXmlReader
                     'byteLength' => 0,
                     'relationshipPartCount' => 0,
                     'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
                     'directories' => [],
                     'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
                     'roleCounts' => [],
                     'partNames' => [],
+                    'largestPart' => null,
                 ];
             }
 
             ++$segments[$topLevelSegment]['partCount'];
-            $segments[$topLevelSegment]['byteLength'] += (int) ($part['bytes'] ?? 0);
-            $directory = is_string($part['directory'] ?? null)
-                ? $part['directory']
-                : $this->packagePartDirectory((string) $partName);
+            $segments[$topLevelSegment]['byteLength'] += $bytes;
             $segments[$topLevelSegment]['directories'][$directory] = true;
-            $segments[$topLevelSegment]['partNames'][] = (string) $partName;
+            $segments[$topLevelSegment]['partNames'][] = $partName;
             if (($part['isRelationshipPart'] ?? false) === true) {
                 ++$segments[$topLevelSegment]['relationshipPartCount'];
             }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$segments[$topLevelSegment]['parameterizedPartCount'];
+            }
 
-            $contentTypeSource = (string) ($part['contentTypeSource'] ?? 'missing');
             if ($contentTypeSource === 'missing') {
                 ++$segments[$topLevelSegment]['missingContentTypePartCount'];
             }
             $segments[$topLevelSegment]['contentTypeSourceCounts'][$contentTypeSource] =
                 ($segments[$topLevelSegment]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $segments[$topLevelSegment]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($segments[$topLevelSegment]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
 
             foreach (($part['roles'] ?? []) as $role) {
                 $role = (string) $role;
                 $segments[$topLevelSegment]['roleCounts'][$role] =
                     ($segments[$topLevelSegment]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $largestPart = $segments[$topLevelSegment]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $segments[$topLevelSegment]['largestPart'] = $partSummary;
             }
         }
 
@@ -11885,6 +11935,7 @@ final class DocxOpenXmlReader
             sort($directories, SORT_STRING);
             sort($summary['partNames'], SORT_STRING);
             ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
             ksort($summary['roleCounts'], SORT_STRING);
             $summary['directories'] = $directories;
             $segments[$segment] = $summary;

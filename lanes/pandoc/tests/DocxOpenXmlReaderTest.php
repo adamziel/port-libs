@@ -941,6 +941,64 @@ return [
         $t->same(['docProps/core.xml', 'docProps/thumbnail.png'], $bySegment['docProps']['partNames']);
         $t->same(['default' => 1, 'override' => 1], $bySegment['docProps']['contentTypeSourceCounts']);
     },
+    'summarizes docx package top-level segment content type buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '<Default Extension="xml" ContentType="application/xml"/>',
+            '<Default Extension="xml" ContentType="application/xml; profile=segment-bucket"/>',
+            $parts['[Content_Types].xml']
+        );
+        $xmlPayload = '<reviewCache>segment data</reviewCache>';
+        $mediaPayload = 'cache image bytes';
+        $rawPayload = 'raw review cache payload bytes for the largest segment entry';
+        $parts['reviewCache/data.xml'] = $xmlPayload;
+        $parts['reviewCache/media.png'] = $mediaPayload;
+        $parts['reviewCache/raw.bin'] = $rawPayload;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $segments = [];
+        foreach ($summary['partTopLevelSegments'] as $segment) {
+            $segments[$segment['topLevelSegment']] = $segment;
+        }
+
+        $t->same(5, $summary['partTopLevelSegmentCount']);
+        $t->same(['[Content_Types].xml', '_rels', 'docProps', 'reviewCache', 'word'], array_column($summary['partTopLevelSegments'], 'topLevelSegment'));
+
+        $reviewCache = $segments['reviewCache'];
+        $t->same(3, $reviewCache['partCount']);
+        $t->same(strlen($xmlPayload) + strlen($mediaPayload) + strlen($rawPayload), $reviewCache['byteLength']);
+        $t->same(0, $reviewCache['relationshipPartCount']);
+        $t->same(1, $reviewCache['missingContentTypePartCount']);
+        $t->same(1, $reviewCache['parameterizedPartCount']);
+        $t->same(['reviewCache'], $reviewCache['directories']);
+        $t->same(['reviewCache/data.xml', 'reviewCache/media.png', 'reviewCache/raw.bin'], $reviewCache['partNames']);
+        $t->same(['default' => 2, 'missing' => 1], $reviewCache['contentTypeSourceCounts']);
+        $t->same(['(missing)' => 1, 'application/xml' => 1, 'image/png' => 1], $reviewCache['contentTypeBaseCounts']);
+        $t->same(['package-part' => 3], $reviewCache['roleCounts']);
+        $t->same('reviewCache/raw.bin', $reviewCache['largestPart']['partName']);
+        $t->same('reviewCache', $reviewCache['largestPart']['directory']);
+        $t->same('raw.bin', $reviewCache['largestPart']['baseName']);
+        $t->same(strlen($rawPayload), $reviewCache['largestPart']['bytes']);
+        $t->same(hash('sha256', $rawPayload), $reviewCache['largestPart']['sha256']);
+        $t->same('', $reviewCache['largestPart']['contentType']);
+        $t->same('', $reviewCache['largestPart']['contentTypeBase']);
+        $t->same('missing', $reviewCache['largestPart']['contentTypeSource']);
+        $t->same(['package-part'], $reviewCache['largestPart']['roles']);
+
+        $word = $segments['word'];
+        $t->same(5, $word['partCount']);
+        $t->same(2, $word['parameterizedPartCount']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 1,
+            'application/xml' => 2,
+            'image/png' => 1,
+        ], $word['contentTypeBaseCounts']);
+        $t->same('word/document.xml', $word['largestPart']['partName']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $word['largestPart']['contentTypeBase']);
+    },
     'summarizes docx package directory content type buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
