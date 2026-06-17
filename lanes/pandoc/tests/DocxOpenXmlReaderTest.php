@@ -1144,6 +1144,58 @@ XML;
         $t->same(['word/embeddings/charts/cache/workbook.bin'], $byDepth[5]['partNames']);
         $t->same(4, $directories['word/embeddings/charts/cache']['directoryDepth']);
     },
+    'summarizes docx package path depth content type buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '<Default Extension="xml" ContentType="application/xml"/>',
+            '<Default Extension="xml" ContentType="application/xml; profile=depth-bucket"/>',
+            $parts['[Content_Types].xml']
+        );
+        $xmlPayload = '<depthReview>metadata</depthReview>';
+        $imagePayload = 'depth image bytes';
+        $rawPayload = 'raw depth package payload bytes for largest part review';
+        $parts['depthReview/a/b/meta.xml'] = $xmlPayload;
+        $parts['depthReview/a/b/media.png'] = $imagePayload;
+        $parts['depthReview/a/b/raw'] = $rawPayload;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $byDepth = [];
+        foreach ($summary['partPathDepths'] as $depth) {
+            $byDepth[$depth['pathSegmentCount']] = $depth;
+        }
+
+        $t->same(4, $summary['partPathDepthCount']);
+        $t->same(4, $summary['maxPartPathSegmentCount']);
+        $t->same(3, $summary['maxPartDirectoryDepth']);
+        $t->same(['depthReview/a/b/media.png', 'depthReview/a/b/meta.xml', 'depthReview/a/b/raw'], $summary['deepestPartNames']);
+
+        $depth = $byDepth[4];
+        $t->same(4, $depth['pathSegmentCount']);
+        $t->same(3, $depth['directoryDepth']);
+        $t->same(3, $depth['partCount']);
+        $t->same(strlen($xmlPayload) + strlen($imagePayload) + strlen($rawPayload), $depth['byteLength']);
+        $t->same(0, $depth['relationshipPartCount']);
+        $t->same(1, $depth['missingContentTypePartCount']);
+        $t->same(1, $depth['parameterizedPartCount']);
+        $t->same(['depthReview/a/b'], $depth['directories']);
+        $t->same(['depthReview/a/b/media.png', 'depthReview/a/b/meta.xml', 'depthReview/a/b/raw'], $depth['partNames']);
+        $t->same(['default' => 2, 'missing' => 1], $depth['contentTypeSourceCounts']);
+        $t->same(['(missing)' => 1, 'application/xml' => 1, 'image/png' => 1], $depth['contentTypeBaseCounts']);
+        $t->same(['package-part' => 3], $depth['roleCounts']);
+        $t->same('depthReview/a/b/raw', $depth['largestPart']['partName']);
+        $t->same('depthReview/a/b', $depth['largestPart']['directory']);
+        $t->same(3, $depth['largestPart']['directoryDepth']);
+        $t->same('raw', $depth['largestPart']['baseName']);
+        $t->same(4, $depth['largestPart']['pathSegmentCount']);
+        $t->same(strlen($rawPayload), $depth['largestPart']['bytes']);
+        $t->same(hash('sha256', $rawPayload), $depth['largestPart']['sha256']);
+        $t->same('', $depth['largestPart']['contentType']);
+        $t->same('', $depth['largestPart']['contentTypeBase']);
+        $t->same('missing', $depth['largestPart']['contentTypeSource']);
+        $t->same(['package-part'], $depth['largestPart']['roles']);
+    },
     'summarizes docx package part extensions for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

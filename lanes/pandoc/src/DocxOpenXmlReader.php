@@ -12241,15 +12241,47 @@ final class DocxOpenXmlReader
     {
         $depths = [];
         foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
             $pathSegmentCount = is_int($part['pathSegmentCount'] ?? null)
                 ? $part['pathSegmentCount']
-                : count($this->packagePartPathSegments((string) $partName));
+                : count($this->packagePartPathSegments($partName));
             $directory = is_string($part['directory'] ?? null)
                 ? $part['directory']
-                : $this->packagePartDirectory((string) $partName);
+                : $this->packagePartDirectory($partName);
             $directoryDepth = is_int($part['directoryDepth'] ?? null)
                 ? $part['directoryDepth']
                 : $this->packagePartDirectoryDepth($directory);
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName($partName);
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $contentType = is_string($part['contentType'] ?? null)
+                ? $part['contentType']
+                : '';
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null)
+                ? $part['contentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'directoryDepth' => $directoryDepth,
+                'baseName' => $baseName,
+                'pathSegmentCount' => $pathSegmentCount,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => $contentType,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
             if (!isset($depths[$pathSegmentCount])) {
                 $depths[$pathSegmentCount] = [
                     'pathSegmentCount' => $pathSegmentCount,
@@ -12258,32 +12290,51 @@ final class DocxOpenXmlReader
                     'byteLength' => 0,
                     'relationshipPartCount' => 0,
                     'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
                     'directories' => [],
                     'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
                     'roleCounts' => [],
                     'partNames' => [],
+                    'largestPart' => null,
                 ];
             }
 
             ++$depths[$pathSegmentCount]['partCount'];
-            $depths[$pathSegmentCount]['byteLength'] += (int) ($part['bytes'] ?? 0);
+            $depths[$pathSegmentCount]['byteLength'] += $bytes;
             $depths[$pathSegmentCount]['directories'][$directory] = true;
-            $depths[$pathSegmentCount]['partNames'][] = (string) $partName;
+            $depths[$pathSegmentCount]['partNames'][] = $partName;
             if (($part['isRelationshipPart'] ?? false) === true) {
                 ++$depths[$pathSegmentCount]['relationshipPartCount'];
             }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$depths[$pathSegmentCount]['parameterizedPartCount'];
+            }
 
-            $contentTypeSource = (string) ($part['contentTypeSource'] ?? 'missing');
             if ($contentTypeSource === 'missing') {
                 ++$depths[$pathSegmentCount]['missingContentTypePartCount'];
             }
             $depths[$pathSegmentCount]['contentTypeSourceCounts'][$contentTypeSource] =
                 ($depths[$pathSegmentCount]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $depths[$pathSegmentCount]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($depths[$pathSegmentCount]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
 
             foreach (($part['roles'] ?? []) as $role) {
                 $role = (string) $role;
                 $depths[$pathSegmentCount]['roleCounts'][$role] =
                     ($depths[$pathSegmentCount]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $largestPart = $depths[$pathSegmentCount]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $depths[$pathSegmentCount]['largestPart'] = $partSummary;
             }
         }
 
@@ -12293,6 +12344,7 @@ final class DocxOpenXmlReader
             sort($directories, SORT_STRING);
             sort($summary['partNames'], SORT_STRING);
             ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
             ksort($summary['roleCounts'], SORT_STRING);
             $summary['directories'] = $directories;
             $depths[$depth] = $summary;
