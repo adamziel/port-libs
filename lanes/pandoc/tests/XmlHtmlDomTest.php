@@ -4525,6 +4525,92 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/language-tag-canonicalization-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html language tag alias recovery for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="root" lang="en-US"><p id="child">Child</p>'
+                . '<section id="invalid" lang="bad_tag"><span id="invalid-child">Bad</span></section>'
+                . '<aside id="empty" lang=""><em id="empty-child">Empty</em></aside>'
+                . '<div id="xml" xml:lang="sr-Cyrl-rs">XML</div>'
+                . '<b id="private" lang="x-private-review">Private</b></article>'
+                . '<p id="outside">Outside</p>',
+            'language tag alias recovery review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/language-tag-alias-recovery-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $child = $article['children'][0];
+        $invalid = $article['children'][1];
+        $invalidChild = $invalid['children'][0];
+        $empty = $article['children'][2];
+        $xml = $article['children'][3];
+        $private = $article['children'][4];
+        $outside = $summary[1];
+
+        $t->same('html-language-tag-review', $article['languageTagReviewPolicy']);
+        $t->same('lang', $article['languageAttribute']);
+        $t->same('en-US', $article['languageRaw']);
+        $t->same('en-US', $article['language']);
+        $t->same('en-US', $article['languageTag']);
+        $t->same('en', $article['languagePrimarySubtag']);
+        $t->same(['en', 'US'], $article['languageSubtags']);
+        $t->same(true, $article['languageTagValid']);
+        $t->same(false, $article['languageTagEmpty']);
+        $t->same([], $article['languageTagIssueCodes']);
+        $t->same('en-US', $article['effectiveLanguageTag']);
+        $t->same('lang', $article['effectiveLanguageAttribute']);
+        $t->same(false, $article['languageInherited']);
+
+        $t->same(false, array_key_exists('languageTagReviewPolicy', $child));
+        $t->same('en-US', $child['effectiveLanguageTag']);
+        $t->same('en', $child['effectiveLanguagePrimarySubtag']);
+        $t->same(['en', 'US'], $child['effectiveLanguageSubtags']);
+        $t->same(true, $child['languageInherited']);
+        $t->same('root', $child['languageSourceElementId']);
+
+        $t->same('bad_tag', $invalid['languageRaw']);
+        $t->same(null, $invalid['languageTag']);
+        $t->same(false, $invalid['languageTagValid']);
+        $t->same([
+            'language-tag-underscore-separator',
+            'invalid-language-subtag',
+            'invalid-primary-language-subtag',
+        ], $invalid['languageTagIssueCodes']);
+        $t->same('en-US', $invalid['effectiveLanguageTag']);
+        $t->same(true, $invalid['languageInherited']);
+        $t->same('root', $invalid['languageSourceElementId']);
+        $t->same('en-US', $invalidChild['effectiveLanguageTag']);
+        $t->same('root', $invalidChild['languageSourceElementId']);
+
+        $t->same(true, $empty['languageTagEmpty']);
+        $t->same(false, $empty['languageTagValid']);
+        $t->same(['empty-language-tag'], $empty['languageTagIssueCodes']);
+        $t->same('en-US', $empty['effectiveLanguageTag']);
+
+        $t->same('xml:lang', $xml['languageAttribute']);
+        $t->same('sr-Cyrl-RS', $xml['languageTag']);
+        $t->same('sr', $xml['languagePrimarySubtag']);
+        $t->same(['sr', 'Cyrl', 'RS'], $xml['languageSubtags']);
+        $t->same('xml:lang', $xml['effectiveLanguageAttribute']);
+        $t->same('sr-Cyrl-RS', $xml['effectiveLanguageTag']);
+
+        $t->same('x-private-review', $private['languageTag']);
+        $t->same('x', $private['languagePrimarySubtag']);
+        $t->same(['x', 'private', 'review'], $private['languageSubtags']);
+        $t->same(true, $private['languageTagValid']);
+
+        $t->same(false, array_key_exists('effectiveLanguageTag', $outside));
+        $t->same(
+            '<article id="root" lang="en-US"><p id="child">Child</p><section id="invalid" lang="bad_tag"><span id="invalid-child">Bad</span></section><aside id="empty" lang=""><em id="empty-child">Empty</em></aside><div id="xml" xml:lang="sr-Cyrl-rs">XML</div><b id="private" lang="x-private-review">Private</b></article><p id="outside">Outside</p>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/language-tag-alias-recovery-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html dir auto first strong character resolution for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="auto-ar" dir="auto">123 العربية</section>'

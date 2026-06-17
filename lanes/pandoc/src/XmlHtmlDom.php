@@ -18693,6 +18693,9 @@ final class XmlHtmlDom
             'languageInvalidValueIgnored' => $language !== '' && $languageTag === null,
         ];
         $summary += self::languageTagReviewSummary($raw, 'language');
+        $summary['languagePrimarySubtag'] = $languageTag === null ? null : explode('-', $languageTag)[0];
+        $summary['languageSubtags'] = $languageTag === null ? [] : explode('-', $languageTag);
+        $summary['languageTagEmpty'] = $language === '';
 
         if ($hasXmlLang) {
             $xmlRaw = $attributes['xml:lang'];
@@ -18961,11 +18964,16 @@ final class XmlHtmlDom
         bool $inherited
     ): array {
         $normalized = self::normalizeHtmlLanguageTag($raw);
+        $attribute = str_ends_with($sourceKind, 'xml:lang') ? 'xml:lang' : 'lang';
         $summary = [
             'effectiveLanguageRaw' => $raw,
             'effectiveLanguage' => $normalized ?? $language,
             'effectiveLanguageNormalized' => $normalized,
             'effectiveLanguageValid' => $normalized !== null,
+            'effectiveLanguageAttribute' => $attribute,
+            'effectiveLanguageTag' => $normalized,
+            'effectiveLanguagePrimarySubtag' => $normalized === null ? null : explode('-', $normalized)[0],
+            'effectiveLanguageSubtags' => $normalized === null ? [] : explode('-', $normalized),
             'languageInherited' => $inherited,
             'languageSource' => $sourceKind,
             'languageSourceElement' => self::htmlElementName($source),
