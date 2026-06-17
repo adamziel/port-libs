@@ -270,6 +270,71 @@ return [
         $t->same(2, $methodBuckets[0]['entryCount']);
         $t->same(count($parts) - 1, $methodBuckets[8]['entryCount']);
     },
+    'preserves docx unsupported zip compression provenance without aborting ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $unsupportedPart = 'word/media/review-bzip2.bin';
+        $unsupportedBytes = 'unsupported compression member bytes stay blocked';
+        $parts[$unsupportedPart] = $unsupportedBytes;
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(
+            docx_openxml_reader_zip_package_with_compression_methods(
+                $parts,
+                [
+                    '[Content_Types].xml' => 0,
+                    $unsupportedPart => 12,
+                ],
+            )
+        );
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $summary = $package['summary'];
+        $entry = $zipPackage['byPackagePath'][$unsupportedPart];
+        $unsupportedEntries = $zipPackage['compressionMethods']['unsupportedEntries'];
+        $methodBuckets = [];
+        foreach ($summary['zipCompressionMethods'] as $bucket) {
+            $methodBuckets[(int) $bucket['compressionMethod']] = $bucket;
+        }
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(count($parts), $zipPackage['entryCount']);
+        $t->same(count($parts), $zipPackage['fileEntryCount']);
+        $t->same(count($parts) - 1, $zipPackage['loadedPartCount']);
+        $t->same(1, $zipPackage['unsupportedCompressionMethodCount']);
+        $t->same(count($parts) - 1, $zipPackage['compressionMethods']['supportedEntryCount']);
+        $t->same(1, $zipPackage['compressionMethods']['storedEntryCount']);
+        $t->same(count($parts) - 2, $zipPackage['compressionMethods']['deflatedEntryCount']);
+        $t->same(strlen($unsupportedBytes), $zipPackage['compressionMethods']['unsupportedCompressedBytes']);
+        $t->same(strlen($unsupportedBytes), $zipPackage['compressionMethods']['unsupportedUncompressedBytes']);
+        $t->same($unsupportedPart, $unsupportedEntries[0]['name']);
+        $t->same(12, $unsupportedEntries[0]['compressionMethod']);
+        $t->same(false, $unsupportedEntries[0]['isDirectory']);
+
+        $t->same(12, $entry['compressionMethod']);
+        $t->same('unsupported', $entry['compressionMethodName']);
+        $t->same(false, $entry['compressionSupported']);
+        $t->same(false, $entry['loadedPart']);
+        $t->same(strlen($unsupportedBytes), $entry['byteLength']);
+        $t->same(strlen($unsupportedBytes), $entry['compressedByteLength']);
+        $t->same(sprintf('%08x', crc32($unsupportedBytes)), $entry['crc32']);
+        $t->same(['zip-file-entry', 'zip-unsupported-compression'], $entry['roles']);
+        $t->same('docx-zip-entry-metadata-only', $entry['byteExposurePolicy']);
+        $t->same(false, $entry['canExposeBytes']);
+        $t->true(!isset($package['parts'][$unsupportedPart]), 'unsupported compression entry should not be loaded as a DOCX part');
+        $t->true(!in_array($unsupportedPart, $zipPackage['loadedPartNames'], true), 'unsupported compression entry should stay out of loaded part names');
+
+        $t->same(1, $summary['zipUnsupportedCompressionMethodCount']);
+        $t->same(count($parts) - 1, $summary['zipSupportedCompressionEntryCount']);
+        $t->same(1, $summary['zipStoredCompressionEntryCount']);
+        $t->same(count($parts) - 2, $summary['zipDeflatedCompressionEntryCount']);
+        $t->same(strlen($unsupportedBytes), $summary['zipUnsupportedCompressionCompressedByteLength']);
+        $t->same(strlen($unsupportedBytes), $summary['zipUnsupportedCompressionUncompressedByteLength']);
+        $t->same([$unsupportedPart], $summary['zipUnsupportedCompressionPartNames']);
+        $t->same($unsupportedEntries, $summary['zipUnsupportedCompressionEntries']);
+        $t->same(1, $methodBuckets[12]['entryCount']);
+        $t->same(false, $methodBuckets[12]['isSupported']);
+        $t->same(strlen($unsupportedBytes), $methodBuckets[12]['compressedBytes']);
+        $t->same(strlen($unsupportedBytes), $methodBuckets[12]['uncompressedBytes']);
+    },
     'preserves docx zip entry name policy provenance for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $zipParts = docx_openxml_reader_zip_parts($parts);
@@ -10994,6 +11059,72 @@ function docx_openxml_reader_zip_parts(array $parts): array
     }
 
     return $zipParts;
+}
+
+/**
+ * @param array<string, string> $parts
+ * @param array<string, int> $compressionMethodsByName
+ */
+function docx_openxml_reader_zip_package_with_compression_methods(array $parts, array $compressionMethodsByName): ZipPackage
+{
+    $body = '';
+    $central = '';
+    $entryCount = 0;
+
+    foreach ($parts as $name => $contents) {
+        $method = $compressionMethodsByName[$name] ?? 8;
+        $compressed = $method === 8 ? gzdeflate($contents) : $contents;
+        if (!is_string($compressed)) {
+            throw new RuntimeException("Unable to deflate DOCX fixture entry {$name}");
+        }
+
+        $crc32 = (int) sprintf('%u', crc32($contents));
+        $offset = strlen($body);
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc32,
+            strlen($compressed),
+            strlen($contents),
+            strlen($name),
+            0,
+        );
+        $body .= $name . $compressed;
+
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc32,
+            strlen($compressed),
+            strlen($contents),
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            0,
+            $offset,
+        );
+        $central .= $name;
+        ++$entryCount;
+    }
+
+    return ZipPackage::fromString(
+        $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, $entryCount, $entryCount, strlen($central), strlen($body), 0)
+    );
 }
 
 /**

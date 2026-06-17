@@ -150,6 +150,10 @@ final class DocxOpenXmlReader
                 continue;
             }
 
+            if ($entry->compressionMethod !== 0 && $entry->compressionMethod !== 8) {
+                continue;
+            }
+
             $parts[$entry->name] = $package->read($entry->name);
         }
 
@@ -8405,8 +8409,28 @@ final class DocxOpenXmlReader
         $summary['zipDirectoryEntryCount'] = $zipPackage['directoryEntryCount'];
         $summary['zipLoadedPartCount'] = $zipPackage['loadedPartCount'];
         $summary['zipUnsupportedCompressionMethodCount'] = $zipPackage['unsupportedCompressionMethodCount'];
+        $compressionMethods = is_array($zipPackage['compressionMethods'] ?? null) ? $zipPackage['compressionMethods'] : [];
+        $summary['zipSupportedCompressionEntryCount'] = (int) ($compressionMethods['supportedEntryCount'] ?? 0);
+        $summary['zipStoredCompressionEntryCount'] = (int) ($compressionMethods['storedEntryCount'] ?? 0);
+        $summary['zipDeflatedCompressionEntryCount'] = (int) ($compressionMethods['deflatedEntryCount'] ?? 0);
+        $summary['zipUnsupportedCompressionCompressedByteLength'] = (int) ($compressionMethods['unsupportedCompressedBytes'] ?? 0);
+        $summary['zipUnsupportedCompressionUncompressedByteLength'] = (int) ($compressionMethods['unsupportedUncompressedBytes'] ?? 0);
+        $unsupportedCompressionEntries = [];
+        $unsupportedCompressionPartNames = [];
+        foreach (($compressionMethods['unsupportedEntries'] ?? []) as $unsupportedEntry) {
+            if (!is_array($unsupportedEntry)) {
+                continue;
+            }
+
+            $unsupportedCompressionEntries[] = $unsupportedEntry;
+            if (is_string($unsupportedEntry['name'] ?? null)) {
+                $unsupportedCompressionPartNames[] = $unsupportedEntry['name'];
+            }
+        }
+        $summary['zipUnsupportedCompressionPartNames'] = $unsupportedCompressionPartNames;
+        $summary['zipUnsupportedCompressionEntries'] = $unsupportedCompressionEntries;
         $summary['zipCentralDirectoryOrderMatchesLocalHeaderOrder'] = $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'];
-        $summary['zipCompressionMethods'] = $zipPackage['compressionMethods']['methodBuckets'] ?? [];
+        $summary['zipCompressionMethods'] = $compressionMethods['methodBuckets'] ?? [];
         $zipNamePolicy = $zipPackage['namePolicy'];
         $summary['zipNamePolicyValid'] = $zipNamePolicy['valid'];
         $summary['zipNamePolicyIssueCount'] = $zipNamePolicy['issueCount'];
@@ -8670,6 +8694,9 @@ final class DocxOpenXmlReader
         $roles = ['zip-file-entry'];
         if ($loadedPart) {
             $roles[] = 'loaded-package-part';
+        }
+        if ($entry->compressionMethod !== 0 && $entry->compressionMethod !== 8) {
+            $roles[] = 'zip-unsupported-compression';
         }
         if ($entry->name === '[Content_Types].xml') {
             $roles[] = 'content-types';
