@@ -10344,6 +10344,7 @@ final class DocxOpenXmlReader
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
         $contentTypeExtensionMismatches = $this->packagePartContentTypeExtensionMismatchSummary($partInventory);
+        $partExtensionCaseVariants = $this->packagePartExtensionCaseVariantSummary($partInventory);
         $partBaseNames = $this->packagePartBaseNameSummary($partInventory);
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
@@ -11105,6 +11106,15 @@ final class DocxOpenXmlReader
                 $deepestParts,
             )),
             'partExtensionCount' => count($partExtensions),
+            'partExtensionCaseVariantCount' => count($partExtensionCaseVariants),
+            'partExtensionCaseVariantExtensions' => array_values(array_map(
+                static fn (array $extension): string => (string) $extension['extension'],
+                $partExtensionCaseVariants,
+            )),
+            'partExtensionUppercasePartCount' => array_sum(array_map(
+                static fn (array $extension): int => (int) ($extension['uppercasePartCount'] ?? 0),
+                $partExtensionCaseVariants,
+            )),
             'partBaseNameCount' => count($partBaseNames),
             'duplicatePartBaseNameCount' => count($duplicatePartBaseNames),
             'duplicatePartBaseNames' => $duplicatePartBaseNames,
@@ -11284,6 +11294,7 @@ final class DocxOpenXmlReader
             'partPathDepths' => $partPathDepths,
             'deepestParts' => $deepestParts,
             'partExtensions' => $partExtensions,
+            'partExtensionCaseVariants' => $partExtensionCaseVariants,
             'partBaseNames' => $partBaseNames,
             'partCaseFoldBaseNames' => $partCaseFoldBaseNames,
             'partNameCharacterReviewParts' => $partNameCharacters['parts'],
@@ -12362,6 +12373,134 @@ final class DocxOpenXmlReader
             self::CT_VBA_PROJECT_SIGNATURE => ['bin'],
             default => [],
         };
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartExtensionCaseVariantSummary(array $partInventory): array
+    {
+        $variantExtensions = [];
+        foreach ($partInventory as $partName => $part) {
+            $extension = is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null;
+            $rawExtension = is_string($part['rawPartExtension'] ?? null) ? $part['rawPartExtension'] : null;
+            if ($extension === null || $rawExtension === null) {
+                continue;
+            }
+
+            $hasUppercase = (bool) ($part['partExtensionHasUppercase'] ?? preg_match('/[A-Z]/', $rawExtension) === 1);
+            if ($hasUppercase || $rawExtension !== $extension) {
+                $variantExtensions[$extension] = true;
+            }
+        }
+
+        $extensions = [];
+        foreach ($partInventory as $partName => $part) {
+            $extension = is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null;
+            $rawExtension = is_string($part['rawPartExtension'] ?? null) ? $part['rawPartExtension'] : null;
+            if ($extension === null || $rawExtension === null) {
+                continue;
+            }
+
+            $hasUppercase = (bool) ($part['partExtensionHasUppercase'] ?? preg_match('/[A-Z]/', $rawExtension) === 1);
+            if (!isset($variantExtensions[$extension])) {
+                continue;
+            }
+
+            if (!isset($extensions[$extension])) {
+                $extensions[$extension] = [
+                    'extension' => $extension,
+                    'partCount' => 0,
+                    'uppercasePartCount' => 0,
+                    'byteLength' => 0,
+                    'rawExtensionCounts' => [],
+                    'rawExtensionPartNames' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$extensions[$extension]['partCount'];
+            if ($hasUppercase) {
+                ++$extensions[$extension]['uppercasePartCount'];
+            }
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $extensions[$extension]['byteLength'] += $bytes;
+            $extensions[$extension]['rawExtensionCounts'][$rawExtension] =
+                ($extensions[$extension]['rawExtensionCounts'][$rawExtension] ?? 0) + 1;
+            $extensions[$extension]['rawExtensionPartNames'][$rawExtension][] = (string) ($part['partName'] ?? $partName);
+            $extensions[$extension]['partNames'][] = (string) ($part['partName'] ?? $partName);
+
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $extensions[$extension]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($extensions[$extension]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $extensions[$extension]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($extensions[$extension]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $extensions[$extension]['roleCounts'][$role] =
+                    ($extensions[$extension]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => is_string($part['directory'] ?? null)
+                    ? $part['directory']
+                    : $this->packagePartDirectory((string) $partName),
+                'baseName' => is_string($part['baseName'] ?? null)
+                    ? $part['baseName']
+                    : $this->packagePartBaseName((string) $partName),
+                'partExtension' => $extension,
+                'rawPartExtension' => $rawExtension,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $extensions[$extension]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $extensions[$extension]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($extensions, SORT_STRING);
+        foreach ($extensions as $extension => $summary) {
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['rawExtensionCounts'], SORT_STRING);
+            ksort($summary['rawExtensionPartNames'], SORT_STRING);
+            foreach ($summary['rawExtensionPartNames'] as &$partNames) {
+                sort($partNames, SORT_STRING);
+            }
+            unset($partNames);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $extensions[$extension] = $summary;
+        }
+
+        return array_values($extensions);
     }
 
     /**
@@ -15682,6 +15821,7 @@ final class DocxOpenXmlReader
         foreach ($parts as $partName => $contents) {
             $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
             $partExtension = $this->packagePartExtension($partName);
+            $rawPartExtension = $this->packagePartRawExtension($partName);
             $directory = $this->packagePartDirectory($partName);
             $pathSegments = $this->packagePartPathSegments($partName);
             $roles = array_keys($rolesByPart[$partName] ?? []);
@@ -15700,6 +15840,9 @@ final class DocxOpenXmlReader
                 'topLevelSegment' => $pathSegments[0] ?? '',
                 'pathSegmentCount' => count($pathSegments),
                 'partExtension' => $partExtension,
+                'rawPartExtension' => $rawPartExtension,
+                'partExtensionHasUppercase' => $rawPartExtension !== null && preg_match('/[A-Z]/', $rawPartExtension) === 1,
+                'partExtensionWasNormalized' => $partExtension !== null && $rawPartExtension !== null && $rawPartExtension !== $partExtension,
                 'partExtensionDefaultDeclared' => $partExtension !== null && isset($contentTypes['defaults'][$partExtension]),
                 'partExtensionDefaultContentType' => $partExtension === null ? null : ($contentTypes['defaults'][$partExtension] ?? null),
                 'bytes' => strlen($contents),
@@ -15800,6 +15943,13 @@ final class DocxOpenXmlReader
     private function packagePartExtension(string $partName): ?string
     {
         $extension = strtolower(pathinfo($partName, PATHINFO_EXTENSION));
+
+        return $extension === '' ? null : $extension;
+    }
+
+    private function packagePartRawExtension(string $partName): ?string
+    {
+        $extension = pathinfo($partName, PATHINFO_EXTENSION);
 
         return $extension === '' ? null : $extension;
     }

@@ -1357,6 +1357,82 @@ XML;
         $t->same('image/png', $relationship['contentTypeBase']);
         $t->same('override', $relationship['contentTypeSource']);
     },
+    'summarizes docx package part raw extension case variants for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="TIFF" ContentType="image/tiff; profile=scan"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/media/review.PNG'] = str_repeat('U', 31);
+        $parts['customXml/review.png'] = 'lower png payload bytes';
+        $parts['word/media/scan.TIFF'] = 'scan tiff bytes';
+        $parts['word/Diagram.XML'] = '<diagram/>';
+        $parts['customXml/diagram.xml'] = '<customDiagram/>';
+        $parts['customXml/no-extension'] = 'extensionless bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byExtension = [];
+        foreach ($summary['partExtensionCaseVariants'] as $extension) {
+            $byExtension[$extension['extension']] = $extension;
+        }
+
+        $t->same(3, $summary['partExtensionCaseVariantCount']);
+        $t->same(['png', 'tiff', 'xml'], $summary['partExtensionCaseVariantExtensions']);
+        $t->same(3, $summary['partExtensionUppercasePartCount']);
+        $t->same('PNG', $inventory['word/media/review.PNG']['rawPartExtension']);
+        $t->same('png', $inventory['word/media/review.PNG']['partExtension']);
+        $t->same(true, $inventory['word/media/review.PNG']['partExtensionHasUppercase']);
+        $t->same(true, $inventory['word/media/review.PNG']['partExtensionWasNormalized']);
+        $t->same('png', $inventory['word/media/review.png']['rawPartExtension']);
+        $t->same(false, $inventory['word/media/review.png']['partExtensionHasUppercase']);
+        $t->same(false, $inventory['word/media/review.png']['partExtensionWasNormalized']);
+        $t->same(null, $inventory['customXml/no-extension']['rawPartExtension']);
+        $t->same(null, $inventory['customXml/no-extension']['partExtension']);
+
+        $png = $byExtension['png'];
+        $t->same(3, $png['partCount']);
+        $t->same(1, $png['uppercasePartCount']);
+        $t->same(31 + strlen($parts['customXml/review.png']) + strlen($parts['word/media/review.png']), $png['byteLength']);
+        $t->same(['PNG' => 1, 'png' => 2], $png['rawExtensionCounts']);
+        $t->same(['word/media/review.PNG'], $png['rawExtensionPartNames']['PNG']);
+        $t->same(['customXml/review.png', 'word/media/review.png'], $png['rawExtensionPartNames']['png']);
+        $t->same(['image/png' => 3], $png['contentTypeBaseCounts']);
+        $t->same(['default' => 3], $png['contentTypeSourceCounts']);
+        $t->same(['document-relationship-target' => 1, 'package-part' => 2], $png['roleCounts']);
+        $t->same('word/media/review.PNG', $png['largestPart']['partName']);
+        $t->same('PNG', $png['largestPart']['rawPartExtension']);
+        $t->same(hash('sha256', $parts['word/media/review.PNG']), $png['largestPart']['sha256']);
+
+        $tiff = $byExtension['tiff'];
+        $t->same(1, $tiff['partCount']);
+        $t->same(1, $tiff['uppercasePartCount']);
+        $t->same(['TIFF' => 1], $tiff['rawExtensionCounts']);
+        $t->same(['image/tiff' => 1], $tiff['contentTypeBaseCounts']);
+        $t->same(['default' => 1], $tiff['contentTypeSourceCounts']);
+        $t->same('TIFF', $inventory['word/media/scan.TIFF']['rawPartExtension']);
+        $t->same('tiff', $inventory['word/media/scan.TIFF']['partExtension']);
+        $t->same('image/tiff', $inventory['word/media/scan.TIFF']['contentTypeBase']);
+
+        $xml = $byExtension['xml'];
+        $t->same(7, $xml['partCount']);
+        $t->same(1, $xml['uppercasePartCount']);
+        $t->same(['XML' => 1, 'xml' => 6], $xml['rawExtensionCounts']);
+        $t->same(['word/Diagram.XML'], $xml['rawExtensionPartNames']['XML']);
+        $t->same(['default' => 5, 'override' => 2], $xml['contentTypeSourceCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+            'application/xml' => 5,
+        ], $xml['contentTypeBaseCounts']);
+        $t->same('XML', $inventory['word/Diagram.XML']['rawPartExtension']);
+        $t->same('xml', $inventory['word/Diagram.XML']['partExtension']);
+        $t->same(true, $inventory['word/Diagram.XML']['partExtensionWasNormalized']);
+    },
     'summarizes docx package part base names for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/item1.xml'] = '<customItem/>';
