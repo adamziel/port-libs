@@ -243,6 +243,8 @@
   "directCslIdentifierAliasAssertions": 18,
   "mappedXmlHtmlDomFocusNavigationCases": 1,
   "xmlHtmlDomFocusNavigationAssertions": 34,
+  "mappedXmlHtmlDomContentEditableInheritanceCases": 1,
+  "xmlHtmlDomContentEditableInheritanceAssertions": 33,
   "mappedXmlHtmlDomWritingAssistanceCases": 1,
   "xmlHtmlDomWritingAssistanceAssertions": 35,
   "mappedDirectCslJournalAbbreviationAliasCases": 1,

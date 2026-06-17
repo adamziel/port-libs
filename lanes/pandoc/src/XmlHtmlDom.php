@@ -17723,15 +17723,13 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('contenteditable', $attributes)) {
-            $contentEditable = strtolower(trim($attributes['contenteditable']));
+            $contentEditable = self::contentEditableState($attributes['contenteditable']);
             $summary['contentEditableRaw'] = $attributes['contenteditable'];
-            $summary['contentEditable'] = match ($contentEditable) {
-                '', 'true' => true,
-                'false' => false,
-                'plaintext-only' => 'plaintext-only',
-                default => null,
-            };
+            $summary['contentEditable'] = $contentEditable;
+            $summary['contentEditableValid'] = $contentEditable !== null;
         }
+
+        $summary += self::effectiveContentEditableSummary($element, $attributes);
 
         if (array_key_exists('draggable', $attributes)) {
             $draggable = strtolower(trim($attributes['draggable']));
@@ -18007,6 +18005,71 @@ final class XmlHtmlDom
         $direction = strtolower(trim($value));
 
         return in_array($direction, ['ltr', 'rtl', 'auto'], true) ? $direction : null;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveContentEditableSummary(\DOMElement $element, array $attributes): array
+    {
+        if (array_key_exists('contenteditable', $attributes)) {
+            $state = self::contentEditableState($attributes['contenteditable']);
+            if ($state !== null) {
+                return self::contentEditableProvenanceSummary($element, $attributes['contenteditable'], $state, false);
+            }
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (!array_key_exists('contenteditable', $ancestorAttributes)) {
+                continue;
+            }
+
+            $state = self::contentEditableState($ancestorAttributes['contenteditable']);
+            if ($state !== null) {
+                return self::contentEditableProvenanceSummary($ancestor, $ancestorAttributes['contenteditable'], $state, true);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function contentEditableProvenanceSummary(
+        \DOMElement $source,
+        string $raw,
+        bool|string $state,
+        bool $inherited
+    ): array {
+        $summary = [
+            'effectiveContentEditableRaw' => $raw,
+            'effectiveContentEditable' => $state,
+            'contentEditableInherited' => $inherited,
+            'contentEditableSource' => $inherited ? 'ancestor-contenteditable' : 'self-contenteditable',
+            'contentEditableSourceElement' => self::htmlElementName($source),
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['contentEditableSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
+    }
+
+    private static function contentEditableState(string $value): bool|string|null
+    {
+        $value = strtolower(trim($value));
+
+        return match ($value) {
+            '', 'true' => true,
+            'false' => false,
+            'plaintext-only' => 'plaintext-only',
+            default => null,
+        };
     }
 
     /**

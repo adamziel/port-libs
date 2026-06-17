@@ -3785,6 +3785,65 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/language-direction-inheritance-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes inherited html contenteditable state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="editor" contenteditable="plaintext-only"><p id="body">Body <span id="bad" contenteditable="maybe">Bad</span><span id="off" contenteditable="false"><em id="locked-child">Locked</em></span></p></article>'
+                . '<section id="plain"><p id="plain-child">Plain</p></section>',
+            'contenteditable inheritance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/contenteditable-inheritance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $editor = $summary[0];
+        $body = $editor['children'][0];
+        $bad = $body['children'][1];
+        $off = $body['children'][2];
+        $locked = $off['children'][0];
+        $plainChild = $summary[1]['children'][0];
+
+        $t->same('article', $editor['name']);
+        $t->same('plaintext-only', $editor['contentEditableRaw']);
+        $t->same('plaintext-only', $editor['contentEditable']);
+        $t->same(true, $editor['contentEditableValid']);
+        $t->same('plaintext-only', $editor['effectiveContentEditableRaw']);
+        $t->same('plaintext-only', $editor['effectiveContentEditable']);
+        $t->same(false, $editor['contentEditableInherited']);
+        $t->same('self-contenteditable', $editor['contentEditableSource']);
+
+        $t->true(!array_key_exists('contentEditableRaw', $body));
+        $t->same('plaintext-only', $body['effectiveContentEditable']);
+        $t->same(true, $body['contentEditableInherited']);
+        $t->same('article', $body['contentEditableSourceElement']);
+        $t->same('editor', $body['contentEditableSourceElementId']);
+
+        $t->same('maybe', $bad['contentEditableRaw']);
+        $t->same(null, $bad['contentEditable']);
+        $t->same(false, $bad['contentEditableValid']);
+        $t->same('plaintext-only', $bad['effectiveContentEditable']);
+        $t->same(true, $bad['contentEditableInherited']);
+        $t->same('editor', $bad['contentEditableSourceElementId']);
+
+        $t->same('false', $off['contentEditableRaw']);
+        $t->same(false, $off['contentEditable']);
+        $t->same(true, $off['contentEditableValid']);
+        $t->same(false, $off['effectiveContentEditable']);
+        $t->same(false, $off['contentEditableInherited']);
+        $t->same('self-contenteditable', $off['contentEditableSource']);
+
+        $t->same(false, $locked['effectiveContentEditable']);
+        $t->same(true, $locked['contentEditableInherited']);
+        $t->same('span', $locked['contentEditableSourceElement']);
+        $t->same('off', $locked['contentEditableSourceElementId']);
+        $t->true(!array_key_exists('effectiveContentEditable', $plainChild));
+
+        $t->same('<article contenteditable="plaintext-only" id="editor"><p id="body">Body <span contenteditable="maybe" id="bad">Bad</span><span contenteditable="false" id="off"><em id="locked-child">Locked</em></span></p></article><section id="plain"><p id="plain-child">Plain</p></section>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/contenteditable-inheritance-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html dropzone tokens for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="drop" draggable="true" dropzone="copy string:text/plain file:image/png string:text/html">Drop files</section>'

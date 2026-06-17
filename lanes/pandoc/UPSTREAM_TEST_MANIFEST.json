@@ -128,6 +128,8 @@
     "docxOpenXmlPackageInventoryCrc32Assertions": 13,
     "mappedXmlHtmlDomDialogStateCases": 1,
     "xmlHtmlDomDialogStateAssertions": 34,
+    "mappedXmlHtmlDomContentEditableInheritanceCases": 1,
+    "xmlHtmlDomContentEditableInheritanceAssertions": 33,
     "mappedJsonNativeHeaderPayloadCases": 1,
     "jsonNativeHeaderPayloadAssertions": 24,
     "mappedEpubOcfManifestSidecarCases": 1,
