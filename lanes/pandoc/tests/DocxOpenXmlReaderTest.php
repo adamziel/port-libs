@@ -6348,6 +6348,101 @@ XML;
         $t->same('missing', $relationship['contentTypeSource']);
         $t->same('bin', $relationship['defaultExtension']);
     },
+    'summarizes docx package part content type media type buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="txt" ContentType="text/plain; charset=UTF-8"/>' . "\n" .
+            '  <Override PartName="/customXml/review.json" ContentType="application/vnd.example.review+json; profile=media-bucket"/>' . "\n" .
+            '  <Override PartName="/word/media/vector.svg" ContentType="image/svg+xml; profile=vector"/>' . "\n" .
+            '  <Override PartName="/customXml/invalid.dat" ContentType="review-media-type"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/review.json'] = '{"review":true}';
+        $parts['word/media/vector.svg'] = '<svg xmlns="http://www.w3.org/2000/svg"/>';
+        $parts['customXml/readme.txt'] = 'plain text review notes';
+        $parts['customXml/invalid.dat'] = 'invalid content type payload';
+        $parts['customXml/no-type.bin'] = 'missing media type payload';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $byMediaType = [];
+        foreach ($summary['partContentTypeMediaTypes'] as $mediaType) {
+            $byMediaType[$mediaType['contentTypeMediaTypeKey']] = $mediaType;
+        }
+
+        $t->same(5, $summary['partContentTypeMediaTypeCount']);
+        $t->same([
+            '(invalid)' => 1,
+            '(missing)' => 1,
+            'application' => 8,
+            'image' => 2,
+            'text' => 1,
+        ], $summary['partContentTypeMediaTypeCounts']);
+        $t->same(['(invalid)', '(missing)', 'application', 'image', 'text'], array_column($summary['partContentTypeMediaTypes'], 'contentTypeMediaTypeKey'));
+
+        $application = $byMediaType['application'];
+        $t->same('application', $application['contentTypeMediaType']);
+        $t->same(8, $application['partCount']);
+        $t->same(2, $application['relationshipPartCount']);
+        $t->same(1, $application['parameterizedPartCount']);
+        $t->same(['default' => 5, 'override' => 3], $application['contentTypeSourceCounts']);
+        $t->same([
+            'application/vnd.example.review+json' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 2,
+            'application/xml' => 3,
+        ], $application['contentTypeBaseCounts']);
+        $t->same(['rels', 'xml'], $application['defaultExtensions']);
+        $t->same(['customXml/review.json', 'docProps/core.xml', 'word/document.xml'], $application['overridePartNames']);
+        $t->same([
+            'content-types' => 1,
+            'office-document' => 1,
+            'office-document-relationships' => 1,
+            'package-part' => 3,
+            'package-relationships' => 1,
+            'relationship-part' => 2,
+            'root-relationship-target' => 2,
+        ], $application['roleCounts']);
+        $t->same('word/document.xml', $application['largestPart']['partName']);
+        $t->same('application', $application['largestPart']['contentTypeMediaType']);
+
+        $image = $byMediaType['image'];
+        $t->same(2, $image['partCount']);
+        $t->same(1, $image['parameterizedPartCount']);
+        $t->same(['default' => 1, 'override' => 1], $image['contentTypeSourceCounts']);
+        $t->same(['image/png' => 1, 'image/svg+xml' => 1], $image['contentTypeBaseCounts']);
+        $t->same(['png'], $image['defaultExtensions']);
+        $t->same(['word/media/vector.svg'], $image['overridePartNames']);
+        $t->same(['document-relationship-target' => 1, 'package-part' => 1], $image['roleCounts']);
+        $t->same(['word/media/review.png', 'word/media/vector.svg'], $image['partNames']);
+        $t->same('word/media/vector.svg', $image['largestPart']['partName']);
+
+        $text = $byMediaType['text'];
+        $t->same(1, $text['partCount']);
+        $t->same(1, $text['parameterizedPartCount']);
+        $t->same(['text/plain; charset=UTF-8'], $text['contentTypes']);
+        $t->same(['txt'], $text['defaultExtensions']);
+        $t->same(['package-part' => 1], $text['roleCounts']);
+
+        $invalid = $byMediaType['(invalid)'];
+        $t->same(null, $invalid['contentTypeMediaType']);
+        $t->same(1, $invalid['invalidContentTypePartCount']);
+        $t->same(['review-media-type' => 1], $invalid['contentTypeBaseCounts']);
+        $t->same(['override' => 1], $invalid['contentTypeSourceCounts']);
+        $t->same(['customXml/invalid.dat'], $invalid['overridePartNames']);
+        $t->same('customXml/invalid.dat', $invalid['largestPart']['partName']);
+
+        $missing = $byMediaType['(missing)'];
+        $t->same(null, $missing['contentTypeMediaType']);
+        $t->same(1, $missing['missingContentTypePartCount']);
+        $t->same(['(missing)' => 1], $missing['contentTypeBaseCounts']);
+        $t->same(['missing' => 1], $missing['contentTypeSourceCounts']);
+        $t->same(['bin'], $missing['defaultExtensions']);
+        $t->same('customXml/no-type.bin', $missing['largestPart']['partName']);
+    },
     'summarizes docx package part content type buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
