@@ -6552,6 +6552,83 @@ XML;
         $t->same(4, $summary['fontTableEmbeddedFontIssueCount']);
         $t->same($fontTable['embeddedFontIssueCodes'], $summary['fontTableEmbeddedFontIssueCodes']);
     },
+    'preserves docx font table signature provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/fonts/signature-fonts.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSignatureFonts" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fonts/signature-fonts.xml?audit=sig#fonts"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/fonts/signature-fonts.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:font w:name="Review Symbol">
+    <w:altName w:val="Review Symbol Alt"/>
+    <w:charset w:val="02"/>
+    <w:family w:val="roman"/>
+    <w:pitch w:val="variable"/>
+    <w:panose1 w:val="02020603050405020304"/>
+    <w:notTrueType/>
+    <w:sig w:usb0="E0002AFF" w:usb1="C0007841" w:usb2="00000009" w:usb3="00000000" w:csb0="000001FF" w:csb1="00000000"/>
+  </w:font>
+  <w:font w:name="Vector Review">
+    <w:notTrueType w:val="0"/>
+    <w:sig w:usb0="00000001"/>
+  </w:font>
+</w:fonts>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $fontTable = $docx['fontTable'];
+        $summary = $docx['packageProvenance']['summary'];
+        $reviewSymbol = $fontTable['byName']['Review Symbol'];
+        $vectorReview = $fontTable['byName']['Vector Review'];
+
+        $t->same('word/fonts/signature-fonts.xml', $docx['fontTablePart']);
+        $t->same('rSignatureFonts', $docx['fontTableRelationship']['id']);
+        $t->same('audit=sig', $docx['fontTableRelationship']['targetQuery']);
+        $t->same('fonts', $docx['fontTableRelationship']['targetFragment']);
+        $t->same(2, $fontTable['fontCount']);
+        $t->same(['Review Symbol', 'Vector Review'], $fontTable['declaredNames']);
+        $t->same(1, $fontTable['notTrueTypeCount']);
+        $t->same(2, $fontTable['signatureCount']);
+        $t->same(5, $fontTable['signatureUnicodeRangeCount']);
+        $t->same(2, $fontTable['signatureCodePageRangeCount']);
+        $t->same('Review Symbol Alt', $reviewSymbol['alternateName']);
+        $t->same('02', $reviewSymbol['charset']);
+        $t->same('roman', $reviewSymbol['family']);
+        $t->same('variable', $reviewSymbol['pitch']);
+        $t->same('02020603050405020304', $reviewSymbol['panose1']);
+        $t->same(true, $reviewSymbol['notTrueType']);
+        $t->same([
+            'usb0' => 'E0002AFF',
+            'usb1' => 'C0007841',
+            'usb2' => '00000009',
+            'usb3' => '00000000',
+        ], $reviewSymbol['signature']['unicodeRanges']);
+        $t->same([
+            'csb0' => '000001FF',
+            'csb1' => '00000000',
+        ], $reviewSymbol['signature']['codePageRanges']);
+        $t->same(4, $reviewSymbol['signature']['unicodeRangeCount']);
+        $t->same(2, $reviewSymbol['signature']['codePageRangeCount']);
+        $t->same('00000000', $reviewSymbol['signature']['rawAttributes']['usb3']);
+        $t->same(false, $vectorReview['notTrueType']);
+        $t->same(['usb0' => '00000001'], $vectorReview['signature']['unicodeRanges']);
+        $t->same(0, $vectorReview['signature']['codePageRangeCount']);
+        $t->same(1, $summary['fontTableNotTrueTypeCount']);
+        $t->same(2, $summary['fontTableSignatureCount']);
+        $t->same(5, $summary['fontTableSignatureUnicodeRangeCount']);
+        $t->same(2, $summary['fontTableSignatureCodePageRangeCount']);
+    },
     'reports malformed docx font table xml without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

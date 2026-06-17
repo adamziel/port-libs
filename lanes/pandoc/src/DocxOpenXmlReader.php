@@ -685,6 +685,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['fontTableInvalidXmlCount'] = (int) ($fontTable['invalidXmlCount'] ?? 0);
         $packageProvenance['summary']['fontTableIssueCount'] = (int) ($fontTable['issueCount'] ?? 0);
         $packageProvenance['summary']['fontTableIssueCodes'] = $fontTable['issueCodes'] ?? [];
+        $packageProvenance['summary']['fontTableNotTrueTypeCount'] = (int) ($fontTable['notTrueTypeCount'] ?? 0);
+        $packageProvenance['summary']['fontTableSignatureCount'] = (int) ($fontTable['signatureCount'] ?? 0);
+        $packageProvenance['summary']['fontTableSignatureUnicodeRangeCount'] = (int) ($fontTable['signatureUnicodeRangeCount'] ?? 0);
+        $packageProvenance['summary']['fontTableSignatureCodePageRangeCount'] = (int) ($fontTable['signatureCodePageRangeCount'] ?? 0);
         $webSettingsOutputPolicy = $webSettings['outputPolicy'] ?? null;
         $packageProvenance['summary']['webSettingsInvalidXmlCount'] = ($webSettings['validXml'] ?? null) === false ? 1 : 0;
         $packageProvenance['summary']['webSettingsIssueCount'] = (int) ($webSettings['issueCount'] ?? 0);
@@ -13965,6 +13969,10 @@ final class DocxOpenXmlReader
                 'embeddedFontExternalCount' => 0,
                 'embeddedFontIssueCount' => 0,
                 'embeddedFontIssueCodes' => [],
+                'notTrueTypeCount' => 0,
+                'signatureCount' => 0,
+                'signatureUnicodeRangeCount' => 0,
+                'signatureCodePageRangeCount' => 0,
                 'declaredNames' => [],
                 'fonts' => [],
                 'byName' => [],
@@ -13994,6 +14002,14 @@ final class DocxOpenXmlReader
                 'pitch' => $this->childAttr($font, 'pitch', 'val') ?: null,
                 'panose1' => $this->childAttr($font, 'panose1', 'val') ?: null,
             ], static fn (mixed $value): bool => $value !== null && $value !== '');
+            $notTrueType = $this->childElement($font, 'notTrueType');
+            if ($notTrueType instanceof \DOMElement) {
+                $record['notTrueType'] = $this->wordBoolean($notTrueType);
+            }
+            $signature = $this->fontTableSignature($font);
+            if ($signature !== []) {
+                $record['signature'] = $signature;
+            }
             $embeddedFonts = $this->fontTableEmbeddedFonts($font, $parts, $relationships, $partName, $relationshipsPart, $contentTypes);
             $record['embeddedFontCount'] = count($embeddedFonts);
             $record['embeddedFonts'] = $embeddedFonts;
@@ -14038,9 +14054,55 @@ final class DocxOpenXmlReader
             'embeddedFontExternalCount' => $embeddedFontExternalCount,
             'embeddedFontIssueCount' => $embeddedFontIssueCount,
             'embeddedFontIssueCodes' => array_keys($embeddedFontIssueCodes),
+            'notTrueTypeCount' => count(array_filter($fonts, static fn (array $font): bool => ($font['notTrueType'] ?? false) === true)),
+            'signatureCount' => count(array_filter($fonts, static fn (array $font): bool => isset($font['signature']))),
+            'signatureUnicodeRangeCount' => array_sum(array_map(static fn (array $font): int => (int) ($font['signature']['unicodeRangeCount'] ?? 0), $fonts)),
+            'signatureCodePageRangeCount' => array_sum(array_map(static fn (array $font): int => (int) ($font['signature']['codePageRangeCount'] ?? 0), $fonts)),
             'declaredNames' => array_column($fonts, 'name'),
             'fonts' => $fonts,
             'byName' => $byName,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fontTableSignature(\DOMElement $font): array
+    {
+        $signature = $this->childElement($font, 'sig');
+        if (!$signature instanceof \DOMElement) {
+            return [];
+        }
+
+        $unicodeRanges = [];
+        foreach (['usb0', 'usb1', 'usb2', 'usb3'] as $attribute) {
+            $value = trim($signature->getAttributeNS(self::NS_W, $attribute));
+            if ($value !== '') {
+                $unicodeRanges[$attribute] = $value;
+            }
+        }
+
+        $codePageRanges = [];
+        foreach (['csb0', 'csb1'] as $attribute) {
+            $value = trim($signature->getAttributeNS(self::NS_W, $attribute));
+            if ($value !== '') {
+                $codePageRanges[$attribute] = $value;
+            }
+        }
+
+        return [
+            'unicodeRanges' => $unicodeRanges,
+            'unicodeRangeCount' => count($unicodeRanges),
+            'codePageRanges' => $codePageRanges,
+            'codePageRangeCount' => count($codePageRanges),
+            'rawAttributes' => [
+                'usb0' => $unicodeRanges['usb0'] ?? null,
+                'usb1' => $unicodeRanges['usb1'] ?? null,
+                'usb2' => $unicodeRanges['usb2'] ?? null,
+                'usb3' => $unicodeRanges['usb3'] ?? null,
+                'csb0' => $codePageRanges['csb0'] ?? null,
+                'csb1' => $codePageRanges['csb1'] ?? null,
+            ],
         ];
     }
 
