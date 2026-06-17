@@ -1498,6 +1498,7 @@ final class PdfEngineHandoff
         $pdfCatalogRequirements = [];
         $pdfCatalogRequirementPolicy = [];
         $pdfLegalAttestationMetadata = [];
+        $pdfLegalAttestationPolicy = [];
         $pdfTaggingMetadata = [];
         $pdfStructureNamespaces = [];
         $pdfPageStructureParents = [];
@@ -1651,6 +1652,7 @@ final class PdfEngineHandoff
                 $pdfCatalogRequirements = $pdfInspection['catalogRequirements'];
                 $pdfCatalogRequirementPolicy = $pdfInspection['catalogRequirementPolicy'];
                 $pdfLegalAttestationMetadata = $pdfInspection['legalAttestationMetadata'];
+                $pdfLegalAttestationPolicy = $pdfInspection['legalAttestationPolicy'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
                 $pdfStructureNamespaces = $pdfInspection['structureNamespaces'];
                 $pdfPageStructureParents = $pdfInspection['pageStructureParents'];
@@ -3090,6 +3092,26 @@ final class PdfEngineHandoff
                     }
                     if (isset($pdfLegalAttestationMetadata['associatedFiles']) && is_array($pdfLegalAttestationMetadata['associatedFiles']) && $pdfLegalAttestationMetadata['associatedFiles'] !== []) {
                         $diagnostics[] = 'pdf-byte-legal-attestation-associated-files:' . count($pdfLegalAttestationMetadata['associatedFiles']);
+                    }
+                }
+                if ($pdfLegalAttestationPolicy !== []) {
+                    $policyStatus = is_string($pdfLegalAttestationPolicy['reviewStatus'] ?? null)
+                        ? $pdfLegalAttestationPolicy['reviewStatus']
+                        : 'unknown';
+                    $diagnostics[] = 'pdf-byte-legal-attestation-policy:' . $policyStatus;
+                    if (isset($pdfLegalAttestationPolicy['associatedFileCount']) && is_int($pdfLegalAttestationPolicy['associatedFileCount'])) {
+                        $diagnostics[] = 'pdf-byte-legal-attestation-policy-associated-files:' . $pdfLegalAttestationPolicy['associatedFileCount'];
+                    }
+                    if (is_string($pdfLegalAttestationPolicy['attestationSkipped'] ?? null) && $pdfLegalAttestationPolicy['attestationSkipped'] !== '') {
+                        $diagnostics[] = 'pdf-byte-legal-attestation-policy-skipped:' . $pdfLegalAttestationPolicy['attestationSkipped'];
+                    }
+                    if (isset($pdfLegalAttestationPolicy['issues']) && is_array($pdfLegalAttestationPolicy['issues']) && $pdfLegalAttestationPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-legal-attestation-policy-issues:' . count($pdfLegalAttestationPolicy['issues']);
+                        foreach ($pdfLegalAttestationPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-legal-attestation-policy-issue:' . $issue;
+                            }
+                        }
                     }
                 }
                 if ($pdfTaggingMetadata !== []) {
@@ -5196,6 +5218,7 @@ final class PdfEngineHandoff
             'pdfCatalogRequirements' => $pdfCatalogRequirements,
             'pdfCatalogRequirementPolicy' => $pdfCatalogRequirementPolicy,
             'pdfLegalAttestationMetadata' => $pdfLegalAttestationMetadata,
+            'pdfLegalAttestationPolicy' => $pdfLegalAttestationPolicy,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
             'pdfStructureNamespaces' => $pdfStructureNamespaces,
             'pdfPageStructureParents' => $pdfPageStructureParents,
@@ -5700,6 +5723,7 @@ final class PdfEngineHandoff
             'finalPdfCatalogRequirements' => is_array($finalRun) && is_array($finalRun['pdfCatalogRequirements'] ?? null) ? $finalRun['pdfCatalogRequirements'] : [],
             'finalPdfCatalogRequirementPolicy' => is_array($finalRun) && is_array($finalRun['pdfCatalogRequirementPolicy'] ?? null) ? $finalRun['pdfCatalogRequirementPolicy'] : [],
             'finalPdfLegalAttestationMetadata' => is_array($finalRun) && is_array($finalRun['pdfLegalAttestationMetadata'] ?? null) ? $finalRun['pdfLegalAttestationMetadata'] : [],
+            'finalPdfLegalAttestationPolicy' => is_array($finalRun) && is_array($finalRun['pdfLegalAttestationPolicy'] ?? null) ? $finalRun['pdfLegalAttestationPolicy'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
             'finalPdfStructureNamespaces' => is_array($finalRun) && is_array($finalRun['pdfStructureNamespaces'] ?? null) ? $finalRun['pdfStructureNamespaces'] : [],
             'finalPdfPageStructureParents' => is_array($finalRun) && is_array($finalRun['pdfPageStructureParents'] ?? null) ? $finalRun['pdfPageStructureParents'] : [],
@@ -12261,6 +12285,7 @@ final class PdfEngineHandoff
         $documentPartMetadata = $this->extractPdfDocumentPartMetadata($pdfBytes, $catalog);
         $documentSecurityStore = $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog);
         $webCaptureMetadata = $this->extractPdfWebCaptureMetadata($pdfBytes, $catalog);
+        $legalAttestationMetadata = $this->extractPdfLegalAttestationMetadata($pdfBytes, $catalog);
         $streamFilterPolicy = $this->summarizePdfStreamFilterPolicy(
             $xrefStreams,
             $objectStreams,
@@ -12385,7 +12410,8 @@ final class PdfEngineHandoff
             'needsRendering' => $needsRendering,
             'catalogRequirements' => $catalogRequirements,
             'catalogRequirementPolicy' => $this->summarizePdfCatalogRequirementPolicy($needsRendering, $catalogRequirements),
-            'legalAttestationMetadata' => $this->extractPdfLegalAttestationMetadata($pdfBytes, $catalog),
+            'legalAttestationMetadata' => $legalAttestationMetadata,
+            'legalAttestationPolicy' => $this->summarizePdfLegalAttestationPolicy($legalAttestationMetadata),
             'taggingMetadata' => $taggingMetadata,
             'structureNamespaces' => $structureNamespaces,
             'pageStructureParents' => $pageStructureParents,
@@ -19634,6 +19660,80 @@ final class PdfEngineHandoff
         $summary['skipped'] = $resolvedSummary['skipped'];
 
         return $summary;
+    }
+
+    /**
+     * @param array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{} $metadata
+     * @return array{reviewStatus:string, object:string|null, status:string|null, jurisdiction:string|null, hasAttestation:bool, attestationObject:string|null, attestationBytes:int|null, attestationSkipped:string|null, associatedFileCount:int, keys:list<string>, issues:list<string>}|array{}
+     */
+    private function summarizePdfLegalAttestationPolicy(array $metadata): array
+    {
+        if ($metadata === []) {
+            return [];
+        }
+
+        $status = is_string($metadata['status'] ?? null) && $metadata['status'] !== ''
+            ? $metadata['status']
+            : null;
+        $jurisdiction = is_string($metadata['jurisdiction'] ?? null) && $metadata['jurisdiction'] !== ''
+            ? $metadata['jurisdiction']
+            : null;
+        $attestationText = is_string($metadata['attestation'] ?? null) && trim($metadata['attestation']) !== ''
+            ? trim($metadata['attestation'])
+            : null;
+        $attestationObject = is_string($metadata['attestationObject'] ?? null) && $metadata['attestationObject'] !== ''
+            ? $metadata['attestationObject']
+            : null;
+        $attestationBytes = is_int($metadata['attestationBytes'] ?? null)
+            ? $metadata['attestationBytes']
+            : null;
+        $attestationSha256 = is_string($metadata['attestationSha256'] ?? null) && $metadata['attestationSha256'] !== ''
+            ? $metadata['attestationSha256']
+            : null;
+        $attestationSkipped = is_string($metadata['attestationSkipped'] ?? null) && $metadata['attestationSkipped'] !== ''
+            ? $metadata['attestationSkipped']
+            : null;
+        $associatedFiles = is_array($metadata['associatedFiles'] ?? null)
+            ? array_values(array_filter($metadata['associatedFiles'], static fn (mixed $file): bool => is_string($file) && $file !== ''))
+            : [];
+        $keys = is_array($metadata['keys'] ?? null)
+            ? array_values(array_filter($metadata['keys'], static fn (mixed $key): bool => is_string($key) && $key !== ''))
+            : [];
+
+        $hasAttestation = $attestationText !== null
+            || $attestationObject !== null
+            || $attestationBytes !== null
+            || $attestationSha256 !== null;
+        $issues = [];
+        if ($status === null) {
+            $issues[] = 'legal-attestation-missing-status';
+        }
+        if (!$hasAttestation) {
+            $issues[] = 'legal-attestation-missing-statement';
+        }
+        if ($attestationSkipped !== null) {
+            $issues[] = 'legal-attestation-stream-skipped';
+        }
+        if ($associatedFiles === []) {
+            $issues[] = 'legal-attestation-missing-associated-files';
+        }
+
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'object' => is_string($metadata['object'] ?? null) && $metadata['object'] !== '' ? $metadata['object'] : null,
+            'status' => $status,
+            'jurisdiction' => $jurisdiction,
+            'hasAttestation' => $hasAttestation,
+            'attestationObject' => $attestationObject,
+            'attestationBytes' => $attestationBytes,
+            'attestationSkipped' => $attestationSkipped,
+            'associatedFileCount' => count($associatedFiles),
+            'keys' => $keys,
+            'issues' => $issues,
+        ];
     }
 
     private function extractPdfUriBase(string $pdfBytes, ?string $catalog): ?string

@@ -22061,6 +22061,79 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfLegalAttestationMetadata']);
     },
 
+    'fake runner summarizes pdf legal attestation review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['outputPath' => 'packets/legal-attestation-policy.pdf']);
+        $attestationBytes = 'opaque compressed legal attestation bytes';
+        $pdfBytes = implode("\n", [
+            '%PDF-2.0',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /LegalAttestation 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /LegalAttestation /Lang (en-US) /Statement 9 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Filter /FlateDecode /Length ' . strlen($attestationBytes) . ' >>',
+            'stream',
+            $attestationBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            'startxref',
+            '512',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/legal-attestation-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'packets/legal-attestation-policy.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'object' => '8 0 R',
+            'status' => null,
+            'jurisdiction' => null,
+            'hasAttestation' => true,
+            'attestationObject' => '9 0 R',
+            'attestationBytes' => strlen($attestationBytes),
+            'attestationSkipped' => 'filtered',
+            'associatedFileCount' => 0,
+            'keys' => ['Lang', 'Statement', 'Type'],
+            'issues' => [
+                'legal-attestation-missing-associated-files',
+                'legal-attestation-missing-status',
+                'legal-attestation-stream-skipped',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same('filtered', $result['pdfLegalAttestationMetadata']['attestationSkipped']);
+        $t->same($expectedPolicy, $result['pdfLegalAttestationPolicy']);
+        $t->contains('pdf-byte-legal-attestation-policy:review', $diagnostics);
+        $t->contains('pdf-byte-legal-attestation-policy-associated-files:0', $diagnostics);
+        $t->contains('pdf-byte-legal-attestation-policy-skipped:filtered', $diagnostics);
+        $t->contains('pdf-byte-legal-attestation-policy-issues:3', $diagnostics);
+        $t->contains('pdf-byte-legal-attestation-policy-issue:legal-attestation-missing-status', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedPolicy, $sequence['finalPdfLegalAttestationPolicy']);
+    },
+
     'fake runner extracts pdf document security store metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['outputPath' => 'packets/signed-review.pdf']);
