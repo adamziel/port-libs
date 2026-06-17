@@ -2744,6 +2744,55 @@ return [
         $t->same(3, $sequence['finalTypstBoundarySummary']['issueCount']);
     },
 
+    'summarizes typst feature environment matrix provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/feature-env-matrix.pdf',
+            'source' => '= Typst Feature Environment Matrix Packet',
+            'engineOptions' => ['--features=html,packages'],
+            'engineEnvironment' => [
+                'TYPST_FEATURES' => 'legacy-html,a11y',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst feature environment matrix packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/feature-env-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/feature-env-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $planCases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $planCases[$case['case']] = $case;
+        }
+        $resultCases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $resultCases[$case['case']] = $case;
+        }
+
+        $t->same(['environment-shadows', 'feature-gates', 'output-format'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(['html', 'packages'], $planCases['feature-gates']['details']['features']);
+        $t->same(['legacy-html', 'a11y'], $planCases['feature-gates']['details']['environmentFeatures']);
+        $t->same(4, $planCases['feature-gates']['observed']);
+        $t->same(2, $planCases['feature-gates']['details']['environmentFeatureCount']);
+        $t->contains('feature-gates:features-environment-shadowed', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('typst-boundary-matrix-cases:3', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($planCases['feature-gates'], $resultCases['feature-gates']);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans typst execution jobs boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

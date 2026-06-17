@@ -7430,6 +7430,10 @@ final class PdfEngineHandoff
                     is_array($featureGates['features'] ?? null) ? $featureGates['features'] : [],
                     static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
                 )),
+                'environmentFeatures' => array_values(array_filter(
+                    is_array($featureGateEnvironment['features'] ?? null) ? $featureGateEnvironment['features'] : [],
+                    static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
+                )),
             ], $featureGateIssues);
         }
 
