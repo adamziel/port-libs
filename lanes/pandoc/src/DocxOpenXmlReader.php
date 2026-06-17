@@ -737,6 +737,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['diagramPartExternalCount'] = $diagramParts['externalCount'];
         $packageProvenance['summary']['diagramPartIssueCount'] = $diagramParts['issueCount'];
         $packageProvenance['summary']['diagramPartIssueCodes'] = $diagramParts['issueCodes'];
+        $packageProvenance['summary']['diagramEmbeddedPackageCount'] = $diagramParts['embeddedPackageCount'];
+        $packageProvenance['summary']['diagramEmbeddedPackageExistingCount'] = $diagramParts['embeddedPackageExistingCount'];
+        $packageProvenance['summary']['diagramEmbeddedPackageMissingCount'] = $diagramParts['embeddedPackageMissingCount'];
+        $packageProvenance['summary']['diagramEmbeddedPackageExternalCount'] = $diagramParts['embeddedPackageExternalCount'];
+        $packageProvenance['summary']['diagramEmbeddedPackageIssueCount'] = $diagramParts['embeddedPackageIssueCount'];
+        $packageProvenance['summary']['diagramEmbeddedPackageIssueCodes'] = $diagramParts['embeddedPackageIssueCodes'];
         $packageProvenance['activeXControls'] = $activeXControls;
         $packageProvenance['summary']['activeXControlCount'] = $activeXControls['count'];
         $packageProvenance['summary']['activeXControlRelationshipCount'] = $activeXControls['relationshipCount'];
@@ -4531,6 +4537,15 @@ final class DocxOpenXmlReader
         $contentTypesSeen = [];
         $roleCounts = [];
         $issueCodes = [];
+        $embeddedPackageRelationshipIds = [];
+        $embeddedPackagePartNames = [];
+        $embeddedPackageExternalTargets = [];
+        $embeddedPackageIssueCodes = [];
+        $embeddedPackageCount = 0;
+        $embeddedPackageExistingCount = 0;
+        $embeddedPackageMissingCount = 0;
+        $embeddedPackageExternalCount = 0;
+        $embeddedPackageIssueCount = 0;
         foreach ($items as $item) {
             $role = is_string($item['role'] ?? null) ? $item['role'] : '';
             if ($role !== '') {
@@ -4548,9 +4563,30 @@ final class DocxOpenXmlReader
                     $issueCodes[$issue] = true;
                 }
             }
+            $embeddedPackages = is_array($item['embeddedPackages'] ?? null) ? $item['embeddedPackages'] : [];
+            $embeddedPackageCount += (int) ($embeddedPackages['count'] ?? 0);
+            $embeddedPackageExistingCount += (int) ($embeddedPackages['existingCount'] ?? 0);
+            $embeddedPackageMissingCount += (int) ($embeddedPackages['missingCount'] ?? 0);
+            $embeddedPackageExternalCount += (int) ($embeddedPackages['externalCount'] ?? 0);
+            $embeddedPackageIssueCount += (int) ($embeddedPackages['issueCount'] ?? 0);
+            foreach (($embeddedPackages['relationshipIds'] ?? []) as $packageRelationshipId) {
+                $this->appendUniqueString($embeddedPackageRelationshipIds, is_string($packageRelationshipId) ? $packageRelationshipId : null);
+            }
+            foreach (($embeddedPackages['partNames'] ?? []) as $partName) {
+                $this->appendUniqueString($embeddedPackagePartNames, is_string($partName) ? $partName : null);
+            }
+            foreach (($embeddedPackages['externalTargets'] ?? []) as $target) {
+                $this->appendUniqueString($embeddedPackageExternalTargets, is_string($target) ? $target : null);
+            }
+            foreach (($embeddedPackages['issueCodes'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $embeddedPackageIssueCodes[$issue] = true;
+                }
+            }
         }
         ksort($roleCounts, SORT_STRING);
         ksort($issueCodes, SORT_STRING);
+        ksort($embeddedPackageIssueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -4577,6 +4613,15 @@ final class DocxOpenXmlReader
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
             'roleCounts' => $roleCounts,
+            'embeddedPackageCount' => $embeddedPackageCount,
+            'embeddedPackageExistingCount' => $embeddedPackageExistingCount,
+            'embeddedPackageMissingCount' => $embeddedPackageMissingCount,
+            'embeddedPackageExternalCount' => $embeddedPackageExternalCount,
+            'embeddedPackageIssueCount' => $embeddedPackageIssueCount,
+            'embeddedPackageRelationshipIds' => $embeddedPackageRelationshipIds,
+            'embeddedPackagePartNames' => $embeddedPackagePartNames,
+            'embeddedPackageExternalTargets' => $embeddedPackageExternalTargets,
+            'embeddedPackageIssueCodes' => array_keys($embeddedPackageIssueCodes),
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
@@ -4637,6 +4682,8 @@ final class DocxOpenXmlReader
             'relationshipsPart' => $relationshipsPart,
             'diagramRelationshipsPart' => null,
             'diagramRelationshipCount' => 0,
+            'embeddedPackageRelationshipIds' => [],
+            'embeddedPackages' => $this->emptyDiagramEmbeddedPackageParts(),
             'validXml' => null,
             'xmlParseError' => null,
             'rootNamespace' => null,
@@ -4727,12 +4774,222 @@ final class DocxOpenXmlReader
                 $item['issues'][] = 'invalid-diagram-xml';
             } elseif ($item['validRoot'] === false) {
                 $item['issues'][] = 'unexpected-diagram-root';
+            } else {
+                $item['embeddedPackageRelationshipIds'] = $this->diagramEmbeddedPackageRelationshipIds($parts[$targetPart], $targetPart);
             }
         }
 
-        $item['valid'] = $item['issues'] === [];
+        $item['embeddedPackages'] = $this->diagramEmbeddedPackageParts(
+            $parts,
+            $targetPart,
+            $diagramRelationshipsPart,
+            $diagramRelationships,
+            $contentTypes,
+            $item['embeddedPackageRelationshipIds'],
+        );
+        $item['valid'] = $item['issues'] === [] && (int) $item['embeddedPackages']['issueCount'] === 0;
 
         return $item;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function diagramEmbeddedPackageRelationshipIds(string $xml, string $partName): array
+    {
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
+            return [];
+        }
+
+        return $this->relationshipIdsInElement($dom->documentElement);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyDiagramEmbeddedPackageParts(): array
+    {
+        return [
+            'count' => 0,
+            'relationshipCount' => 0,
+            'referencedCount' => 0,
+            'unreferencedRelationshipCount' => 0,
+            'existingCount' => 0,
+            'missingCount' => 0,
+            'externalCount' => 0,
+            'missingContentTypeCount' => 0,
+            'issueCount' => 0,
+            'relationshipIds' => [],
+            'referencedRelationshipIds' => [],
+            'unreferencedRelationshipIds' => [],
+            'partNames' => [],
+            'externalTargets' => [],
+            'contentTypes' => [],
+            'issueCodes' => [],
+            'byRelationshipId' => [],
+            'items' => [],
+            'byteExposurePolicy' => 'diagram-embedded-package-bytes-blocked',
+            'reviewPolicy' => 'diagram-embedded-package-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param list<string> $referencedRelationshipIds
+     * @return array<string, mixed>
+     */
+    private function diagramEmbeddedPackageParts(
+        array $parts,
+        ?string $sourcePart,
+        ?string $relationshipsPart,
+        array $relationships,
+        array $contentTypes,
+        array $referencedRelationshipIds,
+    ): array {
+        if ($sourcePart === null || $relationshipsPart === null) {
+            return $this->emptyDiagramEmbeddedPackageParts();
+        }
+
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $referencedPackageRelationshipIds = [];
+        $unreferencedRelationshipIds = [];
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::EMBEDDED_PACKAGE_REL) {
+                continue;
+            }
+
+            $relationshipId = $relationship['id'];
+            $referenced = in_array($relationshipId, $referencedRelationshipIds, true);
+            $item = $this->diagramEmbeddedPackagePartItem(
+                $parts,
+                $relationship,
+                $sourcePart,
+                $relationshipsPart,
+                $contentTypes,
+                count($items),
+                $referenced,
+            );
+            $items[] = $item;
+            $byRelationshipId[$relationshipId] = $item;
+            $relationshipIds[] = $relationshipId;
+            if ($referenced) {
+                $referencedPackageRelationshipIds[] = $relationshipId;
+            } else {
+                $unreferencedRelationshipIds[] = $relationshipId;
+            }
+            $this->appendUniqueString($partNames, is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count($items),
+            'referencedCount' => count($referencedPackageRelationshipIds),
+            'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-diagram-embedded-package', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-diagram-embedded-package-content-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'referencedRelationshipIds' => $referencedPackageRelationshipIds,
+            'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+            'byteExposurePolicy' => 'diagram-embedded-package-bytes-blocked',
+            'reviewPolicy' => 'diagram-embedded-package-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function diagramEmbeddedPackagePartItem(
+        array $parts,
+        array $relationship,
+        string $sourcePart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index,
+        bool $referenced,
+    ): array {
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) ($summary['external'] ?? false);
+        $exists = (bool) ($summary['exists'] ?? false);
+        $issues = [];
+
+        if ($external) {
+            $issues[] = 'external-diagram-embedded-package';
+        } else {
+            if (!$exists) {
+                $issues[] = 'missing-diagram-embedded-package';
+            }
+            if (($summary['contentTypeSource'] ?? '') === 'missing') {
+                $issues[] = 'missing-diagram-embedded-package-content-type';
+            }
+        }
+
+        return [
+            'index' => $index,
+            'source' => $sourcePart,
+            'referenced' => $referenced,
+            'id' => $summary['id'],
+            'type' => $summary['type'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'external' => $external,
+            'exists' => $exists,
+            'relationshipsPart' => $relationshipsPart,
+            'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+            'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'sha256' => $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
+            'byteExposurePolicy' => 'diagram-embedded-package-bytes-blocked',
+            'reviewPolicy' => 'diagram-embedded-package-metadata-only',
+            'valid' => $issues === [],
+            'issues' => $issues,
+            'relationship' => $summary,
+        ];
     }
 
     /**

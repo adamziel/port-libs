@@ -9539,6 +9539,144 @@ XML;
         $t->true(in_array('relationship-target', $inventory['word/embeddings/unreferenced-workbook.xlsx']['roles'], true), 'unreferenced chart workbook target role missing');
         $t->true(!isset($docx['media']['word/embeddings/chart-workbook.xlsx']), 'Chart workbook package should not be exposed as document media');
     },
+    'summarizes docx diagram embedded package relationships for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $dataRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $dataContentType = 'application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml';
+        $modelContentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        $modelBytes = 'embedded diagram data model workbook bytes';
+        $unreferencedModelBytes = 'unreferenced diagram data model workbook bytes';
+        $dataXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <dgm:ptLst>
+    <dgm:pt modelId="1" r:id="rDataModelPackage"/>
+    <dgm:pt modelId="2" r:id="rMissingDataModelPackage"/>
+  </dgm:ptLst>
+  <dgm:extLst>
+    <dgm:ext uri="{diagram-package-review}" r:id="rExternalDataModelPackage"/>
+  </dgm:extLst>
+</dgm:dataModel>
+XML;
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/diagrams/data-embedded.xml" ContentType="' . $dataContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/diagram-model.xlsx" ContentType="' . $modelContentType . '; profile=diagram-data"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/missing-diagram-model.xlsx" ContentType="' . $modelContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/unreferenced-diagram-model.xlsx" ContentType="' . $modelContentType . '"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rDiagramDataEmbedded" Type="' . $dataRel . '" Target="diagrams/data-embedded.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            "      </w:r>\n    </w:p>\n    <w:tbl>",
+            "      </w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/diagram\"><dgm:relIds r:dm=\"rDiagramDataEmbedded\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "    </w:p>\n    <w:tbl>",
+            $parts['word/document.xml']
+        );
+        $parts['word/diagrams/data-embedded.xml'] = $dataXml;
+        $parts['word/diagrams/_rels/data-embedded.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rDataModelPackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/diagram-model.xlsx?sheet=Model#data"/>
+  <Relationship Id="rMissingDataModelPackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/missing-diagram-model.xlsx"/>
+  <Relationship Id="rExternalDataModelPackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="https://example.test/diagram-model.xlsx?remote=1#model" TargetMode="External"/>
+  <Relationship Id="rUnreferencedDataModelPackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/unreferenced-diagram-model.xlsx"/>
+  <Relationship Id="rDiagramPreview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/review.png"/>
+</Relationships>
+XML;
+        $parts['word/embeddings/diagram-model.xlsx'] = $modelBytes;
+        $parts['word/embeddings/unreferenced-diagram-model.xlsx'] = $unreferencedModelBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $diagrams = $docx['diagramParts'];
+        $summary = $package['summary'];
+        $diagram = $diagrams['byRelationshipId']['rDiagramDataEmbedded'];
+        $embeddedPackages = $diagram['embeddedPackages'];
+        $model = $embeddedPackages['byRelationshipId']['rDataModelPackage'];
+        $missing = $embeddedPackages['byRelationshipId']['rMissingDataModelPackage'];
+        $external = $embeddedPackages['byRelationshipId']['rExternalDataModelPackage'];
+        $unreferenced = $embeddedPackages['byRelationshipId']['rUnreferencedDataModelPackage'];
+        $diagramRelationshipsPart = $package['relationshipParts']['word/diagrams/_rels/data-embedded.xml.rels'];
+        $inventory = $package['parts'];
+        $relationshipTypes = $package['relationshipTypes'];
+
+        $t->same(['rDataModelPackage', 'rExternalDataModelPackage', 'rMissingDataModelPackage'], $diagram['embeddedPackageRelationshipIds']);
+        $t->same(4, $embeddedPackages['count']);
+        $t->same(4, $embeddedPackages['relationshipCount']);
+        $t->same(3, $embeddedPackages['referencedCount']);
+        $t->same(1, $embeddedPackages['unreferencedRelationshipCount']);
+        $t->same(2, $embeddedPackages['existingCount']);
+        $t->same(1, $embeddedPackages['missingCount']);
+        $t->same(1, $embeddedPackages['externalCount']);
+        $t->same(2, $embeddedPackages['issueCount']);
+        $t->same(['external-diagram-embedded-package', 'missing-diagram-embedded-package'], $embeddedPackages['issueCodes']);
+        $t->same(['rDataModelPackage', 'rMissingDataModelPackage', 'rExternalDataModelPackage', 'rUnreferencedDataModelPackage'], $embeddedPackages['relationshipIds']);
+        $t->same(['rDataModelPackage', 'rMissingDataModelPackage', 'rExternalDataModelPackage'], $embeddedPackages['referencedRelationshipIds']);
+        $t->same(['rUnreferencedDataModelPackage'], $embeddedPackages['unreferencedRelationshipIds']);
+        $t->same(['word/embeddings/diagram-model.xlsx', 'word/embeddings/missing-diagram-model.xlsx', 'word/embeddings/unreferenced-diagram-model.xlsx'], $embeddedPackages['partNames']);
+        $t->same(['https://example.test/diagram-model.xlsx?remote=1#model'], $embeddedPackages['externalTargets']);
+        $t->same('diagram-embedded-package-bytes-blocked', $embeddedPackages['byteExposurePolicy']);
+        $t->same('diagram-embedded-package-metadata-only', $embeddedPackages['reviewPolicy']);
+
+        $t->same(true, $model['referenced']);
+        $t->same($packageRel, $model['type']);
+        $t->same('../embeddings/diagram-model.xlsx?sheet=Model#data', $model['target']);
+        $t->same('word/embeddings/diagram-model.xlsx?sheet=Model#data', $model['resolvedTarget']);
+        $t->same('word/embeddings/diagram-model.xlsx', $model['targetPart']);
+        $t->same('sheet=Model', $model['targetQuery']);
+        $t->same('data', $model['targetFragment']);
+        $t->same('?sheet=Model#data', $model['targetReferenceSuffix']);
+        $t->same($modelContentType . '; profile=diagram-data', $model['contentType']);
+        $t->same($modelContentType, $model['contentTypeBase']);
+        $t->same(['profile' => 'diagram-data'], $model['contentTypeParameterMap']);
+        $t->same(strlen($modelBytes), $model['byteLength']);
+        $t->same(sprintf('%08x', crc32($modelBytes)), $model['crc32']);
+        $t->same(hash('sha256', $modelBytes), $model['sha256']);
+        $t->same([], $model['issues']);
+        $t->same(true, $model['valid']);
+
+        $t->same(['missing-diagram-embedded-package'], $missing['issues']);
+        $t->same(false, $missing['exists']);
+        $t->same(['external-diagram-embedded-package'], $external['issues']);
+        $t->same(true, $external['external']);
+        $t->same(null, $external['targetPart']);
+        $t->same(false, $unreferenced['referenced']);
+        $t->same(true, $unreferenced['exists']);
+        $t->same(strlen($unreferencedModelBytes), $unreferenced['byteLength']);
+        $t->same(false, $diagram['valid']);
+        $t->same([], $diagram['issues']);
+
+        $t->same(4, $summary['diagramEmbeddedPackageCount']);
+        $t->same(2, $summary['diagramEmbeddedPackageExistingCount']);
+        $t->same(1, $summary['diagramEmbeddedPackageMissingCount']);
+        $t->same(1, $summary['diagramEmbeddedPackageExternalCount']);
+        $t->same(2, $summary['diagramEmbeddedPackageIssueCount']);
+        $t->same($embeddedPackages['issueCodes'], $summary['diagramEmbeddedPackageIssueCodes']);
+        $t->same(5, $diagramRelationshipsPart['relationshipCount']);
+        $t->same('word/diagrams/data-embedded.xml', $diagramRelationshipsPart['sourcePart']);
+        $t->same($modelContentType, $diagramRelationshipsPart['relationships']['rDataModelPackage']['contentTypeBase']);
+        $t->same(4, $relationshipTypes[$packageRel]['count']);
+        $t->same(3, $relationshipTypes[$packageRel]['internalCount']);
+        $t->same(1, $relationshipTypes[$packageRel]['externalCount']);
+        $t->true(in_array('embedded-package', $inventory['word/embeddings/diagram-model.xlsx']['roles'], true), 'diagram workbook inventory role missing');
+        $t->true(in_array('relationship-target', $inventory['word/embeddings/unreferenced-diagram-model.xlsx']['roles'], true), 'unreferenced diagram workbook target role missing');
+        $t->true(!isset($docx['media']['word/embeddings/diagram-model.xlsx']), 'Diagram workbook package should not be exposed as document media');
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {
