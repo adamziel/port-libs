@@ -647,6 +647,7 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['commentsIdsMissingParaIdCount'] = $commentsIds['summary']['missingParaIdCount'];
         $packageProvenance['summary']['commentsIdsMissingDurableIdCount'] = $commentsIds['summary']['missingDurableIdCount'];
         $packageProvenance['summary']['commentsIdsDuplicateParaIdCount'] = $commentsIds['summary']['duplicateParaIdCount'];
+        $packageProvenance['summary']['commentsIdsInvalidXmlCount'] = $commentsIds['summary']['invalidXmlCount'];
         $packageProvenance['summary']['commentsIdsIssueCount'] = $commentsIds['summary']['issueCount'];
         $packageProvenance['summary']['commentsIdsIssueCodes'] = $commentsIds['summary']['issueCodes'];
         $packageProvenance['people'] = $people;
@@ -16618,6 +16619,12 @@ final class DocxOpenXmlReader
             'durableIds' => [],
             'byParaId' => [],
             'items' => [],
+            'validXml' => null,
+            'xmlParseError' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'validRoot' => null,
+            'invalidXmlCount' => 0,
             'issueCount' => 0,
             'issueCodes' => [],
         ];
@@ -16628,11 +16635,34 @@ final class DocxOpenXmlReader
             ];
         }
 
-        $dom = $this->loadXml($xml, $partName);
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [
+                'summary' => [
+                    ...$empty,
+                    'validXml' => false,
+                    'xmlParseError' => $this->lastXmlPreflightError($xml, $partName),
+                    'validRoot' => false,
+                    'invalidXmlCount' => 1,
+                    'issueCount' => 1,
+                    'issueCodes' => ['invalid-comments-ids-xml'],
+                ],
+                'byParaId' => [],
+            ];
+        }
+
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_W16CID || $root->localName !== 'commentsIds') {
             return [
-                'summary' => $empty,
+                'summary' => [
+                    ...$empty,
+                    'validXml' => $root instanceof \DOMElement,
+                    'rootNamespace' => $root instanceof \DOMElement ? $root->namespaceURI : null,
+                    'rootLocalName' => $root instanceof \DOMElement ? $root->localName : null,
+                    'validRoot' => false,
+                    'issueCount' => 1,
+                    'issueCodes' => ['unexpected-comments-ids-root'],
+                ],
                 'byParaId' => [],
             ];
         }
@@ -16700,6 +16730,12 @@ final class DocxOpenXmlReader
                 'durableIds' => $durableIds,
                 'byParaId' => $byParaId,
                 'items' => $items,
+                'validXml' => true,
+                'xmlParseError' => null,
+                'rootNamespace' => $root->namespaceURI,
+                'rootLocalName' => $root->localName,
+                'validRoot' => true,
+                'invalidXmlCount' => 0,
                 'issueCount' => $issueCount,
                 'issueCodes' => $issueCodes,
             ],

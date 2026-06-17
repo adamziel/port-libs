@@ -10321,6 +10321,120 @@ XML;
         $t->same('DUPLICATE-PARA', $note->attr('commentDurableId'));
         $t->same('word/comments/review-comments-ids.xml', $note->attr('commentsIdsPart'));
     },
+    'reports malformed docx commentsIds xml without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/broken-comments-ids.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.commentsIds+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments/review-comments.xml"/>' . "\n" .
+            '  <Relationship Id="rBrokenCommentsIds" Type="http://schemas.microsoft.com/office/2016/09/relationships/commentsIds" Target="comments/broken-comments-ids.xml?stable=broken#ids"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>',
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> with malformed durable id metadata </w:t></w:r>' . "\n" .
+            '      <w:r><w:commentReference w:id="12"/></w:r>',
+            $parts['word/document.xml']
+        );
+        $parts['word/comments/review-comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+  <w:comment w:id="12" w:author="Review Lead" w:initials="RL" w:date="2026-06-17T15:15:00Z">
+    <w:p w14:paraId="00BADBAD"><w:r><w:t>Comment survives bad durable id sidecar.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+        $parts['word/comments/broken-comments-ids.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w16cid:commentsIds xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid">
+  <w16cid:commentId w16cid:paraId="00BADBAD" w16cid:durableId="BROKEN"
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $commentsIds = $docx['commentsIds'];
+        $relationship = $docx['commentsIdsRelationship'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $selected = $package['selectedXmlParts']['byKind']['commentsIds'];
+        $relationshipType = 'http://schemas.microsoft.com/office/2016/09/relationships/commentsIds';
+        $relationshipTypes = $package['relationshipTypes'];
+        $inventory = $package['parts']['word/comments/broken-comments-ids.xml'];
+        $paragraph = $document->children[1];
+        $notes = array_values(array_filter($paragraph->children, static fn (AstNode $node): bool => $node->type === 'note'));
+        $note = $notes[0];
+
+        $t->same('word/comments/broken-comments-ids.xml', $docx['commentsIdsPart']);
+        $t->same('rBrokenCommentsIds', $relationship['id']);
+        $t->same($relationshipType, $relationship['type']);
+        $t->same('comments/broken-comments-ids.xml?stable=broken#ids', $relationship['target']);
+        $t->same('word/comments/broken-comments-ids.xml?stable=broken#ids', $relationship['resolvedTarget']);
+        $t->same('word/comments/broken-comments-ids.xml', $relationship['targetPart']);
+        $t->same('stable=broken', $relationship['targetQuery']);
+        $t->same('ids', $relationship['targetFragment']);
+        $t->same('?stable=broken#ids', $relationship['targetReferenceSuffix']);
+        $t->same(true, $relationship['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.commentsIds+xml', $relationship['contentType']);
+
+        $t->same(0, $commentsIds['count']);
+        $t->same(0, $commentsIds['missingParaIdCount']);
+        $t->same(0, $commentsIds['missingDurableIdCount']);
+        $t->same(0, $commentsIds['duplicateParaIdCount']);
+        $t->same([], $commentsIds['duplicateParaIds']);
+        $t->same([], $commentsIds['paraIds']);
+        $t->same([], $commentsIds['durableIds']);
+        $t->same([], $commentsIds['byParaId']);
+        $t->same([], $commentsIds['items']);
+        $t->same(false, $commentsIds['validXml']);
+        $t->contains('attributes construct error', (string) $commentsIds['xmlParseError']);
+        $t->same(null, $commentsIds['rootNamespace']);
+        $t->same(null, $commentsIds['rootLocalName']);
+        $t->same(false, $commentsIds['validRoot']);
+        $t->same(1, $commentsIds['invalidXmlCount']);
+        $t->same(1, $commentsIds['issueCount']);
+        $t->same(['invalid-comments-ids-xml'], $commentsIds['issueCodes']);
+
+        $t->same(0, $summary['commentsIdsCount']);
+        $t->same(0, $summary['commentsIdsMissingParaIdCount']);
+        $t->same(0, $summary['commentsIdsMissingDurableIdCount']);
+        $t->same(0, $summary['commentsIdsDuplicateParaIdCount']);
+        $t->same(1, $summary['commentsIdsInvalidXmlCount']);
+        $t->same(1, $summary['commentsIdsIssueCount']);
+        $t->same(['invalid-comments-ids-xml'], $summary['commentsIdsIssueCodes']);
+        $t->same(1, $summary['selectedXmlPartInvalidXmlCount']);
+        $t->true(in_array('commentsIds', $summary['selectedXmlPartIssueKinds'], true), 'commentsIds should be marked in selected XML issue kinds');
+
+        $t->same('relationship', $selected['selectionSource']);
+        $t->same('rBrokenCommentsIds', $selected['relationshipId']);
+        $t->same('word/comments/broken-comments-ids.xml', $selected['partName']);
+        $t->same(false, $selected['validRoot']);
+        $t->contains('attributes construct error', (string) $selected['xmlParseError']);
+        $t->same(['invalid-xml'], $selected['issues']);
+        $t->same('stable=broken', $selected['targetQuery']);
+        $t->same('ids', $selected['targetFragment']);
+        $t->same(true, $selected['contentTypeMatchesExpected']);
+
+        $t->same('commentsIds', $relationshipTypes[$relationshipType]['label']);
+        $t->same(1, $relationshipTypes[$relationshipType]['count']);
+        $t->same(['word/comments/broken-comments-ids.xml'], $relationshipTypes[$relationshipType]['existingTargetParts']);
+        $t->same(['comments-ids' => 1, 'document-relationship-target' => 1], $relationshipTypes[$relationshipType]['targetRoleCounts']);
+        $t->true(in_array('comments-ids', $inventory['roles'], true), 'commentsIds inventory role missing');
+
+        $t->same('00BADBAD', $docx['comments']['byId']['12']['commentParaId']);
+        $t->true(!isset($docx['comments']['byId']['12']['commentDurableId']), 'malformed commentsIds XML should not invent durable id metadata');
+        $t->same('12', $note->attr('id'));
+        $t->same('00BADBAD', $note->attr('commentParaId'));
+        $t->same(null, $note->attr('commentDurableId'));
+        $t->same(null, $note->attr('commentsIdsPart'));
+    },
     'summarizes docx people part package metadata for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $peopleRel = 'http://schemas.microsoft.com/office/2011/relationships/people';
