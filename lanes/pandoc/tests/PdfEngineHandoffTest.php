@@ -6508,6 +6508,114 @@ return [
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
     },
 
+    'fake runner recovers nested typst json warning source provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'project/main.typ',
+            'outputPath' => 'build/nested-json-warnings.pdf',
+            'source' => '= Nested Typst JSON Warning Packet',
+            'engineOptions' => ['--root=project', '--diagnostic-format=json'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake nested Typst JSON warning provenance packet\n%%EOF\n";
+        $stderr = implode("\n", [
+            json_encode([
+                'severity' => 'warning',
+                'message' => 'nested input source warning',
+                'span' => [
+                    'input' => ['path' => 'project/chapters/intro.typ'],
+                    'range' => [
+                        'start' => ['lineNumber' => '12', 'columnNumber' => 5],
+                        'end' => ['lineNumber' => 12, 'columnNumber' => '19'],
+                    ],
+                ],
+                'notes' => [['message' => 'input object carries the source path']],
+            ], JSON_THROW_ON_ERROR),
+            json_encode([
+                'kind' => 'warning',
+                'text' => 'nested source crosses review root',
+                'location' => [
+                    'source' => ['path' => 'shared/theme.typ'],
+                    'start' => ['line' => 3, 'character' => 7],
+                    'end' => ['lineNumber' => 4, 'character' => '2'],
+                ],
+                'help' => 'move the shared style under project/ before compiling',
+            ], JSON_THROW_ON_ERROR),
+            json_encode([
+                'level' => 'warning',
+                'title' => 'record input range warning',
+                'input' => ['path' => 'project/root-range.typ'],
+                'range' => ['start' => ['lineNumber' => 21, 'columnNumber' => '2']],
+                'hints' => ['range records can use a sibling input object'],
+            ], JSON_THROW_ON_ERROR),
+            '',
+        ]);
+        $expected = [
+            [
+                'message' => 'nested input source warning',
+                'sourceFile' => 'project/chapters/intro.typ',
+                'line' => 12,
+                'column' => 5,
+                'endLine' => 12,
+                'endColumn' => 19,
+                'hints' => ['input object carries the source path'],
+                'root' => 'project',
+                'insideRoot' => true,
+                'boundaryStatus' => 'inside-root',
+                'issues' => [],
+            ],
+            [
+                'message' => 'nested source crosses review root',
+                'sourceFile' => 'shared/theme.typ',
+                'line' => 3,
+                'column' => 7,
+                'endLine' => 4,
+                'endColumn' => 2,
+                'hints' => ['move the shared style under project/ before compiling'],
+                'root' => 'project',
+                'insideRoot' => false,
+                'boundaryStatus' => 'outside-root',
+                'issues' => ['warning-source-outside-root'],
+            ],
+            [
+                'message' => 'record input range warning',
+                'sourceFile' => 'project/root-range.typ',
+                'line' => 21,
+                'column' => 2,
+                'endLine' => null,
+                'endColumn' => null,
+                'hints' => ['range records can use a sibling input object'],
+                'root' => 'project',
+                'insideRoot' => true,
+                'boundaryStatus' => 'inside-root',
+                'issues' => [],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'stderr' => $stderr,
+            'files' => [
+                'build/nested-json-warnings.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'stderr' => $stderr,
+            'files' => [
+                'build/nested-json-warnings.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstWarningProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstWarningProvenance']);
+        $t->contains('typst-warning-provenance:3', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-source-outside-root:shared/theme.typ', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-source-issues:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-source-issues:1', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstWarningProvenance']);
+    },
+
     'maps typst pdf boundary matrix across provenance domains without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $source = implode("\n", [

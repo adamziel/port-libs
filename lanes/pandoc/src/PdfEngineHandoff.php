@@ -10857,10 +10857,25 @@ final class PdfEngineHandoff
 
         $start = is_array($location['start'] ?? null) ? $location['start'] : (is_array($location['range']['start'] ?? null) ? $location['range']['start'] : null);
         $end = is_array($location['end'] ?? null) ? $location['end'] : (is_array($location['range']['end'] ?? null) ? $location['range']['end'] : null);
-        $line = $this->positiveIntValue($location['line'] ?? ($start['line'] ?? null));
-        $column = $this->positiveIntValue($location['column'] ?? ($location['col'] ?? ($start['column'] ?? ($start['col'] ?? null))));
+        $line = $this->positiveIntFromKeys($location, ['line', 'lineNumber']);
+        if ($line === null && $start !== null) {
+            $line = $this->positiveIntFromKeys($start, ['line', 'lineNumber']);
+        }
+        $column = $this->positiveIntFromKeys($location, ['column', 'col', 'columnNumber', 'character']);
+        if ($column === null && $start !== null) {
+            $column = $this->positiveIntFromKeys($start, ['column', 'col', 'columnNumber', 'character']);
+        }
         if ($line === null || $column === null) {
             return null;
+        }
+
+        $endLine = $this->positiveIntFromKeys($location, ['endLine', 'endLineNumber']);
+        if ($endLine === null && $end !== null) {
+            $endLine = $this->positiveIntFromKeys($end, ['line', 'lineNumber']);
+        }
+        $endColumn = $this->positiveIntFromKeys($location, ['endColumn', 'endCol', 'endColumnNumber', 'endCharacter']);
+        if ($endColumn === null && $end !== null) {
+            $endColumn = $this->positiveIntFromKeys($end, ['column', 'col', 'columnNumber', 'character']);
         }
 
         return [
@@ -10868,8 +10883,8 @@ final class PdfEngineHandoff
             'sourceLocal' => $classified['local'],
             'line' => $line,
             'column' => $column,
-            'endLine' => $this->positiveIntValue($location['endLine'] ?? ($end['line'] ?? null)),
-            'endColumn' => $this->positiveIntValue($location['endColumn'] ?? ($location['endCol'] ?? ($end['column'] ?? ($end['col'] ?? null)))),
+            'endLine' => $endLine,
+            'endColumn' => $endColumn,
         ];
     }
 
@@ -10884,8 +10899,13 @@ final class PdfEngineHandoff
             }
         }
 
-        if (is_array($location['file'] ?? null)) {
-            return $this->typstJsonDiagnosticPath($location['file']);
+        foreach (['file', 'source', 'input'] as $key) {
+            if (is_array($location[$key] ?? null)) {
+                $path = $this->typstJsonDiagnosticPath($location[$key]);
+                if ($path !== null) {
+                    return $path;
+                }
+            }
         }
 
         return null;
@@ -10929,6 +10949,22 @@ final class PdfEngineHandoff
         }
         if (is_string($value) && preg_match('/\A[1-9]\d*\z/', $value) === 1) {
             return (int) $value;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @param list<string> $keys
+     */
+    private function positiveIntFromKeys(array $values, array $keys): ?int
+    {
+        foreach ($keys as $key) {
+            $value = $this->positiveIntValue($values[$key] ?? null);
+            if ($value !== null) {
+                return $value;
+            }
         }
 
         return null;
