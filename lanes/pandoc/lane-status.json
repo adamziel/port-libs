@@ -720,6 +720,8 @@
   "typstPackageUnsupportedReasonAssertions": 6,
   "mappedPandocJsonNativeHtmlRawAliasCases": 1,
   "pandocJsonNativeHtmlRawAliasAssertions": 30,
+  "mappedPandocJsonNativeRawHtmlAdjacencyBoundaryCases": 1,
+  "pandocJsonNativeRawHtmlAdjacencyBoundaryAssertions": 89,
   "mappedLatexNoteAnchorRoundTripCases": 1,
   "latexNoteAnchorRoundTripAssertions": 8,
   "mappedCitationAffixReviewCases": 1,
