@@ -776,6 +776,7 @@ final class PdfEngineHandoff
      *     pdfDocumentInfo: array<string, string>,
      *     pdfDocumentInfoDateMetadata: list<array{key:string, source:string, raw:string, normalized:string|null, precision:string|null, timezone:string|null, timezoneOffsetMinutes:int|null, year:int|null, month:int|null, day:int|null, hour:int|null, minute:int|null, second:int|null, valid:bool}>,
      *     pdfXmpMetadata: array<string, mixed>,
+     *     pdfCatalogMetadata: array<string, mixed>,
      *     pdfPageMetadata: list<array<string, mixed>>,
      *     pdfPieceInfo: list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
      *     pdfWebCaptureMetadata: list<array{source:string, page:int|null, pageObject:string|null, spiderInfoObject:string|null, version:float|null, commandCount:int, sourceUrls:list<string>, captures:list<array{commandObject:string|null, sourceUrl:string|null, sourceTitle:string|null, commandName:string|null, commandType:string|null, identifier:string|null, timestamp:string|null, flags:int|null, depth:int|null, pageReferences:list<string>, parentCommand:string|null, nextCommand:string|null}>}>,
@@ -1469,6 +1470,7 @@ final class PdfEngineHandoff
         $pdfDocumentInfo = [];
         $pdfDocumentInfoDateMetadata = [];
         $pdfXmpMetadata = [];
+        $pdfCatalogMetadata = [];
         $pdfPageMetadata = [];
         $pdfPieceInfo = [];
         $pdfWebCaptureMetadata = [];
@@ -1618,6 +1620,7 @@ final class PdfEngineHandoff
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
                 $pdfDocumentInfoDateMetadata = $pdfInspection['documentInfoDateMetadata'];
                 $pdfXmpMetadata = $pdfInspection['xmpMetadata'];
+                $pdfCatalogMetadata = $pdfInspection['catalogMetadata'];
                 $pdfPageMetadata = $pdfInspection['pageMetadata'];
                 $pdfPieceInfo = $pdfInspection['pieceInfo'];
                 $pdfWebCaptureMetadata = $pdfInspection['webCaptureMetadata'];
@@ -2591,6 +2594,27 @@ final class PdfEngineHandoff
                             foreach (array_keys($schemaPrefixes) as $schemaPrefix) {
                                 $diagnostics[] = 'pdf-byte-pdfa-extension-prefix:' . $schemaPrefix;
                             }
+                        }
+                    }
+                }
+                if ($pdfCatalogMetadata !== []) {
+                    if (($pdfCatalogMetadata['skipped'] ?? null) === 'filtered') {
+                        $diagnostics[] = 'pdf-byte-catalog-metadata-skipped:filtered';
+                    } elseif (($pdfCatalogMetadata['skipped'] ?? null) === 'too-large') {
+                        $diagnostics[] = 'pdf-byte-catalog-metadata-skipped:too-large';
+                    } else {
+                        $diagnostics[] = 'pdf-byte-catalog-metadata:' . count($pdfCatalogMetadata);
+                        if (is_string($pdfCatalogMetadata['decodedFilter'] ?? null) && $pdfCatalogMetadata['decodedFilter'] !== '') {
+                            $diagnostics[] = 'pdf-byte-catalog-metadata-decoded:' . $pdfCatalogMetadata['decodedFilter'];
+                        }
+                        if (is_int($pdfCatalogMetadata['compressedBytes'] ?? null)) {
+                            $diagnostics[] = 'pdf-byte-catalog-metadata-compressed-bytes:' . $pdfCatalogMetadata['compressedBytes'];
+                        }
+                        if (is_string($pdfCatalogMetadata['title'] ?? null) && $pdfCatalogMetadata['title'] !== '') {
+                            $diagnostics[] = 'pdf-byte-catalog-metadata-title';
+                        }
+                        if (isset($pdfCatalogMetadata['creators']) && is_array($pdfCatalogMetadata['creators']) && $pdfCatalogMetadata['creators'] !== []) {
+                            $diagnostics[] = 'pdf-byte-catalog-metadata-creators:' . count($pdfCatalogMetadata['creators']);
                         }
                     }
                 }
@@ -5018,6 +5042,7 @@ final class PdfEngineHandoff
             'pdfDocumentInfo' => $pdfDocumentInfo,
             'pdfDocumentInfoDateMetadata' => $pdfDocumentInfoDateMetadata,
             'pdfXmpMetadata' => $pdfXmpMetadata,
+            'pdfCatalogMetadata' => $pdfCatalogMetadata,
             'pdfPageMetadata' => $pdfPageMetadata,
             'pdfPieceInfo' => $pdfPieceInfo,
             'pdfWebCaptureMetadata' => $pdfWebCaptureMetadata,
@@ -5188,6 +5213,7 @@ final class PdfEngineHandoff
      *     finalPdfDocumentInfo: array<string, string>,
      *     finalPdfDocumentInfoDateMetadata: list<array{key:string, source:string, raw:string, normalized:string|null, precision:string|null, timezone:string|null, timezoneOffsetMinutes:int|null, year:int|null, month:int|null, day:int|null, hour:int|null, minute:int|null, second:int|null, valid:bool}>,
      *     finalPdfXmpMetadata: array<string, mixed>,
+     *     finalPdfCatalogMetadata: array<string, mixed>,
      *     finalPdfPageMetadata: list<array<string, mixed>>,
      *     finalPdfPieceInfo: list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
      *     finalPdfWebCaptureMetadata: list<array{source:string, page:int|null, pageObject:string|null, spiderInfoObject:string|null, version:float|null, commandCount:int, sourceUrls:list<string>, captures:list<array{commandObject:string|null, sourceUrl:string|null, sourceTitle:string|null, commandName:string|null, commandType:string|null, identifier:string|null, timestamp:string|null, flags:int|null, depth:int|null, pageReferences:list<string>, parentCommand:string|null, nextCommand:string|null}>}>,
@@ -5514,6 +5540,7 @@ final class PdfEngineHandoff
             'finalPdfDocumentInfo' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfo'] ?? null) ? $finalRun['pdfDocumentInfo'] : [],
             'finalPdfDocumentInfoDateMetadata' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfoDateMetadata'] ?? null) ? $finalRun['pdfDocumentInfoDateMetadata'] : [],
             'finalPdfXmpMetadata' => is_array($finalRun) && is_array($finalRun['pdfXmpMetadata'] ?? null) ? $finalRun['pdfXmpMetadata'] : [],
+            'finalPdfCatalogMetadata' => is_array($finalRun) && is_array($finalRun['pdfCatalogMetadata'] ?? null) ? $finalRun['pdfCatalogMetadata'] : [],
             'finalPdfPageMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageMetadata'] ?? null) ? $finalRun['pdfPageMetadata'] : [],
             'finalPdfPieceInfo' => is_array($finalRun) && is_array($finalRun['pdfPieceInfo'] ?? null) ? $finalRun['pdfPieceInfo'] : [],
             'finalPdfWebCaptureMetadata' => is_array($finalRun) && is_array($finalRun['pdfWebCaptureMetadata'] ?? null) ? $finalRun['pdfWebCaptureMetadata'] : [],
@@ -11725,6 +11752,7 @@ final class PdfEngineHandoff
      *     documentInfo:array<string, string>,
      *     documentInfoDateMetadata:list<array{key:string, source:string, raw:string, normalized:string|null, precision:string|null, timezone:string|null, timezoneOffsetMinutes:int|null, year:int|null, month:int|null, day:int|null, hour:int|null, minute:int|null, second:int|null, valid:bool}>,
      *     xmpMetadata:array<string, mixed>,
+     *     catalogMetadata:array<string, mixed>,
      *     pageMetadata:list<array<string, mixed>>,
      *     pieceInfo:list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
      *     webCaptureMetadata:list<array{source:string, page:int|null, pageObject:string|null, spiderInfoObject:string|null, version:float|null, commandCount:int, sourceUrls:list<string>, captures:list<array{commandObject:string|null, sourceUrl:string|null, sourceTitle:string|null, commandName:string|null, commandType:string|null, identifier:string|null, timestamp:string|null, flags:int|null, depth:int|null, pageReferences:list<string>, parentCommand:string|null, nextCommand:string|null}>}>,
@@ -11870,6 +11898,7 @@ final class PdfEngineHandoff
         $streamDecodeParameters = $this->summarizePdfStreamDecodeParameters($streamFilterPolicy, $pdfBytes);
         $documentInfo = $this->extractPdfDocumentInfo($pdfBytes);
         $xmpMetadata = $this->extractPdfXmpMetadata($pdfBytes, $catalog);
+        $catalogMetadata = $this->extractPdfCatalogMetadata($pdfBytes, $catalog);
         $outputIntents = $this->extractPdfOutputIntents($pdfBytes, $catalog);
         $pageOutputIntents = $this->extractPdfPageOutputIntents($pdfBytes, $catalog);
         $language = $this->extractPdfCatalogLanguage($pdfBytes, $catalog);
@@ -11956,6 +11985,7 @@ final class PdfEngineHandoff
             'documentInfo' => $documentInfo,
             'documentInfoDateMetadata' => $this->extractPdfDocumentInfoDateMetadata($documentInfo),
             'xmpMetadata' => $xmpMetadata,
+            'catalogMetadata' => $catalogMetadata,
             'pageMetadata' => $this->extractPdfPageMetadata($pdfBytes, $catalog),
             'pieceInfo' => $this->extractPdfPieceInfo($pdfBytes, $catalog),
             'webCaptureMetadata' => $this->extractPdfWebCaptureMetadata($pdfBytes, $catalog),
@@ -13364,6 +13394,42 @@ final class PdfEngineHandoff
         }
 
         return $this->summarizePdfXmpMetadataStream($stream);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function extractPdfCatalogMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null) {
+            return [];
+        }
+
+        $metadataReference = $this->extractPdfReferenceToken($catalog, 'Metadata');
+        if ($metadataReference === null) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $metadataObject = $objects[$this->pdfReferenceKey($metadataReference)] ?? null;
+        if ($metadataObject === null) {
+            return [];
+        }
+
+        $stream = $this->pdfMetadataStreamForObject($metadataObject, $objects);
+        if ($stream === null) {
+            return [];
+        }
+
+        $metadata = $this->summarizePdfXmpMetadataStream($stream);
+        if ($metadata === []) {
+            return [];
+        }
+
+        return array_merge([
+            'source' => 'catalog.Metadata',
+            'metadataObject' => $metadataReference,
+        ], $metadata);
     }
 
     /**

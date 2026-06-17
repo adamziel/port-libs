@@ -11165,6 +11165,119 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfXmpMetadata']);
     },
 
+    'fake runner preserves catalog metadata stream provenance from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/catalog-metadata.pdf']);
+        $xmp = implode("\n", [
+            '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
+            '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+            '<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/">',
+            '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Catalog Review Packet</rdf:li></rdf:Alt></dc:title>',
+            '<dc:creator><rdf:Seq><rdf:li>Boundary Reviewer</rdf:li></rdf:Seq></dc:creator>',
+            '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">Catalog metadata handoff</rdf:li></rdf:Alt></dc:description>',
+            '<xmp:CreatorTool>Pandoc catalog renderer</xmp:CreatorTool>',
+            '</rdf:Description>',
+            '</rdf:RDF>',
+            '</x:xmpmeta>',
+            '<?xpacket end="w"?>',
+        ]);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Metadata 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Length ' . strlen($xmp) . ' >>',
+            'stream',
+            $xmp,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/catalog-metadata.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/catalog-metadata.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'source' => 'catalog.Metadata',
+            'metadataObject' => '8 0 R',
+            'packetBytes' => strlen($xmp),
+            'packetSha256' => hash('sha256', $xmp),
+            'title' => 'Catalog Review Packet',
+            'description' => 'Catalog metadata handoff',
+            'creatorTool' => 'Pandoc catalog renderer',
+            'creators' => ['Boundary Reviewer'],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfCatalogMetadata']);
+        $t->contains('pdf-byte-catalog-metadata:8', $diagnostics);
+        $t->contains('pdf-byte-catalog-metadata-title', $diagnostics);
+        $t->contains('pdf-byte-catalog-metadata-creators:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfCatalogMetadata']);
+
+        $filteredPlan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/catalog-metadata-filtered.pdf']);
+        $filteredXmp = "<?xpacket begin=\"\"?>\n<rdf:RDF><rdf:Description /></rdf:RDF>\n<?xpacket end=\"w\"?>";
+        $filteredPdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Metadata 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Filter /ASCIIHexDecode /Length ' . strlen($filteredXmp) . ' >>',
+            'stream',
+            $filteredXmp,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+        $filteredResult = $handoff->fakeRun($filteredPlan, [
+            'files' => [
+                'packets/catalog-metadata-filtered.pdf' => $filteredPdfBytes,
+            ],
+        ]);
+
+        $t->same(true, $filteredResult['ok']);
+        $t->same([
+            'source' => 'catalog.Metadata',
+            'metadataObject' => '8 0 R',
+            'packetBytes' => strlen($filteredXmp),
+            'skipped' => 'filtered',
+        ], $filteredResult['pdfCatalogMetadata']);
+        $t->contains('pdf-byte-catalog-metadata-skipped:filtered', implode(',', $filteredResult['diagnostics']));
+    },
+
     'fake runner extracts bounded pdf page metadata streams from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-metadata.pdf']);
