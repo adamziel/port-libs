@@ -10345,6 +10345,7 @@ final class DocxOpenXmlReader
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
         $partBaseNames = $this->packagePartBaseNameSummary($partInventory);
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
+        $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
         $duplicatePartBaseNames = [];
         foreach ($partBaseNames as $baseNameSummary) {
             if ((int) ($baseNameSummary['partCount'] ?? 0) > 1) {
@@ -11107,6 +11108,13 @@ final class DocxOpenXmlReader
             'partCaseFoldBaseNameCount' => count($partCaseFoldBaseNames),
             'duplicatePartCaseFoldBaseNameCount' => count($duplicatePartCaseFoldBaseNames),
             'duplicatePartCaseFoldBaseNames' => $duplicatePartCaseFoldBaseNames,
+            'partNameCharacterReviewPartCount' => $partNameCharacters['partCount'],
+            'partNameUppercasePartCount' => count($partNameCharacters['flagPartNames']['uppercase'] ?? []),
+            'partNameWhitespacePartCount' => count($partNameCharacters['flagPartNames']['whitespace'] ?? []),
+            'partNamePercentEncodedOctetPartCount' => count($partNameCharacters['flagPartNames']['percent-encoded-octet'] ?? []),
+            'partNameNonAsciiPartCount' => count($partNameCharacters['flagPartNames']['non-ascii'] ?? []),
+            'partNameCharacterFlagCounts' => $partNameCharacters['flagCounts'],
+            'partNameCharacterFlagPartNames' => $partNameCharacters['flagPartNames'],
             'partContentTypeCount' => count($partContentTypes),
             'partRoleCount' => count($partRoles),
             'packageByteLength' => $packageByteLength,
@@ -11264,6 +11272,7 @@ final class DocxOpenXmlReader
             'partExtensions' => $partExtensions,
             'partBaseNames' => $partBaseNames,
             'partCaseFoldBaseNames' => $partCaseFoldBaseNames,
+            'partNameCharacterReviewParts' => $partNameCharacters['parts'],
             'partContentTypes' => $partContentTypes,
             'partRoles' => $partRoles,
             'largestPart' => $largestPart,
@@ -12377,6 +12386,73 @@ final class DocxOpenXmlReader
         }
 
         return array_values($extensions);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array{partCount:int, flagCounts:array<string, int>, flagPartNames:array<string, list<string>>, parts:list<array<string, mixed>>}
+     */
+    private function packagePartNameCharacterSummary(array $partInventory): array
+    {
+        $flagCounts = [];
+        $flagPartNames = [];
+        $items = [];
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $flags = is_array($part['partNameCharacterFlags'] ?? null)
+                ? array_values(array_map('strval', $part['partNameCharacterFlags']))
+                : $this->packagePartNameCharacterFlags($partName);
+            if ($flags === []) {
+                continue;
+            }
+
+            foreach ($flags as $flag) {
+                if ($flag === '') {
+                    continue;
+                }
+
+                $flagCounts[$flag] = ($flagCounts[$flag] ?? 0) + 1;
+                $flagPartNames[$flag][] = $partName;
+            }
+
+            $items[] = [
+                'partName' => $partName,
+                'directory' => is_string($part['directory'] ?? null)
+                    ? $part['directory']
+                    : $this->packagePartDirectory($partName),
+                'baseName' => is_string($part['baseName'] ?? null)
+                    ? $part['baseName']
+                    : $this->packagePartBaseName($partName),
+                'pathSegmentCount' => is_int($part['pathSegmentCount'] ?? null)
+                    ? $part['pathSegmentCount']
+                    : count($this->packagePartPathSegments($partName)),
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'contentTypeSource' => is_string($part['contentTypeSource'] ?? null)
+                    ? $part['contentTypeSource']
+                    : 'missing',
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+                'flags' => $flags,
+            ];
+        }
+
+        ksort($flagCounts, SORT_STRING);
+        ksort($flagPartNames, SORT_STRING);
+        foreach ($flagPartNames as &$partNames) {
+            sort($partNames, SORT_STRING);
+        }
+        unset($partNames);
+
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
+        );
+
+        return [
+            'partCount' => count($items),
+            'flagCounts' => $flagCounts,
+            'flagPartNames' => $flagPartNames,
+            'parts' => $items,
+        ];
     }
 
     /**
@@ -15139,6 +15215,7 @@ final class DocxOpenXmlReader
             if ($roles === []) {
                 $roles = ['package-part'];
             }
+            $partNameCharacterFlags = $this->packagePartNameCharacterFlags($partName);
 
             $entry = [
                 'partName' => $partName,
@@ -15166,6 +15243,11 @@ final class DocxOpenXmlReader
                 'overridePartName' => $contentTypeResolution['overridePartName'],
                 'isRelationshipPart' => $this->isRelationshipPartName($partName),
                 'roles' => $roles,
+                'partNameCharacterFlags' => $partNameCharacterFlags,
+                'partNameHasUppercase' => in_array('uppercase', $partNameCharacterFlags, true),
+                'partNameHasWhitespace' => in_array('whitespace', $partNameCharacterFlags, true),
+                'partNameHasPercentEncodedOctet' => in_array('percent-encoded-octet', $partNameCharacterFlags, true),
+                'partNameHasNonAscii' => in_array('non-ascii', $partNameCharacterFlags, true),
             ];
             if ($entry['isRelationshipPart']) {
                 $relationshipSourcePart = $this->relationshipSourcePartForInventory($partName);
@@ -15176,6 +15258,28 @@ final class DocxOpenXmlReader
         }
 
         return $inventory;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function packagePartNameCharacterFlags(string $partName): array
+    {
+        $flags = [];
+        if (preg_match('/[A-Z]/', $partName) === 1) {
+            $flags[] = 'uppercase';
+        }
+        if (preg_match('/[ \t\r\n\f\v]/', $partName) === 1) {
+            $flags[] = 'whitespace';
+        }
+        if (preg_match('/%[0-9A-Fa-f]{2}/', $partName) === 1) {
+            $flags[] = 'percent-encoded-octet';
+        }
+        if (preg_match('/[^\x00-\x7F]/', $partName) === 1) {
+            $flags[] = 'non-ascii';
+        }
+
+        return $flags;
     }
 
     private function packagePartDirectory(string $partName): string

@@ -1334,6 +1334,76 @@ XML;
         $t->same(2, $word['roleCounts']['document-relationship-target']);
         $t->same(1, $word['roleCounts']['embedded-package']);
     },
+    'summarizes docx package part name character provenance for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $mixedCaseWhitespacePart = 'word/media/Review Draft.PNG';
+        $percentEncodedPart = 'word/data/review%20encoded.xml';
+        $nonAsciiPart = "word/data/caf\xC3\xA9.xml";
+        $parts[$mixedCaseWhitespacePart] = 'mixed case image bytes';
+        $parts[$percentEncodedPart] = '<encoded-review/>';
+        $parts[$nonAsciiPart] = '<cafe-review/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byPartName = [];
+        foreach ($summary['partNameCharacterReviewParts'] as $item) {
+            $byPartName[$item['partName']] = $item;
+        }
+
+        $t->same(5, $summary['partNameCharacterReviewPartCount']);
+        $t->same(3, $summary['partNameUppercasePartCount']);
+        $t->same(1, $summary['partNameWhitespacePartCount']);
+        $t->same(1, $summary['partNamePercentEncodedOctetPartCount']);
+        $t->same(1, $summary['partNameNonAsciiPartCount']);
+        $t->same([
+            'non-ascii' => 1,
+            'percent-encoded-octet' => 1,
+            'uppercase' => 3,
+            'whitespace' => 1,
+        ], $summary['partNameCharacterFlagCounts']);
+        $t->same(['[Content_Types].xml', 'docProps/core.xml', $mixedCaseWhitespacePart], $summary['partNameCharacterFlagPartNames']['uppercase']);
+        $t->same([$mixedCaseWhitespacePart], $summary['partNameCharacterFlagPartNames']['whitespace']);
+        $t->same([$percentEncodedPart], $summary['partNameCharacterFlagPartNames']['percent-encoded-octet']);
+        $t->same([$nonAsciiPart], $summary['partNameCharacterFlagPartNames']['non-ascii']);
+
+        $t->same(['uppercase'], $inventory['[Content_Types].xml']['partNameCharacterFlags']);
+        $t->same(true, $inventory['[Content_Types].xml']['partNameHasUppercase']);
+        $t->same(false, $inventory['[Content_Types].xml']['partNameHasWhitespace']);
+        $t->same(['uppercase', 'whitespace'], $inventory[$mixedCaseWhitespacePart]['partNameCharacterFlags']);
+        $t->same(true, $inventory[$mixedCaseWhitespacePart]['partNameHasUppercase']);
+        $t->same(true, $inventory[$mixedCaseWhitespacePart]['partNameHasWhitespace']);
+        $t->same(false, $inventory[$mixedCaseWhitespacePart]['partNameHasPercentEncodedOctet']);
+        $t->same(false, $inventory[$mixedCaseWhitespacePart]['partNameHasNonAscii']);
+        $t->same('png', $inventory[$mixedCaseWhitespacePart]['partExtension']);
+        $t->same('image/png', $inventory[$mixedCaseWhitespacePart]['contentTypeBase']);
+        $t->same('default', $inventory[$mixedCaseWhitespacePart]['contentTypeSource']);
+
+        $t->same(['percent-encoded-octet'], $inventory[$percentEncodedPart]['partNameCharacterFlags']);
+        $t->same(true, $inventory[$percentEncodedPart]['partNameHasPercentEncodedOctet']);
+        $t->same(false, $inventory[$percentEncodedPart]['partNameHasWhitespace']);
+        $t->same('word/data', $inventory[$percentEncodedPart]['directory']);
+        $t->same('application/xml', $inventory[$percentEncodedPart]['contentTypeBase']);
+
+        $t->same(['non-ascii'], $inventory[$nonAsciiPart]['partNameCharacterFlags']);
+        $t->same(true, $inventory[$nonAsciiPart]['partNameHasNonAscii']);
+        $t->same(false, $inventory[$nonAsciiPart]['partNameHasPercentEncodedOctet']);
+        $t->same('word/data', $inventory[$nonAsciiPart]['directory']);
+        $t->same('application/xml', $inventory[$nonAsciiPart]['contentTypeBase']);
+
+        $t->same(['uppercase'], $byPartName['[Content_Types].xml']['flags']);
+        $t->same('/', $byPartName['[Content_Types].xml']['directory']);
+        $t->same(['content-types'], $byPartName['[Content_Types].xml']['roles']);
+        $t->same(['uppercase', 'whitespace'], $byPartName[$mixedCaseWhitespacePart]['flags']);
+        $t->same('word/media', $byPartName[$mixedCaseWhitespacePart]['directory']);
+        $t->same('Review Draft.PNG', $byPartName[$mixedCaseWhitespacePart]['baseName']);
+        $t->same(3, $byPartName[$mixedCaseWhitespacePart]['pathSegmentCount']);
+        $t->same('default', $byPartName[$mixedCaseWhitespacePart]['contentTypeSource']);
+        $t->same(['package-part'], $byPartName[$mixedCaseWhitespacePart]['roles']);
+        $t->same(['percent-encoded-octet'], $byPartName[$percentEncodedPart]['flags']);
+        $t->same(['non-ascii'], $byPartName[$nonAsciiPart]['flags']);
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
