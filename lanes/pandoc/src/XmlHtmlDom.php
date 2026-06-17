@@ -22942,6 +22942,9 @@ final class XmlHtmlDom
             $summary['useMapValid'] = $useMap['valid'];
             $summary += self::imageUseMapAssociationSummary($image, $useMap);
         }
+        if ($image->hasAttribute('ismap')) {
+            $summary += self::imageServerMapSummary($image);
+        }
 
         return $summary;
     }
@@ -23008,6 +23011,59 @@ final class XmlHtmlDom
         $value = strtolower(trim($value));
 
         return in_array($value, ['sync', 'async', 'auto'], true) ? $value : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function imageServerMapSummary(\DOMElement $image): array
+    {
+        $anchor = self::imageServerMapAnchor($image);
+        $anchorHref = $anchor instanceof \DOMElement ? self::attributeOrNull($anchor, 'href') : null;
+        $anchorHrefUsable = $anchorHref !== null && trim($anchorHref) !== '';
+        $hasUseMap = $image->hasAttribute('usemap');
+        $issues = [];
+
+        if (!$anchor instanceof \DOMElement) {
+            $issues[] = ['code' => 'server-image-map-without-anchor'];
+        } elseif (!$anchorHrefUsable) {
+            $issues[] = ['code' => 'server-image-map-anchor-missing-href'];
+        }
+        if ($hasUseMap) {
+            $issues[] = [
+                'code' => 'server-image-map-has-client-usemap',
+                'useMapRaw' => $image->getAttribute('usemap'),
+            ];
+        }
+
+        return [
+            'serverImageMapReviewPolicy' => 'html-server-side-image-map-review',
+            'serverImageMap' => true,
+            'serverImageMapRaw' => $image->getAttribute('ismap'),
+            'serverImageMapAnchorFound' => $anchor instanceof \DOMElement,
+            'serverImageMapAnchorHref' => $anchorHref,
+            'serverImageMapAnchorHrefUsable' => $anchorHrefUsable,
+            'serverImageMapAnchorId' => $anchor instanceof \DOMElement ? self::attributeOrNull($anchor, 'id') : null,
+            'serverImageMapAnchorText' => $anchor instanceof \DOMElement ? self::normalizedText($anchor) : null,
+            'serverImageMapHasClientMap' => $hasUseMap,
+            'serverImageMapUsable' => $anchorHrefUsable,
+            'serverImageMapIssueCodes' => array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $issues
+            ),
+            'serverImageMapIssues' => $issues,
+        ];
+    }
+
+    private static function imageServerMapAnchor(\DOMElement $image): ?\DOMElement
+    {
+        for ($ancestor = $image->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            if (self::htmlElementName($ancestor) === 'a') {
+                return $ancestor;
+            }
+        }
+
+        return null;
     }
 
     /**

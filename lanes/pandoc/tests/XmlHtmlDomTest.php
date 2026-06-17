@@ -8545,6 +8545,65 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         ], $invalidImage['imageLoadingIssueCodes']);
         $t->same(5, $invalidImage['imageLoadingIssueCount']);
     },
+    'summarizes html server side image map provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p><a id="chart-map" href="/map?packet=42"><img id="server" src="chart.png" alt="Chart" ismap></a></p>'
+                . '<p><a id="missing-link"><img id="missing-href" src="missing.png" alt="Missing" ismap></a></p>'
+                . '<p><img id="orphan" src="orphan.png" alt="Orphan" ismap></p>'
+                . '<p><a href="/hybrid"><img id="hybrid" src="hybrid.png" alt="Hybrid" ismap usemap="#figures"></a></p>'
+                . '<map name="figures"><area href="/client" alt="Client map"></map>',
+            'server-side image map review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/server-image-map-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $server = $summary[0]['children'][0]['children'][0];
+        $missingHref = $summary[1]['children'][0]['children'][0];
+        $orphan = $summary[2]['children'][0];
+        $hybrid = $summary[3]['children'][0]['children'][0];
+
+        $t->same('html-server-side-image-map-review', $server['serverImageMapReviewPolicy']);
+        $t->same(true, $server['serverImageMap']);
+        $t->same('ismap', $server['serverImageMapRaw']);
+        $t->same(true, $server['serverImageMapAnchorFound']);
+        $t->same('/map?packet=42', $server['serverImageMapAnchorHref']);
+        $t->same(true, $server['serverImageMapAnchorHrefUsable']);
+        $t->same('chart-map', $server['serverImageMapAnchorId']);
+        $t->same('', $server['serverImageMapAnchorText']);
+        $t->same(false, $server['serverImageMapHasClientMap']);
+        $t->same(true, $server['serverImageMapUsable']);
+        $t->same([], $server['serverImageMapIssueCodes']);
+
+        $t->same(true, $missingHref['serverImageMapAnchorFound']);
+        $t->same(null, $missingHref['serverImageMapAnchorHref']);
+        $t->same(false, $missingHref['serverImageMapAnchorHrefUsable']);
+        $t->same(false, $missingHref['serverImageMapUsable']);
+        $t->same(['server-image-map-anchor-missing-href'], $missingHref['serverImageMapIssueCodes']);
+
+        $t->same(false, $orphan['serverImageMapAnchorFound']);
+        $t->same(null, $orphan['serverImageMapAnchorHref']);
+        $t->same(false, $orphan['serverImageMapUsable']);
+        $t->same(['server-image-map-without-anchor'], $orphan['serverImageMapIssueCodes']);
+
+        $t->same('/hybrid', $hybrid['serverImageMapAnchorHref']);
+        $t->same(true, $hybrid['serverImageMapHasClientMap']);
+        $t->same(true, $hybrid['serverImageMapUsable']);
+        $t->same(['server-image-map-has-client-usemap'], $hybrid['serverImageMapIssueCodes']);
+        $t->same([[
+            'code' => 'server-image-map-has-client-usemap',
+            'useMapRaw' => '#figures',
+        ]], $hybrid['serverImageMapIssues']);
+        $t->same('resolved', $hybrid['useMapAssociationState']);
+        $t->same(['/client'], $hybrid['useMapAreaHrefs']);
+        $t->contains('<img alt="Chart" id="server" ismap src="chart.png">', $html);
+        $t->contains('<img alt="Hybrid" id="hybrid" ismap src="hybrid.png" usemap="#figures">', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/server-image-map-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html object param review provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<object id="player" data="player.swf" type="application/x-shockwave-flash">'
