@@ -1717,6 +1717,8 @@ final class XmlHtmlDom
         $subtitleMetadata = $metadata instanceof \DOMElement
             ? self::jatsFirstTextRecord($metadata, ['subtitle'])
             : null;
+        $abstracts = $metadata instanceof \DOMElement ? self::jatsAbstractSummaries($metadata) : [];
+        $keywordGroups = $metadata instanceof \DOMElement ? self::jatsKeywordGroupSummaries($metadata) : [];
         $contributors = $metadata instanceof \DOMElement ? self::jatsContributorSummaries($metadata) : [];
         $dates = $metadata instanceof \DOMElement ? self::jatsPublicationDateSummaries($metadata) : [];
         $publicationMetadata = self::jatsPublicationMetadataSummary($root, $metadata);
@@ -1901,7 +1903,33 @@ final class XmlHtmlDom
             'frontMatterPermissionIssueCount' => $publicationMetadata['permissionIssueCount'],
             'frontMatterPermissionIssues' => $publicationMetadata['permissionIssues'],
             'abstractText' => $metadata instanceof \DOMElement ? self::jatsFirstText($metadata, ['abstract']) : null,
+            'abstractReviewPolicy' => 'jats-bits-abstract-metadata-review-only',
+            'abstracts' => $abstracts,
+            'abstractCount' => count($abstracts),
+            'abstractTypes' => self::jatsFlattenUniqueStringField($abstracts, 'type'),
+            'abstractLanguages' => self::jatsFlattenUniqueStringField($abstracts, 'language'),
+            'structuredAbstractCount' => count(array_filter(
+                $abstracts,
+                static fn (array $abstract): bool => ($abstract['structured'] ?? false) === true
+            )),
             'keywords' => $metadata instanceof \DOMElement ? self::jatsTextList($metadata, 'kwd') : [],
+            'keywordReviewPolicy' => 'jats-bits-keyword-group-metadata-review-only',
+            'keywordGroups' => $keywordGroups,
+            'keywordGroupCount' => count($keywordGroups),
+            'keywordGroupTypes' => self::jatsFlattenUniqueStringField($keywordGroups, 'type'),
+            'keywordGroupLanguages' => self::jatsFlattenUniqueStringField($keywordGroups, 'language'),
+            'keywordCount' => array_sum(array_map(
+                static fn (array $group): int => (int) ($group['keywordCount'] ?? 0),
+                $keywordGroups
+            )),
+            'compoundKeywordCount' => array_sum(array_map(
+                static fn (array $group): int => (int) ($group['compoundKeywordCount'] ?? 0),
+                $keywordGroups
+            )),
+            'compoundKeywordPartCount' => array_sum(array_map(
+                static fn (array $group): int => (int) ($group['compoundKeywordPartCount'] ?? 0),
+                $keywordGroups
+            )),
             'contributors' => $contributors,
             'contributorCount' => count($contributors),
             'contributorNames' => array_values(array_map(
@@ -7929,6 +7957,103 @@ final class XmlHtmlDom
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsAbstractSummaries(\DOMElement $metadata): array
+    {
+        $records = [];
+        foreach (['abstract', 'trans-abstract'] as $localName) {
+            foreach (self::descendantElements($metadata, $localName) as $abstract) {
+                $sections = [];
+                foreach (self::childElements($abstract, 'sec') as $section) {
+                    $sectionTitle = self::jatsElementTextOrNull(self::firstChildElement($section, 'title'));
+                    $sectionParagraphs = self::jatsNonEmptyTexts(self::childElements($section, 'p'));
+                    $sections[] = [
+                        'id' => self::normalizedAttribute($section, 'id'),
+                        'type' => self::normalizedAttribute($section, 'sec-type'),
+                        'title' => $sectionTitle,
+                        'paragraphs' => $sectionParagraphs,
+                        'paragraphCount' => count($sectionParagraphs),
+                    ];
+                }
+
+                $text = self::jatsCompositeElementReviewText($abstract);
+                $paragraphs = self::jatsNonEmptyTexts(self::childElements($abstract, 'p'));
+                $records[] = [
+                    'element' => $localName,
+                    'id' => self::normalizedAttribute($abstract, 'id'),
+                    'type' => self::normalizedAttribute($abstract, 'abstract-type')
+                        ?? self::normalizedAttribute($abstract, 'content-type'),
+                    'language' => self::normalizedAttribute($abstract, 'lang', self::XML_NAMESPACE)
+                        ?? self::normalizedAttribute($abstract, 'lang'),
+                    'title' => self::jatsElementTextOrNull(self::firstChildElement($abstract, 'title')),
+                    'text' => $text === '' ? null : $text,
+                    'paragraphs' => $paragraphs,
+                    'paragraphCount' => count($paragraphs),
+                    'sectionCount' => count($sections),
+                    'sectionTitles' => array_values(array_filter(
+                        array_map(static fn (array $section): ?string => $section['title'], $sections),
+                        static fn (?string $title): bool => $title !== null && $title !== ''
+                    )),
+                    'sections' => $sections,
+                    'structured' => $sections !== [],
+                    'sourceLine' => max(0, $abstract->getLineNo()),
+                ];
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsKeywordGroupSummaries(\DOMElement $metadata): array
+    {
+        $groups = [];
+        foreach (self::descendantElements($metadata, 'kwd-group') as $group) {
+            $compoundKeywords = [];
+            foreach (self::childElements($group, 'compound-kwd') as $compoundKeyword) {
+                $parts = [];
+                foreach (self::childElements($compoundKeyword, 'compound-kwd-part') as $part) {
+                    $parts[] = [
+                        'type' => self::normalizedAttribute($part, 'content-type')
+                            ?? self::normalizedAttribute($part, 'kwd-part-type'),
+                        'text' => self::normalizedText($part),
+                    ];
+                }
+
+                $compoundKeywords[] = [
+                    'text' => self::jatsElementReviewText($compoundKeyword),
+                    'partCount' => count($parts),
+                    'parts' => $parts,
+                ];
+            }
+
+            $keywords = self::jatsNonEmptyTexts(self::childElements($group, 'kwd'));
+            $groups[] = [
+                'id' => self::normalizedAttribute($group, 'id'),
+                'type' => self::normalizedAttribute($group, 'kwd-group-type')
+                    ?? self::normalizedAttribute($group, 'content-type'),
+                'language' => self::normalizedAttribute($group, 'lang', self::XML_NAMESPACE)
+                    ?? self::normalizedAttribute($group, 'lang'),
+                'title' => self::jatsElementTextOrNull(self::firstChildElement($group, 'title')),
+                'keywords' => $keywords,
+                'keywordCount' => count($keywords),
+                'compoundKeywords' => $compoundKeywords,
+                'compoundKeywordCount' => count($compoundKeywords),
+                'compoundKeywordPartCount' => array_sum(array_map(
+                    static fn (array $compoundKeyword): int => (int) ($compoundKeyword['partCount'] ?? 0),
+                    $compoundKeywords
+                )),
+                'sourceLine' => max(0, $group->getLineNo()),
+            ];
+        }
+
+        return $groups;
+    }
+
+    /**
      * @param list<string> $localNames
      * @param list<string> $typeAttributes
      * @return list<array{element:string, type:?string, value:string}>
@@ -13796,6 +13921,23 @@ final class XmlHtmlDom
     private static function jatsElementReviewText(\DOMElement $element): string
     {
         $childTexts = self::jatsNonEmptyTexts(self::childElements($element));
+        if ($childTexts !== []) {
+            return implode(' ', $childTexts);
+        }
+
+        return self::normalizedText($element);
+    }
+
+    private static function jatsCompositeElementReviewText(\DOMElement $element): string
+    {
+        $childTexts = [];
+        foreach (self::childElements($element) as $child) {
+            $text = self::jatsElementReviewText($child);
+            if ($text !== '') {
+                $childTexts[] = $text;
+            }
+        }
+
         if ($childTexts !== []) {
             return implode(' ', $childTexts);
         }

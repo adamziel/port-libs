@@ -1011,6 +1011,119 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
     },
+    'summarizes jats bits abstract and keyword group metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article" xml:lang="en">
+  <front>
+    <article-meta>
+      <title-group><article-title>Abstract Keyword Review</article-title></title-group>
+      <abstract id="abs-main" abstract-type="summary" xml:lang="en">
+        <title>Summary</title>
+        <p>Main abstract.</p>
+        <sec id="abs-objective" sec-type="objective"><title>Objective</title><p>Assess tail metadata.</p></sec>
+      </abstract>
+      <trans-abstract id="abs-es" xml:lang="es">
+        <title>Resumen</title>
+        <p>Resumen traducido.</p>
+      </trans-abstract>
+      <kwd-group id="kg-author" kwd-group-type="author" xml:lang="en">
+        <title>Keywords</title>
+        <kwd>DOM</kwd>
+        <kwd>JATS</kwd>
+        <compound-kwd>
+          <compound-kwd-part content-type="subject">XML</compound-kwd-part>
+          <compound-kwd-part content-type="qualifier">review</compound-kwd-part>
+        </compound-kwd>
+      </kwd-group>
+      <kwd-group id="kg-translated" kwd-group-type="translated" xml:lang="es">
+        <kwd>Revision</kwd>
+      </kwd-group>
+    </article-meta>
+  </front>
+  <body><sec id="body"><title>Body</title><p>Body text.</p></sec></body>
+</article>
+XML, 'JATS abstract keyword metadata XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($jats);
+
+        $t->same('jats-bits-abstract-metadata-review-only', $packet['abstractReviewPolicy']);
+        $t->same(2, $packet['abstractCount']);
+        $t->same(['summary'], $packet['abstractTypes']);
+        $t->same(['en', 'es'], $packet['abstractLanguages']);
+        $t->same(1, $packet['structuredAbstractCount']);
+        $compatibility = XmlHtmlDom::summarizeJatsFrontMatter(XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article><front><article-meta><abstract><p>Native PHP review packet.</p></abstract></article-meta></front></article>
+XML, 'JATS abstract compatibility XML', preserveWhiteSpace: false));
+        $t->same('Native PHP review packet.', $compatibility['abstractText']);
+
+        $summary = $packet['abstracts'][0];
+        $translation = $packet['abstracts'][1];
+        $t->same('abstract', $summary['element']);
+        $t->same('abs-main', $summary['id']);
+        $t->same('summary', $summary['type']);
+        $t->same('en', $summary['language']);
+        $t->same('Summary', $summary['title']);
+        $t->same('Summary Main abstract. Objective Assess tail metadata.', $summary['text']);
+        $t->same(['Main abstract.'], $summary['paragraphs']);
+        $t->same(1, $summary['paragraphCount']);
+        $t->same(1, $summary['sectionCount']);
+        $t->same(['Objective'], $summary['sectionTitles']);
+        $t->same('abs-objective', $summary['sections'][0]['id'] ?? null);
+        $t->same('objective', $summary['sections'][0]['type'] ?? null);
+        $t->same(['Assess tail metadata.'], $summary['sections'][0]['paragraphs'] ?? null);
+        $t->same(true, $summary['structured']);
+        $t->true(($summary['sourceLine'] ?? 0) > 0);
+        $t->same('trans-abstract', $translation['element']);
+        $t->same('abs-es', $translation['id']);
+        $t->same('es', $translation['language']);
+        $t->same('Resumen', $translation['title']);
+        $t->same(false, $translation['structured']);
+
+        $t->same('jats-bits-keyword-group-metadata-review-only', $packet['keywordReviewPolicy']);
+        $t->same(['DOM', 'JATS', 'Revision'], $packet['keywords']);
+        $t->same(2, $packet['keywordGroupCount']);
+        $t->same(['author', 'translated'], $packet['keywordGroupTypes']);
+        $t->same(['en', 'es'], $packet['keywordGroupLanguages']);
+        $t->same(3, $packet['keywordCount']);
+        $t->same(1, $packet['compoundKeywordCount']);
+        $t->same(2, $packet['compoundKeywordPartCount']);
+        $authorKeywords = $packet['keywordGroups'][0];
+        $translatedKeywords = $packet['keywordGroups'][1];
+        $t->same('kg-author', $authorKeywords['id']);
+        $t->same('author', $authorKeywords['type']);
+        $t->same('Keywords', $authorKeywords['title']);
+        $t->same(['DOM', 'JATS'], $authorKeywords['keywords']);
+        $t->same(2, $authorKeywords['keywordCount']);
+        $t->same('XML review', $authorKeywords['compoundKeywords'][0]['text'] ?? null);
+        $t->same(2, $authorKeywords['compoundKeywords'][0]['partCount'] ?? null);
+        $t->same([
+            ['type' => 'subject', 'text' => 'XML'],
+            ['type' => 'qualifier', 'text' => 'review'],
+        ], $authorKeywords['compoundKeywords'][0]['parts'] ?? null);
+        $t->same('kg-translated', $translatedKeywords['id']);
+        $t->same(['Revision'], $translatedKeywords['keywords']);
+
+        $bits = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<book book-type="monograph" xml:lang="en">
+  <book-meta>
+    <title-group><book-title>BITS Abstracts</book-title></title-group>
+    <abstract id="book-abstract" content-type="overview"><p>Book abstract.</p></abstract>
+    <kwd-group content-type="subject"><kwd>BITS</kwd></kwd-group>
+  </book-meta>
+  <book-body/>
+</book>
+XML, 'BITS abstract keyword metadata XML', preserveWhiteSpace: false);
+        $bitsPacket = XmlHtmlDom::summarizeJatsFrontMatter($bits, 'bits');
+        $t->same('bits', $bitsPacket['format']);
+        $t->same(1, $bitsPacket['abstractCount']);
+        $t->same(['overview'], $bitsPacket['abstractTypes']);
+        $t->same('book-abstract', $bitsPacket['abstracts'][0]['id'] ?? null);
+        $t->same('Book abstract.', $bitsPacket['abstracts'][0]['text'] ?? null);
+        $t->same(1, $bitsPacket['keywordGroupCount']);
+        $t->same(['subject'], $bitsPacket['keywordGroupTypes']);
+        $t->same(['BITS'], $bitsPacket['keywords']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($bitsPacket, JSON_THROW_ON_ERROR);
+    },
     'summarizes jats figure permissions and media license diagnostics without payload exposure' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article article-type="research-article" dtd-version="1.3" xml:lang="en" xmlns:xlink="http://www.w3.org/1999/xlink">
