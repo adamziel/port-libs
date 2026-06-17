@@ -5910,6 +5910,116 @@ return [
         $t->same([], $sequence['finalEngineBoundaryViolations']);
     },
 
+    'fake runner reviews typst external dependency boundary provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Typst External Dependency Packet\n\n#image(\"https://cdn.example.invalid/chart.svg\")\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/typst-external.pdf',
+            'source' => $source,
+            'engineOptions' => ['--deps=build/typst-external.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst external dependency packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/typst-external.pdf: build/typst-external.typ \\',
+            '  https://cdn.example.invalid/chart.svg \\',
+            '  file:///srv/typst/fonts/Reviewer.otf \\',
+            '  /usr/share/fonts/SourceSerif4-Regular.otf \\',
+            '  @preview/cetz:0.3.2',
+            '',
+        ]);
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'externalDependencyCount' => 4,
+            'packageDependencyCount' => 1,
+            'nonPackageDependencyCount' => 3,
+            'dependencies' => [
+                [
+                    'input' => 'Reviewer.otf',
+                    'raw' => 'file:///srv/typst/fonts/Reviewer.otf',
+                    'kind' => 'file-uri',
+                    'reviewStatus' => 'review',
+                    'issues' => ['file-uri-dependency-boundary'],
+                ],
+                [
+                    'input' => 'SourceSerif4-Regular.otf',
+                    'raw' => '/usr/share/fonts/SourceSerif4-Regular.otf',
+                    'kind' => 'absolute',
+                    'reviewStatus' => 'ok',
+                    'issues' => [],
+                ],
+                [
+                    'input' => 'chart.svg',
+                    'raw' => 'https://cdn.example.invalid/chart.svg',
+                    'kind' => 'uri',
+                    'reviewStatus' => 'review',
+                    'issues' => ['remote-dependency-boundary'],
+                ],
+                [
+                    'input' => 'typst-package:@preview/cetz:0.3.2',
+                    'raw' => '@preview/cetz:0.3.2',
+                    'kind' => 'typst-package',
+                    'reviewStatus' => 'ok',
+                    'issues' => [],
+                ],
+            ],
+            'issues' => ['file-uri-dependency-boundary', 'remote-dependency-boundary'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/typst-external.d' => $depfile,
+                'build/typst-external.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/typst-external.d' => $depfile,
+                    'build/typst-external.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $cases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(true, $result['ok']);
+        $t->same([
+            'Reviewer.otf',
+            'SourceSerif4-Regular.otf',
+            'chart.svg',
+            'typst-package:@preview/cetz:0.3.2',
+        ], $result['engineExternalInputFiles']);
+        $t->same(['typst-package:@preview/cetz:0.3.2'], $result['engineTypstPackageInputs']);
+        $t->same($expectedPolicy, $result['typstExternalDependencyPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstExternalDependencyPolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-external-dependency-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-external-dependencies:4', implode(',', $result['diagnostics']));
+        $t->contains('typst-external-dependency-issues:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-external-dependency-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same('external-dependencies', $cases['external-dependencies']['case']);
+        $t->same('review', $cases['external-dependencies']['reviewStatus']);
+        $t->same(4, $cases['external-dependencies']['observed']);
+        $t->same([
+            'packageDependencyCount' => 1,
+            'nonPackageDependencyCount' => 3,
+            'dependencyKindCounts' => [
+                'absolute' => 1,
+                'file-uri' => 1,
+                'typst-package' => 1,
+                'uri' => 1,
+            ],
+        ], $cases['external-dependencies']['details']);
+        $t->same(['file-uri-dependency-boundary', 'remote-dependency-boundary'], $cases['external-dependencies']['issues']);
+        $t->contains('external-dependencies:file-uri-dependency-boundary', implode(',', $result['typstBoundaryMatrix']['issues']));
+        $t->contains('external-dependencies:remote-dependency-boundary', implode(',', $result['typstBoundaryMatrix']['issues']));
+        $t->same($expectedPolicy, $sequence['finalTypstExternalDependencyPolicy']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'fake runner preserves typst zero dependency sidecar provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
@@ -8472,11 +8582,12 @@ return [
             'open-output',
             'root-read-boundary',
             'dependency-output-policy',
+            'external-dependencies',
             'package-dependencies',
             'warning-provenance',
         ], array_column($matrix['cases'], 'case'));
         $t->same('review', $matrix['reviewStatus']);
-        $t->same(20, $matrix['caseCount']);
+        $t->same(21, $matrix['caseCount']);
         $t->same(12, $matrix['reviewCaseCount']);
         $t->same('workspace', $cases['root-boundary']['details']['path']);
         $t->same('relative', $cases['root-boundary']['details']['kind']);
@@ -8503,12 +8614,16 @@ return [
         $t->same(1, $cases['open-output']['observed']);
         $t->same(2, $cases['root-read-boundary']['details']['insideRootCount']);
         $t->same(true, $cases['dependency-output-policy']['details']['declaredOutputPresent']);
+        $t->same(3, $cases['external-dependencies']['observed']);
+        $t->same('ok', $cases['external-dependencies']['reviewStatus']);
+        $t->same(3, $cases['external-dependencies']['details']['packageDependencyCount']);
+        $t->same(0, $cases['external-dependencies']['details']['nonPackageDependencyCount']);
         $t->same(3, $cases['package-dependencies']['observed']);
         $t->same(1, $cases['package-dependencies']['details']['versionConflictCount']);
         $t->same(1, $cases['warning-provenance']['details']['outsideRootCount']);
         $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
         $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
-        $t->contains('typst-boundary-matrix-cases:20', implode(',', $result['diagnostics']));
+        $t->contains('typst-boundary-matrix-cases:21', implode(',', $result['diagnostics']));
         $t->contains('environment-shadows:root-environment-shadowed', implode(',', $matrix['issues']));
         $t->contains('font-path-policy:font-path-external-boundary', implode(',', $matrix['issues']));
         $t->contains('input-variables:input-variable-boundary-overridden:audience', implode(',', $matrix['issues']));
