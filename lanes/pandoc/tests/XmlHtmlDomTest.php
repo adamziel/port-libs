@@ -3863,6 +3863,70 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/style-attribute-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html id duplicate provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="dup"><h2>First</h2></section><p id="unique">Unique</p><article id="dup">Second</article><aside id="bad id">Bad</aside><div id="">Empty</div>',
+            'id duplicate provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/html-id-duplicate-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $first = $summary[0];
+        $unique = $summary[1];
+        $second = $summary[2];
+        $invalid = $summary[3];
+        $empty = $summary[4];
+        $duplicateElements = [
+            ['occurrence' => 1, 'tag' => 'section', 'id' => 'dup', 'text' => 'First'],
+            ['occurrence' => 2, 'tag' => 'article', 'id' => 'dup', 'text' => 'Second'],
+        ];
+
+        $t->same('html-id-attribute-uniqueness-review', $first['idReviewPolicy']);
+        $t->same('dup', $first['elementId']);
+        $t->same('dup', $first['idRaw']);
+        $t->same(true, $first['idValid']);
+        $t->same(2, $first['idDocumentOccurrenceCount']);
+        $t->same(1, $first['idDocumentOccurrenceIndex']);
+        $t->same(true, $first['idFirstOccurrence']);
+        $t->same(true, $first['duplicateId']);
+        $t->same($duplicateElements, $first['duplicateIdElements']);
+        $t->same(['duplicate-html-id'], $first['idIssueCodes']);
+        $t->same(false, $first['idReferenceTargetStable']);
+
+        $t->same('unique', $unique['idRaw']);
+        $t->same(true, $unique['idValid']);
+        $t->same(1, $unique['idDocumentOccurrenceCount']);
+        $t->same(1, $unique['idDocumentOccurrenceIndex']);
+        $t->same(false, $unique['duplicateId']);
+        $t->same([], $unique['duplicateIdElements']);
+        $t->same([], $unique['idIssueCodes']);
+        $t->same(true, $unique['idReferenceTargetStable']);
+
+        $t->same('dup', $second['idRaw']);
+        $t->same(2, $second['idDocumentOccurrenceIndex']);
+        $t->same(false, $second['idFirstOccurrence']);
+        $t->same($duplicateElements, $second['duplicateIdElements']);
+        $t->same(['duplicate-html-id'], $second['idIssueCodes']);
+
+        $t->same('bad id', $invalid['idRaw']);
+        $t->same(false, $invalid['idValid']);
+        $t->same(['invalid-html-id-token'], $invalid['idIssueCodes']);
+        $t->same(false, $invalid['idReferenceTargetStable']);
+
+        $t->same('', $empty['idRaw']);
+        $t->same(false, $empty['idValid']);
+        $t->same(['empty-html-id'], $empty['idIssueCodes']);
+        $t->same(false, $empty['idReferenceTargetStable']);
+
+        $t->same('<section id="dup"><h2>First</h2></section><p id="unique">Unique</p><article id="dup">Second</article><aside id="bad id">Bad</aside><div id="">Empty</div>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/html-id-duplicate-review.html', $document->children[0]->attr('part'));
+        json_encode($summary, JSON_THROW_ON_ERROR);
+    },
     'summarizes html draggable enumerated auto state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p id="forced" title="Forced text" draggable="true">Forced</p>'

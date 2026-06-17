@@ -17644,6 +17644,7 @@ final class XmlHtmlDom
 
         if (array_key_exists('id', $attributes)) {
             $summary['elementId'] = $attributes['id'];
+            $summary += self::htmlIdAttributeSummary($element, $attributes['id']);
         }
 
         if (array_key_exists('class', $attributes)) {
@@ -17946,6 +17947,74 @@ final class XmlHtmlDom
             'nonceValid' => $issues === [],
             'nonceIssueCodes' => $issues,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlIdAttributeSummary(\DOMElement $element, string $id): array
+    {
+        $matches = self::htmlElementsById($element, $id);
+        $occurrenceIndex = null;
+        foreach ($matches as $index => $candidate) {
+            if ($candidate === $element) {
+                $occurrenceIndex = $index + 1;
+                break;
+            }
+        }
+
+        $issues = [];
+        if ($id === '') {
+            $issues[] = ['code' => 'empty-html-id'];
+        } elseif (!self::isHtmlIdReferenceToken($id)) {
+            $issues[] = [
+                'code' => 'invalid-html-id-token',
+                'idRaw' => $id,
+            ];
+        }
+        if (count($matches) > 1) {
+            $issues[] = [
+                'code' => 'duplicate-html-id',
+                'id' => $id,
+                'count' => count($matches),
+            ];
+        }
+
+        return [
+            'idReviewPolicy' => 'html-id-attribute-uniqueness-review',
+            'idRaw' => $id,
+            'idValid' => $id !== '' && self::isHtmlIdReferenceToken($id),
+            'idDocumentOccurrenceCount' => count($matches),
+            'idDocumentOccurrenceIndex' => $occurrenceIndex,
+            'idFirstOccurrence' => $occurrenceIndex === 1,
+            'duplicateId' => count($matches) > 1,
+            'duplicateIdElements' => count($matches) > 1 ? self::htmlIdElementSummaries($matches) : [],
+            'idIssues' => $issues,
+            'idIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'idReferenceTargetStable' => $issues === [],
+        ];
+    }
+
+    /**
+     * @param list<\DOMElement> $elements
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlIdElementSummaries(array $elements): array
+    {
+        $summaries = [];
+        foreach ($elements as $index => $element) {
+            $summaries[] = [
+                'occurrence' => $index + 1,
+                'tag' => self::htmlElementName($element),
+                'id' => self::attributeOrNull($element, 'id'),
+                'text' => self::normalizedText($element),
+            ];
+        }
+
+        return $summaries;
     }
 
     /**
@@ -20845,18 +20914,31 @@ final class XmlHtmlDom
 
     private static function htmlElementById(\DOMElement $context, string $id): ?\DOMElement
     {
-        $document = $context->ownerDocument;
-        if (!$document instanceof \DOMDocument) {
-            return null;
-        }
-
-        foreach ($document->getElementsByTagName('*') as $element) {
-            if ($element instanceof \DOMElement && $element->getAttribute('id') === $id) {
-                return $element;
-            }
+        foreach (self::htmlElementsById($context, $id) as $element) {
+            return $element;
         }
 
         return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function htmlElementsById(\DOMElement $context, string $id): array
+    {
+        $document = $context->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $matches = [];
+        foreach ($document->getElementsByTagName('*') as $element) {
+            if ($element instanceof \DOMElement && $element->hasAttribute('id') && $element->getAttribute('id') === $id) {
+                $matches[] = $element;
+            }
+        }
+
+        return $matches;
     }
 
     private static function isLabelableElement(\DOMElement $element): bool
