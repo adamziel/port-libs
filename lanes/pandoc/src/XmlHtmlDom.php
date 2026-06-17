@@ -17855,6 +17855,10 @@ final class XmlHtmlDom
             $summary['enterKeyHintValid'] = $enterKeyHint !== null;
         }
 
+        if (array_key_exists('inputmode', $attributes) || array_key_exists('enterkeyhint', $attributes)) {
+            $summary += self::inputHintReviewSummary($element, $attributes);
+        }
+
         if (array_key_exists('autocapitalize', $attributes)) {
             $autocapitalize = self::autocapitalizeState($attributes['autocapitalize']);
             $summary['autocapitalizeRaw'] = $attributes['autocapitalize'];
@@ -18966,6 +18970,90 @@ final class XmlHtmlDom
         return in_array($value, ['none', 'text', 'tel', 'email', 'url', 'numeric', 'decimal', 'search'], true)
             ? $value
             : null;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function inputHintReviewSummary(\DOMElement $element, array $attributes): array
+    {
+        $inputMode = array_key_exists('inputmode', $attributes)
+            ? self::inputModeState($attributes['inputmode'])
+            : null;
+        $enterKeyHint = array_key_exists('enterkeyhint', $attributes)
+            ? self::enterKeyHintState($attributes['enterkeyhint'])
+            : null;
+        $issueCodes = [];
+
+        if (array_key_exists('inputmode', $attributes) && $inputMode === null) {
+            $issueCodes[] = 'invalid-html-inputmode-token';
+        }
+
+        if (array_key_exists('enterkeyhint', $attributes) && $enterKeyHint === null) {
+            $issueCodes[] = 'invalid-html-enterkeyhint-token';
+        }
+
+        $summary = [
+            'inputHintReviewPolicy' => 'html-input-hint-keyboard-review',
+            'inputHintElement' => self::htmlElementName($element),
+            'inputHintHostKind' => self::inputHintHostKind($element, $attributes),
+            'inputHintIssueCodes' => $issueCodes,
+            'inputHintValid' => $issueCodes === [],
+        ];
+
+        if (array_key_exists('inputmode', $attributes)) {
+            $summary['inputModeKeyboardKind'] = $inputMode === null ? null : self::inputModeKeyboardKind($inputMode);
+        }
+
+        if (array_key_exists('enterkeyhint', $attributes)) {
+            $summary['enterKeyHintActionKind'] = $enterKeyHint === null ? null : self::enterKeyHintActionKind($enterKeyHint);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private static function inputHintHostKind(\DOMElement $element, array $attributes): string
+    {
+        $name = self::htmlElementName($element);
+        if ($name === 'input' || $name === 'textarea') {
+            return 'text-entry-control';
+        }
+
+        if (array_key_exists('contenteditable', $attributes) && self::contentEditableState($attributes['contenteditable']) !== false) {
+            return 'editable-host';
+        }
+
+        return 'generic-element';
+    }
+
+    private static function inputModeKeyboardKind(string $inputMode): string
+    {
+        return match ($inputMode) {
+            'none' => 'none',
+            'tel' => 'telephone',
+            'email' => 'email-address',
+            'url' => 'url',
+            'numeric' => 'numeric',
+            'decimal' => 'decimal',
+            'search' => 'search',
+            default => 'text',
+        };
+    }
+
+    private static function enterKeyHintActionKind(string $enterKeyHint): string
+    {
+        return match ($enterKeyHint) {
+            'done' => 'completion',
+            'go' => 'navigation',
+            'next', 'previous' => 'form-navigation',
+            'search' => 'search',
+            'send' => 'submission',
+            default => 'default-enter',
+        };
     }
 
     private static function draggableState(string $value): bool|string|null

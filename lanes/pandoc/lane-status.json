@@ -1687,5 +1687,7 @@
   "mappedXmlHtmlDomDirAutoResolutionCases": 1,
   "xmlHtmlDomDirAutoResolutionAssertions": 46,
   "mappedXmlHtmlDomDirAutoFirstStrongReviewCases": 1,
-  "xmlHtmlDomDirAutoFirstStrongReviewAssertions": 109
+  "xmlHtmlDomDirAutoFirstStrongReviewAssertions": 109,
+  "mappedXmlHtmlDomInputHintReviewCases": 1,
+  "xmlHtmlDomInputHintReviewAssertions": 33
 }
