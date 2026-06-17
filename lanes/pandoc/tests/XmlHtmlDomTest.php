@@ -6468,6 +6468,52 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/active-content-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html active content nonce provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $scriptNonce = 'script-nonce-123';
+        $scriptText = 'window.boot = true;';
+        $styleText = 'body { color: red; }';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<script id="boot" type="module" nonce="' . $scriptNonce . '">' . $scriptText . '</script>'
+                . '<style id="theme" nonce="">' . $styleText . '</style>'
+                . '<script id="plain">console.log("plain");</script>',
+            'active content nonce provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/active-content-nonce-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $script = $summary[0];
+        $style = $summary[1];
+        $plain = $summary[2];
+
+        $t->same('active-content-nonce-provenance-review', $script['activeContentNonceReviewPolicy']);
+        $t->same(true, $script['activeContentNoncePresent']);
+        $t->same(strlen($scriptNonce), $script['activeContentNonceByteLength']);
+        $t->same(hash('sha256', $scriptNonce), $script['activeContentNonceSha256']);
+        $t->same(false, $script['activeContentNonceEmpty']);
+        $t->same($scriptNonce, $script['attributes']['nonce']);
+        $t->true(!array_key_exists('nonceRaw', $script));
+        $t->same(hash('sha256', $scriptText), $script['scriptTextSha256']);
+
+        $t->same('active-content-nonce-provenance-review', $style['activeContentNonceReviewPolicy']);
+        $t->same(true, $style['activeContentNoncePresent']);
+        $t->same(0, $style['activeContentNonceByteLength']);
+        $t->same(hash('sha256', ''), $style['activeContentNonceSha256']);
+        $t->same(true, $style['activeContentNonceEmpty']);
+        $t->same('', $style['attributes']['nonce']);
+        $t->true(!array_key_exists('nonceRaw', $style));
+        $t->same(hash('sha256', $styleText), $style['styleTextSha256']);
+
+        $t->true(!array_key_exists('activeContentNoncePresent', $plain));
+        $t->true(!array_key_exists('activeContentNonceSha256', $plain));
+        $t->same('inline', $plain['scriptSourceKind']);
+        $t->same('<script id="boot" nonce="script-nonce-123" type="module">window.boot = true;</script><style id="theme" nonce="">body { color: red; }</style><script id="plain">console.log("plain");</script>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/active-content-nonce-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html script import map and speculation rules json provenance' => static function (TestRunner $t): void {
         $importMapSource = '{"imports":{"app":"/assets/app.js","pkg/":"/vendor/pkg/"},"scopes":{"/admin/":{"app":"/admin/app.js"}},"integrity":{"app":"sha384-app"}}';
         $speculationRulesSource = '{"prefetch":[{"source":"list","urls":["/next"]}],"prerender":{"source":"document"}}';

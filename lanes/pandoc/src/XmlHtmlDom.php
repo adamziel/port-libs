@@ -15717,7 +15717,7 @@ final class XmlHtmlDom
                 'scriptTextLength' => strlen($text),
                 'scriptTextSha256' => hash('sha256', $text),
                 'activeReviewPolicy' => $element->hasAttribute('src') ? 'external-script-source' : 'inline-script-source',
-            ] + $scriptType + $loading;
+            ] + $scriptType + $loading + self::activeContentNonceSummary($element);
 
             if (in_array($scriptType['scriptPayloadKind'], ['importmap', 'speculationrules', 'json-data'], true)) {
                 $summary += self::scriptJsonReviewSummary($text, $scriptType['scriptPayloadKind']);
@@ -15742,6 +15742,26 @@ final class XmlHtmlDom
             'styleTextLength' => strlen($text),
             'styleTextSha256' => hash('sha256', $text),
             'activeReviewPolicy' => 'inline-style-source',
+        ] + self::activeContentNonceSummary($element);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function activeContentNonceSummary(\DOMElement $element): array
+    {
+        if (!$element->hasAttribute('nonce')) {
+            return [];
+        }
+
+        $nonce = $element->getAttribute('nonce');
+
+        return [
+            'activeContentNonceReviewPolicy' => 'active-content-nonce-provenance-review',
+            'activeContentNoncePresent' => true,
+            'activeContentNonceByteLength' => strlen($nonce),
+            'activeContentNonceSha256' => hash('sha256', $nonce),
+            'activeContentNonceEmpty' => $nonce === '',
         ];
     }
 

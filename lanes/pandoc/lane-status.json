@@ -917,6 +917,8 @@
   "typstFeatureEnvironmentShadowAssertions": 16,
   "mappedXmlHtmlDomScriptJsonReviewCases": 1,
   "xmlHtmlDomScriptJsonReviewAssertions": 39,
+  "mappedXmlHtmlDomActiveContentNonceReviewCases": 1,
+  "xmlHtmlDomActiveContentNonceReviewAssertions": 22,
   "mappedZipSelectedCentralDirectoryVariableFieldHandoffCases": 1,
   "zipSelectedCentralDirectoryVariableFieldHandoffAssertions": 42,
   "mappedDocxOpenXmlMailMergeSettingsCases": 1,
