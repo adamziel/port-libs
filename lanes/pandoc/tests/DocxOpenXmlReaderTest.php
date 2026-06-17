@@ -7466,6 +7466,95 @@ XML;
         $t->same(4, $summary['fontTableEmbeddedFontIssueCount']);
         $t->same($fontTable['embeddedFontIssueCodes'], $summary['fontTableEmbeddedFontIssueCodes']);
     },
+    'recovers docx font table unqualified embedded font attributes for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $fontKey = '{33333333-4455-6677-8899-AABBCCDDEEFF}';
+        $fontBytes = 'LOOSEOBFUSCATEDFONT';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/fonts/loose-fonts.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>' . "\n" .
+            '  <Override PartName="/word/fonts/loose-Regular.odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont; profile=loose-font"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rLooseFontTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fonts/loose-fonts.xml?profile=loose#fonts"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/fonts/loose-fonts.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:font w:name="Loose Font">
+    <w:embedRegular id="rLooseEmbeddedFont" fontKey="{33333333-4455-6677-8899-AABBCCDDEEFF}"/>
+  </w:font>
+</w:fonts>
+XML;
+        $parts['word/fonts/_rels/loose-fonts.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rLooseEmbeddedFont" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="loose-Regular.odttf?slot=regular#font"/>
+</Relationships>
+XML;
+        $parts['word/fonts/loose-Regular.odttf'] = $fontBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $fontTable = $docx['fontTable'];
+        $summary = $docx['packageProvenance']['summary'];
+        $relationshipType = $docx['packageProvenance']['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/font'];
+        $inventory = $docx['packageProvenance']['parts'];
+        $font = $fontTable['byName']['Loose Font'];
+        $embedded = $font['embeddedFonts'][0];
+
+        $t->same('word/fonts/loose-fonts.xml', $docx['fontTablePart']);
+        $t->same('rLooseFontTable', $docx['fontTableRelationship']['id']);
+        $t->same('profile=loose', $docx['fontTableRelationship']['targetQuery']);
+        $t->same('fonts', $docx['fontTableRelationship']['targetFragment']);
+        $t->same('word/fonts/_rels/loose-fonts.xml.rels', $fontTable['relationshipsPart']);
+        $t->same(1, $fontTable['relationshipCount']);
+        $t->same(1, $fontTable['fontCount']);
+        $t->same(['Loose Font'], $fontTable['declaredNames']);
+        $t->same(1, $fontTable['embeddedFontRelationshipCount']);
+        $t->same(1, $fontTable['embeddedFontExistingCount']);
+        $t->same(0, $fontTable['embeddedFontMissingCount']);
+        $t->same(0, $fontTable['embeddedFontExternalCount']);
+        $t->same(0, $fontTable['embeddedFontIssueCount']);
+        $t->same([], $fontTable['embeddedFontIssueCodes']);
+        $t->same(1, $font['embeddedFontCount']);
+
+        $t->same('regular', $embedded['style']);
+        $t->same('rLooseEmbeddedFont', $embedded['id']);
+        $t->same('loose-Regular.odttf?slot=regular#font', $embedded['target']);
+        $t->same('word/fonts/loose-Regular.odttf?slot=regular#font', $embedded['resolvedTarget']);
+        $t->same('word/fonts/loose-Regular.odttf', $embedded['targetPart']);
+        $t->same('slot=regular', $embedded['targetQuery']);
+        $t->same('font', $embedded['targetFragment']);
+        $t->same('?slot=regular#font', $embedded['targetReferenceSuffix']);
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedFont; profile=loose-font', $embedded['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedfont', $embedded['contentTypeBase']);
+        $t->same(['profile' => 'loose-font'], $embedded['contentTypeParameterMap']);
+        $t->same(false, $embedded['external']);
+        $t->same(true, $embedded['exists']);
+        $t->same(strlen($fontBytes), $embedded['byteLength']);
+        $t->same(sprintf('%08x', crc32($fontBytes)), $embedded['crc32']);
+        $t->same(hash('sha256', $fontBytes), $embedded['sha256']);
+        $t->same(true, $embedded['fontKeyPresent']);
+        $t->same(hash('sha256', $fontKey), $embedded['fontKeySha256']);
+        $t->true(!isset($embedded['fontKey']), 'Raw embedded font key should not be exposed');
+        $t->same([], $embedded['issues']);
+        $t->same(true, $embedded['valid']);
+
+        $t->same(1, $summary['fontTableEmbeddedFontCount']);
+        $t->same(1, $summary['fontTableEmbeddedFontExistingCount']);
+        $t->same(0, $summary['fontTableEmbeddedFontIssueCount']);
+        $t->same('font', $relationshipType['label']);
+        $t->same(1, $relationshipType['count']);
+        $t->same(['word/fonts/loose-Regular.odttf'], $relationshipType['existingTargetParts']);
+        $t->true(in_array('embedded-font', $inventory['word/fonts/loose-Regular.odttf']['roles'], true), 'loose embedded font inventory role missing');
+    },
     'preserves docx font table signature provenance for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

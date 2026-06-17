@@ -15139,7 +15139,7 @@ final class DocxOpenXmlReader
                 continue;
             }
 
-            $relationshipId = $embedded->getAttributeNS(self::NS_R, 'id');
+            $relationshipId = $this->fontTableEmbeddedFontRelationshipId($embedded);
             $embeddedFonts[] = $this->fontTableEmbeddedFontItem(
                 $parts,
                 $relationships[$relationshipId] ?? null,
@@ -15148,11 +15148,31 @@ final class DocxOpenXmlReader
                 $contentTypes,
                 $relationshipId,
                 $style,
-                $embedded->getAttributeNS(self::NS_W, 'fontKey'),
+                $this->fontTableEmbeddedFontKey($embedded),
             );
         }
 
         return $embeddedFonts;
+    }
+
+    private function fontTableEmbeddedFontRelationshipId(\DOMElement $embedded): string
+    {
+        $relationshipId = trim($embedded->getAttributeNS(self::NS_R, 'id'));
+        if ($relationshipId !== '') {
+            return $relationshipId;
+        }
+
+        return trim($embedded->getAttribute('id'));
+    }
+
+    private function fontTableEmbeddedFontKey(\DOMElement $embedded): string
+    {
+        $fontKey = trim($embedded->getAttributeNS(self::NS_W, 'fontKey'));
+        if ($fontKey !== '') {
+            return $fontKey;
+        }
+
+        return trim($embedded->getAttribute('fontKey'));
     }
 
     /**
