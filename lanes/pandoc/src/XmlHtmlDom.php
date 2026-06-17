@@ -17869,8 +17869,22 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('role', $attributes)) {
+            $role = self::htmlRoleAttributeSummary($attributes['role']);
+            $summary['roleAttributeReviewPolicy'] = 'html-role-token-list-review';
             $summary['roleRaw'] = $attributes['role'];
-            $summary['roles'] = self::spaceSeparatedTokens($attributes['role']);
+            $summary['roles'] = $role['tokens'];
+            $summary['roleNames'] = $role['names'];
+            $summary['roleTokenCounts'] = $role['counts'];
+            $summary['invalidRoleTokens'] = $role['invalid'];
+            $summary['duplicateRoleTokens'] = $role['duplicates'];
+            $summary['roleTokenCount'] = count($role['tokens']);
+            $summary['roleNameCount'] = count($role['names']);
+            $summary['invalidRoleTokenCount'] = count($role['invalid']);
+            $summary['duplicateRoleTokenCount'] = count($role['duplicates']);
+            $summary['primaryRole'] = $role['primary'];
+            $summary['roleEmpty'] = $role['tokens'] === [];
+            $summary['roleHasDuplicates'] = $role['duplicates'] !== [];
+            $summary['roleValid'] = $role['valid'];
         }
 
         $microdata = self::microdataAttributeSummary($element, $attributes);
@@ -20078,6 +20092,56 @@ final class XmlHtmlDom
         $value = strtolower(trim($value));
 
         return in_array($value, ['', 'hide', 'show', 'toggle'], true) ? ($value === '' ? 'toggle' : $value) : null;
+    }
+
+    /**
+     * @return array{tokens:list<string>, names:list<string>, counts:array<string, int>, invalid:list<string>, duplicates:list<string>, primary:?string, valid:bool}
+     */
+    private static function htmlRoleAttributeSummary(string $value): array
+    {
+        $tokens = self::spaceSeparatedTokens($value);
+        $names = [];
+        $counts = [];
+        $invalid = [];
+        $duplicates = [];
+        $primary = null;
+
+        foreach ($tokens as $token) {
+            if (!self::isHtmlRoleToken($token)) {
+                $invalid[] = $token;
+                continue;
+            }
+
+            $name = strtolower($token);
+            if ($primary === null) {
+                $primary = $name;
+            }
+
+            $counts[$name] = ($counts[$name] ?? 0) + 1;
+            if ($counts[$name] === 1) {
+                $names[] = $name;
+                continue;
+            }
+
+            if ($counts[$name] === 2) {
+                $duplicates[] = $name;
+            }
+        }
+
+        return [
+            'tokens' => $tokens,
+            'names' => $names,
+            'counts' => $counts,
+            'invalid' => $invalid,
+            'duplicates' => $duplicates,
+            'primary' => $primary,
+            'valid' => $tokens !== [] && $invalid === [],
+        ];
+    }
+
+    private static function isHtmlRoleToken(string $token): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9_-]*$/', $token) === 1;
     }
 
     /**
