@@ -780,6 +780,7 @@ final class PdfEngineHandoff
      *     pdfPageMetadata: list<array<string, mixed>>,
      *     pdfPieceInfo: list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
      *     pdfWebCaptureMetadata: list<array{source:string, page:int|null, pageObject:string|null, spiderInfoObject:string|null, version:float|null, commandCount:int, sourceUrls:list<string>, captures:list<array{commandObject:string|null, sourceUrl:string|null, sourceTitle:string|null, commandName:string|null, commandType:string|null, identifier:string|null, timestamp:string|null, flags:int|null, depth:int|null, pageReferences:list<string>, parentCommand:string|null, nextCommand:string|null}>}>,
+     *     pdfWebCapturePolicy: array<string, mixed>,
      *     pdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pdfPageOutputIntents: list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pdfOutputIntentPolicy: array<string, mixed>,
@@ -1475,6 +1476,7 @@ final class PdfEngineHandoff
         $pdfPageMetadata = [];
         $pdfPieceInfo = [];
         $pdfWebCaptureMetadata = [];
+        $pdfWebCapturePolicy = [];
         $pdfOutputIntents = [];
         $pdfPageOutputIntents = [];
         $pdfOutputIntentPolicy = [];
@@ -1626,6 +1628,7 @@ final class PdfEngineHandoff
                 $pdfPageMetadata = $pdfInspection['pageMetadata'];
                 $pdfPieceInfo = $pdfInspection['pieceInfo'];
                 $pdfWebCaptureMetadata = $pdfInspection['webCaptureMetadata'];
+                $pdfWebCapturePolicy = $pdfInspection['webCapturePolicy'];
                 $pdfOutputIntents = $pdfInspection['outputIntents'];
                 $pdfPageOutputIntents = $pdfInspection['pageOutputIntents'];
                 $pdfOutputIntentPolicy = $pdfInspection['outputIntentPolicy'];
@@ -2692,6 +2695,43 @@ final class PdfEngineHandoff
                     }
                     if ($webCaptureUrls !== []) {
                         $diagnostics[] = 'pdf-byte-web-capture-urls:' . count($webCaptureUrls);
+                    }
+                }
+                if ($pdfWebCapturePolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-web-capture-policy:' . ($pdfWebCapturePolicy['reviewStatus'] ?? 'unknown');
+                    foreach ([
+                        'commandCount' => 'commands',
+                        'sourceUrlCount' => 'urls',
+                        'remoteSourceUrlCount' => 'remote-urls',
+                        'pageReferenceCount' => 'page-references',
+                        'commandLinkCount' => 'command-links',
+                    ] as $policyKey => $diagnosticKey) {
+                        if (isset($pdfWebCapturePolicy[$policyKey]) && is_int($pdfWebCapturePolicy[$policyKey]) && $pdfWebCapturePolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-web-capture-policy-' . $diagnosticKey . ':' . $pdfWebCapturePolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfWebCapturePolicy['sourceSchemes']) && is_array($pdfWebCapturePolicy['sourceSchemes'])) {
+                        foreach ($pdfWebCapturePolicy['sourceSchemes'] as $scheme => $count) {
+                            if (is_string($scheme) && is_int($count)) {
+                                $diagnostics[] = 'pdf-byte-web-capture-policy-scheme:' . $scheme . ':' . $count;
+                            }
+                        }
+                    }
+                    if (isset($pdfWebCapturePolicy['unresolvedPageReferences']) && is_array($pdfWebCapturePolicy['unresolvedPageReferences']) && $pdfWebCapturePolicy['unresolvedPageReferences'] !== []) {
+                        $diagnostics[] = 'pdf-byte-web-capture-policy-unresolved-pages:' . count($pdfWebCapturePolicy['unresolvedPageReferences']);
+                    }
+                    if (isset($pdfWebCapturePolicy['unresolvedCommandLinks']) && is_array($pdfWebCapturePolicy['unresolvedCommandLinks']) && $pdfWebCapturePolicy['unresolvedCommandLinks'] !== []) {
+                        $diagnostics[] = 'pdf-byte-web-capture-policy-unresolved-command-links:' . count($pdfWebCapturePolicy['unresolvedCommandLinks']);
+                    }
+                    if (isset($pdfWebCapturePolicy['maxDepth']) && is_int($pdfWebCapturePolicy['maxDepth']) && $pdfWebCapturePolicy['maxDepth'] > 0) {
+                        $diagnostics[] = 'pdf-byte-web-capture-policy-max-depth:' . $pdfWebCapturePolicy['maxDepth'];
+                    }
+                    if (isset($pdfWebCapturePolicy['issues']) && is_array($pdfWebCapturePolicy['issues'])) {
+                        foreach ($pdfWebCapturePolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-web-capture-policy-issue:' . $issue . ':1';
+                            }
+                        }
                     }
                 }
                 if ($pdfOutputIntents !== []) {
@@ -5090,6 +5130,7 @@ final class PdfEngineHandoff
             'pdfPageMetadata' => $pdfPageMetadata,
             'pdfPieceInfo' => $pdfPieceInfo,
             'pdfWebCaptureMetadata' => $pdfWebCaptureMetadata,
+            'pdfWebCapturePolicy' => $pdfWebCapturePolicy,
             'pdfOutputIntents' => $pdfOutputIntents,
             'pdfPageOutputIntents' => $pdfPageOutputIntents,
             'pdfOutputIntentPolicy' => $pdfOutputIntentPolicy,
@@ -5262,6 +5303,7 @@ final class PdfEngineHandoff
      *     finalPdfPageMetadata: list<array<string, mixed>>,
      *     finalPdfPieceInfo: list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
      *     finalPdfWebCaptureMetadata: list<array{source:string, page:int|null, pageObject:string|null, spiderInfoObject:string|null, version:float|null, commandCount:int, sourceUrls:list<string>, captures:list<array{commandObject:string|null, sourceUrl:string|null, sourceTitle:string|null, commandName:string|null, commandType:string|null, identifier:string|null, timestamp:string|null, flags:int|null, depth:int|null, pageReferences:list<string>, parentCommand:string|null, nextCommand:string|null}>}>,
+     *     finalPdfWebCapturePolicy: array<string, mixed>,
      *     finalPdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     finalPdfPageOutputIntents: list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     finalPdfOutputIntentPolicy: array<string, mixed>,
@@ -5590,6 +5632,7 @@ final class PdfEngineHandoff
             'finalPdfPageMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageMetadata'] ?? null) ? $finalRun['pdfPageMetadata'] : [],
             'finalPdfPieceInfo' => is_array($finalRun) && is_array($finalRun['pdfPieceInfo'] ?? null) ? $finalRun['pdfPieceInfo'] : [],
             'finalPdfWebCaptureMetadata' => is_array($finalRun) && is_array($finalRun['pdfWebCaptureMetadata'] ?? null) ? $finalRun['pdfWebCaptureMetadata'] : [],
+            'finalPdfWebCapturePolicy' => is_array($finalRun) && is_array($finalRun['pdfWebCapturePolicy'] ?? null) ? $finalRun['pdfWebCapturePolicy'] : [],
             'finalPdfOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfOutputIntents'] ?? null) ? $finalRun['pdfOutputIntents'] : [],
             'finalPdfPageOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfPageOutputIntents'] ?? null) ? $finalRun['pdfPageOutputIntents'] : [],
             'finalPdfOutputIntentPolicy' => is_array($finalRun) && is_array($finalRun['pdfOutputIntentPolicy'] ?? null) ? $finalRun['pdfOutputIntentPolicy'] : [],
@@ -11863,6 +11906,7 @@ final class PdfEngineHandoff
      *     pageMetadata:list<array<string, mixed>>,
      *     pieceInfo:list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
      *     webCaptureMetadata:list<array{source:string, page:int|null, pageObject:string|null, spiderInfoObject:string|null, version:float|null, commandCount:int, sourceUrls:list<string>, captures:list<array{commandObject:string|null, sourceUrl:string|null, sourceTitle:string|null, commandName:string|null, commandType:string|null, identifier:string|null, timestamp:string|null, flags:int|null, depth:int|null, pageReferences:list<string>, parentCommand:string|null, nextCommand:string|null}>}>,
+     *     webCapturePolicy:array<string, mixed>,
      *     outputIntents:list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pageOutputIntents:list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     outputIntentPolicy:array<string, mixed>,
@@ -11997,6 +12041,7 @@ final class PdfEngineHandoff
         $threads = $this->extractPdfThreads($pdfBytes, $catalog);
         $documentPartMetadata = $this->extractPdfDocumentPartMetadata($pdfBytes, $catalog);
         $documentSecurityStore = $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog);
+        $webCaptureMetadata = $this->extractPdfWebCaptureMetadata($pdfBytes, $catalog);
         $streamFilterPolicy = $this->summarizePdfStreamFilterPolicy(
             $xrefStreams,
             $objectStreams,
@@ -12100,7 +12145,8 @@ final class PdfEngineHandoff
             'catalogMetadata' => $catalogMetadata,
             'pageMetadata' => $this->extractPdfPageMetadata($pdfBytes, $catalog),
             'pieceInfo' => $this->extractPdfPieceInfo($pdfBytes, $catalog),
-            'webCaptureMetadata' => $this->extractPdfWebCaptureMetadata($pdfBytes, $catalog),
+            'webCaptureMetadata' => $webCaptureMetadata,
+            'webCapturePolicy' => $this->summarizePdfWebCapturePolicy($webCaptureMetadata, $this->pdfPageObjectReferences($pdfBytes)),
             'outputIntents' => $outputIntents,
             'pageOutputIntents' => $pageOutputIntents,
             'outputIntentPolicy' => $this->summarizePdfOutputIntentPolicy($xmpMetadata, $outputIntents, $pageOutputIntents),
@@ -14381,6 +14427,171 @@ final class PdfEngineHandoff
             'parentCommand' => $this->extractPdfReferenceValue($resolved['dictionary'], 'P'),
             'nextCommand' => $this->extractPdfReferenceValue($resolved['dictionary'], 'Next'),
         ];
+    }
+
+    /**
+     * @param list<array{source:string, page:int|null, pageObject:string|null, spiderInfoObject:string|null, version:float|null, commandCount:int, sourceUrls:list<string>, captures:list<array{commandObject:string|null, sourceUrl:string|null, sourceTitle:string|null, commandName:string|null, commandType:string|null, identifier:string|null, timestamp:string|null, flags:int|null, depth:int|null, pageReferences:list<string>, parentCommand:string|null, nextCommand:string|null}>}> $metadata
+     * @param list<string> $pageObjects
+     * @return array{reviewStatus:string, captureCount:int, commandCount:int, catalogCaptureCount:int, pageCaptureCount:int, sourceUrlCount:int, remoteSourceUrlCount:int, fileSourceUrlCount:int, relativeSourceUrlCount:int, missingSourceUrlCount:int, sourceSchemes:array<string, int>, pageReferenceCount:int, unresolvedPageReferences:list<string>, commandLinkCount:int, unresolvedCommandLinks:list<string>, maxDepth:int|null, issues:list<string>}|array{}
+     */
+    private function summarizePdfWebCapturePolicy(array $metadata, array $pageObjects): array
+    {
+        if ($metadata === []) {
+            return [];
+        }
+
+        $knownPageObjects = [];
+        foreach ($pageObjects as $pageObject) {
+            if ($pageObject !== '') {
+                $knownPageObjects[$pageObject] = true;
+            }
+        }
+
+        $commandObjects = [];
+        foreach ($metadata as $webCapture) {
+            foreach (($webCapture['captures'] ?? []) as $capture) {
+                $commandObject = $capture['commandObject'] ?? null;
+                if (is_string($commandObject) && $commandObject !== '' && $commandObject !== 'inline') {
+                    $commandObjects[$commandObject] = true;
+                }
+            }
+        }
+
+        $catalogCaptureCount = 0;
+        $pageCaptureCount = 0;
+        $commandCount = 0;
+        $sourceUrls = [];
+        $sourceSchemes = [];
+        $remoteSourceUrlCount = 0;
+        $fileSourceUrlCount = 0;
+        $relativeSourceUrlCount = 0;
+        $missingSourceUrlCount = 0;
+        $pageReferenceCount = 0;
+        $unresolvedPageReferences = [];
+        $commandLinkCount = 0;
+        $unresolvedCommandLinks = [];
+        $maxDepth = null;
+        $issues = [];
+
+        foreach ($metadata as $webCapture) {
+            $source = is_string($webCapture['source'] ?? null) ? $webCapture['source'] : '';
+            if (str_starts_with($source, 'page:')) {
+                $pageCaptureCount++;
+            } elseif ($source !== '') {
+                $catalogCaptureCount++;
+            }
+
+            foreach (($webCapture['captures'] ?? []) as $capture) {
+                $commandCount++;
+                $sourceUrl = is_string($capture['sourceUrl'] ?? null) && $capture['sourceUrl'] !== ''
+                    ? $capture['sourceUrl']
+                    : null;
+                if ($sourceUrl === null) {
+                    $missingSourceUrlCount++;
+                } elseif (!isset($sourceUrls[$sourceUrl])) {
+                    $sourceUrls[$sourceUrl] = true;
+                    $scheme = $this->pdfActionTargetScheme($sourceUrl) ?? 'relative';
+                    $sourceSchemes[$scheme] = ($sourceSchemes[$scheme] ?? 0) + 1;
+                    if (in_array($scheme, ['ftp', 'ftps', 'http', 'https'], true)) {
+                        $remoteSourceUrlCount++;
+                    } elseif ($scheme === 'file') {
+                        $fileSourceUrlCount++;
+                    } elseif ($scheme === 'relative') {
+                        $relativeSourceUrlCount++;
+                    }
+                }
+
+                $depth = $capture['depth'] ?? null;
+                if (is_int($depth)) {
+                    $maxDepth = $maxDepth === null ? $depth : max($maxDepth, $depth);
+                }
+
+                foreach (($capture['pageReferences'] ?? []) as $pageReference) {
+                    if (!is_string($pageReference) || $pageReference === '') {
+                        continue;
+                    }
+                    $pageReferenceCount++;
+                    if (!isset($knownPageObjects[$pageReference])) {
+                        $unresolvedPageReferences[$pageReference] = true;
+                    }
+                }
+
+                foreach (['parentCommand', 'nextCommand'] as $linkKey) {
+                    $linkedCommand = $capture[$linkKey] ?? null;
+                    if (!is_string($linkedCommand) || $linkedCommand === '') {
+                        continue;
+                    }
+                    $commandLinkCount++;
+                    if (!isset($commandObjects[$linkedCommand])) {
+                        $unresolvedCommandLinks[$linkedCommand] = true;
+                    }
+                }
+            }
+        }
+
+        if ($remoteSourceUrlCount > 0) {
+            $issues[] = 'remote-source-url';
+        }
+        if ($fileSourceUrlCount > 0) {
+            $issues[] = 'file-source-url';
+        }
+        if ($relativeSourceUrlCount > 0) {
+            $issues[] = 'relative-source-url';
+        }
+        if ($missingSourceUrlCount > 0) {
+            $issues[] = 'web-capture-command-missing-url';
+        }
+        if ($unresolvedPageReferences !== []) {
+            $issues[] = 'web-capture-missing-page-reference';
+        }
+        if ($unresolvedCommandLinks !== []) {
+            $issues[] = 'web-capture-unresolved-command-link';
+        }
+        if ($maxDepth !== null && $maxDepth > 1) {
+            $issues[] = 'deep-web-capture';
+        }
+        if ($commandCount === 0) {
+            $issues[] = 'web-capture-without-commands';
+        }
+
+        ksort($sourceSchemes);
+        $issues = $this->uniqueStrings($issues);
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'captureCount' => count($metadata),
+            'commandCount' => $commandCount,
+            'catalogCaptureCount' => $catalogCaptureCount,
+            'pageCaptureCount' => $pageCaptureCount,
+            'sourceUrlCount' => count($sourceUrls),
+            'remoteSourceUrlCount' => $remoteSourceUrlCount,
+            'fileSourceUrlCount' => $fileSourceUrlCount,
+            'relativeSourceUrlCount' => $relativeSourceUrlCount,
+            'missingSourceUrlCount' => $missingSourceUrlCount,
+            'sourceSchemes' => $sourceSchemes,
+            'pageReferenceCount' => $pageReferenceCount,
+            'unresolvedPageReferences' => $this->sortedPdfReferenceKeys($unresolvedPageReferences),
+            'commandLinkCount' => $commandLinkCount,
+            'unresolvedCommandLinks' => $this->sortedPdfReferenceKeys($unresolvedCommandLinks),
+            'maxDepth' => $maxDepth,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfPageObjectReferences(string $pdfBytes): array
+    {
+        $pageObjects = [];
+        foreach ($this->pdfObjectBodiesByReference($pdfBytes) as $reference => $body) {
+            if (preg_match('/\/Type\s*\/Page\b/s', $body) === 1) {
+                $pageObjects[$reference . ' R'] = true;
+            }
+        }
+
+        return $this->sortedPdfReferenceKeys($pageObjects);
     }
 
     private function extractPdfReferenceValue(string $dictionary, string $name): ?string

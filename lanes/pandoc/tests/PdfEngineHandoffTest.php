@@ -21248,6 +21248,92 @@ MARKDOWN);
         $t->same('https://example.test/review/page-1.html', $sequence['finalPdfWebCaptureMetadata'][1]['sourceUrls'][0]);
     },
 
+    'fake runner summarizes pdf web capture source policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['outputPath' => 'packets/web-capture-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /SpiderInfo 5 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /V 1.2 /C [6 0 R 7 0 R << /Title (Capture without URL) /S /Capture /L 1 >>] >>',
+            'endobj',
+            '6 0 obj',
+            '<< /URL (https://example.test/review/) /Title (Review source home) /S /Complete /L 0 /Page 3 0 R /Next 8 0 R >>',
+            'endobj',
+            '7 0 obj',
+            '<< /URL (file:///tmp/review-source.html) /Title (Local review source) /S /Capture /L 3 /Pages [3 0 R 99 0 R] /P 6 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/web-capture-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/web-capture-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'reviewStatus' => 'review',
+            'captureCount' => 1,
+            'commandCount' => 3,
+            'catalogCaptureCount' => 1,
+            'pageCaptureCount' => 0,
+            'sourceUrlCount' => 2,
+            'remoteSourceUrlCount' => 1,
+            'fileSourceUrlCount' => 1,
+            'relativeSourceUrlCount' => 0,
+            'missingSourceUrlCount' => 1,
+            'sourceSchemes' => [
+                'file' => 1,
+                'https' => 1,
+            ],
+            'pageReferenceCount' => 3,
+            'unresolvedPageReferences' => ['99 0 R'],
+            'commandLinkCount' => 2,
+            'unresolvedCommandLinks' => ['8 0 R'],
+            'maxDepth' => 3,
+            'issues' => [
+                'deep-web-capture',
+                'file-source-url',
+                'remote-source-url',
+                'web-capture-command-missing-url',
+                'web-capture-missing-page-reference',
+                'web-capture-unresolved-command-link',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfWebCapturePolicy']);
+        $t->contains('pdf-byte-web-capture-policy:review', $diagnostics);
+        $t->contains('pdf-byte-web-capture-policy-commands:3', $diagnostics);
+        $t->contains('pdf-byte-web-capture-policy-remote-urls:1', $diagnostics);
+        $t->contains('pdf-byte-web-capture-policy-scheme:file:1', $diagnostics);
+        $t->contains('pdf-byte-web-capture-policy-unresolved-pages:1', $diagnostics);
+        $t->contains('pdf-byte-web-capture-policy-unresolved-command-links:1', $diagnostics);
+        $t->contains('pdf-byte-web-capture-policy-max-depth:3', $diagnostics);
+        $t->contains('pdf-byte-web-capture-policy-issue:web-capture-unresolved-command-link:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfWebCapturePolicy']);
+    },
+
     'fake runner extracts pdf legal attestation metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['outputPath' => 'packets/legal-attestation.pdf']);
