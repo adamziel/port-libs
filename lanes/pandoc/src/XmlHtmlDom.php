@@ -17870,10 +17870,12 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('popovertarget', $attributes)) {
-            $target = self::popoverTarget($attributes['popovertarget']);
+            $targetRaw = $attributes['popovertarget'];
+            $target = self::popoverTarget($targetRaw);
             $summary['popoverTargetRaw'] = $attributes['popovertarget'];
             $summary['popoverTarget'] = $target;
             $summary['popoverTargetValid'] = $target !== null;
+            $summary += self::popoverTargetReferenceSummary($element, $targetRaw, $target);
         }
 
         if (array_key_exists('popovertarget', $attributes) || array_key_exists('popovertargetaction', $attributes)) {
@@ -18458,6 +18460,86 @@ final class XmlHtmlDom
         }
 
         return $target;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function popoverTargetReferenceSummary(\DOMElement $element, string $targetRaw, ?string $targetId): array
+    {
+        $target = $targetId === null ? null : self::htmlElementById($element, $targetId);
+        $issues = [];
+
+        if ($targetId === null) {
+            $issues[] = [
+                'code' => 'invalid-popover-target-reference',
+                'targetRaw' => $targetRaw,
+            ];
+        } elseif (!$target instanceof \DOMElement) {
+            $issues[] = [
+                'code' => 'missing-popover-target',
+                'targetId' => $targetId,
+            ];
+        } else {
+            $popoverRaw = self::attributeOrNull($target, 'popover');
+            if ($popoverRaw === null) {
+                $issues[] = [
+                    'code' => 'non-popover-target',
+                    'targetId' => $targetId,
+                    'targetName' => self::htmlElementName($target),
+                ];
+            } elseif (self::popoverState($popoverRaw) === null) {
+                $issues[] = [
+                    'code' => 'invalid-popover-target-state',
+                    'targetId' => $targetId,
+                    'popoverRaw' => $popoverRaw,
+                ];
+            }
+        }
+
+        return [
+            'popoverTargetReviewPolicy' => 'popover-target-idref-review',
+            'popoverTargetFound' => $target instanceof \DOMElement,
+            'popoverTargetKind' => self::popoverTargetKind($target, $targetRaw, $targetId),
+            'popoverTargetElement' => $target instanceof \DOMElement ? self::popoverTargetElementSummary($target) : null,
+            'popoverTargetIssues' => $issues,
+            'popoverTargetIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'popoverTargetInvokesPopover' => $issues === [],
+        ];
+    }
+
+    private static function popoverTargetKind(?\DOMElement $target, string $targetRaw, ?string $targetId): string
+    {
+        if (!$target instanceof \DOMElement) {
+            if ($targetId === null) {
+                return trim($targetRaw) === '' ? 'missing-reference' : 'invalid-reference';
+            }
+
+            return 'missing-target';
+        }
+
+        return self::attributeOrNull($target, 'popover') === null ? 'element' : 'popover';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function popoverTargetElementSummary(\DOMElement $target): array
+    {
+        $popoverRaw = self::attributeOrNull($target, 'popover');
+        $popover = $popoverRaw === null ? null : self::popoverState($popoverRaw);
+
+        return [
+            'tag' => self::htmlElementName($target),
+            'id' => self::attributeOrNull($target, 'id'),
+            'text' => self::normalizedText($target),
+            'popoverRaw' => $popoverRaw,
+            'popoverState' => $popover,
+            'popoverValid' => $popover !== null,
+        ];
     }
 
     private static function popoverTargetAction(string $value): ?string

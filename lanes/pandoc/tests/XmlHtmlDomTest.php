@@ -6469,6 +6469,76 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             $html
         );
     },
+    'summarizes html popover target idref resolution for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<button id="show-panel" type="button" popovertarget="panel" popovertargetaction="show">Show</button>'
+                . '<button id="missing-target" popovertarget="missing">Missing</button>'
+                . '<button id="plain-target" popovertarget="plain">Plain</button>'
+                . '<button id="invalid-state-target" popovertarget="bad-state">Bad state</button>'
+                . '<button id="bad-id" popovertarget="bad target">Bad id</button>'
+                . '<section id="panel" popover="manual"><h2>Panel</h2></section>'
+                . '<section id="plain">Plain target</section>'
+                . '<section id="bad-state" popover="invalid">Bad target</section>',
+            'popover target idref review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/popover-target-idref-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $show = $summary[0];
+        $missing = $summary[1];
+        $plain = $summary[2];
+        $invalidState = $summary[3];
+        $badId = $summary[4];
+
+        $t->same('popover-target-idref-review', $show['popoverTargetReviewPolicy']);
+        $t->same('panel', $show['popoverTargetRaw']);
+        $t->same('panel', $show['popoverTarget']);
+        $t->same(true, $show['popoverTargetValid']);
+        $t->same(true, $show['popoverTargetFound']);
+        $t->same('popover', $show['popoverTargetKind']);
+        $t->same('section', $show['popoverTargetElement']['tag'] ?? null);
+        $t->same('panel', $show['popoverTargetElement']['id'] ?? null);
+        $t->same('Panel', $show['popoverTargetElement']['text'] ?? null);
+        $t->same('manual', $show['popoverTargetElement']['popoverState'] ?? null);
+        $t->same(true, $show['popoverTargetElement']['popoverValid'] ?? null);
+        $t->same([], $show['popoverTargetIssueCodes']);
+        $t->same(true, $show['popoverTargetInvokesPopover']);
+        $t->same('show', $show['popoverTargetAction']);
+
+        $t->same('missing', $missing['popoverTarget']);
+        $t->same(false, $missing['popoverTargetFound']);
+        $t->same('missing-target', $missing['popoverTargetKind']);
+        $t->same(['missing-popover-target'], $missing['popoverTargetIssueCodes']);
+        $t->same(false, $missing['popoverTargetInvokesPopover']);
+
+        $t->same('plain', $plain['popoverTarget']);
+        $t->same(true, $plain['popoverTargetFound']);
+        $t->same('element', $plain['popoverTargetKind']);
+        $t->same(null, $plain['popoverTargetElement']['popoverRaw'] ?? null);
+        $t->same(['non-popover-target'], $plain['popoverTargetIssueCodes']);
+
+        $t->same('bad-state', $invalidState['popoverTarget']);
+        $t->same('popover', $invalidState['popoverTargetKind']);
+        $t->same('invalid', $invalidState['popoverTargetElement']['popoverRaw'] ?? null);
+        $t->same(false, $invalidState['popoverTargetElement']['popoverValid'] ?? null);
+        $t->same(['invalid-popover-target-state'], $invalidState['popoverTargetIssueCodes']);
+
+        $t->same('bad target', $badId['popoverTargetRaw']);
+        $t->same(null, $badId['popoverTarget']);
+        $t->same(false, $badId['popoverTargetValid']);
+        $t->same(false, $badId['popoverTargetFound']);
+        $t->same('invalid-reference', $badId['popoverTargetKind']);
+        $t->same(['invalid-popover-target-reference'], $badId['popoverTargetIssueCodes']);
+        $t->same(false, $badId['popoverTargetInvokesPopover']);
+
+        $t->same('<button id="show-panel" popovertarget="panel" popovertargetaction="show" type="button">Show</button><button id="missing-target" popovertarget="missing">Missing</button><button id="plain-target" popovertarget="plain">Plain</button><button id="invalid-state-target" popovertarget="bad-state">Bad state</button><button id="bad-id" popovertarget="bad target">Bad id</button><section id="panel" popover="manual"><h2>Panel</h2></section><section id="plain">Plain target</section><section id="bad-state" popover="invalid">Bad target</section>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/popover-target-idref-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html button command target provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<dialog id="confirm" open>Confirm body</dialog>'
