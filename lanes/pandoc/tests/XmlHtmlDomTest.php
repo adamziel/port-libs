@@ -8877,6 +8877,59 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         ], $invalidImage['imageLoadingIssueCodes']);
         $t->same(5, $invalidImage['imageLoadingIssueCount']);
     },
+    'summarizes html media playback policy metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<video id="inline" controls controlslist="nodownload nofullscreen nodownload" playsinline disablepictureinpicture disableremoteplayback poster="poster.jpg">Trailer fallback</video>'
+                . '<audio id="remote" controls controlslist="noremoteplayback bad-token" disableremoteplayback>Audio fallback</audio>'
+                . '<video id="empty" controlslist="  ">Empty controls</video>',
+            'media playback policy review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/media-playback-policy-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $video = $summary[0];
+        $audio = $summary[1];
+        $empty = $summary[2];
+
+        $t->same('media-playback-policy-metadata-review', $video['mediaPlaybackPolicyReview']);
+        $t->same(true, $video['playsInline']);
+        $t->same(true, $video['mediaPlaysInline']);
+        $t->same(true, $video['mediaDisablePictureInPicture']);
+        $t->same(true, $video['mediaDisableRemotePlayback']);
+        $t->same('nodownload nofullscreen nodownload', $video['mediaControlsListRaw']);
+        $t->same(['nodownload', 'nofullscreen', 'nodownload'], $video['mediaControlsListRawTokens']);
+        $t->same(['nodownload', 'nofullscreen'], $video['mediaControlsListTokens']);
+        $t->same(['nodownload' => 2, 'nofullscreen' => 1], $video['mediaControlsListTokenCounts']);
+        $t->same(['nodownload'], $video['duplicateMediaControlsListTokens']);
+        $t->same([], $video['invalidMediaControlsListTokens']);
+        $t->same(true, $video['mediaControlsListValid']);
+        $t->same(['duplicate-media-controlslist-token'], $video['mediaPlaybackIssueCodes']);
+        $t->same([
+            ['code' => 'duplicate-media-controlslist-token', 'token' => 'nodownload', 'count' => 2],
+        ], $video['mediaPlaybackIssues']);
+
+        $t->same('media-playback-policy-metadata-review', $audio['mediaPlaybackPolicyReview']);
+        $t->same(['noremoteplayback', 'bad-token'], $audio['mediaControlsListRawTokens']);
+        $t->same(['noremoteplayback'], $audio['mediaControlsListTokens']);
+        $t->same(['bad-token'], $audio['invalidMediaControlsListTokens']);
+        $t->same(false, $audio['mediaControlsListValid']);
+        $t->same(true, $audio['mediaDisableRemotePlayback']);
+        $t->same(false, $audio['mediaPlaysInline']);
+        $t->same(false, $audio['mediaDisablePictureInPicture']);
+        $t->same(['invalid-media-controlslist-token'], $audio['mediaPlaybackIssueCodes']);
+
+        $t->same([], $empty['mediaControlsListRawTokens']);
+        $t->same(false, $empty['mediaControlsListValid']);
+        $t->same(['empty-media-controlslist'], $empty['mediaPlaybackIssueCodes']);
+
+        $t->same('<video controls controlslist="nodownload nofullscreen nodownload" disablepictureinpicture disableremoteplayback id="inline" playsinline poster="poster.jpg">Trailer fallback</video><audio controls controlslist="noremoteplayback bad-token" disableremoteplayback id="remote">Audio fallback</audio><video controlslist="  " id="empty">Empty controls</video>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/media-playback-policy-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html server side image map provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><a id="chart-map" href="/map?packet=42"><img id="server" src="chart.png" alt="Chart" ismap></a></p>'

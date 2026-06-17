@@ -93,6 +93,8 @@ final class XmlHtmlDom
         'controls' => true,
         'default' => true,
         'defer' => true,
+        'disablepictureinpicture' => true,
+        'disableremoteplayback' => true,
         'disabled' => true,
         'formnovalidate' => true,
         'hidden' => true,
@@ -24094,15 +24096,47 @@ final class XmlHtmlDom
         if (($controlsList['duplicateControlsListTokens'] ?? []) !== []) {
             $issueCodes[] = 'duplicate-media-controlslist-token';
         }
+        $mediaPlaybackIssues = [];
+        foreach ($controlsList['invalidControlsListTokens'] as $token) {
+            $mediaPlaybackIssues[] = ['code' => 'invalid-media-controlslist-token', 'token' => $token];
+        }
+        foreach ($controlsList['duplicateControlsListTokens'] as $token) {
+            $mediaPlaybackIssues[] = [
+                'code' => 'duplicate-media-controlslist-token',
+                'token' => $token,
+                'count' => $controlsList['controlsListTokenCounts'][$token] ?? 0,
+            ];
+        }
+        if ($controlsListRaw !== null && $controlsList['controlsListTokens'] === []) {
+            $mediaPlaybackIssues[] = ['code' => 'empty-media-controlslist'];
+        }
+        $mediaPlaybackIssueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $mediaPlaybackIssues
+        )));
 
         return [
             'mediaPolicyReview' => 'html-media-controls-policy-review',
+            'mediaPlaybackPolicyReview' => 'media-playback-policy-metadata-review',
             'playsInline' => $element->hasAttribute('playsinline'),
             'disablePictureInPicture' => $element->hasAttribute('disablepictureinpicture'),
             'disableRemotePlayback' => $element->hasAttribute('disableremoteplayback'),
             'controlsListRaw' => $controlsListRaw,
+            'mediaControlsListRaw' => $controlsListRaw,
+            'mediaControlsListRawTokens' => $controlsList['controlsListTokens'],
+            'mediaControlsListTokens' => $controlsList['controlsListValidTokens'],
+            'mediaControlsListTokenCounts' => $controlsList['controlsListTokenCounts'],
+            'duplicateMediaControlsListTokens' => $controlsList['duplicateControlsListTokens'],
+            'invalidMediaControlsListTokens' => $controlsList['invalidControlsListTokens'],
+            'mediaControlsListValid' => $controlsList['controlsListValid'],
+            'mediaDisablePictureInPicture' => $element->hasAttribute('disablepictureinpicture'),
+            'mediaDisableRemotePlayback' => $element->hasAttribute('disableremoteplayback'),
+            'mediaPlaysInline' => $element->hasAttribute('playsinline'),
             'mediaPolicyIssueCodes' => $issueCodes,
             'mediaPolicyIssueCount' => count($issueCodes),
+            'mediaPlaybackIssueCodes' => $mediaPlaybackIssueCodes,
+            'mediaPlaybackIssueCount' => count($mediaPlaybackIssues),
+            'mediaPlaybackIssues' => $mediaPlaybackIssues,
         ] + $controlsList;
     }
 
