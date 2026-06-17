@@ -729,6 +729,15 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['mailMergeRelationshipCount'] = (int) ($mailMerge['relationshipCount'] ?? 0);
             $packageProvenance['summary']['mailMergeIssueCount'] = (int) ($mailMerge['issueCount'] ?? 0);
             $packageProvenance['summary']['mailMergeIssueCodes'] = $mailMerge['issueCodes'] ?? [];
+            $mailMergeOdso = $mailMerge['odso'] ?? null;
+            if (is_array($mailMergeOdso)) {
+                $packageProvenance['summary']['mailMergeOdsoSourcePresentCount'] = (int) ($mailMergeOdso['sourcePresentCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeOdsoSourceKinds'] = $mailMergeOdso['sourceKinds'] ?? [];
+                $packageProvenance['summary']['mailMergeOdsoFieldMapDataCount'] = (int) ($mailMergeOdso['fieldMapDataCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeOdsoFieldMapDataNamedCount'] = (int) ($mailMergeOdso['fieldMapDataNamedCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeOdsoFieldMapDataIssueCount'] = (int) ($mailMergeOdso['fieldMapDataIssueCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeOdsoFieldMapDataIssueCodes'] = $mailMergeOdso['fieldMapDataIssueCodes'] ?? [];
+            }
             $recipientData = $mailMerge['recipientData'] ?? null;
             if (is_array($recipientData)) {
                 $packageProvenance['summary']['mailMergeRecipientDataRecordCount'] = (int) ($recipientData['recordCount'] ?? 0);
@@ -13464,6 +13473,10 @@ final class DocxOpenXmlReader
         ];
         $odso = $this->childElement($mailMerge, 'odso');
         if ($odso instanceof \DOMElement) {
+            $odsoMetadata = $this->readMailMergeOdsoSettings($odso);
+            if ($odsoMetadata !== []) {
+                $metadata['odso'] = $odsoMetadata;
+            }
             $relationshipChildren[] = [
                 'parent' => $odso,
                 'key' => 'recipientData',
@@ -13508,6 +13521,115 @@ final class DocxOpenXmlReader
         $metadata['relationshipCount'] = $relationshipCount;
         $metadata['issueCount'] = $issueCount;
         $metadata['issueCodes'] = array_keys($issueCodes);
+
+        return $metadata;
+    }
+
+    private function readMailMergeOdsoSettings(\DOMElement $odso): array
+    {
+        $metadata = [
+            'sourcePresentCount' => 0,
+            'sourceKinds' => [],
+            'fieldMapDataCount' => 0,
+            'fieldMapDataNamedCount' => 0,
+            'fieldMapDataMappedNameCount' => 0,
+            'fieldMapDataDynamicAddressCount' => 0,
+            'fieldMapDataIssueCount' => 0,
+            'fieldMapDataIssueCodes' => [],
+            'fieldMapDataColumnIndexes' => [],
+            'fieldMapDataItems' => [],
+            'reviewPolicy' => 'mail-merge-odso-metadata-only',
+        ];
+
+        foreach ([
+            'type' => 'type',
+            'lid' => 'languageId',
+        ] as $source => $target) {
+            $value = $this->settingsStringChildValue($odso, $source);
+            if ($value !== null) {
+                $metadata[$target] = $value;
+            }
+        }
+
+        foreach ([
+            'udl' => 'udl',
+            'table' => 'table',
+            'src' => 'source',
+        ] as $source => $target) {
+            $value = $this->settingsStringChildValue($odso, $source);
+            if ($value === null) {
+                continue;
+            }
+
+            $metadata[$target . 'Present'] = true;
+            $metadata[$target . 'Length'] = strlen($value);
+            $metadata[$target . 'Sha256'] = hash('sha256', $value);
+            ++$metadata['sourcePresentCount'];
+            $metadata['sourceKinds'][] = $target;
+        }
+
+        $firstHeaderRow = $this->settingsOnOffChildValue($odso, 'fHdr');
+        if ($firstHeaderRow !== null) {
+            $metadata['firstHeaderRow'] = $firstHeaderRow;
+        }
+
+        $columnDelimiter = $this->settingsIntChildValue($odso, 'colDelim');
+        if ($columnDelimiter !== null) {
+            $metadata['columnDelimiter'] = $columnDelimiter;
+        }
+
+        $fieldMapItems = [];
+        $columnIndexes = [];
+        $issueCodes = [];
+        foreach ($this->childElementsByLocalName($odso, 'fieldMapData') as $index => $fieldMapData) {
+            $name = $this->settingsStringChildValue($fieldMapData, 'name');
+            $mappedName = $this->settingsStringChildValue($fieldMapData, 'mappedName');
+            $columnIndex = $this->settingsIntChildValue($fieldMapData, 'column');
+            $dynamicAddress = $this->settingsOnOffChildValue($fieldMapData, 'dynamicAddress');
+            $issues = [];
+
+            if ($name === null) {
+                $issues[] = 'missing-field-map-name';
+            }
+            if ($columnIndex === null) {
+                $issues[] = 'missing-field-map-column';
+            } else {
+                $columnIndexes[$columnIndex] = true;
+            }
+
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+            sort($issues, SORT_STRING);
+
+            $fieldMapItems[] = [
+                'index' => $index,
+                'type' => $this->settingsStringChildValue($fieldMapData, 'type'),
+                'columnIndex' => $columnIndex,
+                'languageId' => $this->settingsStringChildValue($fieldMapData, 'lid'),
+                'dynamicAddress' => $dynamicAddress,
+                'namePresent' => $name !== null,
+                'nameLength' => $name === null ? null : strlen($name),
+                'nameSha256' => $name === null ? null : hash('sha256', $name),
+                'mappedNamePresent' => $mappedName !== null,
+                'mappedNameLength' => $mappedName === null ? null : strlen($mappedName),
+                'mappedNameSha256' => $mappedName === null ? null : hash('sha256', $mappedName),
+                'issues' => $issues,
+            ];
+        }
+
+        $columnIndexValues = array_keys($columnIndexes);
+        sort($columnIndexValues, SORT_NUMERIC);
+        ksort($issueCodes, SORT_STRING);
+
+        $metadata['fieldMapDataCount'] = count($fieldMapItems);
+        $metadata['fieldMapDataNamedCount'] = count(array_filter($fieldMapItems, static fn (array $item): bool => $item['namePresent'] === true));
+        $metadata['fieldMapDataMappedNameCount'] = count(array_filter($fieldMapItems, static fn (array $item): bool => $item['mappedNamePresent'] === true));
+        $metadata['fieldMapDataDynamicAddressCount'] = count(array_filter($fieldMapItems, static fn (array $item): bool => $item['dynamicAddress'] === true));
+        $metadata['fieldMapDataIssueCount'] = count($issueCodes);
+        $metadata['fieldMapDataIssueCodes'] = array_keys($issueCodes);
+        $metadata['fieldMapDataColumnIndexes'] = $columnIndexValues;
+        $metadata['fieldMapDataItems'] = $fieldMapItems;
 
         return $metadata;
     }
@@ -16711,6 +16833,25 @@ final class DocxOpenXmlReader
         }
 
         return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function childElementsByLocalName(?\DOMElement $parent, string $localName): array
+    {
+        if (!$parent instanceof \DOMElement) {
+            return [];
+        }
+
+        $elements = [];
+        foreach ($parent->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === self::NS_W && $child->localName === $localName) {
+                $elements[] = $child;
+            }
+        }
+
+        return $elements;
     }
 
     private function childAttr(\DOMElement $parent, string $childLocalName, string $attrLocalName): string

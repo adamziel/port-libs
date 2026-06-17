@@ -6046,6 +6046,134 @@ XML;
         $t->true(in_array('mail-merge-header-source', $inventory['mailmerge/header-source.xml']['roles'], true), 'mail merge header-source inventory role missing');
         $t->true(!isset($docx['media']['mailmerge/header-source.xml']), 'Mail merge header source must remain metadata-only');
     },
+    'summarizes docx mail merge odso data source metadata for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $udl = 'Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\review\recipients.accdb;Mode=Read';
+        $table = 'Review Recipients$';
+        $source = 'file:///C:/review/recipients.accdb';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?mailmerge=odso#settings"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<'XML'
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:mailMerge>
+    <w:mainDocumentType w:val="email"/>
+    <w:dataType w:val="native"/>
+    <w:odso>
+      <w:udl w:val="Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\review\recipients.accdb;Mode=Read"/>
+      <w:table w:val="Review Recipients$"/>
+      <w:src w:val="file:///C:/review/recipients.accdb"/>
+      <w:type w:val="email"/>
+      <w:lid w:val="en-US"/>
+      <w:fHdr w:val="1"/>
+      <w:colDelim w:val="44"/>
+      <w:fieldMapData>
+        <w:type w:val="dbColumn"/>
+        <w:name w:val="Email Address"/>
+        <w:mappedName w:val="RecipientEmail"/>
+        <w:column w:val="2"/>
+        <w:lid w:val="en-US"/>
+        <w:dynamicAddress w:val="1"/>
+      </w:fieldMapData>
+      <w:fieldMapData>
+        <w:type w:val="dbColumn"/>
+        <w:name w:val="First Name"/>
+        <w:column w:val="3"/>
+        <w:dynamicAddress w:val="0"/>
+      </w:fieldMapData>
+      <w:fieldMapData>
+        <w:type w:val="null"/>
+        <w:mappedName w:val="MissingSource"/>
+      </w:fieldMapData>
+    </w:odso>
+  </w:mailMerge>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $mailMerge = $docx['settings']['mailMerge'];
+        $odso = $mailMerge['odso'];
+        $summary = $docx['packageProvenance']['summary'];
+        $selectedSettings = $docx['packageProvenance']['selectedXmlParts']['byKind']['settings'];
+
+        $t->same('word/settings.xml', $docx['settingsPart']);
+        $t->same('settings.xml?mailmerge=odso#settings', $docx['settingsRelationship']['target']);
+        $t->same('mailmerge=odso', $docx['settingsRelationship']['targetQuery']);
+        $t->same('settings', $docx['settingsRelationship']['targetFragment']);
+        $t->same('settings', $selectedSettings['rootLocalName']);
+        $t->same('email', $mailMerge['mainDocumentType']);
+        $t->same('native', $mailMerge['dataType']);
+        $t->same(0, $mailMerge['relationshipCount']);
+        $t->same(0, $mailMerge['issueCount']);
+        $t->same([], $mailMerge['issueCodes']);
+
+        $t->same('email', $odso['type']);
+        $t->same('en-US', $odso['languageId']);
+        $t->same(true, $odso['firstHeaderRow']);
+        $t->same(44, $odso['columnDelimiter']);
+        $t->same(3, $odso['sourcePresentCount']);
+        $t->same(['udl', 'table', 'source'], $odso['sourceKinds']);
+        $t->same(true, $odso['udlPresent']);
+        $t->same(strlen($udl), $odso['udlLength']);
+        $t->same(hash('sha256', $udl), $odso['udlSha256']);
+        $t->true(!isset($odso['udl']), 'raw ODSO UDL must not be exposed');
+        $t->same(true, $odso['tablePresent']);
+        $t->same(strlen($table), $odso['tableLength']);
+        $t->same(hash('sha256', $table), $odso['tableSha256']);
+        $t->true(!isset($odso['table']), 'raw ODSO table name must not be exposed');
+        $t->same(true, $odso['sourcePresent']);
+        $t->same(strlen($source), $odso['sourceLength']);
+        $t->same(hash('sha256', $source), $odso['sourceSha256']);
+        $t->true(!isset($odso['source']), 'raw ODSO source path must not be exposed');
+        $t->same('mail-merge-odso-metadata-only', $odso['reviewPolicy']);
+
+        $t->same(3, $odso['fieldMapDataCount']);
+        $t->same(2, $odso['fieldMapDataNamedCount']);
+        $t->same(2, $odso['fieldMapDataMappedNameCount']);
+        $t->same(1, $odso['fieldMapDataDynamicAddressCount']);
+        $t->same(2, $odso['fieldMapDataIssueCount']);
+        $t->same(['missing-field-map-column', 'missing-field-map-name'], $odso['fieldMapDataIssueCodes']);
+        $t->same([2, 3], $odso['fieldMapDataColumnIndexes']);
+
+        $first = $odso['fieldMapDataItems'][0];
+        $third = $odso['fieldMapDataItems'][2];
+        $t->same(0, $first['index']);
+        $t->same('dbColumn', $first['type']);
+        $t->same(2, $first['columnIndex']);
+        $t->same('en-US', $first['languageId']);
+        $t->same(true, $first['dynamicAddress']);
+        $t->same(true, $first['namePresent']);
+        $t->same(strlen('Email Address'), $first['nameLength']);
+        $t->same(hash('sha256', 'Email Address'), $first['nameSha256']);
+        $t->true(!isset($first['name']), 'raw ODSO field name must not be exposed');
+        $t->same(true, $first['mappedNamePresent']);
+        $t->same(strlen('RecipientEmail'), $first['mappedNameLength']);
+        $t->same(hash('sha256', 'RecipientEmail'), $first['mappedNameSha256']);
+        $t->true(!isset($first['mappedName']), 'raw ODSO mapped field name must not be exposed');
+        $t->same([], $first['issues']);
+        $t->same('null', $third['type']);
+        $t->same(null, $third['columnIndex']);
+        $t->same(false, $third['namePresent']);
+        $t->same(true, $third['mappedNamePresent']);
+        $t->same(['missing-field-map-column', 'missing-field-map-name'], $third['issues']);
+
+        $t->same(3, $summary['mailMergeOdsoSourcePresentCount']);
+        $t->same(['udl', 'table', 'source'], $summary['mailMergeOdsoSourceKinds']);
+        $t->same(3, $summary['mailMergeOdsoFieldMapDataCount']);
+        $t->same(2, $summary['mailMergeOdsoFieldMapDataNamedCount']);
+        $t->same(2, $summary['mailMergeOdsoFieldMapDataIssueCount']);
+        $t->same(['missing-field-map-column', 'missing-field-map-name'], $summary['mailMergeOdsoFieldMapDataIssueCodes']);
+    },
     'reports docx mail merge recipient data package part for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $recipientDataBytes = <<<'XML'
