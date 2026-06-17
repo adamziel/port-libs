@@ -1221,6 +1221,84 @@ XML;
         $t->same('customXml/no-extension', $byExtension['(none)']['largestPart']['partName']);
         $t->same('no-extension', $byExtension['(none)']['largestPart']['baseName']);
     },
+    'summarizes docx package part content type extension mismatches for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $documentContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/media/review-image.xml" ContentType="image/png"/>' . "\n" .
+            '  <Override PartName="/word/review-binary.bin" ContentType="' . $documentContentType . '"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rMismatchedImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review-image.xml?profile=mismatch#asset"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/media/review-image.xml'] = 'mismatched image bytes';
+        $parts['word/review-binary.bin'] = '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $summary = $docx['packageProvenance']['summary'];
+        $inventory = $docx['packageProvenance']['parts'];
+        $relationships = $docx['packageProvenance']['relationshipParts']['word/_rels/document.xml.rels']['relationships'];
+        $mismatches = [];
+        foreach ($summary['contentTypeExtensionMismatches'] as $mismatch) {
+            $mismatches[$mismatch['partName']] = $mismatch;
+        }
+
+        $t->same(2, $summary['contentTypeExtensionMismatchCount']);
+        $t->same(['content-type-extension-mismatch'], $summary['contentTypeExtensionMismatchIssueCodes']);
+        $t->same(['word/media/review-image.xml', 'word/review-binary.bin'], $summary['contentTypeExtensionMismatchPartNames']);
+        $t->same(['bin' => 1, 'xml' => 1], $summary['contentTypeExtensionMismatchExtensionCounts']);
+        $t->same([
+            $documentContentType => 1,
+            'image/png' => 1,
+        ], $summary['contentTypeExtensionMismatchContentTypeBaseCounts']);
+        $t->same(['override' => 2], $summary['contentTypeExtensionMismatchContentTypeSourceCounts']);
+
+        $image = $mismatches['word/media/review-image.xml'];
+        $t->same('word/media/review-image.xml', $image['partName']);
+        $t->same('word/media', $image['directory']);
+        $t->same('review-image.xml', $image['baseName']);
+        $t->same('xml', $image['partExtension']);
+        $t->same(['png'], $image['expectedExtensions']);
+        $t->same('image/png', $image['contentType']);
+        $t->same('image/png', $image['contentTypeBase']);
+        $t->same('override', $image['contentTypeSource']);
+        $t->same('word/media/review-image.xml', $image['overridePartName']);
+        $t->same(strlen($parts['word/media/review-image.xml']), $image['bytes']);
+        $t->same(sprintf('%08x', crc32($parts['word/media/review-image.xml'])), $image['crc32']);
+        $t->same(hash('sha256', $parts['word/media/review-image.xml']), $image['sha256']);
+        $t->same(['document-relationship-target'], $image['roles']);
+        $t->same(['content-type-extension-mismatch'], $image['issues']);
+        $t->same('docx-package-part-bytes-blocked', $image['byteExposurePolicy']);
+        $t->same('content-type-extension-mismatch-metadata-only', $image['reviewPolicy']);
+
+        $binary = $mismatches['word/review-binary.bin'];
+        $t->same('bin', $binary['partExtension']);
+        $t->same(['xml'], $binary['expectedExtensions']);
+        $t->same($documentContentType, $binary['contentTypeBase']);
+        $t->same('word/review-binary.bin', $binary['overridePartName']);
+        $t->same(['package-part'], $binary['roles']);
+        $t->same(hash('sha256', $parts['word/review-binary.bin']), $binary['sha256']);
+
+        $t->same('xml', $inventory['word/media/review-image.xml']['partExtension']);
+        $t->same('image/png', $inventory['word/media/review-image.xml']['contentTypeBase']);
+        $t->same('bin', $inventory['word/review-binary.bin']['partExtension']);
+        $t->same($documentContentType, $inventory['word/review-binary.bin']['contentTypeBase']);
+
+        $relationship = $relationships['rMismatchedImage'];
+        $t->same('word/media/review-image.xml?profile=mismatch#asset', $relationship['resolvedTarget']);
+        $t->same('word/media/review-image.xml', $relationship['targetPart']);
+        $t->same('?profile=mismatch#asset', $relationship['targetReferenceSuffix']);
+        $t->same(true, $relationship['exists']);
+        $t->same('image/png', $relationship['contentTypeBase']);
+        $t->same('override', $relationship['contentTypeSource']);
+    },
     'summarizes docx package part base names for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/item1.xml'] = '<customItem/>';

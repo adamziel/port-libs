@@ -10343,6 +10343,7 @@ final class DocxOpenXmlReader
         }
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
+        $contentTypeExtensionMismatches = $this->packagePartContentTypeExtensionMismatchSummary($partInventory);
         $partBaseNames = $this->packagePartBaseNameSummary($partInventory);
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
@@ -11116,6 +11117,13 @@ final class DocxOpenXmlReader
             'partNameCharacterFlagCounts' => $partNameCharacters['flagCounts'],
             'partNameCharacterFlagPartNames' => $partNameCharacters['flagPartNames'],
             'partContentTypeCount' => count($partContentTypes),
+            'contentTypeExtensionMismatchCount' => $contentTypeExtensionMismatches['count'],
+            'contentTypeExtensionMismatchIssueCodes' => $contentTypeExtensionMismatches['issueCodes'],
+            'contentTypeExtensionMismatchPartNames' => $contentTypeExtensionMismatches['partNames'],
+            'contentTypeExtensionMismatchExtensionCounts' => $contentTypeExtensionMismatches['extensionCounts'],
+            'contentTypeExtensionMismatchContentTypeBaseCounts' => $contentTypeExtensionMismatches['contentTypeBaseCounts'],
+            'contentTypeExtensionMismatchContentTypeSourceCounts' => $contentTypeExtensionMismatches['contentTypeSourceCounts'],
+            'contentTypeExtensionMismatches' => $contentTypeExtensionMismatches['items'],
             'partRoleCount' => count($partRoles),
             'packageByteLength' => $packageByteLength,
             'largestPartCount' => count($largestParts),
@@ -12030,6 +12038,138 @@ final class DocxOpenXmlReader
         }
 
         return array_values($extensions);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array{count:int, issueCodes:list<string>, partNames:list<string>, extensionCounts:array<string, int>, contentTypeBaseCounts:array<string, int>, contentTypeSourceCounts:array<string, int>, items:list<array<string, mixed>>}
+     */
+    private function packagePartContentTypeExtensionMismatchSummary(array $partInventory): array
+    {
+        $items = [];
+        $issueCodes = [];
+        $partNames = [];
+        $extensionCounts = [];
+        $contentTypeBaseCounts = [];
+        $contentTypeSourceCounts = [];
+
+        foreach ($partInventory as $partName => $part) {
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $expectedExtensions = $this->expectedPackagePartExtensionsForContentType($contentTypeBase);
+            if ($expectedExtensions === []) {
+                continue;
+            }
+
+            $partExtension = is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null;
+            if ($partExtension !== null && in_array($partExtension, $expectedExtensions, true)) {
+                continue;
+            }
+
+            $issues = ['content-type-extension-mismatch'];
+            if ($partExtension === null) {
+                $issues[] = 'missing-part-extension-for-content-type';
+            }
+
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $extensionKey = $partExtension ?? '(none)';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+
+            $partNames[] = (string) ($part['partName'] ?? $partName);
+            $extensionCounts[$extensionKey] = ($extensionCounts[$extensionKey] ?? 0) + 1;
+            $contentTypeBaseCounts[$contentTypeBaseKey] = ($contentTypeBaseCounts[$contentTypeBaseKey] ?? 0) + 1;
+            $contentTypeSourceCounts[$contentTypeSource] = ($contentTypeSourceCounts[$contentTypeSource] ?? 0) + 1;
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $items[] = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => is_string($part['directory'] ?? null)
+                    ? $part['directory']
+                    : $this->packagePartDirectory((string) $partName),
+                'baseName' => is_string($part['baseName'] ?? null)
+                    ? $part['baseName']
+                    : $this->packagePartBaseName((string) $partName),
+                'partExtension' => $partExtension,
+                'expectedExtensions' => $expectedExtensions,
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'defaultExtension' => is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+                'overridePartName' => is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+                'issues' => $issues,
+                'byteExposurePolicy' => 'docx-package-part-bytes-blocked',
+                'reviewPolicy' => 'content-type-extension-mismatch-metadata-only',
+            ];
+        }
+
+        sort($partNames, SORT_STRING);
+        ksort($issueCodes, SORT_STRING);
+        ksort($extensionCounts, SORT_STRING);
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($contentTypeSourceCounts, SORT_STRING);
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
+        );
+
+        return [
+            'count' => count($items),
+            'issueCodes' => array_keys($issueCodes),
+            'partNames' => $partNames,
+            'extensionCounts' => $extensionCounts,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'contentTypeSourceCounts' => $contentTypeSourceCounts,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function expectedPackagePartExtensionsForContentType(string $contentTypeBase): array
+    {
+        if ($contentTypeBase === '') {
+            return [];
+        }
+
+        if ($contentTypeBase === self::CT_PACKAGE_RELATIONSHIPS) {
+            return ['rels'];
+        }
+
+        if (str_starts_with($contentTypeBase, 'image/')) {
+            $subtype = substr($contentTypeBase, strlen('image/'));
+
+            return match ($subtype) {
+                'jpeg', 'pjpeg' => ['jpeg', 'jpg'],
+                'png' => ['png'],
+                'gif' => ['gif'],
+                'bmp' => ['bmp'],
+                'tiff' => ['tif', 'tiff'],
+                'svg+xml' => ['svg'],
+                default => [],
+            };
+        }
+
+        if ($contentTypeBase === 'application/xml' || $contentTypeBase === 'text/xml' || str_ends_with($contentTypeBase, '+xml')) {
+            return ['xml'];
+        }
+
+        return match ($contentTypeBase) {
+            self::CT_ACTIVEX_BINARY,
+            self::CT_VBA_PROJECT,
+            self::CT_VBA_PROJECT_SIGNATURE => ['bin'],
+            default => [],
+        };
     }
 
     /**
