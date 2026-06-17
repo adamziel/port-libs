@@ -7954,6 +7954,14 @@ final class PdfEngineHandoff
                 static fn (mixed $entry): bool => is_array($entry)
                     && in_array($entry['option'] ?? null, ['dependencyOutput', 'dependencyFormat', 'timingsOutput'], true)
             ));
+            $dependencyOutputOverrides = array_values(array_filter(
+                $sidecarOverrides,
+                static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'dependencyOutput'
+            ));
+            $timingsOutputOverrides = array_values(array_filter(
+                $sidecarOverrides,
+                static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'timingsOutput'
+            ));
             $sidecarIssues = array_merge(
                 $entryIssues($dependencyOutput),
                 $entryIssues($timingsOutput),
@@ -7970,13 +7978,19 @@ final class PdfEngineHandoff
             $appendCase('sidecar-outputs', $sidecarIssues === [] ? 'ok' : 'review', $sidecarCount, [
                 'dependencyOutputPresent' => $dependencyOutputFile !== [],
                 'dependencyOutputPath' => is_string($dependencyOutputFile['path'] ?? null) ? $dependencyOutputFile['path'] : null,
+                'dependencyOutputKind' => is_string($dependencyOutputFile['kind'] ?? null) ? $dependencyOutputFile['kind'] : null,
+                'dependencyOutputSafe' => ($dependencyOutputFile['safe'] ?? false) === true,
+                'dependencyOutputHistoryCount' => count($dependencyOutputHistory),
+                'dependencyOutputOverrideCount' => count($dependencyOutputOverrides),
                 'dependencyFormat' => is_string($dependencyOutputFormat['format'] ?? null) ? $dependencyOutputFormat['format'] : null,
                 'timingsOutputPresent' => $timingsOutput !== [],
                 'timingsOutputPath' => is_string($timingsOutput['path'] ?? null) ? $timingsOutput['path'] : null,
-                'dependencyOutputHistoryCount' => count($dependencyOutputHistory),
                 'dependencyFormatHistoryCount' => count($dependencyFormatHistory),
+                'timingsOutputKind' => is_string($timingsOutput['kind'] ?? null) ? $timingsOutput['kind'] : null,
+                'timingsOutputSafe' => ($timingsOutput['safe'] ?? false) === true,
                 'timingsOutputHistoryCount' => count($timingsOutputHistory),
                 'overrideCount' => count($sidecarOverrides),
+                'timingsOutputOverrideCount' => count($timingsOutputOverrides),
                 'invalidDependencyOutputCount' => $countUnsafe($dependencyOutputHistory),
                 'invalidDependencyFormatCount' => $countUnsafe($dependencyFormatHistory),
                 'invalidTimingsOutputCount' => $countUnsafe($timingsOutputHistory),
