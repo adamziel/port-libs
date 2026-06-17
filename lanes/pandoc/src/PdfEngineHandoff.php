@@ -7596,21 +7596,38 @@ final class PdfEngineHandoff
 
         $featureGates = is_array($provenance['featureGates'] ?? null) ? $provenance['featureGates'] : [];
         $featureGateEnvironment = is_array($provenance['featureGateEnvironment'] ?? null) ? $provenance['featureGateEnvironment'] : [];
-        $featureGateIssues = array_merge($entryIssues($featureGates), $entryIssues($featureGateEnvironment));
+        $featureGateHistory = is_array($provenance['featureGateHistory'] ?? null) ? $provenance['featureGateHistory'] : [];
+        $featureGateOverrides = array_values(array_filter(
+            is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+            static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'features'
+        ));
+        $featureGateIssues = array_merge(
+            $entryIssues($featureGates),
+            $entryIssues($featureGateEnvironment),
+            $listIssues($featureGateHistory),
+            $optionIssues($featureGateOverrides)
+        );
         $featureCount = is_int($featureGates['featureCount'] ?? null) ? $featureGates['featureCount'] : 0;
         $environmentFeatureCount = is_int($featureGateEnvironment['featureCount'] ?? null) ? $featureGateEnvironment['featureCount'] : 0;
         if ($featureCount > 0 || $environmentFeatureCount > 0 || $featureGateIssues !== []) {
+            $features = array_values(array_filter(
+                is_array($featureGates['features'] ?? null) ? $featureGates['features'] : [],
+                static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
+            ));
+            $environmentFeatures = array_values(array_filter(
+                is_array($featureGateEnvironment['features'] ?? null) ? $featureGateEnvironment['features'] : [],
+                static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
+            ));
             $appendCase('feature-gates', $featureGateIssues === [] ? 'ok' : 'review', $featureCount + $environmentFeatureCount, [
                 'featureCount' => $featureCount,
                 'environmentFeatureCount' => $environmentFeatureCount,
-                'features' => array_values(array_filter(
-                    is_array($featureGates['features'] ?? null) ? $featureGates['features'] : [],
-                    static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
-                )),
-                'environmentFeatures' => array_values(array_filter(
-                    is_array($featureGateEnvironment['features'] ?? null) ? $featureGateEnvironment['features'] : [],
-                    static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
-                )),
+                'features' => $features,
+                'environmentFeatures' => $environmentFeatures,
+                'environmentVariable' => is_string($featureGateEnvironment['environmentVariable'] ?? null) ? $featureGateEnvironment['environmentVariable'] : null,
+                'environmentShadowed' => is_string($featureGateEnvironment['shadowedBy'] ?? null),
+                'selected' => is_string($featureGateEnvironment['selected'] ?? null) ? $featureGateEnvironment['selected'] : null,
+                'historyEntryCount' => $featureGateHistory === [] ? (int) ($featureGates !== []) : count($featureGateHistory),
+                'overrideCount' => count($featureGateOverrides),
             ], $featureGateIssues);
         }
 
