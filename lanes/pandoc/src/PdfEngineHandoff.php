@@ -819,6 +819,7 @@ final class PdfEngineHandoff
      *     pdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     pdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}|array{},
      *     pdfOptionalContentUsageApplications: list<array{source:string, object:string|null, event:string|null, categories:list<string>, groups:list<string>, groupCount:int, keys:list<string>}>,
+     *     pdfOptionalContentAlternateConfigs: list<array{source:string, object:string, name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>, keys:list<string>}>,
      *     pdfOptionalContentMemberships: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>,
      *     pdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     pdfCollectionPolicy: array<string, mixed>,
@@ -1515,6 +1516,7 @@ final class PdfEngineHandoff
         $pdfOptionalContentGroups = [];
         $pdfOptionalContentConfig = [];
         $pdfOptionalContentUsageApplications = [];
+        $pdfOptionalContentAlternateConfigs = [];
         $pdfOptionalContentMemberships = [];
         $pdfCollectionMetadata = [];
         $pdfCollectionPolicy = [];
@@ -1667,6 +1669,7 @@ final class PdfEngineHandoff
                 $pdfOptionalContentGroups = $pdfInspection['optionalContentGroups'];
                 $pdfOptionalContentConfig = $pdfInspection['optionalContentConfig'];
                 $pdfOptionalContentUsageApplications = $pdfInspection['optionalContentUsageApplications'];
+                $pdfOptionalContentAlternateConfigs = $pdfInspection['optionalContentAlternateConfigs'];
                 $pdfOptionalContentMemberships = $pdfInspection['optionalContentMemberships'];
                 $pdfCollectionMetadata = $pdfInspection['collectionMetadata'];
                 $pdfCollectionPolicy = $pdfInspection['collectionPolicy'];
@@ -3613,6 +3616,48 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-optional-content-usage-category:' . $category . ':' . $categoryCount;
                     }
                 }
+                if ($pdfOptionalContentAlternateConfigs !== []) {
+                    $diagnostics[] = 'pdf-byte-optional-content-alternate-configs:' . count($pdfOptionalContentAlternateConfigs);
+                    $alternateOnCount = 0;
+                    $alternateOffCount = 0;
+                    $alternateLockedCount = 0;
+                    $alternateRadioButtonGroupCount = 0;
+                    $alternateRadioButtonMemberCount = 0;
+                    foreach ($pdfOptionalContentAlternateConfigs as $alternateConfig) {
+                        if (isset($alternateConfig['on']) && is_array($alternateConfig['on'])) {
+                            $alternateOnCount += count($alternateConfig['on']);
+                        }
+                        if (isset($alternateConfig['off']) && is_array($alternateConfig['off'])) {
+                            $alternateOffCount += count($alternateConfig['off']);
+                        }
+                        if (isset($alternateConfig['locked']) && is_array($alternateConfig['locked'])) {
+                            $alternateLockedCount += count($alternateConfig['locked']);
+                        }
+                        if (isset($alternateConfig['radioButtonGroups']) && is_array($alternateConfig['radioButtonGroups'])) {
+                            $alternateRadioButtonGroupCount += count($alternateConfig['radioButtonGroups']);
+                            foreach ($alternateConfig['radioButtonGroups'] as $radioButtonGroup) {
+                                if (is_array($radioButtonGroup)) {
+                                    $alternateRadioButtonMemberCount += count($radioButtonGroup);
+                                }
+                            }
+                        }
+                    }
+                    if ($alternateOnCount > 0) {
+                        $diagnostics[] = 'pdf-byte-optional-content-alternate-config-on:' . $alternateOnCount;
+                    }
+                    if ($alternateOffCount > 0) {
+                        $diagnostics[] = 'pdf-byte-optional-content-alternate-config-off:' . $alternateOffCount;
+                    }
+                    if ($alternateLockedCount > 0) {
+                        $diagnostics[] = 'pdf-byte-optional-content-alternate-config-locked:' . $alternateLockedCount;
+                    }
+                    if ($alternateRadioButtonGroupCount > 0) {
+                        $diagnostics[] = 'pdf-byte-optional-content-alternate-config-radio-button-groups:' . $alternateRadioButtonGroupCount;
+                    }
+                    if ($alternateRadioButtonMemberCount > 0) {
+                        $diagnostics[] = 'pdf-byte-optional-content-alternate-config-radio-button-members:' . $alternateRadioButtonMemberCount;
+                    }
+                }
                 if ($pdfOptionalContentMemberships !== []) {
                     $diagnostics[] = 'pdf-byte-optional-content-memberships:' . count($pdfOptionalContentMemberships);
                     $membershipGroupCount = 0;
@@ -5169,6 +5214,7 @@ final class PdfEngineHandoff
             'pdfOptionalContentGroups' => $pdfOptionalContentGroups,
             'pdfOptionalContentConfig' => $pdfOptionalContentConfig,
             'pdfOptionalContentUsageApplications' => $pdfOptionalContentUsageApplications,
+            'pdfOptionalContentAlternateConfigs' => $pdfOptionalContentAlternateConfigs,
             'pdfOptionalContentMemberships' => $pdfOptionalContentMemberships,
             'pdfCollectionMetadata' => $pdfCollectionMetadata,
             'pdfCollectionPolicy' => $pdfCollectionPolicy,
@@ -5342,6 +5388,7 @@ final class PdfEngineHandoff
      *     finalPdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     finalPdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}|array{},
      *     finalPdfOptionalContentUsageApplications: list<array{source:string, object:string|null, event:string|null, categories:list<string>, groups:list<string>, groupCount:int, keys:list<string>}>,
+     *     finalPdfOptionalContentAlternateConfigs: list<array{source:string, object:string, name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>, keys:list<string>}>,
      *     finalPdfOptionalContentMemberships: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>,
      *     finalPdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     finalPdfCollectionPolicy: array<string, mixed>,
@@ -5671,6 +5718,7 @@ final class PdfEngineHandoff
             'finalPdfOptionalContentGroups' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentGroups'] ?? null) ? $finalRun['pdfOptionalContentGroups'] : [],
             'finalPdfOptionalContentConfig' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentConfig'] ?? null) ? $finalRun['pdfOptionalContentConfig'] : [],
             'finalPdfOptionalContentUsageApplications' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentUsageApplications'] ?? null) ? $finalRun['pdfOptionalContentUsageApplications'] : [],
+            'finalPdfOptionalContentAlternateConfigs' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentAlternateConfigs'] ?? null) ? $finalRun['pdfOptionalContentAlternateConfigs'] : [],
             'finalPdfOptionalContentMemberships' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentMemberships'] ?? null) ? $finalRun['pdfOptionalContentMemberships'] : [],
             'finalPdfCollectionMetadata' => is_array($finalRun) && is_array($finalRun['pdfCollectionMetadata'] ?? null) ? $finalRun['pdfCollectionMetadata'] : [],
             'finalPdfCollectionPolicy' => is_array($finalRun) && is_array($finalRun['pdfCollectionPolicy'] ?? null) ? $finalRun['pdfCollectionPolicy'] : [],
@@ -11982,6 +12030,7 @@ final class PdfEngineHandoff
      *     optionalContentGroups:list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     optionalContentConfig:array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}|array{},
      *     optionalContentUsageApplications:list<array{source:string, object:string|null, event:string|null, categories:list<string>, groups:list<string>, groupCount:int, keys:list<string>}>,
+     *     optionalContentAlternateConfigs:list<array{source:string, object:string, name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>, keys:list<string>}>,
      *     optionalContentMemberships:list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>,
      *     collectionMetadata:array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     collectionPolicy:array<string, mixed>,
@@ -12227,6 +12276,7 @@ final class PdfEngineHandoff
             'optionalContentGroups' => $optionalContent['groups'],
             'optionalContentConfig' => $optionalContent['config'],
             'optionalContentUsageApplications' => $optionalContent['usageApplications'],
+            'optionalContentAlternateConfigs' => $optionalContent['alternateConfigs'],
             'optionalContentMemberships' => $this->extractPdfOptionalContentMemberships($pdfBytes, $catalog),
             'collectionMetadata' => $collectionMetadata,
             'collectionPolicy' => $this->summarizePdfCollectionPolicy($collectionMetadata, $embeddedFiles),
@@ -21508,8 +21558,9 @@ final class PdfEngineHandoff
     /**
      * @return array{
      *     groups:list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
-     *     config:array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
-     *     usageApplications:list<array{source:string, object:string|null, event:string|null, categories:list<string>, groups:list<string>, groupCount:int, keys:list<string>}>
+     *     config:array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}|array{},
+     *     usageApplications:list<array{source:string, object:string|null, event:string|null, categories:list<string>, groups:list<string>, groupCount:int, keys:list<string>}>,
+     *     alternateConfigs:list<array{source:string, object:string, name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>, keys:list<string>}>
      * }
      */
     private function extractPdfOptionalContent(string $pdfBytes, ?string $catalog): array
@@ -21518,6 +21569,7 @@ final class PdfEngineHandoff
         $groupReferences = [];
         $config = [];
         $usageApplications = [];
+        $alternateConfigs = [];
 
         if ($catalog !== null && str_contains($catalog, '/OCProperties')) {
             $properties = $this->extractPdfDictionaryOrReferenceValue($catalog, 'OCProperties', $objects);
@@ -21527,6 +21579,7 @@ final class PdfEngineHandoff
                 }
                 $config = $this->summarizePdfOptionalContentConfig($properties, $objects);
                 $usageApplications = $this->summarizePdfOptionalContentUsageApplications($properties, $objects);
+                $alternateConfigs = $this->summarizePdfOptionalContentAlternateConfigs($properties, $objects);
             }
         }
 
@@ -21553,6 +21606,7 @@ final class PdfEngineHandoff
             'groups' => $groups,
             'config' => $config,
             'usageApplications' => $usageApplications,
+            'alternateConfigs' => $alternateConfigs,
         ];
     }
 
@@ -21659,6 +21713,15 @@ final class PdfEngineHandoff
             return [];
         }
 
+        return $this->summarizePdfOptionalContentConfigDictionary($configuration, $objects);
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}
+     */
+    private function summarizePdfOptionalContentConfigDictionary(string $configuration, array $objects): array
+    {
         $config = [
             'name' => $this->extractPdfStringOrNameValue($configuration, 'Name'),
             'creator' => $this->extractPdfStringOrNameValue($configuration, 'Creator'),
@@ -21684,6 +21747,54 @@ final class PdfEngineHandoff
         }
 
         return $config;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{source:string, object:string, name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>, keys:list<string>}>
+     */
+    private function summarizePdfOptionalContentAlternateConfigs(string $properties, array $objects): array
+    {
+        $configsArray = $this->extractPdfArrayOrReferenceValue($properties, 'Configs', $objects);
+        if ($configsArray === null) {
+            return [];
+        }
+
+        $configs = [];
+        foreach ($this->pdfTopLevelArrayValues($configsArray) as $index => $value) {
+            $resolved = $this->resolvePdfDictionaryValue($value, $objects);
+            if (!is_string($resolved['dictionary'])) {
+                continue;
+            }
+
+            $summary = $this->summarizePdfOptionalContentConfigDictionary($resolved['dictionary'], $objects);
+            $config = [
+                'source' => 'Configs[' . $index . ']',
+                'object' => is_string($resolved['object']) ? $resolved['object'] : 'inline',
+                'name' => $summary['name'],
+                'creator' => $summary['creator'],
+                'baseState' => $summary['baseState'],
+                'listMode' => $summary['listMode'],
+                'on' => $summary['on'],
+                'off' => $summary['off'],
+                'order' => $summary['order'],
+                'orderLabels' => $summary['orderLabels'],
+            ];
+            if (isset($summary['locked'])) {
+                $config['locked'] = $summary['locked'];
+            }
+            if (isset($summary['radioButtonGroups'])) {
+                $config['radioButtonGroups'] = $summary['radioButtonGroups'];
+            }
+            $config['keys'] = $this->pdfDictionaryKeys($resolved['dictionary']);
+            $configs[] = $config;
+
+            if (count($configs) >= 64) {
+                break;
+            }
+        }
+
+        return $configs;
     }
 
     /**

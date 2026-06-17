@@ -20624,6 +20624,96 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfOptionalContentUsageApplications']);
     },
 
+    'fake runner extracts bounded pdf optional content alternate configs from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/layer-alternates.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [10 0 R 11 0 R 12 0 R] /D << /Name (Default layer policy) /BaseState /ON >> /Configs [13 0 R << /Name (Print review) /Creator (Pandoc native handoff) /BaseState /OFF /ON [11 0 R] /OFF [10 0 R 12 0 R] /Order [(Print) 11 0 R] /ListMode /AllPages /Locked [12 0 R] >>] >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /OCG /Name (Reviewer notes) >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /OCG /Name (Print marks) >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /OCG /Name (Safety overlay) >>',
+            'endobj',
+            '13 0 obj',
+            '<< /Name (Screen review) /Creator (Layer package) /BaseState /ON /ON [10 0 R 12 0 R] /OFF [11 0 R] /Order [(Screen) 10 0 R [12 0 R]] /ListMode /VisiblePages /RBGroups [[10 0 R 11 0 R]] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/layer-alternates.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/layer-alternates.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'source' => 'Configs[0]',
+                'object' => '13 0 R',
+                'name' => 'Screen review',
+                'creator' => 'Layer package',
+                'baseState' => 'ON',
+                'listMode' => 'VisiblePages',
+                'on' => ['10 0 R', '12 0 R'],
+                'off' => ['11 0 R'],
+                'order' => ['10 0 R', '12 0 R'],
+                'orderLabels' => ['Screen'],
+                'radioButtonGroups' => [
+                    ['10 0 R', '11 0 R'],
+                ],
+                'keys' => ['BaseState', 'Creator', 'ListMode', 'Name', 'OFF', 'ON', 'Order', 'RBGroups'],
+            ],
+            [
+                'source' => 'Configs[1]',
+                'object' => 'inline',
+                'name' => 'Print review',
+                'creator' => 'Pandoc native handoff',
+                'baseState' => 'OFF',
+                'listMode' => 'AllPages',
+                'on' => ['11 0 R'],
+                'off' => ['10 0 R', '12 0 R'],
+                'order' => ['11 0 R'],
+                'orderLabels' => ['Print'],
+                'locked' => ['12 0 R'],
+                'keys' => ['BaseState', 'Creator', 'ListMode', 'Locked', 'Name', 'OFF', 'ON', 'Order'],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfOptionalContentAlternateConfigs']);
+        $t->contains('pdf-byte-optional-content-alternate-configs:2', $diagnostics);
+        $t->contains('pdf-byte-optional-content-alternate-config-on:3', $diagnostics);
+        $t->contains('pdf-byte-optional-content-alternate-config-off:3', $diagnostics);
+        $t->contains('pdf-byte-optional-content-alternate-config-locked:1', $diagnostics);
+        $t->contains('pdf-byte-optional-content-alternate-config-radio-button-groups:1', $diagnostics);
+        $t->contains('pdf-byte-optional-content-alternate-config-radio-button-members:2', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfOptionalContentAlternateConfigs']);
+    },
+
     'fake runner extracts bounded pdf optional content membership metadata from page resources' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/layer-membership.pdf']);
