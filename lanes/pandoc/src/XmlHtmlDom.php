@@ -17904,7 +17904,7 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('nonce', $attributes)) {
-            $summary += self::htmlNonceSummary($attributes['nonce']);
+            $summary += self::htmlNonceSummary($element, $attributes['nonce']);
         }
 
         if (array_key_exists('hidden', $attributes)) {
@@ -18119,21 +18119,38 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
-    private static function htmlNonceSummary(string $value): array
+    private static function htmlNonceSummary(\DOMElement $element, string $value): array
     {
         $trimmed = trim($value);
         $hasAsciiWhitespace = preg_match('/[\t\n\f\r ]/', $value) === 1;
         $base64Candidate = $trimmed !== '' && preg_match('/^[A-Za-z0-9+\/_-]+={0,2}$/', $trimmed) === 1;
+        $sameValueElements = self::nonceSameValueElementRecords($element, $value);
+        $sameValueElementNames = [];
+        $sameValueElementIds = [];
         $issues = [];
+        $reviewCodes = [];
+
+        foreach ($sameValueElements as $record) {
+            self::appendUniqueString($sameValueElementNames, (string) $record['element']);
+            $id = $record['id'] ?? null;
+            if (is_string($id) && $id !== '') {
+                self::appendUniqueString($sameValueElementIds, $id);
+            }
+        }
 
         if ($trimmed === '') {
             $issues[] = 'empty-html-nonce';
+            $reviewCodes[] = 'empty-nonce';
         }
         if ($hasAsciiWhitespace) {
             $issues[] = 'html-nonce-ascii-whitespace';
+            $reviewCodes[] = 'whitespace-nonce';
         }
         if ($trimmed !== '' && !$base64Candidate) {
             $issues[] = 'html-nonce-non-base64-candidate';
+        }
+        if (count($sameValueElements) > 1) {
+            $reviewCodes[] = 'shared-nonce-in-fragment';
         }
 
         return [
@@ -18147,7 +18164,49 @@ final class XmlHtmlDom
             'nonceBase64Candidate' => $base64Candidate,
             'nonceValid' => $issues === [],
             'nonceIssueCodes' => $issues,
+            'nonceContainsWhitespace' => $hasAsciiWhitespace,
+            'nonceSameValueElementCount' => count($sameValueElements),
+            'nonceSameValueElementNames' => $sameValueElementNames,
+            'nonceSameValueElementIds' => $sameValueElementIds,
+            'nonceSameValueElements' => $sameValueElements,
+            'nonceSharedInFragment' => count($sameValueElements) > 1,
+            'nonceReviewCodes' => $reviewCodes,
         ];
+    }
+
+    /**
+     * @return list<array{element:string, id:?string, source:string}>
+     */
+    private static function nonceSameValueElementRecords(\DOMElement $element, string $raw): array
+    {
+        $document = $element->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [[
+                'element' => self::htmlElementName($element),
+                'id' => self::attributeOrNull($element, 'id'),
+                'source' => 'self',
+            ]];
+        }
+
+        $records = [];
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement) {
+                continue;
+            }
+
+            $candidateNonce = self::attributeOrNull($candidate, 'nonce');
+            if ($candidateNonce !== $raw) {
+                continue;
+            }
+
+            $records[] = [
+                'element' => self::htmlElementName($candidate),
+                'id' => self::attributeOrNull($candidate, 'id'),
+                'source' => $candidate->isSameNode($element) ? 'self' : 'same-fragment',
+            ];
+        }
+
+        return $records;
     }
 
     /**
