@@ -8102,6 +8102,9 @@ final class PdfEngineHandoff
             $openOutputViewers = is_array($openOutput['viewers'] ?? null) ? $openOutput['viewers'] : [];
             $defaultViewerCount = 0;
             $specificViewerCount = 0;
+            $invalidViewerCount = 0;
+            $viewerNames = [];
+            $rawViewerValues = [];
             foreach ($openOutputViewers as $viewer) {
                 if (!is_array($viewer)) {
                     continue;
@@ -8111,14 +8114,27 @@ final class PdfEngineHandoff
                 } elseif (($viewer['mode'] ?? null) === 'specific-viewer') {
                     ++$specificViewerCount;
                 }
+                if (($viewer['safe'] ?? false) !== true) {
+                    ++$invalidViewerCount;
+                }
+                if (is_string($viewer['viewer'] ?? null) && $viewer['viewer'] !== '') {
+                    $viewerNames[] = $viewer['viewer'];
+                }
+                if (is_string($viewer['raw'] ?? null)) {
+                    $rawViewerValues[] = $viewer['raw'];
+                }
             }
+            $viewerNames = array_values(array_unique($viewerNames));
             $viewer = is_array($openOutput['viewer'] ?? null) ? $openOutput['viewer'] : [];
             $appendCase('open-output', $openOutputIssues === [] ? 'ok' : 'review', is_int($openOutput['flagCount'] ?? null) ? $openOutput['flagCount'] : 0, [
                 'enabled' => ($openOutput['enabled'] ?? false) === true,
                 'viewerCount' => count($openOutputViewers),
                 'defaultViewerCount' => $defaultViewerCount,
                 'specificViewerCount' => $specificViewerCount,
+                'invalidViewerCount' => $invalidViewerCount,
                 'viewer' => is_string($viewer['viewer'] ?? null) ? $viewer['viewer'] : null,
+                'viewerNames' => $viewerNames,
+                'rawViewerValues' => $rawViewerValues,
             ], $openOutputIssues);
         }
 

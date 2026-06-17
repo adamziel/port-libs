@@ -2124,6 +2124,62 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'maps typst open output viewer details into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/open-output-viewer-matrix.pdf',
+            'source' => '= Typst Open Output Viewer Matrix Packet',
+            'engineOptions' => [
+                '--open=xdg-open',
+                '--open=',
+                '--open',
+                'tools/review-viewer',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst open output viewer matrix packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/open-output-viewer-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/open-output-viewer-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $matrix = $plan['typstBoundaryMatrix'];
+        $cases = [];
+        foreach ($matrix['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+        $openCase = $cases['open-output'];
+
+        $t->same(['output-format', 'open-output'], array_column($matrix['cases'], 'case'));
+        $t->same('review', $matrix['reviewStatus']);
+        $t->same(2, $matrix['caseCount']);
+        $t->same(1, $matrix['reviewCaseCount']);
+        $t->same(2, $matrix['issueCount']);
+        $t->same('review', $openCase['reviewStatus']);
+        $t->same(3, $openCase['observed']);
+        $t->same(3, $openCase['details']['viewerCount']);
+        $t->same(0, $openCase['details']['defaultViewerCount']);
+        $t->same(3, $openCase['details']['specificViewerCount']);
+        $t->same(1, $openCase['details']['invalidViewerCount']);
+        $t->same('tools/review-viewer', $openCase['details']['viewer']);
+        $t->same(['xdg-open', 'tools/review-viewer'], $openCase['details']['viewerNames']);
+        $t->same(['xdg-open', '', 'tools/review-viewer'], $openCase['details']['rawViewerValues']);
+        $t->same(['open-output-side-effect-boundary', 'open-output-viewer-empty-boundary'], $openCase['issues']);
+        $t->contains('open-output:open-output-viewer-empty-boundary', implode(',', $matrix['issues']));
+        $t->contains('typst-boundary-matrix-review-cases:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($matrix, $result['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans typst pdf standard boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
