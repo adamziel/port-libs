@@ -7517,6 +7517,16 @@ final class PdfEngineHandoff
 
             return $counts;
         };
+        $stringList = static function (mixed $entries): array {
+            if (!is_array($entries)) {
+                return [];
+            }
+
+            return array_values(array_filter(
+                $entries,
+                static fn (mixed $entry): bool => is_string($entry) && $entry !== ''
+            ));
+        };
         $countUnsafe = static function (array $entries): int {
             $count = 0;
             foreach ($entries as $entry) {
@@ -8256,9 +8266,18 @@ final class PdfEngineHandoff
 
         if ($readBoundaryPolicy !== []) {
             $readIssues = is_array($readBoundaryPolicy['issues'] ?? null) ? $readBoundaryPolicy['issues'] : [];
-            $appendCase('root-read-boundary', ($readBoundaryPolicy['reviewStatus'] ?? 'ok') === 'ok' && $readIssues === [] ? 'ok' : 'review', count(is_array($readBoundaryPolicy['inputFiles'] ?? null) ? $readBoundaryPolicy['inputFiles'] : []), [
-                'insideRootCount' => count(is_array($readBoundaryPolicy['insideRootFiles'] ?? null) ? $readBoundaryPolicy['insideRootFiles'] : []),
-                'outsideRootCount' => count(is_array($readBoundaryPolicy['outsideRootFiles'] ?? null) ? $readBoundaryPolicy['outsideRootFiles'] : []),
+            $inputFiles = $stringList($readBoundaryPolicy['inputFiles'] ?? null);
+            $insideRootFiles = $stringList($readBoundaryPolicy['insideRootFiles'] ?? null);
+            $outsideRootFiles = $stringList($readBoundaryPolicy['outsideRootFiles'] ?? null);
+            $appendCase('root-read-boundary', ($readBoundaryPolicy['reviewStatus'] ?? 'ok') === 'ok' && $readIssues === [] ? 'ok' : 'review', count($inputFiles), [
+                'root' => is_string($readBoundaryPolicy['root'] ?? null) ? $readBoundaryPolicy['root'] : null,
+                'sourceFile' => is_string($readBoundaryPolicy['sourceFile'] ?? null) ? $readBoundaryPolicy['sourceFile'] : null,
+                'inputFileCount' => count($inputFiles),
+                'inputFiles' => $inputFiles,
+                'insideRootCount' => count($insideRootFiles),
+                'insideRootFiles' => $insideRootFiles,
+                'outsideRootCount' => count($outsideRootFiles),
+                'outsideRootFiles' => $outsideRootFiles,
             ], $readIssues);
         }
 

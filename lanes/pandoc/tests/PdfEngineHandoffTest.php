@@ -7669,6 +7669,66 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstReadBoundaryPolicy']);
     },
 
+    'maps typst root read boundary file details into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/root-read-matrix.pdf',
+            'sourcePath' => 'project/main.typ',
+            'source' => '= Typst Root Read Matrix Packet',
+            'engineOptions' => ['--root=project', '--deps=build/root-read-matrix.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst root read matrix packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/root-read-matrix.pdf: project/main.typ project/assets/chart.svg shared/chart.svg',
+            '',
+        ]);
+        $expectedDetails = [
+            'root' => 'project',
+            'sourceFile' => 'project/main.typ',
+            'inputFileCount' => 3,
+            'inputFiles' => ['project/assets/chart.svg', 'project/main.typ', 'shared/chart.svg'],
+            'insideRootCount' => 2,
+            'insideRootFiles' => ['project/assets/chart.svg', 'project/main.typ'],
+            'outsideRootCount' => 1,
+            'outsideRootFiles' => ['shared/chart.svg'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/root-read-matrix.d' => $depfile,
+                'build/root-read-matrix.pdf' => $pdfBytes,
+                'project/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                'shared/chart.svg' => '<svg viewBox="0 0 2 2"/>',
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/root-read-matrix.d' => $depfile,
+                'build/root-read-matrix.pdf' => $pdfBytes,
+                'project/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                'shared/chart.svg' => '<svg viewBox="0 0 2 2"/>',
+            ],
+        ]]);
+        $matrix = $result['typstBoundaryMatrix'];
+        $cases = [];
+        foreach ($matrix['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(false, $result['ok']);
+        $t->same('engine-boundary-violation', $result['reason']);
+        $t->contains('root-read-boundary', implode(',', array_column($matrix['cases'], 'case')));
+        $t->same('review', $cases['root-read-boundary']['reviewStatus']);
+        $t->same(3, $cases['root-read-boundary']['observed']);
+        $t->same($expectedDetails, $cases['root-read-boundary']['details']);
+        $t->same(['input-outside-root:1'], $cases['root-read-boundary']['issues']);
+        $t->contains('root-read-boundary:input-outside-root:1', implode(',', $matrix['issues']));
+        $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
+        $t->contains('typst-boundary-matrix-cases:' . $matrix['caseCount'], implode(',', $result['diagnostics']));
+    },
+
     'fake runner preserves typst warning source provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
