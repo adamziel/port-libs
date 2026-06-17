@@ -1591,6 +1591,61 @@ return [
             $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to remove blocked source content: ' . $blocked);
         }
     },
+    'converts slot assignment attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article><section slot="main" data-pandoc-slot-assignment="source-spoof">Assigned</section>'
+            . '<p slot="bad slot">Invalid</p><span slot="">Empty</span>'
+            . '<x-review slot="panel"><b>Custom</b></x-review>'
+            . '<slot name="headline" slot="shadow">Fallback</slot></article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/slot-assignment-handoff.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article><section data-pandoc-slot-assignment="main">Assigned</section>'
+            . '<p>Invalid</p><span>Empty</span>'
+            . '<span data-pandoc-slot-assignment="panel" data-pandoc-custom-element="x-review"><b>Custom</b></span>'
+            . '<span data-pandoc-slot-assignment="shadow" data-pandoc-slot-fallback="true" data-pandoc-slot-name="headline">Fallback</span></article>';
+        $policyDiagnostics = array_count_values(array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        )));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('AssignedInvalidEmptyCustomFallback', $fragment->textContent());
+        $t->same(['article', 'b', 'p', 'section', 'span'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([
+            'data-pandoc-slot-assignment',
+            'name',
+            'slot',
+        ], $summary['filteredAttributes']);
+        $t->same(5, $policyDiagnostics['slot-review'] ?? 0);
+        $t->same(3, $policyDiagnostics['unsafe-attribute'] ?? 0);
+        $t->same(1, $policyDiagnostics['custom-element-review'] ?? 0);
+        $t->same(['data-pandoc-slot-assignment' => 'main'], $nodes[0]['children'][0]['attrs']);
+        $t->same([], $nodes[0]['children'][1]['attrs']);
+        $t->same([], $nodes[0]['children'][2]['attrs']);
+        $t->same([
+            'data-pandoc-slot-assignment' => 'panel',
+            'data-pandoc-custom-element' => 'x-review',
+        ], $nodes[0]['children'][3]['attrs']);
+        $t->same([
+            'data-pandoc-slot-assignment' => 'shadow',
+            'data-pandoc-slot-fallback' => 'true',
+            'data-pandoc-slot-name' => 'headline',
+        ], $nodes[0]['children'][4]['attrs']);
+        $t->same('/migration/slot-assignment-handoff.html', $document->children[0]->attr('part'));
+        foreach ([' slot=', '<slot', '<x-review', 'source-spoof', 'bad slot', 'data-pandoc-slot-assignment="source-spoof"'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected live slot assignment metadata to be stripped or converted: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to omit live slot assignment metadata: ' . $blocked);
+        }
+    },
     'preserves declarative shadow root accessibility metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article>'

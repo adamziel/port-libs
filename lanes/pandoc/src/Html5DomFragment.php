@@ -933,6 +933,46 @@ final class Html5DomFragment
     }
 
     /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlSlotAssignmentAttribute(
+        string $value,
+        string $tagName,
+        \DOMElement $element,
+        array &$diagnostics
+    ): ?string {
+        $slotName = self::cleanHtmlMetadataAttribute($value);
+        if (!self::isSafeHtmlSlotAssignmentToken($slotName)) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => 'slot',
+                'reason' => 'invalid-slot-assignment-metadata',
+            ], $element);
+
+            return null;
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'slot-review',
+            'tag' => $tagName,
+            'attribute' => 'slot',
+            'metadataAttribute' => 'data-pandoc-slot-assignment',
+            'slot' => $slotName,
+            'reason' => 'slot-assignment-preserved-as-review-metadata',
+        ], $element);
+
+        return $slotName;
+    }
+
+    private static function isSafeHtmlSlotAssignmentToken(string $token): bool
+    {
+        return $token !== ''
+            && strlen($token) <= 128
+            && preg_match('/[\s<>"\'`=,:\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $token) !== 1;
+    }
+
+    /**
      * @param array<string, string> $attrs
      * @param list<array<string, mixed>> $children
      * @param list<array<string, mixed>> $diagnostics
@@ -6631,6 +6671,14 @@ final class Html5DomFragment
                 $translationState = self::normalizeHtmlTranslationStateAttribute($value, $tagName, $element, $diagnostics);
                 if ($translationState !== null) {
                     $attrs['data-pandoc-translate-state'] = $translationState;
+                }
+                continue;
+            }
+
+            if ($mode === 'html' && $foreignContext === null && strtolower($name) === 'slot') {
+                $slotAssignment = self::normalizeHtmlSlotAssignmentAttribute($value, $tagName, $element, $diagnostics);
+                if ($slotAssignment !== null) {
+                    $attrs['data-pandoc-slot-assignment'] = $slotAssignment;
                 }
                 continue;
             }
