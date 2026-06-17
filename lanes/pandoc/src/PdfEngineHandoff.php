@@ -824,6 +824,8 @@ final class PdfEngineHandoff
      *     pdfXfaPackets: list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
      *     pdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     pdfThreadPolicy: array<string, mixed>,
+     *     pdfDocumentPartMetadata: list<array{source:string, object:string|null, type:string|null, parentObject:string|null, metadataObject:string|null, metadataKeys:list<string>, metadataItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, startPageObject:string|null, endPageObject:string|null, childObjects:list<string>, missingChildObjects:list<string>, childCount:int, depth:int}>,
+     *     pdfDocumentPartPolicy: array<string, mixed>,
      *     pdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatureSubFilters: array<string, int>,
@@ -1515,6 +1517,8 @@ final class PdfEngineHandoff
         $pdfXfaPackets = [];
         $pdfThreads = [];
         $pdfThreadPolicy = [];
+        $pdfDocumentPartMetadata = [];
+        $pdfDocumentPartPolicy = [];
         $pdfCatalogPermissions = [];
         $pdfSignatures = [];
         $pdfSignatureSubFilters = [];
@@ -1662,6 +1666,8 @@ final class PdfEngineHandoff
                 $pdfXfaPackets = $pdfInspection['xfaPackets'];
                 $pdfThreads = $pdfInspection['threads'];
                 $pdfThreadPolicy = $pdfInspection['threadPolicy'];
+                $pdfDocumentPartMetadata = $pdfInspection['documentPartMetadata'];
+                $pdfDocumentPartPolicy = $pdfInspection['documentPartPolicy'];
                 $pdfCatalogPermissions = $pdfInspection['catalogPermissions'];
                 $pdfSignatures = $pdfInspection['signatures'];
                 $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
@@ -3709,6 +3715,59 @@ final class PdfEngineHandoff
                         }
                     }
                 }
+                if ($pdfDocumentPartMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-document-parts:' . count($pdfDocumentPartMetadata);
+                    $metadataNodeCount = 0;
+                    $metadataItemCount = 0;
+                    $missingChildCount = 0;
+                    foreach ($pdfDocumentPartMetadata as $documentPart) {
+                        if (isset($documentPart['metadataItems']) && is_array($documentPart['metadataItems']) && $documentPart['metadataItems'] !== []) {
+                            $metadataNodeCount++;
+                            $metadataItemCount += count($documentPart['metadataItems']);
+                        }
+                        if (isset($documentPart['missingChildObjects']) && is_array($documentPart['missingChildObjects'])) {
+                            $missingChildCount += count($documentPart['missingChildObjects']);
+                        }
+                    }
+                    if ($metadataNodeCount > 0) {
+                        $diagnostics[] = 'pdf-byte-document-part-metadata:' . $metadataNodeCount;
+                    }
+                    if ($metadataItemCount > 0) {
+                        $diagnostics[] = 'pdf-byte-document-part-metadata-items:' . $metadataItemCount;
+                    }
+                    if ($missingChildCount > 0) {
+                        $diagnostics[] = 'pdf-byte-document-part-missing-children:' . $missingChildCount;
+                    }
+                }
+                if ($pdfDocumentPartPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-document-part-policy:' . ($pdfDocumentPartPolicy['reviewStatus'] ?? 'unknown');
+                    foreach ([
+                        'nodeCount' => 'nodes',
+                        'partCount' => 'parts',
+                        'metadataNodeCount' => 'metadata-nodes',
+                        'metadataItemCount' => 'metadata-items',
+                        'childReferenceCount' => 'child-references',
+                        'missingChildCount' => 'missing-children',
+                        'maxDepth' => 'max-depth',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfDocumentPartPolicy[$policyKey]) && is_int($pdfDocumentPartPolicy[$policyKey]) && $pdfDocumentPartPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-document-part-policy-' . $diagnosticName . ':' . $pdfDocumentPartPolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfDocumentPartPolicy['issues']) && is_array($pdfDocumentPartPolicy['issues']) && $pdfDocumentPartPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-document-part-policy-issues:' . count($pdfDocumentPartPolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfDocumentPartPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-document-part-policy-issue:' . $issue . ':' . $count;
+                        }
+                    }
+                }
                 if ($pdfCatalogPermissions !== []) {
                     $diagnostics[] = 'pdf-byte-catalog-permissions:' . count($pdfCatalogPermissions);
                     $permissionByteRangeCount = 0;
@@ -5007,6 +5066,8 @@ final class PdfEngineHandoff
             'pdfXfaPackets' => $pdfXfaPackets,
             'pdfThreads' => $pdfThreads,
             'pdfThreadPolicy' => $pdfThreadPolicy,
+            'pdfDocumentPartMetadata' => $pdfDocumentPartMetadata,
+            'pdfDocumentPartPolicy' => $pdfDocumentPartPolicy,
             'pdfCatalogPermissions' => $pdfCatalogPermissions,
             'pdfSignatures' => $pdfSignatures,
             'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
@@ -5175,6 +5236,8 @@ final class PdfEngineHandoff
      *     finalPdfXfaPackets: list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
      *     finalPdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     finalPdfThreadPolicy: array<string, mixed>,
+     *     finalPdfDocumentPartMetadata: list<array{source:string, object:string|null, type:string|null, parentObject:string|null, metadataObject:string|null, metadataKeys:list<string>, metadataItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, startPageObject:string|null, endPageObject:string|null, childObjects:list<string>, missingChildObjects:list<string>, childCount:int, depth:int}>,
+     *     finalPdfDocumentPartPolicy: array<string, mixed>,
      *     finalPdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatureSubFilters: array<string, int>,
@@ -5499,6 +5562,8 @@ final class PdfEngineHandoff
             'finalPdfXfaPackets' => is_array($finalRun) && is_array($finalRun['pdfXfaPackets'] ?? null) ? $finalRun['pdfXfaPackets'] : [],
             'finalPdfThreads' => is_array($finalRun) && is_array($finalRun['pdfThreads'] ?? null) ? $finalRun['pdfThreads'] : [],
             'finalPdfThreadPolicy' => is_array($finalRun) && is_array($finalRun['pdfThreadPolicy'] ?? null) ? $finalRun['pdfThreadPolicy'] : [],
+            'finalPdfDocumentPartMetadata' => is_array($finalRun) && is_array($finalRun['pdfDocumentPartMetadata'] ?? null) ? $finalRun['pdfDocumentPartMetadata'] : [],
+            'finalPdfDocumentPartPolicy' => is_array($finalRun) && is_array($finalRun['pdfDocumentPartPolicy'] ?? null) ? $finalRun['pdfDocumentPartPolicy'] : [],
             'finalPdfCatalogPermissions' => is_array($finalRun) && is_array($finalRun['pdfCatalogPermissions'] ?? null) ? $finalRun['pdfCatalogPermissions'] : [],
             'finalPdfSignatures' => is_array($finalRun) && is_array($finalRun['pdfSignatures'] ?? null) ? $finalRun['pdfSignatures'] : [],
             'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
@@ -11549,6 +11614,8 @@ final class PdfEngineHandoff
      *     xfaPackets:list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
      *     threads:list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     threadPolicy:array<string, mixed>,
+     *     documentPartMetadata:list<array{source:string, object:string|null, type:string|null, parentObject:string|null, metadataObject:string|null, metadataKeys:list<string>, metadataItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, startPageObject:string|null, endPageObject:string|null, childObjects:list<string>, missingChildObjects:list<string>, childCount:int, depth:int}>,
+     *     documentPartPolicy:array<string, mixed>,
      *     catalogPermissions:list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatures:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatureSubFilters:array<string, int>,
@@ -11640,6 +11707,7 @@ final class PdfEngineHandoff
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $collectionMetadata = $this->extractPdfCollectionMetadata($pdfBytes, $catalog);
         $threads = $this->extractPdfThreads($pdfBytes, $catalog);
+        $documentPartMetadata = $this->extractPdfDocumentPartMetadata($pdfBytes, $catalog);
         $documentSecurityStore = $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog);
         $streamFilterPolicy = $this->summarizePdfStreamFilterPolicy(
             $xrefStreams,
@@ -11787,6 +11855,8 @@ final class PdfEngineHandoff
             'xfaPackets' => $this->extractPdfXfaPackets($pdfBytes, $catalog),
             'threads' => $threads,
             'threadPolicy' => $this->summarizePdfThreadPolicy($threads),
+            'documentPartMetadata' => $documentPartMetadata,
+            'documentPartPolicy' => $this->summarizePdfDocumentPartPolicy($documentPartMetadata),
             'catalogPermissions' => $catalogPermissions,
             'signatures' => $signatures,
             'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
@@ -21377,6 +21447,248 @@ final class PdfEngineHandoff
             'issueCounts' => $issueCounts,
             'issues' => array_keys($issueCounts),
             'threads' => $threadPolicies,
+        ];
+    }
+
+    /**
+     * @return list<array{source:string, object:string|null, type:string|null, parentObject:string|null, metadataObject:string|null, metadataKeys:list<string>, metadataItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, startPageObject:string|null, endPageObject:string|null, childObjects:list<string>, missingChildObjects:list<string>, childCount:int, depth:int}>
+     */
+    private function extractPdfDocumentPartMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/DPartRoot')) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $root = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($catalog, 'DPartRoot'), $objects);
+        if ($root['dictionary'] === null) {
+            return [];
+        }
+
+        $parts = [];
+        $visited = [];
+        $this->collectPdfDocumentPartMetadata(
+            $parts,
+            $root['dictionary'],
+            $root['object'],
+            null,
+            'catalog.DPartRoot',
+            $objects,
+            $visited,
+            0
+        );
+
+        return $parts;
+    }
+
+    /**
+     * @param list<array{source:string, object:string|null, type:string|null, parentObject:string|null, metadataObject:string|null, metadataKeys:list<string>, metadataItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, startPageObject:string|null, endPageObject:string|null, childObjects:list<string>, missingChildObjects:list<string>, childCount:int, depth:int}> $parts
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfDocumentPartMetadata(
+        array &$parts,
+        string $dictionary,
+        ?string $object,
+        ?string $parentObject,
+        string $source,
+        array $objects,
+        array &$visited,
+        int $depth
+    ): void {
+        if ($depth > 16) {
+            return;
+        }
+
+        $visitKey = $object !== null && $object !== 'inline' ? $object : $source;
+        if (isset($visited[$visitKey])) {
+            return;
+        }
+        $visited[$visitKey] = true;
+
+        $metadata = $this->extractPdfDocumentPartMetadataItems($dictionary, $objects);
+        $children = $this->pdfDocumentPartChildValues($dictionary, $objects);
+        $childObjects = [];
+        $missingChildObjects = [];
+        foreach ($children as $child) {
+            if (($child['kind'] ?? null) !== 'reference') {
+                continue;
+            }
+
+            $childObjects[] = $child['value'];
+            if (!isset($objects[$this->pdfReferenceKey($child['value'])])) {
+                $missingChildObjects[] = $child['value'];
+            }
+        }
+
+        $parts[] = [
+            'source' => $source,
+            'object' => $object,
+            'type' => $this->extractPdfDirectNameToken($dictionary, 'Type'),
+            'parentObject' => $this->extractPdfDirectReferenceToken($dictionary, 'Parent') ?? $parentObject,
+            'metadataObject' => $metadata['object'],
+            'metadataKeys' => $metadata['keys'],
+            'metadataItems' => $metadata['items'],
+            'startPageObject' => $this->extractPdfDirectReferenceToken($dictionary, 'Start'),
+            'endPageObject' => $this->extractPdfDirectReferenceToken($dictionary, 'End'),
+            'childObjects' => $this->uniqueStrings($childObjects),
+            'missingChildObjects' => $this->uniqueStrings($missingChildObjects),
+            'childCount' => count($children),
+            'depth' => $depth,
+        ];
+
+        foreach ($children as $index => $child) {
+            $childDictionary = null;
+            $childObject = null;
+            if ($child['kind'] === 'dictionary') {
+                $childDictionary = $child['value'];
+                $childObject = 'inline';
+            } elseif ($child['kind'] === 'reference') {
+                $childObject = $child['value'];
+                $childDictionary = $objects[$this->pdfReferenceKey($childObject)] ?? null;
+            }
+
+            if ($childDictionary === null) {
+                continue;
+            }
+
+            $this->collectPdfDocumentPartMetadata(
+                $parts,
+                $childDictionary,
+                $childObject,
+                $object,
+                $source . '.DParts[' . $index . ']',
+                $objects,
+                $visited,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{kind:string, value:string, next:int}>
+     */
+    private function pdfDocumentPartChildValues(string $dictionary, array $objects): array
+    {
+        $array = $this->extractPdfArrayOrReferenceValue($dictionary, 'DParts', $objects);
+
+        return $array === null ? [] : $this->pdfTopLevelArrayValues($array);
+    }
+
+    private function extractPdfDirectNameToken(string $dictionary, string $name): ?string
+    {
+        $value = $this->extractPdfValueForName($dictionary, $name);
+
+        return $value !== null && $value['kind'] === 'name' ? $value['value'] : null;
+    }
+
+    private function extractPdfDirectReferenceToken(string $dictionary, string $name): ?string
+    {
+        $value = $this->extractPdfValueForName($dictionary, $name);
+
+        return $value !== null && $value['kind'] === 'reference' ? $value['value'] : null;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{object:string|null, keys:list<string>, items:list<array{name:string, value:string|int|float|bool|null, valueType:string}>}
+     */
+    private function extractPdfDocumentPartMetadataItems(string $dictionary, array $objects): array
+    {
+        $metadata = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($dictionary, 'DPM'), $objects);
+        if ($metadata['dictionary'] === null) {
+            return [
+                'object' => null,
+                'keys' => [],
+                'items' => [],
+            ];
+        }
+
+        $keys = [];
+        $items = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($metadata['dictionary']) as $entry) {
+            if ($entry['key'] === '' || $entry['key'] === 'Type') {
+                continue;
+            }
+
+            $keys[] = $entry['key'];
+            $summary = $this->summarizePdfFileSpecCollectionItemValue($entry['value'], $objects, 0);
+            if ($summary === null) {
+                continue;
+            }
+
+            $items[] = [
+                'name' => $entry['key'],
+                'value' => $summary['value'],
+                'valueType' => $summary['valueType'],
+            ];
+        }
+
+        $keys = $this->uniqueStrings($keys);
+        sort($keys, SORT_STRING);
+        usort($items, static fn (array $left, array $right): int => strcmp($left['name'], $right['name']));
+
+        return [
+            'object' => $metadata['object'],
+            'keys' => $keys,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array{source:string, object:string|null, type:string|null, parentObject:string|null, metadataObject:string|null, metadataKeys:list<string>, metadataItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, startPageObject:string|null, endPageObject:string|null, childObjects:list<string>, missingChildObjects:list<string>, childCount:int, depth:int}> $parts
+     * @return array<string, mixed>
+     */
+    private function summarizePdfDocumentPartPolicy(array $parts): array
+    {
+        if ($parts === []) {
+            return [];
+        }
+
+        $partCount = 0;
+        $metadataNodeCount = 0;
+        $metadataItemCount = 0;
+        $childReferenceCount = 0;
+        $missingChildCount = 0;
+        $maxDepth = 0;
+        $issues = [];
+        foreach ($parts as $part) {
+            if (($part['type'] ?? null) === 'DPart') {
+                $partCount++;
+            }
+            if (($part['metadataItems'] ?? []) !== []) {
+                $metadataNodeCount++;
+                $metadataItemCount += count($part['metadataItems']);
+            }
+            if (isset($part['childObjects']) && is_array($part['childObjects'])) {
+                $childReferenceCount += count($part['childObjects']);
+            }
+            if (isset($part['missingChildObjects']) && is_array($part['missingChildObjects'])) {
+                $missingChildCount += count($part['missingChildObjects']);
+            }
+            if (is_int($part['depth'] ?? null)) {
+                $maxDepth = max($maxDepth, $part['depth']);
+            }
+        }
+
+        if ($missingChildCount > 0) {
+            $issues[] = 'document-part-missing-child';
+        }
+        if ($partCount === 0) {
+            $issues[] = 'document-part-root-empty';
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'nodeCount' => count($parts),
+            'partCount' => $partCount,
+            'metadataNodeCount' => $metadataNodeCount,
+            'metadataItemCount' => $metadataItemCount,
+            'childReferenceCount' => $childReferenceCount,
+            'missingChildCount' => $missingChildCount,
+            'maxDepth' => $maxDepth,
+            'issues' => $issues,
         ];
     }
 
