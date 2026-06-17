@@ -7465,6 +7465,97 @@ XML;
         $t->same(false, $settings['savePolicy']['embedSystemFonts']);
         $t->same(true, $settings['savePolicy']['saveSubsetFonts']);
     },
+    'summarizes docx settings view state for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/view-state-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rViewStateSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../docSettings/view-state-settings.xml?view=review#display"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docSettings/view-state-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:view w:val="web"/>
+  <w:zoom w:percent="110" w:val="fullPage"/>
+  <w:revisionView w:markup="1" w:comments="0" w:insDel="true" w:formatting="false" w:inkAnnotations="on"/>
+  <w:proofState w:spelling="dirty" w:grammar="clean"/>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $settings = $docx['settings'];
+        $details = $settings['viewStateDetails'];
+        $summary = $docx['packageProvenance']['summary'];
+        $inventory = $docx['packageProvenance']['parts']['docSettings/view-state-settings.xml'];
+        $selectedSettings = $docx['packageProvenance']['selectedXmlParts']['byKind']['settings'];
+
+        $t->same('docSettings/view-state-settings.xml', $docx['settingsPart']);
+        $t->same('rViewStateSettings', $docx['settingsRelationship']['id']);
+        $t->same('../docSettings/view-state-settings.xml?view=review#display', $docx['settingsRelationship']['target']);
+        $t->same('docSettings/view-state-settings.xml', $docx['settingsRelationship']['targetPart']);
+        $t->same('view=review', $docx['settingsRelationship']['targetQuery']);
+        $t->same('display', $docx['settingsRelationship']['targetFragment']);
+        $t->same('settings', $selectedSettings['rootLocalName']);
+        $t->same(true, $selectedSettings['contentTypeMatchesExpected']);
+        $t->true(in_array('settings', $inventory['roles'], true), 'settings inventory role missing');
+        $t->same(1, $summary['roleCounts']['settings']);
+
+        $t->same('web', $settings['view']);
+        $t->same(110, $settings['zoom']['percent']);
+        $t->same('fullPage', $settings['zoom']['value']);
+        $t->same(true, $settings['revisionView']['markup']);
+        $t->same(false, $settings['revisionView']['comments']);
+        $t->same(true, $settings['revisionView']['insDel']);
+        $t->same(false, $settings['revisionView']['formatting']);
+        $t->same(true, $settings['revisionView']['inkAnnotations']);
+        $t->same('dirty', $settings['proofing']['spelling']);
+        $t->same('clean', $settings['proofing']['grammar']);
+
+        $t->same('web', $details['view']);
+        $t->same(['percent' => 110, 'value' => 'fullPage'], $details['zoom']);
+        $t->same($settings['revisionView'], $details['revisionView']);
+        $t->same(5, $details['revisionViewAttributeCount']);
+        $t->same(3, $details['revisionViewEnabledCount']);
+        $t->same(2, $details['revisionViewDisabledCount']);
+        $t->same(['markup', 'insDel', 'inkAnnotations'], $details['revisionViewEnabledAttributes']);
+        $t->same(['comments', 'formatting'], $details['revisionViewDisabledAttributes']);
+        $t->same($settings['proofing'], $details['proofing']);
+        $t->same(2, $details['proofingAttributeCount']);
+        $t->same(1, $details['proofingCleanCount']);
+        $t->same(1, $details['proofingDirtyCount']);
+        $t->same(0, $details['proofingOtherCount']);
+        $t->same(['grammar'], $details['proofingCleanAttributes']);
+        $t->same(['spelling'], $details['proofingDirtyAttributes']);
+        $t->same([], $details['proofingOtherAttributes']);
+        $t->same(0, $details['issueCount']);
+        $t->same([], $details['issueCodes']);
+
+        $t->same('web', $summary['settingsViewValue']);
+        $t->same(110, $summary['settingsZoomPercent']);
+        $t->same('fullPage', $summary['settingsZoomValue']);
+        $t->same(5, $summary['settingsRevisionViewAttributeCount']);
+        $t->same(3, $summary['settingsRevisionViewEnabledCount']);
+        $t->same(2, $summary['settingsRevisionViewDisabledCount']);
+        $t->same(['markup', 'insDel', 'inkAnnotations'], $summary['settingsRevisionViewEnabledAttributes']);
+        $t->same(['comments', 'formatting'], $summary['settingsRevisionViewDisabledAttributes']);
+        $t->same(2, $summary['settingsProofingAttributeCount']);
+        $t->same(1, $summary['settingsProofingCleanCount']);
+        $t->same(1, $summary['settingsProofingDirtyCount']);
+        $t->same(0, $summary['settingsProofingOtherCount']);
+        $t->same(['grammar'], $summary['settingsProofingCleanAttributes']);
+        $t->same(['spelling'], $summary['settingsProofingDirtyAttributes']);
+        $t->same([], $summary['settingsProofingOtherAttributes']);
+        $t->same(0, $summary['settingsViewStateIssueCount']);
+        $t->same([], $summary['settingsViewStateIssueCodes']);
+    },
     'preserves docx settings theme font language and color scheme mapping metadata' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

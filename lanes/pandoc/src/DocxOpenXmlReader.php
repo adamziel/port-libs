@@ -829,6 +829,35 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['settingsColorSchemeMappingAttributeCount'] = count($colorSchemeMapping);
             $packageProvenance['summary']['settingsColorSchemeMappingKeys'] = array_keys($colorSchemeMapping);
         }
+        $viewStateDetails = $settings['viewStateDetails'] ?? null;
+        if (is_array($viewStateDetails)) {
+            if (isset($viewStateDetails['view'])) {
+                $packageProvenance['summary']['settingsViewValue'] = $viewStateDetails['view'];
+            }
+            $zoomDetails = $viewStateDetails['zoom'] ?? null;
+            if (is_array($zoomDetails)) {
+                if (isset($zoomDetails['percent'])) {
+                    $packageProvenance['summary']['settingsZoomPercent'] = (int) $zoomDetails['percent'];
+                }
+                if (isset($zoomDetails['value'])) {
+                    $packageProvenance['summary']['settingsZoomValue'] = $zoomDetails['value'];
+                }
+            }
+            $packageProvenance['summary']['settingsRevisionViewAttributeCount'] = (int) ($viewStateDetails['revisionViewAttributeCount'] ?? 0);
+            $packageProvenance['summary']['settingsRevisionViewEnabledCount'] = (int) ($viewStateDetails['revisionViewEnabledCount'] ?? 0);
+            $packageProvenance['summary']['settingsRevisionViewDisabledCount'] = (int) ($viewStateDetails['revisionViewDisabledCount'] ?? 0);
+            $packageProvenance['summary']['settingsRevisionViewEnabledAttributes'] = $viewStateDetails['revisionViewEnabledAttributes'] ?? [];
+            $packageProvenance['summary']['settingsRevisionViewDisabledAttributes'] = $viewStateDetails['revisionViewDisabledAttributes'] ?? [];
+            $packageProvenance['summary']['settingsProofingAttributeCount'] = (int) ($viewStateDetails['proofingAttributeCount'] ?? 0);
+            $packageProvenance['summary']['settingsProofingCleanCount'] = (int) ($viewStateDetails['proofingCleanCount'] ?? 0);
+            $packageProvenance['summary']['settingsProofingDirtyCount'] = (int) ($viewStateDetails['proofingDirtyCount'] ?? 0);
+            $packageProvenance['summary']['settingsProofingOtherCount'] = (int) ($viewStateDetails['proofingOtherCount'] ?? 0);
+            $packageProvenance['summary']['settingsProofingCleanAttributes'] = $viewStateDetails['proofingCleanAttributes'] ?? [];
+            $packageProvenance['summary']['settingsProofingDirtyAttributes'] = $viewStateDetails['proofingDirtyAttributes'] ?? [];
+            $packageProvenance['summary']['settingsProofingOtherAttributes'] = $viewStateDetails['proofingOtherAttributes'] ?? [];
+            $packageProvenance['summary']['settingsViewStateIssueCount'] = (int) ($viewStateDetails['issueCount'] ?? 0);
+            $packageProvenance['summary']['settingsViewStateIssueCodes'] = $viewStateDetails['issueCodes'] ?? [];
+        }
         $compatibilityDetails = $settings['compatibilityDetails'] ?? null;
         if (is_array($compatibilityDetails)) {
             $packageProvenance['summary']['settingsCompatibilityCount'] = (int) ($compatibilityDetails['count'] ?? 0);
@@ -14750,6 +14779,14 @@ final class DocxOpenXmlReader
             $settings['defaultTabStopTwips'] = (int) $defaultTabStop->getAttributeNS(self::NS_W, 'val');
         }
 
+        $view = $this->firstElement($xpath, '/w:settings/w:view', $dom);
+        if ($view instanceof \DOMElement) {
+            $value = $view->getAttributeNS(self::NS_W, 'val');
+            if ($value !== '') {
+                $settings['view'] = $value;
+            }
+        }
+
         $zoom = $this->firstElement($xpath, '/w:settings/w:zoom', $dom);
         if ($zoom instanceof \DOMElement) {
             $settings['zoom'] = array_filter([
@@ -14878,6 +14915,11 @@ final class DocxOpenXmlReader
             }
         }
 
+        $viewStateDetails = $this->settingsViewStateDetails($settings);
+        if ($viewStateDetails !== []) {
+            $settings['viewStateDetails'] = $viewStateDetails;
+        }
+
         $hyphenation = [];
         foreach ([
             'autoHyphenation' => 'autoHyphenation',
@@ -14960,6 +15002,92 @@ final class DocxOpenXmlReader
         }
 
         return $settings;
+    }
+
+    /**
+     * @param array<string, mixed> $settings
+     * @return array<string, mixed>
+     */
+    private function settingsViewStateDetails(array $settings): array
+    {
+        $details = [];
+        $issueCodes = [];
+
+        if (isset($settings['view']) && is_string($settings['view']) && $settings['view'] !== '') {
+            $details['view'] = $settings['view'];
+        }
+
+        $zoom = $settings['zoom'] ?? null;
+        if (is_array($zoom) && $zoom !== []) {
+            $zoomDetails = [];
+            if (isset($zoom['percent']) && is_int($zoom['percent'])) {
+                $zoomDetails['percent'] = $zoom['percent'];
+            }
+            if (isset($zoom['value']) && is_string($zoom['value']) && $zoom['value'] !== '') {
+                $zoomDetails['value'] = $zoom['value'];
+            }
+            if ($zoomDetails !== []) {
+                $details['zoom'] = $zoomDetails;
+            }
+        }
+
+        $revisionView = $settings['revisionView'] ?? null;
+        if (is_array($revisionView) && $revisionView !== []) {
+            $enabledAttributes = [];
+            $disabledAttributes = [];
+            foreach ($revisionView as $attribute => $enabled) {
+                if ($enabled === true) {
+                    $enabledAttributes[] = (string) $attribute;
+                } elseif ($enabled === false) {
+                    $disabledAttributes[] = (string) $attribute;
+                }
+            }
+
+            $details['revisionView'] = $revisionView;
+            $details['revisionViewAttributeCount'] = count($revisionView);
+            $details['revisionViewEnabledCount'] = count($enabledAttributes);
+            $details['revisionViewDisabledCount'] = count($disabledAttributes);
+            $details['revisionViewEnabledAttributes'] = $enabledAttributes;
+            $details['revisionViewDisabledAttributes'] = $disabledAttributes;
+        }
+
+        $proofing = $settings['proofing'] ?? null;
+        if (is_array($proofing) && $proofing !== []) {
+            $cleanAttributes = [];
+            $dirtyAttributes = [];
+            $otherAttributes = [];
+            foreach ($proofing as $attribute => $state) {
+                if ($state === 'clean') {
+                    $cleanAttributes[] = (string) $attribute;
+                } elseif ($state === 'dirty') {
+                    $dirtyAttributes[] = (string) $attribute;
+                } else {
+                    $otherAttributes[] = (string) $attribute;
+                }
+            }
+
+            if ($otherAttributes !== []) {
+                $issueCodes[] = 'unknown-proof-state';
+            }
+
+            $details['proofing'] = $proofing;
+            $details['proofingAttributeCount'] = count($proofing);
+            $details['proofingCleanCount'] = count($cleanAttributes);
+            $details['proofingDirtyCount'] = count($dirtyAttributes);
+            $details['proofingOtherCount'] = count($otherAttributes);
+            $details['proofingCleanAttributes'] = $cleanAttributes;
+            $details['proofingDirtyAttributes'] = $dirtyAttributes;
+            $details['proofingOtherAttributes'] = $otherAttributes;
+        }
+
+        if ($details === []) {
+            return [];
+        }
+
+        $details['issueCount'] = count($issueCodes);
+        $details['issueCodes'] = $issueCodes;
+
+        return $details;
     }
 
     /**
