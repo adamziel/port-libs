@@ -8870,6 +8870,7 @@ final class DocxOpenXmlReader
                 'targetHasRelationships' => $targetHasRelationships,
                 'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
                 'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+                'sha256' => $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
                 'storedByteLength' => null,
                 'storedCrc32' => null,
                 'canExposeAsDocumentMedia' => false,

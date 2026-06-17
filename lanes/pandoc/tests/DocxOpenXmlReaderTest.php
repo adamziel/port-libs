@@ -2240,6 +2240,7 @@ XML;
         $t->same(true, $packageThumb['exists']);
         $t->same(strlen($thumbnailBytes), $packageThumb['byteLength']);
         $t->same(sprintf('%08x', crc32($thumbnailBytes)), $packageThumb['crc32']);
+        $t->same(hash('sha256', $thumbnailBytes), $packageThumb['sha256']);
         $t->same(null, $packageThumb['storedByteLength']);
         $t->same(null, $packageThumb['storedCrc32']);
         $t->same(false, $packageThumb['canExposeAsDocumentMedia']);
@@ -2253,16 +2254,19 @@ XML;
         $t->same('image/png', $missingThumb['contentType']);
         $t->same(false, $missingThumb['exists']);
         $t->same(null, $missingThumb['byteLength']);
+        $t->same(null, $missingThumb['sha256']);
         $t->same(['multiple-thumbnail-relationships-for-source', 'missing-in-package'], $missingThumb['issues']);
 
         $t->same(true, $externalThumb['external']);
         $t->same(null, $externalThumb['targetPart']);
         $t->same('review=1', $externalThumb['targetQuery']);
         $t->same('preview', $externalThumb['targetFragment']);
+        $t->same(null, $externalThumb['sha256']);
         $t->same(['multiple-thumbnail-relationships-for-source', 'external-thumbnail-target'], $externalThumb['issues']);
 
         $t->same('docProps/bad-thumbnail.xml', $badThumb['targetPart']);
         $t->same('application/xml', $badThumb['contentType']);
+        $t->same(hash('sha256', $badThumbnailBytes), $badThumb['sha256']);
         $t->same(false, $badThumb['valid']);
         $t->same(['multiple-thumbnail-relationships-for-source', 'invalid-thumbnail-content-type'], $badThumb['issues']);
 
