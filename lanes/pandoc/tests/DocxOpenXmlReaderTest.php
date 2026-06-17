@@ -3825,6 +3825,108 @@ XML;
             'source-a.xml' => 2,
         ], $xmlExtension['sourceBaseNameCounts']);
     },
+    'summarizes docx relationship source content type parameters for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $headerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml; profile=header-source; charset=UTF-8';
+        $parts['[Content_Types].xml'] = str_replace(
+            [
+                '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>',
+                '<Default Extension="xml" ContentType="application/xml"/>',
+                '</Types>',
+            ],
+            [
+                '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml; profile=rels-source"/>',
+                '<Default Extension="xml" ContentType="application/xml; profile=xml-source; charset=UTF-8"/>',
+                '  <Override PartName="/word/header/header-param.xml" ContentType="' . $headerContentType . '"/>' . "\n" .
+                '</Types>',
+            ],
+            $parts['[Content_Types].xml']
+        );
+        $parts['root-param.xml'] = '<rootParam/>';
+        $parts['word/source-param.xml'] = '<wordParam/>';
+        $parts['word/header/header-param.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/media/root-param.png'] = 'root source parameter target';
+        $parts['word/media/source-param.png'] = 'word source parameter target';
+        $parts['word/media/header-param.png'] = 'header source parameter target';
+        $parts['word/media/rels-param.png'] = 'relationship source parameter target';
+        $parts['word/media/missing-param.png'] = 'missing source parameter target';
+        $parts['_rels/root-param.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRootParamSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/root-param.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source-param.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rWordParamSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-param.png"/>
+</Relationships>
+XML;
+        $parts['word/header/_rels/header-param.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderParamSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/header-param.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/_rels/document.xml.rels.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRelationshipParamSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/rels-param.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-param.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingParamSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-param.png"/>
+</Relationships>
+XML;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $sourcesByPart = [];
+        foreach ($summary['relationshipSources'] as $source) {
+            $sourcesByPart[$source['relationshipsPart']] = $source;
+        }
+
+        $t->same(7, $summary['relationshipSourceCount']);
+        $t->same(4, $summary['relationshipSourceParameterizedContentTypeCount']);
+        $t->same(['charset' => 3, 'profile' => 4], $summary['relationshipSourceContentTypeParameterNameCounts']);
+        $t->same(['UTF-8' => 3], $summary['relationshipSourceContentTypeParameterValueCounts']['charset']);
+        $t->same([
+            'header-source' => 1,
+            'rels-source' => 1,
+            'xml-source' => 2,
+        ], $summary['relationshipSourceContentTypeParameterValueCounts']['profile']);
+        $t->same(['default' => 3, 'override' => 1], $summary['relationshipSourceContentTypeParameterSourceCounts']);
+
+        $rootSource = $sourcesByPart['_rels/root-param.xml.rels'];
+        $t->same('root-param.xml', $rootSource['sourcePart']);
+        $t->same(true, $rootSource['sourceContentTypeHasParameters']);
+        $t->same(2, $rootSource['sourceContentTypeParameterCount']);
+        $t->same(['profile' => 'xml-source', 'charset' => 'UTF-8'], $rootSource['sourceContentTypeParameterMap']);
+
+        $wordSource = $sourcesByPart['word/_rels/source-param.xml.rels'];
+        $t->same('word/source-param.xml', $wordSource['sourcePart']);
+        $t->same('default', $wordSource['sourceContentTypeSource']);
+        $t->same(['profile' => 'xml-source', 'charset' => 'UTF-8'], $wordSource['sourceContentTypeParameterMap']);
+
+        $headerSource = $sourcesByPart['word/header/_rels/header-param.xml.rels'];
+        $t->same('word/header/header-param.xml', $headerSource['sourcePart']);
+        $t->same('override', $headerSource['sourceContentTypeSource']);
+        $t->same($headerContentType, $headerSource['sourceContentType']);
+        $t->same(['profile' => 'header-source', 'charset' => 'UTF-8'], $headerSource['sourceContentTypeParameterMap']);
+
+        $relationshipPartSource = $sourcesByPart['word/_rels/_rels/document.xml.rels.rels'];
+        $t->same('relationship-part', $relationshipPartSource['relationshipSourceKind']);
+        $t->same('word/_rels/document.xml.rels', $relationshipPartSource['sourcePart']);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $relationshipPartSource['sourceContentTypeBase']);
+        $t->same(['profile' => 'rels-source'], $relationshipPartSource['sourceContentTypeParameterMap']);
+
+        $missingSource = $sourcesByPart['word/_rels/missing-param.xml.rels'];
+        $t->same('missing-source', $missingSource['relationshipSourceKind']);
+        $t->same(false, $missingSource['sourceContentTypeHasParameters']);
+        $t->same(0, $missingSource['sourceContentTypeParameterCount']);
+        $t->same([], $missingSource['sourceContentTypeParameterMap']);
+    },
     'summarizes docx relationship source directories for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $headerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';

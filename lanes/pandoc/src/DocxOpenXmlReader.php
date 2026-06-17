@@ -10511,6 +10511,10 @@ final class DocxOpenXmlReader
         $relationshipSourceDirectoryCounts = [];
         $relationshipSourceContentTypeCounts = [];
         $relationshipSourceContentTypeSourceCounts = [];
+        $relationshipSourceParameterizedContentTypeCount = 0;
+        $relationshipSourceContentTypeParameterNameCounts = [];
+        $relationshipSourceContentTypeParameterValueCounts = [];
+        $relationshipSourceContentTypeParameterSourceCounts = [];
         $relationshipSourceRoleCounts = [];
         $relationshipPartsBySourceKind = [];
         $relationshipSources = [];
@@ -10624,6 +10628,46 @@ final class DocxOpenXmlReader
             $sourceCrc32 = is_string($relationshipPart['sourceCrc32'] ?? null) ? $relationshipPart['sourceCrc32'] : null;
             $sourceSha256 = is_string($relationshipPart['sourceSha256'] ?? null) ? $relationshipPart['sourceSha256'] : null;
             $sourceContentType = is_string($relationshipPart['sourceContentType'] ?? null) ? $relationshipPart['sourceContentType'] : null;
+            $sourceContentTypeHasParameters = (bool) ($relationshipPart['sourceContentTypeHasParameters'] ?? false);
+            $sourceContentTypeParameterCount = is_int($relationshipPart['sourceContentTypeParameterCount'] ?? null)
+                ? (int) $relationshipPart['sourceContentTypeParameterCount']
+                : 0;
+            $sourceContentTypeParameters = is_array($relationshipPart['sourceContentTypeParameters'] ?? null)
+                ? $relationshipPart['sourceContentTypeParameters']
+                : [];
+            $sourceContentTypeParameterMap = is_array($relationshipPart['sourceContentTypeParameterMap'] ?? null)
+                ? $relationshipPart['sourceContentTypeParameterMap']
+                : [];
+            if ($sourceContentTypeParameterCount === 0) {
+                $sourceContentTypeParameterCount = count($sourceContentTypeParameters);
+            }
+            $sourceContentTypeHasParameters = $sourceContentTypeHasParameters
+                || $sourceContentTypeParameterCount > 0
+                || $sourceContentTypeParameterMap !== [];
+            if ($sourceContentTypeHasParameters) {
+                ++$relationshipSourceParameterizedContentTypeCount;
+                if ($sourceContentTypeSource !== '') {
+                    $relationshipSourceContentTypeParameterSourceCounts[$sourceContentTypeSource] =
+                        ($relationshipSourceContentTypeParameterSourceCounts[$sourceContentTypeSource] ?? 0) + 1;
+                }
+            }
+            foreach ($sourceContentTypeParameters as $parameter) {
+                if (!is_array($parameter)) {
+                    continue;
+                }
+
+                $parameterName = is_string($parameter['name'] ?? null) ? $parameter['name'] : '';
+                if ($parameterName === '') {
+                    continue;
+                }
+
+                $parameterValue = is_scalar($parameter['value'] ?? null) ? (string) $parameter['value'] : '';
+                $parameterValueKey = $parameterValue === '' ? '(empty)' : $parameterValue;
+                $relationshipSourceContentTypeParameterNameCounts[$parameterName] =
+                    ($relationshipSourceContentTypeParameterNameCounts[$parameterName] ?? 0) + 1;
+                $relationshipSourceContentTypeParameterValueCounts[$parameterName][$parameterValueKey] =
+                    ($relationshipSourceContentTypeParameterValueCounts[$parameterName][$parameterValueKey] ?? 0) + 1;
+            }
             if ($sourceBytes !== null) {
                 $relationshipSourceExistingPartByteLength += $sourceBytes;
             }
@@ -10643,6 +10687,10 @@ final class DocxOpenXmlReader
                     'sourceContentType' => $sourceContentType,
                     'sourceContentTypeBase' => $sourceContentTypeBase === '' ? null : $sourceContentTypeBase,
                     'sourceContentTypeSource' => $sourceContentTypeSource === '' ? null : $sourceContentTypeSource,
+                    'sourceContentTypeHasParameters' => $sourceContentTypeHasParameters,
+                    'sourceContentTypeParameterCount' => $sourceContentTypeParameterCount,
+                    'sourceContentTypeParameters' => $sourceContentTypeParameters,
+                    'sourceContentTypeParameterMap' => $sourceContentTypeParameterMap,
                     'sourceBytes' => $sourceBytes,
                     'sourceCrc32' => $sourceCrc32,
                     'sourceSha256' => $sourceSha256,
@@ -10665,6 +10713,10 @@ final class DocxOpenXmlReader
                 'sourceContentType' => $sourceContentType,
                 'sourceContentTypeBase' => $sourceContentTypeBase === '' ? null : $sourceContentTypeBase,
                 'sourceContentTypeSource' => $sourceContentTypeSource === '' ? null : $sourceContentTypeSource,
+                'sourceContentTypeHasParameters' => $sourceContentTypeHasParameters,
+                'sourceContentTypeParameterCount' => $sourceContentTypeParameterCount,
+                'sourceContentTypeParameters' => $sourceContentTypeParameters,
+                'sourceContentTypeParameterMap' => $sourceContentTypeParameterMap,
                 'sourceBytes' => $sourceBytes,
                 'sourceCrc32' => $sourceCrc32,
                 'sourceSha256' => $sourceSha256,
@@ -11069,6 +11121,13 @@ final class DocxOpenXmlReader
         ksort($relationshipSourceDirectoryCounts);
         ksort($relationshipSourceContentTypeCounts);
         ksort($relationshipSourceContentTypeSourceCounts);
+        ksort($relationshipSourceContentTypeParameterNameCounts);
+        ksort($relationshipSourceContentTypeParameterValueCounts);
+        foreach ($relationshipSourceContentTypeParameterValueCounts as &$sourceParameterValueCounts) {
+            ksort($sourceParameterValueCounts);
+        }
+        unset($sourceParameterValueCounts);
+        ksort($relationshipSourceContentTypeParameterSourceCounts);
         ksort($relationshipSourceRoleCounts);
         ksort($relationshipPartsBySourceKind);
         ksort($relationshipTargetDirectoryCounts);
@@ -11235,6 +11294,10 @@ final class DocxOpenXmlReader
             'relationshipSourceDirectoryCounts' => $relationshipSourceDirectoryCounts,
             'relationshipSourceContentTypeCounts' => $relationshipSourceContentTypeCounts,
             'relationshipSourceContentTypeSourceCounts' => $relationshipSourceContentTypeSourceCounts,
+            'relationshipSourceParameterizedContentTypeCount' => $relationshipSourceParameterizedContentTypeCount,
+            'relationshipSourceContentTypeParameterNameCounts' => $relationshipSourceContentTypeParameterNameCounts,
+            'relationshipSourceContentTypeParameterValueCounts' => $relationshipSourceContentTypeParameterValueCounts,
+            'relationshipSourceContentTypeParameterSourceCounts' => $relationshipSourceContentTypeParameterSourceCounts,
             'relationshipSourceRoleCounts' => $relationshipSourceRoleCounts,
             'relationshipSourceDirectoryCount' => count($relationshipSourceDirectories),
             'relationshipSourceDirectories' => $relationshipSourceDirectories,
