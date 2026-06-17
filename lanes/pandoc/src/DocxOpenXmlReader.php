@@ -536,6 +536,7 @@ final class DocxOpenXmlReader
         ]);
         $packageProvenance['selectedXmlParts'] = $selectedXmlParts;
         $packageProvenance['summary']['selectedXmlPartCount'] = $selectedXmlParts['count'];
+        $packageProvenance['summary']['selectedXmlPartByteDigestCount'] = $selectedXmlParts['byteDigestCount'];
         $packageProvenance['summary']['selectedXmlPartIssueCount'] = $selectedXmlParts['issueCount'];
         $packageProvenance['summary']['selectedXmlPartInvalidXmlCount'] = $selectedXmlParts['invalidXmlCount'];
         $packageProvenance['summary']['selectedXmlPartIssueKinds'] = $selectedXmlParts['issueKinds'];
@@ -9030,6 +9031,7 @@ final class DocxOpenXmlReader
             'count' => count($items),
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
             'relationshipSelectedCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipId'] !== null)),
+            'byteDigestCount' => count(array_filter($items, static fn (array $item): bool => is_string($item['sha256'] ?? null))),
             'missingRequiredOrReferencedCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => in_array('missing-required-part', $item['issues'], true)
@@ -9070,6 +9072,7 @@ final class DocxOpenXmlReader
             ))
             : ($expectedContentTypeBase === '' ? [] : [$expectedContentTypeBase]);
         $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
+        $partBytes = $exists && array_key_exists($partName, $parts) ? $parts[$partName] : null;
         $validateContentType = $exists || $required || $relationship !== null;
         $contentTypeMatchesExpected = null;
         $issues = [];
@@ -9089,7 +9092,9 @@ final class DocxOpenXmlReader
             'selectionSource' => $relationship !== null ? 'relationship' : ($exists ? 'conventional-part' : 'conventional-fallback'),
             'required' => $required,
             'exists' => $exists,
-            'bytes' => $exists && isset($parts[$partName]) ? strlen($parts[$partName]) : 0,
+            'bytes' => $partBytes === null ? 0 : strlen($partBytes),
+            'crc32' => $partBytes === null ? null : sprintf('%08x', crc32($partBytes)),
+            'sha256' => $partBytes === null ? null : hash('sha256', $partBytes),
             'expectedRootNamespace' => $expectedRootNamespace,
             'expectedRootLocalName' => $expectedRootLocalName,
             'rootNamespace' => null,

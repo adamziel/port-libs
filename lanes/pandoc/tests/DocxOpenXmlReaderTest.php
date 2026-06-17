@@ -5744,6 +5744,68 @@ XML;
         $t->same(null, $docx['fontTableRelationship']['overridePartName']);
         $t->same('application/xml', $docx['fontTableRelationship']['contentType']);
     },
+    'preserves docx selected openxml part byte digests for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/review-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsDigest" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../docSettings/review-settings.xml?digest=selected#settings"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docSettings/review-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="1"/>
+  <w:evenAndOddHeaders/>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $byKind = $selected['byKind'];
+
+        $t->same(17, $selected['count']);
+        $t->same(5, $selected['existingCount']);
+        $t->same(3, $selected['relationshipSelectedCount']);
+        $t->same(5, $selected['byteDigestCount']);
+        $t->same(5, $package['summary']['selectedXmlPartByteDigestCount']);
+
+        $t->same('relationship', $byKind['document']['selectionSource']);
+        $t->same(strlen($parts['word/document.xml']), $byKind['document']['bytes']);
+        $t->same(sprintf('%08x', crc32($parts['word/document.xml'])), $byKind['document']['crc32']);
+        $t->same(hash('sha256', $parts['word/document.xml']), $byKind['document']['sha256']);
+
+        $t->same('relationship', $byKind['coreProperties']['selectionSource']);
+        $t->same(strlen($parts['docProps/core.xml']), $byKind['coreProperties']['bytes']);
+        $t->same(sprintf('%08x', crc32($parts['docProps/core.xml'])), $byKind['coreProperties']['crc32']);
+        $t->same(hash('sha256', $parts['docProps/core.xml']), $byKind['coreProperties']['sha256']);
+
+        $t->same('conventional-part', $byKind['styles']['selectionSource']);
+        $t->same(strlen($parts['word/styles.xml']), $byKind['styles']['bytes']);
+        $t->same(sprintf('%08x', crc32($parts['word/styles.xml'])), $byKind['styles']['crc32']);
+        $t->same(hash('sha256', $parts['word/styles.xml']), $byKind['styles']['sha256']);
+
+        $t->same('relationship', $byKind['settings']['selectionSource']);
+        $t->same('?digest=selected#settings', $byKind['settings']['targetReferenceSuffix']);
+        $t->same(strlen($parts['docSettings/review-settings.xml']), $byKind['settings']['bytes']);
+        $t->same(sprintf('%08x', crc32($parts['docSettings/review-settings.xml'])), $byKind['settings']['crc32']);
+        $t->same(hash('sha256', $parts['docSettings/review-settings.xml']), $byKind['settings']['sha256']);
+
+        $t->same('conventional-fallback', $byKind['comments']['selectionSource']);
+        $t->same(false, $byKind['comments']['exists']);
+        $t->same(0, $byKind['comments']['bytes']);
+        $t->same(null, $byKind['comments']['crc32']);
+        $t->same(null, $byKind['comments']['sha256']);
+    },
     'tracks docx selected openxml part root and content type provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
