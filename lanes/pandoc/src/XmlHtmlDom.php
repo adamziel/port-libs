@@ -17707,6 +17707,10 @@ final class XmlHtmlDom
             $summary['titleAttribute'] = $attributes['title'];
         }
 
+        if (array_key_exists('style', $attributes)) {
+            $summary += self::styleAttributeSummary($attributes['style']);
+        }
+
         if (array_key_exists('hidden', $attributes)) {
             $hidden = strtolower(trim($attributes['hidden']));
             $hiddenKeyword = match ($hidden) {
@@ -18815,6 +18819,224 @@ final class XmlHtmlDom
         }
 
         return 'element-default';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function styleAttributeSummary(string $raw): array
+    {
+        $declarations = [];
+        $issues = [];
+        $propertyNames = [];
+        $propertyCounts = [];
+        $customProperties = [];
+        $importantProperties = [];
+
+        foreach (self::styleDeclarationFragments($raw) as $index => $fragment) {
+            $declaration = trim($fragment);
+            if ($declaration === '') {
+                continue;
+            }
+
+            $colonOffset = self::styleDeclarationColonOffset($declaration);
+            if ($colonOffset === null) {
+                $issues[] = [
+                    'index' => $index,
+                    'raw' => $declaration,
+                    'code' => 'missing-style-declaration-colon',
+                ];
+                continue;
+            }
+
+            $propertyRaw = trim(substr($declaration, 0, $colonOffset));
+            $property = strtolower($propertyRaw);
+            $value = trim(substr($declaration, $colonOffset + 1));
+            if ($propertyRaw === '') {
+                $issues[] = [
+                    'index' => $index,
+                    'raw' => $declaration,
+                    'code' => 'missing-style-property',
+                ];
+                continue;
+            }
+            if (!self::isSafeStylePropertyName($propertyRaw)) {
+                $issues[] = [
+                    'index' => $index,
+                    'raw' => $declaration,
+                    'code' => 'invalid-style-property',
+                    'propertyRaw' => $propertyRaw,
+                ];
+                continue;
+            }
+            if ($value === '') {
+                $issues[] = [
+                    'index' => $index,
+                    'raw' => $declaration,
+                    'code' => 'missing-style-value',
+                    'propertyRaw' => $propertyRaw,
+                    'property' => $property,
+                ];
+                continue;
+            }
+
+            $important = preg_match('/!\s*important\s*$/i', $value) === 1;
+            if ($important) {
+                $value = trim((string) preg_replace('/!\s*important\s*$/i', '', $value));
+            }
+
+            $declarations[] = [
+                'index' => $index,
+                'raw' => $declaration,
+                'propertyRaw' => $propertyRaw,
+                'property' => $property,
+                'value' => $value,
+                'important' => $important,
+            ];
+
+            if (!isset($propertyCounts[$property])) {
+                $propertyCounts[$property] = 0;
+                $propertyNames[] = $property;
+            }
+            ++$propertyCounts[$property];
+
+            if (str_starts_with($property, '--') && !in_array($property, $customProperties, true)) {
+                $customProperties[] = $property;
+            }
+            if ($important && !in_array($property, $importantProperties, true)) {
+                $importantProperties[] = $property;
+            }
+        }
+
+        return [
+            'styleAttributeReviewPolicy' => 'html-style-attribute-declaration-review',
+            'styleRaw' => $raw,
+            'styleByteLength' => strlen($raw),
+            'styleSha256' => hash('sha256', $raw),
+            'styleDeclarations' => $declarations,
+            'styleDeclarationCount' => count($declarations),
+            'stylePropertyNames' => $propertyNames,
+            'stylePropertyCounts' => $propertyCounts,
+            'duplicateStyleProperties' => array_values(array_filter(
+                $propertyNames,
+                static fn (string $property): bool => ($propertyCounts[$property] ?? 0) > 1
+            )),
+            'customStyleProperties' => $customProperties,
+            'importantStyleProperties' => $importantProperties,
+            'invalidStyleDeclarations' => $issues,
+            'invalidStyleDeclarationCount' => count($issues),
+            'styleDeclarationIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function styleDeclarationFragments(string $raw): array
+    {
+        $fragments = [];
+        $current = '';
+        $quote = null;
+        $escaped = false;
+        $parenDepth = 0;
+        $length = strlen($raw);
+
+        for ($offset = 0; $offset < $length; ++$offset) {
+            $char = $raw[$offset];
+
+            if ($escaped) {
+                $current .= $char;
+                $escaped = false;
+                continue;
+            }
+
+            if ($quote !== null) {
+                $current .= $char;
+                if ($char === '\\') {
+                    $escaped = true;
+                } elseif ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $current .= $char;
+                continue;
+            }
+            if ($char === '(') {
+                ++$parenDepth;
+                $current .= $char;
+                continue;
+            }
+            if ($char === ')' && $parenDepth > 0) {
+                --$parenDepth;
+                $current .= $char;
+                continue;
+            }
+            if ($char === ';' && $parenDepth === 0) {
+                $fragments[] = $current;
+                $current = '';
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        $fragments[] = $current;
+
+        return $fragments;
+    }
+
+    private static function styleDeclarationColonOffset(string $declaration): ?int
+    {
+        $quote = null;
+        $escaped = false;
+        $parenDepth = 0;
+        $length = strlen($declaration);
+
+        for ($offset = 0; $offset < $length; ++$offset) {
+            $char = $declaration[$offset];
+
+            if ($escaped) {
+                $escaped = false;
+                continue;
+            }
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $escaped = true;
+                } elseif ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                ++$parenDepth;
+                continue;
+            }
+            if ($char === ')' && $parenDepth > 0) {
+                --$parenDepth;
+                continue;
+            }
+            if ($char === ':' && $parenDepth === 0) {
+                return $offset;
+            }
+        }
+
+        return null;
+    }
+
+    private static function isSafeStylePropertyName(string $property): bool
+    {
+        return preg_match('/^(?:--[A-Za-z0-9_-]+|-?[A-Za-z_][A-Za-z0-9_-]*)$/', $property) === 1;
     }
 
     private static function autocorrectState(string $value): ?string

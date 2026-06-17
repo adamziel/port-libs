@@ -253,6 +253,8 @@
   "xmlHtmlDomDirectionValidityAssertions": 31,
   "mappedXmlHtmlDomSvgStitchTilesAttributeCases": 2,
   "xmlHtmlDomSvgStitchTilesAttributeAssertions": 12,
+  "mappedXmlHtmlDomStyleAttributeCases": 1,
+  "xmlHtmlDomStyleAttributeAssertions": 25,
   "mappedXmlHtmlDomSpellcheckInheritanceCases": 1,
   "xmlHtmlDomSpellcheckInheritanceAssertions": 33,
   "mappedXmlHtmlDomInertInheritanceCases": 2,

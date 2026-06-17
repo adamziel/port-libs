@@ -136,6 +136,8 @@
     "xmlHtmlDomAccessKeyCollisionAssertions": 38,
     "mappedXmlHtmlDomDirectionValidityCases": 1,
     "xmlHtmlDomDirectionValidityAssertions": 31,
+    "mappedXmlHtmlDomStyleAttributeCases": 1,
+    "xmlHtmlDomStyleAttributeAssertions": 25,
     "mappedXmlHtmlDomSpellcheckInheritanceCases": 1,
     "xmlHtmlDomSpellcheckInheritanceAssertions": 33,
     "mappedXmlHtmlDomInertInheritanceCases": 2,

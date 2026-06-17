@@ -3709,6 +3709,86 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             $html
         );
     },
+    'summarizes html style attribute declarations for reviewer handoff' => static function (TestRunner $t): void {
+        $styleRaw = 'color: red; --review-tone: highlight; background-image: url(cover;v1.png); color: blue !important; broken; : missing-property; bad<prop: value; padding: ';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="styled" title="Styled packet" style="' . htmlspecialchars($styleRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">Styled</section>'
+                . '<p id="plain" style="  ">Plain</p>',
+            'style attribute review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/style-attribute-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $styled = $summary[0];
+        $plain = $summary[1];
+
+        $t->same('styled', $styled['elementId']);
+        $t->same($styleRaw, $styled['styleRaw']);
+        $t->same('html-style-attribute-declaration-review', $styled['styleAttributeReviewPolicy']);
+        $t->same(strlen($styleRaw), $styled['styleByteLength']);
+        $t->same(hash('sha256', $styleRaw), $styled['styleSha256']);
+        $t->same(4, $styled['styleDeclarationCount']);
+        $t->same(4, $styled['invalidStyleDeclarationCount']);
+        $t->same(['color', '--review-tone', 'background-image'], $styled['stylePropertyNames']);
+        $t->same(['color' => 2, '--review-tone' => 1, 'background-image' => 1], $styled['stylePropertyCounts']);
+        $t->same(['color'], $styled['duplicateStyleProperties']);
+        $t->same(['--review-tone'], $styled['customStyleProperties']);
+        $t->same(['color'], $styled['importantStyleProperties']);
+        $t->same([
+            'index' => 0,
+            'raw' => 'color: red',
+            'propertyRaw' => 'color',
+            'property' => 'color',
+            'value' => 'red',
+            'important' => false,
+        ], $styled['styleDeclarations'][0]);
+        $t->same([
+            'index' => 1,
+            'raw' => '--review-tone: highlight',
+            'propertyRaw' => '--review-tone',
+            'property' => '--review-tone',
+            'value' => 'highlight',
+            'important' => false,
+        ], $styled['styleDeclarations'][1]);
+        $t->same('url(cover;v1.png)', $styled['styleDeclarations'][2]['value']);
+        $t->same([
+            'index' => 3,
+            'raw' => 'color: blue !important',
+            'propertyRaw' => 'color',
+            'property' => 'color',
+            'value' => 'blue',
+            'important' => true,
+        ], $styled['styleDeclarations'][3]);
+        $t->same([
+            'missing-style-declaration-colon',
+            'missing-style-property',
+            'invalid-style-property',
+            'missing-style-value',
+        ], $styled['styleDeclarationIssueCodes']);
+        $t->same([
+            ['index' => 4, 'raw' => 'broken', 'code' => 'missing-style-declaration-colon'],
+            ['index' => 5, 'raw' => ': missing-property', 'code' => 'missing-style-property'],
+            ['index' => 6, 'raw' => 'bad<prop: value', 'code' => 'invalid-style-property', 'propertyRaw' => 'bad<prop'],
+            ['index' => 7, 'raw' => 'padding:', 'code' => 'missing-style-value', 'propertyRaw' => 'padding', 'property' => 'padding'],
+        ], $styled['invalidStyleDeclarations']);
+
+        $t->same('  ', $plain['styleRaw']);
+        $t->same(0, $plain['styleDeclarationCount']);
+        $t->same(0, $plain['invalidStyleDeclarationCount']);
+        $t->same([], $plain['stylePropertyNames']);
+
+        $t->same(
+            '<section id="styled" style="' . htmlspecialchars($styleRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" title="Styled packet">Styled</section>'
+                . '<p id="plain" style="  ">Plain</p>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/style-attribute-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html draggable enumerated auto state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p id="forced" title="Forced text" draggable="true">Forced</p>'
