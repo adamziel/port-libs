@@ -4016,6 +4016,61 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/translate-inheritance-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html inert custom-token inheritance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="modal" inert><p id="body"><button id="save">Save</button><span id="local" inert="soft-lock"><em id="local-child">Child</em></span></p></article>'
+                . '<section id="active"><p id="active-child">Active</p></section>',
+            'inert custom-token inheritance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/inert-custom-token-inheritance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $body = $article['children'][0];
+        $button = $body['children'][0];
+        $local = $body['children'][1];
+        $localChild = $local['children'][0];
+        $active = $summary[1];
+        $activeChild = $active['children'][0];
+
+        $t->same('article', $article['name']);
+        $t->same('', $article['inertRaw']);
+        $t->same(true, $article['inert']);
+        $t->same('', $article['effectiveInertRaw']);
+        $t->same(true, $article['effectiveInert']);
+        $t->same(false, $article['inertInherited']);
+        $t->same('self-inert', $article['inertSource']);
+
+        $t->true(!array_key_exists('inertRaw', $body));
+        $t->same(true, $body['effectiveInert']);
+        $t->same(true, $body['inertInherited']);
+        $t->same('article', $body['inertSourceElement']);
+        $t->same('modal', $body['inertSourceElementId']);
+
+        $t->same(true, $button['effectiveInert']);
+        $t->same(true, $button['inertInherited']);
+        $t->same('modal', $button['inertSourceElementId']);
+
+        $t->same('soft-lock', $local['inertRaw']);
+        $t->same(true, $local['inert']);
+        $t->same('soft-lock', $local['effectiveInertRaw']);
+        $t->same(false, $local['inertInherited']);
+        $t->same('self-inert', $local['inertSource']);
+
+        $t->same(true, $localChild['effectiveInert']);
+        $t->same(true, $localChild['inertInherited']);
+        $t->same('span', $localChild['inertSourceElement']);
+        $t->same('local', $localChild['inertSourceElementId']);
+        $t->true(!array_key_exists('effectiveInert', $active));
+        $t->true(!array_key_exists('effectiveInert', $activeChild));
+        $t->same('<article id="modal" inert><p id="body"><button id="save">Save</button><span id="local" inert="soft-lock"><em id="local-child">Child</em></span></p></article><section id="active"><p id="active-child">Active</p></section>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/inert-custom-token-inheritance-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html dropzone tokens for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="drop" draggable="true" dropzone="copy string:text/plain file:image/png string:text/html">Drop files</section>'
