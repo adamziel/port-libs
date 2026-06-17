@@ -9003,10 +9003,49 @@ final class DocxOpenXmlReader
         ksort($contentTypeSourceByteLengths);
 
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
+        $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
         $partContentTypes = $this->packagePartContentTypeSummary($partInventory);
         $largestParts = $this->largestPackagePartSummary($partInventory);
         $largestPart = $largestParts[0] ?? null;
+        $maxPartPathSegmentCount = 0;
+        $deepestParts = [];
+        foreach ($partInventory as $partName => $part) {
+            $pathSegmentCount = is_int($part['pathSegmentCount'] ?? null)
+                ? $part['pathSegmentCount']
+                : count($this->packagePartPathSegments((string) $partName));
+            if ($pathSegmentCount < $maxPartPathSegmentCount) {
+                continue;
+            }
+
+            $item = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => is_string($part['directory'] ?? null)
+                    ? $part['directory']
+                    : $this->packagePartDirectory((string) $partName),
+                'directoryDepth' => is_int($part['directoryDepth'] ?? null)
+                    ? $part['directoryDepth']
+                    : $this->packagePartDirectoryDepth($this->packagePartDirectory((string) $partName)),
+                'baseName' => is_string($part['baseName'] ?? null)
+                    ? $part['baseName']
+                    : $this->packagePartBaseName((string) $partName),
+                'pathSegmentCount' => $pathSegmentCount,
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'contentTypeSource' => is_string($part['contentTypeSource'] ?? null)
+                    ? $part['contentTypeSource']
+                    : 'missing',
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            if ($pathSegmentCount > $maxPartPathSegmentCount) {
+                $maxPartPathSegmentCount = $pathSegmentCount;
+                $deepestParts = [];
+            }
+            $deepestParts[] = $item;
+        }
+        usort(
+            $deepestParts,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
+        );
         $relationshipCount = 0;
         $internalRelationshipCount = 0;
         $externalRelationshipCount = 0;
@@ -9576,6 +9615,13 @@ final class DocxOpenXmlReader
         return [
             'partCount' => count($partInventory),
             'partDirectoryCount' => count($partDirectories),
+            'partPathDepthCount' => count($partPathDepths),
+            'maxPartPathSegmentCount' => $maxPartPathSegmentCount,
+            'maxPartDirectoryDepth' => max(0, $maxPartPathSegmentCount - 1),
+            'deepestPartNames' => array_values(array_map(
+                static fn (array $part): string => (string) $part['partName'],
+                $deepestParts,
+            )),
             'partExtensionCount' => count($partExtensions),
             'partContentTypeCount' => count($partContentTypes),
             'packageByteLength' => $packageByteLength,
@@ -9697,6 +9743,8 @@ final class DocxOpenXmlReader
             'roleByteLengths' => $roleByteLengths,
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'partDirectories' => $partDirectories,
+            'partPathDepths' => $partPathDepths,
+            'deepestParts' => $deepestParts,
             'partExtensions' => $partExtensions,
             'partContentTypes' => $partContentTypes,
             'largestPart' => $largestPart,
@@ -9880,6 +9928,7 @@ final class DocxOpenXmlReader
             if (!isset($directories[$directory])) {
                 $directories[$directory] = [
                     'directory' => $directory,
+                    'directoryDepth' => $this->packagePartDirectoryDepth($directory),
                     'partCount' => 0,
                     'byteLength' => 0,
                     'relationshipPartCount' => 0,
@@ -9919,6 +9968,74 @@ final class DocxOpenXmlReader
         }
 
         return array_values($directories);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartPathDepthSummary(array $partInventory): array
+    {
+        $depths = [];
+        foreach ($partInventory as $partName => $part) {
+            $pathSegmentCount = is_int($part['pathSegmentCount'] ?? null)
+                ? $part['pathSegmentCount']
+                : count($this->packagePartPathSegments((string) $partName));
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory((string) $partName);
+            $directoryDepth = is_int($part['directoryDepth'] ?? null)
+                ? $part['directoryDepth']
+                : $this->packagePartDirectoryDepth($directory);
+            if (!isset($depths[$pathSegmentCount])) {
+                $depths[$pathSegmentCount] = [
+                    'pathSegmentCount' => $pathSegmentCount,
+                    'directoryDepth' => $directoryDepth,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'directories' => [],
+                    'contentTypeSourceCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                ];
+            }
+
+            ++$depths[$pathSegmentCount]['partCount'];
+            $depths[$pathSegmentCount]['byteLength'] += (int) ($part['bytes'] ?? 0);
+            $depths[$pathSegmentCount]['directories'][$directory] = true;
+            $depths[$pathSegmentCount]['partNames'][] = (string) $partName;
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$depths[$pathSegmentCount]['relationshipPartCount'];
+            }
+
+            $contentTypeSource = (string) ($part['contentTypeSource'] ?? 'missing');
+            if ($contentTypeSource === 'missing') {
+                ++$depths[$pathSegmentCount]['missingContentTypePartCount'];
+            }
+            $depths[$pathSegmentCount]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($depths[$pathSegmentCount]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $depths[$pathSegmentCount]['roleCounts'][$role] =
+                    ($depths[$pathSegmentCount]['roleCounts'][$role] ?? 0) + 1;
+            }
+        }
+
+        ksort($depths, SORT_NUMERIC);
+        foreach ($depths as $depth => $summary) {
+            $directories = array_keys($summary['directories']);
+            sort($directories, SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $summary['directories'] = $directories;
+            $depths[$depth] = $summary;
+        }
+
+        return array_values($depths);
     }
 
     /**
@@ -12701,6 +12818,8 @@ final class DocxOpenXmlReader
         foreach ($parts as $partName => $contents) {
             $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
             $partExtension = $this->packagePartExtension($partName);
+            $directory = $this->packagePartDirectory($partName);
+            $pathSegments = $this->packagePartPathSegments($partName);
             $roles = array_keys($rolesByPart[$partName] ?? []);
             if ($roles === []) {
                 $roles = ['package-part'];
@@ -12708,8 +12827,11 @@ final class DocxOpenXmlReader
 
             $entry = [
                 'partName' => $partName,
-                'directory' => $this->packagePartDirectory($partName),
+                'directory' => $directory,
+                'directoryDepth' => $this->packagePartDirectoryDepth($directory),
                 'baseName' => $this->packagePartBaseName($partName),
+                'pathSegments' => $pathSegments,
+                'pathSegmentCount' => count($pathSegments),
                 'partExtension' => $partExtension,
                 'partExtensionDefaultDeclared' => $partExtension !== null && isset($contentTypes['defaults'][$partExtension]),
                 'partExtensionDefaultContentType' => $partExtension === null ? null : ($contentTypes['defaults'][$partExtension] ?? null),
@@ -12751,6 +12873,29 @@ final class DocxOpenXmlReader
         $position = strrpos($partName, '/');
 
         return $position === false ? $partName : substr($partName, $position + 1);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function packagePartPathSegments(string $partName): array
+    {
+        return array_values(array_filter(
+            explode('/', trim($partName, '/')),
+            static fn (string $segment): bool => $segment !== '',
+        ));
+    }
+
+    private function packagePartDirectoryDepth(string $directory): int
+    {
+        if ($directory === '' || $directory === '/') {
+            return 0;
+        }
+
+        return count(array_values(array_filter(
+            explode('/', trim($directory, '/')),
+            static fn (string $segment): bool => $segment !== '',
+        )));
     }
 
     private function packagePartExtension(string $partName): ?string

@@ -774,6 +774,73 @@ return [
         $t->same(['missing' => 1], $byDirectory['customXml']['contentTypeSourceCounts']);
         $t->same(['package-part' => 1], $byDirectory['customXml']['roleCounts']);
     },
+    'summarizes docx package part path depths for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/embeddings/charts/cache/workbook.bin'] = 'embedded workbook cache bytes';
+        $parts['customXml/data/store/raw'] = 'raw extensionless store bytes';
+        $parts['word/charts/_rels/chart1.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byDepth = [];
+        foreach ($summary['partPathDepths'] as $depth) {
+            $byDepth[$depth['pathSegmentCount']] = $depth;
+        }
+        $directories = [];
+        foreach ($summary['partDirectories'] as $directory) {
+            $directories[$directory['directory']] = $directory;
+        }
+
+        $t->same(5, $summary['partPathDepthCount']);
+        $t->same(5, $summary['maxPartPathSegmentCount']);
+        $t->same(4, $summary['maxPartDirectoryDepth']);
+        $t->same(['word/embeddings/charts/cache/workbook.bin'], $summary['deepestPartNames']);
+        $t->same('word/embeddings/charts/cache/workbook.bin', $summary['deepestParts'][0]['partName']);
+        $t->same('word/embeddings/charts/cache', $summary['deepestParts'][0]['directory']);
+        $t->same(4, $summary['deepestParts'][0]['directoryDepth']);
+        $t->same(5, $summary['deepestParts'][0]['pathSegmentCount']);
+
+        $t->same(['[Content_Types].xml'], $inventory['[Content_Types].xml']['pathSegments']);
+        $t->same(1, $inventory['[Content_Types].xml']['pathSegmentCount']);
+        $t->same(0, $inventory['[Content_Types].xml']['directoryDepth']);
+        $t->same(['word', 'embeddings', 'charts', 'cache', 'workbook.bin'], $inventory['word/embeddings/charts/cache/workbook.bin']['pathSegments']);
+        $t->same(5, $inventory['word/embeddings/charts/cache/workbook.bin']['pathSegmentCount']);
+        $t->same(4, $inventory['word/embeddings/charts/cache/workbook.bin']['directoryDepth']);
+        $t->same(['customXml', 'data', 'store', 'raw'], $inventory['customXml/data/store/raw']['pathSegments']);
+        $t->same(4, $inventory['customXml/data/store/raw']['pathSegmentCount']);
+        $t->same(3, $inventory['customXml/data/store/raw']['directoryDepth']);
+        $t->same('missing', $inventory['customXml/data/store/raw']['contentTypeSource']);
+        $t->same(4, $inventory['word/charts/_rels/chart1.xml.rels']['pathSegmentCount']);
+        $t->same(3, $inventory['word/charts/_rels/chart1.xml.rels']['directoryDepth']);
+        $t->same(true, $inventory['word/charts/_rels/chart1.xml.rels']['isRelationshipPart']);
+
+        $t->same(1, $byDepth[1]['partCount']);
+        $t->same(0, $byDepth[1]['directoryDepth']);
+        $t->same(['[Content_Types].xml'], $byDepth[1]['partNames']);
+        $t->same(2, $byDepth[4]['partCount']);
+        $t->same(3, $byDepth[4]['directoryDepth']);
+        $t->same(1, $byDepth[4]['relationshipPartCount']);
+        $t->same(1, $byDepth[4]['missingContentTypePartCount']);
+        $t->same(['customXml/data/store', 'word/charts/_rels'], $byDepth[4]['directories']);
+        $t->same(['customXml/data/store/raw', 'word/charts/_rels/chart1.xml.rels'], $byDepth[4]['partNames']);
+        $t->same(['default' => 1, 'missing' => 1], $byDepth[4]['contentTypeSourceCounts']);
+        $t->same(['package-part' => 1, 'relationship-part' => 1], $byDepth[4]['roleCounts']);
+        $t->same(1, $byDepth[5]['partCount']);
+        $t->same(4, $byDepth[5]['directoryDepth']);
+        $t->same(['word/embeddings/charts/cache'], $byDepth[5]['directories']);
+        $t->same(['word/embeddings/charts/cache/workbook.bin'], $byDepth[5]['partNames']);
+        $t->same(4, $directories['word/embeddings/charts/cache']['directoryDepth']);
+    },
     'summarizes docx package part extensions for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
