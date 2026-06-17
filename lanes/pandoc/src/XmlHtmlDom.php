@@ -17934,6 +17934,8 @@ final class XmlHtmlDom
             $summary['titleAttribute'] = $attributes['title'];
         }
 
+        $summary += self::effectiveTitleAttributeSummary($element, $attributes);
+
         if (array_key_exists('style', $attributes)) {
             $summary += self::styleAttributeSummary($attributes['style']);
         }
@@ -18186,6 +18188,57 @@ final class XmlHtmlDom
             'classEmpty' => trim($value) === '',
             'classHasDuplicates' => $duplicates !== [],
         ];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveTitleAttributeSummary(\DOMElement $element, array $attributes): array
+    {
+        if (array_key_exists('title', $attributes)) {
+            return self::titleAttributeProvenanceSummary($element, $attributes['title'], false);
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (array_key_exists('title', $ancestorAttributes)) {
+                return self::titleAttributeProvenanceSummary($ancestor, $ancestorAttributes['title'], true);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function titleAttributeProvenanceSummary(\DOMElement $source, string $raw, bool $inherited): array
+    {
+        $text = self::normalizedAttributeText($raw);
+        $empty = $text === '';
+        $summary = [
+            'titleAttributeReviewPolicy' => 'html-title-advisory-inheritance-review',
+            'effectiveTitleAttributeRaw' => $raw,
+            'effectiveTitleAttribute' => $empty ? null : $text,
+            'titleAttributeEmpty' => $empty,
+            'titleAttributeInherited' => $inherited,
+            'titleAttributeSource' => $inherited ? 'ancestor-title' : 'self-title',
+            'titleAttributeSourceElement' => self::htmlElementName($source),
+            'titleAttributeInheritanceBlocked' => $empty,
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['titleAttributeSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
+    }
+
+    private static function normalizedAttributeText(string $value): string
+    {
+        return preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
     }
 
     /**
