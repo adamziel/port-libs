@@ -6262,6 +6262,79 @@ XML;
         $t->same(4, $summary['fontTableEmbeddedFontIssueCount']);
         $t->same($fontTable['embeddedFontIssueCodes'], $summary['fontTableEmbeddedFontIssueCodes']);
     },
+    'reports malformed docx font table xml without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/fonts/broken-fonts.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>' . "\n" .
+            '  <Override PartName="/word/fonts/orphan.odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rBrokenFontTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fonts/broken-fonts.xml?profile=broken#fontTable"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/fonts/broken-fonts.xml'] = '<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:font w:name="Broken">';
+        $parts['word/fonts/_rels/broken-fonts.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rOrphanFont" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="orphan.odttf"/>
+</Relationships>
+XML;
+        $parts['word/fonts/orphan.odttf'] = 'orphan embedded font bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $fontTable = $docx['fontTable'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $selectedFontTable = $package['selectedXmlParts']['byKind']['fontTable'];
+        $fontRelationshipsPart = $package['relationshipParts']['word/fonts/_rels/broken-fonts.xml.rels'];
+
+        $t->same('word/fonts/broken-fonts.xml', $docx['fontTablePart']);
+        $t->same('rBrokenFontTable', $docx['fontTableRelationship']['id']);
+        $t->same('fonts/broken-fonts.xml?profile=broken#fontTable', $docx['fontTableRelationship']['target']);
+        $t->same('word/fonts/broken-fonts.xml?profile=broken#fontTable', $docx['fontTableRelationship']['resolvedTarget']);
+        $t->same('?profile=broken#fontTable', $docx['fontTableRelationship']['targetReferenceSuffix']);
+
+        $t->same('word/fonts/_rels/broken-fonts.xml.rels', $fontTable['relationshipsPart']);
+        $t->same(1, $fontTable['relationshipCount']);
+        $t->same(false, $fontTable['validXml']);
+        $t->contains('Premature end of data', (string) $fontTable['xmlParseError']);
+        $t->same(1, $fontTable['invalidXmlCount']);
+        $t->same(1, $fontTable['issueCount']);
+        $t->same(['invalid-font-table-xml'], $fontTable['issueCodes']);
+        $t->same(0, $fontTable['fontCount']);
+        $t->same(0, $fontTable['embeddedFontRelationshipCount']);
+        $t->same([], $fontTable['declaredNames']);
+        $t->same([], $fontTable['fonts']);
+        $t->same([], $fontTable['byName']);
+
+        $t->same(1, $summary['fontTableInvalidXmlCount']);
+        $t->same(1, $summary['fontTableIssueCount']);
+        $t->same(['invalid-font-table-xml'], $summary['fontTableIssueCodes']);
+        $t->same(0, $summary['fontTableEmbeddedFontCount']);
+        $t->same(0, $summary['fontTableEmbeddedFontIssueCount']);
+        $t->same(1, $summary['selectedXmlPartInvalidXmlCount']);
+        $t->true(in_array('fontTable', $summary['selectedXmlPartIssueKinds'], true), 'font table should be marked in selected XML issue kinds');
+
+        $t->same('relationship', $selectedFontTable['selectionSource']);
+        $t->same('rBrokenFontTable', $selectedFontTable['relationshipId']);
+        $t->same('word/fonts/broken-fonts.xml', $selectedFontTable['partName']);
+        $t->same(false, $selectedFontTable['validRoot']);
+        $t->contains('Premature end of data', (string) $selectedFontTable['xmlParseError']);
+        $t->same(['invalid-xml'], $selectedFontTable['issues']);
+
+        $t->same(true, $fontRelationshipsPart['exists']);
+        $t->same(1, $fontRelationshipsPart['relationshipCount']);
+        $t->same('word/fonts/broken-fonts.xml', $fontRelationshipsPart['sourcePart']);
+        $t->same('word/fonts/orphan.odttf', $fontRelationshipsPart['relationships']['rOrphanFont']['targetPart']);
+        $t->true(in_array('font-table', $package['parts']['word/fonts/broken-fonts.xml']['roles'], true), 'malformed font table inventory role missing');
+        $t->true(in_array('relationship-target', $package['parts']['word/fonts/orphan.odttf']['roles'], true), 'orphan font target inventory role missing');
+    },
     'summarizes docx attached template relationships from settings part' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

@@ -660,6 +660,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['fontTableEmbeddedFontExternalCount'] = (int) ($fontTable['embeddedFontExternalCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontIssueCount'] = (int) ($fontTable['embeddedFontIssueCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontIssueCodes'] = $fontTable['embeddedFontIssueCodes'] ?? [];
+        $packageProvenance['summary']['fontTableInvalidXmlCount'] = (int) ($fontTable['invalidXmlCount'] ?? 0);
+        $packageProvenance['summary']['fontTableIssueCount'] = (int) ($fontTable['issueCount'] ?? 0);
+        $packageProvenance['summary']['fontTableIssueCodes'] = $fontTable['issueCodes'] ?? [];
         $webSettingsOutputPolicy = $webSettings['outputPolicy'] ?? null;
         if (is_array($webSettingsOutputPolicy)) {
             $packageProvenance['summary']['webSettingsOutputPolicyFlagCount'] = (int) ($webSettingsOutputPolicy['flagCount'] ?? 0);
@@ -13607,10 +13610,32 @@ final class DocxOpenXmlReader
             return [];
         }
 
-        $dom = $this->loadXml($xml, $partName);
-        $xpath = $this->xpath($dom);
         $relationshipsPart = $this->relationshipsPartFor($partName);
         $relationships = $this->readRelationshipsPart($parts, $relationshipsPart);
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [
+                'relationshipsPart' => $relationshipsPart,
+                'relationshipCount' => count($relationships),
+                'validXml' => false,
+                'xmlParseError' => $this->lastXmlPreflightError($xml, $partName),
+                'invalidXmlCount' => 1,
+                'issueCount' => 1,
+                'issueCodes' => ['invalid-font-table-xml'],
+                'fontCount' => 0,
+                'embeddedFontRelationshipCount' => 0,
+                'embeddedFontExistingCount' => 0,
+                'embeddedFontMissingCount' => 0,
+                'embeddedFontExternalCount' => 0,
+                'embeddedFontIssueCount' => 0,
+                'embeddedFontIssueCodes' => [],
+                'declaredNames' => [],
+                'fonts' => [],
+                'byName' => [],
+            ];
+        }
+
+        $xpath = $this->xpath($dom);
         $fonts = [];
         $byName = [];
         $embeddedFontRelationshipCount = 0;
@@ -13665,6 +13690,11 @@ final class DocxOpenXmlReader
         return [
             'relationshipsPart' => $relationshipsPart,
             'relationshipCount' => count($relationships),
+            'validXml' => true,
+            'xmlParseError' => null,
+            'invalidXmlCount' => 0,
+            'issueCount' => 0,
+            'issueCodes' => [],
             'fontCount' => count($fonts),
             'embeddedFontRelationshipCount' => $embeddedFontRelationshipCount,
             'embeddedFontExistingCount' => $embeddedFontExistingCount,
