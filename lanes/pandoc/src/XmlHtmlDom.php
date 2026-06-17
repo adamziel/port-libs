@@ -22153,7 +22153,7 @@ final class XmlHtmlDom
             $source = 'ancestor';
         }
 
-        return [
+        $summary = [
             'formOwnerRaw' => $formAttribute,
             'formOwnerTargetId' => $formTargetId === '' ? null : $formTargetId,
             'formOwnerId' => $form instanceof \DOMElement ? self::attributeOrNull($form, 'id') : null,
@@ -22164,6 +22164,140 @@ final class XmlHtmlDom
             'formOwnerEnctype' => $form instanceof \DOMElement ? self::formEnctype($form, 'enctype', 'application/x-www-form-urlencoded') : null,
             'formOwnerTarget' => $form instanceof \DOMElement ? self::attributeOrNull($form, 'target') : null,
         ];
+
+        if ($formAttribute !== null) {
+            $summary += self::formOwnerReferenceSummary($control, $form, $formAttribute);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formOwnerReferenceSummary(\DOMElement $control, ?\DOMElement $form, string $formAttribute): array
+    {
+        $targetId = trim($formAttribute);
+        $valid = $targetId !== '' && self::isHtmlIdReferenceToken($targetId);
+        $targets = $valid ? self::htmlElementsById($control, $targetId) : [];
+        $formTargets = array_values(array_filter(
+            $targets,
+            static fn (\DOMElement $target): bool => self::htmlElementName($target) === 'form'
+        ));
+        $issues = [];
+
+        if ($targetId === '') {
+            $issues[] = [
+                'code' => 'empty-form-owner-reference',
+                'formOwnerRaw' => $formAttribute,
+            ];
+        } elseif (!$valid) {
+            $issues[] = [
+                'code' => 'invalid-form-owner-reference',
+                'formOwnerRaw' => $formAttribute,
+            ];
+        } elseif ($targets === []) {
+            $issues[] = [
+                'code' => 'missing-form-owner-target',
+                'formOwnerTargetId' => $targetId,
+            ];
+        } elseif ($formTargets === []) {
+            $issues[] = [
+                'code' => 'non-form-owner-target',
+                'formOwnerTargetId' => $targetId,
+                'targetElementNames' => array_values(array_map(
+                    static fn (\DOMElement $target): string => self::htmlElementName($target),
+                    $targets
+                )),
+            ];
+        }
+
+        if (count($targets) > 1) {
+            $issues[] = [
+                'code' => 'duplicate-form-owner-target-id',
+                'formOwnerTargetId' => $targetId,
+                'count' => count($targets),
+                'formCount' => count($formTargets),
+            ];
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'formOwnerReviewPolicy' => 'form-owner-idref-review',
+            'formOwnerTargetValid' => $valid,
+            'formOwnerResolutionState' => self::formOwnerResolutionState($targetId, $valid, $targets, $formTargets),
+            'formOwnerResolved' => $form instanceof \DOMElement && $issues === [],
+            'formOwnerTargetCount' => count($targets),
+            'formOwnerFormTargetCount' => count($formTargets),
+            'formOwnerTargetElementNames' => array_values(array_map(
+                static fn (\DOMElement $target): string => self::htmlElementName($target),
+                $targets
+            )),
+            'formOwnerTargets' => array_values(array_map(
+                static fn (\DOMElement $target, int $index): array => self::formOwnerTargetSummary($target, $form, $index),
+                $targets,
+                array_keys($targets)
+            )),
+            'formOwnerIssues' => $issues,
+            'formOwnerIssueCodes' => $issueCodes,
+        ];
+    }
+
+    /**
+     * @param list<\DOMElement> $targets
+     * @param list<\DOMElement> $formTargets
+     */
+    private static function formOwnerResolutionState(
+        string $targetId,
+        bool $valid,
+        array $targets,
+        array $formTargets
+    ): string {
+        if ($targetId === '') {
+            return 'empty-reference';
+        }
+        if (!$valid) {
+            return 'invalid-reference';
+        }
+        if ($targets === []) {
+            return 'missing-target';
+        }
+        if ($formTargets === []) {
+            return 'non-form-target';
+        }
+        if (count($targets) > 1) {
+            return 'duplicate-target-id';
+        }
+
+        return 'resolved';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formOwnerTargetSummary(\DOMElement $target, ?\DOMElement $form, int $index): array
+    {
+        $name = self::htmlElementName($target);
+        $summary = [
+            'index' => $index,
+            'tag' => $name,
+            'id' => self::attributeOrNull($target, 'id'),
+            'selectedFormOwner' => $form instanceof \DOMElement && $target->isSameNode($form),
+            'text' => self::normalizedText($target),
+        ];
+
+        if ($name === 'form') {
+            $summary['action'] = self::attributeOrNull($target, 'action');
+            $summary['method'] = self::formMethod($target, 'method', 'get');
+            $summary['enctype'] = self::formEnctype($target, 'enctype', 'application/x-www-form-urlencoded');
+            $summary['target'] = self::attributeOrNull($target, 'target');
+        }
+
+        return $summary;
     }
 
     private static function formOwnerElement(\DOMElement $control): ?\DOMElement

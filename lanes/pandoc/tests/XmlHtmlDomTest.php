@@ -7992,6 +7992,93 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/form-owner-review.html', $document->children[0]->attr('part'));
     },
+    'diagnoses html form owner idref target provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="primary" action="/save" method="POST"><input id="inside" name="inside"></form>'
+                . '<input id="remote" name="remote" form="primary">'
+                . '<section id="panel">Panel</section><input id="non-form" form="panel">'
+                . '<input id="missing-owner" form="missing">'
+                . '<input id="empty-owner" form="">'
+                . '<input id="invalid-owner" form="bad id">'
+                . '<form id="dupe" action="/first"><button name="first">First</button></form>'
+                . '<form id="dupe" action="/second"></form><button id="dupe-button" form="dupe">Duplicate</button>',
+            'form owner idref provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/form-owner-idref-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $remote = $summary[1];
+        $nonForm = $summary[3];
+        $missing = $summary[4];
+        $empty = $summary[5];
+        $invalid = $summary[6];
+        $dupeButton = $summary[9];
+
+        $t->same('form-owner-idref-review', $remote['formOwnerReviewPolicy']);
+        $t->same('primary', $remote['formOwnerTargetId']);
+        $t->same(true, $remote['formOwnerTargetValid']);
+        $t->same('resolved', $remote['formOwnerResolutionState']);
+        $t->same(true, $remote['formOwnerResolved']);
+        $t->same(1, $remote['formOwnerTargetCount']);
+        $t->same(1, $remote['formOwnerFormTargetCount']);
+        $t->same(['form'], $remote['formOwnerTargetElementNames']);
+        $t->same([], $remote['formOwnerIssueCodes']);
+        $t->same('form', $remote['formOwnerTargets'][0]['tag']);
+        $t->same(true, $remote['formOwnerTargets'][0]['selectedFormOwner']);
+        $t->same('/save', $remote['formOwnerTargets'][0]['action']);
+        $t->same('post', $remote['formOwnerTargets'][0]['method']);
+
+        $t->same('missing-form-attribute', $nonForm['formOwnerSource']);
+        $t->same(false, $nonForm['formOwnerFound']);
+        $t->same('non-form-target', $nonForm['formOwnerResolutionState']);
+        $t->same(false, $nonForm['formOwnerResolved']);
+        $t->same(1, $nonForm['formOwnerTargetCount']);
+        $t->same(0, $nonForm['formOwnerFormTargetCount']);
+        $t->same(['section'], $nonForm['formOwnerTargetElementNames']);
+        $t->same(['non-form-owner-target'], $nonForm['formOwnerIssueCodes']);
+        $t->same('section', $nonForm['formOwnerTargets'][0]['tag']);
+        $t->same('Panel', $nonForm['formOwnerTargets'][0]['text']);
+
+        $t->same('missing-target', $missing['formOwnerResolutionState']);
+        $t->same(false, $missing['formOwnerResolved']);
+        $t->same(0, $missing['formOwnerTargetCount']);
+        $t->same(['missing-form-owner-target'], $missing['formOwnerIssueCodes']);
+
+        $t->same(null, $empty['formOwnerTargetId']);
+        $t->same(false, $empty['formOwnerTargetValid']);
+        $t->same('empty-reference', $empty['formOwnerResolutionState']);
+        $t->same(['empty-form-owner-reference'], $empty['formOwnerIssueCodes']);
+
+        $t->same('bad id', $invalid['formOwnerTargetId']);
+        $t->same(false, $invalid['formOwnerTargetValid']);
+        $t->same('invalid-reference', $invalid['formOwnerResolutionState']);
+        $t->same(['invalid-form-owner-reference'], $invalid['formOwnerIssueCodes']);
+
+        $t->same('form-attribute', $dupeButton['formOwnerSource']);
+        $t->same(true, $dupeButton['formOwnerFound']);
+        $t->same('/first', $dupeButton['formOwnerAction']);
+        $t->same('duplicate-target-id', $dupeButton['formOwnerResolutionState']);
+        $t->same(false, $dupeButton['formOwnerResolved']);
+        $t->same(2, $dupeButton['formOwnerTargetCount']);
+        $t->same(2, $dupeButton['formOwnerFormTargetCount']);
+        $t->same(['duplicate-form-owner-target-id'], $dupeButton['formOwnerIssueCodes']);
+        $t->same([true, false], array_map(
+            static fn (array $target): bool => (bool) $target['selectedFormOwner'],
+            $dupeButton['formOwnerTargets']
+        ));
+        $t->same(['/first', '/second'], array_map(
+            static fn (array $target): ?string => $target['action'] ?? null,
+            $dupeButton['formOwnerTargets']
+        ));
+
+        json_encode([$remote, $nonForm, $missing, $empty, $invalid, $dupeButton], JSON_THROW_ON_ERROR);
+        $t->contains($html, $blocks);
+        $t->same('/migration/form-owner-idref-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html output control state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="calc-form"><input id="source-a" name="a" value="5"><button id="source-b" type="button">Add</button><label for="checksum">Checksum</label><label>Total <output id="checksum" name="checksum" for="source-a  source-b missing">Ready <strong>hash</strong></output></label></form>',
