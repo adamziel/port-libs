@@ -2748,6 +2748,100 @@ XML;
         $t->same(['word/raw/no-type.bin'], $missing['targetParts']);
         $t->same(['rMissingTargetType'], $missing['relationshipIds']);
     },
+    'summarizes docx relationship target inventory role buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderRole" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' . "\n" .
+            '  <Relationship Id="rCommentsRole" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>' . "\n" .
+            '  <Relationship Id="rNumberingRole" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingRoleImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-role.png"/>' . "\n" .
+            '  <Relationship Id="rExternalRoleLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/role" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/comments.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderRoleImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header-role.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/comments.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCommentRoleImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment-role.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/numbering.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rNumberingBulletRole" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/bullet-role.png"/>
+</Relationships>
+XML;
+        $parts['word/media/header-role.png'] = 'header role image';
+        $parts['word/media/comment-role.png'] = 'comment role image';
+        $parts['word/media/bullet-role.png'] = 'numbering role image';
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $targetRoles = [];
+        foreach ($summary['relationshipTargetRoles'] as $targetRole) {
+            $targetRoles[$targetRole['role']] = $targetRole;
+        }
+        $roleRelationshipIds = array_merge(...array_column($summary['relationshipTargetRoles'], 'relationshipIds'));
+
+        $t->same(count($targetRoles), $summary['relationshipTargetRoleCount']);
+
+        $header = $targetRoles['header-footer-media'];
+        $t->same(1, $summary['relationshipTargetRoleCounts']['header-footer-media']);
+        $t->same(1, $summary['relationshipTargetExistingRoleCounts']['header-footer-media']);
+        $t->true(!isset($summary['relationshipTargetMissingRoleCounts']['header-footer-media']), 'header/footer media role should not be missing');
+        $t->same(1, $header['relationshipCount']);
+        $t->same(1, $header['existingTargetCount']);
+        $t->same(0, $header['missingTargetCount']);
+        $t->same(['default' => 1], $header['contentTypeSourceCounts']);
+        $t->same(['word/header1.xml'], $header['sourceParts']);
+        $t->same(['word/_rels/header1.xml.rels'], $header['relationshipParts']);
+        $t->same(['rHeaderRoleImage'], $header['relationshipIds']);
+        $t->same(['word/media/header-role.png'], $header['targetParts']);
+
+        $numbering = $targetRoles['numbering-picture-bullet'];
+        $t->same(1, $summary['relationshipTargetRoleCounts']['numbering-picture-bullet']);
+        $t->same(1, $summary['relationshipTargetExistingRoleCounts']['numbering-picture-bullet']);
+        $t->same(['word/numbering.xml'], $numbering['sourceParts']);
+        $t->same(['rNumberingBulletRole'], $numbering['relationshipIds']);
+        $t->same(['word/media/bullet-role.png'], $numbering['targetParts']);
+
+        $comment = $targetRoles['comment-media'];
+        $t->same(1, $summary['relationshipTargetRoleCounts']['note-comment-media']);
+        $t->same(1, $summary['relationshipTargetRoleCounts']['comment-media']);
+        $t->same(1, $summary['relationshipTargetExistingRoleCounts']['note-comment-media']);
+        $t->same(1, $summary['relationshipTargetExistingRoleCounts']['comment-media']);
+        $t->same(['word/comments.xml'], $comment['sourceParts']);
+        $t->same(['rCommentRoleImage'], $comment['relationshipIds']);
+        $t->same(['word/media/comment-role.png'], $comment['targetParts']);
+
+        $missing = $targetRoles['missing-relationship-target'];
+        $t->same(1, $summary['relationshipTargetRoleCounts']['missing-relationship-target']);
+        $t->same(1, $summary['relationshipTargetMissingRoleCounts']['missing-relationship-target']);
+        $t->true(!isset($summary['relationshipTargetExistingRoleCounts']['missing-relationship-target']), 'missing target role should not be existing');
+        $t->same(1, $missing['relationshipCount']);
+        $t->same(0, $missing['existingTargetCount']);
+        $t->same(1, $missing['missingTargetCount']);
+        $t->same(['default' => 1], $missing['contentTypeSourceCounts']);
+        $t->same(['rMissingRoleImage'], $missing['relationshipIds']);
+        $t->same(['word/media/missing-role.png'], $missing['targetParts']);
+        $t->true(!in_array('rExternalRoleLink', $roleRelationshipIds, true), 'external relationship should not enter target role buckets');
+    },
     'summarizes docx relationship target path shape for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(

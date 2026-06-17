@@ -9110,6 +9110,10 @@ final class DocxOpenXmlReader
         $relationshipTargetContentTypeSourceCounts = [];
         $relationshipTargetContentTypes = [];
         $relationshipTargetParameterizedContentTypeCount = 0;
+        $relationshipTargetRoleCounts = [];
+        $relationshipTargetExistingRoleCounts = [];
+        $relationshipTargetMissingRoleCounts = [];
+        $relationshipTargetRoles = [];
         $relationshipSourceCount = 0;
         $relationshipSourcePackageRootCount = 0;
         $relationshipSourcePackagePartCount = 0;
@@ -9483,6 +9487,74 @@ final class DocxOpenXmlReader
                         ++$relationshipTargetParameterizedContentTypeCount;
                         ++$relationshipTargetContentTypes[$targetContentTypeKey]['parameterizedTargetCount'];
                     }
+
+                    $targetInventory = is_array($partInventory[$targetPart] ?? null)
+                        ? $partInventory[$targetPart]
+                        : null;
+                    $targetRoles = [];
+
+                    if ($targetInventory !== null) {
+                        foreach (($targetInventory['roles'] ?? []) as $targetRole) {
+                            if (is_string($targetRole) && $targetRole !== '') {
+                                $targetRoles[$targetRole] = true;
+                            }
+                        }
+                    }
+
+                    if ($targetRoles === []) {
+                        $fallbackRole = ($relationship['exists'] ?? false) === true
+                            ? 'relationship-target'
+                            : 'missing-relationship-target';
+                        $targetRoles[$fallbackRole] = true;
+                    }
+
+                    foreach (array_keys($targetRoles) as $targetRole) {
+                        if (!isset($relationshipTargetRoles[$targetRole])) {
+                            $relationshipTargetRoles[$targetRole] = [
+                                'role' => $targetRole,
+                                'relationshipCount' => 0,
+                                'existingTargetCount' => 0,
+                                'missingTargetCount' => 0,
+                                'parameterizedTargetCount' => 0,
+                                'contentTypeSourceCounts' => [],
+                                'sourceParts' => [],
+                                'relationshipParts' => [],
+                                'relationshipIds' => [],
+                                'relationshipTypes' => [],
+                                'contentTypes' => [],
+                                'targetParts' => [],
+                            ];
+                        }
+
+                        $relationshipTargetRoleCounts[$targetRole] =
+                            ($relationshipTargetRoleCounts[$targetRole] ?? 0) + 1;
+                        ++$relationshipTargetRoles[$targetRole]['relationshipCount'];
+                        $relationshipTargetRoles[$targetRole]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                            ($relationshipTargetRoles[$targetRole]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                        $this->appendUniqueString($relationshipTargetRoles[$targetRole]['sourceParts'], $sourcePart);
+                        $this->appendUniqueString($relationshipTargetRoles[$targetRole]['relationshipParts'], $relationshipsPart);
+                        $this->appendUniqueString(
+                            $relationshipTargetRoles[$targetRole]['relationshipIds'],
+                            is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                        );
+                        $this->appendUniqueString($relationshipTargetRoles[$targetRole]['relationshipTypes'], $type);
+                        $this->appendUniqueString($relationshipTargetRoles[$targetRole]['contentTypes'], $targetContentType);
+                        $this->appendUniqueString($relationshipTargetRoles[$targetRole]['targetParts'], $targetPart);
+
+                        if (($relationship['exists'] ?? false) === true) {
+                            $relationshipTargetExistingRoleCounts[$targetRole] =
+                                ($relationshipTargetExistingRoleCounts[$targetRole] ?? 0) + 1;
+                            ++$relationshipTargetRoles[$targetRole]['existingTargetCount'];
+                        } else {
+                            $relationshipTargetMissingRoleCounts[$targetRole] =
+                                ($relationshipTargetMissingRoleCounts[$targetRole] ?? 0) + 1;
+                            ++$relationshipTargetRoles[$targetRole]['missingTargetCount'];
+                        }
+
+                        if (($relationship['contentTypeHasParameters'] ?? false) === true) {
+                            ++$relationshipTargetRoles[$targetRole]['parameterizedTargetCount'];
+                        }
+                    }
                 }
 
                 if (($relationship['exists'] ?? false) === true) {
@@ -9602,6 +9674,14 @@ final class DocxOpenXmlReader
             ksort($targetContentTypeSummary['contentTypeSourceCounts']);
         }
         unset($targetContentTypeSummary);
+        ksort($relationshipTargetRoleCounts);
+        ksort($relationshipTargetExistingRoleCounts);
+        ksort($relationshipTargetMissingRoleCounts);
+        ksort($relationshipTargetRoles);
+        foreach ($relationshipTargetRoles as &$targetRoleSummary) {
+            ksort($targetRoleSummary['contentTypeSourceCounts']);
+        }
+        unset($targetRoleSummary);
         usort(
             $relationshipSourceExistingParts,
             static fn (array $left, array $right): int => ((int) $right['sourceBytes'] <=> (int) $left['sourceBytes'])
@@ -9684,6 +9764,11 @@ final class DocxOpenXmlReader
             'relationshipTargetContentTypeSourceCounts' => $relationshipTargetContentTypeSourceCounts,
             'relationshipTargetParameterizedContentTypeCount' => $relationshipTargetParameterizedContentTypeCount,
             'relationshipTargetContentTypes' => array_values($relationshipTargetContentTypes),
+            'relationshipTargetRoleCount' => count($relationshipTargetRoles),
+            'relationshipTargetRoleCounts' => $relationshipTargetRoleCounts,
+            'relationshipTargetExistingRoleCounts' => $relationshipTargetExistingRoleCounts,
+            'relationshipTargetMissingRoleCounts' => $relationshipTargetMissingRoleCounts,
+            'relationshipTargetRoles' => array_values($relationshipTargetRoles),
             'largestRelationshipSourcePart' => $largestRelationshipSourceParts[0] ?? null,
             'largestRelationshipSourceParts' => $largestRelationshipSourceParts,
             'missingContentTypePartCount' => count($partsWithoutContentType),
