@@ -276,6 +276,27 @@ return [
         $t->contains('<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 10 10"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg>', $serialized);
         $t->contains('<math><mi definitionURL="#x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>', $serialized);
     },
+    'preserves svg stitchTiles filter attribute casing for HTML reader handoff' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<svg><filter id="noise"><feTurbulence baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"></feTurbulence></filter></svg>'
+        );
+        $svg = Html5Dom::firstChildElement($body, 'svg');
+        $filter = $svg instanceof DOMElement ? Html5Dom::firstChildElement($svg, 'filter') : null;
+        $turbulence = $filter instanceof DOMElement ? Html5Dom::firstChildElement($filter, 'feTurbulence') : null;
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->true($turbulence instanceof DOMElement, 'Expected SVG feTurbulence element to preserve foreign casing');
+        $t->same([
+            'baseFrequency' => '0.8',
+            'numOctaves' => '2',
+            'stitchTiles' => 'stitch',
+        ], $turbulence instanceof DOMElement ? Html5Dom::attributes($turbulence) : []);
+        $t->same(
+            '<svg><filter id="noise"><feTurbulence baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"></feTurbulence></filter></svg>',
+            $serialized
+        );
+        $t->true(!str_contains($serialized, 'stitchtiles='), 'Expected SVG stitchTiles attribute to serialize with HTML5 foreign-content casing');
+    },
     'treats svg foreignObject and math annotation html descendants as html' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<svg><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg>'

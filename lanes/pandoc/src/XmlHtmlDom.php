@@ -533,6 +533,7 @@ final class XmlHtmlDom
         'spreadmethod' => 'spreadMethod',
         'startoffset' => 'startOffset',
         'stddeviation' => 'stdDeviation',
+        'stitchtiles' => 'stitchTiles',
         'surfacescale' => 'surfaceScale',
         'systemlanguage' => 'systemLanguage',
         'tablevalues' => 'tableValues',

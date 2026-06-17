@@ -8797,6 +8797,38 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('definitionURL', array_key_first($summary[1]['children'][0]['attributes']));
         $t->same('<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 10 10"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg><math><mi definitionURL="#x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>', $html);
     },
+    'preserves svg stitchTiles filter attribute casing before raw handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<svg><filter id="noise"><feTurbulence baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"></feTurbulence><feDisplacementMap scale="2" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap></filter></svg>',
+            'svg filter stitchTiles fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $filter = $summary[0]['children'][0];
+        $turbulence = $filter['children'][0];
+        $displacement = $filter['children'][1];
+
+        $t->same('svg', $summary[0]['name']);
+        $t->same('filter', $filter['name']);
+        $t->same('feTurbulence', $turbulence['name']);
+        $t->same([
+            'baseFrequency' => '0.8',
+            'numOctaves' => '2',
+            'stitchTiles' => 'stitch',
+        ], $turbulence['attributes']);
+        $t->same('feDisplacementMap', $displacement['name']);
+        $t->same([
+            'scale' => '2',
+            'xChannelSelector' => 'R',
+            'yChannelSelector' => 'G',
+        ], $displacement['attributes']);
+        $t->same(
+            '<svg><filter id="noise"><feTurbulence baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"></feTurbulence><feDisplacementMap scale="2" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap></filter></svg>',
+            $html
+        );
+        $t->true(!str_contains($html, 'stitchtiles='), 'Expected SVG stitchTiles attribute to serialize with HTML5 foreign-content casing');
+    },
     'keeps svg element-name casing scoped to svg foreign content' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<math><lineargradient data-review="math">m</lineargradient><mtext><linearGradient viewBox="html">html</linearGradient></mtext><svg><linearGradient id="g"></linearGradient></svg></math>',

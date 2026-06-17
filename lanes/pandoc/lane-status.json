@@ -249,6 +249,8 @@
   "xmlHtmlDomAccessKeyCollisionAssertions": 38,
   "mappedXmlHtmlDomDirectionValidityCases": 1,
   "xmlHtmlDomDirectionValidityAssertions": 31,
+  "mappedXmlHtmlDomSvgStitchTilesAttributeCases": 2,
+  "xmlHtmlDomSvgStitchTilesAttributeAssertions": 12,
   "mappedXmlHtmlDomSpellcheckInheritanceCases": 1,
   "xmlHtmlDomSpellcheckInheritanceAssertions": 33,
   "mappedXmlHtmlDomInertInheritanceCases": 2,
