@@ -15830,7 +15830,10 @@ final class XmlHtmlDom
                 'scriptTextLength' => strlen($text),
                 'scriptTextSha256' => hash('sha256', $text),
                 'activeReviewPolicy' => $element->hasAttribute('src') ? 'external-script-source' : 'inline-script-source',
-            ] + $scriptType + $loading + self::activeContentNonceSummary($element);
+            ] + $scriptType
+                + $loading
+                + self::scriptAttributionSrcReviewSummary($element)
+                + self::activeContentNonceSummary($element);
 
             if (in_array($scriptType['scriptPayloadKind'], ['importmap', 'speculationrules', 'json-data'], true)) {
                 $summary += self::scriptJsonReviewSummary($text, $scriptType['scriptPayloadKind']);
@@ -15875,6 +15878,69 @@ final class XmlHtmlDom
             'activeContentNonceByteLength' => strlen($nonce),
             'activeContentNonceSha256' => hash('sha256', $nonce),
             'activeContentNonceEmpty' => $nonce === '',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function scriptAttributionSrcReviewSummary(\DOMElement $script): array
+    {
+        if (!$script->hasAttribute('attributionsrc')) {
+            return [];
+        }
+
+        $raw = $script->getAttribute('attributionsrc');
+        $urls = self::spaceSeparatedTokens($raw);
+        $records = [];
+        $unsafeUrls = [];
+        $nonHttpUrls = [];
+        $issues = [];
+
+        if (trim($raw) === '') {
+            $issues[] = ['code' => 'empty-script-attributionsrc'];
+        }
+
+        foreach ($urls as $url) {
+            $urlSummary = self::hyperlinkUrlReviewSummary($url);
+            $records[] = [
+                'url' => $url,
+                'kind' => $urlSummary['kind'],
+                'scheme' => $urlSummary['scheme'],
+                'unsafe' => $urlSummary['unsafe'],
+            ];
+
+            if ($urlSummary['unsafe'] === true) {
+                $unsafeUrls[] = $url;
+                $issues[] = [
+                    'code' => 'unsafe-script-attributionsrc-url',
+                    'url' => $url,
+                    'scheme' => $urlSummary['scheme'],
+                ];
+                continue;
+            }
+
+            if ($urlSummary['kind'] === 'absolute' && !in_array($urlSummary['scheme'], ['http', 'https'], true)) {
+                $nonHttpUrls[] = $url;
+                $issues[] = [
+                    'code' => 'non-http-script-attributionsrc-url',
+                    'url' => $url,
+                    'scheme' => $urlSummary['scheme'],
+                ];
+            }
+        }
+
+        return [
+            'scriptAttributionSrcReviewPolicy' => 'script-attributionsrc-provenance-review',
+            'scriptAttributionSrcRequested' => true,
+            'scriptAttributionSrcRaw' => $raw,
+            'scriptAttributionSrcEmpty' => trim($raw) === '',
+            'scriptAttributionSrcUrls' => $urls,
+            'scriptAttributionSrcUrlCount' => count($urls),
+            'scriptAttributionSrcUrlRecords' => $records,
+            'unsafeScriptAttributionSrcUrls' => $unsafeUrls,
+            'nonHttpScriptAttributionSrcUrls' => $nonHttpUrls,
+            'scriptAttributionSrcIssues' => $issues,
         ];
     }
 

@@ -7110,6 +7110,71 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/active-content-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html script attribution source provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $attributionSrc = 'https://report.example/register /local-report javascript:alert(1) mailto:ops@example.test';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<script id="module-report" type="module" attributionsrc="' . $attributionSrc . '">import "./boot.js";</script>'
+                . '<script id="boolean-report" src="tracker.js" attributionsrc></script>'
+                . '<script id="plain" src="plain.js"></script>',
+            'script attribution source review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/script-attribution-source-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $reporting = $summary[0];
+        $empty = $summary[1];
+        $plain = $summary[2];
+
+        $t->same('script-attributionsrc-provenance-review', $reporting['scriptAttributionSrcReviewPolicy']);
+        $t->same(true, $reporting['scriptAttributionSrcRequested']);
+        $t->same($attributionSrc, $reporting['scriptAttributionSrcRaw']);
+        $t->same(false, $reporting['scriptAttributionSrcEmpty']);
+        $t->same([
+            'https://report.example/register',
+            '/local-report',
+            'javascript:alert(1)',
+            'mailto:ops@example.test',
+        ], $reporting['scriptAttributionSrcUrls']);
+        $t->same(4, $reporting['scriptAttributionSrcUrlCount']);
+        $t->same('absolute', $reporting['scriptAttributionSrcUrlRecords'][0]['kind']);
+        $t->same('https', $reporting['scriptAttributionSrcUrlRecords'][0]['scheme']);
+        $t->same(false, $reporting['scriptAttributionSrcUrlRecords'][0]['unsafe']);
+        $t->same('relative', $reporting['scriptAttributionSrcUrlRecords'][1]['kind']);
+        $t->same('javascript', $reporting['scriptAttributionSrcUrlRecords'][2]['scheme']);
+        $t->same(true, $reporting['scriptAttributionSrcUrlRecords'][2]['unsafe']);
+        $t->same(['javascript:alert(1)'], $reporting['unsafeScriptAttributionSrcUrls']);
+        $t->same(['mailto:ops@example.test'], $reporting['nonHttpScriptAttributionSrcUrls']);
+        $t->same([
+            ['code' => 'unsafe-script-attributionsrc-url', 'url' => 'javascript:alert(1)', 'scheme' => 'javascript'],
+            ['code' => 'non-http-script-attributionsrc-url', 'url' => 'mailto:ops@example.test', 'scheme' => 'mailto'],
+        ], $reporting['scriptAttributionSrcIssues']);
+        $t->same('module', $reporting['scriptPayloadKind']);
+        $t->same('inline', $reporting['scriptSourceKind']);
+
+        $t->same('script-attributionsrc-provenance-review', $empty['scriptAttributionSrcReviewPolicy']);
+        $t->same(true, $empty['scriptAttributionSrcRequested']);
+        $t->same('', $empty['scriptAttributionSrcRaw']);
+        $t->same(true, $empty['scriptAttributionSrcEmpty']);
+        $t->same([], $empty['scriptAttributionSrcUrls']);
+        $t->same(0, $empty['scriptAttributionSrcUrlCount']);
+        $t->same([], $empty['scriptAttributionSrcUrlRecords']);
+        $t->same([], $empty['unsafeScriptAttributionSrcUrls']);
+        $t->same([], $empty['nonHttpScriptAttributionSrcUrls']);
+        $t->same([
+            ['code' => 'empty-script-attributionsrc'],
+        ], $empty['scriptAttributionSrcIssues']);
+        $t->same('external', $empty['scriptSourceKind']);
+
+        $t->true(!array_key_exists('scriptAttributionSrcReviewPolicy', $plain));
+        $t->same('external', $plain['scriptSourceKind']);
+        $t->same('<script attributionsrc="https://report.example/register /local-report javascript:alert(1) mailto:ops@example.test" id="module-report" type="module">import "./boot.js";</script><script attributionsrc="" id="boolean-report" src="tracker.js"></script><script id="plain" src="plain.js"></script>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/script-attribution-source-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html active content nonce provenance for reviewer handoff' => static function (TestRunner $t): void {
         $scriptNonce = 'script-nonce-123';
         $scriptText = 'window.boot = true;';
