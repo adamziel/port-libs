@@ -4085,6 +4085,152 @@ XML;
         $t->same(['word/header/header1.xml'], $header['sourceParts']);
         $t->same(['word/header/_rels/header1.xml.rels'], $header['relationshipParts']);
     },
+    'summarizes docx relationship source top-level segments for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/source-segment.xml'] = '<customSegment/>';
+        $parts['word/header/header-segment.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/media/custom-segment.png'] = 'custom segment target';
+        $parts['word/media/header-segment.png'] = 'header segment target';
+        $parts['word/media/missing-segment.png'] = 'missing segment target';
+        $parts['word/media/relationship-segment.png'] = 'relationship segment target';
+        $parts['word/media/content-types-segment.png'] = 'content types segment target';
+        $parts['word/media/invalid-segment.png'] = 'invalid segment target';
+        $parts['_rels/[Content_Types].xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rContentTypesSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/content-types-segment.png"/>
+</Relationships>
+XML;
+        $parts['customXml/_rels/source-segment.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCustomSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/custom-segment.png"/>
+</Relationships>
+XML;
+        $parts['word/header/_rels/header-segment.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/header-segment.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-segment.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-segment.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/_rels/document.xml.rels.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRelationshipSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/relationship-segment.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/media/document.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rInvalidSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/invalid-segment.png"/>
+</Relationships>
+XML;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $segments = [];
+        foreach ($summary['relationshipSourceTopLevelSegments'] as $segment) {
+            $segments[$segment['sourceTopLevelSegmentKey']] = $segment;
+        }
+
+        $t->same(5, $summary['relationshipSourceTopLevelSegmentCount']);
+        $t->same([
+            '(invalid-source)' => 1,
+            '(package-root)' => 1,
+            '[Content_Types].xml' => 1,
+            'customXml' => 1,
+            'word' => 4,
+        ], $summary['relationshipSourceTopLevelSegmentCounts']);
+        $t->same(['(invalid-source)', '(package-root)', '[Content_Types].xml', 'customXml', 'word'], array_column($summary['relationshipSourceTopLevelSegments'], 'sourceTopLevelSegmentKey'));
+
+        $invalid = $segments['(invalid-source)'];
+        $t->same(null, $invalid['sourceTopLevelSegment']);
+        $t->same(1, $invalid['sourceCount']);
+        $t->same(0, $invalid['existingSourceCount']);
+        $t->same(1, $invalid['nonExistingSourceCount']);
+        $t->same(1, $invalid['relationshipCount']);
+        $t->same(['invalid-source' => 1], $invalid['relationshipSourceKindCounts']);
+        $t->same(['(invalid-source)' => 1], $invalid['sourceDirectoryCounts']);
+        $t->same(['(missing)' => 1], $invalid['sourceContentTypeBaseCounts']);
+        $t->same([], $invalid['sourceRoleCounts']);
+        $t->same([], $invalid['sourceParts']);
+        $t->same(['word/_rels/media/document.xml.rels'], $invalid['relationshipParts']);
+        $t->same(null, $invalid['largestExistingSourcePart']);
+
+        $root = $segments['(package-root)'];
+        $t->same(null, $root['sourceTopLevelSegment']);
+        $t->same(1, $root['sourceCount']);
+        $t->same(1, $root['existingSourceCount']);
+        $t->same(2, $root['relationshipCount']);
+        $t->same(['package-root' => 1], $root['relationshipSourceKindCounts']);
+        $t->same(['/' => 1], $root['sourceDirectoryCounts']);
+        $t->same(['/' => 1], $root['sourceBaseNameCounts']);
+        $t->same(['package-root' => 1], $root['sourceRoleCounts']);
+        $t->same(['/'], $root['sourceParts']);
+        $t->same(['_rels/.rels'], $root['relationshipParts']);
+
+        $contentTypes = $segments['[Content_Types].xml'];
+        $t->same('[Content_Types].xml', $contentTypes['sourceTopLevelSegment']);
+        $t->same(1, $contentTypes['sourceCount']);
+        $t->same(strlen($parts['[Content_Types].xml']), $contentTypes['existingSourceByteLength']);
+        $t->same(['content-types-item' => 1], $contentTypes['relationshipSourceKindCounts']);
+        $t->same(['/' => 1], $contentTypes['sourceDirectoryCounts']);
+        $t->same(['xml' => 1], $contentTypes['sourcePartExtensionCounts']);
+        $t->same(['content-types' => 1], $contentTypes['sourceRoleCounts']);
+        $t->same(['[Content_Types].xml'], $contentTypes['sourceParts']);
+        $t->same(['_rels/[Content_Types].xml.rels'], $contentTypes['relationshipParts']);
+        $t->same('[Content_Types].xml', $contentTypes['largestExistingSourcePart']['sourcePart']);
+
+        $customXml = $segments['customXml'];
+        $t->same('customXml', $customXml['sourceTopLevelSegment']);
+        $t->same(1, $customXml['sourceCount']);
+        $t->same(1, $customXml['existingSourceCount']);
+        $t->same(strlen($parts['customXml/source-segment.xml']), $customXml['existingSourceByteLength']);
+        $t->same(['package-part' => 1], $customXml['relationshipSourceKindCounts']);
+        $t->same(['customXml' => 1], $customXml['sourceDirectoryCounts']);
+        $t->same(['application/xml' => 1], $customXml['sourceContentTypeBaseCounts']);
+        $t->same(['package-part' => 1], $customXml['sourceRoleCounts']);
+        $t->same(['customXml/source-segment.xml'], $customXml['sourceParts']);
+        $t->same(['customXml/_rels/source-segment.xml.rels'], $customXml['relationshipParts']);
+
+        $word = $segments['word'];
+        $t->same('word', $word['sourceTopLevelSegment']);
+        $t->same(4, $word['sourceCount']);
+        $t->same(3, $word['existingSourceCount']);
+        $t->same(1, $word['nonExistingSourceCount']);
+        $t->same(5, $word['relationshipCount']);
+        $t->same(strlen($parts['word/_rels/document.xml.rels']) + strlen($parts['word/document.xml']) + strlen($parts['word/header/header-segment.xml']), $word['existingSourceByteLength']);
+        $t->same(['missing-source' => 1, 'package-part' => 2, 'relationship-part' => 1], $word['relationshipSourceKindCounts']);
+        $t->same(['word' => 2, 'word/_rels' => 1, 'word/header' => 1], $word['sourceDirectoryCounts']);
+        $t->same(['document.xml' => 1, 'document.xml.rels' => 1, 'header-segment.xml' => 1, 'missing-segment.xml' => 1], $word['sourceBaseNameCounts']);
+        $t->same([
+            '(missing)' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 1,
+            'application/xml' => 1,
+        ], $word['sourceContentTypeBaseCounts']);
+        $t->same(['(missing)' => 1, 'default' => 2, 'override' => 1], $word['sourceContentTypeSourceCounts']);
+        $t->same([
+            'office-document' => 1,
+            'office-document-relationships' => 1,
+            'package-part' => 1,
+            'relationship-part' => 1,
+            'root-relationship-target' => 1,
+        ], $word['sourceRoleCounts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/document.xml', 'word/header/header-segment.xml', 'word/missing-segment.xml'], $word['sourceParts']);
+        $t->same([
+            'word/_rels/_rels/document.xml.rels.rels',
+            'word/_rels/document.xml.rels',
+            'word/_rels/missing-segment.xml.rels',
+            'word/header/_rels/header-segment.xml.rels',
+        ], $word['relationshipParts']);
+        $t->same('word/document.xml', $word['largestExistingSourcePart']['sourcePart']);
+    },
     'summarizes docx relationship source role buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $rootSourceXml = '<rootRole/>';

@@ -11161,6 +11161,13 @@ final class DocxOpenXmlReader
         $largestRelationshipSourceParts = array_slice($relationshipSourceExistingParts, 0, 5);
         $relationshipSourceDirectories = $this->relationshipSourceDirectorySummary($relationshipSources);
         $relationshipSourceContentTypes = $this->relationshipSourceContentTypeSummary($relationshipSources);
+        $relationshipSourceTopLevelSegments = $this->relationshipSourceTopLevelSegmentSummary($relationshipSources);
+        $relationshipSourceTopLevelSegmentCounts = [];
+        foreach ($relationshipSourceTopLevelSegments as $sourceTopLevelSegmentSummary) {
+            $segmentKey = (string) ($sourceTopLevelSegmentSummary['sourceTopLevelSegmentKey'] ?? '');
+            $relationshipSourceTopLevelSegmentCounts[$segmentKey] = (int) ($sourceTopLevelSegmentSummary['sourceCount'] ?? 0);
+        }
+        ksort($relationshipSourceTopLevelSegmentCounts, SORT_STRING);
         $relationshipSourceBaseNames = $this->relationshipSourceBaseNameSummary($relationshipSources);
         $relationshipSourceBaseNameCounts = [];
         $duplicateRelationshipSourceBaseNames = [];
@@ -11313,6 +11320,9 @@ final class DocxOpenXmlReader
             'relationshipSourceDirectories' => $relationshipSourceDirectories,
             'relationshipSourceContentTypeBucketCount' => count($relationshipSourceContentTypes),
             'relationshipSourceContentTypes' => $relationshipSourceContentTypes,
+            'relationshipSourceTopLevelSegmentCount' => count($relationshipSourceTopLevelSegments),
+            'relationshipSourceTopLevelSegmentCounts' => $relationshipSourceTopLevelSegmentCounts,
+            'relationshipSourceTopLevelSegments' => $relationshipSourceTopLevelSegments,
             'relationshipSourceBaseNameCount' => count($relationshipSourceBaseNames),
             'relationshipSourceBaseNameCounts' => $relationshipSourceBaseNameCounts,
             'duplicateRelationshipSourceBaseNameCount' => count($duplicateRelationshipSourceBaseNames),
@@ -12190,6 +12200,155 @@ final class DocxOpenXmlReader
         }
 
         return array_values($directories);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipSourceTopLevelSegmentSummary(array $relationshipSources): array
+    {
+        $segments = [];
+        foreach ($relationshipSources as $source) {
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            $sourceTopLevelSegment = null;
+            if ($sourcePart === '') {
+                $segmentKey = '(invalid-source)';
+            } elseif ($sourcePart === '/') {
+                $segmentKey = '(package-root)';
+            } else {
+                $sourceTopLevelSegment = $this->packagePartTopLevelSegment($sourcePart);
+                $segmentKey = $sourceTopLevelSegment === '' ? '(invalid-source)' : $sourceTopLevelSegment;
+                if ($sourceTopLevelSegment === '') {
+                    $sourceTopLevelSegment = null;
+                }
+            }
+
+            if (!isset($segments[$segmentKey])) {
+                $segments[$segmentKey] = [
+                    'sourceTopLevelSegmentKey' => $segmentKey,
+                    'sourceTopLevelSegment' => $sourceTopLevelSegment,
+                    'sourceCount' => 0,
+                    'existingSourceCount' => 0,
+                    'nonExistingSourceCount' => 0,
+                    'relationshipCount' => 0,
+                    'relationshipRecordCount' => 0,
+                    'existingSourceByteLength' => 0,
+                    'relationshipSourceKindCounts' => [],
+                    'sourceDirectoryCounts' => [],
+                    'sourceBaseNameCounts' => [],
+                    'sourcePartExtensionCounts' => [],
+                    'sourceContentTypeBaseCounts' => [],
+                    'sourceContentTypeSourceCounts' => [],
+                    'sourceRoleCounts' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'largestExistingSourcePart' => null,
+                ];
+            }
+
+            ++$segments[$segmentKey]['sourceCount'];
+            $sourceExists = ($source['sourceExists'] ?? false) === true;
+            if ($sourceExists) {
+                ++$segments[$segmentKey]['existingSourceCount'];
+            } else {
+                ++$segments[$segmentKey]['nonExistingSourceCount'];
+            }
+            $segments[$segmentKey]['relationshipCount'] += (int) ($source['relationshipCount'] ?? 0);
+            $segments[$segmentKey]['relationshipRecordCount'] += (int) ($source['relationshipRecordCount'] ?? 0);
+
+            $sourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                ? $source['relationshipSourceKind']
+                : 'invalid-source';
+            $segments[$segmentKey]['relationshipSourceKindCounts'][$sourceKind] =
+                ($segments[$segmentKey]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+
+            $directory = is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : '';
+            $directoryKey = $directory === '' ? '(invalid-source)' : $directory;
+            $segments[$segmentKey]['sourceDirectoryCounts'][$directoryKey] =
+                ($segments[$segmentKey]['sourceDirectoryCounts'][$directoryKey] ?? 0) + 1;
+
+            $baseName = is_string($source['sourceBaseName'] ?? null) ? $source['sourceBaseName'] : '';
+            $baseNameKey = $baseName === '' ? '(invalid-source)' : $baseName;
+            $segments[$segmentKey]['sourceBaseNameCounts'][$baseNameKey] =
+                ($segments[$segmentKey]['sourceBaseNameCounts'][$baseNameKey] ?? 0) + 1;
+
+            $extension = is_string($source['sourcePartExtension'] ?? null)
+                ? $source['sourcePartExtension']
+                : null;
+            $extensionKey = $extension ?? '(none)';
+            $segments[$segmentKey]['sourcePartExtensionCounts'][$extensionKey] =
+                ($segments[$segmentKey]['sourcePartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+            $contentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                ? $source['sourceContentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $segments[$segmentKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($segments[$segmentKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $contentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                ? $source['sourceContentTypeSource']
+                : '';
+            $contentTypeSourceKey = $contentTypeSource === '' ? '(missing)' : $contentTypeSource;
+            $segments[$segmentKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] =
+                ($segments[$segmentKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+
+            foreach (($source['sourceRoles'] ?? []) as $role) {
+                $role = (string) $role;
+                $segments[$segmentKey]['sourceRoleCounts'][$role] =
+                    ($segments[$segmentKey]['sourceRoleCounts'][$role] ?? 0) + 1;
+            }
+
+            $this->appendUniqueString($segments[$segmentKey]['sourceParts'], $sourcePart);
+            $this->appendUniqueString(
+                $segments[$segmentKey]['relationshipParts'],
+                is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : null,
+            );
+
+            if (is_int($source['sourceBytes'] ?? null)) {
+                $sourceBytes = (int) $source['sourceBytes'];
+                $segments[$segmentKey]['existingSourceByteLength'] += $sourceBytes;
+                $sourceSummary = [
+                    'sourcePart' => $sourcePart,
+                    'relationshipsPart' => is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '',
+                    'relationshipSourceKind' => $sourceKind,
+                    'sourceBytes' => $sourceBytes,
+                    'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                    'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                    'sourceContentTypeBase' => $contentTypeBase === '' ? null : $contentTypeBase,
+                    'sourceContentTypeSource' => $contentTypeSource === '' ? null : $contentTypeSource,
+                    'sourceRoles' => array_values(array_map('strval', $source['sourceRoles'] ?? [])),
+                ];
+                $largestPart = $segments[$segmentKey]['largestExistingSourcePart'];
+                if (
+                    !is_array($largestPart)
+                    || $sourceSummary['sourceBytes'] > (int) ($largestPart['sourceBytes'] ?? 0)
+                    || (
+                        $sourceSummary['sourceBytes'] === (int) ($largestPart['sourceBytes'] ?? 0)
+                        && strcmp($sourceSummary['sourcePart'], (string) ($largestPart['sourcePart'] ?? '')) < 0
+                    )
+                ) {
+                    $segments[$segmentKey]['largestExistingSourcePart'] = $sourceSummary;
+                }
+            }
+        }
+
+        ksort($segments, SORT_STRING);
+        foreach ($segments as $segmentKey => $summary) {
+            ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($summary['sourceDirectoryCounts'], SORT_STRING);
+            ksort($summary['sourceBaseNameCounts'], SORT_STRING);
+            ksort($summary['sourcePartExtensionCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['sourceRoleCounts'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            $segments[$segmentKey] = $summary;
+        }
+
+        return array_values($segments);
     }
 
     /**
