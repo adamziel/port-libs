@@ -10612,6 +10612,19 @@ final class PdfEngineHandoff
                 continue;
             }
 
+            foreach ($this->extractTypstJsonWarningProvenance($text, $root) as $warning) {
+                $key = json_encode($warning);
+                if ($key === false) {
+                    $key = serialize($warning);
+                }
+                if (isset($seen[$key])) {
+                    continue;
+                }
+
+                $seen[$key] = true;
+                $warnings[] = $warning;
+            }
+
             $lines = preg_split('/\R/u', $text);
             if ($lines === false) {
                 $lines = preg_split('/\r\n|\r|\n/', $text) ?: [];
@@ -10667,6 +10680,193 @@ final class PdfEngineHandoff
         }
 
         return $warnings;
+    }
+
+    /**
+     * @return list<array{message:string, sourceFile:string|null, line:int|null, column:int|null, endLine:int|null, endColumn:int|null, hints:list<string>, root:string|null, insideRoot:bool|null, boundaryStatus:string, issues:list<string>}>
+     */
+    private function extractTypstJsonWarningProvenance(string $text, ?string $root): array
+    {
+        $warnings = [];
+        foreach ($this->decodeJsonDiagnosticRecords($text) as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $severity = $record['severity'] ?? $record['level'] ?? $record['kind'] ?? null;
+            if (!is_string($severity) || strtolower($severity) !== 'warning') {
+                continue;
+            }
+
+            $message = $record['message'] ?? $record['text'] ?? $record['title'] ?? null;
+            if (!is_string($message) || trim($message) === '') {
+                continue;
+            }
+
+            $warnings[] = $this->typstWarningProvenanceEntry(
+                trim($message),
+                $this->parseTypstJsonDiagnosticLocation($record),
+                $root,
+                $this->typstJsonDiagnosticHints($record)
+            );
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function decodeJsonDiagnosticRecords(string $text): array
+    {
+        $records = [];
+        $trimmed = trim($text);
+        if ($trimmed === '') {
+            return [];
+        }
+
+        if ($trimmed[0] === '{' || $trimmed[0] === '[') {
+            $decoded = json_decode($trimmed, true);
+            if (is_array($decoded)) {
+                if (array_is_list($decoded)) {
+                    return $decoded;
+                }
+
+                return [$decoded];
+            }
+        }
+
+        $lines = preg_split('/\R/u', $text);
+        if ($lines === false) {
+            $lines = preg_split('/\r\n|\r|\n/', $text) ?: [];
+        }
+
+        foreach ($lines as $line) {
+            $line = trim((string) $line);
+            if ($line === '' || ($line[0] !== '{' && $line[0] !== '[')) {
+                continue;
+            }
+
+            $decoded = json_decode($line, true);
+            if (!is_array($decoded)) {
+                continue;
+            }
+
+            if (array_is_list($decoded)) {
+                foreach ($decoded as $item) {
+                    $records[] = $item;
+                }
+                continue;
+            }
+
+            $records[] = $decoded;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return array{sourceFile:string, sourceLocal:bool, line:int, column:int, endLine:int|null, endColumn:int|null}|null
+     */
+    private function parseTypstJsonDiagnosticLocation(array $record): ?array
+    {
+        $location = $record['span'] ?? $record['location'] ?? $record['range'] ?? $record;
+        if (!is_array($location)) {
+            return null;
+        }
+
+        $path = $this->typstJsonDiagnosticPath($location);
+        if ($path === null) {
+            $path = $this->typstJsonDiagnosticPath($record);
+        }
+        if ($path === null) {
+            return null;
+        }
+
+        try {
+            $classified = $this->normalizeEngineDependencyPath($path, 'Typst JSON warning diagnostic');
+        } catch (\RuntimeException) {
+            return null;
+        }
+
+        $start = is_array($location['start'] ?? null) ? $location['start'] : (is_array($location['range']['start'] ?? null) ? $location['range']['start'] : null);
+        $end = is_array($location['end'] ?? null) ? $location['end'] : (is_array($location['range']['end'] ?? null) ? $location['range']['end'] : null);
+        $line = $this->positiveIntValue($location['line'] ?? ($start['line'] ?? null));
+        $column = $this->positiveIntValue($location['column'] ?? ($location['col'] ?? ($start['column'] ?? ($start['col'] ?? null))));
+        if ($line === null || $column === null) {
+            return null;
+        }
+
+        return [
+            'sourceFile' => $classified['path'],
+            'sourceLocal' => $classified['local'],
+            'line' => $line,
+            'column' => $column,
+            'endLine' => $this->positiveIntValue($location['endLine'] ?? ($end['line'] ?? null)),
+            'endColumn' => $this->positiveIntValue($location['endColumn'] ?? ($location['endCol'] ?? ($end['column'] ?? ($end['col'] ?? null)))),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $location
+     */
+    private function typstJsonDiagnosticPath(array $location): ?string
+    {
+        foreach (['path', 'file', 'filename', 'source'] as $key) {
+            if (is_string($location[$key] ?? null) && $location[$key] !== '') {
+                return $location[$key];
+            }
+        }
+
+        if (is_array($location['file'] ?? null)) {
+            return $this->typstJsonDiagnosticPath($location['file']);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<string>
+     */
+    private function typstJsonDiagnosticHints(array $record): array
+    {
+        $hints = [];
+        foreach (['hint', 'help'] as $key) {
+            if (is_string($record[$key] ?? null) && trim($record[$key]) !== '') {
+                $hints[] = trim($record[$key]);
+            }
+        }
+
+        foreach (['hints', 'helps', 'notes'] as $key) {
+            if (!is_array($record[$key] ?? null)) {
+                continue;
+            }
+            foreach ($record[$key] as $hint) {
+                if (is_string($hint) && trim($hint) !== '') {
+                    $hints[] = trim($hint);
+                    continue;
+                }
+                if (is_array($hint) && is_string($hint['message'] ?? null) && trim($hint['message']) !== '') {
+                    $hints[] = trim($hint['message']);
+                }
+            }
+        }
+
+        return array_values(array_unique($hints));
+    }
+
+    private function positiveIntValue(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+        if (is_string($value) && preg_match('/\A[1-9]\d*\z/', $value) === 1) {
+            return (int) $value;
+        }
+
+        return null;
     }
 
     /**

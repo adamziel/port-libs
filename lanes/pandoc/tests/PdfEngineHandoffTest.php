@@ -6103,6 +6103,113 @@ return [
         $t->same($expected, $sequence['finalTypstWarningProvenance']);
     },
 
+    'fake runner preserves typst json warning source provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'project/main.typ',
+            'outputPath' => 'build/json-warnings.pdf',
+            'source' => '= Typst JSON Warning Packet',
+            'engineOptions' => ['--root=project', '--diagnostic-format=json'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst JSON warning provenance packet\n%%EOF\n";
+        $stderr = implode("\n", [
+            json_encode([
+                'severity' => 'warning',
+                'message' => 'unknown font family: Review Serif',
+                'span' => [
+                    'path' => 'project/main.typ',
+                    'start' => ['line' => 6, 'column' => 12],
+                    'end' => ['line' => 6, 'column' => 24],
+                ],
+                'hints' => ['available fonts are listed with `typst fonts`'],
+            ], JSON_THROW_ON_ERROR),
+            json_encode([
+                'level' => 'warning',
+                'message' => 'package import crosses review root',
+                'span' => [
+                    'file' => 'shared/included.typ',
+                    'range' => ['start' => ['line' => 10, 'column' => 3]],
+                ],
+                'hint' => 'move the import under project/ before compiling',
+            ], JSON_THROW_ON_ERROR),
+            json_encode([
+                'severity' => 'warning',
+                'message' => 'warning without source span',
+                'help' => 're-run with source spans for review',
+            ], JSON_THROW_ON_ERROR),
+            json_encode([
+                'severity' => 'error',
+                'message' => 'ignored fatal diagnostic',
+            ], JSON_THROW_ON_ERROR),
+            '',
+        ]);
+        $expected = [
+            [
+                'message' => 'unknown font family: Review Serif',
+                'sourceFile' => 'project/main.typ',
+                'line' => 6,
+                'column' => 12,
+                'endLine' => 6,
+                'endColumn' => 24,
+                'hints' => ['available fonts are listed with `typst fonts`'],
+                'root' => 'project',
+                'insideRoot' => true,
+                'boundaryStatus' => 'inside-root',
+                'issues' => [],
+            ],
+            [
+                'message' => 'package import crosses review root',
+                'sourceFile' => 'shared/included.typ',
+                'line' => 10,
+                'column' => 3,
+                'endLine' => null,
+                'endColumn' => null,
+                'hints' => ['move the import under project/ before compiling'],
+                'root' => 'project',
+                'insideRoot' => false,
+                'boundaryStatus' => 'outside-root',
+                'issues' => ['warning-source-outside-root'],
+            ],
+            [
+                'message' => 'warning without source span',
+                'sourceFile' => null,
+                'line' => null,
+                'column' => null,
+                'endLine' => null,
+                'endColumn' => null,
+                'hints' => ['re-run with source spans for review'],
+                'root' => 'project',
+                'insideRoot' => null,
+                'boundaryStatus' => 'unknown-source',
+                'issues' => ['warning-source-missing'],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'stderr' => $stderr,
+            'files' => [
+                'build/json-warnings.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'stderr' => $stderr,
+            'files' => [
+                'build/json-warnings.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstWarningProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstWarningProvenance']);
+        $t->contains('typst-warning-provenance:3', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-source-outside-root:shared/included.typ', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-source-issues:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-source-issues:2', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstWarningProvenance']);
+    },
+
     'maps typst pdf boundary matrix across provenance domains without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $source = implode("\n", [
