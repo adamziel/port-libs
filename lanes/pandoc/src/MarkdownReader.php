@@ -21021,7 +21021,7 @@ final class MarkdownReader
         }
 
         if (preg_match('/\G<([A-Za-z][A-Za-z0-9.+-]{1,31}:[^<>\x00-\x0D\x1F\x20\x7F]*)>/u', $text, $m, 0, $offset) === 1) {
-            $url = $this->normalizeLinkDestination($m[1]);
+            $url = $this->normalizeAutolinkDestination($m[1]);
             $next = $offset + strlen($m[0]);
             [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
                 'url' => $url,
@@ -21052,7 +21052,7 @@ final class MarkdownReader
                 $offset
             ) === 1
         ) {
-            $address = $this->decodeHtmlEntities($this->unescapeLinkComponent($m[1]));
+            $address = $this->decodeHtmlEntities($m[1]);
             $next = $offset + strlen($m[0]);
             [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
                 'url' => 'mailto:' . $address,
@@ -22289,6 +22289,14 @@ final class MarkdownReader
     {
         $destination = $this->decodeHtmlEntities($this->unescapeLinkComponent($destination));
         $destination = trim(preg_replace('/\s+/', ' ', $destination) ?? $destination);
+        $destination = $this->escapeLinkDestinationControlCharacters($destination);
+
+        return str_replace(' ', '%20', $destination);
+    }
+
+    private function normalizeAutolinkDestination(string $destination): string
+    {
+        $destination = $this->decodeHtmlEntities($destination);
         $destination = $this->escapeLinkDestinationControlCharacters($destination);
 
         return str_replace(' ', '%20', $destination);
