@@ -1270,13 +1270,22 @@ final class DocxOpenXmlReader
         }
 
         foreach ($this->elements($xpath, '/ct:Types/ct:Override') as $node) {
-            $partName = $this->normalizePartName($node->getAttribute('PartName'));
+            $partName = $this->contentTypeOverridePartName($node->getAttribute('PartName'));
             if ($partName !== '') {
                 $overrides[$partName] = $node->getAttribute('ContentType');
             }
         }
 
         return ['defaults' => $defaults, 'overrides' => $overrides];
+    }
+
+    private function contentTypeOverridePartName(string $partName): string
+    {
+        try {
+            return $this->normalizePartName(OpcPackagePath::canonicalPartNameFromUri($partName));
+        } catch (\InvalidArgumentException) {
+            return $this->normalizePartName($partName);
+        }
     }
 
     /**
@@ -18585,11 +18594,23 @@ final class DocxOpenXmlReader
             return $target;
         }
 
+        $sourcePart = $this->sourcePartForRelationshipsPart($relsPartName);
+        try {
+            return $this->normalizePartName(OpcPackagePath::resolveInternalTarget(
+                $sourcePart === '' ? '/' : '/' . $sourcePart,
+                $target,
+            ));
+        } catch (\InvalidArgumentException) {
+            return $this->resolveRelationshipTargetTolerantly($sourcePart, $target);
+        }
+    }
+
+    private function resolveRelationshipTargetTolerantly(string $sourcePart, string $target): string
+    {
         if (str_starts_with($target, '/')) {
             return $this->normalizePartName($target);
         }
 
-        $sourcePart = $this->sourcePartForRelationshipsPart($relsPartName);
         $base = $sourcePart === '' ? '' : dirname($sourcePart);
         $path = ($base === '' || $base === '.' ? '' : $base . '/') . $target;
 

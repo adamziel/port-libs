@@ -142,6 +142,65 @@ return [
         $t->same('override', $inventory['customXml/item1.xml']['contentTypeSource']);
         $t->same('package-part', $inventory['word/styles.xml']['roles'][0]);
     },
+    'resolves docx percent encoded opc relationship targets and content type overrides' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/media/review%20shot.png" ContentType="image/png; profile=encoded-path"/>' . "\n" .
+            '  <Override PartName="/customXml/review%20data.xml" ContentType="application/xml; profile=encoded-custom"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rEncodedImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review%20shot.png?variant=wide#image"/>' . "\n" .
+            '  <Relationship Id="rEncodedCustomXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/review%20data.xml?slot=encoded#payload"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/media/review shot.png'] = 'encoded review image bytes';
+        $parts['customXml/review data.xml'] = '<review-data/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $contentTypesPart = $package['contentTypesPart'];
+        $relationships = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships'];
+        $image = $relationships['rEncodedImage'];
+        $customXml = $relationships['rEncodedCustomXml'];
+        $inventory = $package['parts'];
+
+        $t->same('image/png; profile=encoded-path', $contentTypesPart['overrides']['word/media/review shot.png']['contentType']);
+        $t->same(true, $contentTypesPart['overrides']['word/media/review shot.png']['exists']);
+        $t->same('application/xml; profile=encoded-custom', $contentTypesPart['overrides']['customXml/review data.xml']['contentType']);
+        $t->same(true, $contentTypesPart['overrides']['customXml/review data.xml']['exists']);
+
+        $t->same('word/media/review shot.png?variant=wide#image', $image['resolvedTarget']);
+        $t->same('word/media/review shot.png', $image['targetPart']);
+        $t->same('?variant=wide#image', $image['targetReferenceSuffix']);
+        $t->same('variant=wide', $image['targetQuery']);
+        $t->same('image', $image['targetFragment']);
+        $t->same(true, $image['exists']);
+        $t->same('override', $image['contentTypeSource']);
+        $t->same('image/png', $image['contentTypeBase']);
+        $t->same(['profile' => 'encoded-path'], $image['contentTypeParameterMap']);
+        $t->same('word/media/review shot.png', $image['overridePartName']);
+
+        $t->same('customXml/review data.xml?slot=encoded#payload', $customXml['resolvedTarget']);
+        $t->same('customXml/review data.xml', $customXml['targetPart']);
+        $t->same(1, $customXml['targetParentTraversalCount']);
+        $t->same(true, $customXml['targetHasParentTraversal']);
+        $t->same('slot=encoded', $customXml['targetQuery']);
+        $t->same('payload', $customXml['targetFragment']);
+        $t->same(true, $customXml['exists']);
+        $t->same('application/xml', $customXml['contentTypeBase']);
+        $t->same(['profile' => 'encoded-custom'], $customXml['contentTypeParameterMap']);
+
+        $t->same('override', $inventory['word/media/review shot.png']['contentTypeSource']);
+        $t->true(in_array('document-relationship-target', $inventory['word/media/review shot.png']['roles'], true), 'decoded image target role missing');
+        $t->same('override', $inventory['customXml/review data.xml']['contentTypeSource']);
+        $t->true(in_array('custom-xml-part', $inventory['customXml/review data.xml']['roles'], true), 'decoded custom XML target role missing');
+        $t->true(in_array('rEncodedImage', array_column($package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image']['relationships'], 'id'), true), 'encoded image relationship type row missing');
+    },
     'selects internal docx office document relationship when external root link is present' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['_rels/.rels'] = str_replace(
