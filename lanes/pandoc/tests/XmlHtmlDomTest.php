@@ -5943,6 +5943,72 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/text-semantics-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html abbreviation and definition term provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dfn id="title" title=" HyperText Markup Language ">HTML</dfn>'
+                . '<dfn id="abbr"><abbr title="Cascading Style Sheets">CSS</abbr></dfn>'
+                . '<dfn id="text"><abbr>DOM</abbr></dfn>'
+                . '<abbr id="missing">API</abbr>'
+                . '<abbr id="empty" title="">ID</abbr>'
+                . '<abbr id="expanded" title="Application Programming Interface">API</abbr>',
+            'definition term provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/definition-term-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $titleDefinition = $summary[0];
+        $abbreviationDefinition = $summary[1];
+        $textDefinition = $summary[2];
+        $missingTitle = $summary[3];
+        $emptyTitle = $summary[4];
+        $expanded = $summary[5];
+
+        $t->same('html-definition-term-source-review', $titleDefinition['definitionReviewPolicy']);
+        $t->same('HTML', $titleDefinition['definitionTerm']);
+        $t->same(' HyperText Markup Language ', $titleDefinition['definitionTitle']);
+        $t->same('HyperText Markup Language', $titleDefinition['definitionResolvedTerm']);
+        $t->same('title-attribute', $titleDefinition['definitionTermSource']);
+        $t->same(true, $titleDefinition['definitionTitlePresent']);
+        $t->same(false, $titleDefinition['definitionTitleEmpty']);
+        $t->same(null, $titleDefinition['definitionChildAbbreviationTitle']);
+        $t->same([], $titleDefinition['definitionIssueCodes']);
+
+        $t->same('Cascading Style Sheets', $abbreviationDefinition['definitionResolvedTerm']);
+        $t->same('child-abbr-title', $abbreviationDefinition['definitionTermSource']);
+        $t->same(false, $abbreviationDefinition['definitionTitlePresent']);
+        $t->same('CSS', $abbreviationDefinition['definitionChildAbbreviationText']);
+        $t->same('Cascading Style Sheets', $abbreviationDefinition['definitionChildAbbreviationTitle']);
+        $t->same([], $abbreviationDefinition['definitionIssueCodes']);
+
+        $t->same('DOM', $textDefinition['definitionResolvedTerm']);
+        $t->same('text-content', $textDefinition['definitionTermSource']);
+        $t->same('DOM', $textDefinition['definitionChildAbbreviationText']);
+        $t->same(null, $textDefinition['definitionChildAbbreviationTitle']);
+        $t->same([], $textDefinition['definitionIssueCodes']);
+
+        $t->same('html-abbreviation-title-review', $missingTitle['abbreviationReviewPolicy']);
+        $t->same('API', $missingTitle['abbreviationText']);
+        $t->same(false, $missingTitle['abbreviationTitlePresent']);
+        $t->same(null, $missingTitle['abbreviationExpansion']);
+        $t->same(['missing-abbreviation-title'], $missingTitle['abbreviationIssueCodes']);
+
+        $t->same(true, $emptyTitle['abbreviationTitlePresent']);
+        $t->same(true, $emptyTitle['abbreviationTitleEmpty']);
+        $t->same(null, $emptyTitle['abbreviationExpansion']);
+        $t->same(['empty-abbreviation-title'], $emptyTitle['abbreviationIssueCodes']);
+
+        $t->same('Application Programming Interface', $expanded['abbreviationExpansion']);
+        $t->same(false, $expanded['abbreviationTitleMatchesText']);
+        $t->same([], $expanded['abbreviationIssueCodes']);
+
+        $t->same('<dfn id="title" title=" HyperText Markup Language ">HTML</dfn><dfn id="abbr"><abbr title="Cascading Style Sheets">CSS</abbr></dfn><dfn id="text"><abbr>DOM</abbr></dfn><abbr id="missing">API</abbr><abbr id="empty" title="">ID</abbr><abbr id="expanded" title="Application Programming Interface">API</abbr>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/definition-term-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html emphasis and importance semantics for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><em>Stress</em><strong>Important</strong><b>Keyword</b><i>Taxon</i></p>',

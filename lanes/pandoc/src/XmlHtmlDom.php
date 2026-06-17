@@ -16619,10 +16619,12 @@ final class XmlHtmlDom
 
         if ($name === 'abbr') {
             $summary['abbreviationTitle'] = self::attributeOrNull($element, 'title');
+            $summary += self::abbreviationTitleReviewSummary($element);
         }
         if ($name === 'dfn') {
             $summary['definitionTerm'] = self::normalizedText($element);
             $summary['definitionTitle'] = self::attributeOrNull($element, 'title');
+            $summary += self::definitionTermReviewSummary($element);
         }
         if ($name === 'bdi' || $name === 'bdo') {
             $direction = strtolower(trim($element->getAttribute('dir')));
@@ -16630,6 +16632,117 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function abbreviationTitleReviewSummary(\DOMElement $abbr): array
+    {
+        $titleRaw = self::attributeOrNull($abbr, 'title');
+        $title = $titleRaw === null ? null : trim($titleRaw);
+        $text = self::normalizedText($abbr);
+        $issueCodes = [];
+
+        if ($titleRaw === null) {
+            $issueCodes[] = 'missing-abbreviation-title';
+        } elseif ($title === '') {
+            $issueCodes[] = 'empty-abbreviation-title';
+        } elseif ($title === $text) {
+            $issueCodes[] = 'redundant-abbreviation-title';
+        }
+
+        return [
+            'abbreviationReviewPolicy' => 'html-abbreviation-title-review',
+            'abbreviationText' => $text,
+            'abbreviationTitlePresent' => $titleRaw !== null,
+            'abbreviationTitleEmpty' => $titleRaw !== null && $title === '',
+            'abbreviationExpansion' => $title === null || $title === '' ? null : $title,
+            'abbreviationTitleMatchesText' => $title !== null && $title !== '' && $title === $text,
+            'abbreviationIssueCodes' => $issueCodes,
+            'abbreviationIssues' => array_map(
+                static fn (string $code): array => ['code' => $code],
+                $issueCodes
+            ),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function definitionTermReviewSummary(\DOMElement $dfn): array
+    {
+        $titleRaw = self::attributeOrNull($dfn, 'title');
+        $title = $titleRaw === null ? null : trim($titleRaw);
+        $text = self::normalizedText($dfn);
+        $childAbbreviation = self::definitionChildAbbreviationReviewSummary($dfn);
+        $issueCodes = [];
+        $source = 'text-content';
+        $resolvedTerm = $text === '' ? null : $text;
+
+        if ($titleRaw !== null) {
+            $source = 'title-attribute';
+            $resolvedTerm = $title === '' ? null : $title;
+            if ($title === '') {
+                $issueCodes[] = 'empty-definition-title';
+            }
+        } elseif ($childAbbreviation !== null && ($childAbbreviation['titleRaw'] ?? null) !== null) {
+            $source = 'child-abbr-title';
+            $childTitle = trim((string) ($childAbbreviation['titleRaw'] ?? ''));
+            $resolvedTerm = $childTitle === '' ? null : $childTitle;
+            if ($childTitle === '') {
+                $issueCodes[] = 'empty-definition-child-abbr-title';
+            }
+        } elseif ($resolvedTerm === null) {
+            $issueCodes[] = 'empty-definition-term';
+        }
+
+        return [
+            'definitionReviewPolicy' => 'html-definition-term-source-review',
+            'definitionResolvedTerm' => $resolvedTerm,
+            'definitionTermSource' => $source,
+            'definitionTitlePresent' => $titleRaw !== null,
+            'definitionTitleEmpty' => $titleRaw !== null && $title === '',
+            'definitionChildAbbreviationText' => $childAbbreviation['text'] ?? null,
+            'definitionChildAbbreviationTitle' => $childAbbreviation['titleRaw'] ?? null,
+            'definitionIssueCodes' => $issueCodes,
+            'definitionIssues' => array_map(
+                static fn (string $code): array => ['code' => $code],
+                $issueCodes
+            ),
+        ];
+    }
+
+    /**
+     * @return array{text:string, titleRaw:?string}|null
+     */
+    private static function definitionChildAbbreviationReviewSummary(\DOMElement $dfn): ?array
+    {
+        $elementChildren = [];
+        $hasNonWhitespaceText = false;
+        foreach ($dfn->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $elementChildren[] = $child;
+                continue;
+            }
+            if ($child instanceof \DOMText && trim($child->textContent) !== '') {
+                $hasNonWhitespaceText = true;
+            }
+        }
+
+        if ($hasNonWhitespaceText || count($elementChildren) !== 1) {
+            return null;
+        }
+
+        $child = $elementChildren[0];
+        if (strtolower(self::htmlElementName($child)) !== 'abbr') {
+            return null;
+        }
+
+        return [
+            'text' => self::normalizedText($child),
+            'titleRaw' => self::attributeOrNull($child, 'title'),
+        ];
     }
 
     /**
