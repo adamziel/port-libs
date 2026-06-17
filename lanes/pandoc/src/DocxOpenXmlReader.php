@@ -10342,6 +10342,19 @@ final class DocxOpenXmlReader
             $partPathSegmentOccurrenceCount += (int) ($partPathSegment['occurrenceCount'] ?? 0);
         }
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
+        $parameterizedPartPathDepthCount = 0;
+        $parameterizedPartPathDepthBucketCount = 0;
+        $missingContentTypePartPathDepthCount = 0;
+        foreach ($partPathDepths as $pathDepthSummary) {
+            $parameterizedPartCount = (int) ($pathDepthSummary['parameterizedPartCount'] ?? 0);
+            if ($parameterizedPartCount > 0) {
+                $parameterizedPartPathDepthBucketCount++;
+                $parameterizedPartPathDepthCount += $parameterizedPartCount;
+            }
+            if ((int) ($pathDepthSummary['missingContentTypePartCount'] ?? 0) > 0) {
+                $missingContentTypePartPathDepthCount++;
+            }
+        }
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
         $contentTypeExtensionMismatches = $this->packagePartContentTypeExtensionMismatchSummary($partInventory);
         $partExtensionCaseVariants = $this->packagePartExtensionCaseVariantSummary($partInventory);
@@ -11205,6 +11218,9 @@ final class DocxOpenXmlReader
             'partPathSegmentCount' => count($partPathSegments),
             'partPathSegmentOccurrenceCount' => $partPathSegmentOccurrenceCount,
             'partPathDepthCount' => count($partPathDepths),
+            'partPathDepthParameterizedBucketCount' => $parameterizedPartPathDepthBucketCount,
+            'partPathDepthParameterizedPartCount' => $parameterizedPartPathDepthCount,
+            'partPathDepthMissingContentTypeBucketCount' => $missingContentTypePartPathDepthCount,
             'maxPartPathSegmentCount' => $maxPartPathSegmentCount,
             'maxPartDirectoryDepth' => max(0, $maxPartPathSegmentCount - 1),
             'deepestPartNames' => array_values(array_map(
@@ -12540,6 +12556,7 @@ final class DocxOpenXmlReader
                 'contentType' => $contentType,
                 'contentTypeBase' => $contentTypeBase,
                 'contentTypeSource' => $contentTypeSource,
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
                 'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
             ];
 
@@ -12788,6 +12805,7 @@ final class DocxOpenXmlReader
                 'contentType' => $contentType,
                 'contentTypeBase' => $contentTypeBase,
                 'contentTypeSource' => $contentTypeSource,
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
                 'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
             ];
             if (!isset($depths[$pathSegmentCount])) {
