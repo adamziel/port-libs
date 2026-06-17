@@ -10414,6 +10414,13 @@ final class DocxOpenXmlReader
             $partContentTypeMediaTypeCounts[$mediaTypeKey] = (int) ($mediaTypeSummary['partCount'] ?? 0);
         }
         ksort($partContentTypeMediaTypeCounts, SORT_STRING);
+        $partContentTypeSubtypes = $this->packagePartContentTypeSubtypeSummary($partInventory);
+        $partContentTypeSubtypeCounts = [];
+        foreach ($partContentTypeSubtypes as $subtypeSummary) {
+            $subtypeKey = (string) ($subtypeSummary['contentTypeSubtypeKey'] ?? '');
+            $partContentTypeSubtypeCounts[$subtypeKey] = (int) ($subtypeSummary['partCount'] ?? 0);
+        }
+        ksort($partContentTypeSubtypeCounts, SORT_STRING);
         $partRoles = $this->packagePartRoleSummary($partInventory);
         $largestParts = $this->largestPackagePartSummary($partInventory);
         $largestPart = $largestParts[0] ?? null;
@@ -11554,6 +11561,8 @@ final class DocxOpenXmlReader
             'partContentTypeCount' => count($partContentTypes),
             'partContentTypeMediaTypeCount' => count($partContentTypeMediaTypes),
             'partContentTypeMediaTypeCounts' => $partContentTypeMediaTypeCounts,
+            'partContentTypeSubtypeCount' => count($partContentTypeSubtypes),
+            'partContentTypeSubtypeCounts' => $partContentTypeSubtypeCounts,
             'contentTypeExtensionMismatchCount' => $contentTypeExtensionMismatches['count'],
             'contentTypeExtensionMismatchIssueCodes' => $contentTypeExtensionMismatches['issueCodes'],
             'contentTypeExtensionMismatchPartNames' => $contentTypeExtensionMismatches['partNames'],
@@ -11762,6 +11771,7 @@ final class DocxOpenXmlReader
             'partContentTypeSources' => $partContentTypeSources,
             'partContentTypes' => $partContentTypes,
             'partContentTypeMediaTypes' => $partContentTypeMediaTypes,
+            'partContentTypeSubtypes' => $partContentTypeSubtypes,
             'partRoles' => $partRoles,
             'largestPart' => $largestPart,
             'largestParts' => $largestParts,
@@ -12452,6 +12462,132 @@ final class DocxOpenXmlReader
         }
 
         return array_values($mediaTypes);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartContentTypeSubtypeSummary(array $partInventory): array
+    {
+        $subtypes = [];
+        foreach ($partInventory as $partName => $part) {
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $subtypeKey = $this->contentTypeSubtypeKey($contentTypeBase);
+            $subtype = $subtypeKey[0] === '(' ? null : $subtypeKey;
+            $mediaTypeKey = $this->contentTypeMediaTypeKey($contentTypeBase);
+            $mediaType = $mediaTypeKey[0] === '(' ? null : $mediaTypeKey;
+            if (!isset($subtypes[$subtypeKey])) {
+                $subtypes[$subtypeKey] = [
+                    'contentTypeSubtypeKey' => $subtypeKey,
+                    'contentTypeSubtype' => $subtype,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'invalidContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'contentTypes' => [],
+                    'contentTypeBaseCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'mediaTypeCounts' => [],
+                    'defaultExtensions' => [],
+                    'overridePartNames' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$subtypes[$subtypeKey]['partCount'];
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $subtypes[$subtypeKey]['byteLength'] += $bytes;
+            $subtypes[$subtypeKey]['partNames'][] = (string) $partName;
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$subtypes[$subtypeKey]['relationshipPartCount'];
+            }
+            if ($contentTypeBase === '') {
+                ++$subtypes[$subtypeKey]['missingContentTypePartCount'];
+            } elseif ($subtype === null) {
+                ++$subtypes[$subtypeKey]['invalidContentTypePartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$subtypes[$subtypeKey]['parameterizedPartCount'];
+            }
+
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $subtypes[$subtypeKey]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($subtypes[$subtypeKey]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $subtypes[$subtypeKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($subtypes[$subtypeKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $subtypes[$subtypeKey]['mediaTypeCounts'][$mediaTypeKey] =
+                ($subtypes[$subtypeKey]['mediaTypeCounts'][$mediaTypeKey] ?? 0) + 1;
+
+            $this->appendUniqueString(
+                $subtypes[$subtypeKey]['contentTypes'],
+                is_string($part['contentType'] ?? null) ? $part['contentType'] : null,
+            );
+            $this->appendUniqueString(
+                $subtypes[$subtypeKey]['defaultExtensions'],
+                is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+            );
+            $this->appendUniqueString(
+                $subtypes[$subtypeKey]['overridePartNames'],
+                is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+            );
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $subtypes[$subtypeKey]['roleCounts'][$role] =
+                    ($subtypes[$subtypeKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory((string) $partName),
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName((string) $partName),
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeMediaType' => $mediaType,
+                'contentTypeSubtype' => $subtype,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $subtypes[$subtypeKey]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $subtypes[$subtypeKey]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($subtypes, SORT_STRING);
+        foreach ($subtypes as $subtypeKey => $summary) {
+            sort($summary['contentTypes'], SORT_STRING);
+            sort($summary['defaultExtensions'], SORT_STRING);
+            sort($summary['overridePartNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['mediaTypeCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $subtypes[$subtypeKey] = $summary;
+        }
+
+        return array_values($subtypes);
     }
 
     /**
@@ -17726,6 +17862,25 @@ final class DocxOpenXmlReader
         }
 
         return strtolower(substr($contentTypeBase, 0, $slashPosition));
+    }
+
+    private function contentTypeSubtypeKey(string $contentTypeBase): string
+    {
+        if ($contentTypeBase === '') {
+            return '(missing)';
+        }
+
+        $slashPosition = strpos($contentTypeBase, '/');
+        if ($slashPosition === false || $slashPosition === 0 || $slashPosition === strlen($contentTypeBase) - 1) {
+            return '(invalid)';
+        }
+
+        $subtype = substr($contentTypeBase, $slashPosition + 1);
+        if ($subtype === '' || strpos($subtype, '/') !== false) {
+            return '(invalid)';
+        }
+
+        return strtolower($subtype);
     }
 
     /**

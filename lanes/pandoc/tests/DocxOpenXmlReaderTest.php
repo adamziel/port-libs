@@ -7714,6 +7714,132 @@ XML;
         $t->same(['bin'], $missing['defaultExtensions']);
         $t->same('customXml/no-type.bin', $missing['largestPart']['partName']);
     },
+    'summarizes docx package part content type subtype buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Default Extension="txt" ContentType="text/plain; charset=UTF-8"/>' . "\n" .
+            '  <Override PartName="/customXml/review.json" ContentType="application/vnd.example.review+json; profile=subtype-bucket"/>' . "\n" .
+            '  <Override PartName="/word/media/vector.svg" ContentType="image/svg+xml; profile=vector"/>' . "\n" .
+            '  <Override PartName="/customXml/invalid.dat" ContentType="review-subtype"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/review.json'] = '{"review":true}';
+        $parts['word/media/vector.svg'] = '<svg xmlns="http://www.w3.org/2000/svg"/>';
+        $parts['customXml/readme.txt'] = 'plain text subtype notes';
+        $parts['customXml/raw.bin'] = 'raw subtype bytes';
+        $parts['customXml/invalid.dat'] = 'invalid subtype payload';
+        $parts['customXml/no-type.payload'] = 'missing subtype payload';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $bySubtype = [];
+        foreach ($summary['partContentTypeSubtypes'] as $subtype) {
+            $bySubtype[$subtype['contentTypeSubtypeKey']] = $subtype;
+        }
+
+        $t->same(11, $summary['partContentTypeSubtypeCount']);
+        $t->same([
+            '(invalid)' => 1,
+            '(missing)' => 1,
+            'octet-stream' => 1,
+            'plain' => 1,
+            'png' => 1,
+            'svg+xml' => 1,
+            'vnd.example.review+json' => 1,
+            'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'vnd.openxmlformats-package.core-properties+xml' => 1,
+            'vnd.openxmlformats-package.relationships+xml' => 2,
+            'xml' => 3,
+        ], $summary['partContentTypeSubtypeCounts']);
+        $t->same([
+            '(invalid)',
+            '(missing)',
+            'octet-stream',
+            'plain',
+            'png',
+            'svg+xml',
+            'vnd.example.review+json',
+            'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'vnd.openxmlformats-package.core-properties+xml',
+            'vnd.openxmlformats-package.relationships+xml',
+            'xml',
+        ], array_column($summary['partContentTypeSubtypes'], 'contentTypeSubtypeKey'));
+
+        $json = $bySubtype['vnd.example.review+json'];
+        $t->same('vnd.example.review+json', $json['contentTypeSubtype']);
+        $t->same(1, $json['partCount']);
+        $t->same(1, $json['parameterizedPartCount']);
+        $t->same(['application' => 1], $json['mediaTypeCounts']);
+        $t->same(['application/vnd.example.review+json' => 1], $json['contentTypeBaseCounts']);
+        $t->same(['override' => 1], $json['contentTypeSourceCounts']);
+        $t->same(['application/vnd.example.review+json; profile=subtype-bucket'], $json['contentTypes']);
+        $t->same(['customXml/review.json'], $json['overridePartNames']);
+        $t->same(['package-part' => 1], $json['roleCounts']);
+        $t->same('customXml/review.json', $json['largestPart']['partName']);
+        $t->same('application', $json['largestPart']['contentTypeMediaType']);
+        $t->same('vnd.example.review+json', $json['largestPart']['contentTypeSubtype']);
+
+        $relationships = $bySubtype['vnd.openxmlformats-package.relationships+xml'];
+        $t->same(2, $relationships['partCount']);
+        $t->same(2, $relationships['relationshipPartCount']);
+        $t->same(['application' => 2], $relationships['mediaTypeCounts']);
+        $t->same(['rels'], $relationships['defaultExtensions']);
+        $t->same([
+            'office-document-relationships' => 1,
+            'package-relationships' => 1,
+            'relationship-part' => 2,
+        ], $relationships['roleCounts']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $relationships['partNames']);
+
+        $xml = $bySubtype['xml'];
+        $t->same(3, $xml['partCount']);
+        $t->same(['default' => 3], $xml['contentTypeSourceCounts']);
+        $t->same(['content-types' => 1, 'package-part' => 2], $xml['roleCounts']);
+        $t->same(['[Content_Types].xml', 'word/numbering.xml', 'word/styles.xml'], $xml['partNames']);
+
+        $svg = $bySubtype['svg+xml'];
+        $t->same('svg+xml', $svg['contentTypeSubtype']);
+        $t->same(1, $svg['parameterizedPartCount']);
+        $t->same(['image' => 1], $svg['mediaTypeCounts']);
+        $t->same(['word/media/vector.svg'], $svg['overridePartNames']);
+        $t->same(['package-part' => 1], $svg['roleCounts']);
+
+        $plain = $bySubtype['plain'];
+        $t->same(1, $plain['partCount']);
+        $t->same(1, $plain['parameterizedPartCount']);
+        $t->same(['text/plain; charset=UTF-8'], $plain['contentTypes']);
+        $t->same(['txt'], $plain['defaultExtensions']);
+
+        $png = $bySubtype['png'];
+        $t->same(1, $png['partCount']);
+        $t->same(['document-relationship-target' => 1], $png['roleCounts']);
+        $t->same(['png'], $png['defaultExtensions']);
+
+        $octetStream = $bySubtype['octet-stream'];
+        $t->same(['default' => 1], $octetStream['contentTypeSourceCounts']);
+        $t->same(['bin'], $octetStream['defaultExtensions']);
+        $t->same(['application' => 1], $octetStream['mediaTypeCounts']);
+
+        $invalid = $bySubtype['(invalid)'];
+        $t->same(null, $invalid['contentTypeSubtype']);
+        $t->same(1, $invalid['invalidContentTypePartCount']);
+        $t->same(['(invalid)' => 1], $invalid['mediaTypeCounts']);
+        $t->same(['review-subtype' => 1], $invalid['contentTypeBaseCounts']);
+        $t->same(['customXml/invalid.dat'], $invalid['overridePartNames']);
+        $t->same('customXml/invalid.dat', $invalid['largestPart']['partName']);
+
+        $missing = $bySubtype['(missing)'];
+        $t->same(null, $missing['contentTypeSubtype']);
+        $t->same(1, $missing['missingContentTypePartCount']);
+        $t->same(['(missing)' => 1], $missing['mediaTypeCounts']);
+        $t->same(['(missing)' => 1], $missing['contentTypeBaseCounts']);
+        $t->same(['missing' => 1], $missing['contentTypeSourceCounts']);
+        $t->same(['payload'], $missing['defaultExtensions']);
+        $t->same('customXml/no-type.payload', $missing['largestPart']['partName']);
+    },
     'summarizes docx package part content type buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
