@@ -24,6 +24,7 @@ final class DocxOpenXmlReader
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const NS_C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
     private const NS_BIB = 'http://schemas.openxmlformats.org/officeDocument/2006/bibliography';
+    private const NS_M = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
     private const NS_V = 'urn:schemas-microsoft-com:vml';
     private const NS_DGM = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
     private const NS_O = 'urn:schemas-microsoft-com:office:office';
@@ -850,6 +851,18 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['settingsDocumentVariableDuplicateNames'] = $documentVariableDetails['duplicateNames'] ?? [];
             $packageProvenance['summary']['settingsDocumentVariableIssueCount'] = (int) ($documentVariableDetails['issueCount'] ?? 0);
             $packageProvenance['summary']['settingsDocumentVariableIssueCodes'] = $documentVariableDetails['issueCodes'] ?? [];
+        }
+        $mathProperties = $settings['mathProperties'] ?? null;
+        if (is_array($mathProperties)) {
+            $packageProvenance['summary']['settingsMathPropertyCount'] = (int) ($mathProperties['count'] ?? 0);
+            $packageProvenance['summary']['settingsMathPropertyValuedCount'] = (int) ($mathProperties['valuedCount'] ?? 0);
+            $packageProvenance['summary']['settingsMathPropertyEmptyValueCount'] = (int) ($mathProperties['emptyValueCount'] ?? 0);
+            $packageProvenance['summary']['settingsMathPropertyNumericValueCount'] = (int) ($mathProperties['numericValueCount'] ?? 0);
+            $packageProvenance['summary']['settingsMathPropertyDuplicateNameCount'] = (int) ($mathProperties['duplicateNameCount'] ?? 0);
+            $packageProvenance['summary']['settingsMathPropertyDuplicateNames'] = $mathProperties['duplicateNames'] ?? [];
+            $packageProvenance['summary']['settingsMathPropertyNames'] = $mathProperties['names'] ?? [];
+            $packageProvenance['summary']['settingsMathPropertyIssueCount'] = (int) ($mathProperties['issueCount'] ?? 0);
+            $packageProvenance['summary']['settingsMathPropertyIssueCodes'] = $mathProperties['issueCodes'] ?? [];
         }
         $rsidDetails = $settings['rsidDetails'] ?? null;
         if (is_array($rsidDetails)) {
@@ -14794,6 +14807,11 @@ final class DocxOpenXmlReader
             $settings['savePolicy'] = $savePolicy;
         }
 
+        $mathProperties = $this->readSettingsMathProperties($xpath, $dom);
+        if ($mathProperties !== []) {
+            $settings['mathProperties'] = $mathProperties;
+        }
+
         $compatibility = $this->readSettingsCompatibility($xpath, $dom);
         if ($compatibility['flatItems'] !== []) {
             $settings['compatibility'] = $compatibility['flatItems'];
@@ -15091,6 +15109,101 @@ final class DocxOpenXmlReader
     private function isOpenXmlRsidValue(string $value): bool
     {
         return preg_match('/\A[0-9A-Fa-f]{8}\z/', $value) === 1;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readSettingsMathProperties(\DOMXPath $xpath, \DOMDocument $dom): array
+    {
+        $mathProperties = $this->firstElement($xpath, '/w:settings/m:mathPr', $dom);
+        if (!$mathProperties instanceof \DOMElement) {
+            return [];
+        }
+
+        $items = [];
+        $byName = [];
+        $nameCounts = [];
+        $names = [];
+        $numericValueCount = 0;
+        foreach ($mathProperties->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_M) {
+                continue;
+            }
+
+            $name = $child->localName;
+            $value = $child->getAttributeNS(self::NS_M, 'val');
+            if ($value === '') {
+                $value = $child->getAttribute('val');
+            }
+            $hasValue = $value !== '';
+            $issues = [];
+            $item = [
+                'index' => count($items),
+                'name' => $name,
+                'value' => $value,
+                'hasValue' => $hasValue,
+                'valueLength' => strlen($value),
+                'issues' => [],
+            ];
+            if ($hasValue) {
+                $byName[$name] = $value;
+                if (preg_match('/^-?\d+$/', $value) === 1) {
+                    $item['numericValue'] = (int) $value;
+                    ++$numericValueCount;
+                }
+            } else {
+                $issues[] = 'missing-value';
+            }
+
+            $nameCounts[$name] = ($nameCounts[$name] ?? 0) + 1;
+            $this->appendUniqueString($names, $name);
+            $item['issues'] = $issues;
+            $items[] = $item;
+        }
+
+        $duplicateNames = [];
+        foreach ($nameCounts as $name => $count) {
+            if ($count > 1) {
+                $duplicateNames[] = $name;
+            }
+        }
+        sort($duplicateNames, SORT_STRING);
+
+        $duplicateLookup = array_fill_keys($duplicateNames, true);
+        $issueCodes = [];
+        $issueCount = 0;
+        foreach ($items as &$item) {
+            $name = $item['name'];
+            $item['duplicateName'] = is_string($name) && isset($duplicateLookup[$name]);
+            if ($item['duplicateName']) {
+                $item['issues'][] = 'duplicate-name';
+            }
+            if ($item['issues'] !== []) {
+                ++$issueCount;
+                foreach ($item['issues'] as $issue) {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        unset($item);
+        sort($names, SORT_STRING);
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'valuedCount' => count(array_filter($items, static fn (array $item): bool => $item['hasValue'] === true)),
+            'emptyValueCount' => count(array_filter($items, static fn (array $item): bool => $item['hasValue'] === false)),
+            'uniqueNameCount' => count($names),
+            'names' => $names,
+            'numericValueCount' => $numericValueCount,
+            'duplicateNameCount' => count($duplicateNames),
+            'duplicateNames' => $duplicateNames,
+            'issueCount' => $issueCount,
+            'issueCodes' => array_keys($issueCodes),
+            'items' => $items,
+            'byName' => $byName,
+        ];
     }
 
     /**
@@ -18459,6 +18572,7 @@ final class DocxOpenXmlReader
         $xpath->registerNamespace('wp', self::NS_WP);
         $xpath->registerNamespace('c', self::NS_C);
         $xpath->registerNamespace('b', self::NS_BIB);
+        $xpath->registerNamespace('m', self::NS_M);
         $xpath->registerNamespace('v', self::NS_V);
         $xpath->registerNamespace('dgm', self::NS_DGM);
         $xpath->registerNamespace('o', self::NS_O);

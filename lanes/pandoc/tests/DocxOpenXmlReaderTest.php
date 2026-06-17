@@ -7540,6 +7540,120 @@ XML;
         $t->same(3, $summary['settingsCompatibilityIssueCount']);
         $t->same(['duplicate-name', 'missing-name'], $summary['settingsCompatibilityIssueCodes']);
     },
+    'summarizes docx settings math properties for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/math-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rMathSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../docSettings/math-settings.xml?math=review#mathPr"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docSettings/math-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+  <m:mathPr>
+    <m:mathFont m:val="Cambria Math"/>
+    <m:brkBin m:val="before"/>
+    <m:smallFrac m:val="1"/>
+    <m:lMargin m:val="720"/>
+    <m:rMargin m:val="720"/>
+    <m:defJc m:val="centerGroup"/>
+    <m:mathFont m:val="Latin Modern Math"/>
+    <m:postSp/>
+  </m:mathPr>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $settings = $docx['settings'];
+        $details = $settings['mathProperties'];
+        $summary = $docx['packageProvenance']['summary'];
+        $inventory = $docx['packageProvenance']['parts']['docSettings/math-settings.xml'];
+        $selectedSettings = $docx['packageProvenance']['selectedXmlParts']['byKind']['settings'];
+
+        $t->same('docSettings/math-settings.xml', $docx['settingsPart']);
+        $t->same('rMathSettings', $docx['settingsRelationship']['id']);
+        $t->same('../docSettings/math-settings.xml?math=review#mathPr', $docx['settingsRelationship']['target']);
+        $t->same('docSettings/math-settings.xml', $docx['settingsRelationship']['targetPart']);
+        $t->same('math=review', $docx['settingsRelationship']['targetQuery']);
+        $t->same('mathPr', $docx['settingsRelationship']['targetFragment']);
+        $t->same('settings', $selectedSettings['rootLocalName']);
+        $t->same(true, $selectedSettings['contentTypeMatchesExpected']);
+        $t->true(in_array('settings', $inventory['roles'], true), 'settings inventory role missing');
+        $t->same(1, $summary['roleCounts']['settings']);
+
+        $t->same(8, $details['count']);
+        $t->same(7, $details['valuedCount']);
+        $t->same(1, $details['emptyValueCount']);
+        $t->same(7, $details['uniqueNameCount']);
+        $t->same([
+            'brkBin',
+            'defJc',
+            'lMargin',
+            'mathFont',
+            'postSp',
+            'rMargin',
+            'smallFrac',
+        ], $details['names']);
+        $t->same(3, $details['numericValueCount']);
+        $t->same(1, $details['duplicateNameCount']);
+        $t->same(['mathFont'], $details['duplicateNames']);
+        $t->same(3, $details['issueCount']);
+        $t->same(['duplicate-name', 'missing-value'], $details['issueCodes']);
+        $t->same('Latin Modern Math', $details['byName']['mathFont']);
+        $t->same('before', $details['byName']['brkBin']);
+        $t->same('centerGroup', $details['byName']['defJc']);
+        $t->same('720', $details['byName']['lMargin']);
+        $t->true(!isset($details['byName']['postSp']), 'empty math property value should not enter byName');
+
+        $first = $details['items'][0];
+        $numeric = $details['items'][3];
+        $duplicate = $details['items'][6];
+        $missing = $details['items'][7];
+
+        $t->same(0, $first['index']);
+        $t->same('mathFont', $first['name']);
+        $t->same('Cambria Math', $first['value']);
+        $t->same(true, $first['hasValue']);
+        $t->same(12, $first['valueLength']);
+        $t->same(true, $first['duplicateName']);
+        $t->same(['duplicate-name'], $first['issues']);
+
+        $t->same('lMargin', $numeric['name']);
+        $t->same('720', $numeric['value']);
+        $t->same(720, $numeric['numericValue']);
+        $t->same(false, $numeric['duplicateName']);
+        $t->same([], $numeric['issues']);
+
+        $t->same('mathFont', $duplicate['name']);
+        $t->same('Latin Modern Math', $duplicate['value']);
+        $t->same(true, $duplicate['duplicateName']);
+        $t->same(['duplicate-name'], $duplicate['issues']);
+
+        $t->same('postSp', $missing['name']);
+        $t->same('', $missing['value']);
+        $t->same(false, $missing['hasValue']);
+        $t->same(0, $missing['valueLength']);
+        $t->same(false, $missing['duplicateName']);
+        $t->same(['missing-value'], $missing['issues']);
+
+        $t->same(8, $summary['settingsMathPropertyCount']);
+        $t->same(7, $summary['settingsMathPropertyValuedCount']);
+        $t->same(1, $summary['settingsMathPropertyEmptyValueCount']);
+        $t->same(3, $summary['settingsMathPropertyNumericValueCount']);
+        $t->same(1, $summary['settingsMathPropertyDuplicateNameCount']);
+        $t->same(['mathFont'], $summary['settingsMathPropertyDuplicateNames']);
+        $t->same($details['names'], $summary['settingsMathPropertyNames']);
+        $t->same(3, $summary['settingsMathPropertyIssueCount']);
+        $t->same(['duplicate-name', 'missing-value'], $summary['settingsMathPropertyIssueCodes']);
+    },
     'summarizes docx settings document variables for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
