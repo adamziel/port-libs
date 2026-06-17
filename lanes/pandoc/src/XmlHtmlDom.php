@@ -18203,6 +18203,16 @@ final class XmlHtmlDom
         };
     }
 
+    private static function htmlDraggableKeyword(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return match ($value) {
+            'true', 'false', 'auto' => $value,
+            default => null,
+        };
+    }
+
     /**
      * @param array<string, string> $attributes
      * @return array<string, mixed>
@@ -18754,6 +18764,12 @@ final class XmlHtmlDom
         $summary = [
             'draggableRaw' => $raw,
             'draggable' => $state,
+            'draggableKeyword' => match ($state) {
+                true => 'true',
+                false => 'false',
+                'auto' => 'auto',
+                default => null,
+            },
             'draggableState' => $auto ? 'auto' : ($state ? 'true' : 'false'),
             'draggableValid' => $state !== null,
             'draggableInvalidValueDefaulted' => $state === null,

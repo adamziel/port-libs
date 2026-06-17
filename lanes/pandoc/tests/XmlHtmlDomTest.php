@@ -3791,6 +3791,73 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/draggable-state-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html draggable token provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="drag" draggable="true">Drag</section>'
+                . '<section id="blocked" draggable="false">Blocked</section>'
+                . '<section id="auto" draggable="AUTO">Auto</section>'
+                . '<section id="empty" draggable>Empty</section>'
+                . '<section id="invalid" draggable="maybe">Invalid</section>',
+            'draggable token provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/draggable-token-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $drag = $summary[0];
+        $blocked = $summary[1];
+        $auto = $summary[2];
+        $empty = $summary[3];
+        $invalid = $summary[4];
+
+        $t->same('true', $drag['draggableRaw']);
+        $t->same('true', $drag['draggableKeyword']);
+        $t->same(true, $drag['draggable']);
+        $t->same('true', $drag['draggableState']);
+        $t->same(true, $drag['draggableValid']);
+        $t->same(false, $drag['draggableInvalidValueDefaulted']);
+
+        $t->same('false', $blocked['draggableRaw']);
+        $t->same('false', $blocked['draggableKeyword']);
+        $t->same(false, $blocked['draggable']);
+        $t->same('false', $blocked['draggableState']);
+        $t->same(true, $blocked['draggableValid']);
+
+        $t->same('AUTO', $auto['draggableRaw']);
+        $t->same('auto', $auto['draggableKeyword']);
+        $t->same('auto', $auto['draggable']);
+        $t->same('auto', $auto['draggableState']);
+        $t->same(true, $auto['draggableValid']);
+        $t->same(false, $auto['draggableInvalidValueDefaulted']);
+
+        $t->same('', $empty['draggableRaw']);
+        $t->same(null, $empty['draggableKeyword']);
+        $t->same(null, $empty['draggable']);
+        $t->same('auto', $empty['draggableState']);
+        $t->same(false, $empty['draggableValid']);
+        $t->same(true, $empty['draggableInvalidValueDefaulted']);
+
+        $t->same('maybe', $invalid['draggableRaw']);
+        $t->same(null, $invalid['draggableKeyword']);
+        $t->same(null, $invalid['draggable']);
+        $t->same('auto', $invalid['draggableState']);
+        $t->same(false, $invalid['draggableValid']);
+        $t->same(true, $invalid['draggableInvalidValueDefaulted']);
+
+        $t->same(
+            '<section draggable="true" id="drag">Drag</section>'
+                . '<section draggable="false" id="blocked">Blocked</section>'
+                . '<section draggable="AUTO" id="auto">Auto</section>'
+                . '<section draggable="" id="empty">Empty</section>'
+                . '<section draggable="maybe" id="invalid">Invalid</section>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/draggable-token-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes inherited html language and direction for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="root" lang="en-US" dir="LTR"><section id="chapter"><p id="body" dir="sideways">Body <span id="quote" lang="fr-CA" dir="auto">Citation</span></p></section></article>'
