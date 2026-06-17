@@ -263,6 +263,8 @@
   "xmlHtmlDomSpellcheckInheritanceAssertions": 33,
   "mappedXmlHtmlDomInertInheritanceCases": 2,
   "xmlHtmlDomInertInheritanceAssertions": 59,
+  "mappedXmlHtmlDomAutocapitalizeInheritanceCases": 1,
+  "xmlHtmlDomAutocapitalizeInheritanceAssertions": 33,
   "mappedXmlHtmlDomContentEditableInheritanceCases": 1,
   "xmlHtmlDomContentEditableInheritanceAssertions": 33,
   "mappedXmlHtmlDomWritingAssistanceCases": 1,
@@ -1679,5 +1681,7 @@
   "mappedXmlHtmlDomCdataDeclarationRecoveryCases": 1,
   "xmlHtmlDomCdataDeclarationRecoveryAssertions": 24,
   "mappedXmlHtmlDomHtmlIdUniquenessReviewCases": 1,
-  "xmlHtmlDomHtmlIdUniquenessReviewAssertions": 47
+  "xmlHtmlDomHtmlIdUniquenessReviewAssertions": 47,
+  "mappedXmlHtmlDomAutocapitalizeInheritanceCases": 1,
+  "xmlHtmlDomAutocapitalizeInheritanceAssertions": 33
 }

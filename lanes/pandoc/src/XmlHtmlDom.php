@@ -17862,6 +17862,8 @@ final class XmlHtmlDom
             $summary['autocapitalizeValid'] = $autocapitalize !== null;
         }
 
+        $summary += self::effectiveAutocapitalizeSummary($element, $attributes);
+
         if (array_key_exists('autocorrect', $attributes)) {
             $autocorrect = self::autocorrectState($attributes['autocorrect']);
             $summary['autocorrectRaw'] = $attributes['autocorrect'];
@@ -18383,6 +18385,59 @@ final class XmlHtmlDom
             'false' => false,
             default => null,
         };
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveAutocapitalizeSummary(\DOMElement $element, array $attributes): array
+    {
+        if (array_key_exists('autocapitalize', $attributes)) {
+            $state = self::autocapitalizeState($attributes['autocapitalize']);
+            if ($state !== null) {
+                return self::autocapitalizeProvenanceSummary($element, $attributes['autocapitalize'], $state, false);
+            }
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (!array_key_exists('autocapitalize', $ancestorAttributes)) {
+                continue;
+            }
+
+            $state = self::autocapitalizeState($ancestorAttributes['autocapitalize']);
+            if ($state !== null) {
+                return self::autocapitalizeProvenanceSummary($ancestor, $ancestorAttributes['autocapitalize'], $state, true);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function autocapitalizeProvenanceSummary(
+        \DOMElement $source,
+        string $raw,
+        string $state,
+        bool $inherited
+    ): array {
+        $summary = [
+            'effectiveAutocapitalizeRaw' => $raw,
+            'effectiveAutocapitalize' => $state,
+            'autocapitalizeInherited' => $inherited,
+            'autocapitalizeSource' => $inherited ? 'ancestor-autocapitalize' : 'self-autocapitalize',
+            'autocapitalizeSourceElement' => self::htmlElementName($source),
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['autocapitalizeSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
     }
 
     /**
