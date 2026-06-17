@@ -22115,6 +22115,42 @@ final class XmlHtmlDom
             'dialogMethodFormCount' => count($methodForms),
             'dialogMethodForms' => $methodForms,
             'dialogCloseValues' => self::dialogCloseValues($methodForms),
+        ] + self::dialogClosedBySummary(self::attributeOrNull($dialog, 'closedby'));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function dialogClosedBySummary(?string $raw): array
+    {
+        $keyword = $raw === null ? null : strtolower(trim($raw));
+        $state = match ($keyword) {
+            'any' => 'any',
+            'closerequest' => 'close-request',
+            'none' => 'none',
+            default => null,
+        };
+        $defaulted = $raw === null || $state === null;
+        $issues = $raw !== null && $state === null ? ['invalid-dialog-closedby'] : [];
+
+        return [
+            'dialogClosedByReviewPolicy' => 'html-dialog-closedby-policy-review',
+            'dialogClosedByRaw' => $raw,
+            'dialogClosedByKeyword' => $state === 'close-request' ? 'closerequest' : $state,
+            'dialogClosedByState' => $state ?? 'auto',
+            'dialogClosedByValid' => $raw === null ? null : $state !== null,
+            'dialogClosedByDefaulted' => $defaulted,
+            'dialogCloseRequestAllowed' => match ($state) {
+                'any', 'close-request' => true,
+                'none' => false,
+                default => null,
+            },
+            'dialogLightDismissAllowed' => match ($state) {
+                'any' => true,
+                'close-request', 'none' => false,
+                default => null,
+            },
+            'dialogClosedByIssueCodes' => $issues,
         ];
     }
 
