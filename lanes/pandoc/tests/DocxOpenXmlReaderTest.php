@@ -2447,6 +2447,7 @@ XML;
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rSidecarPreview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="sidecar-preview.png"/>
+  <Relationship Id="rSidecarExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/sidecar-resource?review=1#external" TargetMode="External"/>
 </Relationships>
 XML;
         $parts['docProps/sidecar-preview.png'] = 'sidecar preview bytes';
@@ -2474,6 +2475,13 @@ XML;
         $t->same([$resourceType], $resources['relationshipTypes']);
         $t->same(['docProps/review-audit.xml', 'docProps/sidecar-audit.xml', 'docProps/missing-audit.xml'], $resources['targetParts']);
         $t->same(['file:///C:/review/root-audit.xml?remote=1#payload'], $resources['externalTargets']);
+        $t->same(2, $resources['targetRelationshipRecordCount']);
+        $t->same([
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+        ], $resources['targetRelationshipTypes']);
+        $t->same(['docProps/sidecar-preview.png'], $resources['targetRelationshipTargetParts']);
+        $t->same(['https://example.test/sidecar-resource?review=1#external'], $resources['targetRelationshipExternalTargets']);
         $t->same('package-root-relationship-bytes-blocked', $resources['byteExposurePolicy']);
         $t->same('package-root-relationship-metadata-only', $resources['reviewPolicy']);
         $t->same(false, $resources['canExposeBytes']);
@@ -2495,6 +2503,14 @@ XML;
 
         $t->same('docProps/_rels/sidecar-audit.xml.rels', $sidecar['targetRelationshipsPart']);
         $t->same(true, $sidecar['targetHasRelationships']);
+        $t->same(2, $sidecar['targetRelationshipRecordCount']);
+        $t->same(['rSidecarPreview', 'rSidecarExternal'], $sidecar['targetRelationshipIds']);
+        $t->same([
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+        ], $sidecar['targetRelationshipTypes']);
+        $t->same(['docProps/sidecar-preview.png'], $sidecar['targetRelationshipTargetParts']);
+        $t->same(['https://example.test/sidecar-resource?review=1#external'], $sidecar['targetRelationshipExternalTargets']);
         $t->same(strlen($sidecarXml), $sidecar['byteLength']);
         $t->same('application/vnd.example.review+xml; profile=sidecar', $sidecar['contentType']);
         $t->same([], $sidecar['issues']);
@@ -2524,6 +2540,7 @@ XML;
         $t->same(1, $summary['packageRootRelationshipResourceMissingCount']);
         $t->same(1, $summary['packageRootRelationshipResourceExternalCount']);
         $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipCount']);
+        $t->same(2, $summary['packageRootRelationshipResourceTargetRelationshipRecordCount']);
         $t->same(2, $summary['packageRootRelationshipResourceIssueCount']);
         $t->same($resources['issueCodes'], $summary['packageRootRelationshipResourceIssueCodes']);
         $t->same(4, $relationshipType['count']);
