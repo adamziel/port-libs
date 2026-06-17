@@ -119,6 +119,18 @@ final class XmlHtmlDom
         'typemustmatch' => true,
     ];
 
+    /** @var array<string, true> */
+    private const HTML_CUSTOM_ELEMENT_RESERVED_NAMES = [
+        'annotation-xml' => true,
+        'color-profile' => true,
+        'font-face' => true,
+        'font-face-src' => true,
+        'font-face-uri' => true,
+        'font-face-format' => true,
+        'font-face-name' => true,
+        'missing-glyph' => true,
+    ];
+
     /** @var array<string, string> */
     private const HTML_BUTTON_COMMAND_STATES = [
         'toggle-popover' => 'toggle-popover',
@@ -14568,6 +14580,7 @@ final class XmlHtmlDom
             'text' => self::normalizedText($node),
             'children' => $children,
         ];
+        $summary += self::customElementTagSummary($name);
         $summary += self::globalHtmlAttributeSummary($node);
 
         if ($name === 'form') {
@@ -20417,6 +20430,37 @@ final class XmlHtmlDom
             'valid' => $name !== ''
                 && preg_match('/^[a-z][.0-9_a-z-]*-[.0-9_a-z-]*$/', $name) === 1
                 && self::isHtmlReferenceToken($name),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function customElementTagSummary(string $name): array
+    {
+        if (!str_contains($name, '-')) {
+            return [];
+        }
+
+        $customElement = self::customElementNameSummary($name);
+        $reserved = isset(self::HTML_CUSTOM_ELEMENT_RESERVED_NAMES[$name]);
+        $valid = $customElement['valid'] && !$reserved;
+        $issues = [];
+
+        if (!$customElement['valid']) {
+            $issues[] = 'invalid-custom-element-name';
+        }
+        if ($reserved) {
+            $issues[] = 'reserved-custom-element-name';
+        }
+
+        return [
+            'customElementTagReviewPolicy' => 'html-custom-element-tag-review',
+            'customElementTagName' => $name,
+            'customElementTagValid' => $valid,
+            'customElementTagReservedName' => $reserved,
+            'customElementTagIssueCodes' => $issues,
+            'autonomousCustomElement' => $valid,
         ];
     }
 
