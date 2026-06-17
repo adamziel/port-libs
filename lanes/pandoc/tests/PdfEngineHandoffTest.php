@@ -1512,6 +1512,71 @@ return [
         $t->contains('typst-root-boundary-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
     },
 
+    'maps typst shadowed environment controls into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $environmentTimestamp = '1700000000';
+        $selectedTimestamp = '1700000100';
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/environment-shadow-matrix.pdf',
+            'source' => '= Typst Environment Shadow Matrix Packet',
+            'engineOptions' => [
+                '--creation-timestamp=' . $selectedTimestamp,
+                '--features=html,packages',
+            ],
+            'engineEnvironment' => [
+                'SOURCE_DATE_EPOCH' => $environmentTimestamp,
+                'TYPST_FEATURES' => 'html,unsafe feature,',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst environment shadow matrix packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/environment-shadow-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/environment-shadow-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(['SOURCE_DATE_EPOCH', 'TYPST_FEATURES'], $plan['typstBoundaryProvenance']['environmentVariables']);
+        $t->same(['environment-shadows', 'feature-gates', 'output-format', 'creation-timestamp'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(4, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(3, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(8, $plan['typstBoundaryMatrix']['issueCount']);
+        $t->same(2, $cases['environment-shadows']['observed']);
+        $t->same(2, $cases['environment-shadows']['details']['environmentVariableCount']);
+        $t->same(2, $cases['environment-shadows']['details']['shadowedCount']);
+        $t->same(['SOURCE_DATE_EPOCH', 'TYPST_FEATURES'], $cases['environment-shadows']['details']['shadowedVariables']);
+        $t->same(3, $cases['feature-gates']['observed']);
+        $t->same(2, $cases['feature-gates']['details']['featureCount']);
+        $t->same(1, $cases['feature-gates']['details']['environmentFeatureCount']);
+        $t->same(['html', 'packages'], $cases['feature-gates']['details']['features']);
+        $t->same(2, $cases['creation-timestamp']['observed']);
+        $t->same(1700000100, $cases['creation-timestamp']['details']['timestamp']);
+        $t->same(true, $cases['creation-timestamp']['details']['deterministic']);
+        $t->same(true, $cases['creation-timestamp']['details']['environmentShadowed']);
+        $t->contains('environment-shadows:creation-timestamp-environment-shadowed', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('environment-shadows:features-environment-shadowed', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('feature-gates:features-invalid-token-boundary:unsafe feature', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('creation-timestamp:creation-timestamp-environment-shadowed', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('typst-boundary-matrix-cases:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-review-cases:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-issues:8', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($plan['typstBoundaryMatrix'], $result['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'preserves typst font path environment uri provenance without splitting scheme boundary' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $fontUri = 'https://fonts.example.invalid/typst';
