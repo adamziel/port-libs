@@ -782,6 +782,19 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['settingsColorSchemeMappingAttributeCount'] = count($colorSchemeMapping);
             $packageProvenance['summary']['settingsColorSchemeMappingKeys'] = array_keys($colorSchemeMapping);
         }
+        $compatibilityDetails = $settings['compatibilityDetails'] ?? null;
+        if (is_array($compatibilityDetails)) {
+            $packageProvenance['summary']['settingsCompatibilityCount'] = (int) ($compatibilityDetails['count'] ?? 0);
+            $packageProvenance['summary']['settingsCompatibilityNamedCount'] = (int) ($compatibilityDetails['namedCount'] ?? 0);
+            $packageProvenance['summary']['settingsCompatibilityEmptyNameCount'] = (int) ($compatibilityDetails['emptyNameCount'] ?? 0);
+            $packageProvenance['summary']['settingsCompatibilityUniqueNameCount'] = (int) ($compatibilityDetails['uniqueNameCount'] ?? 0);
+            $packageProvenance['summary']['settingsCompatibilityDuplicateNameCount'] = (int) ($compatibilityDetails['duplicateNameCount'] ?? 0);
+            $packageProvenance['summary']['settingsCompatibilityDuplicateNames'] = $compatibilityDetails['duplicateNames'] ?? [];
+            $packageProvenance['summary']['settingsCompatibilityUriCount'] = (int) ($compatibilityDetails['uriCount'] ?? 0);
+            $packageProvenance['summary']['settingsCompatibilityUris'] = $compatibilityDetails['uris'] ?? [];
+            $packageProvenance['summary']['settingsCompatibilityIssueCount'] = (int) ($compatibilityDetails['issueCount'] ?? 0);
+            $packageProvenance['summary']['settingsCompatibilityIssueCodes'] = $compatibilityDetails['issueCodes'] ?? [];
+        }
         $documentVariableDetails = $settings['documentVariableDetails'] ?? null;
         if (is_array($documentVariableDetails)) {
             $packageProvenance['summary']['settingsDocumentVariableCount'] = (int) ($documentVariableDetails['count'] ?? 0);
@@ -13644,16 +13657,11 @@ final class DocxOpenXmlReader
             $settings['savePolicy'] = $savePolicy;
         }
 
-        $compatibility = [];
-        foreach ($this->elements($xpath, '/w:settings/w:compat/w:compatSetting') as $setting) {
-            $compatibility[] = array_filter([
-                'name' => $setting->getAttributeNS(self::NS_W, 'name') ?: null,
-                'uri' => $setting->getAttributeNS(self::NS_W, 'uri') ?: null,
-                'value' => $setting->getAttributeNS(self::NS_W, 'val') ?: null,
-            ], static fn (mixed $value): bool => $value !== null && $value !== '');
-        }
-        if ($compatibility !== []) {
-            $settings['compatibility'] = $compatibility;
+        $compatibility = $this->readSettingsCompatibility($xpath, $dom);
+        if ($compatibility['flatItems'] !== []) {
+            $settings['compatibility'] = $compatibility['flatItems'];
+            unset($compatibility['flatItems']);
+            $settings['compatibilityDetails'] = $compatibility;
         }
 
         $documentVariables = $this->readSettingsDocumentVariables($xpath, $dom);
@@ -13677,6 +13685,95 @@ final class DocxOpenXmlReader
         }
 
         return $settings;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readSettingsCompatibility(\DOMXPath $xpath, \DOMDocument $dom): array
+    {
+        $items = [];
+        $flatItems = [];
+        $nameCounts = [];
+        $uris = [];
+
+        foreach ($this->elements($xpath, '/w:settings/w:compat/w:compatSetting', $dom) as $setting) {
+            $name = $setting->getAttributeNS(self::NS_W, 'name');
+            $uri = $setting->getAttributeNS(self::NS_W, 'uri');
+            $value = $setting->getAttributeNS(self::NS_W, 'val');
+            $item = [
+                'index' => count($items),
+                'name' => $name,
+                'uri' => $uri,
+                'value' => $value,
+                'issues' => [],
+            ];
+
+            if ($name === '') {
+                $item['issues'][] = 'missing-name';
+            } else {
+                $nameCounts[$name] = ($nameCounts[$name] ?? 0) + 1;
+            }
+            $this->appendUniqueString($uris, $uri);
+
+            $items[] = $item;
+            $flatItems[] = array_filter([
+                'name' => $name ?: null,
+                'uri' => $uri ?: null,
+                'value' => $value ?: null,
+            ], static fn (mixed $value): bool => $value !== null && $value !== '');
+        }
+
+        $duplicateNames = [];
+        foreach ($nameCounts as $name => $count) {
+            if ($count > 1) {
+                $duplicateNames[] = $name;
+            }
+        }
+        sort($duplicateNames, SORT_STRING);
+        sort($uris, SORT_STRING);
+
+        $duplicateLookup = array_fill_keys($duplicateNames, true);
+        $issueCodes = [];
+        $issueCount = 0;
+        foreach ($items as &$item) {
+            $name = $item['name'];
+            $item['duplicateName'] = is_string($name) && isset($duplicateLookup[$name]);
+            if ($item['duplicateName']) {
+                $item['issues'][] = 'duplicate-name';
+            }
+            if ($item['issues'] !== []) {
+                ++$issueCount;
+                foreach ($item['issues'] as $issue) {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        unset($item);
+        ksort($issueCodes, SORT_STRING);
+
+        $byName = [];
+        foreach ($items as $item) {
+            if ($item['name'] !== '') {
+                $byName[$item['name']] = $item;
+            }
+        }
+
+        return [
+            'count' => count($items),
+            'namedCount' => count(array_filter($items, static fn (array $item): bool => $item['name'] !== '')),
+            'emptyNameCount' => count(array_filter($items, static fn (array $item): bool => $item['name'] === '')),
+            'uniqueNameCount' => count($nameCounts),
+            'duplicateNameCount' => count($duplicateNames),
+            'duplicateNames' => $duplicateNames,
+            'uriCount' => count($uris),
+            'uris' => $uris,
+            'issueCount' => $issueCount,
+            'issueCodes' => array_keys($issueCodes),
+            'items' => $items,
+            'byName' => $byName,
+            'flatItems' => $flatItems,
+        ];
     }
 
     /**

@@ -6693,6 +6693,110 @@ XML;
             'followedHyperlink',
         ], $summary['settingsColorSchemeMappingKeys']);
     },
+    'summarizes docx settings compatibility provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/compat-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCompatSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../docSettings/compat-settings.xml?compat=review#settings"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docSettings/compat-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:compat>
+    <w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>
+    <w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>
+    <w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="14"/>
+    <w:compatSetting w:uri="urn:example:compat" w:val="missing-name"/>
+  </w:compat>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $settings = $docx['settings'];
+        $details = $settings['compatibilityDetails'];
+        $summary = $docx['packageProvenance']['summary'];
+        $inventory = $docx['packageProvenance']['parts']['docSettings/compat-settings.xml'];
+        $selectedSettings = $docx['packageProvenance']['selectedXmlParts']['byKind']['settings'];
+
+        $t->same('docSettings/compat-settings.xml', $docx['settingsPart']);
+        $t->same('rCompatSettings', $docx['settingsRelationship']['id']);
+        $t->same('../docSettings/compat-settings.xml?compat=review#settings', $docx['settingsRelationship']['target']);
+        $t->same('docSettings/compat-settings.xml', $docx['settingsRelationship']['targetPart']);
+        $t->same('compat=review', $docx['settingsRelationship']['targetQuery']);
+        $t->same('settings', $docx['settingsRelationship']['targetFragment']);
+        $t->same('settings', $selectedSettings['rootLocalName']);
+        $t->same(true, $selectedSettings['contentTypeMatchesExpected']);
+        $t->true(in_array('settings', $inventory['roles'], true), 'settings inventory role missing');
+        $t->same(1, $summary['roleCounts']['settings']);
+
+        $t->same('compatibilityMode', $settings['compatibility'][0]['name']);
+        $t->same('15', $settings['compatibility'][0]['value']);
+        $t->same('14', $settings['compatibility'][2]['value']);
+        $t->same('urn:example:compat', $settings['compatibility'][3]['uri']);
+        $t->true(!isset($settings['compatibility'][3]['name']), 'flat compatibility list keeps missing names omitted');
+
+        $t->same(4, $details['count']);
+        $t->same(3, $details['namedCount']);
+        $t->same(1, $details['emptyNameCount']);
+        $t->same(2, $details['uniqueNameCount']);
+        $t->same(1, $details['duplicateNameCount']);
+        $t->same(['compatibilityMode'], $details['duplicateNames']);
+        $t->same(2, $details['uriCount']);
+        $t->same(['http://schemas.microsoft.com/office/word', 'urn:example:compat'], $details['uris']);
+        $t->same(3, $details['issueCount']);
+        $t->same(['duplicate-name', 'missing-name'], $details['issueCodes']);
+        $t->same('14', $details['byName']['compatibilityMode']['value']);
+        $t->same(2, $details['byName']['compatibilityMode']['index']);
+        $t->same('1', $details['byName']['overrideTableStyleFontSizeAndJustification']['value']);
+
+        $first = $details['items'][0];
+        $second = $details['items'][1];
+        $third = $details['items'][2];
+        $missingName = $details['items'][3];
+
+        $t->same(0, $first['index']);
+        $t->same('compatibilityMode', $first['name']);
+        $t->same('http://schemas.microsoft.com/office/word', $first['uri']);
+        $t->same('15', $first['value']);
+        $t->same(true, $first['duplicateName']);
+        $t->same(['duplicate-name'], $first['issues']);
+
+        $t->same('overrideTableStyleFontSizeAndJustification', $second['name']);
+        $t->same(false, $second['duplicateName']);
+        $t->same([], $second['issues']);
+
+        $t->same(2, $third['index']);
+        $t->same('compatibilityMode', $third['name']);
+        $t->same('14', $third['value']);
+        $t->same(true, $third['duplicateName']);
+        $t->same(['duplicate-name'], $third['issues']);
+
+        $t->same('', $missingName['name']);
+        $t->same('urn:example:compat', $missingName['uri']);
+        $t->same('missing-name', $missingName['value']);
+        $t->same(false, $missingName['duplicateName']);
+        $t->same(['missing-name'], $missingName['issues']);
+
+        $t->same(4, $summary['settingsCompatibilityCount']);
+        $t->same(3, $summary['settingsCompatibilityNamedCount']);
+        $t->same(1, $summary['settingsCompatibilityEmptyNameCount']);
+        $t->same(2, $summary['settingsCompatibilityUniqueNameCount']);
+        $t->same(1, $summary['settingsCompatibilityDuplicateNameCount']);
+        $t->same(['compatibilityMode'], $summary['settingsCompatibilityDuplicateNames']);
+        $t->same(2, $summary['settingsCompatibilityUriCount']);
+        $t->same(['http://schemas.microsoft.com/office/word', 'urn:example:compat'], $summary['settingsCompatibilityUris']);
+        $t->same(3, $summary['settingsCompatibilityIssueCount']);
+        $t->same(['duplicate-name', 'missing-name'], $summary['settingsCompatibilityIssueCodes']);
+    },
     'summarizes docx settings document variables for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
