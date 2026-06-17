@@ -2048,7 +2048,7 @@ final class MarkdownWriter
             if ($itemLoose && $lines !== [] && end($lines) !== '') {
                 $lines[] = '';
             }
-            array_push($lines, ...$this->renderListItem($item, $marker, $indent));
+            array_push($lines, ...$this->renderListItem($item, $marker, $indent, $itemLoose));
             $index++;
         }
 
@@ -2270,7 +2270,7 @@ final class MarkdownWriter
     /**
      * @return list<string>
      */
-    private function renderListItem(AstNode $item, string $marker, int $indent): array
+    private function renderListItem(AstNode $item, string $marker, int $indent, bool $itemLoose): array
     {
         $prefix = str_repeat(' ', $indent) . $marker;
         $blockIndent = $indent + strlen($marker);
@@ -2347,6 +2347,16 @@ final class MarkdownWriter
                 ) {
                     $nestedIndent = $indent + 3;
                 }
+            } elseif (
+                $itemLoose
+                && !is_bool($task)
+                && $previousBlock instanceof AstNode
+                && $this->isInlineListItemBlock($previousBlock)
+                && $this->isListBlock($child)
+                && $lines !== []
+                && end($lines) !== ''
+            ) {
+                $lines[] = '';
             }
 
             foreach ($this->renderBlock($child, $nestedIndent) as $nestedLine) {
