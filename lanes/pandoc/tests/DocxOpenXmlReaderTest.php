@@ -4353,6 +4353,133 @@ XML;
         $t->same(3, $relationshipParts['word/_rels/_rels/document.xml.rels.rels']['sourcePathDepth']);
         $t->same(null, $relationshipParts['word/_rels/media/document.xml.rels']['sourcePathDepth']);
     },
+    'summarizes docx relationship source extension digest buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $rootSource = str_repeat('R', 37);
+        $xmlSmallSource = '<source-extension-a/>';
+        $xmlLargeSource = str_repeat('B', 23000);
+        $parts['root-source'] = $rootSource;
+        $parts['word/source-extension-a.xml'] = $xmlSmallSource;
+        $parts['word/source-extension-b.xml'] = $xmlLargeSource;
+        $parts['word/media/root-extension.png'] = 'root extension image bytes';
+        $parts['word/media/source-extension-a.png'] = 'source extension a image bytes';
+        $parts['word/media/source-extension-b.png'] = 'source extension b image bytes';
+        $parts['word/media/relationship-extension.png'] = 'relationship extension image bytes';
+        $parts['word/media/missing-extension.png'] = 'missing extension image bytes';
+        $parts['word/media/invalid-extension.png'] = 'invalid extension image bytes';
+        $parts['_rels/root-source.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRootExtensionImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/root-extension.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source-extension-a.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSourceExtensionAImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-extension-a.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source-extension-b.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSourceExtensionBImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-extension-b.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/_rels/document.xml.rels.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRelationshipExtensionImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/relationship-extension.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-extension.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingExtensionImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-extension.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/media/document.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rInvalidExtensionImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/invalid-extension.png"/>
+</Relationships>
+XML;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $byExtension = [];
+        foreach ($summary['relationshipSourcePartExtensions'] as $extensionSummary) {
+            $byExtension[$extensionSummary['sourcePartExtensionKey']] = $extensionSummary;
+        }
+
+        $t->same(8, $summary['relationshipSourceCount']);
+        $t->same(3, $summary['relationshipSourcePartExtensionCount']);
+        $t->same(['(none)' => 3, 'rels' => 1, 'xml' => 4], $summary['relationshipSourcePartExtensionCounts']);
+        $t->same(3, $summary['relationshipSourcePartExtensionExistingByteBucketCount']);
+        $t->same(2, $summary['relationshipSourcePartExtensionNonExistingBucketCount']);
+
+        $none = $byExtension['(none)'];
+        $t->same(3, $none['sourceCount']);
+        $t->same(2, $none['existingSourceCount']);
+        $t->same(1, $none['nonExistingSourceCount']);
+        $t->same(4, $none['relationshipCount']);
+        $t->same(strlen($rootSource), $none['existingSourceByteLength']);
+        $t->same(['invalid-source' => 1, 'package-part' => 1, 'package-root' => 1], $none['relationshipSourceKindCounts']);
+        $t->same(['(invalid-source)' => 1, '/' => 1, 'root-source' => 1], $none['sourceBaseNameCounts']);
+        $t->same(['(missing)' => 3], $none['sourceContentTypeBaseCounts']);
+        $t->same(['(missing)' => 2, 'missing' => 1], $none['sourceContentTypeSourceCounts']);
+        $t->same(['package-part' => 1, 'package-root' => 1], $none['sourceRoleCounts']);
+        $t->same('root-source', $none['largestExistingSourcePart']['sourcePart']);
+        $t->same('_rels/root-source.rels', $none['largestExistingSourcePart']['relationshipsPart']);
+        $t->same(37, $none['largestExistingSourcePart']['sourceBytes']);
+        $t->same(hash('sha256', $rootSource), $none['largestExistingSourcePart']['sourceSha256']);
+        $t->same(null, $none['largestExistingSourcePart']['sourcePartExtension']);
+        $t->same(null, $none['largestExistingSourcePart']['sourceContentTypeBase']);
+        $t->same(['package-part'], $none['largestExistingSourcePart']['sourceRoles']);
+
+        $xml = $byExtension['xml'];
+        $t->same(4, $xml['sourceCount']);
+        $t->same(3, $xml['existingSourceCount']);
+        $t->same(1, $xml['nonExistingSourceCount']);
+        $t->same(5, $xml['relationshipCount']);
+        $t->same(strlen($parts['word/document.xml']) + strlen($xmlSmallSource) + strlen($xmlLargeSource), $xml['existingSourceByteLength']);
+        $t->same(['missing-source' => 1, 'package-part' => 3], $xml['relationshipSourceKindCounts']);
+        $t->same([
+            'document.xml' => 1,
+            'missing-extension.xml' => 1,
+            'source-extension-a.xml' => 1,
+            'source-extension-b.xml' => 1,
+        ], $xml['sourceBaseNameCounts']);
+        $t->same([
+            '(missing)' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/xml' => 2,
+        ], $xml['sourceContentTypeBaseCounts']);
+        $t->same(['(missing)' => 1, 'default' => 2, 'override' => 1], $xml['sourceContentTypeSourceCounts']);
+        $t->same(['office-document' => 1, 'package-part' => 2, 'root-relationship-target' => 1], $xml['sourceRoleCounts']);
+        $t->same('word/source-extension-b.xml', $xml['largestExistingSourcePart']['sourcePart']);
+        $t->same('word/_rels/source-extension-b.xml.rels', $xml['largestExistingSourcePart']['relationshipsPart']);
+        $t->same(23000, $xml['largestExistingSourcePart']['sourceBytes']);
+        $t->same(sprintf('%08x', crc32($xmlLargeSource)), $xml['largestExistingSourcePart']['sourceCrc32']);
+        $t->same(hash('sha256', $xmlLargeSource), $xml['largestExistingSourcePart']['sourceSha256']);
+        $t->same('xml', $xml['largestExistingSourcePart']['sourcePartExtension']);
+        $t->same('application/xml', $xml['largestExistingSourcePart']['sourceContentTypeBase']);
+        $t->same('default', $xml['largestExistingSourcePart']['sourceContentTypeSource']);
+
+        $rels = $byExtension['rels'];
+        $t->same(1, $rels['sourceCount']);
+        $t->same(1, $rels['existingSourceCount']);
+        $t->same(0, $rels['nonExistingSourceCount']);
+        $t->same(1, $rels['relationshipCount']);
+        $t->same(strlen($parts['word/_rels/document.xml.rels']), $rels['existingSourceByteLength']);
+        $t->same(['relationship-part' => 1], $rels['relationshipSourceKindCounts']);
+        $t->same(['document.xml.rels' => 1], $rels['sourceBaseNameCounts']);
+        $t->same(['application/vnd.openxmlformats-package.relationships+xml' => 1], $rels['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 1], $rels['sourceContentTypeSourceCounts']);
+        $t->same(['office-document-relationships' => 1, 'relationship-part' => 1], $rels['sourceRoleCounts']);
+        $t->same('word/_rels/document.xml.rels', $rels['largestExistingSourcePart']['sourcePart']);
+        $t->same('word/_rels/_rels/document.xml.rels.rels', $rels['largestExistingSourcePart']['relationshipsPart']);
+        $t->same('rels', $rels['largestExistingSourcePart']['sourcePartExtension']);
+        $t->same(hash('sha256', $parts['word/_rels/document.xml.rels']), $rels['largestExistingSourcePart']['sourceSha256']);
+    },
     'summarizes docx relationship source directories for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $headerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
