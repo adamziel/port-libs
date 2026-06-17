@@ -9227,6 +9227,52 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/table-foster-parenting-review.html', $document->children[0]->attr('part'));
     },
+    'wraps orphan table fragment structure before raw handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<td data-col="a">A</td><th scope="col">B</th><tr><td>C</td></tr><col span="2"><tbody><tr><td>D</td></tr></tbody><p>after</p>',
+            'orphan table fragment recovery review'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/table-orphan-structure-recovery.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $summary[0];
+        $generatedRow = $table['children'][0];
+        $sourceRow = $table['children'][1];
+        $generatedColgroup = $table['children'][2];
+        $sourceBody = $table['children'][3];
+
+        $t->same('table', $table['name']);
+        $t->same('table', $table['tablePart']);
+        $t->same('ABCD', $table['text']);
+        $t->same(['tr', 'tr', 'colgroup', 'tbody'], array_map(static fn (array $node): string => $node['name'], $table['children']));
+        $t->same('row', $generatedRow['tablePart']);
+        $t->same(['td', 'th'], array_map(static fn (array $node): string => $node['name'], $generatedRow['children']));
+        $t->same(['data-col' => 'a'], $generatedRow['children'][0]['attributes']);
+        $t->same('cell', $generatedRow['children'][0]['tablePart']);
+        $t->same('header', $generatedRow['children'][1]['tableCell']);
+        $t->same('col', $generatedRow['children'][1]['scope']);
+        $t->same('row', $sourceRow['tablePart']);
+        $t->same('C', $sourceRow['text']);
+        $t->same('column-group', $generatedColgroup['tablePart']);
+        $t->same('col', $generatedColgroup['children'][0]['name']);
+        $t->same(2, $generatedColgroup['children'][0]['span']);
+        $t->same('body-group', $sourceBody['tablePart']);
+        $t->same('D', $sourceBody['text']);
+        $t->same('p', $summary[1]['name']);
+        $t->same('after', $summary[1]['text']);
+        $t->same(
+            '<table><tr><td data-col="a">A</td><th scope="col">B</th></tr><tr><td>C</td></tr><colgroup><col span="2"></colgroup><tbody><tr><td>D</td></tr></tbody></table><p>after</p>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/table-orphan-structure-recovery.html', $document->children[0]->attr('part'));
+        $t->true(!str_starts_with($html, '<td'), 'Expected orphan cells to be wrapped before raw handoff');
+        $t->true(!str_contains($html, '</tr><col '), 'Expected orphan column to be wrapped in a generated colgroup');
+    },
     'hands serialized HTML fragments to WordPress raw HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<aside data-review="source"><p>Imported<br>line &amp; reviewer notes</p></aside>',

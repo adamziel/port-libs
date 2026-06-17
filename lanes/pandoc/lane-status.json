@@ -762,6 +762,8 @@
   "pandocFormatRegistryRareTextUnsupportedAssertions": 151,
   "mappedXmlHtmlDomTableFosterParentingCases": 1,
   "xmlHtmlDomTableFosterParentingAssertions": 20,
+  "mappedXmlHtmlDomOrphanTableFragmentRecoveryCases": 2,
+  "xmlHtmlDomOrphanTableFragmentRecoveryAssertions": 28,
   "mappedXmlHtmlDomJatsRelationshipDiagnosticCases": 1,
   "xmlHtmlDomJatsRelationshipDiagnosticAssertions": 28,
   "mappedJsonNativeFigureChildBlockPayloadCases": 1,

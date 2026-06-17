@@ -82,12 +82,7 @@ final class Html5Dom
             throw new \InvalidArgumentException('HTML element must belong to a DOMDocument');
         }
 
-        $html = '';
-        foreach ($element->childNodes as $child) {
-            $html .= XmlHtmlDom::serializeHtmlNode($child);
-        }
-
-        return $html;
+        return XmlHtmlDom::serializeHtmlChildren($element);
     }
 
     public static function serializeXmlChildren(\DOMElement $element): string

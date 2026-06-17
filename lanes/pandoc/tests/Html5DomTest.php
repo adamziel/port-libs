@@ -565,6 +565,20 @@ return [
         $t->true(!str_contains($serialized, '</caption><p>Loose note</p>'), 'Expected loose paragraph to move outside the table');
         $t->true(!str_contains($serialized, '</tr>orphan text<tr>'), 'Expected loose text to move outside the table rows');
     },
+    'wraps orphan table fragments before html5 reader handoff serialization' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<td>A</td><td>B</td><tr><td>C</td></tr><col span="2"><p>after</p>'
+        );
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->same('ABCafter', Html5Dom::normalizedText($body));
+        $t->same(
+            '<table><tr><td>A</td><td>B</td></tr><tr><td>C</td></tr><colgroup><col span="2"></colgroup></table><p>after</p>',
+            $serialized
+        );
+        $t->true(!str_starts_with($serialized, '<td>'), 'Expected orphan table cells to be wrapped before raw handoff');
+        $t->true(!str_contains($serialized, '</tr><col '), 'Expected orphan columns to be wrapped in a generated colgroup');
+    },
     'parses XML fragments with namespaces and serializes multiple root children' => static function (TestRunner $t): void {
         $fragment = Html5Dom::parseXmlFragment(
             '<m:math xmlns:m="urn:math"><m:mi>x</m:mi></m:math><w:t xmlns:w="urn:word" xml:space="preserve"> reviewer text </w:t>'

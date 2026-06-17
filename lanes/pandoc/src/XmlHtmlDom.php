@@ -1015,6 +1015,20 @@ final class XmlHtmlDom
 
     public static function serializeHtmlChildren(\DOMNode $node): string
     {
+        if (self::shouldRepairOrphanHtmlTableChildren($node)) {
+            return self::serializeHtmlChildrenWithTableRepair($node);
+        }
+
+        return self::serializeHtmlChildrenPlain($node);
+    }
+
+    public static function serializeHtmlNode(\DOMNode $node): string
+    {
+        return self::serializeNode($node);
+    }
+
+    private static function serializeHtmlChildrenPlain(\DOMNode $node): string
+    {
         $html = '';
 
         foreach ($node->childNodes as $child) {
@@ -1022,11 +1036,6 @@ final class XmlHtmlDom
         }
 
         return $html;
-    }
-
-    public static function serializeHtmlNode(\DOMNode $node): string
-    {
-        return self::serializeNode($node);
     }
 
     public static function htmlElementName(\DOMElement $element): string
@@ -14510,7 +14519,9 @@ final class XmlHtmlDom
             array_push($summary, ...self::summarizeNode($child));
         }
 
-        return $summary;
+        return self::shouldRepairOrphanHtmlTableChildren($parent)
+            ? self::wrapOrphanHtmlTableSummary($summary)
+            : $summary;
     }
 
     /**
@@ -23551,12 +23562,7 @@ final class XmlHtmlDom
         }
 
         if ($node instanceof \DOMDocument || $node instanceof \DOMDocumentFragment) {
-            $html = '';
-            foreach ($node->childNodes as $child) {
-                $html .= self::serializeNode($child);
-            }
-
-            return $html;
+            return self::serializeHtmlChildren($node);
         }
 
         if (!$node instanceof \DOMElement) {
@@ -23585,9 +23591,7 @@ final class XmlHtmlDom
         } elseif (isset(self::HTML5_RAW_TEXT_ELEMENTS[strtolower($name)])) {
             $html .= self::rawTextContent($node);
         } else {
-            foreach ($node->childNodes as $child) {
-                $html .= self::serializeNode($child);
-            }
+            $html .= self::serializeHtmlChildren($node);
         }
 
         return $html . '</' . $name . '>';
@@ -23843,6 +23847,286 @@ final class XmlHtmlDom
     private static function isHtmlTableModelContext(string $name): bool
     {
         return isset(self::HTML5_TABLE_ALLOWED_CHILDREN[strtolower($name)]);
+    }
+
+    private static function shouldRepairOrphanHtmlTableChildren(\DOMNode $node): bool
+    {
+        if (!$node instanceof \DOMElement) {
+            return true;
+        }
+
+        $name = self::htmlElementName($node);
+        if (self::isHtmlTableModelContext($name)) {
+            return false;
+        }
+
+        return self::htmlForeignContext($node) === null;
+    }
+
+    private static function serializeHtmlChildrenWithTableRepair(\DOMNode $node): string
+    {
+        $html = '';
+        $pendingTableChildren = '';
+        $pendingRows = '';
+        $pendingCells = '';
+        $pendingColumns = '';
+
+        $flushPendingCells = static function () use (&$pendingCells, &$pendingRows): void {
+            if ($pendingCells === '') {
+                return;
+            }
+
+            $pendingRows .= '<tr>' . $pendingCells . '</tr>';
+            $pendingCells = '';
+        };
+        $flushPendingRows = static function () use (&$pendingRows, &$pendingTableChildren): void {
+            if ($pendingRows === '') {
+                return;
+            }
+
+            $pendingTableChildren .= $pendingRows;
+            $pendingRows = '';
+        };
+        $flushPendingColumns = static function () use (&$pendingColumns, &$pendingTableChildren): void {
+            if ($pendingColumns === '') {
+                return;
+            }
+
+            $pendingTableChildren .= '<colgroup>' . $pendingColumns . '</colgroup>';
+            $pendingColumns = '';
+        };
+        $flushPendingTable = static function () use (
+            &$html,
+            &$pendingTableChildren,
+            $flushPendingCells,
+            $flushPendingRows,
+            $flushPendingColumns
+        ): void {
+            $flushPendingColumns();
+            $flushPendingCells();
+            $flushPendingRows();
+            if ($pendingTableChildren === '') {
+                return;
+            }
+
+            $html .= '<table>' . $pendingTableChildren . '</table>';
+            $pendingTableChildren = '';
+        };
+
+        foreach ($node->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                $flushPendingTable();
+                $html .= self::serializeNode($child);
+                continue;
+            }
+
+            $name = self::htmlElementName($child);
+            if (self::isHtmlTableColumnElementName($name)) {
+                $flushPendingCells();
+                $flushPendingRows();
+                $pendingColumns .= self::serializeNode($child);
+                continue;
+            }
+
+            if (self::isHtmlTableOrphanContainerElementName($name)) {
+                $flushPendingColumns();
+                $flushPendingCells();
+                $flushPendingRows();
+                [$fosteredHtml, $childHtml] = self::serializeTableElementParts($child, $name);
+                if ($fosteredHtml !== '') {
+                    $flushPendingTable();
+                    $html .= $fosteredHtml;
+                }
+                $pendingTableChildren .= $childHtml;
+                continue;
+            }
+
+            if (self::isHtmlTableRowElementName($name)) {
+                $flushPendingColumns();
+                $flushPendingCells();
+                [$fosteredHtml, $childHtml] = self::serializeTableElementParts($child, $name);
+                if ($fosteredHtml !== '') {
+                    $flushPendingTable();
+                    $html .= $fosteredHtml;
+                }
+                $pendingRows .= $childHtml;
+                continue;
+            }
+
+            if (self::isHtmlTableCellElementName($name)) {
+                $flushPendingColumns();
+                $pendingCells .= self::serializeNode($child);
+                continue;
+            }
+
+            $flushPendingTable();
+            $html .= self::serializeNode($child);
+        }
+
+        $flushPendingTable();
+
+        return $html;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return list<array<string, mixed>>
+     */
+    private static function wrapOrphanHtmlTableSummary(array $nodes): array
+    {
+        $wrapped = [];
+        $pendingTableChildren = [];
+        $pendingRows = [];
+        $pendingCells = [];
+        $pendingColumns = [];
+
+        $flushPendingCells = static function () use (&$pendingCells, &$pendingRows): void {
+            if ($pendingCells === []) {
+                return;
+            }
+
+            $pendingRows[] = self::generatedHtmlTableRowSummary($pendingCells);
+            $pendingCells = [];
+        };
+        $flushPendingRows = static function () use (&$pendingRows, &$pendingTableChildren): void {
+            if ($pendingRows === []) {
+                return;
+            }
+
+            array_push($pendingTableChildren, ...$pendingRows);
+            $pendingRows = [];
+        };
+        $flushPendingColumns = static function () use (&$pendingColumns, &$pendingTableChildren): void {
+            if ($pendingColumns === []) {
+                return;
+            }
+
+            $pendingTableChildren[] = self::generatedHtmlTableColumnGroupSummary($pendingColumns);
+            $pendingColumns = [];
+        };
+        $flushPendingTable = static function () use (
+            &$pendingTableChildren,
+            &$wrapped,
+            $flushPendingCells,
+            $flushPendingRows,
+            $flushPendingColumns
+        ): void {
+            $flushPendingColumns();
+            $flushPendingCells();
+            $flushPendingRows();
+            if ($pendingTableChildren === []) {
+                return;
+            }
+
+            $wrapped[] = self::generatedHtmlTableSummary($pendingTableChildren);
+            $pendingTableChildren = [];
+        };
+
+        foreach ($nodes as $node) {
+            $name = strtolower((string) ($node['name'] ?? ''));
+            if (self::isHtmlTableColumnElementName($name)) {
+                $flushPendingCells();
+                $flushPendingRows();
+                $pendingColumns[] = $node;
+                continue;
+            }
+
+            if (self::isHtmlTableOrphanContainerElementName($name)) {
+                $flushPendingColumns();
+                $flushPendingCells();
+                $flushPendingRows();
+                $pendingTableChildren[] = $node;
+                continue;
+            }
+
+            if (self::isHtmlTableRowElementName($name)) {
+                $flushPendingColumns();
+                $flushPendingCells();
+                $pendingRows[] = $node;
+                continue;
+            }
+
+            if (self::isHtmlTableCellElementName($name)) {
+                $flushPendingColumns();
+                $pendingCells[] = $node;
+                continue;
+            }
+
+            $flushPendingTable();
+            $wrapped[] = $node;
+        }
+
+        $flushPendingTable();
+
+        return $wrapped;
+    }
+
+    private static function isHtmlTableOrphanContainerElementName(string $name): bool
+    {
+        return in_array(strtolower($name), ['caption', 'colgroup', 'thead', 'tbody', 'tfoot'], true);
+    }
+
+    private static function isHtmlTableRowElementName(string $name): bool
+    {
+        return strtolower($name) === 'tr';
+    }
+
+    private static function isHtmlTableCellElementName(string $name): bool
+    {
+        return in_array(strtolower($name), ['td', 'th'], true);
+    }
+
+    private static function isHtmlTableColumnElementName(string $name): bool
+    {
+        return strtolower($name) === 'col';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     * @return array<string, mixed>
+     */
+    private static function generatedHtmlTableSummary(array $children): array
+    {
+        return [
+            'type' => 'element',
+            'name' => 'table',
+            'attributes' => [],
+            'text' => self::summaryText($children),
+            'children' => $children,
+            'tablePart' => 'table',
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @return array<string, mixed>
+     */
+    private static function generatedHtmlTableRowSummary(array $cells): array
+    {
+        return [
+            'type' => 'element',
+            'name' => 'tr',
+            'attributes' => [],
+            'text' => self::summaryText($cells),
+            'children' => $cells,
+            'tablePart' => 'row',
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $columns
+     * @return array<string, mixed>
+     */
+    private static function generatedHtmlTableColumnGroupSummary(array $columns): array
+    {
+        return [
+            'type' => 'element',
+            'name' => 'colgroup',
+            'attributes' => [],
+            'text' => '',
+            'children' => $columns,
+            'tablePart' => 'column-group',
+        ];
     }
 
     private static function isFosteredHtmlTableChild(\DOMNode $node, string $context): bool
