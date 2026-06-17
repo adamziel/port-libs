@@ -7992,6 +7992,175 @@ XML;
         $t->same(2, $relationshipTypes[$imageRel]['externalCount']);
         $t->true(in_array('word/media/unreferenced.jpg', $relationshipTypes[$imageRel]['existingTargetParts'], true), 'unreferenced media relationship target missing from type summary');
     },
+    'summarizes docx bibliography package parts from document relationships' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $bibliographyRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/bibliography';
+        $bibliographyContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.bibliography+xml';
+        $bibliographyXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<b:Sources xmlns:b="http://schemas.openxmlformats.org/officeDocument/2006/bibliography">
+  <b:Source>
+    <b:Tag>RefOne</b:Tag>
+    <b:SourceType>Book</b:SourceType>
+    <b:Title>Reference One</b:Title>
+    <b:Author><b:Author><b:NameList><b:Person><b:Last>Doe</b:Last></b:Person></b:NameList></b:Author></b:Author>
+  </b:Source>
+  <b:Source>
+    <b:Tag>RefTwo</b:Tag>
+    <b:SourceType>ArticleInAPeriodical</b:SourceType>
+    <b:Title>Reference Two</b:Title>
+  </b:Source>
+</b:Sources>
+XML;
+        $badBibliographyXml = '<review-bibliography/>';
+        $orphanBibliographyXml = <<<'XML'
+<b:Sources xmlns:b="http://schemas.openxmlformats.org/officeDocument/2006/bibliography">
+  <b:Source><b:SourceType>WebSite</b:SourceType></b:Source>
+</b:Sources>
+XML;
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/bibliography.xml" ContentType="' . $bibliographyContentType . '; profile=review-bibliography"/>' . "\n" .
+            '  <Override PartName="/word/bibliography-bad.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/word/bibliography-missing.xml" ContentType="' . $bibliographyContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/bibliography-orphan.xml" ContentType="' . $bibliographyContentType . '"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rBibliography" Type="' . $bibliographyRel . '" Target="bibliography.xml?list=works#src"/>' . "\n" .
+            '  <Relationship Id="rBadBibliography" Type="' . $bibliographyRel . '" Target="bibliography-bad.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingBibliography" Type="' . $bibliographyRel . '" Target="bibliography-missing.xml"/>' . "\n" .
+            '  <Relationship Id="rExternalBibliography" Type="' . $bibliographyRel . '" Target="https://example.test/bibliography.xml?remote=1#refs" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/bibliography.xml'] = $bibliographyXml;
+        $parts['word/bibliography-bad.xml'] = $badBibliographyXml;
+        $parts['word/bibliography-orphan.xml'] = $orphanBibliographyXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $bibliographies = $docx['bibliographyParts'];
+        $summary = $package['summary'];
+        $bibliography = $bibliographies['byRelationshipId']['rBibliography'];
+        $bad = $bibliographies['byRelationshipId']['rBadBibliography'];
+        $missing = $bibliographies['byRelationshipId']['rMissingBibliography'];
+        $external = $bibliographies['byRelationshipId']['rExternalBibliography'];
+        $orphan = $bibliographies['byPartName']['word/bibliography-orphan.xml'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $inventory = $package['parts'];
+
+        $t->same($bibliographies, $package['bibliographyParts']);
+        $t->same(5, $bibliographies['count']);
+        $t->same(4, $bibliographies['relationshipCount']);
+        $t->same(1, $bibliographies['orphanPartCount']);
+        $t->same(3, $bibliographies['existingCount']);
+        $t->same(1, $bibliographies['missingCount']);
+        $t->same(1, $bibliographies['externalCount']);
+        $t->same(0, $bibliographies['invalidXmlCount']);
+        $t->same(1, $bibliographies['unexpectedRootCount']);
+        $t->same(0, $bibliographies['missingContentTypeCount']);
+        $t->same(1, $bibliographies['unexpectedContentTypeCount']);
+        $t->same(3, $bibliographies['sourceCount']);
+        $t->same(2, $bibliographies['sourceTagCount']);
+        $t->same(1, $bibliographies['missingSourceTagCount']);
+        $t->same(['RefOne', 'RefTwo'], $bibliographies['uniqueSourceTags']);
+        $t->same([
+            'ArticleInAPeriodical' => 1,
+            'Book' => 1,
+            'WebSite' => 1,
+        ], $bibliographies['sourceTypeCounts']);
+        $t->same(2, $bibliographies['titleCount']);
+        $t->same(1, $bibliographies['authorPersonCount']);
+        $t->same([
+            'external-bibliography-part',
+            'missing-bibliography-part',
+            'unexpected-bibliography-content-type',
+            'unexpected-bibliography-root',
+        ], $bibliographies['issueCodes']);
+        $t->same(['rBibliography', 'rBadBibliography', 'rMissingBibliography', 'rExternalBibliography'], $bibliographies['relationshipIds']);
+        $t->same(['word/bibliography.xml', 'word/bibliography-bad.xml', 'word/bibliography-missing.xml', 'word/bibliography-orphan.xml'], $bibliographies['partNames']);
+        $t->same(['word/bibliography-orphan.xml'], $bibliographies['orphanPartNames']);
+        $t->same(['https://example.test/bibliography.xml?remote=1#refs'], $bibliographies['externalTargets']);
+        $t->same('bibliography-part-bytes-blocked', $bibliographies['byteExposurePolicy']);
+        $t->same('bibliography-part-metadata-only', $bibliographies['reviewPolicy']);
+
+        $t->same(true, $bibliography['relationshipPresent']);
+        $t->same(false, $bibliography['orphan']);
+        $t->same($bibliographyRel, $bibliography['relationshipType']);
+        $t->same('bibliography.xml?list=works#src', $bibliography['target']);
+        $t->same('word/bibliography.xml?list=works#src', $bibliography['resolvedTarget']);
+        $t->same('word/bibliography.xml', $bibliography['targetPart']);
+        $t->same('list=works', $bibliography['targetQuery']);
+        $t->same('src', $bibliography['targetFragment']);
+        $t->same('?list=works#src', $bibliography['targetReferenceSuffix']);
+        $t->same(strlen($bibliographyXml), $bibliography['byteLength']);
+        $t->same(sprintf('%08x', crc32($bibliographyXml)), $bibliography['crc32']);
+        $t->same(hash('sha256', $bibliographyXml), $bibliography['sha256']);
+        $t->same($bibliographyContentType . '; profile=review-bibliography', $bibliography['contentType']);
+        $t->same($bibliographyContentType, $bibliography['contentTypeBase']);
+        $t->same(['profile' => 'review-bibliography'], $bibliography['contentTypeParameterMap']);
+        $t->same('override', $bibliography['contentTypeSource']);
+        $t->same(true, $bibliography['validXml']);
+        $t->same(true, $bibliography['validRoot']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/bibliography', $bibliography['rootNamespace']);
+        $t->same('Sources', $bibliography['rootLocalName']);
+        $t->same(2, $bibliography['sourceCount']);
+        $t->same(['RefOne', 'RefTwo'], $bibliography['uniqueSourceTags']);
+        $t->same('RefOne', $bibliography['sources'][0]['tag']);
+        $t->same('Book', $bibliography['sources'][0]['sourceType']);
+        $t->same('Reference One', $bibliography['sources'][0]['title']);
+        $t->same(1, $bibliography['sources'][0]['authorPersonCount']);
+        $t->same('RefTwo', $bibliography['sources'][1]['tag']);
+        $t->same('ArticleInAPeriodical', $bibliography['sources'][1]['sourceType']);
+        $t->same([], $bibliography['issues']);
+        $t->same(true, $bibliography['valid']);
+
+        $t->same(['unexpected-bibliography-content-type', 'unexpected-bibliography-root'], $bad['issues']);
+        $t->same('application/xml', $bad['contentType']);
+        $t->same('review-bibliography', $bad['rootLocalName']);
+        $t->same(false, $bad['validRoot']);
+        $t->same(['missing-bibliography-part'], $missing['issues']);
+        $t->same(false, $missing['exists']);
+        $t->same($bibliographyContentType, $missing['contentTypeBase']);
+        $t->same(['external-bibliography-part'], $external['issues']);
+        $t->same(true, $external['external']);
+        $t->same(null, $external['targetPart']);
+        $t->same('remote=1', $external['targetQuery']);
+        $t->same('refs', $external['targetFragment']);
+        $t->same(false, $orphan['relationshipPresent']);
+        $t->same(true, $orphan['orphan']);
+        $t->same('word/bibliography-orphan.xml', $orphan['partName']);
+        $t->same(1, $orphan['sourceCount']);
+        $t->same(1, $orphan['missingSourceTagCount']);
+        $t->same(['WebSite' => 1], $orphan['sourceTypeCounts']);
+        $t->same([], $orphan['issues']);
+        $t->same(true, $orphan['valid']);
+
+        $t->same(5, $summary['bibliographyPartCount']);
+        $t->same(4, $summary['bibliographyPartRelationshipCount']);
+        $t->same(1, $summary['bibliographyPartOrphanCount']);
+        $t->same(3, $summary['bibliographyPartExistingCount']);
+        $t->same(1, $summary['bibliographyPartMissingCount']);
+        $t->same(1, $summary['bibliographyPartExternalCount']);
+        $t->same(3, $summary['bibliographyPartSourceCount']);
+        $t->same(3, $summary['bibliographyPartIssueCount']);
+        $t->same($bibliographies['issueCodes'], $summary['bibliographyPartIssueCodes']);
+        $t->same('bibliography', $relationshipTypes[$bibliographyRel]['label']);
+        $t->same(4, $relationshipTypes[$bibliographyRel]['count']);
+        $t->same(3, $relationshipTypes[$bibliographyRel]['internalCount']);
+        $t->same(1, $relationshipTypes[$bibliographyRel]['externalCount']);
+        $t->same(['word/bibliography.xml', 'word/bibliography-bad.xml'], $relationshipTypes[$bibliographyRel]['existingTargetParts']);
+        $t->same(['word/bibliography-missing.xml'], $relationshipTypes[$bibliographyRel]['missingTargetParts']);
+        $t->true(in_array('bibliography-part', $inventory['word/bibliography.xml']['roles'], true), 'bibliography inventory role missing');
+        $t->true(in_array('bibliography-part', $inventory['word/bibliography-bad.xml']['roles'], true), 'bad bibliography inventory role missing');
+        $t->true(!isset($docx['media']['word/bibliography.xml']), 'Bibliography XML should not be exposed as document media');
+        $t->true(!isset($docx['media']['word/bibliography-orphan.xml']), 'Orphan bibliography XML should not be exposed as document media');
+    },
     'summarizes docx chart package parts from drawing relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';

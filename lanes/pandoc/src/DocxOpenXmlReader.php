@@ -23,6 +23,7 @@ final class DocxOpenXmlReader
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const NS_C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+    private const NS_BIB = 'http://schemas.openxmlformats.org/officeDocument/2006/bibliography';
     private const NS_V = 'urn:schemas-microsoft-com:vml';
     private const NS_DGM = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
     private const NS_O = 'urn:schemas-microsoft-com:office:office';
@@ -61,6 +62,7 @@ final class DocxOpenXmlReader
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     private const OLE_OBJECT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+    private const BIBLIOGRAPHY_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/bibliography';
     private const CHART_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
     private const DIAGRAM_DATA_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
     private const DIAGRAM_LAYOUT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout';
@@ -108,6 +110,7 @@ final class DocxOpenXmlReader
     private const CT_WORD_COMMENTS_EXTENDED = 'application/vnd.ms-word.commentsext+xml';
     private const CT_WORD_COMMENTS_IDS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.commentsids+xml';
     private const CT_WORD_PEOPLE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.people+xml';
+    private const CT_WORD_BIBLIOGRAPHY = 'application/vnd.openxmlformats-officedocument.wordprocessingml.bibliography+xml';
     private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
     private const CT_PACKAGE_RELATIONSHIPS = 'application/vnd.openxmlformats-package.relationships+xml';
     private const CT_CHART = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
@@ -417,6 +420,12 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $bibliographyParts = $this->readBibliographyParts(
+            $parts,
+            $documentPart,
+            $documentRelationships,
+            $contentTypes,
+        );
         $packageProvenance['alternativeFormats'] = $alternativeFormats;
         $packageProvenance['summary']['alternativeFormatCount'] = $alternativeFormats['count'];
         $packageProvenance['summary']['alternativeFormatRelationshipCount'] = $alternativeFormats['relationshipCount'];
@@ -464,6 +473,16 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['documentBackgroundImageExternalCount'] = $documentBackgroundImages['externalCount'];
         $packageProvenance['summary']['documentBackgroundImageIssueCount'] = $documentBackgroundImages['issueCount'];
         $packageProvenance['summary']['documentBackgroundImageIssueCodes'] = $documentBackgroundImages['issueCodes'];
+        $packageProvenance['bibliographyParts'] = $bibliographyParts;
+        $packageProvenance['summary']['bibliographyPartCount'] = $bibliographyParts['count'];
+        $packageProvenance['summary']['bibliographyPartRelationshipCount'] = $bibliographyParts['relationshipCount'];
+        $packageProvenance['summary']['bibliographyPartOrphanCount'] = $bibliographyParts['orphanPartCount'];
+        $packageProvenance['summary']['bibliographyPartExistingCount'] = $bibliographyParts['existingCount'];
+        $packageProvenance['summary']['bibliographyPartMissingCount'] = $bibliographyParts['missingCount'];
+        $packageProvenance['summary']['bibliographyPartExternalCount'] = $bibliographyParts['externalCount'];
+        $packageProvenance['summary']['bibliographyPartSourceCount'] = $bibliographyParts['sourceCount'];
+        $packageProvenance['summary']['bibliographyPartIssueCount'] = $bibliographyParts['issueCount'];
+        $packageProvenance['summary']['bibliographyPartIssueCodes'] = $bibliographyParts['issueCodes'];
         $chartParts = $this->readChartParts(
             $parts,
             $parts[$documentPart],
@@ -756,6 +775,7 @@ final class DocxOpenXmlReader
                 'subdocuments' => $subdocuments,
                 'documentMediaRelationships' => $documentMediaRelationships,
                 'documentBackgroundImages' => $documentBackgroundImages,
+                'bibliographyParts' => $bibliographyParts,
                 'chartParts' => $chartParts,
                 'diagramParts' => $diagramParts,
                 'activeXControls' => $activeXControls,
@@ -3264,6 +3284,419 @@ final class DocxOpenXmlReader
         $item['valid'] = $item['issues'] === [];
 
         return $item;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readBibliographyParts(
+        array $parts,
+        string $documentPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $byPartName = [];
+        $relationshipIds = [];
+        $targetedPartNames = [];
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::BIBLIOGRAPHY_REL) {
+                continue;
+            }
+
+            $relationshipId = $relationship['id'];
+            $item = $this->bibliographyPartItem(
+                $parts,
+                $relationship,
+                $documentPart,
+                $relationshipsPart,
+                $contentTypes,
+                count($items),
+            );
+            $items[] = $item;
+
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            if ($partName !== null) {
+                $targetedPartNames[$partName] = true;
+                if (!isset($byPartName[$partName])) {
+                    $byPartName[$partName] = $item;
+                }
+            }
+        }
+
+        $orphanPartNames = [];
+        foreach ($parts as $partName => $_contents) {
+            $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
+            if (
+                ($contentTypeResolution['contentTypeBase'] ?? '') !== self::CT_WORD_BIBLIOGRAPHY
+                || isset($targetedPartNames[$partName])
+            ) {
+                continue;
+            }
+
+            $item = $this->bibliographyPartPackageItem($parts, $partName, $contentTypes, count($items));
+            $items[] = $item;
+            $orphanPartNames[] = $partName;
+            if (!isset($byPartName[$partName])) {
+                $byPartName[$partName] = $item;
+            }
+        }
+
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        $sourceTypeCounts = [];
+        $sourceTags = [];
+        $sourceCount = 0;
+        $sourceTagCount = 0;
+        $missingSourceTagCount = 0;
+        $titleCount = 0;
+        $authorPersonCount = 0;
+        foreach ($items as $item) {
+            $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+            $sourceCount += (int) ($item['sourceCount'] ?? 0);
+            $sourceTagCount += (int) ($item['sourceTagCount'] ?? 0);
+            $missingSourceTagCount += (int) ($item['missingSourceTagCount'] ?? 0);
+            $titleCount += (int) ($item['titleCount'] ?? 0);
+            $authorPersonCount += (int) ($item['authorPersonCount'] ?? 0);
+            foreach (($item['uniqueSourceTags'] ?? []) as $tag) {
+                $this->appendUniqueString($sourceTags, is_string($tag) ? $tag : null);
+            }
+            foreach (($item['sourceTypeCounts'] ?? []) as $type => $count) {
+                if (is_string($type) && $type !== '') {
+                    $sourceTypeCounts[$type] = ($sourceTypeCounts[$type] ?? 0) + (int) $count;
+                }
+            }
+        }
+        sort($sourceTags, SORT_STRING);
+        ksort($sourceTypeCounts, SORT_STRING);
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count(array_filter($relationships, static fn (array $relationship): bool => $relationship['type'] === self::BIBLIOGRAPHY_REL)),
+            'orphanPartCount' => count($orphanPartNames),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-bibliography-part', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-bibliography-xml', $item['issues'], true))),
+            'unexpectedRootCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-bibliography-root', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-bibliography-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-bibliography-content-type', $item['issues'], true))),
+            'sourceCount' => $sourceCount,
+            'sourceTagCount' => $sourceTagCount,
+            'missingSourceTagCount' => $missingSourceTagCount,
+            'uniqueSourceTags' => $sourceTags,
+            'sourceTypeCounts' => $sourceTypeCounts,
+            'titleCount' => $titleCount,
+            'authorPersonCount' => $authorPersonCount,
+            'relationshipIds' => $relationshipIds,
+            'orphanPartNames' => $orphanPartNames,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'byPartName' => $byPartName,
+            'items' => $items,
+            'byteExposurePolicy' => 'bibliography-part-bytes-blocked',
+            'reviewPolicy' => 'bibliography-part-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function bibliographyPartItem(
+        array $parts,
+        array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index
+    ): array {
+        $item = $this->emptyBibliographyPartItem($index);
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) $summary['exists'];
+
+        $item['relationshipId'] = $summary['id'];
+        $item['relationshipPresent'] = true;
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['external'] = (bool) $summary['external'];
+        $item['partName'] = $targetPart;
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['exists'] = $exists;
+        $item['byteLength'] = $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null;
+        $item['crc32'] = $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+        $item['sha256'] = $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null;
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $summary['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $summary['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $summary['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $summary['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['relationship'] = $summary;
+
+        if ($item['external'] === true) {
+            $item['issues'][] = 'external-bibliography-part';
+            return $item;
+        }
+
+        if (!$exists) {
+            $item['issues'][] = 'missing-bibliography-part';
+        }
+
+        $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+        if (($summary['contentTypeSource'] ?? '') === 'missing') {
+            $item['issues'][] = 'missing-bibliography-content-type';
+        } elseif ($contentTypeBase !== self::CT_WORD_BIBLIOGRAPHY) {
+            $item['issues'][] = 'unexpected-bibliography-content-type';
+        }
+
+        if ($exists && $targetPart !== null) {
+            $this->applyBibliographyPartXmlMetadata($item, $parts[$targetPart], $targetPart);
+        }
+        $item['valid'] = $item['issues'] === [];
+
+        return $item;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function bibliographyPartPackageItem(array $parts, string $partName, array $contentTypes, int $index): array
+    {
+        $item = $this->emptyBibliographyPartItem($index);
+        $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
+        $item['orphan'] = true;
+        $item['partName'] = $partName;
+        $item['targetPart'] = $partName;
+        $item['exists'] = true;
+        $item['byteLength'] = strlen($parts[$partName]);
+        $item['crc32'] = sprintf('%08x', crc32($parts[$partName]));
+        $item['sha256'] = hash('sha256', $parts[$partName]);
+        $item['contentType'] = $contentTypeResolution['contentType'];
+        $item['contentTypeBase'] = $contentTypeResolution['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $contentTypeResolution['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $contentTypeResolution['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $contentTypeResolution['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $contentTypeResolution['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $contentTypeResolution['contentTypeSource'];
+        $item['defaultExtension'] = $contentTypeResolution['defaultExtension'];
+        $item['overridePartName'] = $contentTypeResolution['overridePartName'];
+        $this->applyBibliographyPartXmlMetadata($item, $parts[$partName], $partName);
+        $item['valid'] = $item['issues'] === [];
+
+        return $item;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyBibliographyPartItem(int $index): array
+    {
+        return [
+            'index' => $index,
+            'relationshipId' => null,
+            'relationshipPresent' => false,
+            'orphan' => false,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'external' => false,
+            'partName' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'exists' => false,
+            'byteLength' => null,
+            'crc32' => null,
+            'sha256' => null,
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'expectedContentTypeBase' => self::CT_WORD_BIBLIOGRAPHY,
+            'validXml' => null,
+            'xmlParseError' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'validRoot' => null,
+            'sourceCount' => 0,
+            'sourceTagCount' => 0,
+            'missingSourceTagCount' => 0,
+            'uniqueSourceTags' => [],
+            'duplicateSourceTags' => [],
+            'sourceTypeCounts' => [],
+            'titleCount' => 0,
+            'authorPersonCount' => 0,
+            'sources' => [],
+            'byteExposurePolicy' => 'bibliography-part-bytes-blocked',
+            'reviewPolicy' => 'bibliography-part-metadata-only',
+            'valid' => false,
+            'issues' => [],
+            'relationship' => null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function applyBibliographyPartXmlMetadata(array &$item, string $xml, string $partName): void
+    {
+        $metadata = $this->bibliographyPartXmlMetadata($xml, $partName);
+        foreach ($metadata as $key => $value) {
+            $item[$key] = $value;
+        }
+
+        if ($metadata['validXml'] === false) {
+            $item['issues'][] = 'invalid-bibliography-xml';
+        } elseif ($metadata['validRoot'] === false) {
+            $item['issues'][] = 'unexpected-bibliography-root';
+        }
+    }
+
+    /**
+     * @return array{validXml:bool, xmlParseError:?string, rootNamespace:?string, rootLocalName:?string, validRoot:bool, sourceCount:int, sourceTagCount:int, missingSourceTagCount:int, uniqueSourceTags:list<string>, duplicateSourceTags:list<string>, sourceTypeCounts:array<string, int>, titleCount:int, authorPersonCount:int, sources:list<array{index:int, tag:?string, sourceType:?string, title:?string, authorPersonCount:int}>}
+     */
+    private function bibliographyPartXmlMetadata(string $xml, string $partName): array
+    {
+        $metadata = [
+            'validXml' => false,
+            'xmlParseError' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'validRoot' => false,
+            'sourceCount' => 0,
+            'sourceTagCount' => 0,
+            'missingSourceTagCount' => 0,
+            'uniqueSourceTags' => [],
+            'duplicateSourceTags' => [],
+            'sourceTypeCounts' => [],
+            'titleCount' => 0,
+            'authorPersonCount' => 0,
+            'sources' => [],
+        ];
+
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            $metadata['xmlParseError'] = $this->lastXmlPreflightError($xml, $partName);
+
+            return $metadata;
+        }
+
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            $metadata['xmlParseError'] = 'missing XML document element';
+
+            return $metadata;
+        }
+
+        $metadata['validXml'] = true;
+        $metadata['rootNamespace'] = $root->namespaceURI;
+        $metadata['rootLocalName'] = $root->localName;
+        $metadata['validRoot'] = $root->namespaceURI === self::NS_BIB && $root->localName === 'Sources';
+        if (!$metadata['validRoot']) {
+            return $metadata;
+        }
+
+        $xpath = $this->xpath($dom);
+        $tagCounts = [];
+        foreach ($this->elements($xpath, '/b:Sources/b:Source') as $source) {
+            $tag = $this->firstBibliographyElementText($xpath, './b:Tag', $source);
+            $sourceType = $this->firstBibliographyElementText($xpath, './b:SourceType', $source);
+            $title = $this->firstBibliographyElementText($xpath, './b:Title', $source);
+            $authorPersonCount = count($this->elements($xpath, './/b:Person', $source));
+
+            if ($tag === null) {
+                ++$metadata['missingSourceTagCount'];
+            } else {
+                ++$metadata['sourceTagCount'];
+                $tagCounts[$tag] = ($tagCounts[$tag] ?? 0) + 1;
+            }
+            if ($sourceType !== null) {
+                $metadata['sourceTypeCounts'][$sourceType] = ($metadata['sourceTypeCounts'][$sourceType] ?? 0) + 1;
+            }
+            if ($title !== null) {
+                ++$metadata['titleCount'];
+            }
+            $metadata['authorPersonCount'] += $authorPersonCount;
+            $metadata['sources'][] = [
+                'index' => $metadata['sourceCount'],
+                'tag' => $tag,
+                'sourceType' => $sourceType,
+                'title' => $title,
+                'authorPersonCount' => $authorPersonCount,
+            ];
+            ++$metadata['sourceCount'];
+        }
+
+        ksort($tagCounts, SORT_STRING);
+        ksort($metadata['sourceTypeCounts'], SORT_STRING);
+        $metadata['uniqueSourceTags'] = array_keys($tagCounts);
+        foreach ($tagCounts as $tag => $count) {
+            if ($count > 1) {
+                $metadata['duplicateSourceTags'][] = $tag;
+            }
+        }
+
+        return $metadata;
+    }
+
+    private function firstBibliographyElementText(\DOMXPath $xpath, string $query, \DOMNode $context): ?string
+    {
+        $element = $this->firstElement($xpath, $query, $context);
+        if (!$element instanceof \DOMElement) {
+            return null;
+        }
+
+        $text = trim(preg_replace('/\s+/u', ' ', $element->textContent) ?? $element->textContent);
+
+        return $text === '' ? null : $this->boundedMetadataString($text);
     }
 
     /**
@@ -10590,6 +11023,7 @@ final class DocxOpenXmlReader
             self::GLOSSARY_DOCUMENT_REL => 'glossary-document',
             self::OLE_OBJECT_REL => 'embedded-object',
             self::EMBEDDED_PACKAGE_REL => 'embedded-package',
+            self::BIBLIOGRAPHY_REL => 'bibliography-part',
             self::CHART_REL => 'chart-part',
             self::DIAGRAM_DATA_REL => 'diagram-data',
             self::DIAGRAM_LAYOUT_REL => 'diagram-layout',
@@ -14359,6 +14793,7 @@ final class DocxOpenXmlReader
         $xpath->registerNamespace('a', self::NS_A);
         $xpath->registerNamespace('wp', self::NS_WP);
         $xpath->registerNamespace('c', self::NS_C);
+        $xpath->registerNamespace('b', self::NS_BIB);
         $xpath->registerNamespace('v', self::NS_V);
         $xpath->registerNamespace('dgm', self::NS_DGM);
         $xpath->registerNamespace('o', self::NS_O);
