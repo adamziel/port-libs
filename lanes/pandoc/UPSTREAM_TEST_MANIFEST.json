@@ -1013,7 +1013,9 @@
     "mappedXmlHtmlDomAnchorPositioningReviewCases": 1,
     "xmlHtmlDomAnchorPositioningReviewAssertions": 41,
     "mappedXmlHtmlDomAutofocusOrderReviewCases": 1,
-    "xmlHtmlDomAutofocusOrderReviewAssertions": 33
+    "xmlHtmlDomAutofocusOrderReviewAssertions": 33,
+    "mappedXmlHtmlDomAttributeDeclarationLiteralRecoveryCases": 1,
+    "xmlHtmlDomAttributeDeclarationLiteralRecoveryAssertions": 27
   },
   "benchmarkDenominator": {
     "status": "XML/HTML DOM autofocus order review is verified after rebase onto current main e449b59b26; phpPass is 16938 and phpFail remains 0.",
@@ -2999,5 +3001,7 @@
   "mappedXmlHtmlDomAnchorPositioningReviewCases": 1,
   "xmlHtmlDomAnchorPositioningReviewAssertions": 41,
   "mappedXmlHtmlDomAutofocusOrderReviewCases": 1,
-  "xmlHtmlDomAutofocusOrderReviewAssertions": 33
+  "xmlHtmlDomAutofocusOrderReviewAssertions": 33,
+  "mappedXmlHtmlDomAttributeDeclarationLiteralRecoveryCases": 1,
+  "xmlHtmlDomAttributeDeclarationLiteralRecoveryAssertions": 27
 }

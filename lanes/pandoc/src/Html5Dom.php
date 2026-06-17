@@ -258,7 +258,7 @@ final class Html5Dom
     private static function assertSafeXmlSource(string $xml, string $label): void
     {
         self::assertNoNullByte($xml, $label);
-        $declarationScanSource = self::sourceWithoutClosedComments($xml);
+        $declarationScanSource = self::sourceForDeclarationScan($xml);
         if (preg_match('/<\?xml\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not include an XML declaration');
         }
@@ -273,7 +273,7 @@ final class Html5Dom
     private static function assertSafeXmlDocumentSource(string $xml, string $label): void
     {
         self::assertNoNullByte($xml, $label);
-        $declarationScanSource = self::sourceWithoutClosedComments($xml);
+        $declarationScanSource = self::sourceForDeclarationScan($xml);
         if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
@@ -281,7 +281,7 @@ final class Html5Dom
 
     private static function assertNoHtmlFragmentDeclarations(string $html, string $label): void
     {
-        $declarationScanSource = self::sourceWithoutClosedComments($html);
+        $declarationScanSource = self::sourceForDeclarationScan($html);
         if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
@@ -300,7 +300,7 @@ final class Html5Dom
             protectRawTextContent: true,
             protectNoscriptContent: true
         );
-        $declarationScanSource = self::sourceWithoutClosedComments($preflight);
+        $declarationScanSource = self::sourceForDeclarationScan($preflight);
         self::assertSimpleHtmlDocumentDoctype($declarationScanSource, $label);
         if (preg_match('/<!\s*DOCTYPE\b[^>]*\[/is', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
@@ -313,9 +313,86 @@ final class Html5Dom
         }
     }
 
-    private static function sourceWithoutClosedComments(string $source): string
+    private static function sourceForDeclarationScan(string $source): string
     {
-        return preg_replace('/<!--(?:[^-]|-(?!-))*-->/s', '', $source) ?? $source;
+        $length = strlen($source);
+        $scan = '';
+        $offset = 0;
+
+        while ($offset < $length) {
+            if (str_starts_with(substr($source, $offset, 4), '<!--')) {
+                $commentEnd = strpos($source, '-->', $offset + 4);
+                if ($commentEnd === false) {
+                    $scan .= substr($source, $offset);
+                    break;
+                }
+
+                $commentLength = $commentEnd + 3 - $offset;
+                $scan .= str_repeat(' ', $commentLength);
+                $offset += $commentLength;
+                continue;
+            }
+
+            if ($source[$offset] === '<' && self::isHtmlTagStartForDeclarationScan($source, $offset)) {
+                [$tagSource, $nextOffset] = self::maskQuotedTagAttributeValuesForDeclarationScan($source, $offset);
+                $scan .= $tagSource;
+                $offset = $nextOffset;
+                continue;
+            }
+
+            $scan .= $source[$offset];
+            ++$offset;
+        }
+
+        return $scan;
+    }
+
+    private static function isHtmlTagStartForDeclarationScan(string $source, int $offset): bool
+    {
+        $length = strlen($source);
+        $nameOffset = $offset + 1;
+        if ($nameOffset >= $length) {
+            return false;
+        }
+
+        if ($source[$nameOffset] === '/') {
+            ++$nameOffset;
+        }
+
+        return $nameOffset < $length && preg_match('/[A-Za-z]/', $source[$nameOffset]) === 1;
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function maskQuotedTagAttributeValuesForDeclarationScan(string $source, int $offset): array
+    {
+        $length = strlen($source);
+        $tag = '';
+
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if ($char === '"' || $char === "'") {
+                $quoteEnd = strpos($source, $char, $offset + 1);
+                if ($quoteEnd === false) {
+                    $tag .= substr($source, $offset);
+
+                    return [$tag, $length];
+                }
+
+                $tag .= $char . str_repeat(' ', $quoteEnd - $offset - 1) . $char;
+                $offset = $quoteEnd + 1;
+                continue;
+            }
+
+            $tag .= $char;
+            ++$offset;
+            if ($char === '>') {
+                break;
+            }
+        }
+
+        return [$tag, $offset];
     }
 
     private static function assertSimpleHtmlDocumentDoctype(string $html, string $label): void

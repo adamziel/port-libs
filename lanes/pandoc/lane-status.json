@@ -1655,5 +1655,7 @@
   "mappedXmlHtmlDomAnchorPositioningReviewCases": 1,
   "xmlHtmlDomAnchorPositioningReviewAssertions": 41,
   "mappedXmlHtmlDomAutofocusOrderReviewCases": 1,
-  "xmlHtmlDomAutofocusOrderReviewAssertions": 33
+  "xmlHtmlDomAutofocusOrderReviewAssertions": 33,
+  "mappedXmlHtmlDomAttributeDeclarationLiteralRecoveryCases": 1,
+  "xmlHtmlDomAttributeDeclarationLiteralRecoveryAssertions": 27
 }

@@ -24261,7 +24261,7 @@ final class XmlHtmlDom
 
     private static function assertNoDoctype(string $source, string $label): void
     {
-        $declarationScanSource = self::sourceWithoutClosedComments($source);
+        $declarationScanSource = self::sourceForDeclarationScan($source);
         if (preg_match('/<!\s*DOCTYPE\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare a document type');
         }
@@ -24269,7 +24269,7 @@ final class XmlHtmlDom
 
     private static function assertNoHtmlFragmentDeclarations(string $source, string $label): void
     {
-        $declarationScanSource = self::sourceWithoutClosedComments($source);
+        $declarationScanSource = self::sourceForDeclarationScan($source);
         if (preg_match('/<!\s*(?:ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
@@ -24278,9 +24278,86 @@ final class XmlHtmlDom
         }
     }
 
-    private static function sourceWithoutClosedComments(string $source): string
+    private static function sourceForDeclarationScan(string $source): string
     {
-        return preg_replace('/<!--(?:[^-]|-(?!-))*-->/s', '', $source) ?? $source;
+        $length = strlen($source);
+        $scan = '';
+        $offset = 0;
+
+        while ($offset < $length) {
+            if (str_starts_with(substr($source, $offset, 4), '<!--')) {
+                $commentEnd = strpos($source, '-->', $offset + 4);
+                if ($commentEnd === false) {
+                    $scan .= substr($source, $offset);
+                    break;
+                }
+
+                $commentLength = $commentEnd + 3 - $offset;
+                $scan .= str_repeat(' ', $commentLength);
+                $offset += $commentLength;
+                continue;
+            }
+
+            if ($source[$offset] === '<' && self::isHtmlTagStartForDeclarationScan($source, $offset)) {
+                [$tagSource, $nextOffset] = self::maskQuotedTagAttributeValuesForDeclarationScan($source, $offset);
+                $scan .= $tagSource;
+                $offset = $nextOffset;
+                continue;
+            }
+
+            $scan .= $source[$offset];
+            ++$offset;
+        }
+
+        return $scan;
+    }
+
+    private static function isHtmlTagStartForDeclarationScan(string $source, int $offset): bool
+    {
+        $length = strlen($source);
+        $nameOffset = $offset + 1;
+        if ($nameOffset >= $length) {
+            return false;
+        }
+
+        if ($source[$nameOffset] === '/') {
+            ++$nameOffset;
+        }
+
+        return $nameOffset < $length && preg_match('/[A-Za-z]/', $source[$nameOffset]) === 1;
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function maskQuotedTagAttributeValuesForDeclarationScan(string $source, int $offset): array
+    {
+        $length = strlen($source);
+        $tag = '';
+
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if ($char === '"' || $char === "'") {
+                $quoteEnd = strpos($source, $char, $offset + 1);
+                if ($quoteEnd === false) {
+                    $tag .= substr($source, $offset);
+
+                    return [$tag, $length];
+                }
+
+                $tag .= $char . str_repeat(' ', $quoteEnd - $offset - 1) . $char;
+                $offset = $quoteEnd + 1;
+                continue;
+            }
+
+            $tag .= $char;
+            ++$offset;
+            if ($char === '>') {
+                break;
+            }
+        }
+
+        return [$tag, $offset];
     }
 
     private static function assertNoProcessingInstructions(\DOMNode $node, string $label): void
