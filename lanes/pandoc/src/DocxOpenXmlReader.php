@@ -753,6 +753,20 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['glossaryDocumentInvalidRootCount'] = $glossaryDocument['invalidRootCount'];
         $packageProvenance['summary']['glossaryDocumentIssueCount'] = $glossaryDocument['issueCount'];
         $packageProvenance['summary']['glossaryDocumentIssueCodes'] = $glossaryDocument['issueCodes'];
+        $packageProvenance['footnotes'] = $footnotes['summary'];
+        $packageProvenance['summary']['footnotesPart'] = $footnotesPart['partName'];
+        $packageProvenance['summary']['footnotesCount'] = $footnotes['summary']['count'];
+        $packageProvenance['summary']['footnotesInvalidXmlCount'] = $footnotes['summary']['invalidXmlCount'];
+        $packageProvenance['summary']['footnotesInvalidRootCount'] = $footnotes['summary']['invalidRootCount'];
+        $packageProvenance['summary']['footnotesIssueCount'] = $footnotes['summary']['issueCount'];
+        $packageProvenance['summary']['footnotesIssueCodes'] = $footnotes['summary']['issueCodes'];
+        $packageProvenance['endnotes'] = $endnotes['summary'];
+        $packageProvenance['summary']['endnotesPart'] = $endnotesPart['partName'];
+        $packageProvenance['summary']['endnotesCount'] = $endnotes['summary']['count'];
+        $packageProvenance['summary']['endnotesInvalidXmlCount'] = $endnotes['summary']['invalidXmlCount'];
+        $packageProvenance['summary']['endnotesInvalidRootCount'] = $endnotes['summary']['invalidRootCount'];
+        $packageProvenance['summary']['endnotesIssueCount'] = $endnotes['summary']['issueCount'];
+        $packageProvenance['summary']['endnotesIssueCodes'] = $endnotes['summary']['issueCodes'];
         $packageProvenance['customXmlParts'] = $customXmlParts;
         $packageProvenance['summary']['customXmlPartCount'] = $customXmlParts['count'];
         $packageProvenance['summary']['customXmlPropertiesPartCount'] = $customXmlParts['propertiesPartCount'];
@@ -9316,7 +9330,7 @@ final class DocxOpenXmlReader
      * @param array<string, mixed> $relationshipDiagnostics
      * @return array<string, mixed>
      */
-    private function noteCollectionSummary(array $items, array $byId, array $relationshipDiagnostics): array
+    private function noteCollectionSummary(array $items, array $byId, array $relationshipDiagnostics, array $xmlProvenance = []): array
     {
         $relationshipBacklinks = [];
         $referencedRelationshipIds = [];
@@ -9437,12 +9451,22 @@ final class DocxOpenXmlReader
         $relationshipDiagnostics['relationshipBacklinks'] = $relationshipBacklinks;
         $relationshipDiagnostics['byId'] = $relationships;
         $relationshipDiagnostics['items'] = array_values($relationships);
+        $issueCodes = is_array($xmlProvenance['issueCodes'] ?? null) ? $xmlProvenance['issueCodes'] : [];
 
         return [
             'count' => count($reconciledItems),
             'ids' => array_column($reconciledItems, 'id'),
             'byId' => $reconciledById,
             'items' => $reconciledItems,
+            'validXml' => $xmlProvenance['validXml'] ?? null,
+            'xmlParseError' => $xmlProvenance['xmlParseError'] ?? null,
+            'validRoot' => $xmlProvenance['validRoot'] ?? null,
+            'rootNamespace' => $xmlProvenance['rootNamespace'] ?? null,
+            'rootLocalName' => $xmlProvenance['rootLocalName'] ?? null,
+            'invalidXmlCount' => (int) ($xmlProvenance['invalidXmlCount'] ?? 0),
+            'invalidRootCount' => (int) ($xmlProvenance['invalidRootCount'] ?? 0),
+            'issueCount' => (int) ($xmlProvenance['issueCount'] ?? count($issueCodes)),
+            'issueCodes' => array_values($issueCodes),
             'relationshipsPart' => $relationshipDiagnostics['relationshipsPart'],
             'relationshipCount' => $relationshipDiagnostics['relationshipCount'],
             'relationshipRecordCount' => $relationshipDiagnostics['relationshipRecordCount'],
@@ -18612,18 +18636,52 @@ final class DocxOpenXmlReader
             $relationshipsPart,
             $contentTypes,
         );
+        $xmlProvenance = [
+            'validXml' => null,
+            'xmlParseError' => null,
+            'validRoot' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'invalidXmlCount' => 0,
+            'invalidRootCount' => 0,
+            'issueCount' => 0,
+            'issueCodes' => [],
+        ];
         if ($xml === '') {
             return [
-                'summary' => $this->noteCollectionSummary([], [], $relationshipDiagnostics),
+                'summary' => $this->noteCollectionSummary([], [], $relationshipDiagnostics, $xmlProvenance),
                 'nodes' => [],
             ];
         }
 
-        $dom = $this->loadXml($xml, $partName);
-        $root = $dom->documentElement;
-        if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_W || $root->localName !== $rootName) {
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
+            $xmlProvenance['validXml'] = false;
+            $xmlProvenance['xmlParseError'] = $this->lastXmlPreflightError($xml, $partName);
+            $xmlProvenance['validRoot'] = false;
+            $xmlProvenance['invalidXmlCount'] = 1;
+            $xmlProvenance['invalidRootCount'] = 1;
+            $xmlProvenance['issueCount'] = 1;
+            $xmlProvenance['issueCodes'] = ['invalid-' . $rootName . '-xml'];
+
             return [
-                'summary' => $this->noteCollectionSummary([], [], $relationshipDiagnostics),
+                'summary' => $this->noteCollectionSummary([], [], $relationshipDiagnostics, $xmlProvenance),
+                'nodes' => [],
+            ];
+        }
+
+        $root = $dom->documentElement;
+        $xmlProvenance['validXml'] = true;
+        $xmlProvenance['rootNamespace'] = $root->namespaceURI;
+        $xmlProvenance['rootLocalName'] = $root->localName;
+        $xmlProvenance['validRoot'] = $root->namespaceURI === self::NS_W && $root->localName === $rootName;
+        if ($xmlProvenance['validRoot'] !== true) {
+            $xmlProvenance['invalidRootCount'] = 1;
+            $xmlProvenance['issueCount'] = 1;
+            $xmlProvenance['issueCodes'] = ['unexpected-' . $rootName . '-root'];
+
+            return [
+                'summary' => $this->noteCollectionSummary([], [], $relationshipDiagnostics, $xmlProvenance),
                 'nodes' => [],
             ];
         }
@@ -18664,7 +18722,7 @@ final class DocxOpenXmlReader
         }
 
         return [
-            'summary' => $this->noteCollectionSummary($items, $byId, $relationshipDiagnostics),
+            'summary' => $this->noteCollectionSummary($items, $byId, $relationshipDiagnostics, $xmlProvenance),
             'nodes' => $nodes,
         ];
     }

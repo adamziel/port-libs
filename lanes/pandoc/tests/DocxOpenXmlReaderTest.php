@@ -10982,6 +10982,129 @@ XML;
         $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Footnote <a href="https://example.test/footnote-source">relationship source</a> note.</p>', $blocks);
         $t->contains('<li id="fn-2"><p>Endnote package audit.</p>', $blocks);
     },
+    'reports malformed docx footnotes and unexpected endnotes roots without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/notes/broken-footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml; profile=broken-notes"/>' . "\n" .
+            '  <Override PartName="/word/notes/wrong-endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml; profile=wrong-root"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rBrokenFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="../notes/broken-footnotes.xml?batch=broken#fn"/>' . "\n" .
+            '  <Relationship Id="rWrongEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="notes/wrong-endnotes.xml?root=review#en"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>',
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> with malformed notes</w:t></w:r>' . "\n" .
+            '      <w:r><w:footnoteReference w:id="42"/></w:r>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> and wrong-root endnote</w:t></w:r>' . "\n" .
+            '      <w:r><w:endnoteReference w:id="7"/></w:r>',
+            $parts['word/document.xml']
+        );
+        $parts['notes/broken-footnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="42" w:type=broken><w:p><w:r><w:t>Broken footnote</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+XML;
+        $parts['word/notes/wrong-endnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<reviewEndnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="7"><w:p><w:r><w:t>Wrong root endnote</w:t></w:r></w:p></w:endnote>
+</reviewEndnotes>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $footnotes = $docx['footnotes'];
+        $endnotes = $docx['endnotes'];
+        $selected = $package['selectedXmlParts']['byKind'];
+        $paragraph = $document->children[1];
+        $notes = array_values(array_filter($paragraph->children, static fn (AstNode $node): bool => $node->type === 'note'));
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same('notes/broken-footnotes.xml', $docx['footnotesPart']);
+        $t->same('rBrokenFootnotes', $docx['footnotesRelationship']['id']);
+        $t->same('../notes/broken-footnotes.xml?batch=broken#fn', $docx['footnotesRelationship']['target']);
+        $t->same('notes/broken-footnotes.xml?batch=broken#fn', $docx['footnotesRelationship']['resolvedTarget']);
+        $t->same('notes/broken-footnotes.xml', $docx['footnotesRelationship']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml; profile=broken-notes', $docx['footnotesRelationship']['contentType']);
+        $t->same(0, $footnotes['count']);
+        $t->same([], $footnotes['ids']);
+        $t->same(false, $footnotes['validXml']);
+        $t->contains('AttValue', (string) $footnotes['xmlParseError']);
+        $t->same(false, $footnotes['validRoot']);
+        $t->same(null, $footnotes['rootNamespace']);
+        $t->same(null, $footnotes['rootLocalName']);
+        $t->same(1, $footnotes['invalidXmlCount']);
+        $t->same(1, $footnotes['invalidRootCount']);
+        $t->same(1, $footnotes['issueCount']);
+        $t->same(['invalid-footnotes-xml'], $footnotes['issueCodes']);
+        $t->same('notes/_rels/broken-footnotes.xml.rels', $footnotes['relationshipsPart']);
+        $t->same(0, $footnotes['relationshipCount']);
+
+        $t->same('word/notes/wrong-endnotes.xml', $docx['endnotesPart']);
+        $t->same('rWrongEndnotes', $docx['endnotesRelationship']['id']);
+        $t->same('notes/wrong-endnotes.xml?root=review#en', $docx['endnotesRelationship']['target']);
+        $t->same('word/notes/wrong-endnotes.xml?root=review#en', $docx['endnotesRelationship']['resolvedTarget']);
+        $t->same('word/notes/wrong-endnotes.xml', $docx['endnotesRelationship']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml; profile=wrong-root', $docx['endnotesRelationship']['contentType']);
+        $t->same(0, $endnotes['count']);
+        $t->same([], $endnotes['ids']);
+        $t->same(true, $endnotes['validXml']);
+        $t->same(null, $endnotes['xmlParseError']);
+        $t->same(false, $endnotes['validRoot']);
+        $t->same(null, $endnotes['rootNamespace']);
+        $t->same('reviewEndnotes', $endnotes['rootLocalName']);
+        $t->same(0, $endnotes['invalidXmlCount']);
+        $t->same(1, $endnotes['invalidRootCount']);
+        $t->same(1, $endnotes['issueCount']);
+        $t->same(['unexpected-endnotes-root'], $endnotes['issueCodes']);
+        $t->same('word/notes/_rels/wrong-endnotes.xml.rels', $endnotes['relationshipsPart']);
+        $t->same(0, $endnotes['relationshipCount']);
+
+        $t->same($footnotes, $package['footnotes']);
+        $t->same($endnotes, $package['endnotes']);
+        $t->same('notes/broken-footnotes.xml', $summary['footnotesPart']);
+        $t->same(0, $summary['footnotesCount']);
+        $t->same(1, $summary['footnotesInvalidXmlCount']);
+        $t->same(1, $summary['footnotesInvalidRootCount']);
+        $t->same(1, $summary['footnotesIssueCount']);
+        $t->same(['invalid-footnotes-xml'], $summary['footnotesIssueCodes']);
+        $t->same('word/notes/wrong-endnotes.xml', $summary['endnotesPart']);
+        $t->same(0, $summary['endnotesCount']);
+        $t->same(0, $summary['endnotesInvalidXmlCount']);
+        $t->same(1, $summary['endnotesInvalidRootCount']);
+        $t->same(1, $summary['endnotesIssueCount']);
+        $t->same(['unexpected-endnotes-root'], $summary['endnotesIssueCodes']);
+
+        $t->same('notes/broken-footnotes.xml', $selected['footnotes']['partName']);
+        $t->same(false, $selected['footnotes']['validRoot']);
+        $t->contains('AttValue', (string) $selected['footnotes']['xmlParseError']);
+        $t->same(['invalid-xml'], $selected['footnotes']['issues']);
+        $t->same('word/notes/wrong-endnotes.xml', $selected['endnotes']['partName']);
+        $t->same(false, $selected['endnotes']['validRoot']);
+        $t->same(['unexpected-root'], $selected['endnotes']['issues']);
+        $t->true(in_array('footnotes', $package['selectedXmlParts']['issueKinds'], true), 'footnotes selected XML issue kind missing');
+        $t->true(in_array('endnotes', $package['selectedXmlParts']['issueKinds'], true), 'endnotes selected XML issue kind missing');
+        $t->same(1, $summary['selectedXmlPartInvalidXmlCount']);
+
+        $t->same(2, count($notes));
+        $t->same('42', $notes[0]->attr('id'));
+        $t->same('footnote', $notes[0]->attr('sourceType'));
+        $t->same(true, $notes[0]->attr('missing'));
+        $t->same('7', $notes[1]->attr('id'));
+        $t->same('endnote', $notes[1]->attr('sourceType'));
+        $t->same(true, $notes[1]->attr('missing'));
+    },
     'resolves docx comments from relationship target into review notes' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
