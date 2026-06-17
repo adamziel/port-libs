@@ -3138,6 +3138,134 @@ XML;
         $t->same('word/media/relationship-source.png', $relationshipSource['relationships']['rRelationshipSourceImage']['targetPart']);
         $t->same('word/media/invalid-source.png', $invalid['relationships']['rInvalidSourceImage']['targetPart']);
     },
+    'summarizes docx relationship source directory buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/source-a.xml'] = '<wordSourceA/>';
+        $parts['word/source-b.xml'] = '<wordSourceB/>';
+        $parts['customXml/source-a.xml'] = '<customSourceA/>';
+        $parts['word/media/source-a.png'] = 'word source a image bytes';
+        $parts['word/media/source-b.png'] = 'word source b image bytes';
+        $parts['word/media/custom-source-a.png'] = 'custom source a image bytes';
+        $parts['word/media/missing-source.png'] = 'missing source image bytes';
+        $parts['word/media/relationship-source-directory.png'] = 'relationship source directory image bytes';
+        $parts['word/media/invalid-source-directory.png'] = 'invalid source directory image bytes';
+        $parts['word/_rels/source-a.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rWordSourceAImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-a.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source-b.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rWordSourceBImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-b.png"/>
+</Relationships>
+XML;
+        $parts['customXml/_rels/source-a.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCustomSourceAImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/custom-source-a.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-source.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingSourceImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-source.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/_rels/document.xml.rels.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRelationshipSourceImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/relationship-source-directory.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/media/document.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rInvalidSourceImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/invalid-source-directory.png"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $byDirectory = [];
+        foreach ($summary['relationshipSourceDirectories'] as $directorySummary) {
+            $byDirectory[$directorySummary['sourceDirectoryKey']] = $directorySummary;
+        }
+
+        $t->same(5, $summary['relationshipSourceDirectoryCount']);
+        $t->same([
+            '/' => 1,
+            'customXml' => 1,
+            'word' => 4,
+            'word/_rels' => 1,
+        ], $summary['relationshipSourceDirectoryCounts']);
+        $t->same(['(invalid-source)', '/', 'customXml', 'word', 'word/_rels'], array_column($summary['relationshipSourceDirectories'], 'sourceDirectoryKey'));
+
+        $root = $byDirectory['/'];
+        $t->same(1, $root['sourceCount']);
+        $t->same(1, $root['existingSourceCount']);
+        $t->same(2, $root['relationshipCount']);
+        $t->same(['package-root' => 1], $root['relationshipSourceKindCounts']);
+        $t->same(['/' => 1], $root['sourceBaseNameCounts']);
+        $t->same(['(none)' => 1], $root['sourcePartExtensionCounts']);
+        $t->same(['_rels/.rels'], $root['relationshipParts']);
+
+        $word = $byDirectory['word'];
+        $t->same(4, $word['sourceCount']);
+        $t->same(3, $word['existingSourceCount']);
+        $t->same(1, $word['nonExistingSourceCount']);
+        $t->same(5, $word['relationshipCount']);
+        $t->same(
+            strlen($parts['word/document.xml']) + strlen($parts['word/source-a.xml']) + strlen($parts['word/source-b.xml']),
+            $word['existingSourceByteLength']
+        );
+        $t->same(['missing-source' => 1, 'package-part' => 3], $word['relationshipSourceKindCounts']);
+        $t->same([
+            'document.xml' => 1,
+            'missing-source.xml' => 1,
+            'source-a.xml' => 1,
+            'source-b.xml' => 1,
+        ], $word['sourceBaseNameCounts']);
+        $t->same(['xml' => 4], $word['sourcePartExtensionCounts']);
+        $t->same([
+            '(missing)' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/xml' => 2,
+        ], $word['sourceContentTypeBaseCounts']);
+        $t->same(['(missing)' => 1, 'default' => 2, 'override' => 1], $word['sourceContentTypeSourceCounts']);
+        $t->same(['word/document.xml', 'word/missing-source.xml', 'word/source-a.xml', 'word/source-b.xml'], $word['sourceParts']);
+        $t->same([
+            'word/_rels/document.xml.rels',
+            'word/_rels/missing-source.xml.rels',
+            'word/_rels/source-a.xml.rels',
+            'word/_rels/source-b.xml.rels',
+        ], $word['relationshipParts']);
+
+        $customXml = $byDirectory['customXml'];
+        $t->same(1, $customXml['sourceCount']);
+        $t->same(strlen($parts['customXml/source-a.xml']), $customXml['existingSourceByteLength']);
+        $t->same(['package-part' => 1], $customXml['relationshipSourceKindCounts']);
+        $t->same(['source-a.xml' => 1], $customXml['sourceBaseNameCounts']);
+        $t->same(['customXml/source-a.xml'], $customXml['sourceParts']);
+
+        $relationshipSource = $byDirectory['word/_rels'];
+        $t->same(1, $relationshipSource['sourceCount']);
+        $t->same(['relationship-part' => 1], $relationshipSource['relationshipSourceKindCounts']);
+        $t->same(['document.xml.rels' => 1], $relationshipSource['sourceBaseNameCounts']);
+        $t->same(['rels' => 1], $relationshipSource['sourcePartExtensionCounts']);
+        $t->same(['word/_rels/document.xml.rels'], $relationshipSource['sourceParts']);
+
+        $invalid = $byDirectory['(invalid-source)'];
+        $t->same(null, $invalid['sourceDirectory']);
+        $t->same(1, $invalid['sourceCount']);
+        $t->same(0, $invalid['existingSourceCount']);
+        $t->same(1, $invalid['nonExistingSourceCount']);
+        $t->same(['invalid-source' => 1], $invalid['relationshipSourceKindCounts']);
+        $t->same(['(invalid-source)' => 1], $invalid['sourceBaseNameCounts']);
+        $t->same(['(none)' => 1], $invalid['sourcePartExtensionCounts']);
+        $t->same(['word/_rels/media/document.xml.rels'], $invalid['relationshipParts']);
+    },
     'summarizes docx relationship source filename buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['root-source.xml'] = '<rootSource/>';
