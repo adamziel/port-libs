@@ -13539,9 +13539,11 @@ final class DocxOpenXmlReader
                     'sourcePartExtensionCounts' => [],
                     'sourceContentTypeBaseCounts' => [],
                     'sourceContentTypeSourceCounts' => [],
+                    'sourceRoleCounts' => [],
                     'sourceDirectories' => [],
                     'sourceParts' => [],
                     'relationshipParts' => [],
+                    'largestExistingSourcePart' => null,
                 ];
             }
 
@@ -13585,6 +13587,12 @@ final class DocxOpenXmlReader
             $baseNames[$baseNameKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] =
                 ($baseNames[$baseNameKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
 
+            foreach (($source['sourceRoles'] ?? []) as $role) {
+                $role = (string) $role;
+                $baseNames[$baseNameKey]['sourceRoleCounts'][$role] =
+                    ($baseNames[$baseNameKey]['sourceRoleCounts'][$role] ?? 0) + 1;
+            }
+
             $this->appendUniqueString(
                 $baseNames[$baseNameKey]['sourceDirectories'],
                 is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : null,
@@ -13597,6 +13605,36 @@ final class DocxOpenXmlReader
                 $baseNames[$baseNameKey]['relationshipParts'],
                 is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : null,
             );
+
+            if (is_int($source['sourceBytes'] ?? null)) {
+                $sourceBytes = (int) $source['sourceBytes'];
+                $sourceSummary = [
+                    'sourcePart' => is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '',
+                    'relationshipsPart' => is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '',
+                    'relationshipSourceKind' => $sourceKind,
+                    'sourceDirectory' => is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : null,
+                    'sourcePartExtension' => $extension,
+                    'sourceBytes' => $sourceBytes,
+                    'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                    'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                    'sourceContentTypeBase' => $contentTypeBase === '' ? null : $contentTypeBase,
+                    'sourceContentTypeSource' => $contentTypeSource === '' ? null : $contentTypeSource,
+                    'sourceRoles' => array_values(array_map('strval', $source['sourceRoles'] ?? [])),
+                    'relationshipCount' => (int) ($source['relationshipCount'] ?? 0),
+                    'relationshipRecordCount' => (int) ($source['relationshipRecordCount'] ?? 0),
+                ];
+                $largestPart = $baseNames[$baseNameKey]['largestExistingSourcePart'];
+                if (
+                    !is_array($largestPart)
+                    || $sourceSummary['sourceBytes'] > (int) ($largestPart['sourceBytes'] ?? 0)
+                    || (
+                        $sourceSummary['sourceBytes'] === (int) ($largestPart['sourceBytes'] ?? 0)
+                        && strcmp($sourceSummary['sourcePart'], (string) ($largestPart['sourcePart'] ?? '')) < 0
+                    )
+                ) {
+                    $baseNames[$baseNameKey]['largestExistingSourcePart'] = $sourceSummary;
+                }
+            }
         }
 
         ksort($baseNames, SORT_STRING);
@@ -13605,6 +13643,7 @@ final class DocxOpenXmlReader
             ksort($summary['sourcePartExtensionCounts'], SORT_STRING);
             ksort($summary['sourceContentTypeBaseCounts'], SORT_STRING);
             ksort($summary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['sourceRoleCounts'], SORT_STRING);
             sort($summary['sourceDirectories'], SORT_STRING);
             sort($summary['sourceParts'], SORT_STRING);
             sort($summary['relationshipParts'], SORT_STRING);

@@ -3825,6 +3825,67 @@ XML;
             'source-a.xml' => 2,
         ], $xmlExtension['sourceBaseNameCounts']);
     },
+    'summarizes docx relationship source base name digests for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $wordSource = '<sourceDigest>word</sourceDigest>';
+        $customSource = '<sourceDigest>' . str_repeat('custom', 8) . '</sourceDigest>';
+        $parts['word/source-digest.xml'] = $wordSource;
+        $parts['customXml/source-digest.xml'] = $customSource;
+        $parts['word/media/source-digest-word.png'] = 'word source digest target bytes';
+        $parts['word/media/source-digest-custom.png'] = 'custom source digest target bytes';
+        $parts['word/_rels/source-digest.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rWordSourceDigest" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-digest-word.png"/>
+</Relationships>
+XML;
+        $parts['customXml/_rels/source-digest.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCustomSourceDigest" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/source-digest-custom.png"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $byBaseName = [];
+        foreach ($summary['relationshipSourceBaseNames'] as $baseNameSummary) {
+            $byBaseName[$baseNameSummary['sourceBaseNameKey']] = $baseNameSummary;
+        }
+
+        $sourceDigest = $byBaseName['source-digest.xml'];
+        $t->same(2, $summary['relationshipSourceBaseNameCounts']['source-digest.xml']);
+        $t->same(2, $sourceDigest['sourceCount']);
+        $t->same(2, $sourceDigest['existingSourceCount']);
+        $t->same(0, $sourceDigest['nonExistingSourceCount']);
+        $t->same(2, $sourceDigest['relationshipCount']);
+        $t->same(2, $sourceDigest['relationshipRecordCount']);
+        $t->same(strlen($wordSource) + strlen($customSource), $sourceDigest['existingSourceByteLength']);
+        $t->same(['package-part' => 2], $sourceDigest['relationshipSourceKindCounts']);
+        $t->same(['xml' => 2], $sourceDigest['sourcePartExtensionCounts']);
+        $t->same(['application/xml' => 2], $sourceDigest['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 2], $sourceDigest['sourceContentTypeSourceCounts']);
+        $t->same(['package-part' => 2], $sourceDigest['sourceRoleCounts']);
+        $t->same(['customXml', 'word'], $sourceDigest['sourceDirectories']);
+        $t->same(['customXml/source-digest.xml', 'word/source-digest.xml'], $sourceDigest['sourceParts']);
+        $t->same(['customXml/_rels/source-digest.xml.rels', 'word/_rels/source-digest.xml.rels'], $sourceDigest['relationshipParts']);
+        $t->same('customXml/source-digest.xml', $sourceDigest['largestExistingSourcePart']['sourcePart']);
+        $t->same('customXml/_rels/source-digest.xml.rels', $sourceDigest['largestExistingSourcePart']['relationshipsPart']);
+        $t->same('package-part', $sourceDigest['largestExistingSourcePart']['relationshipSourceKind']);
+        $t->same('customXml', $sourceDigest['largestExistingSourcePart']['sourceDirectory']);
+        $t->same('xml', $sourceDigest['largestExistingSourcePart']['sourcePartExtension']);
+        $t->same(strlen($customSource), $sourceDigest['largestExistingSourcePart']['sourceBytes']);
+        $t->same(sprintf('%08x', crc32($customSource)), $sourceDigest['largestExistingSourcePart']['sourceCrc32']);
+        $t->same(hash('sha256', $customSource), $sourceDigest['largestExistingSourcePart']['sourceSha256']);
+        $t->same('application/xml', $sourceDigest['largestExistingSourcePart']['sourceContentTypeBase']);
+        $t->same('default', $sourceDigest['largestExistingSourcePart']['sourceContentTypeSource']);
+        $t->same(['package-part'], $sourceDigest['largestExistingSourcePart']['sourceRoles']);
+
+        $documentXml = $byBaseName['document.xml'];
+        $t->same(['office-document' => 1, 'root-relationship-target' => 1], $documentXml['sourceRoleCounts']);
+        $t->same('word/document.xml', $documentXml['largestExistingSourcePart']['sourcePart']);
+        $t->same(['office-document', 'root-relationship-target'], $documentXml['largestExistingSourcePart']['sourceRoles']);
+    },
     'summarizes docx relationship source content type parameters for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $headerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml; profile=header-source; charset=UTF-8';
