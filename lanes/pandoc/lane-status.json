@@ -1667,5 +1667,7 @@
   "mappedXmlHtmlDomAttributeDeclarationLiteralRecoveryCases": 1,
   "xmlHtmlDomAttributeDeclarationLiteralRecoveryAssertions": 27,
   "mappedXmlHtmlDomAccesskeyConflictReviewCases": 1,
-  "xmlHtmlDomAccesskeyConflictReviewAssertions": 43
+  "xmlHtmlDomAccesskeyConflictReviewAssertions": 43,
+  "mappedXmlHtmlDomCdataDeclarationRecoveryCases": 1,
+  "xmlHtmlDomCdataDeclarationRecoveryAssertions": 24
 }

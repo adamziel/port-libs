@@ -151,7 +151,7 @@ final class XmlHtmlDomFragment
     private static function assertSafeHtmlSource(string $html, string $label): void
     {
         self::assertNoNullByte($html, $label);
-        $declarationScanSource = self::sourceWithoutClosedComments($html);
+        $declarationScanSource = self::sourceForDeclarationScan($html);
         if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
@@ -163,7 +163,7 @@ final class XmlHtmlDomFragment
     private static function assertSafeXmlSource(string $xml, string $label): void
     {
         self::assertNoNullByte($xml, $label);
-        $declarationScanSource = self::sourceWithoutClosedComments($xml);
+        $declarationScanSource = self::sourceForDeclarationScan($xml);
         if (preg_match('/<\?xml\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException('XML declaration is not allowed inside a fragment');
         }
@@ -175,9 +175,11 @@ final class XmlHtmlDomFragment
         }
     }
 
-    private static function sourceWithoutClosedComments(string $source): string
+    private static function sourceForDeclarationScan(string $source): string
     {
-        return preg_replace('/<!--(?:[^-]|-(?!-))*-->/s', '', $source) ?? $source;
+        $source = preg_replace('/<!--(?:[^-]|-(?!-))*-->/s', '', $source) ?? $source;
+
+        return preg_replace('/<!\[CDATA\[(?:[^\]]|\](?!\]>))*\]\]>/s', '', $source) ?? $source;
     }
 
     private static function assertNoNullByte(string $source, string $label): void

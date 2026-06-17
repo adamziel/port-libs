@@ -320,6 +320,19 @@ final class Html5Dom
         $offset = 0;
 
         while ($offset < $length) {
+            if (str_starts_with(substr($source, $offset, 9), '<![CDATA[')) {
+                $cdataEnd = strpos($source, ']]>', $offset + 9);
+                if ($cdataEnd === false) {
+                    $scan .= substr($source, $offset);
+                    break;
+                }
+
+                $cdataLength = $cdataEnd + 3 - $offset;
+                $scan .= str_repeat(' ', $cdataLength);
+                $offset += $cdataLength;
+                continue;
+            }
+
             if (str_starts_with(substr($source, $offset, 4), '<!--')) {
                 $commentEnd = strpos($source, '-->', $offset + 4);
                 if ($commentEnd === false) {
