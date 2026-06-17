@@ -2995,6 +2995,90 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst safe pdf ppi override history without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-ppi-safe-override-history.pdf',
+            'source' => '= Typst Safe PDF PPI Override History Packet',
+            'engineOptions' => [
+                '--ppi=144',
+                '--ppi',
+                '300',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst safe PDF ppi override history packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['ppi-boundary-overridden'],
+            'pdfExport' => [
+                'pageSelection' => null,
+                'issues' => ['ppi-boundary-overridden'],
+                'ppi' => [
+                    'raw' => '300',
+                    'value' => '300',
+                    'ppi' => 300,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'ppi',
+                    'count' => 2,
+                    'values' => ['144', '300'],
+                    'selected' => '300',
+                    'issue' => 'ppi-boundary-overridden',
+                ],
+            ],
+            'ppiHistory' => [
+                [
+                    'raw' => '144',
+                    'value' => '144',
+                    'ppi' => 144,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => '300',
+                    'value' => '300',
+                    'ppi' => 300,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-ppi-safe-override-history.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-ppi-safe-override-history.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-ppi:300', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-export-issues:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst excessive pdf ppi boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
