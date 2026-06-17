@@ -817,6 +817,7 @@ final class PdfEngineHandoff
      *     pdfMarkedContentArtifacts: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
      *     pdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     pdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}|array{},
+     *     pdfOptionalContentUsageApplications: list<array{source:string, object:string|null, event:string|null, categories:list<string>, groups:list<string>, groupCount:int, keys:list<string>}>,
      *     pdfOptionalContentMemberships: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>,
      *     pdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     pdfCollectionPolicy: array<string, mixed>,
@@ -1511,6 +1512,7 @@ final class PdfEngineHandoff
         $pdfMarkedContentArtifacts = [];
         $pdfOptionalContentGroups = [];
         $pdfOptionalContentConfig = [];
+        $pdfOptionalContentUsageApplications = [];
         $pdfOptionalContentMemberships = [];
         $pdfCollectionMetadata = [];
         $pdfCollectionPolicy = [];
@@ -1661,6 +1663,7 @@ final class PdfEngineHandoff
                 $pdfMarkedContentArtifacts = $pdfInspection['markedContentArtifacts'];
                 $pdfOptionalContentGroups = $pdfInspection['optionalContentGroups'];
                 $pdfOptionalContentConfig = $pdfInspection['optionalContentConfig'];
+                $pdfOptionalContentUsageApplications = $pdfInspection['optionalContentUsageApplications'];
                 $pdfOptionalContentMemberships = $pdfInspection['optionalContentMemberships'];
                 $pdfCollectionMetadata = $pdfInspection['collectionMetadata'];
                 $pdfCollectionPolicy = $pdfInspection['collectionPolicy'];
@@ -3531,6 +3534,45 @@ final class PdfEngineHandoff
                         }
                     }
                 }
+                if ($pdfOptionalContentUsageApplications !== []) {
+                    $diagnostics[] = 'pdf-byte-optional-content-usage-applications:' . count($pdfOptionalContentUsageApplications);
+                    $usageApplicationGroupCount = 0;
+                    $usageApplicationIndirectCount = 0;
+                    $usageApplicationEvents = [];
+                    $usageApplicationCategories = [];
+                    foreach ($pdfOptionalContentUsageApplications as $usageApplication) {
+                        if (isset($usageApplication['groups']) && is_array($usageApplication['groups'])) {
+                            $usageApplicationGroupCount += count($usageApplication['groups']);
+                        }
+                        if (is_string($usageApplication['object'] ?? null) && $usageApplication['object'] !== 'inline') {
+                            $usageApplicationIndirectCount++;
+                        }
+                        if (is_string($usageApplication['event'] ?? null) && $usageApplication['event'] !== '') {
+                            $usageApplicationEvents[$usageApplication['event']] = ($usageApplicationEvents[$usageApplication['event']] ?? 0) + 1;
+                        }
+                        if (isset($usageApplication['categories']) && is_array($usageApplication['categories'])) {
+                            foreach ($usageApplication['categories'] as $category) {
+                                if (is_string($category) && $category !== '') {
+                                    $usageApplicationCategories[$category] = ($usageApplicationCategories[$category] ?? 0) + 1;
+                                }
+                            }
+                        }
+                    }
+                    if ($usageApplicationGroupCount > 0) {
+                        $diagnostics[] = 'pdf-byte-optional-content-usage-groups:' . $usageApplicationGroupCount;
+                    }
+                    if ($usageApplicationIndirectCount > 0) {
+                        $diagnostics[] = 'pdf-byte-optional-content-usage-indirect:' . $usageApplicationIndirectCount;
+                    }
+                    ksort($usageApplicationEvents);
+                    foreach ($usageApplicationEvents as $event => $eventCount) {
+                        $diagnostics[] = 'pdf-byte-optional-content-usage-event:' . $event . ':' . $eventCount;
+                    }
+                    ksort($usageApplicationCategories);
+                    foreach ($usageApplicationCategories as $category => $categoryCount) {
+                        $diagnostics[] = 'pdf-byte-optional-content-usage-category:' . $category . ':' . $categoryCount;
+                    }
+                }
                 if ($pdfOptionalContentMemberships !== []) {
                     $diagnostics[] = 'pdf-byte-optional-content-memberships:' . count($pdfOptionalContentMemberships);
                     $membershipGroupCount = 0;
@@ -5085,6 +5127,7 @@ final class PdfEngineHandoff
             'pdfMarkedContentArtifacts' => $pdfMarkedContentArtifacts,
             'pdfOptionalContentGroups' => $pdfOptionalContentGroups,
             'pdfOptionalContentConfig' => $pdfOptionalContentConfig,
+            'pdfOptionalContentUsageApplications' => $pdfOptionalContentUsageApplications,
             'pdfOptionalContentMemberships' => $pdfOptionalContentMemberships,
             'pdfCollectionMetadata' => $pdfCollectionMetadata,
             'pdfCollectionPolicy' => $pdfCollectionPolicy,
@@ -5256,6 +5299,7 @@ final class PdfEngineHandoff
      *     finalPdfMarkedContentArtifacts: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
      *     finalPdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     finalPdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}|array{},
+     *     finalPdfOptionalContentUsageApplications: list<array{source:string, object:string|null, event:string|null, categories:list<string>, groups:list<string>, groupCount:int, keys:list<string>}>,
      *     finalPdfOptionalContentMemberships: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>,
      *     finalPdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     finalPdfCollectionPolicy: array<string, mixed>,
@@ -5583,6 +5627,7 @@ final class PdfEngineHandoff
             'finalPdfMarkedContentArtifacts' => is_array($finalRun) && is_array($finalRun['pdfMarkedContentArtifacts'] ?? null) ? $finalRun['pdfMarkedContentArtifacts'] : [],
             'finalPdfOptionalContentGroups' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentGroups'] ?? null) ? $finalRun['pdfOptionalContentGroups'] : [],
             'finalPdfOptionalContentConfig' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentConfig'] ?? null) ? $finalRun['pdfOptionalContentConfig'] : [],
+            'finalPdfOptionalContentUsageApplications' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentUsageApplications'] ?? null) ? $finalRun['pdfOptionalContentUsageApplications'] : [],
             'finalPdfOptionalContentMemberships' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentMemberships'] ?? null) ? $finalRun['pdfOptionalContentMemberships'] : [],
             'finalPdfCollectionMetadata' => is_array($finalRun) && is_array($finalRun['pdfCollectionMetadata'] ?? null) ? $finalRun['pdfCollectionMetadata'] : [],
             'finalPdfCollectionPolicy' => is_array($finalRun) && is_array($finalRun['pdfCollectionPolicy'] ?? null) ? $finalRun['pdfCollectionPolicy'] : [],
@@ -11816,6 +11861,10 @@ final class PdfEngineHandoff
      *     structureRoleMapUsage:list<array{object:string, type:string, mappedType:string, roleChain:list<string>, mappedByRoleMap:bool, standardRole:bool, cycle:bool, issues:list<string>}>,
      *     markedContentProperties:list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     markedContentArtifacts:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
+     *     optionalContentGroups:list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
+     *     optionalContentConfig:array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}|array{},
+     *     optionalContentUsageApplications:list<array{source:string, object:string|null, event:string|null, categories:list<string>, groups:list<string>, groupCount:int, keys:list<string>}>,
+     *     optionalContentMemberships:list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>,
      *     collectionMetadata:array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     collectionPolicy:array<string, mixed>,
      *     xfaPackets:list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
@@ -12057,6 +12106,7 @@ final class PdfEngineHandoff
             'markedContentArtifacts' => $markedContentArtifacts,
             'optionalContentGroups' => $optionalContent['groups'],
             'optionalContentConfig' => $optionalContent['config'],
+            'optionalContentUsageApplications' => $optionalContent['usageApplications'],
             'optionalContentMemberships' => $this->extractPdfOptionalContentMemberships($pdfBytes, $catalog),
             'collectionMetadata' => $collectionMetadata,
             'collectionPolicy' => $this->summarizePdfCollectionPolicy($collectionMetadata, $embeddedFiles),
@@ -21173,7 +21223,8 @@ final class PdfEngineHandoff
     /**
      * @return array{
      *     groups:list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
-     *     config:array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{}
+     *     config:array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
+     *     usageApplications:list<array{source:string, object:string|null, event:string|null, categories:list<string>, groups:list<string>, groupCount:int, keys:list<string>}>
      * }
      */
     private function extractPdfOptionalContent(string $pdfBytes, ?string $catalog): array
@@ -21181,6 +21232,7 @@ final class PdfEngineHandoff
         $objects = $this->pdfObjectBodiesByReference($pdfBytes);
         $groupReferences = [];
         $config = [];
+        $usageApplications = [];
 
         if ($catalog !== null && str_contains($catalog, '/OCProperties')) {
             $properties = $this->extractPdfDictionaryOrReferenceValue($catalog, 'OCProperties', $objects);
@@ -21189,6 +21241,7 @@ final class PdfEngineHandoff
                     $groupReferences[$this->pdfReferenceKey($reference)] = $reference;
                 }
                 $config = $this->summarizePdfOptionalContentConfig($properties, $objects);
+                $usageApplications = $this->summarizePdfOptionalContentUsageApplications($properties, $objects);
             }
         }
 
@@ -21214,6 +21267,7 @@ final class PdfEngineHandoff
         return [
             'groups' => $groups,
             'config' => $config,
+            'usageApplications' => $usageApplications,
         ];
     }
 
@@ -21345,6 +21399,46 @@ final class PdfEngineHandoff
         }
 
         return $config;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{source:string, object:string|null, event:string|null, categories:list<string>, groups:list<string>, groupCount:int, keys:list<string>}>
+     */
+    private function summarizePdfOptionalContentUsageApplications(string $properties, array $objects): array
+    {
+        $configuration = $this->extractPdfDictionaryOrReferenceValue($properties, 'D', $objects);
+        if ($configuration === null) {
+            return [];
+        }
+
+        $applications = [];
+        foreach ($this->pdfTopLevelArrayValues($this->extractPdfArrayOrReferenceValue($configuration, 'AS', $objects) ?? '') as $index => $value) {
+            $resolved = $this->resolvePdfDictionaryValue($value, $objects);
+            if ($resolved['dictionary'] === null) {
+                continue;
+            }
+
+            $keys = [];
+            foreach ($this->extractPdfTopLevelDictionaryEntries($resolved['dictionary']) as $entry) {
+                $keys[] = $entry['key'];
+            }
+            $keys = $this->uniqueStrings($keys);
+            sort($keys);
+            $groups = $this->collectPdfReferencesFromValue($this->extractPdfValueForName($resolved['dictionary'], 'OCGs'), $objects);
+
+            $applications[] = [
+                'source' => 'catalog.OCProperties.D.AS[' . $index . ']',
+                'object' => $resolved['object'],
+                'event' => $this->extractPdfNameToken($resolved['dictionary'], 'Event'),
+                'categories' => $this->collectPdfNamesFromValue($this->extractPdfValueForName($resolved['dictionary'], 'Category'), $objects),
+                'groups' => $groups,
+                'groupCount' => count($groups),
+                'keys' => $keys,
+            ];
+        }
+
+        return $applications;
     }
 
     /**

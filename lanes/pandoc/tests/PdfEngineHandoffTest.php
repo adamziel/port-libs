@@ -20341,6 +20341,86 @@ MARKDOWN);
         $t->same($expectedConfig, $sequence['finalPdfOptionalContentConfig']);
     },
 
+    'fake runner extracts bounded pdf optional content usage application policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/layer-usage-applications.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [10 0 R 11 0 R] /D 12 0 R >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /OCG /Name (Reviewer notes) /Intent /View >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /OCG /Name (Print marks) /Intent /Design >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Name (Layer review policy) /BaseState /ON /AS [<< /Event /View /Category [/View /Zoom] /OCGs [10 0 R] >> 14 0 R] >>',
+            'endobj',
+            '14 0 obj',
+            '<< /Event /Print /Category /Print /OCGs [10 0 R 11 0 R] /Auxiliary /Ignored >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/layer-usage-applications.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/layer-usage-applications.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'source' => 'catalog.OCProperties.D.AS[0]',
+                'object' => 'inline',
+                'event' => 'View',
+                'categories' => ['View', 'Zoom'],
+                'groups' => ['10 0 R'],
+                'groupCount' => 1,
+                'keys' => ['Category', 'Event', 'OCGs'],
+            ],
+            [
+                'source' => 'catalog.OCProperties.D.AS[1]',
+                'object' => '14 0 R',
+                'event' => 'Print',
+                'categories' => ['Print'],
+                'groups' => ['10 0 R', '11 0 R'],
+                'groupCount' => 2,
+                'keys' => ['Auxiliary', 'Category', 'Event', 'OCGs'],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfOptionalContentUsageApplications']);
+        $t->contains('pdf-byte-optional-content-usage-applications:2', $diagnostics);
+        $t->contains('pdf-byte-optional-content-usage-groups:3', $diagnostics);
+        $t->contains('pdf-byte-optional-content-usage-indirect:1', $diagnostics);
+        $t->contains('pdf-byte-optional-content-usage-event:Print:1', $diagnostics);
+        $t->contains('pdf-byte-optional-content-usage-event:View:1', $diagnostics);
+        $t->contains('pdf-byte-optional-content-usage-category:Print:1', $diagnostics);
+        $t->contains('pdf-byte-optional-content-usage-category:View:1', $diagnostics);
+        $t->contains('pdf-byte-optional-content-usage-category:Zoom:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfOptionalContentUsageApplications']);
+    },
+
     'fake runner extracts bounded pdf optional content membership metadata from page resources' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/layer-membership.pdf']);
