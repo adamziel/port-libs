@@ -15331,19 +15331,10 @@ final class XmlHtmlDom
         $hrefRequired = $resourceRelTokens !== [];
         $blockingRaw = self::attributeOrNull($link, 'blocking');
         $blockingTokens = $blockingRaw === null ? [] : self::spaceSeparatedTokens($blockingRaw);
-        $blockingTokenCounts = [];
-        foreach ($blockingTokens as $token) {
-            $lower = strtolower($token);
-            $blockingTokenCounts[$lower] = ($blockingTokenCounts[$lower] ?? 0) + 1;
-        }
-        $invalidBlockingTokens = array_values(array_filter(
-            array_keys($blockingTokenCounts),
-            static fn (string $token): bool => $token !== 'render'
-        ));
-        $duplicateBlockingTokens = array_values(array_filter(
-            array_keys($blockingTokenCounts),
-            static fn (string $token): bool => $blockingTokenCounts[$token] > 1
-        ));
+        $blocking = self::htmlBlockingTokenSummary($link);
+        $blockingTokenCounts = $blocking['tokenCounts'];
+        $invalidBlockingTokens = $blocking['invalid'];
+        $duplicateBlockingTokens = $blocking['duplicates'];
         $renderBlockingTokenPresent = isset($blockingTokenCounts['render']);
         $renderBlockingResourceCandidate = in_array('stylesheet', $resourceKinds, true)
             || in_array('preload', $resourceKinds, true)
@@ -15355,7 +15346,14 @@ final class XmlHtmlDom
             $renderBlockingTokenPresent => 'declared-render-blocking-non-resource',
             default => 'declared-non-render-token',
         };
+        $crossoriginRaw = self::attributeOrNull($link, 'crossorigin');
+        $crossorigin = $crossoriginRaw === null ? null : self::htmlCorsSettingsAttributeState($crossoriginRaw);
+        $fetchPriorityRaw = self::attributeOrNull($link, 'fetchpriority');
+        $fetchPriority = $fetchPriorityRaw === null ? null : self::fetchPriorityState($fetchPriorityRaw);
+        $referrerPolicyRaw = self::attributeOrNull($link, 'referrerpolicy');
+        $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
         $issues = [];
+        $loadingIssues = [];
 
         foreach ($invalid as $token) {
             $issues[] = ['code' => 'invalid-link-rel-token', 'relToken' => $token];
@@ -15383,6 +15381,25 @@ final class XmlHtmlDom
                 'code' => 'duplicate-link-blocking-token',
                 'blockingToken' => $token,
                 'count' => $blockingTokenCounts[$token],
+            ];
+        }
+        if ($crossoriginRaw !== null && $crossorigin === null) {
+            $loadingIssues[] = ['code' => 'invalid-link-crossorigin', 'value' => $crossoriginRaw];
+        }
+        if ($fetchPriorityRaw !== null && $fetchPriority === null) {
+            $loadingIssues[] = ['code' => 'invalid-link-fetchpriority', 'value' => $fetchPriorityRaw];
+        }
+        if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
+            $loadingIssues[] = ['code' => 'invalid-link-referrerpolicy', 'value' => $referrerPolicyRaw];
+        }
+        foreach ($blocking['invalid'] as $token) {
+            $loadingIssues[] = ['code' => 'invalid-link-blocking-token', 'token' => $token];
+        }
+        foreach ($blocking['duplicates'] as $token) {
+            $loadingIssues[] = [
+                'code' => 'duplicate-link-blocking-token',
+                'token' => $token,
+                'count' => $blocking['tokenCounts'][$token] ?? 0,
             ];
         }
 
@@ -15413,6 +15430,19 @@ final class XmlHtmlDom
             'linkRenderBlockingResourceCandidate' => $renderBlockingResourceCandidate,
             'linkBlockingReviewKind' => $blockingReviewKind,
             'linkIssues' => $issues,
+            'linkLoadingPolicyReview' => 'link-loading-policy-metadata-review',
+            'linkCrossoriginState' => $crossorigin,
+            'linkCrossoriginValid' => $crossoriginRaw === null ? null : $crossorigin !== null,
+            'linkReferrerPolicy' => $referrerPolicy,
+            'linkReferrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
+            'linkFetchPriority' => $fetchPriority,
+            'linkFetchPriorityValid' => $fetchPriorityRaw === null ? null : $fetchPriority !== null,
+            'linkBlockingAllTokensValid' => $blocking['invalid'] === [],
+            'linkLoadingIssues' => $loadingIssues,
+            'linkLoadingIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $loadingIssues
+            ))),
         ];
     }
 
@@ -15822,7 +15852,7 @@ final class XmlHtmlDom
             'styleTextLength' => strlen($text),
             'styleTextSha256' => hash('sha256', $text),
             'activeReviewPolicy' => 'inline-style-source',
-        ] + self::activeContentNonceSummary($element);
+        ] + self::activeContentNonceSummary($element) + self::styleLoadingReviewSummary($element);
     }
 
     /**
@@ -15905,17 +15935,7 @@ final class XmlHtmlDom
         $fetchPriority = $fetchPriorityRaw === null ? null : self::fetchPriorityState($fetchPriorityRaw);
         $referrerPolicyRaw = self::attributeOrNull($script, 'referrerpolicy');
         $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
-        $blockingTokens = $script->hasAttribute('blocking') ? self::spaceSeparatedTokens($script->getAttribute('blocking')) : [];
-        $blockingTokenCounts = [];
-        foreach ($blockingTokens as $token) {
-            $lower = strtolower($token);
-            $blockingTokenCounts[$lower] = ($blockingTokenCounts[$lower] ?? 0) + 1;
-        }
-
-        $invalidBlockingTokens = array_values(array_filter(
-            array_keys($blockingTokenCounts),
-            static fn (string $token): bool => $token !== 'render'
-        ));
+        $blocking = self::htmlBlockingTokenSummary($script);
 
         $sourceKind = $script->hasAttribute('src') ? 'external' : 'inline';
         $loadingMode = match (true) {
@@ -15937,8 +15957,67 @@ final class XmlHtmlDom
             'scriptReferrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
             'scriptFetchPriority' => $fetchPriority,
             'scriptFetchPriorityValid' => $fetchPriorityRaw === null ? null : $fetchPriority !== null,
-            'scriptBlockingTokenCounts' => $blockingTokenCounts,
-            'invalidScriptBlockingTokens' => $invalidBlockingTokens,
+            'scriptBlockingTokenCounts' => $blocking['tokenCounts'],
+            'invalidScriptBlockingTokens' => $blocking['invalid'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function styleLoadingReviewSummary(\DOMElement $style): array
+    {
+        $blocking = self::htmlBlockingTokenSummary($style);
+        $issues = [];
+        foreach ($blocking['invalid'] as $token) {
+            $issues[] = ['code' => 'invalid-style-blocking-token', 'token' => $token];
+        }
+        foreach ($blocking['duplicates'] as $token) {
+            $issues[] = [
+                'code' => 'duplicate-style-blocking-token',
+                'token' => $token,
+                'count' => $blocking['tokenCounts'][$token] ?? 0,
+            ];
+        }
+
+        return [
+            'styleLoadingPolicyReview' => 'style-loading-policy-metadata-review',
+            'styleBlockingTokenCounts' => $blocking['tokenCounts'],
+            'duplicateStyleBlockingTokens' => $blocking['duplicates'],
+            'invalidStyleBlockingTokens' => $blocking['invalid'],
+            'styleBlockingAllTokensValid' => $blocking['invalid'] === [],
+            'styleLoadingIssues' => $issues,
+            'styleLoadingIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+        ];
+    }
+
+    /**
+     * @return array{tokenCounts:array<string, int>, duplicates:list<string>, invalid:list<string>}
+     */
+    private static function htmlBlockingTokenSummary(\DOMElement $element): array
+    {
+        $tokens = $element->hasAttribute('blocking') ? self::spaceSeparatedTokens($element->getAttribute('blocking')) : [];
+        $counts = [];
+        $duplicates = [];
+        $invalid = [];
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            $counts[$lower] = ($counts[$lower] ?? 0) + 1;
+            if ($counts[$lower] > 1 && !in_array($lower, $duplicates, true)) {
+                $duplicates[] = $lower;
+            }
+            if ($lower !== 'render' && !in_array($lower, $invalid, true)) {
+                $invalid[] = $lower;
+            }
+        }
+
+        return [
+            'tokenCounts' => $counts,
+            'duplicates' => $duplicates,
+            'invalid' => $invalid,
         ];
     }
 

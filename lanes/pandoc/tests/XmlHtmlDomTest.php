@@ -9758,6 +9758,68 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/link-blocking-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html link and style loading policy metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<link rel="preload stylesheet" href="app.css" as="style" blocking="render render bad-token" crossorigin="credentialed" fetchpriority="urgent" referrerpolicy="bogus">'
+                . '<style media="screen" blocking="render bad-token render">body{color:blue}</style>'
+                . '<link rel="modulepreload" href="app.mjs" blocking="render" crossorigin="use-credentials" fetchpriority="low" referrerpolicy="strict-origin">',
+            'link and style loading policy review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/link-style-loading-policy-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $invalidLink = $summary[0];
+        $style = $summary[1];
+        $validLink = $summary[2];
+
+        $t->same('link-loading-policy-metadata-review', $invalidLink['linkLoadingPolicyReview']);
+        $t->same('render render bad-token', $invalidLink['blockingRaw']);
+        $t->same(['render', 'render', 'bad-token'], $invalidLink['blockingTokens']);
+        $t->same(['render' => 2, 'bad-token' => 1], $invalidLink['linkBlockingTokenCounts']);
+        $t->same(['render'], $invalidLink['duplicateLinkBlockingTokens']);
+        $t->same(['bad-token'], $invalidLink['invalidLinkBlockingTokens']);
+        $t->same(false, $invalidLink['linkBlockingAllTokensValid']);
+        $t->same(null, $invalidLink['linkCrossoriginState']);
+        $t->same(false, $invalidLink['linkCrossoriginValid']);
+        $t->same(null, $invalidLink['linkFetchPriority']);
+        $t->same(false, $invalidLink['linkFetchPriorityValid']);
+        $t->same(null, $invalidLink['linkReferrerPolicy']);
+        $t->same(false, $invalidLink['linkReferrerPolicyValid']);
+        $t->same([
+            'invalid-link-crossorigin',
+            'invalid-link-fetchpriority',
+            'invalid-link-referrerpolicy',
+            'invalid-link-blocking-token',
+            'duplicate-link-blocking-token',
+        ], $invalidLink['linkLoadingIssueCodes']);
+
+        $t->same('style-loading-policy-metadata-review', $style['styleLoadingPolicyReview']);
+        $t->same(['render' => 2, 'bad-token' => 1], $style['styleBlockingTokenCounts']);
+        $t->same(['render'], $style['duplicateStyleBlockingTokens']);
+        $t->same(['bad-token'], $style['invalidStyleBlockingTokens']);
+        $t->same(false, $style['styleBlockingAllTokensValid']);
+        $t->same([
+            'invalid-style-blocking-token',
+            'duplicate-style-blocking-token',
+        ], $style['styleLoadingIssueCodes']);
+
+        $t->same('use-credentials', $validLink['linkCrossoriginState']);
+        $t->same(true, $validLink['linkCrossoriginValid']);
+        $t->same('low', $validLink['linkFetchPriority']);
+        $t->same(true, $validLink['linkFetchPriorityValid']);
+        $t->same('strict-origin', $validLink['linkReferrerPolicy']);
+        $t->same(true, $validLink['linkReferrerPolicyValid']);
+        $t->same(['render' => 1], $validLink['linkBlockingTokenCounts']);
+        $t->same([], $validLink['linkLoadingIssues']);
+
+        $t->same('<link as="style" blocking="render render bad-token" crossorigin="credentialed" fetchpriority="urgent" href="app.css" referrerpolicy="bogus" rel="preload stylesheet"><style blocking="render bad-token render" media="screen">body{color:blue}</style><link blocking="render" crossorigin="use-credentials" fetchpriority="low" href="app.mjs" referrerpolicy="strict-origin" rel="modulepreload">', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/link-style-loading-policy-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html figure caption state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<figure id="fig-review"><img src="chart.png" alt="Quarterly chart"><figcaption>Figure <strong>one</strong>: imports</figcaption><p>Fallback note</p><figcaption>Extra caption</figcaption></figure>'
