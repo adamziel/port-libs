@@ -17846,8 +17846,7 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('class', $attributes)) {
-            $summary['classRaw'] = $attributes['class'];
-            $summary['classList'] = self::spaceSeparatedTokens($attributes['class']);
+            $summary += self::classAttributeSummary($attributes['class']);
         }
 
         $dataAttributes = self::dataAttributeSummary($attributes);
@@ -18121,6 +18120,43 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array{classAttributeReviewPolicy:string, classRaw:string, classList:list<string>, classTokenCounts:array<string, int>, classNames:list<string>, duplicateClassTokens:list<string>, classTokenCount:int, uniqueClassTokenCount:int, duplicateClassTokenCount:int, classEmpty:bool, classHasDuplicates:bool}
+     */
+    private static function classAttributeSummary(string $value): array
+    {
+        $tokens = self::spaceSeparatedTokens($value);
+        $counts = [];
+        $names = [];
+        $duplicates = [];
+
+        foreach ($tokens as $token) {
+            if (!array_key_exists($token, $counts)) {
+                $counts[$token] = 0;
+                $names[] = $token;
+            }
+
+            ++$counts[$token];
+            if ($counts[$token] === 2) {
+                $duplicates[] = $token;
+            }
+        }
+
+        return [
+            'classAttributeReviewPolicy' => 'html-class-token-review',
+            'classRaw' => $value,
+            'classList' => $tokens,
+            'classTokenCounts' => $counts,
+            'classNames' => $names,
+            'duplicateClassTokens' => $duplicates,
+            'classTokenCount' => count($tokens),
+            'uniqueClassTokenCount' => count($names),
+            'duplicateClassTokenCount' => count($duplicates),
+            'classEmpty' => trim($value) === '',
+            'classHasDuplicates' => $duplicates !== [],
+        ];
     }
 
     /**
