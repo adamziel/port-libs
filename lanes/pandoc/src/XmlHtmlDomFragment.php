@@ -71,12 +71,24 @@ final class XmlHtmlDomFragment
     /** @var list<string> */
     private const URL_ATTRIBUTES = [
         'action',
+        'background',
         'cite',
         'formaction',
         'href',
+        'longdesc',
         'poster',
         'src',
         'xlink:href',
+    ];
+
+    /** @var list<string> */
+    private const HTML_MULTI_URL_ATTRIBUTES = [
+        'srcset',
+    ];
+
+    /** @var list<string> */
+    private const HTML_SIDE_EFFECT_ATTRIBUTES = [
+        'ping',
     ];
 
     /**
@@ -442,6 +454,24 @@ final class XmlHtmlDomFragment
                 continue;
             }
 
+            if ($html && in_array($name, self::HTML_SIDE_EFFECT_ATTRIBUTES, true)) {
+                $diagnostics[] = [
+                    'code' => 'dropped-side-effect-attribute',
+                    'element' => $elementName,
+                    'attribute' => $name,
+                ];
+                continue;
+            }
+
+            if ($html && in_array($name, self::HTML_MULTI_URL_ATTRIBUTES, true) && self::containsUnsafeUrlCandidate($value)) {
+                $diagnostics[] = [
+                    'code' => 'dropped-unsafe-url',
+                    'element' => $elementName,
+                    'attribute' => $name,
+                ];
+                continue;
+            }
+
             if ($html && in_array($name, self::URL_ATTRIBUTES, true) && self::isUnsafeUrl($value)) {
                 $diagnostics[] = [
                     'code' => 'dropped-unsafe-url',
@@ -520,6 +550,28 @@ final class XmlHtmlDomFragment
         [$scheme] = explode(':', $normalized, 2);
 
         return in_array($scheme, ['data', 'javascript', 'vbscript'], true);
+    }
+
+    private static function containsUnsafeUrlCandidate(string $value): bool
+    {
+        foreach (explode(',', $value) as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate === '') {
+                continue;
+            }
+
+            if (self::isUnsafeUrl($candidate)) {
+                return true;
+            }
+
+            $parts = preg_split('/\s+/', $candidate, 2);
+            $url = is_array($parts) ? ($parts[0] ?? '') : $candidate;
+            if ($url !== '' && self::isUnsafeUrl($url)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function isUnsafeStyle(string $value): bool
