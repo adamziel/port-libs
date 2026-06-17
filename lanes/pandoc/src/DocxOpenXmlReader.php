@@ -8042,6 +8042,10 @@ final class DocxOpenXmlReader
         $relationshipSourceRoleCounts = [];
         $relationshipPartsBySourceKind = [];
         $relationshipSources = [];
+        $relationshipTargetContentTypeCounts = [];
+        $relationshipTargetContentTypeSourceCounts = [];
+        $relationshipTargetContentTypes = [];
+        $relationshipTargetParameterizedContentTypeCount = 0;
         $relationshipSourceCount = 0;
         $relationshipSourcePackageRootCount = 0;
         $relationshipSourcePackagePartCount = 0;
@@ -8292,6 +8296,56 @@ final class DocxOpenXmlReader
                 $targetPart = $relationship['targetPart'] ?? null;
                 if (is_string($targetPart) && $targetPart !== '') {
                     $targetParts[$targetPart] = true;
+                    $targetContentTypeBase = is_string($relationship['contentTypeBase'] ?? null)
+                        ? $relationship['contentTypeBase']
+                        : '';
+                    $targetContentTypeKey = $targetContentTypeBase === '' ? '(missing)' : $targetContentTypeBase;
+                    $targetContentType = is_string($relationship['contentType'] ?? null)
+                        ? $relationship['contentType']
+                        : '';
+                    $targetContentTypeSource = is_string($relationship['contentTypeSource'] ?? null)
+                        ? $relationship['contentTypeSource']
+                        : 'missing';
+                    if ($targetContentTypeSource === '') {
+                        $targetContentTypeSource = 'missing';
+                    }
+                    if (!isset($relationshipTargetContentTypes[$targetContentTypeKey])) {
+                        $relationshipTargetContentTypes[$targetContentTypeKey] = [
+                            'contentTypeKey' => $targetContentTypeKey,
+                            'contentTypeBase' => $targetContentTypeBase,
+                            'contentTypes' => [],
+                            'relationshipCount' => 0,
+                            'existingTargetCount' => 0,
+                            'missingTargetCount' => 0,
+                            'parameterizedTargetCount' => 0,
+                            'contentTypeSourceCounts' => [],
+                            'targetParts' => [],
+                            'relationshipIds' => [],
+                        ];
+                    }
+
+                    ++$relationshipTargetContentTypes[$targetContentTypeKey]['relationshipCount'];
+                    $relationshipTargetContentTypeCounts[$targetContentTypeKey] =
+                        ($relationshipTargetContentTypeCounts[$targetContentTypeKey] ?? 0) + 1;
+                    $relationshipTargetContentTypeSourceCounts[$targetContentTypeSource] =
+                        ($relationshipTargetContentTypeSourceCounts[$targetContentTypeSource] ?? 0) + 1;
+                    $relationshipTargetContentTypes[$targetContentTypeKey]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                        ($relationshipTargetContentTypes[$targetContentTypeKey]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                    $this->appendUniqueString($relationshipTargetContentTypes[$targetContentTypeKey]['contentTypes'], $targetContentType);
+                    $this->appendUniqueString($relationshipTargetContentTypes[$targetContentTypeKey]['targetParts'], $targetPart);
+                    $this->appendUniqueString(
+                        $relationshipTargetContentTypes[$targetContentTypeKey]['relationshipIds'],
+                        is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                    );
+                    if (($relationship['exists'] ?? false) === true) {
+                        ++$relationshipTargetContentTypes[$targetContentTypeKey]['existingTargetCount'];
+                    } else {
+                        ++$relationshipTargetContentTypes[$targetContentTypeKey]['missingTargetCount'];
+                    }
+                    if (($relationship['contentTypeHasParameters'] ?? false) === true) {
+                        ++$relationshipTargetParameterizedContentTypeCount;
+                        ++$relationshipTargetContentTypes[$targetContentTypeKey]['parameterizedTargetCount'];
+                    }
                 }
 
                 if (($relationship['exists'] ?? false) === true) {
@@ -8396,6 +8450,13 @@ final class DocxOpenXmlReader
         ksort($relationshipSourceContentTypeSourceCounts);
         ksort($relationshipSourceRoleCounts);
         ksort($relationshipPartsBySourceKind);
+        ksort($relationshipTargetContentTypeCounts);
+        ksort($relationshipTargetContentTypeSourceCounts);
+        ksort($relationshipTargetContentTypes);
+        foreach ($relationshipTargetContentTypes as &$targetContentTypeSummary) {
+            ksort($targetContentTypeSummary['contentTypeSourceCounts']);
+        }
+        unset($targetContentTypeSummary);
         usort(
             $relationshipSourceExistingParts,
             static fn (array $left, array $right): int => ((int) $right['sourceBytes'] <=> (int) $left['sourceBytes'])
@@ -8461,6 +8522,10 @@ final class DocxOpenXmlReader
             'relationshipSourceRoleCounts' => $relationshipSourceRoleCounts,
             'relationshipPartsBySourceKind' => $relationshipPartsBySourceKind,
             'relationshipSources' => $relationshipSources,
+            'relationshipTargetContentTypeCounts' => $relationshipTargetContentTypeCounts,
+            'relationshipTargetContentTypeSourceCounts' => $relationshipTargetContentTypeSourceCounts,
+            'relationshipTargetParameterizedContentTypeCount' => $relationshipTargetParameterizedContentTypeCount,
+            'relationshipTargetContentTypes' => array_values($relationshipTargetContentTypes),
             'largestRelationshipSourcePart' => $largestRelationshipSourceParts[0] ?? null,
             'largestRelationshipSourceParts' => $largestRelationshipSourceParts,
             'missingContentTypePartCount' => count($partsWithoutContentType),

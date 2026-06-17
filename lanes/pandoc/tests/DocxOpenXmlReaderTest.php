@@ -1954,6 +1954,71 @@ XML;
         $t->same(0, $settings['existingTargetPartByteLength']);
         $t->same(null, $settings['largestExistingTargetPart']);
     },
+    'summarizes docx relationship target content type buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/comments.xml" ContentType="' . $commentsType . '; profile=review"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsTargetType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>' . "\n" .
+            '  <Relationship Id="rCustomXmlTargetType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/target.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingTargetType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="raw/no-type.bin"/>' . "\n" .
+            '  <Relationship Id="rExternalTargetType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/target-types" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/comments.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['customXml/target.xml'] = '<target/>';
+        $parts['word/raw/no-type.bin'] = 'missing content type target bytes';
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $targetTypes = [];
+        foreach ($summary['relationshipTargetContentTypes'] as $targetType) {
+            $targetTypes[$targetType['contentTypeKey']] = $targetType;
+        }
+
+        $t->same([
+            '(missing)' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+            'application/xml' => 1,
+            'image/png' => 1,
+        ], $summary['relationshipTargetContentTypeCounts']);
+        $t->same(['default' => 2, 'missing' => 1, 'override' => 3], $summary['relationshipTargetContentTypeSourceCounts']);
+        $t->same(1, $summary['relationshipTargetParameterizedContentTypeCount']);
+        $t->same(6, count($summary['relationshipTargetContentTypes']));
+
+        $comments = $targetTypes[$commentsType];
+        $t->same(1, $comments['relationshipCount']);
+        $t->same(1, $comments['existingTargetCount']);
+        $t->same(0, $comments['missingTargetCount']);
+        $t->same(1, $comments['parameterizedTargetCount']);
+        $t->same(['override' => 1], $comments['contentTypeSourceCounts']);
+        $t->same([$commentsType . '; profile=review'], $comments['contentTypes']);
+        $t->same(['word/comments.xml'], $comments['targetParts']);
+        $t->same(['rCommentsTargetType'], $comments['relationshipIds']);
+
+        $xml = $targetTypes['application/xml'];
+        $t->same(['default' => 1], $xml['contentTypeSourceCounts']);
+        $t->same(['customXml/target.xml'], $xml['targetParts']);
+        $t->same(['rCustomXmlTargetType'], $xml['relationshipIds']);
+
+        $missing = $targetTypes['(missing)'];
+        $t->same('', $missing['contentTypeBase']);
+        $t->same(1, $missing['relationshipCount']);
+        $t->same(1, $missing['existingTargetCount']);
+        $t->same(0, $missing['missingTargetCount']);
+        $t->same(['missing' => 1], $missing['contentTypeSourceCounts']);
+        $t->same([], $missing['contentTypes']);
+        $t->same(['word/raw/no-type.bin'], $missing['targetParts']);
+        $t->same(['rMissingTargetType'], $missing['relationshipIds']);
+    },
     'summarizes docx relationship target path shape for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(
