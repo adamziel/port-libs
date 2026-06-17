@@ -7246,6 +7246,23 @@ final class PdfEngineHandoff
 
             return $normalizeIssues($issues);
         };
+        $countMap = static function (mixed $entries): array {
+            if (!is_array($entries)) {
+                return [];
+            }
+
+            $counts = [];
+            foreach ($entries as $key => $count) {
+                if (!is_string($key) || $key === '' || !is_int($count)) {
+                    continue;
+                }
+
+                $counts[$key] = $count;
+            }
+            ksort($counts);
+
+            return $counts;
+        };
 
         $cases = [];
         $matrixIssues = [];
@@ -7629,10 +7646,16 @@ final class PdfEngineHandoff
                 'packageCount' => is_int($packageDependencyPolicy['packageCount'] ?? null) ? $packageDependencyPolicy['packageCount'] : 0,
                 'sidecarFileCount' => is_int($packageDependencyPolicy['sidecarFileCount'] ?? null) ? $packageDependencyPolicy['sidecarFileCount'] : 0,
                 'versionConflictCount' => is_int($packageDependencyPolicy['versionConflictCount'] ?? null) ? $packageDependencyPolicy['versionConflictCount'] : 0,
+                'duplicateDependencyCount' => is_int($packageDependencyPolicy['duplicateDependencyCount'] ?? null) ? $packageDependencyPolicy['duplicateDependencyCount'] : 0,
+                'duplicateDependencyGroupCount' => count(is_array($packageDependencyPolicy['duplicateDependencySummaries'] ?? null) ? $packageDependencyPolicy['duplicateDependencySummaries'] : []),
+                'subpathDependencyCount' => is_int($packageDependencyPolicy['subpathDependencyCount'] ?? null) ? $packageDependencyPolicy['subpathDependencyCount'] : 0,
+                'unsupportedPackageCount' => is_int($packageDependencyPolicy['unsupportedPackageCount'] ?? null) ? $packageDependencyPolicy['unsupportedPackageCount'] : 0,
                 'sourceClasses' => array_values(array_filter(
                     is_array($packageDependencyPolicy['sourceClasses'] ?? null) ? $packageDependencyPolicy['sourceClasses'] : [],
                     static fn (mixed $sourceClass): bool => is_string($sourceClass) && $sourceClass !== ''
                 )),
+                'sourceClassCounts' => $countMap($packageDependencyPolicy['sourceClassCounts'] ?? null),
+                'unsupportedReasonCounts' => $countMap($packageDependencyPolicy['unsupportedReasonCounts'] ?? null),
             ], $packageDependencyIssues);
         }
 

@@ -5746,6 +5746,68 @@ return [
         $t->contains('typst-package-dependency-subpaths:2', implode(',', $result['diagnostics']));
     },
 
+    'maps typst package dependency policy details into boundary matrix without executing engines' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/package-matrix-details.pdf',
+            'source' => "= Typst Package Matrix Detail Packet\n\n#import \"@preview/cetz:0.3.2\": canvas\n",
+            'engineOptions' => ['--deps=build/package-matrix-details.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst package matrix detail packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/package-matrix-details.pdf: build/package-matrix-details.typ \\',
+            '  @preview/cetz:0.3.2 @preview/cetz:0.3.2/src/lib.typ \\',
+            '  @typst/symbols:0.1.0 @team/private:1.2.0/theme.typ',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/package-matrix-details.d' => $depfile,
+                'build/package-matrix-details.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/package-matrix-details.d' => $depfile,
+                'build/package-matrix-details.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $matrix = $result['typstBoundaryMatrix'];
+        $cases = [];
+        foreach ($matrix['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+        $details = $cases['package-dependencies']['details'];
+
+        $t->same(true, $result['ok']);
+        $t->contains('package-dependencies', implode(',', array_column($matrix['cases'], 'case')));
+        $t->same('review', $cases['package-dependencies']['reviewStatus']);
+        $t->same(4, $cases['package-dependencies']['observed']);
+        $t->same(3, $details['packageCount']);
+        $t->same(1, $details['sidecarFileCount']);
+        $t->same(0, $details['versionConflictCount']);
+        $t->same(1, $details['duplicateDependencyCount']);
+        $t->same(1, $details['duplicateDependencyGroupCount']);
+        $t->same(2, $details['subpathDependencyCount']);
+        $t->same(4, $details['unsupportedPackageCount']);
+        $t->same(['custom-namespace', 'preview-registry', 'typst-registry'], $details['sourceClasses']);
+        $t->same([
+            'custom-namespace' => 1,
+            'preview-registry' => 2,
+            'typst-registry' => 1,
+        ], $details['sourceClassCounts']);
+        $t->same([
+            'custom-namespace-not-resolved' => 1,
+            'preview-registry-network-not-executed' => 2,
+            'typst-registry-network-not-executed' => 1,
+        ], $details['unsupportedReasonCounts']);
+        $t->contains('package-dependencies:duplicate-package-dependency:preview/cetz:0.3.2', implode(',', $matrix['issues']));
+        $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'fake runner reports typst package dependency conflict policy from sidecars' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $source = "= Typst Package Policy Packet\n\n#import \"@preview/cetz:0.3.2/src/lib.typ\": canvas\n";
