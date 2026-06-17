@@ -7687,6 +7687,80 @@ return [
         $t->same($expectedEdges, $sequence['finalEngineDependencyEdges']);
     },
 
+    'fake runner preserves typst dependency edge package provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/edge-package.pdf',
+            'source' => '= Typst Dependency Edge Package Packet',
+            'engineOptions' => ['--deps=build/edge-package.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst dependency edge package packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/edge-package.pdf: build/edge-package.typ local/data.csv @preview/cetz:0.3.2/src/lib.typ',
+            'build/edge-package.pdf: @typst/symbols:0.1.0',
+            '',
+        ]);
+        $expected = [
+            [
+                'artifact' => 'build/edge-package.d',
+                'outputFiles' => ['build/edge-package.pdf'],
+                'inputFiles' => ['build/edge-package.typ', 'local/data.csv'],
+                'externalInputFiles' => ['typst-package:@preview/cetz:0.3.2/src/lib.typ'],
+                'packageDependencies' => [
+                    [
+                        'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                        'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+                        'namespace' => 'preview',
+                        'package' => 'cetz',
+                        'version' => '0.3.2',
+                        'subpath' => 'src/lib.typ',
+                        'sourceClass' => 'preview-registry',
+                    ],
+                ],
+            ],
+            [
+                'artifact' => 'build/edge-package.d',
+                'outputFiles' => ['build/edge-package.pdf'],
+                'inputFiles' => [],
+                'externalInputFiles' => ['typst-package:@typst/symbols:0.1.0'],
+                'packageDependencies' => [
+                    [
+                        'input' => 'typst-package:@typst/symbols:0.1.0',
+                        'reference' => '@typst/symbols:0.1.0',
+                        'namespace' => 'typst',
+                        'package' => 'symbols',
+                        'version' => '0.1.0',
+                        'subpath' => null,
+                        'sourceClass' => 'typst-registry',
+                    ],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/edge-package.d' => $depfile,
+                'build/edge-package.pdf' => $pdfBytes,
+                'local/data.csv' => "series,value\nA,12\n",
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/edge-package.d' => $depfile,
+                'build/edge-package.pdf' => $pdfBytes,
+                'local/data.csv' => "series,value\nA,12\n",
+            ],
+        ]]);
+
+        $t->same(true, $result['ok']);
+        $t->same(['typst-package:@preview/cetz:0.3.2/src/lib.typ', 'typst-package:@typst/symbols:0.1.0'], $result['engineTypstPackageInputs']);
+        $t->same($expected, $result['typstDependencyEdgePackageProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstDependencyEdgePackageProvenance']);
+        $t->contains('typst-dependency-edge-package-provenance:2', implode(',', $result['diagnostics']));
+        $t->same($expected, $sequence['finalTypstDependencyEdgePackageProvenance']);
+    },
+
     'fake runner reviews typst root read boundary provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
