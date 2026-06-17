@@ -721,6 +721,65 @@ return [
         $t->same($contentTypesPart['invalidContentTypeRecordIssueBuckets'], $summary['invalidContentTypeRecordIssueBuckets']);
         $t->same($invalidRecords, $summary['invalidContentTypeRecords']);
     },
+    'reports malformed docx content types xml without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml">
+</Types>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $contentTypesPart = $package['contentTypesPart'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $rootDocumentRelationship = $package['relationshipParts']['_rels/.rels']['relationships']['rDoc'];
+        $documentImageRelationship = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships']['rImage'];
+
+        $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
+        $t->same('word/document.xml', $docx['documentPart']);
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $contentTypesPart['exists']);
+        $t->same(strlen($parts['[Content_Types].xml']), $contentTypesPart['bytes']);
+        $t->same(false, $contentTypesPart['valid']);
+        $t->same(false, $contentTypesPart['preflight']['valid']);
+        $t->contains('Unable to parse OPC content-types XML', $contentTypesPart['xmlParseError']);
+        $t->same(['content-types-xml-parse-error'], $contentTypesPart['issues']);
+        $t->same(['content-types-xml-parse-error' => 1], $contentTypesPart['issueCounts']);
+        $t->same(0, $contentTypesPart['defaultCount']);
+        $t->same(0, $contentTypesPart['overrideCount']);
+        $t->same([], $contentTypesPart['defaults']);
+        $t->same([], $contentTypesPart['overrides']);
+        $t->same(0, $contentTypesPart['recordCount']);
+        $t->same(0, $contentTypesPart['invalidRecordCount']);
+        $t->same(0, $contentTypesPart['declaredDefaultRecordCount']);
+        $t->same(0, $contentTypesPart['declaredOverrideRecordCount']);
+
+        $t->same(0, $summary['contentTypeDefaultCount']);
+        $t->same(0, $summary['contentTypeOverrideCount']);
+        $t->same(0, $summary['contentTypeRecordCount']);
+        $t->same(0, $summary['contentTypeInvalidRecordCount']);
+        $t->same(1, $summary['contentTypeXmlParseErrorCount']);
+        $t->contains('Unable to parse OPC content-types XML', $summary['contentTypeXmlParseError']);
+        $t->same(['content-types-xml-parse-error' => 1], $summary['contentTypeRecordIssueCounts']);
+        $t->same(['content-types-xml-parse-error'], $summary['contentTypeRecordIssueCodes']);
+        $t->same(8, $summary['partCount']);
+        $t->same(['missing' => 8], $summary['contentTypeSourceCounts']);
+        $t->same(8, $summary['missingContentTypePartCount']);
+        $t->same(3, $summary['relationshipTargetMissingContentTypeCount']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $summary['relationshipPartsWithMissingContentTypes']);
+        $t->same('missing', $inventory['word/document.xml']['contentTypeSource']);
+        $t->same('', $inventory['word/document.xml']['contentType']);
+        $t->same('missing', $rootDocumentRelationship['contentTypeSource']);
+        $t->same('', $rootDocumentRelationship['contentType']);
+        $t->same('missing', $documentImageRelationship['contentTypeSource']);
+        $t->same('', $documentImageRelationship['contentType']);
+        $t->same(4, $summary['relationshipCount']);
+        $t->same(4, $summary['relationshipRecordCount']);
+    },
     'summarizes docx content type override declarations for package review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

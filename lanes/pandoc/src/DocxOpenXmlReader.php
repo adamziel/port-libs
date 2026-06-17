@@ -1043,7 +1043,12 @@ final class DocxOpenXmlReader
             return ['defaults' => [], 'overrides' => []];
         }
 
-        $dom = $this->loadXml($parts['[Content_Types].xml'], '[Content_Types].xml');
+        try {
+            $dom = $this->loadXml($parts['[Content_Types].xml'], '[Content_Types].xml');
+        } catch (\RuntimeException) {
+            return ['defaults' => [], 'overrides' => []];
+        }
+
         $xpath = $this->xpath($dom);
         $defaults = [];
         $overrides = [];
@@ -8469,6 +8474,10 @@ final class DocxOpenXmlReader
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
             'contentTypeRecordCount' => (int) ($contentTypesPart['recordCount'] ?? 0),
             'contentTypeInvalidRecordCount' => (int) ($contentTypesPart['invalidRecordCount'] ?? 0),
+            'contentTypeXmlParseErrorCount' => is_string($contentTypesPart['xmlParseError'] ?? null) ? 1 : 0,
+            'contentTypeXmlParseError' => is_string($contentTypesPart['xmlParseError'] ?? null)
+                ? $contentTypesPart['xmlParseError']
+                : null,
             'contentTypeDeclaredDefaultRecordCount' => (int) ($contentTypesPart['declaredDefaultRecordCount'] ?? 0),
             'contentTypeDeclaredOverrideRecordCount' => (int) ($contentTypesPart['declaredOverrideRecordCount'] ?? 0),
             'contentTypeRecordIssueCounts' => $contentTypesPart['issueCounts'] ?? [],
@@ -10496,6 +10505,7 @@ final class DocxOpenXmlReader
             'parameterizedContentTypes' => $parameterizedContentTypes,
             'preflight' => $preflight,
             'valid' => $preflight === null ? false : $preflight['valid'],
+            'xmlParseError' => $preflight === null ? null : $preflight['parseError'],
             'issues' => $preflight === null ? ['missing-content-types-part'] : $preflight['issues'],
             'issueCounts' => $preflight === null ? ['missing-content-types-part' => 1] : $preflight['issueCounts'],
             'recordCount' => $preflight === null ? 0 : $preflight['recordCount'],
