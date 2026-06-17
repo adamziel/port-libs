@@ -4078,6 +4078,200 @@ XML;
         $t->same(0, $missingSource['sourceContentTypeParameterCount']);
         $t->same([], $missingSource['sourceContentTypeParameterMap']);
     },
+    'summarizes docx relationship source path depth buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $headerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header/header1.xml" ContentType="' . $headerContentType . '"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['root-depth.xml'] = '<rootDepth/>';
+        $parts['word/source-depth.xml'] = '<wordDepth/>';
+        $parts['word/header/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['customXml/deep/source-depth.xml'] = '<customDepth/>';
+        $parts['word/media/root-depth.png'] = 'root depth image bytes';
+        $parts['word/media/content-types-depth.png'] = 'content types depth image bytes';
+        $parts['word/media/word-depth.png'] = 'word depth image bytes';
+        $parts['word/media/header-depth.png'] = 'header depth image bytes';
+        $parts['word/media/custom-depth.png'] = 'custom depth image bytes';
+        $parts['word/media/missing-depth.png'] = 'missing depth image bytes';
+        $parts['word/media/relationship-depth.png'] = 'relationship depth image bytes';
+        $parts['word/media/invalid-depth.png'] = 'invalid depth image bytes';
+        $parts['_rels/root-depth.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRootDepthImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/root-depth.png"/>
+</Relationships>
+XML;
+        $parts['_rels/[Content_Types].xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rContentTypesDepthImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/content-types-depth.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source-depth.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rWordDepthImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/word-depth.png"/>
+</Relationships>
+XML;
+        $parts['word/header/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderDepthImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/header-depth.png"/>
+</Relationships>
+XML;
+        $parts['customXml/deep/_rels/source-depth.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCustomDepthImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../../word/media/custom-depth.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-depth.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingDepthImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-depth.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/_rels/document.xml.rels.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRelationshipDepthImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/relationship-depth.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/media/document.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rInvalidDepthImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/invalid-depth.png"/>
+</Relationships>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $depths = [];
+        foreach ($summary['relationshipSourcePathDepths'] as $depth) {
+            $depths[$depth['sourcePathDepthKey']] = $depth;
+        }
+
+        $t->same(10, $summary['relationshipSourceCount']);
+        $t->same(5, $summary['relationshipSourcePathDepthCount']);
+        $t->same([
+            '(invalid-source)' => 1,
+            '0' => 1,
+            '1' => 2,
+            '2' => 3,
+            '3' => 3,
+        ], $summary['relationshipSourcePathDepthCounts']);
+        $t->same(['(invalid-source)', '0', '1', '2', '3'], array_column($summary['relationshipSourcePathDepths'], 'sourcePathDepthKey'));
+
+        $invalid = $depths['(invalid-source)'];
+        $t->same(null, $invalid['sourcePathDepth']);
+        $t->same(1, $invalid['sourceCount']);
+        $t->same(0, $invalid['existingSourceCount']);
+        $t->same(1, $invalid['nonExistingSourceCount']);
+        $t->same(1, $invalid['relationshipCount']);
+        $t->same(['invalid-source' => 1], $invalid['relationshipSourceKindCounts']);
+        $t->same(['(invalid-source)' => 1], $invalid['sourceDirectoryCounts']);
+        $t->same(['(invalid-source)' => 1], $invalid['sourceBaseNameCounts']);
+        $t->same(['(none)' => 1], $invalid['sourcePartExtensionCounts']);
+        $t->same(['(missing)' => 1], $invalid['sourceContentTypeBaseCounts']);
+        $t->same([], $invalid['sourceParts']);
+        $t->same(['word/_rels/media/document.xml.rels'], $invalid['relationshipParts']);
+        $t->same(null, $invalid['largestExistingSourcePart']);
+
+        $root = $depths['0'];
+        $t->same(0, $root['sourcePathDepth']);
+        $t->same(1, $root['sourceCount']);
+        $t->same(1, $root['existingSourceCount']);
+        $t->same(2, $root['relationshipCount']);
+        $t->same(['package-root' => 1], $root['relationshipSourceKindCounts']);
+        $t->same(['/' => 1], $root['sourceDirectoryCounts']);
+        $t->same(['/' => 1], $root['sourceBaseNameCounts']);
+        $t->same(['(none)' => 1], $root['sourcePartExtensionCounts']);
+        $t->same(['(missing)' => 1], $root['sourceContentTypeBaseCounts']);
+        $t->same(['package-root' => 1], $root['sourceRoleCounts']);
+        $t->same(['/'], $root['sourceParts']);
+        $t->same(['_rels/.rels'], $root['relationshipParts']);
+
+        $oneSegment = $depths['1'];
+        $t->same(1, $oneSegment['sourcePathDepth']);
+        $t->same(2, $oneSegment['sourceCount']);
+        $t->same(2, $oneSegment['existingSourceCount']);
+        $t->same(2, $oneSegment['relationshipCount']);
+        $t->same(strlen($parts['[Content_Types].xml']) + strlen($parts['root-depth.xml']), $oneSegment['existingSourceByteLength']);
+        $t->same(['content-types-item' => 1, 'package-part' => 1], $oneSegment['relationshipSourceKindCounts']);
+        $t->same(['/' => 2], $oneSegment['sourceDirectoryCounts']);
+        $t->same(['[Content_Types].xml' => 1, 'root-depth.xml' => 1], $oneSegment['sourceBaseNameCounts']);
+        $t->same(['xml' => 2], $oneSegment['sourcePartExtensionCounts']);
+        $t->same(['application/xml' => 2], $oneSegment['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 2], $oneSegment['sourceContentTypeSourceCounts']);
+        $t->same(['content-types' => 1, 'package-part' => 1], $oneSegment['sourceRoleCounts']);
+        $t->same(['[Content_Types].xml', 'root-depth.xml'], $oneSegment['sourceParts']);
+        $t->same(['_rels/[Content_Types].xml.rels', '_rels/root-depth.xml.rels'], $oneSegment['relationshipParts']);
+        $t->same('[Content_Types].xml', $oneSegment['largestExistingSourcePart']['sourcePart']);
+
+        $twoSegments = $depths['2'];
+        $t->same(2, $twoSegments['sourcePathDepth']);
+        $t->same(3, $twoSegments['sourceCount']);
+        $t->same(2, $twoSegments['existingSourceCount']);
+        $t->same(1, $twoSegments['nonExistingSourceCount']);
+        $t->same(4, $twoSegments['relationshipCount']);
+        $t->same(['missing-source' => 1, 'package-part' => 2], $twoSegments['relationshipSourceKindCounts']);
+        $t->same(['word' => 3], $twoSegments['sourceDirectoryCounts']);
+        $t->same([
+            'document.xml' => 1,
+            'missing-depth.xml' => 1,
+            'source-depth.xml' => 1,
+        ], $twoSegments['sourceBaseNameCounts']);
+        $t->same(['xml' => 3], $twoSegments['sourcePartExtensionCounts']);
+        $t->same([
+            '(missing)' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/xml' => 1,
+        ], $twoSegments['sourceContentTypeBaseCounts']);
+        $t->same(['(missing)' => 1, 'default' => 1, 'override' => 1], $twoSegments['sourceContentTypeSourceCounts']);
+        $t->same(['office-document' => 1, 'package-part' => 1, 'root-relationship-target' => 1], $twoSegments['sourceRoleCounts']);
+        $t->same(['word/document.xml', 'word/missing-depth.xml', 'word/source-depth.xml'], $twoSegments['sourceParts']);
+        $t->same([
+            'word/_rels/document.xml.rels',
+            'word/_rels/missing-depth.xml.rels',
+            'word/_rels/source-depth.xml.rels',
+        ], $twoSegments['relationshipParts']);
+        $t->same('word/document.xml', $twoSegments['largestExistingSourcePart']['sourcePart']);
+
+        $threeSegments = $depths['3'];
+        $t->same(3, $threeSegments['sourcePathDepth']);
+        $t->same(3, $threeSegments['sourceCount']);
+        $t->same(3, $threeSegments['existingSourceCount']);
+        $t->same(0, $threeSegments['nonExistingSourceCount']);
+        $t->same(3, $threeSegments['relationshipCount']);
+        $t->same(['package-part' => 2, 'relationship-part' => 1], $threeSegments['relationshipSourceKindCounts']);
+        $t->same(['customXml/deep' => 1, 'word/_rels' => 1, 'word/header' => 1], $threeSegments['sourceDirectoryCounts']);
+        $t->same(['document.xml.rels' => 1, 'header1.xml' => 1, 'source-depth.xml' => 1], $threeSegments['sourceBaseNameCounts']);
+        $t->same(['rels' => 1, 'xml' => 2], $threeSegments['sourcePartExtensionCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 1,
+            'application/xml' => 1,
+        ], $threeSegments['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 2, 'override' => 1], $threeSegments['sourceContentTypeSourceCounts']);
+        $t->same(['customXml/deep/source-depth.xml', 'word/_rels/document.xml.rels', 'word/header/header1.xml'], $threeSegments['sourceParts']);
+        $t->same([
+            'customXml/deep/_rels/source-depth.xml.rels',
+            'word/_rels/_rels/document.xml.rels.rels',
+            'word/header/_rels/header1.xml.rels',
+        ], $threeSegments['relationshipParts']);
+
+        $relationshipParts = $package['relationshipParts'];
+        $t->same(0, $relationshipParts['_rels/.rels']['sourcePathDepth']);
+        $t->same(1, $relationshipParts['_rels/[Content_Types].xml.rels']['sourcePathDepth']);
+        $t->same(2, $relationshipParts['word/_rels/document.xml.rels']['sourcePathDepth']);
+        $t->same(3, $relationshipParts['word/header/_rels/header1.xml.rels']['sourcePathDepth']);
+        $t->same(3, $relationshipParts['word/_rels/_rels/document.xml.rels.rels']['sourcePathDepth']);
+        $t->same(null, $relationshipParts['word/_rels/media/document.xml.rels']['sourcePathDepth']);
+    },
     'summarizes docx relationship source directories for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $headerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
