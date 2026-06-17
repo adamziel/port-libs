@@ -17644,6 +17644,7 @@ final class XmlHtmlDom
 
         if (array_key_exists('id', $attributes)) {
             $summary['elementId'] = $attributes['id'];
+            $summary += self::htmlDocumentIdReviewSummary($element, $attributes['id']);
         }
 
         if (array_key_exists('class', $attributes)) {
@@ -20002,6 +20003,129 @@ final class XmlHtmlDom
         }
 
         return $ids;
+    }
+
+    /**
+     * @return array{id:?string, valid:bool}
+     */
+    private static function htmlIdAttributeSummary(string $value): array
+    {
+        $id = trim($value);
+
+        return [
+            'id' => $id === '' ? null : $id,
+            'valid' => $value !== '' && self::isHtmlIdReferenceToken($value),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlDocumentIdReviewSummary(\DOMElement $element, string $idRaw): array
+    {
+        $current = self::htmlIdAttributeSummary($idRaw);
+        $occurrences = self::htmlDocumentIdOccurrences($element);
+        $validOccurrences = [];
+        $invalidOccurrences = [];
+        $occurrencesById = [];
+
+        foreach ($occurrences as $occurrence) {
+            $id = $occurrence['id'] ?? null;
+            if (($occurrence['valid'] ?? false) === true && is_string($id)) {
+                $validOccurrences[] = $occurrence;
+                $occurrencesById[$id][] = $occurrence;
+                continue;
+            }
+
+            $invalidOccurrences[] = $occurrence;
+        }
+
+        $duplicateIds = [];
+        $duplicateOccurrences = [];
+        foreach ($occurrencesById as $id => $records) {
+            if (count($records) <= 1) {
+                continue;
+            }
+
+            $duplicateIds[] = $id;
+            foreach ($records as $record) {
+                $duplicateOccurrences[] = $record + ['occurrenceCount' => count($records)];
+            }
+        }
+
+        $currentId = is_string($current['id']) ? $current['id'] : null;
+        $currentOccurrences = $current['valid'] && $currentId !== null
+            ? ($occurrencesById[$currentId] ?? [])
+            : [];
+        $currentDuplicate = count($currentOccurrences) > 1;
+        $issues = [];
+
+        if (!$current['valid']) {
+            $issues[] = [
+                'code' => 'invalid-html-id',
+                'idRaw' => $idRaw,
+            ];
+        }
+        if ($currentDuplicate) {
+            $issues[] = [
+                'code' => 'duplicate-html-id',
+                'id' => $currentId,
+                'count' => count($currentOccurrences),
+            ];
+        }
+
+        return [
+            'idReviewPolicy' => 'html-document-id-uniqueness-review',
+            'elementIdNormalized' => $current['id'],
+            'elementIdValid' => $current['valid'],
+            'elementIdDuplicate' => $currentDuplicate,
+            'elementIdOccurrenceCount' => count($currentOccurrences),
+            'elementIdOccurrences' => $currentOccurrences,
+            'documentIdCount' => count($occurrences),
+            'documentValidIdCount' => count($validOccurrences),
+            'documentInvalidIdCount' => count($invalidOccurrences),
+            'documentInvalidIdOccurrences' => $invalidOccurrences,
+            'documentDuplicateIdCount' => count($duplicateIds),
+            'documentDuplicateIds' => $duplicateIds,
+            'documentDuplicateIdOccurrences' => $duplicateOccurrences,
+            'idIssues' => $issues,
+            'idIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            )),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlDocumentIdOccurrences(\DOMElement $current): array
+    {
+        $document = $current->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $occurrences = [];
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || !$candidate->hasAttribute('id')) {
+                continue;
+            }
+
+            $raw = $candidate->getAttribute('id');
+            $id = self::htmlIdAttributeSummary($raw);
+            $occurrences[] = [
+                'index' => count($occurrences),
+                'tag' => self::htmlElementName($candidate),
+                'idRaw' => $raw,
+                'id' => $id['id'],
+                'valid' => $id['valid'],
+                'current' => $candidate->isSameNode($current),
+                'text' => self::normalizedText($candidate),
+            ];
+        }
+
+        return $occurrences;
     }
 
     private static function inputType(\DOMElement $input): string

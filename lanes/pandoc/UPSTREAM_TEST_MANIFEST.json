@@ -924,6 +924,8 @@
     "xmlHtmlDomPopoverTargetReferenceAssertions": 39,
     "mappedXmlHtmlDomNonceProvenanceCases": 1,
     "xmlHtmlDomNonceProvenanceAssertions": 43,
+    "mappedXmlHtmlDomHtmlIdUniquenessReviewCases": 1,
+    "xmlHtmlDomHtmlIdUniquenessReviewAssertions": 47,
     "mappedXmlHtmlDomAutofocusConflictCases": 1,
     "xmlHtmlDomAutofocusConflictAssertions": 32,
     "mappedDocxStylesWithEffectsSelectedXmlCases": 1,
@@ -1031,7 +1033,9 @@
     "mappedXmlHtmlDomAccesskeyConflictReviewCases": 1,
     "xmlHtmlDomAccesskeyConflictReviewAssertions": 43,
     "mappedXmlHtmlDomCdataDeclarationRecoveryCases": 1,
-    "xmlHtmlDomCdataDeclarationRecoveryAssertions": 24
+    "xmlHtmlDomCdataDeclarationRecoveryAssertions": 24,
+    "mappedXmlHtmlDomHtmlIdUniquenessReviewCases": 1,
+    "xmlHtmlDomHtmlIdUniquenessReviewAssertions": 47
   },
   "benchmarkDenominator": {
     "status": "XML/HTML DOM autofocus order review is verified after rebase onto current main e449b59b26; phpPass is 16938 and phpFail remains 0.",
@@ -3025,5 +3029,7 @@
   "mappedXmlHtmlDomCdataDeclarationRecoveryCases": 1,
   "xmlHtmlDomCdataDeclarationRecoveryAssertions": 24,
   "mappedXmlHtmlDomNonceProvenanceCases": 1,
-  "xmlHtmlDomNonceProvenanceAssertions": 43
+  "xmlHtmlDomNonceProvenanceAssertions": 43,
+  "mappedXmlHtmlDomHtmlIdUniquenessReviewCases": 1,
+  "xmlHtmlDomHtmlIdUniquenessReviewAssertions": 47
 }

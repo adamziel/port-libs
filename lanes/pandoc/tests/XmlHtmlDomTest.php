@@ -4747,6 +4747,105 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/aria-reference-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html duplicate id provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="panel" aria-labelledby="title duplicate missing">'
+                . '<h2 id="title">Title</h2><p id="duplicate">First duplicate</p><p id="duplicate">Second duplicate</p>'
+                . '<p id="bad id">Bad id</p><p id="">Empty id</p></section>'
+                . '<aside id="duplicate">Outside duplicate</aside>',
+            'HTML duplicate id review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/html-id-uniqueness-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $panel = $summary[0];
+        $title = $panel['children'][0];
+        $firstDuplicate = $panel['children'][1];
+        $secondDuplicate = $panel['children'][2];
+        $invalid = $panel['children'][3];
+        $empty = $panel['children'][4];
+        $outsideDuplicate = $summary[1];
+
+        $t->same('html-document-id-uniqueness-review', $panel['idReviewPolicy']);
+        $t->same('panel', $panel['elementId']);
+        $t->same('panel', $panel['elementIdNormalized']);
+        $t->same(true, $panel['elementIdValid']);
+        $t->same(false, $panel['elementIdDuplicate']);
+        $t->same(1, $panel['elementIdOccurrenceCount']);
+        $t->same(7, $panel['documentIdCount']);
+        $t->same(5, $panel['documentValidIdCount']);
+        $t->same(2, $panel['documentInvalidIdCount']);
+        $t->same(1, $panel['documentDuplicateIdCount']);
+        $t->same(['duplicate'], $panel['documentDuplicateIds']);
+        $t->same([], $panel['idIssueCodes']);
+
+        $t->same('title', $title['elementId']);
+        $t->same(true, $title['elementIdValid']);
+        $t->same(false, $title['elementIdDuplicate']);
+
+        $t->same('duplicate', $firstDuplicate['elementId']);
+        $t->same(true, $firstDuplicate['elementIdDuplicate']);
+        $t->same(3, $firstDuplicate['elementIdOccurrenceCount']);
+        $t->same(['duplicate-html-id'], $firstDuplicate['idIssueCodes']);
+        $t->same('duplicate', $firstDuplicate['idIssues'][0]['id'] ?? null);
+        $t->same(3, $firstDuplicate['idIssues'][0]['count'] ?? null);
+        $t->same([2, 3, 6], array_map(
+            static fn (array $occurrence): int => (int) $occurrence['index'],
+            $firstDuplicate['elementIdOccurrences']
+        ));
+        $t->same([true, false, false], array_map(
+            static fn (array $occurrence): bool => (bool) $occurrence['current'],
+            $firstDuplicate['elementIdOccurrences']
+        ));
+
+        $t->same(true, $secondDuplicate['elementIdDuplicate']);
+        $t->same([2, 3, 6], array_map(
+            static fn (array $occurrence): int => (int) $occurrence['index'],
+            $secondDuplicate['elementIdOccurrences']
+        ));
+        $t->same([false, true, false], array_map(
+            static fn (array $occurrence): bool => (bool) $occurrence['current'],
+            $secondDuplicate['elementIdOccurrences']
+        ));
+
+        $t->same('bad id', $invalid['elementId']);
+        $t->same('bad id', $invalid['elementIdNormalized']);
+        $t->same(false, $invalid['elementIdValid']);
+        $t->same(false, $invalid['elementIdDuplicate']);
+        $t->same(0, $invalid['elementIdOccurrenceCount']);
+        $t->same(['invalid-html-id'], $invalid['idIssueCodes']);
+        $t->same('bad id', $invalid['idIssues'][0]['idRaw'] ?? null);
+
+        $t->same('', $empty['elementId']);
+        $t->same(null, $empty['elementIdNormalized']);
+        $t->same(false, $empty['elementIdValid']);
+        $t->same(['invalid-html-id'], $empty['idIssueCodes']);
+        $t->same('', $empty['idIssues'][0]['idRaw'] ?? null);
+
+        $t->same('duplicate', $outsideDuplicate['elementId']);
+        $t->same(true, $outsideDuplicate['elementIdDuplicate']);
+        $t->same(3, $outsideDuplicate['elementIdOccurrenceCount']);
+        $t->same([2, 3, 6], array_map(
+            static fn (array $occurrence): int => (int) $occurrence['index'],
+            $outsideDuplicate['documentDuplicateIdOccurrences']
+        ));
+        $t->same([false, false, true], array_map(
+            static fn (array $occurrence): bool => (bool) $occurrence['current'],
+            $outsideDuplicate['elementIdOccurrences']
+        ));
+        $t->same([
+            ['index' => 4, 'tag' => 'p', 'idRaw' => 'bad id', 'id' => 'bad id', 'valid' => false, 'current' => false, 'text' => 'Bad id'],
+            ['index' => 5, 'tag' => 'p', 'idRaw' => '', 'id' => null, 'valid' => false, 'current' => false, 'text' => 'Empty id'],
+        ], $outsideDuplicate['documentInvalidIdOccurrences']);
+
+        $t->same('<section aria-labelledby="title duplicate missing" id="panel"><h2 id="title">Title</h2><p id="duplicate">First duplicate</p><p id="duplicate">Second duplicate</p><p id="bad id">Bad id</p><p id="">Empty id</p></section><aside id="duplicate">Outside duplicate</aside>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/html-id-uniqueness-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html focus navigation attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="focus-region" accesskey="s x s" autofocus="autofocus" tabindex="3"><button id="save" accesskey="k Enter" tabindex="-2">Save</button></section>'
