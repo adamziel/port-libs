@@ -243,6 +243,8 @@
   "directCslIdentifierAliasAssertions": 18,
   "mappedXmlHtmlDomFocusNavigationCases": 1,
   "xmlHtmlDomFocusNavigationAssertions": 34,
+  "mappedXmlHtmlDomDraggableStateCases": 1,
+  "xmlHtmlDomDraggableStateAssertions": 51,
   "mappedXmlHtmlDomSpellcheckInheritanceCases": 1,
   "xmlHtmlDomSpellcheckInheritanceAssertions": 33,
   "mappedXmlHtmlDomInertInheritanceCases": 2,

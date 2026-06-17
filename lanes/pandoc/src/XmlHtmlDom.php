@@ -17744,10 +17744,7 @@ final class XmlHtmlDom
         $summary += self::effectiveContentEditableSummary($element, $attributes);
 
         if (array_key_exists('draggable', $attributes)) {
-            $draggable = self::draggableState($attributes['draggable']);
-            $summary['draggableRaw'] = $attributes['draggable'];
-            $summary['draggable'] = $draggable;
-            $summary['draggableValid'] = $draggable !== null;
+            $summary += self::draggableAttributeSummary($element, $attributes['draggable']);
         }
 
         if (array_key_exists('dropzone', $attributes)) {
@@ -18738,6 +18735,64 @@ final class XmlHtmlDom
             'characters' => 'characters',
             default => null,
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function draggableAttributeSummary(\DOMElement $element, string $raw): array
+    {
+        $state = self::draggableState($raw);
+        $auto = $state === 'auto' || $state === null;
+        $effective = $auto ? self::draggableAutoDefault($element) : $state;
+        $summary = [
+            'draggableRaw' => $raw,
+            'draggable' => $state,
+            'draggableState' => $auto ? 'auto' : ($state ? 'true' : 'false'),
+            'draggableValid' => $state !== null,
+            'draggableInvalidValueDefaulted' => $state === null,
+            'effectiveDraggable' => $effective,
+            'draggableSource' => match ($state) {
+                true => 'attribute-true',
+                false => 'attribute-false',
+                'auto' => 'attribute-auto',
+                default => 'auto-default',
+            },
+        ];
+
+        if ($auto) {
+            $summary['draggableAutoReason'] = self::draggableAutoReason($element);
+        }
+
+        return $summary;
+    }
+
+    private static function draggableAutoDefault(\DOMElement $element): bool
+    {
+        return in_array(self::draggableAutoReason($element), [
+            'image-element',
+            'hyperlink-element',
+            'declared-image-object',
+        ], true);
+    }
+
+    private static function draggableAutoReason(\DOMElement $element): string
+    {
+        $name = self::htmlElementName($element);
+        if ($name === 'img') {
+            return 'image-element';
+        }
+        if ($name === 'a' && trim(self::attributeOrNull($element, 'href') ?? '') !== '') {
+            return 'hyperlink-element';
+        }
+        if ($name === 'object') {
+            $type = strtolower(trim(self::attributeOrNull($element, 'type') ?? ''));
+            if (str_starts_with($type, 'image/')) {
+                return 'declared-image-object';
+            }
+        }
+
+        return 'element-default';
     }
 
     private static function autocorrectState(string $value): ?string

@@ -128,6 +128,8 @@
     "docxOpenXmlPackageInventoryCrc32Assertions": 13,
     "mappedXmlHtmlDomDialogStateCases": 1,
     "xmlHtmlDomDialogStateAssertions": 34,
+    "mappedXmlHtmlDomDraggableStateCases": 1,
+    "xmlHtmlDomDraggableStateAssertions": 51,
     "mappedXmlHtmlDomSpellcheckInheritanceCases": 1,
     "xmlHtmlDomSpellcheckInheritanceAssertions": 33,
     "mappedXmlHtmlDomInertInheritanceCases": 2,

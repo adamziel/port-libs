@@ -3709,6 +3709,88 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             $html
         );
     },
+    'summarizes html draggable enumerated auto state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p id="forced" title="Forced text" draggable="true">Forced</p>'
+                . '<img id="auto-image" src="cover.png" alt="Cover" draggable="auto">'
+                . '<a id="auto-link" href="chapter.html" draggable="">Chapter</a>'
+                . '<object id="auto-object" data="diagram.svg" type="image/svg+xml" draggable="maybe">Fallback</object>'
+                . '<section id="plain" draggable="auto">Plain</section>'
+                . '<button id="off" draggable="false">Off</button>',
+            'draggable enumerated state review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/draggable-state-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $forced = $summary[0];
+        $image = $summary[1];
+        $link = $summary[2];
+        $object = $summary[3];
+        $plain = $summary[4];
+        $off = $summary[5];
+
+        $t->same('forced', $forced['elementId']);
+        $t->same('true', $forced['draggableRaw']);
+        $t->same(true, $forced['draggable']);
+        $t->same('true', $forced['draggableState']);
+        $t->same(true, $forced['draggableValid']);
+        $t->same(false, $forced['draggableInvalidValueDefaulted']);
+        $t->same(true, $forced['effectiveDraggable']);
+        $t->same('attribute-true', $forced['draggableSource']);
+        $t->true(!array_key_exists('draggableAutoReason', $forced));
+
+        $t->same('img', $image['name']);
+        $t->same('auto', $image['draggableRaw']);
+        $t->same('auto', $image['draggable']);
+        $t->same('auto', $image['draggableState']);
+        $t->same(true, $image['draggableValid']);
+        $t->same(false, $image['draggableInvalidValueDefaulted']);
+        $t->same(true, $image['effectiveDraggable']);
+        $t->same('attribute-auto', $image['draggableSource']);
+        $t->same('image-element', $image['draggableAutoReason']);
+
+        $t->same('', $link['draggableRaw']);
+        $t->same('auto', $link['draggableState']);
+        $t->same(false, $link['draggableValid']);
+        $t->same(true, $link['effectiveDraggable']);
+        $t->same('hyperlink-element', $link['draggableAutoReason']);
+        $t->same('chapter.html', $link['href']);
+        $t->same('a', $link['hyperlink']);
+
+        $t->same('object', $object['embeddedResource']);
+        $t->same('maybe', $object['draggableRaw']);
+        $t->same('auto', $object['draggableState']);
+        $t->same(false, $object['draggableValid']);
+        $t->same(true, $object['effectiveDraggable']);
+        $t->same('declared-image-object', $object['draggableAutoReason']);
+        $t->same('diagram.svg', $object['data']);
+        $t->same('Fallback', $object['fallbackText']);
+
+        $t->same('plain', $plain['elementId']);
+        $t->same('auto', $plain['draggableRaw']);
+        $t->same('auto', $plain['draggable']);
+        $t->same('auto', $plain['draggableState']);
+        $t->same(true, $plain['draggableValid']);
+        $t->same(false, $plain['effectiveDraggable']);
+        $t->same('element-default', $plain['draggableAutoReason']);
+
+        $t->same('false', $off['draggableRaw']);
+        $t->same(false, $off['draggable']);
+        $t->same('false', $off['draggableState']);
+        $t->same(true, $off['draggableValid']);
+        $t->same(false, $off['draggableInvalidValueDefaulted']);
+        $t->same(false, $off['effectiveDraggable']);
+        $t->same('attribute-false', $off['draggableSource']);
+        $t->true(!array_key_exists('draggableAutoReason', $off));
+
+        $t->same('<p draggable="true" id="forced" title="Forced text">Forced</p><img alt="Cover" draggable="auto" id="auto-image" src="cover.png"><a draggable="" href="chapter.html" id="auto-link">Chapter</a><object data="diagram.svg" draggable="maybe" id="auto-object" type="image/svg+xml">Fallback</object><section draggable="auto" id="plain">Plain</section><button draggable="false" id="off">Off</button>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/draggable-state-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes inherited html language and direction for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="root" lang="en-US" dir="LTR"><section id="chapter"><p id="body" dir="sideways">Body <span id="quote" lang="fr-CA" dir="auto">Citation</span></p></section></article>'
