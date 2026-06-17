@@ -18227,7 +18227,78 @@ final class XmlHtmlDom
             $summary['directionSourceElementId'] = $sourceId;
         }
 
+        if ($direction === 'auto') {
+            $summary += self::directionAutoResolutionSummary($source, $inherited);
+        }
+
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function directionAutoResolutionSummary(\DOMElement $source, bool $inherited): array
+    {
+        $text = self::normalizedText($source);
+        $characters = self::unicodeCharacters($text);
+        $firstStrong = self::firstStrongDirectionCharacter($characters);
+        $direction = $firstStrong['direction'] ?? 'ltr';
+
+        return [
+            'directionAutoReviewPolicy' => 'html-dir-auto-first-strong-review',
+            'directionAutoState' => $firstStrong === null ? 'no-strong-character' : 'first-strong-' . $direction,
+            'directionAutoResolvedDirection' => $direction,
+            'directionAutoFirstStrongDirection' => $firstStrong['direction'] ?? null,
+            'directionAutoFirstStrongCharacter' => $firstStrong['character'] ?? null,
+            'directionAutoFirstStrongIndex' => $firstStrong['index'] ?? null,
+            'directionAutoTextLength' => count($characters),
+            'directionAutoInherited' => $inherited,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function unicodeCharacters(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        if (preg_match_all('/./us', $text, $matches) === false) {
+            return [];
+        }
+
+        return $matches[0];
+    }
+
+    /**
+     * @param list<string> $characters
+     * @return array{direction:string, character:string, index:int}|null
+     */
+    private static function firstStrongDirectionCharacter(array $characters): ?array
+    {
+        foreach ($characters as $index => $character) {
+            $direction = self::strongDirectionForCharacter($character);
+            if ($direction !== null) {
+                return [
+                    'direction' => $direction,
+                    'character' => $character,
+                    'index' => $index,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private static function strongDirectionForCharacter(string $character): ?string
+    {
+        if (preg_match('/[\p{Bidi_Class:R}\p{Bidi_Class:AL}]/u', $character) === 1) {
+            return 'rtl';
+        }
+
+        return preg_match('/\p{Bidi_Class:L}/u', $character) === 1 ? 'ltr' : null;
     }
 
     private static function htmlDirectionState(string $value): ?string

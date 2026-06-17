@@ -1683,5 +1683,7 @@
   "mappedXmlHtmlDomHtmlIdUniquenessReviewCases": 1,
   "xmlHtmlDomHtmlIdUniquenessReviewAssertions": 47,
   "mappedXmlHtmlDomAutocapitalizeInheritanceCases": 1,
-  "xmlHtmlDomAutocapitalizeInheritanceAssertions": 33
+  "xmlHtmlDomAutocapitalizeInheritanceAssertions": 33,
+  "mappedXmlHtmlDomDirAutoResolutionCases": 1,
+  "xmlHtmlDomDirAutoResolutionAssertions": 46
 }
