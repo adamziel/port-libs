@@ -17812,7 +17812,9 @@ final class XmlHtmlDom
             $summary['accessKeyTokens'] = $accessKey['tokens'];
             $summary['accessKeys'] = $accessKey['keys'];
             $summary['invalidAccessKeyTokens'] = $accessKey['invalid'];
+            $summary['duplicateAccessKeyTokens'] = $accessKey['duplicates'];
             $summary['accessKeyValid'] = $accessKey['valid'];
+            $summary += self::accessKeyDocumentSummary($element, $accessKey['keys']);
         }
 
         if (array_key_exists('autofocus', $attributes)) {
@@ -19132,13 +19134,14 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{tokens:list<string>, keys:list<string>, invalid:list<string>, valid:bool}
+     * @return array{tokens:list<string>, keys:list<string>, invalid:list<string>, duplicates:list<string>, valid:bool}
      */
     private static function accessKeySummary(string $value): array
     {
         $tokens = self::spaceSeparatedTokens($value);
         $keys = [];
         $invalid = [];
+        $duplicates = [];
         foreach ($tokens as $token) {
             if (!self::isAccessKeyToken($token)) {
                 $invalid[] = $token;
@@ -19147,6 +19150,11 @@ final class XmlHtmlDom
 
             if (!in_array($token, $keys, true)) {
                 $keys[] = $token;
+                continue;
+            }
+
+            if (!in_array($token, $duplicates, true)) {
+                $duplicates[] = $token;
             }
         }
 
@@ -19154,7 +19162,83 @@ final class XmlHtmlDom
             'tokens' => $tokens,
             'keys' => $keys,
             'invalid' => $invalid,
+            'duplicates' => $duplicates,
             'valid' => $tokens !== [] && $keys !== [] && $invalid === [],
+        ];
+    }
+
+    /**
+     * @param list<string> $keys
+     * @return array<string, mixed>
+     */
+    private static function accessKeyDocumentSummary(\DOMElement $element, array $keys): array
+    {
+        if ($keys === []) {
+            return [
+                'accessKeyReviewPolicy' => 'document-accesskey-assignment-review',
+                'accessKeyDocumentAssignmentCount' => 0,
+                'accessKeyDocumentAssignments' => [],
+                'accessKeyConflictKeys' => [],
+                'accessKeyConflictCount' => 0,
+                'accessKeyConflicts' => [],
+                'accessKeyHasConflict' => false,
+            ];
+        }
+
+        $assignments = [];
+        $document = $element->ownerDocument;
+        if ($document instanceof \DOMDocument) {
+            $index = 0;
+            foreach ($document->getElementsByTagName('*') as $candidate) {
+                if (!$candidate instanceof \DOMElement || !$candidate->hasAttribute('accesskey')) {
+                    continue;
+                }
+
+                $candidateKeys = self::accessKeySummary($candidate->getAttribute('accesskey'))['keys'];
+                foreach ($candidateKeys as $key) {
+                    if ($keys !== [] && !in_array($key, $keys, true)) {
+                        continue;
+                    }
+
+                    $assignments[] = [
+                        'key' => $key,
+                        'index' => $index,
+                        'tag' => self::htmlElementName($candidate),
+                        'id' => self::attributeOrNull($candidate, 'id'),
+                        'current' => $candidate->isSameNode($element),
+                        'text' => self::normalizedText($candidate),
+                    ];
+                }
+                ++$index;
+            }
+        }
+
+        $keyCounts = [];
+        foreach ($assignments as $assignment) {
+            $key = (string) $assignment['key'];
+            $keyCounts[$key] = ($keyCounts[$key] ?? 0) + 1;
+        }
+
+        $conflictKeys = [];
+        foreach ($keyCounts as $key => $count) {
+            if ($count > 1) {
+                $conflictKeys[] = $key;
+            }
+        }
+
+        $conflicts = array_values(array_filter(
+            $assignments,
+            static fn (array $assignment): bool => in_array((string) $assignment['key'], $conflictKeys, true)
+        ));
+
+        return [
+            'accessKeyReviewPolicy' => 'document-accesskey-assignment-review',
+            'accessKeyDocumentAssignmentCount' => count($assignments),
+            'accessKeyDocumentAssignments' => $assignments,
+            'accessKeyConflictKeys' => $conflictKeys,
+            'accessKeyConflictCount' => count($conflictKeys),
+            'accessKeyConflicts' => $conflicts,
+            'accessKeyHasConflict' => $conflictKeys !== [],
         ];
     }
 

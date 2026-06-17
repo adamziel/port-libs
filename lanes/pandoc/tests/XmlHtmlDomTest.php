@@ -4499,6 +4499,82 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/focus-navigation-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html accesskey document conflicts for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<nav id="toolbar" accesskey="s n s"><button id="save" accesskey="s">Save</button>'
+                . '<button id="next" accesskey="n">Next</button><button id="solo" accesskey="x">Solo</button></nav>'
+                . '<p id="bad-keys" accesskey="Enter zz bad&lt;token">Bad</p>',
+            'accesskey document conflict review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/accesskey-conflict-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $toolbar = $summary[0];
+        $save = $toolbar['children'][0];
+        $next = $toolbar['children'][1];
+        $solo = $toolbar['children'][2];
+        $bad = $summary[1];
+
+        $t->same('document-accesskey-assignment-review', $toolbar['accessKeyReviewPolicy']);
+        $t->same(['s', 'n', 's'], $toolbar['accessKeyTokens']);
+        $t->same(['s', 'n'], $toolbar['accessKeys']);
+        $t->same(['s'], $toolbar['duplicateAccessKeyTokens']);
+        $t->same([], $toolbar['invalidAccessKeyTokens']);
+        $t->same(true, $toolbar['accessKeyValid']);
+        $t->same(4, $toolbar['accessKeyDocumentAssignmentCount']);
+        $t->same(['s', 'n'], $toolbar['accessKeyConflictKeys']);
+        $t->same(2, $toolbar['accessKeyConflictCount']);
+        $t->same(true, $toolbar['accessKeyHasConflict']);
+        $t->same('toolbar', $toolbar['accessKeyDocumentAssignments'][0]['id'] ?? null);
+        $t->same('s', $toolbar['accessKeyDocumentAssignments'][0]['key'] ?? null);
+        $t->same(true, $toolbar['accessKeyDocumentAssignments'][0]['current'] ?? null);
+        $t->same('save', $toolbar['accessKeyDocumentAssignments'][2]['id'] ?? null);
+        $t->same('s', $toolbar['accessKeyDocumentAssignments'][2]['key'] ?? null);
+        $t->same(false, $toolbar['accessKeyDocumentAssignments'][2]['current'] ?? null);
+        $t->same(4, count($toolbar['accessKeyConflicts']));
+
+        $t->same(['s'], $save['accessKeys']);
+        $t->same([], $save['duplicateAccessKeyTokens']);
+        $t->same(2, $save['accessKeyDocumentAssignmentCount']);
+        $t->same(['s'], $save['accessKeyConflictKeys']);
+        $t->same(true, $save['accessKeyHasConflict']);
+        $t->same('toolbar', $save['accessKeyDocumentAssignments'][0]['id'] ?? null);
+        $t->same(false, $save['accessKeyDocumentAssignments'][0]['current'] ?? null);
+        $t->same('save', $save['accessKeyDocumentAssignments'][1]['id'] ?? null);
+        $t->same(true, $save['accessKeyDocumentAssignments'][1]['current'] ?? null);
+
+        $t->same(['n'], $next['accessKeys']);
+        $t->same(['n'], $next['accessKeyConflictKeys']);
+        $t->same('toolbar', $next['accessKeyDocumentAssignments'][0]['id'] ?? null);
+        $t->same('next', $next['accessKeyDocumentAssignments'][1]['id'] ?? null);
+        $t->same(true, $next['accessKeyDocumentAssignments'][1]['current'] ?? null);
+
+        $t->same(['x'], $solo['accessKeys']);
+        $t->same(1, $solo['accessKeyDocumentAssignmentCount']);
+        $t->same([], $solo['accessKeyConflictKeys']);
+        $t->same(false, $solo['accessKeyHasConflict']);
+
+        $t->same(['Enter', 'zz', 'bad<token'], $bad['accessKeyTokens']);
+        $t->same([], $bad['accessKeys']);
+        $t->same(['Enter', 'zz', 'bad<token'], $bad['invalidAccessKeyTokens']);
+        $t->same([], $bad['duplicateAccessKeyTokens']);
+        $t->same(false, $bad['accessKeyValid']);
+        $t->same(0, $bad['accessKeyDocumentAssignmentCount']);
+        $t->same(false, $bad['accessKeyHasConflict']);
+
+        $t->same(
+            '<nav accesskey="s n s" id="toolbar"><button accesskey="s" id="save">Save</button>'
+                . '<button accesskey="n" id="next">Next</button><button accesskey="x" id="solo">Solo</button></nav>'
+                . '<p accesskey="Enter zz bad&lt;token" id="bad-keys">Bad</p>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/accesskey-conflict-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html autofocus candidate conflicts for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="focus-form"><input id="title" name="title" value="Draft" autofocus><button id="save" disabled autofocus>Save</button></form>'
