@@ -557,6 +557,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['headerFooterMediaRelationshipCount'] = $headerFooterMediaRelationships['count'];
         $packageProvenance['summary']['headerFooterMediaRelationshipHeaderCount'] = $headerFooterMediaRelationships['headerCount'];
         $packageProvenance['summary']['headerFooterMediaRelationshipFooterCount'] = $headerFooterMediaRelationships['footerCount'];
+        $packageProvenance['summary']['headerFooterMediaRelationshipReferencedCount'] = $headerFooterMediaRelationships['referencedCount'];
+        $packageProvenance['summary']['headerFooterMediaRelationshipOrphanedCount'] = $headerFooterMediaRelationships['orphanedCount'];
+        $packageProvenance['summary']['headerFooterMediaRelationshipDrawingReferenceCount'] = $headerFooterMediaRelationships['drawingReferenceCount'];
+        $packageProvenance['summary']['headerFooterMediaRelationshipVmlReferenceCount'] = $headerFooterMediaRelationships['vmlReferenceCount'];
         $packageProvenance['summary']['headerFooterMediaRelationshipExistingCount'] = $headerFooterMediaRelationships['existingCount'];
         $packageProvenance['summary']['headerFooterMediaRelationshipMissingCount'] = $headerFooterMediaRelationships['missingCount'];
         $packageProvenance['summary']['headerFooterMediaRelationshipExternalCount'] = $headerFooterMediaRelationships['externalCount'];
@@ -3862,6 +3866,7 @@ final class DocxOpenXmlReader
                     continue;
                 }
 
+                $relationshipReferences = $this->headerFooterMediaRelationshipReferences($parts[$sourcePart] ?? '', $sourcePart);
                 foreach ($this->readRelationshipsPart($parts, $relationshipsPart) as $relationship) {
                     if ($relationship['type'] !== self::IMAGE_REL) {
                         continue;
@@ -3876,6 +3881,7 @@ final class DocxOpenXmlReader
                         $relationshipsPart,
                         $contentTypes,
                         count($items),
+                        $relationshipReferences[$relationship['id']] ?? [],
                     );
                 }
             }
@@ -3890,6 +3896,7 @@ final class DocxOpenXmlReader
         $partNames = [];
         $externalTargets = [];
         $contentTypesSeen = [];
+        $referenceKinds = [];
         $issueCodes = [];
         foreach ($items as $item) {
             $relationshipKey = is_string($item['relationshipKey'] ?? null) ? $item['relationshipKey'] : '';
@@ -3912,6 +3919,9 @@ final class DocxOpenXmlReader
             if (($item['relationshipType'] ?? null) === self::IMAGE_REL && ($item['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
             }
+            foreach (($item['referenceKinds'] ?? []) as $referenceKind) {
+                $this->appendUniqueString($referenceKinds, is_string($referenceKind) ? $referenceKind : null);
+            }
             foreach (($item['issues'] ?? []) as $issue) {
                 if (is_string($issue) && $issue !== '') {
                     $issueCodes[$issue] = true;
@@ -3926,6 +3936,10 @@ final class DocxOpenXmlReader
             'headerCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'header')),
             'footerCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'footer')),
             'sourcePartCount' => count($sourceParts),
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
+            'orphanedCount' => count(array_filter($items, static fn (array $item): bool => $item['orphaned'] === true)),
+            'drawingReferenceCount' => count(array_filter($items, static fn (array $item): bool => in_array('embed', $item['referenceKinds'], true) || in_array('link', $item['referenceKinds'], true))),
+            'vmlReferenceCount' => count(array_filter($items, static fn (array $item): bool => in_array('vml', $item['referenceKinds'], true))),
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === false && $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-header-footer-media-part', $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === true)),
@@ -3940,6 +3954,7 @@ final class DocxOpenXmlReader
             'partNames' => $partNames,
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
+            'referenceKinds' => $referenceKinds,
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipKey' => $byRelationshipKey,
             'byRelationshipId' => $byRelationshipId,
@@ -3950,10 +3965,51 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @return array<string, list<string>>
+     */
+    private function headerFooterMediaRelationshipReferences(string $xml, string $partName): array
+    {
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [];
+        }
+
+        $references = [];
+        $xpath = $this->xpath($dom);
+        foreach ($this->elements($xpath, '//a:blip') as $blip) {
+            $relationshipId = $blip->getAttributeNS(self::NS_R, 'embed');
+            $referenceKind = 'embed';
+            if ($relationshipId === '') {
+                $relationshipId = $blip->getAttributeNS(self::NS_R, 'link');
+                $referenceKind = $relationshipId === '' ? '' : 'link';
+            }
+            if ($relationshipId === '') {
+                continue;
+            }
+
+            $references[$relationshipId] ??= [];
+            $this->appendUniqueString($references[$relationshipId], $referenceKind);
+        }
+
+        foreach ($this->elements($xpath, '//v:imagedata') as $imageData) {
+            $relationshipId = $this->vmlImageRelationshipId($imageData);
+            if ($relationshipId === '') {
+                continue;
+            }
+
+            $references[$relationshipId] ??= [];
+            $this->appendUniqueString($references[$relationshipId], 'vml');
+        }
+
+        return $references;
+    }
+
+    /**
      * @param array<string, string> $parts
      * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
      * @param array<string, mixed> $sourceItem
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param list<string> $referenceKinds
      * @return array<string, mixed>
      */
     private function headerFooterMediaRelationshipItem(
@@ -3964,7 +4020,8 @@ final class DocxOpenXmlReader
         string $sourcePart,
         string $relationshipsPart,
         array $contentTypes,
-        int $index
+        int $index,
+        array $referenceKinds = []
     ): array {
         $relationshipId = $relationship['id'];
         $relationshipKey = $relationshipsPart . '#' . $relationshipId;
@@ -3977,6 +4034,11 @@ final class DocxOpenXmlReader
         $sourceIssues = is_array($sourceItem['issues'] ?? null)
             ? array_values(array_map('strval', $sourceItem['issues']))
             : [];
+        $referenceKinds = array_values(array_unique(array_filter(
+            array_map('strval', $referenceKinds),
+            static fn (string $referenceKind): bool => $referenceKind !== '',
+        )));
+        $referenced = $referenceKinds !== [];
 
         $item = [
             'index' => $index,
@@ -3991,6 +4053,10 @@ final class DocxOpenXmlReader
             'sourceReferenced' => (bool) ($sourceItem['referenced'] ?? false),
             'sourceReferenceTypes' => $sourceReferenceTypes,
             'sourceIssues' => $sourceIssues,
+            'referenced' => $referenced,
+            'orphaned' => !$referenced,
+            'referenceKind' => $referenced ? $referenceKinds[0] : 'relationship',
+            'referenceKinds' => $referenceKinds,
             'relationshipsPart' => $relationshipsPart,
             'relationshipType' => $summary['type'],
             'target' => $summary['target'],

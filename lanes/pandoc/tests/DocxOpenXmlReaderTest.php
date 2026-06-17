@@ -2253,6 +2253,181 @@ XML;
         $t->true(!isset($docx['media']['word/linked/header-target.xml']), 'Header hyperlink target should not be exposed as document media');
         $t->true(!isset($docx['media']['word/linked/footer-target.xml']), 'Footer hyperlink target should not be exposed as document media');
     },
+    'summarizes docx header and footer vml media reference provenance for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $headerDrawingBytes = 'header drawing png bytes';
+        $headerVmlBytes = 'header vml jpg bytes';
+        $headerOrphanBytes = 'header orphan png bytes';
+        $footerVmlBytes = 'footer vml jpg bytes';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="jpg" ContentType="image/jpeg"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n" .
+            '  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' . "\n" .
+            '  <Relationship Id="rFooterDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            '    <w:sectPr>' . "\n" .
+            '      <w:headerReference w:type="default" r:id="rHeaderDefault"/>' . "\n" .
+            '      <w:footerReference w:type="default" r:id="rFooterDefault"/>' . "\n" .
+            '    </w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/header1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+  <w:p><w:r><w:t>Header VML media review</w:t></w:r></w:p>
+  <w:p><w:r><w:drawing><wp:inline><wp:docPr id="71" name="Header drawing"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rHeaderDrawing"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
+  <w:p><w:r><w:pict><v:shape id="_x0000_i3001" alt="Header VML alt"><v:imagedata r:id="rHeaderVml" o:title="Header VML title"/></v:shape></w:pict></w:r></w:p>
+</w:hdr>
+XML;
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderDrawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header-drawing.png?kind=drawing#logo"/>
+  <Relationship Id="rHeaderVml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header-vml.jpg?kind=vml#legacy"/>
+  <Relationship Id="rHeaderOrphan" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header-orphan.png"/>
+</Relationships>
+XML;
+        $parts['word/footer1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+  <w:p><w:r><w:t>Footer VML media review</w:t></w:r></w:p>
+  <w:p><w:r><w:pict><v:shape id="_x0000_i3002" alt="Footer VML alt"><v:imagedata o:relid="rFooterVml" o:title="Footer VML title"/></v:shape></w:pict></w:r></w:p>
+  <w:p><w:r><w:pict><v:shape id="_x0000_i3003" alt="Footer external alt"><v:imagedata r:link="rFooterExternal" o:title="Footer external title"/></v:shape></w:pict></w:r></w:p>
+</w:ftr>
+XML;
+        $parts['word/_rels/footer1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFooterVml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/footer-vml.jpg?kind=footer#legacy"/>
+  <Relationship Id="rFooterExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://cdn.example.test/footer-vml.jpg?remote=1#vml" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/media/header-drawing.png'] = $headerDrawingBytes;
+        $parts['word/media/header-vml.jpg'] = $headerVmlBytes;
+        $parts['word/media/header-orphan.png'] = $headerOrphanBytes;
+        $parts['word/media/footer-vml.jpg'] = $footerVmlBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $media = $docx['headerFooterMediaRelationships'];
+        $summary = $docx['packageProvenance']['summary'];
+        $headerDrawing = $media['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderDrawing'];
+        $headerVml = $media['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderVml'];
+        $headerOrphan = $media['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderOrphan'];
+        $footerVml = $media['byRelationshipKey']['word/_rels/footer1.xml.rels#rFooterVml'];
+        $footerExternal = $media['byRelationshipKey']['word/_rels/footer1.xml.rels#rFooterExternal'];
+
+        $t->same($media, $docx['packageProvenance']['headerFooterMediaRelationships']);
+        $t->same(5, $media['count']);
+        $t->same(5, $media['relationshipCount']);
+        $t->same(3, $media['headerCount']);
+        $t->same(2, $media['footerCount']);
+        $t->same(4, $media['referencedCount']);
+        $t->same(1, $media['orphanedCount']);
+        $t->same(1, $media['drawingReferenceCount']);
+        $t->same(3, $media['vmlReferenceCount']);
+        $t->same(4, $media['existingCount']);
+        $t->same(0, $media['missingCount']);
+        $t->same(1, $media['externalCount']);
+        $t->same(0, $media['unsafeExternalTargetCount']);
+        $t->same(1, $media['issueCount']);
+        $t->same(['external-header-footer-media-target'], $media['issueCodes']);
+        $t->same([
+            'word/_rels/header1.xml.rels#rHeaderDrawing',
+            'word/_rels/header1.xml.rels#rHeaderVml',
+            'word/_rels/header1.xml.rels#rHeaderOrphan',
+            'word/_rels/footer1.xml.rels#rFooterVml',
+            'word/_rels/footer1.xml.rels#rFooterExternal',
+        ], $media['relationshipKeys']);
+        $t->same(['rHeaderDrawing', 'rHeaderVml', 'rHeaderOrphan', 'rFooterVml', 'rFooterExternal'], $media['relationshipIds']);
+        $t->same([
+            'word/media/header-drawing.png',
+            'word/media/header-vml.jpg',
+            'word/media/header-orphan.png',
+            'word/media/footer-vml.jpg',
+        ], $media['partNames']);
+        $t->same(['https://cdn.example.test/footer-vml.jpg?remote=1#vml'], $media['externalTargets']);
+        $t->same(['image/png', 'image/jpeg'], $media['contentTypes']);
+        $t->same(['embed', 'vml'], $media['referenceKinds']);
+
+        $t->same(true, $headerDrawing['referenced']);
+        $t->same(false, $headerDrawing['orphaned']);
+        $t->same('embed', $headerDrawing['referenceKind']);
+        $t->same(['embed'], $headerDrawing['referenceKinds']);
+        $t->same('word/media/header-drawing.png', $headerDrawing['targetPart']);
+        $t->same('kind=drawing', $headerDrawing['targetQuery']);
+        $t->same('logo', $headerDrawing['targetFragment']);
+        $t->same(strlen($headerDrawingBytes), $headerDrawing['byteLength']);
+        $t->same(hash('sha256', $headerDrawingBytes), $headerDrawing['sha256']);
+
+        $t->same(true, $headerVml['referenced']);
+        $t->same(false, $headerVml['orphaned']);
+        $t->same('vml', $headerVml['referenceKind']);
+        $t->same(['vml'], $headerVml['referenceKinds']);
+        $t->same('word/media/header-vml.jpg', $headerVml['targetPart']);
+        $t->same('kind=vml', $headerVml['targetQuery']);
+        $t->same('legacy', $headerVml['targetFragment']);
+        $t->same(strlen($headerVmlBytes), $headerVml['byteLength']);
+        $t->same(sprintf('%08x', crc32($headerVmlBytes)), $headerVml['crc32']);
+        $t->same(hash('sha256', $headerVmlBytes), $headerVml['sha256']);
+        $t->same('image/jpeg', $headerVml['contentType']);
+        $t->same([], $headerVml['issues']);
+
+        $t->same(false, $headerOrphan['referenced']);
+        $t->same(true, $headerOrphan['orphaned']);
+        $t->same('relationship', $headerOrphan['referenceKind']);
+        $t->same([], $headerOrphan['referenceKinds']);
+        $t->same(strlen($headerOrphanBytes), $headerOrphan['byteLength']);
+        $t->same([], $headerOrphan['issues']);
+
+        $t->same('footer', $footerVml['sourceType']);
+        $t->same('vml', $footerVml['referenceKind']);
+        $t->same(['vml'], $footerVml['referenceKinds']);
+        $t->same('rFooterDefault', $footerVml['sourceRelationshipId']);
+        $t->same(['default'], $footerVml['sourceReferenceTypes']);
+        $t->same('word/media/footer-vml.jpg', $footerVml['targetPart']);
+        $t->same('kind=footer', $footerVml['targetQuery']);
+        $t->same('legacy', $footerVml['targetFragment']);
+        $t->same(strlen($footerVmlBytes), $footerVml['byteLength']);
+
+        $t->same(true, $footerExternal['referenced']);
+        $t->same(false, $footerExternal['orphaned']);
+        $t->same('vml', $footerExternal['referenceKind']);
+        $t->same(true, $footerExternal['external']);
+        $t->same('https', $footerExternal['externalTargetScheme']);
+        $t->same(true, $footerExternal['externalTargetAllowed']);
+        $t->same('remote=1', $footerExternal['targetQuery']);
+        $t->same('vml', $footerExternal['targetFragment']);
+        $t->same(['external-header-footer-media-target'], $footerExternal['issues']);
+
+        $t->same(5, $summary['headerFooterMediaRelationshipCount']);
+        $t->same(4, $summary['headerFooterMediaRelationshipReferencedCount']);
+        $t->same(1, $summary['headerFooterMediaRelationshipOrphanedCount']);
+        $t->same(1, $summary['headerFooterMediaRelationshipDrawingReferenceCount']);
+        $t->same(3, $summary['headerFooterMediaRelationshipVmlReferenceCount']);
+        $t->same(4, $summary['headerFooterMediaRelationshipExistingCount']);
+        $t->same(1, $summary['headerFooterMediaRelationshipExternalCount']);
+        $t->same(1, $summary['headerFooterMediaRelationshipIssueCount']);
+    },
     'preserves docx header and footer reference issue provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
