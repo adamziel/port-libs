@@ -6220,6 +6220,7 @@ XML;
         $t->same(true, $regular['exists']);
         $t->same(strlen($fontBytes), $regular['byteLength']);
         $t->same(sprintf('%08x', crc32($fontBytes)), $regular['crc32']);
+        $t->same(hash('sha256', $fontBytes), $regular['sha256']);
         $t->same(true, $regular['fontKeyPresent']);
         $t->same(hash('sha256', $fontKey), $regular['fontKeySha256']);
         $t->true(!isset($regular['fontKey']), 'Raw embedded font key should not be exposed');
@@ -6232,18 +6233,21 @@ XML;
         $t->same('word/fonts/missing-bold.odttf', $missing['targetPart']);
         $t->same(false, $missing['external']);
         $t->same(false, $missing['exists']);
+        $t->same(null, $missing['sha256']);
         $t->same(['missing-in-package', 'missing-content-type'], $missing['issues']);
 
         $t->same('italic', $external['style']);
         $t->same('https://fonts.example.test/aptos-Italic.ttf', $external['target']);
         $t->same(true, $external['external']);
         $t->same(null, $external['targetPart']);
+        $t->same(null, $external['sha256']);
         $t->same(['external-embedded-font'], $external['issues']);
 
         $t->same('bold-italic', $wrongType['style']);
         $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', $wrongType['relationshipType']);
         $t->same('word/fonts/bad.ttf', $wrongType['targetPart']);
         $t->same('font/ttf', $wrongType['contentType']);
+        $t->same(hash('sha256', $badFontBytes), $wrongType['sha256']);
         $t->same(['unexpected-relationship-type', 'unexpected-embedded-font-content-type'], $wrongType['issues']);
 
         $t->same('regular', $missingRelationship['style']);

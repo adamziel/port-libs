@@ -13793,6 +13793,7 @@ final class DocxOpenXmlReader
             'exists' => false,
             'byteLength' => null,
             'crc32' => null,
+            'sha256' => null,
             'fontKeyPresent' => $fontKey !== '',
             'fontKeySha256' => $fontKey !== '' ? hash('sha256', $fontKey) : null,
             'byteExposurePolicy' => 'embedded-font-bytes-blocked',
@@ -13839,6 +13840,7 @@ final class DocxOpenXmlReader
         $item['exists'] = $exists;
         $item['byteLength'] = $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null;
         $item['crc32'] = $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+        $item['sha256'] = $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null;
         $item['relationship'] = $summary;
 
         if ($relationship['type'] !== self::FONT_REL) {
