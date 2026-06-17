@@ -68,6 +68,29 @@ $validUriCases = [
     'cid uri' => ['markdown' => '<cid:source-review@example.test>', 'url' => 'cid:source-review@example.test'],
 ];
 
+$validEmailCases = [
+    'hyphenated domain label' => [
+        'markdown' => '<review@example-domain.test>',
+        'url' => 'mailto:review@example-domain.test',
+        'text' => 'review@example-domain.test',
+    ],
+    'numeric subdomain label' => [
+        'markdown' => '<u123@x42.example.test>',
+        'url' => 'mailto:u123@x42.example.test',
+        'text' => 'u123@x42.example.test',
+    ],
+    'unicode domain label' => [
+        'markdown' => '<测@foo.测.baz>',
+        'url' => 'mailto:测@foo.测.baz',
+        'text' => '测@foo.测.baz',
+    ],
+    'guarded backslash local part' => [
+        'markdown' => '<review\\+tag@example.test>',
+        'url' => 'mailto:review\\+tag@example.test',
+        'text' => 'review\\+tag@example.test',
+    ],
+];
+
 $invalidAngleCases = [
     'https uri with space' => ['markdown' => '<https://example.test/a b>'],
     'http uri with space' => ['markdown' => '<http://example.test/a b>'],
@@ -96,6 +119,13 @@ $invalidAngleCases = [
     'angle email with tab' => ['markdown' => "<user@example.test\tname>"],
     'angle email with bell control' => ['markdown' => "<user@example.test\x07>"],
     'angle email with local space' => ['markdown' => '<first last@example.test>'],
+    'angle email with leading hyphen domain label' => ['markdown' => '<user@-example.test>'],
+    'angle email with trailing hyphen domain label' => ['markdown' => '<user@example-.test>'],
+    'angle email with empty domain label' => ['markdown' => '<user@example..test>'],
+    'angle email with underscore domain label' => ['markdown' => '<user@example_bad.test>'],
+    'angle email with backslash domain label' => ['markdown' => '<user@example\\.test>'],
+    'angle email with decoded underscore domain label' => ['markdown' => '<user@example&#95;bad.test>'],
+    'angle email with decoded second at sign' => ['markdown' => '<foo&#64;bar@example.test>'],
     'angle mailto followed by email' => ['markdown' => '<mailto:user@example.test user@example.test>'],
     'inline prefixed invalid https uri' => ['markdown' => 'prefix<https://example.test/a b>'],
     'parenthesized invalid https uri' => ['markdown' => '(<https://example.test/a b>)'],
@@ -141,6 +171,11 @@ $invalidAngleCases = [
         'links' => ['mailto:editor@example.test'],
         'before' => '<http://example.test/a b> text ',
     ],
+    'invalid domain email angle then valid email angle' => [
+        'markdown' => '<user@example-.test><editor@example.test>',
+        'links' => ['mailto:editor@example.test'],
+        'before' => '<user@example-.test>',
+    ],
 ];
 
 $tests = [];
@@ -163,6 +198,24 @@ foreach ($validUriCases as $name => $case) {
         };
 }
 
+foreach ($validEmailCases as $name => $case) {
+    $tests["maps upstream markdown angle email autolink domain boundary valid {$name}"] =
+        static function (TestRunner $t) use ($case, $collectLinks, $html): void {
+            $document = (new MarkdownReader())->read($case['markdown']);
+            $paragraph = $document->children[0] ?? new AstNode('missing');
+            $links = $collectLinks($paragraph);
+            $blocks = (new WordPressBlockWriter())->write($document);
+
+            $t->same(1, count($links), $case['markdown']);
+            $link = $links[0] ?? new AstNode('missing');
+            $t->same('link', $link->type, $case['markdown']);
+            $t->same($case['url'], $link->attr('url'), $case['markdown']);
+            $t->same(['email'], $link->attr('classes'), $case['markdown']);
+            $t->same($case['text'], $link->children[0]->attr('text'), $case['markdown']);
+            $t->contains('<a href="' . $html($case['url']) . '">' . $html($case['text']) . '</a>', $blocks);
+        };
+}
+
 foreach ($invalidAngleCases as $name => $case) {
     $tests["maps upstream markdown angle autolink boundary invalid {$name}"] =
         static function (TestRunner $t) use ($case, $linkUrls, $textBeforeFirstLink): void {
@@ -180,8 +233,8 @@ foreach ($invalidAngleCases as $name => $case) {
 }
 
 $tests['records upstream markdown angle autolink boundary surge mapped-case count'] =
-    static function (TestRunner $t) use ($validUriCases, $invalidAngleCases): void {
-        $t->same(60, count($validUriCases) + count($invalidAngleCases));
+    static function (TestRunner $t) use ($validUriCases, $validEmailCases, $invalidAngleCases): void {
+        $t->same(72, count($validUriCases) + count($validEmailCases) + count($invalidAngleCases));
     };
 
 return $tests;

@@ -21053,6 +21053,10 @@ final class MarkdownReader
             ) === 1
         ) {
             $address = $this->decodeHtmlEntities($m[1]);
+            if (!$this->isValidAngleEmailAutolinkAddress($address)) {
+                return null;
+            }
+
             $next = $offset + strlen($m[0]);
             [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
                 'url' => 'mailto:' . $address,
@@ -21075,6 +21079,29 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function isValidAngleEmailAutolinkAddress(string $address): bool
+    {
+        if (substr_count($address, '@') !== 1) {
+            return false;
+        }
+
+        [$local, $domain] = explode('@', $address, 2);
+        if ($local === '' || $domain === '' || !str_contains($domain, '.')) {
+            return false;
+        }
+
+        foreach (explode('.', $domain) as $label) {
+            if (
+                $label === ''
+                || preg_match('/^[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?$/u', $label) !== 1
+            ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
