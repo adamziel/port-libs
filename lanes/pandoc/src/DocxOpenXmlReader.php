@@ -3562,6 +3562,30 @@ final class DocxOpenXmlReader
                     $byRelationshipId[$relationshipId] = $item;
                 }
             }
+            foreach ($this->elements($xpath, '//v:imagedata') as $imageData) {
+                $relationshipId = $this->vmlImageRelationshipId($imageData);
+                $item = $this->documentMediaRelationshipItem(
+                    $parts,
+                    $relationships[$relationshipId] ?? null,
+                    $documentPart,
+                    $relationshipsPart,
+                    $contentTypes,
+                    $relationshipId,
+                    count($items),
+                    true,
+                    'vml',
+                );
+                $items[] = $item;
+
+                $this->appendUniqueString($relationshipIds, $relationshipId);
+                $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                if ($item['relationshipType'] === self::IMAGE_REL) {
+                    $this->appendUniqueString($referencedImageRelationshipIds, $relationshipId);
+                }
+                if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                    $byRelationshipId[$relationshipId] = $item;
+                }
+            }
         }
 
         $unreferencedRelationshipIds = [];
@@ -18642,6 +18666,10 @@ final class DocxOpenXmlReader
                 array_push($inlines, ...$this->readDrawingImages($child, $xpath, $relationships, $contentTypes));
                 continue;
             }
+            if ($child->namespaceURI === self::NS_W && $child->localName === 'pict') {
+                array_push($inlines, ...$this->readPictImages($child, $xpath, $relationships, $contentTypes));
+                continue;
+            }
             if ($child->namespaceURI === self::NS_W && in_array($child->localName, ['footnoteRef', 'endnoteRef'], true)) {
                 continue;
             }
@@ -18762,7 +18790,7 @@ final class DocxOpenXmlReader
             ];
             if (!$isExternal) {
                 $attrs['mediaPath'] = $relationship['resolvedTarget'];
-                $attrs['contentType'] = $this->contentTypeFor($relationship['resolvedTarget'], $contentTypes);
+                $attrs['contentType'] = $this->contentTypeFor($this->stripQueryAndFragment($relationship['resolvedTarget']), $contentTypes);
             }
             if ($alt !== '') {
                 $attrs['alt'] = $alt;
@@ -18776,6 +18804,89 @@ final class DocxOpenXmlReader
         }
 
         return $images;
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return list<AstNode>
+     */
+    private function readPictImages(\DOMElement $pict, \DOMXPath $xpath, array $relationships, array $contentTypes): array
+    {
+        $images = [];
+        foreach ($this->elements($xpath, './/v:imagedata', $pict) as $imageData) {
+            $relationshipId = $this->vmlImageRelationshipId($imageData);
+            $relationship = $relationships[$relationshipId] ?? null;
+            if (!is_array($relationship)) {
+                continue;
+            }
+
+            $isExternal = $relationship['targetMode'] === 'External';
+            $url = $isExternal ? $relationship['target'] : $relationship['resolvedTarget'];
+            $alt = $this->vmlImageAlt($imageData);
+            $title = $this->vmlImageTitle($imageData);
+            $attrs = [
+                'url' => $url,
+                'relationshipId' => $relationshipId,
+                'relationshipType' => $relationship['type'],
+                'targetMode' => $relationship['targetMode'],
+                'imageSource' => 'vml-pict',
+            ];
+            if (!$isExternal) {
+                $attrs['mediaPath'] = $relationship['resolvedTarget'];
+                $attrs['contentType'] = $this->contentTypeFor($this->stripQueryAndFragment($relationship['resolvedTarget']), $contentTypes);
+            }
+            if ($alt !== '') {
+                $attrs['alt'] = $alt;
+            }
+            if ($title !== '') {
+                $attrs['title'] = $title;
+            }
+
+            $children = $alt === '' ? [] : [new AstNode('text', ['text' => $alt])];
+            $images[] = new AstNode('image', $attrs, $children);
+        }
+
+        return $images;
+    }
+
+    private function vmlImageRelationshipId(\DOMElement $imageData): string
+    {
+        $relationshipId = $imageData->getAttributeNS(self::NS_R, 'id');
+        if ($relationshipId === '') {
+            $relationshipId = $imageData->getAttributeNS(self::NS_R, 'embed');
+        }
+        if ($relationshipId === '') {
+            $relationshipId = $imageData->getAttributeNS(self::NS_R, 'link');
+        }
+        if ($relationshipId === '') {
+            $relationshipId = $imageData->getAttributeNS(self::NS_O, 'relid');
+        }
+
+        return $relationshipId;
+    }
+
+    private function vmlImageAlt(\DOMElement $imageData): string
+    {
+        $node = $imageData->parentNode;
+        while ($node instanceof \DOMElement) {
+            if ($node->namespaceURI === self::NS_V && $node->localName === 'shape') {
+                return trim($node->getAttribute('alt'));
+            }
+            $node = $node->parentNode;
+        }
+
+        return '';
+    }
+
+    private function vmlImageTitle(\DOMElement $imageData): string
+    {
+        $title = trim($imageData->getAttributeNS(self::NS_O, 'title'));
+        if ($title === '') {
+            $title = trim($imageData->getAttribute('title'));
+        }
+
+        return $title;
     }
 
     /**

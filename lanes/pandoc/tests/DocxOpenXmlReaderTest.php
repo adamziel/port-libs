@@ -12184,6 +12184,97 @@ XML;
         $t->same(2, $relationshipTypes[$imageRel]['externalCount']);
         $t->true(in_array('word/media/unreferenced.jpg', $relationshipTypes[$imageRel]['existingTargetParts'], true), 'unreferenced media relationship target missing from type summary');
     },
+    'summarizes docx vml pict document image relationships for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $vmlBytes = 'legacy vml jpg bytes';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="jpg" ContentType="image/jpeg"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rVmlPict" Type="' . $imageRel . '" Target="media/legacy-pict.jpg?slot=vml#legacy"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            "      </w:r>\n    </w:p>\n    <w:tbl>",
+            "      </w:r>\n" .
+            "      <w:r><w:pict><v:shape id=\"_x0000_i2048\" alt=\"VML pict alt\"><v:imagedata r:id=\"rVmlPict\" o:title=\"VML pict title\"/></v:shape></w:pict></w:r>\n" .
+            "    </w:p>\n    <w:tbl>",
+            $parts['word/document.xml']
+        );
+        $parts['word/media/legacy-pict.jpg'] = $vmlBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $media = $docx['documentMediaRelationships'];
+        $summary = $docx['packageProvenance']['summary'];
+        $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
+        $vml = $media['byRelationshipId']['rVmlPict'];
+        $imageParagraph = $document->children[4];
+        $vmlImage = $imageParagraph->children[2];
+
+        $t->same('image', $vmlImage->type);
+        $t->same('word/media/legacy-pict.jpg?slot=vml#legacy', $vmlImage->attr('url'));
+        $t->same('rVmlPict', $vmlImage->attr('relationshipId'));
+        $t->same($imageRel, $vmlImage->attr('relationshipType'));
+        $t->same('', $vmlImage->attr('targetMode'));
+        $t->same('vml-pict', $vmlImage->attr('imageSource'));
+        $t->same('word/media/legacy-pict.jpg?slot=vml#legacy', $vmlImage->attr('mediaPath'));
+        $t->same('image/jpeg', $vmlImage->attr('contentType'));
+        $t->same('VML pict alt', $vmlImage->attr('alt'));
+        $t->same('VML pict title', $vmlImage->attr('title'));
+        $t->same('VML pict alt', $vmlImage->children[0]->attr('text'));
+
+        $t->same(2, $media['count']);
+        $t->same(2, $media['relationshipCount']);
+        $t->same(2, $media['referencedCount']);
+        $t->same(0, $media['unreferencedRelationshipCount']);
+        $t->same(2, $media['existingCount']);
+        $t->same(0, $media['issueCount']);
+        $t->same(['rImage', 'rVmlPict'], $media['relationshipIds']);
+        $t->same(['rImage', 'rVmlPict'], $media['referencedRelationshipIds']);
+        $t->same([], $media['unreferencedRelationshipIds']);
+        $t->same(['word/media/review.png', 'word/media/legacy-pict.jpg'], $media['partNames']);
+        $t->same(['image/png', 'image/jpeg'], $media['contentTypes']);
+
+        $t->same(true, $vml['referenced']);
+        $t->same('vml', $vml['referenceKind']);
+        $t->same($imageRel, $vml['relationshipType']);
+        $t->same('media/legacy-pict.jpg?slot=vml#legacy', $vml['target']);
+        $t->same('word/media/legacy-pict.jpg?slot=vml#legacy', $vml['resolvedTarget']);
+        $t->same('word/media/legacy-pict.jpg', $vml['targetPart']);
+        $t->same('slot=vml', $vml['targetQuery']);
+        $t->same('legacy', $vml['targetFragment']);
+        $t->same('?slot=vml#legacy', $vml['targetReferenceSuffix']);
+        $t->same(strlen($vmlBytes), $vml['byteLength']);
+        $t->same(sprintf('%08x', crc32($vmlBytes)), $vml['crc32']);
+        $t->same(hash('sha256', $vmlBytes), $vml['sha256']);
+        $t->same('image/jpeg', $vml['contentType']);
+        $t->same('default', $vml['contentTypeSource']);
+        $t->same([], $vml['issues']);
+        $t->same(true, $vml['valid']);
+
+        $t->same(2, $summary['documentMediaRelationshipCount']);
+        $t->same(2, $summary['documentMediaRelationshipDeclarationCount']);
+        $t->same(2, $summary['documentMediaRelationshipReferencedCount']);
+        $t->same(2, $summary['documentMediaRelationshipExistingCount']);
+        $t->same(0, $summary['documentMediaRelationshipIssueCount']);
+        $t->same(2, $relationshipTypes[$imageRel]['count']);
+        $t->same(2, $relationshipTypes[$imageRel]['internalCount']);
+        $t->same(0, $relationshipTypes[$imageRel]['externalCount']);
+        $t->true(in_array('word/media/legacy-pict.jpg', $relationshipTypes[$imageRel]['existingTargetParts'], true), 'vml pict media relationship target missing from type summary');
+    },
     'summarizes docx bibliography package parts from document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $bibliographyRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/bibliography';
