@@ -273,7 +273,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'text-input-hint-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'label-metadata-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-srcdoc-review', 'link-browsing-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'text-input-hint-review', 'writing-assistance-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'label-metadata-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-srcdoc-review', 'link-browsing-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -6701,6 +6701,21 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlWritingAssistanceAttribute($name)) {
+                $writingAssistanceMetadata = self::normalizeHtmlWritingAssistanceAttribute(
+                    $name,
+                    $value,
+                    $tagName,
+                    $element,
+                    $diagnostics
+                );
+                if ($writingAssistanceMetadata !== null) {
+                    [$metadataName, $metadataValue] = $writingAssistanceMetadata;
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isHtmlRevisionMetadataAttribute($tagName, $name)) {
                 $revisionMetadata = self::normalizeHtmlRevisionMetadataAttribute(
                     $name,
@@ -7705,6 +7720,11 @@ final class Html5DomFragment
         return in_array(strtolower($name), ['inputmode', 'enterkeyhint', 'autocapitalize'], true);
     }
 
+    private static function isHtmlWritingAssistanceAttribute(string $name): bool
+    {
+        return in_array(strtolower($name), ['autocorrect', 'writingsuggestions', 'virtualkeyboardpolicy'], true);
+    }
+
     /**
      * @param list<array<string, mixed>> $diagnostics
      * @return array{0:string, 1:string}|null
@@ -7777,6 +7797,70 @@ final class Html5DomFragment
             'attribute' => $attributeName,
             'reason' => 'invalid-text-input-hint-metadata',
         ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:string, 1:string}|null
+     */
+    private static function normalizeHtmlWritingAssistanceAttribute(
+        string $name,
+        string $value,
+        string $tagName,
+        \DOMElement $element,
+        array &$diagnostics
+    ): ?array {
+        $attribute = strtolower($name);
+        $state = self::normalizeHtmlWritingAssistanceToken($attribute, $value);
+        if ($state === null) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => $attribute,
+                'reason' => 'invalid-writing-assistance-metadata',
+            ], $element);
+
+            return null;
+        }
+
+        $metadataAttribute = 'data-pandoc-' . $attribute;
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'writing-assistance-review',
+            'tag' => $tagName,
+            'attribute' => $attribute,
+            'metadataAttribute' => $metadataAttribute,
+            'state' => $state,
+            'reason' => 'writing-assistance-preserved-as-review-metadata',
+        ], $element);
+
+        return [$metadataAttribute, $state];
+    }
+
+    private static function normalizeHtmlWritingAssistanceToken(string $attribute, string $value): ?string
+    {
+        $state = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if (strlen($state) > 32 || preg_match('/[<>"\'`{}]/u', $state) === 1) {
+            return null;
+        }
+
+        return match ($attribute) {
+            'autocorrect' => match ($state) {
+                '', 'on' => 'on',
+                'off' => 'off',
+                default => null,
+            },
+            'writingsuggestions' => match ($state) {
+                '', 'true' => 'true',
+                'false' => 'false',
+                default => null,
+            },
+            'virtualkeyboardpolicy' => match ($state) {
+                '', 'auto' => 'auto',
+                'manual' => 'manual',
+                default => null,
+            },
+            default => null,
+        };
     }
 
     private static function isHtmlRevisionMetadataAttribute(string $tagName, string $name): bool

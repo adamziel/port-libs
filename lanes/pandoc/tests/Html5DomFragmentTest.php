@@ -4877,6 +4877,70 @@ return [
         $t->true(!str_contains($blocks, ' enterkeyhint='), 'Expected WordPress blocks to omit live enterkeyhint attributes');
         $t->true(!str_contains($blocks, ' autocapitalize='), 'Expected WordPress blocks to omit live autocapitalize attributes');
     },
+    'converts writing assistance attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article autocorrect="off" writingsuggestions="false" virtualkeyboardpolicy="manual" data-pandoc-autocorrect="source-spoof" data-pandoc-writingsuggestions="source-spoof" data-pandoc-virtualkeyboardpolicy="source-spoof">'
+            . '<p autocorrect writingsuggestions virtualkeyboardpolicy>Defaults</p>'
+            . '<span autocorrect="ON" writingsuggestions="TRUE" virtualkeyboardpolicy="AUTO">Explicit</span>'
+            . '<em autocorrect="maybe" writingsuggestions="maybe" virtualkeyboardpolicy="onscreen">Invalid</em>'
+            . '</article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/writing-assistance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article data-pandoc-autocorrect="off" data-pandoc-writingsuggestions="false" data-pandoc-virtualkeyboardpolicy="manual">'
+            . '<p data-pandoc-autocorrect="on" data-pandoc-writingsuggestions="true" data-pandoc-virtualkeyboardpolicy="auto">Defaults</p>'
+            . '<span data-pandoc-autocorrect="on" data-pandoc-writingsuggestions="true" data-pandoc-virtualkeyboardpolicy="auto">Explicit</span>'
+            . '<em>Invalid</em></article>';
+        $policyDiagnostics = array_count_values(array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        )));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('DefaultsExplicitInvalid', $fragment->textContent());
+        $t->same(['article', 'em', 'p', 'span'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([
+            'autocorrect',
+            'data-pandoc-autocorrect',
+            'data-pandoc-virtualkeyboardpolicy',
+            'data-pandoc-writingsuggestions',
+            'virtualkeyboardpolicy',
+            'writingsuggestions',
+        ], $summary['filteredAttributes']);
+        $t->same(9, $policyDiagnostics['writing-assistance-review'] ?? 0);
+        $t->same(6, $policyDiagnostics['unsafe-attribute'] ?? 0);
+        $t->same([
+            'data-pandoc-autocorrect' => 'off',
+            'data-pandoc-writingsuggestions' => 'false',
+            'data-pandoc-virtualkeyboardpolicy' => 'manual',
+        ], $nodes[0]['attrs']);
+        $t->same([
+            'data-pandoc-autocorrect' => 'on',
+            'data-pandoc-writingsuggestions' => 'true',
+            'data-pandoc-virtualkeyboardpolicy' => 'auto',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'data-pandoc-autocorrect' => 'on',
+            'data-pandoc-writingsuggestions' => 'true',
+            'data-pandoc-virtualkeyboardpolicy' => 'auto',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same([], $nodes[0]['children'][2]['attrs']);
+        $t->same('/migration/writing-assistance-review.html', $document->children[0]->attr('part'));
+        foreach ([' autocorrect', ' writingsuggestions', ' virtualkeyboardpolicy', 'source-spoof', 'maybe', 'onscreen'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected live writing assistance metadata to be stripped or converted: ' . $blocked);
+        }
+        $t->true(!str_contains($blocks, ' autocorrect'), 'Expected WordPress blocks to omit live autocorrect attributes');
+        $t->true(!str_contains($blocks, ' writingsuggestions'), 'Expected WordPress blocks to omit live writingsuggestions attributes');
+        $t->true(!str_contains($blocks, ' virtualkeyboardpolicy'), 'Expected WordPress blocks to omit live virtualkeyboardpolicy attributes');
+    },
     'converts focus and keyboard shortcut attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article tabindex=" 0003 " accesskey="s S ?" autofocus data-pandoc-tabindex="source-spoof" data-pandoc-accesskey="source-spoof" data-pandoc-autofocus-state="source-spoof">'
