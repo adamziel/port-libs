@@ -1196,7 +1196,7 @@ final class DocxOpenXmlReader
     private function officeDocumentPart(array $relationships): string
     {
         foreach ($relationships as $relationship) {
-            if ($relationship['type'] === self::OFFICE_DOCUMENT_REL) {
+            if ($relationship['type'] === self::OFFICE_DOCUMENT_REL && !$this->isExternalRelationshipTarget($relationship)) {
                 return $this->stripQueryAndFragment($relationship['resolvedTarget']);
             }
         }

@@ -142,6 +142,50 @@ return [
         $t->same('override', $inventory['customXml/item1.xml']['contentTypeSource']);
         $t->same('package-part', $inventory['word/styles.xml']['roles'][0]);
     },
+    'selects internal docx office document relationship when external root link is present' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['_rels/.rels'] = str_replace(
+            '<Relationship Id="rDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>',
+            '<Relationship Id="rDocExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="https://example.test/review.docx?copy=remote#main" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rDocInternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml?office=main#body"/>',
+            $parts['_rels/.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $rootRelationships = $package['relationshipParts']['_rels/.rels'];
+        $externalRelationship = $rootRelationships['relationships']['rDocExternal'];
+        $internalRelationship = $rootRelationships['relationships']['rDocInternal'];
+        $selectedDocument = $package['selectedXmlParts']['byKind']['document'];
+        $officeDocumentType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+        $relationshipType = $package['relationshipTypes'][$officeDocumentType];
+
+        $t->same('word/document.xml', $docx['documentPart']);
+        $t->same('word/document.xml', $package['documentPart']);
+        $t->same('relationship', $selectedDocument['selectionSource']);
+        $t->same('rDocInternal', $selectedDocument['relationshipId']);
+        $t->same('word/document.xml?office=main#body', $selectedDocument['relationshipResolvedTarget']);
+        $t->same('?office=main#body', $selectedDocument['targetReferenceSuffix']);
+        $t->same('office=main', $selectedDocument['targetQuery']);
+        $t->same('body', $selectedDocument['targetFragment']);
+        $t->same(3, $rootRelationships['relationshipCount']);
+        $t->same(true, $externalRelationship['external']);
+        $t->same(null, $externalRelationship['targetPart']);
+        $t->same('https', $externalRelationship['externalTargetScheme']);
+        $t->same(false, $externalRelationship['exists']);
+        $t->same(false, $internalRelationship['external']);
+        $t->same('word/document.xml', $internalRelationship['targetPart']);
+        $t->same(true, $internalRelationship['exists']);
+        $t->same('override', $internalRelationship['contentTypeSource']);
+        $t->same(2, $relationshipType['count']);
+        $t->same(1, $relationshipType['internalCount']);
+        $t->same(1, $relationshipType['externalCount']);
+        $t->same(1, $relationshipType['existingTargetCount']);
+        $t->same(['word/document.xml'], $relationshipType['existingTargetParts']);
+        $t->same(['https://example.test/review.docx?copy=remote#main'], $relationshipType['externalTargets']);
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+    },
     'preserves docx source zip entry provenance across package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $zipParts = [
