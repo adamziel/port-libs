@@ -23585,19 +23585,26 @@ final class XmlHtmlDom
 
     private static function assertNoDoctype(string $source, string $label): void
     {
-        if (preg_match('/<!\s*DOCTYPE\b/i', $source) === 1) {
+        $declarationScanSource = self::sourceWithoutClosedComments($source);
+        if (preg_match('/<!\s*DOCTYPE\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare a document type');
         }
     }
 
     private static function assertNoHtmlFragmentDeclarations(string $source, string $label): void
     {
-        if (preg_match('/<!\s*(?:ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $source) === 1) {
+        $declarationScanSource = self::sourceWithoutClosedComments($source);
+        if (preg_match('/<!\s*(?:ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
-        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $source) === 1) {
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not include processing instructions');
         }
+    }
+
+    private static function sourceWithoutClosedComments(string $source): string
+    {
+        return preg_replace('/<!--(?:[^-]|-(?!-))*-->/s', '', $source) ?? $source;
     }
 
     private static function assertNoProcessingInstructions(\DOMNode $node, string $label): void
