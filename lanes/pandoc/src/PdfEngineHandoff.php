@@ -7892,6 +7892,20 @@ final class PdfEngineHandoff
         $pdfExportControlCount = is_int($summary['pdfExportControlCount'] ?? null) ? $summary['pdfExportControlCount'] : 0;
         if ($pdfExportControlCount > 0 || $pdfExportIssues !== []) {
             $pageSelection = is_array($pdfExport['pageSelection'] ?? null) ? $pdfExport['pageSelection'] : [];
+            $pageSelectionPolicy = is_array($pdfExport['pageSelectionPolicy'] ?? null) ? $pdfExport['pageSelectionPolicy'] : [];
+            $pageSelectionSegmentCounts = [
+                'page' => 0,
+                'range' => 0,
+                'range-from' => 0,
+                'invalid' => 0,
+            ];
+            foreach (is_array($pageSelection['segments'] ?? null) ? $pageSelection['segments'] : [] as $segment) {
+                $kind = is_array($segment) && is_string($segment['kind'] ?? null) ? $segment['kind'] : 'invalid';
+                if (!array_key_exists($kind, $pageSelectionSegmentCounts)) {
+                    $kind = 'invalid';
+                }
+                ++$pageSelectionSegmentCounts[$kind];
+            }
             $ppi = is_array($pdfExport['ppi'] ?? null) ? $pdfExport['ppi'] : [];
             $pdfStandard = is_array($provenance['pdfStandard'] ?? null) ? $provenance['pdfStandard'] : [];
             $pageSelectionHistory = is_array($provenance['pageSelectionHistory'] ?? null) ? $provenance['pageSelectionHistory'] : [];
@@ -7923,13 +7937,22 @@ final class PdfEngineHandoff
                 ));
             $appendCase('pdf-export-controls', $pdfExportIssues === [] ? 'ok' : 'review', $pdfExportControlCount, [
                 'pageSelectionPresent' => $pageSelection !== [],
+                'pageSelectionValue' => is_string($pageSelection['value'] ?? null) ? $pageSelection['value'] : null,
                 'pageSelectionSegmentCount' => count(is_array($pageSelection['segments'] ?? null) ? $pageSelection['segments'] : []),
+                'pageSelectionPageSegmentCount' => is_int($pageSelectionPolicy['pageSegmentCount'] ?? null) ? $pageSelectionPolicy['pageSegmentCount'] : $pageSelectionSegmentCounts['page'],
+                'pageSelectionRangeSegmentCount' => is_int($pageSelectionPolicy['rangeSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeSegmentCount'] : $pageSelectionSegmentCounts['range'],
+                'pageSelectionRangeFromSegmentCount' => is_int($pageSelectionPolicy['rangeFromSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeFromSegmentCount'] : $pageSelectionSegmentCounts['range-from'],
+                'pageSelectionInvalidSegmentCount' => is_int($pageSelectionPolicy['invalidSegmentCount'] ?? null) ? $pageSelectionPolicy['invalidSegmentCount'] : $pageSelectionSegmentCounts['invalid'],
+                'pageSelectionOverlapCount' => is_int($pageSelectionPolicy['overlapCount'] ?? null) ? $pageSelectionPolicy['overlapCount'] : 0,
                 'pageSelectionHistoryCount' => count($pageSelectionHistory),
                 'invalidPageSelectionCount' => $countUnsafe($pageSelectionHistory),
+                'invalidPageSelectionHistoryCount' => $countUnsafe($pageSelectionHistory),
                 'ppiPresent' => $ppi !== [],
+                'ppiValue' => is_string($ppi['value'] ?? null) ? $ppi['value'] : null,
                 'ppi' => is_int($ppi['ppi'] ?? null) ? $ppi['ppi'] : null,
                 'ppiHistoryCount' => count($ppiHistory),
                 'invalidPpiCount' => $countUnsafe($ppiHistory),
+                'invalidPpiHistoryCount' => $countUnsafe($ppiHistory),
                 'pdfStandardCount' => is_int($pdfStandardPolicy['standardCount'] ?? null)
                     ? $pdfStandardPolicy['standardCount']
                     : (is_int($pdfStandard['standardCount'] ?? null) ? $pdfStandard['standardCount'] : count($pdfStandards)),

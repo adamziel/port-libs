@@ -8302,6 +8302,63 @@ return [
         $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
     },
 
+    'maps typst pdf page and ppi export controls into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-page-ppi-matrix-controls.pdf',
+            'source' => '= Typst PDF Page PPI Matrix Controls Packet',
+            'engineOptions' => [
+                '--pages=0',
+                '--pages=1-3,3,8-',
+                '--ppi=0',
+                '--ppi=300',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst PDF page/PPI matrix controls packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-page-ppi-matrix-controls.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-page-ppi-matrix-controls.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+        $details = $cases['pdf-export-controls']['details'];
+
+        $t->same(true, $result['ok']);
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(2, $plan['typstBoundarySummary']['pdfExportControlCount']);
+        $t->same(['boundary-overrides', 'output-format', 'pdf-export-controls'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same(2, $cases['pdf-export-controls']['observed']);
+        $t->same('1-3,3,8-', $details['pageSelectionValue']);
+        $t->same(3, $details['pageSelectionSegmentCount']);
+        $t->same(1, $details['pageSelectionPageSegmentCount']);
+        $t->same(1, $details['pageSelectionRangeSegmentCount']);
+        $t->same(1, $details['pageSelectionRangeFromSegmentCount']);
+        $t->same(0, $details['pageSelectionInvalidSegmentCount']);
+        $t->same(1, $details['pageSelectionOverlapCount']);
+        $t->same(2, $details['pageSelectionHistoryCount']);
+        $t->same(1, $details['invalidPageSelectionHistoryCount']);
+        $t->same('300', $details['ppiValue']);
+        $t->same(300, $details['ppi']);
+        $t->same(2, $details['ppiHistoryCount']);
+        $t->same(1, $details['invalidPpiHistoryCount']);
+        $t->contains('typst-pdf-pages-overlaps:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-cases:3', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-export-controls:pages-overlapping-selection-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('pdf-export-controls:ppi-nonpositive-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->same($plan['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
