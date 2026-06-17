@@ -7763,10 +7763,15 @@ final class PdfEngineHandoff
             $appendCase('feature-gates', $featureGateIssues === [] ? 'ok' : 'review', $featureCount + $environmentFeatureCount, [
                 'featureCount' => $featureCount,
                 'environmentFeatureCount' => $environmentFeatureCount,
+                'raw' => is_string($featureGates['raw'] ?? null) ? $featureGates['raw'] : null,
+                'value' => is_string($featureGates['value'] ?? null) ? $featureGates['value'] : null,
                 'features' => $features,
+                'environmentRaw' => is_string($featureGateEnvironment['raw'] ?? null) ? $featureGateEnvironment['raw'] : null,
+                'environmentValue' => is_string($featureGateEnvironment['value'] ?? null) ? $featureGateEnvironment['value'] : null,
                 'environmentFeatures' => $environmentFeatures,
                 'environmentVariable' => is_string($featureGateEnvironment['environmentVariable'] ?? null) ? $featureGateEnvironment['environmentVariable'] : null,
                 'environmentShadowed' => is_string($featureGateEnvironment['shadowedBy'] ?? null),
+                'shadowedBy' => is_string($featureGateEnvironment['shadowedBy'] ?? null) ? $featureGateEnvironment['shadowedBy'] : null,
                 'selected' => is_string($featureGateEnvironment['selected'] ?? null) ? $featureGateEnvironment['selected'] : null,
                 'historyEntryCount' => $featureGateHistory === [] ? (int) ($featureGates !== []) : count($featureGateHistory),
                 'featureHistoryCount' => count($featureGateHistory),
@@ -8077,6 +8082,8 @@ final class PdfEngineHandoff
                 $optionIssues($creationTimestampOverrides)
             );
             $appendCase('creation-timestamp', $creationTimestampIssues === [] ? 'ok' : 'review', count($creationTimestampEntries), [
+                'raw' => is_string($creationTimestamp['raw'] ?? null) ? $creationTimestamp['raw'] : null,
+                'kind' => is_string($creationTimestamp['kind'] ?? null) ? $creationTimestamp['kind'] : null,
                 'timestamp' => is_int($creationTimestamp['timestamp'] ?? null) ? $creationTimestamp['timestamp'] : null,
                 'iso8601' => is_string($creationTimestamp['iso8601'] ?? null) ? $creationTimestamp['iso8601'] : null,
                 'deterministic' => ($creationTimestamp['deterministic'] ?? false) === true,
@@ -8086,11 +8093,14 @@ final class PdfEngineHandoff
                 'unixTimestampCount' => $unixTimestampCount,
                 'overrideCount' => count($creationTimestampOverrides),
                 'environmentShadowed' => is_string($creationTimestampEnvironment['shadowedBy'] ?? null),
+                'environmentRaw' => is_string($creationTimestampEnvironment['raw'] ?? null) ? $creationTimestampEnvironment['raw'] : null,
                 'environmentVariable' => is_string($creationTimestamp['environmentVariable'] ?? null)
                     ? $creationTimestamp['environmentVariable']
                     : (is_string($creationTimestampEnvironment['environmentVariable'] ?? null) ? $creationTimestampEnvironment['environmentVariable'] : null),
                 'environmentTimestamp' => is_int($creationTimestampEnvironment['timestamp'] ?? null) ? $creationTimestampEnvironment['timestamp'] : null,
+                'environmentIso8601' => is_string($creationTimestampEnvironment['iso8601'] ?? null) ? $creationTimestampEnvironment['iso8601'] : null,
                 'environmentSelected' => is_string($creationTimestampEnvironment['selected'] ?? null) ? $creationTimestampEnvironment['selected'] : null,
+                'shadowedBy' => is_string($creationTimestampEnvironment['shadowedBy'] ?? null) ? $creationTimestampEnvironment['shadowedBy'] : null,
                 'selected' => is_string($creationTimestampEnvironment['selected'] ?? null) ? $creationTimestampEnvironment['selected'] : null,
                 'source' => is_string($creationTimestamp['source'] ?? null) ? $creationTimestamp['source'] : null,
             ], $creationTimestampIssues);
