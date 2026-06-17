@@ -8013,6 +8013,14 @@ final class PdfEngineHandoff
                 static fn (mixed $entry): bool => is_array($entry)
                     && in_array($entry['option'] ?? null, ['diagnosticFormat', 'diagnosticColor'], true)
             ));
+            $diagnosticFormatOverrides = array_values(array_filter(
+                $diagnosticOverrides,
+                static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'diagnosticFormat'
+            ));
+            $diagnosticColorOverrides = array_values(array_filter(
+                $diagnosticOverrides,
+                static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'diagnosticColor'
+            ));
             $countUnsafe = static function (array $entries): int {
                 $count = 0;
                 foreach ($entries as $entry) {
@@ -8032,10 +8040,14 @@ final class PdfEngineHandoff
             $appendCase('diagnostic-output', $diagnosticIssues === [] ? 'ok' : 'review', (int) ($diagnosticFormat !== []) + (int) ($diagnosticColor !== []), [
                 'format' => is_string($diagnosticFormat['format'] ?? null) ? $diagnosticFormat['format'] : null,
                 'machineReadable' => ($diagnosticFormat['machineReadable'] ?? false) === true,
+                'formatSafe' => ($diagnosticFormat['safe'] ?? false) === true,
                 'color' => is_string($diagnosticColor['color'] ?? null) ? $diagnosticColor['color'] : null,
                 'ansiColor' => is_string($diagnosticColor['ansiColor'] ?? null) ? $diagnosticColor['ansiColor'] : null,
+                'colorSafe' => ($diagnosticColor['safe'] ?? false) === true,
                 'formatHistoryCount' => count($diagnosticFormatHistory),
+                'formatOverrideCount' => count($diagnosticFormatOverrides),
                 'colorHistoryCount' => count($diagnosticColorHistory),
+                'colorOverrideCount' => count($diagnosticColorOverrides),
                 'overrideCount' => count($diagnosticOverrides),
                 'invalidFormatCount' => $countUnsafe($diagnosticFormatHistory),
                 'invalidColorCount' => $countUnsafe($diagnosticColorHistory),

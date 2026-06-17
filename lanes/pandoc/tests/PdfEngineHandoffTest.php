@@ -4102,10 +4102,14 @@ return [
             'details' => [
                 'format' => 'json',
                 'machineReadable' => true,
+                'formatSafe' => true,
                 'color' => 'never',
                 'ansiColor' => 'disabled',
+                'colorSafe' => true,
                 'formatHistoryCount' => 2,
+                'formatOverrideCount' => 1,
                 'colorHistoryCount' => 2,
+                'colorOverrideCount' => 1,
                 'overrideCount' => 2,
                 'invalidFormatCount' => 1,
                 'invalidColorCount' => 1,
@@ -4145,6 +4149,93 @@ return [
         $t->contains('typst-boundary-matrix-review-cases:2', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expectedCase, $resultCases['diagnostic-output']);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
+    'maps typst diagnostic output selected details into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/diagnostic-output-detail-matrix.pdf',
+            'source' => '= Typst Diagnostic Output Detail Matrix Packet',
+            'engineOptions' => [
+                '--diagnostic-format=xml',
+                '--diagnostic-format',
+                'short',
+                '--diagnostic-format=json',
+                '--color=rainbow',
+                '--color',
+                'always',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst diagnostic output detail matrix packet\n%%EOF\n";
+        $matrix = $plan['typstBoundaryMatrix'];
+        $cases = [];
+        foreach ($matrix['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+        $expectedDiagnostic = [
+            'case' => 'diagnostic-output',
+            'reviewStatus' => 'review',
+            'observed' => 2,
+            'details' => [
+                'format' => 'json',
+                'machineReadable' => true,
+                'formatSafe' => true,
+                'color' => 'always',
+                'ansiColor' => 'enabled',
+                'colorSafe' => true,
+                'formatHistoryCount' => 3,
+                'formatOverrideCount' => 1,
+                'colorHistoryCount' => 2,
+                'colorOverrideCount' => 1,
+                'overrideCount' => 2,
+                'invalidFormatCount' => 1,
+                'invalidColorCount' => 1,
+            ],
+            'issues' => [
+                'diagnostic-color-boundary-overridden',
+                'diagnostic-color-invalid-boundary',
+                'diagnostic-format-boundary-overridden',
+                'diagnostic-format-invalid-boundary',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/diagnostic-output-detail-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/diagnostic-output-detail-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $resultCases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $resultCases[$case['case']] = $case;
+        }
+
+        $t->same(['boundary-overrides', 'output-format', 'diagnostic-output'], array_column($matrix['cases'], 'case'));
+        $t->same('review', $matrix['reviewStatus']);
+        $t->same(3, $matrix['caseCount']);
+        $t->same(2, $matrix['reviewCaseCount']);
+        $t->same(6, $matrix['issueCount']);
+        $t->same(2, $cases['boundary-overrides']['observed']);
+        $t->same(5, $cases['boundary-overrides']['details']['historyEntryCount']);
+        $t->same([
+            'diagnosticColor' => 'always',
+            'diagnosticFormat' => 'json',
+        ], $cases['boundary-overrides']['details']['selectedByOption']);
+        $t->same($expectedDiagnostic, $cases['diagnostic-output']);
+        $t->contains('diagnostic-output:diagnostic-format-invalid-boundary', implode(',', $matrix['issues']));
+        $t->contains('diagnostic-output:diagnostic-color-invalid-boundary', implode(',', $matrix['issues']));
+        $t->contains('typst-boundary-matrix-cases:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-review-cases:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-issues:6', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedDiagnostic, $resultCases['diagnostic-output']);
         $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
         $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
     },
