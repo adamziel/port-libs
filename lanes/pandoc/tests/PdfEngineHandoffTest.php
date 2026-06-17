@@ -6437,6 +6437,77 @@ return [
         $t->same($expected, $sequence['finalTypstWarningProvenance']);
     },
 
+    'fake runner maps typst runtime warning provenance into boundary matrix without static options' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'project/unbounded.typ',
+            'outputPath' => 'build/unbounded-warning.pdf',
+            'source' => '= Typst Runtime Warning Matrix Packet',
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst runtime warning matrix packet\n%%EOF\n";
+        $stderr = implode("\n", [
+            'warning: unbounded import uses review path',
+            '  ' . "\u{250C}\u{2500}" . ' project/unbounded.typ:4:7-4:18',
+            '  = hint: add --root=project to classify warning reads',
+            '',
+        ]);
+        $expectedWarning = [
+            [
+                'message' => 'unbounded import uses review path',
+                'sourceFile' => 'project/unbounded.typ',
+                'line' => 4,
+                'column' => 7,
+                'endLine' => 4,
+                'endColumn' => 18,
+                'hints' => ['add --root=project to classify warning reads'],
+                'root' => null,
+                'insideRoot' => null,
+                'boundaryStatus' => 'unbounded',
+                'issues' => [],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'stderr' => $stderr,
+            'files' => [
+                'build/unbounded-warning.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'stderr' => $stderr,
+            'files' => [
+                'build/unbounded-warning.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same([], $plan['typstBoundaryProvenance']);
+        $t->same([], $plan['typstBoundaryMatrix']);
+        $t->same(true, $result['ok']);
+        $t->same($expectedWarning, $result['typstWarningProvenance']);
+        $t->same($expectedWarning, $result['artifactProvenanceReview']['typstWarningProvenance']);
+        $matrix = $result['typstBoundaryMatrix'];
+        $cases = [];
+        foreach ($matrix['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(['output-format', 'warning-provenance'], array_column($matrix['cases'], 'case'));
+        $t->same('ok', $matrix['reviewStatus']);
+        $t->same(2, $matrix['caseCount']);
+        $t->same(0, $matrix['reviewCaseCount']);
+        $t->same(0, $matrix['issueCount']);
+        $t->same('pdf', $cases['output-format']['details']['inferredOutputFormat']);
+        $t->same(1, $cases['warning-provenance']['observed']);
+        $t->same(0, $cases['warning-provenance']['details']['sourceIssueCount']);
+        $t->same(0, $cases['warning-provenance']['details']['outsideRootCount']);
+        $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
+        $t->contains('typst-warning-provenance:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-boundary-matrix-cases:2', implode(',', $result['diagnostics']));
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+    },
+
     'maps typst pdf boundary matrix across provenance domains without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $source = implode("\n", [

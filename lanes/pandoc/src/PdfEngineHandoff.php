@@ -7161,7 +7161,11 @@ final class PdfEngineHandoff
         array $packageDependencyPolicy = [],
         array $warningProvenance = []
     ): array {
-        if ($engine !== 'typst' || ($provenance === [] && $sourceInput === [])) {
+        $hasRuntimeProvenance = $readBoundaryPolicy !== []
+            || $dependencyOutputPolicy !== []
+            || $packageDependencyPolicy !== []
+            || $warningProvenance !== [];
+        if ($engine !== 'typst' || ($provenance === [] && $sourceInput === [] && !$hasRuntimeProvenance)) {
             return [];
         }
 
