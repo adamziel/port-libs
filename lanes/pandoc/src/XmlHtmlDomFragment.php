@@ -151,7 +151,14 @@ final class XmlHtmlDomFragment
     private static function assertSafeHtmlSource(string $html, string $label): void
     {
         self::assertNoNullByte($html, $label);
-        $declarationScanSource = self::sourceForDeclarationScan($html);
+        $preflight = XmlHtmlDom::protectHtmlRcdataElements(
+            $html,
+            protectTemplateContent: true,
+            protectIframeContent: true,
+            protectRawTextContent: true,
+            protectNoscriptContent: true
+        );
+        $declarationScanSource = self::sourceForDeclarationScan($preflight);
         if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
