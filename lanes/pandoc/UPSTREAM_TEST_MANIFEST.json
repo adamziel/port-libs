@@ -132,6 +132,8 @@
     "xmlHtmlDomDraggableStateAssertions": 51,
     "mappedXmlHtmlDomAccessKeyCollisionCases": 1,
     "xmlHtmlDomAccessKeyCollisionAssertions": 38,
+    "mappedXmlHtmlDomDirectionValidityCases": 1,
+    "xmlHtmlDomDirectionValidityAssertions": 31,
     "mappedXmlHtmlDomSpellcheckInheritanceCases": 1,
     "xmlHtmlDomSpellcheckInheritanceAssertions": 33,
     "mappedXmlHtmlDomInertInheritanceCases": 2,

@@ -17696,6 +17696,8 @@ final class XmlHtmlDom
             $dir = self::htmlDirectionState($attributes['dir']);
             $summary['dirRaw'] = $attributes['dir'];
             $summary['direction'] = $dir;
+            $summary['directionValid'] = $dir !== null;
+            $summary['directionInvalidValueIgnored'] = $dir === null;
         }
 
         $summary += self::effectiveDirectionSummary($element, $attributes);
