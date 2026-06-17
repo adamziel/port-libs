@@ -10587,6 +10587,10 @@ final class DocxOpenXmlReader
         $relationshipTargetContentTypeSourceCounts = [];
         $relationshipTargetContentTypes = [];
         $relationshipTargetParameterizedContentTypeCount = 0;
+        $relationshipTargetContentTypeParameterCount = 0;
+        $relationshipTargetContentTypeParameterNameCounts = [];
+        $relationshipTargetContentTypeParameterValueCounts = [];
+        $relationshipTargetContentTypeParameterSourceCounts = [];
         $relationshipTargetRoleCounts = [];
         $relationshipTargetExistingRoleCounts = [];
         $relationshipTargetMissingRoleCounts = [];
@@ -10949,6 +10953,21 @@ final class DocxOpenXmlReader
                     if ($targetContentTypeSource === '') {
                         $targetContentTypeSource = 'missing';
                     }
+                    $targetContentTypeParameters = is_array($relationship['contentTypeParameters'] ?? null)
+                        ? $relationship['contentTypeParameters']
+                        : [];
+                    $targetContentTypeParameterMap = is_array($relationship['contentTypeParameterMap'] ?? null)
+                        ? $relationship['contentTypeParameterMap']
+                        : [];
+                    $targetContentTypeParameterCount = is_int($relationship['contentTypeParameterCount'] ?? null)
+                        ? (int) $relationship['contentTypeParameterCount']
+                        : count($targetContentTypeParameters);
+                    if ($targetContentTypeParameterCount === 0) {
+                        $targetContentTypeParameterCount = count($targetContentTypeParameters);
+                    }
+                    $targetContentTypeHasParameters = (bool) ($relationship['contentTypeHasParameters'] ?? false)
+                        || $targetContentTypeParameterCount > 0
+                        || $targetContentTypeParameterMap !== [];
                     if (!isset($relationshipTargetTopLevelSegments[$targetTopLevelSegment])) {
                         $relationshipTargetTopLevelSegments[$targetTopLevelSegment] = [
                             'topLevelSegment' => $targetTopLevelSegment,
@@ -10995,7 +11014,7 @@ final class DocxOpenXmlReader
                         $relationshipTargetMissingTopLevelSegmentCounts[$targetTopLevelSegment] =
                             ($relationshipTargetMissingTopLevelSegmentCounts[$targetTopLevelSegment] ?? 0) + 1;
                     }
-                    if (($relationship['contentTypeHasParameters'] ?? false) === true) {
+                    if ($targetContentTypeHasParameters) {
                         ++$relationshipTargetTopLevelSegments[$targetTopLevelSegment]['parameterizedTargetCount'];
                     }
 
@@ -11045,7 +11064,7 @@ final class DocxOpenXmlReader
                         $relationshipTargetMissingDirectoryCounts[$targetDirectory] =
                             ($relationshipTargetMissingDirectoryCounts[$targetDirectory] ?? 0) + 1;
                     }
-                    if (($relationship['contentTypeHasParameters'] ?? false) === true) {
+                    if ($targetContentTypeHasParameters) {
                         ++$relationshipTargetDirectories[$targetDirectory]['parameterizedTargetCount'];
                     }
 
@@ -11095,7 +11114,7 @@ final class DocxOpenXmlReader
                         $relationshipTargetMissingBaseNameCounts[$targetBaseName] =
                             ($relationshipTargetMissingBaseNameCounts[$targetBaseName] ?? 0) + 1;
                     }
-                    if (($relationship['contentTypeHasParameters'] ?? false) === true) {
+                    if ($targetContentTypeHasParameters) {
                         ++$relationshipTargetBaseNames[$targetBaseName]['parameterizedTargetCount'];
                     }
 
@@ -11156,7 +11175,7 @@ final class DocxOpenXmlReader
                     if ($targetContentTypeSource === 'missing') {
                         ++$relationshipTargetPathDepths[$targetPathDepthKey]['missingContentTypeTargetCount'];
                     }
-                    if (($relationship['contentTypeHasParameters'] ?? false) === true) {
+                    if ($targetContentTypeHasParameters) {
                         ++$relationshipTargetPathDepths[$targetPathDepthKey]['parameterizedTargetCount'];
                     }
                     if (
@@ -11204,6 +11223,10 @@ final class DocxOpenXmlReader
                             'contentTypeSourceCounts' => [],
                             'targetParts' => [],
                             'relationshipIds' => [],
+                            'contentTypeParameterCount' => 0,
+                            'contentTypeParameterNameCounts' => [],
+                            'contentTypeParameterValueCounts' => [],
+                            'contentTypeParameterSourceCounts' => [],
                         ];
                     }
 
@@ -11225,9 +11248,36 @@ final class DocxOpenXmlReader
                     } else {
                         ++$relationshipTargetContentTypes[$targetContentTypeKey]['missingTargetCount'];
                     }
-                    if (($relationship['contentTypeHasParameters'] ?? false) === true) {
+                    if ($targetContentTypeHasParameters) {
                         ++$relationshipTargetParameterizedContentTypeCount;
                         ++$relationshipTargetContentTypes[$targetContentTypeKey]['parameterizedTargetCount'];
+                        $relationshipTargetContentTypeParameterSourceCounts[$targetContentTypeSource] =
+                            ($relationshipTargetContentTypeParameterSourceCounts[$targetContentTypeSource] ?? 0) + 1;
+                        $relationshipTargetContentTypes[$targetContentTypeKey]['contentTypeParameterSourceCounts'][$targetContentTypeSource] =
+                            ($relationshipTargetContentTypes[$targetContentTypeKey]['contentTypeParameterSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                    }
+                    foreach ($targetContentTypeParameters as $parameter) {
+                        if (!is_array($parameter)) {
+                            continue;
+                        }
+
+                        $parameterName = is_string($parameter['name'] ?? null) ? $parameter['name'] : '';
+                        if ($parameterName === '') {
+                            continue;
+                        }
+
+                        $parameterValue = is_scalar($parameter['value'] ?? null) ? (string) $parameter['value'] : '';
+                        $parameterValueKey = $parameterValue === '' ? '(empty)' : $parameterValue;
+                        ++$relationshipTargetContentTypeParameterCount;
+                        ++$relationshipTargetContentTypes[$targetContentTypeKey]['contentTypeParameterCount'];
+                        $relationshipTargetContentTypeParameterNameCounts[$parameterName] =
+                            ($relationshipTargetContentTypeParameterNameCounts[$parameterName] ?? 0) + 1;
+                        $relationshipTargetContentTypes[$targetContentTypeKey]['contentTypeParameterNameCounts'][$parameterName] =
+                            ($relationshipTargetContentTypes[$targetContentTypeKey]['contentTypeParameterNameCounts'][$parameterName] ?? 0) + 1;
+                        $relationshipTargetContentTypeParameterValueCounts[$parameterName][$parameterValueKey] =
+                            ($relationshipTargetContentTypeParameterValueCounts[$parameterName][$parameterValueKey] ?? 0) + 1;
+                        $relationshipTargetContentTypes[$targetContentTypeKey]['contentTypeParameterValueCounts'][$parameterName][$parameterValueKey] =
+                            ($relationshipTargetContentTypes[$targetContentTypeKey]['contentTypeParameterValueCounts'][$parameterName][$parameterValueKey] ?? 0) + 1;
                     }
 
                     $targetInventory = is_array($partInventory[$targetPart] ?? null)
@@ -11293,7 +11343,7 @@ final class DocxOpenXmlReader
                             ++$relationshipTargetRoles[$targetRole]['missingTargetCount'];
                         }
 
-                        if (($relationship['contentTypeHasParameters'] ?? false) === true) {
+                        if ($targetContentTypeHasParameters) {
                             ++$relationshipTargetRoles[$targetRole]['parameterizedTargetCount'];
                         }
                     }
@@ -11453,9 +11503,23 @@ final class DocxOpenXmlReader
         unset($targetPathDepthSummary);
         ksort($relationshipTargetContentTypeCounts);
         ksort($relationshipTargetContentTypeSourceCounts);
+        ksort($relationshipTargetContentTypeParameterNameCounts);
+        ksort($relationshipTargetContentTypeParameterValueCounts);
+        foreach ($relationshipTargetContentTypeParameterValueCounts as &$targetParameterValueCounts) {
+            ksort($targetParameterValueCounts);
+        }
+        unset($targetParameterValueCounts);
+        ksort($relationshipTargetContentTypeParameterSourceCounts);
         ksort($relationshipTargetContentTypes);
         foreach ($relationshipTargetContentTypes as &$targetContentTypeSummary) {
             ksort($targetContentTypeSummary['contentTypeSourceCounts']);
+            ksort($targetContentTypeSummary['contentTypeParameterNameCounts']);
+            ksort($targetContentTypeSummary['contentTypeParameterValueCounts']);
+            foreach ($targetContentTypeSummary['contentTypeParameterValueCounts'] as &$targetBucketParameterValueCounts) {
+                ksort($targetBucketParameterValueCounts);
+            }
+            unset($targetBucketParameterValueCounts);
+            ksort($targetContentTypeSummary['contentTypeParameterSourceCounts']);
         }
         unset($targetContentTypeSummary);
         ksort($relationshipTargetRoleCounts);
@@ -11717,6 +11781,10 @@ final class DocxOpenXmlReader
             'relationshipTargetContentTypeCounts' => $relationshipTargetContentTypeCounts,
             'relationshipTargetContentTypeSourceCounts' => $relationshipTargetContentTypeSourceCounts,
             'relationshipTargetParameterizedContentTypeCount' => $relationshipTargetParameterizedContentTypeCount,
+            'relationshipTargetContentTypeParameterCount' => $relationshipTargetContentTypeParameterCount,
+            'relationshipTargetContentTypeParameterNameCounts' => $relationshipTargetContentTypeParameterNameCounts,
+            'relationshipTargetContentTypeParameterValueCounts' => $relationshipTargetContentTypeParameterValueCounts,
+            'relationshipTargetContentTypeParameterSourceCounts' => $relationshipTargetContentTypeParameterSourceCounts,
             'relationshipTargetContentTypes' => array_values($relationshipTargetContentTypes),
             'relationshipTargetRoleCount' => count($relationshipTargetRoles),
             'relationshipTargetRoleCounts' => $relationshipTargetRoleCounts,
