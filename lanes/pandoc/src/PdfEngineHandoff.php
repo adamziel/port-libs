@@ -3170,6 +3170,8 @@ final class PdfEngineHandoff
                         'duplicateMcids' => 'duplicate-mcids',
                         'outOfLimitMcids' => 'out-of-limit-mcids',
                         'missingMarkedContentMcids' => 'missing-marked-content-mcids',
+                        'pageStructParentIndexes' => 'page-struct-parents',
+                        'missingPageStructParentIndexes' => 'missing-page-struct-parents',
                     ] as $policyKey => $diagnosticName) {
                         if (isset($pdfStructureParentTreePolicy[$policyKey]) && is_array($pdfStructureParentTreePolicy[$policyKey]) && $pdfStructureParentTreePolicy[$policyKey] !== []) {
                             $diagnostics[] = 'pdf-byte-structure-parent-tree-policy-' . $diagnosticName . ':' . count($pdfStructureParentTreePolicy[$policyKey]);
@@ -11922,7 +11924,8 @@ final class PdfEngineHandoff
             $structureElements,
             $pageContentStreams,
             $markedContentProperties,
-            $markedContentArtifacts
+            $markedContentArtifacts,
+            $pageStructureParents
         );
         $structureIdTreePolicy = $this->summarizePdfStructureIdTreePolicy($structureIdTree, $structureElements);
         $encryption = $this->extractPdfEncryptionInfo($pdfBytes);
@@ -19899,6 +19902,7 @@ final class PdfEngineHandoff
      * @param list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}> $pageContentStreams
      * @param list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}> $markedContentProperties
      * @param list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}> $markedContentArtifacts
+     * @param list<array{page:int, pageObject:string|null, structParents:int, source:string}> $pageStructureParents
      * @return array<string, mixed>
      */
     private function summarizePdfStructureParentTreePolicy(
@@ -19906,9 +19910,10 @@ final class PdfEngineHandoff
         array $structureElements,
         array $pageContentStreams,
         array $markedContentProperties,
-        array $markedContentArtifacts
+        array $markedContentArtifacts,
+        array $pageStructureParents = []
     ): array {
-        if ($parentTree === [] && $structureElements === [] && $pageContentStreams === [] && $markedContentProperties === [] && $markedContentArtifacts === []) {
+        if ($parentTree === [] && $structureElements === [] && $pageContentStreams === [] && $markedContentProperties === [] && $markedContentArtifacts === [] && $pageStructureParents === []) {
             return [];
         }
 
@@ -19947,7 +19952,14 @@ final class PdfEngineHandoff
             }
         }
 
-        if ($parentTree === [] && $structureElements === [] && $markedContentMcids === []) {
+        $pageStructParentIndexes = [];
+        foreach ($pageStructureParents as $pageStructureParent) {
+            if (is_int($pageStructureParent['structParents'] ?? null) && $pageStructureParent['structParents'] >= 0) {
+                $pageStructParentIndexes[$pageStructureParent['structParents']] = true;
+            }
+        }
+
+        if ($parentTree === [] && $structureElements === [] && $markedContentMcids === [] && $pageStructParentIndexes === []) {
             return [];
         }
 
@@ -19995,11 +20007,19 @@ final class PdfEngineHandoff
                 $missingMarkedContentMcids[(int) $mcid] = true;
             }
         }
+        $missingPageStructParentIndexes = [];
+        foreach (array_keys($pageStructParentIndexes) as $index) {
+            if (!isset($parentMcids[(int) $index])) {
+                $missingPageStructParentIndexes[(int) $index] = true;
+            }
+        }
 
         $duplicateMcidList = $this->sortedIntegerKeys($duplicateMcids);
         $outOfLimitMcidList = $this->sortedIntegerKeys($outOfLimitMcids);
         $markedContentMcidList = $this->sortedIntegerKeys($markedContentMcids);
         $missingMarkedContentMcidList = $this->sortedIntegerKeys($missingMarkedContentMcids);
+        $pageStructParentIndexList = $this->sortedIntegerKeys($pageStructParentIndexes);
+        $missingPageStructParentIndexList = $this->sortedIntegerKeys($missingPageStructParentIndexes);
         $referencedObjectList = $this->sortedPdfReferenceKeys($referencedObjects);
         $missingReferenceList = $this->sortedPdfReferenceKeys($missingReferences);
         $nonStructureReferenceList = $this->sortedPdfReferenceKeys($nonStructureReferences);
@@ -20022,6 +20042,11 @@ final class PdfEngineHandoff
         }
         if ($parentTree === [] && $markedContentMcidList !== []) {
             $issues[] = 'parent-tree-missing-for-marked-content';
+        }
+        if ($parentTree === [] && $pageStructParentIndexList !== []) {
+            $issues[] = 'parent-tree-missing-for-page-struct-parents';
+        } elseif ($missingPageStructParentIndexList !== []) {
+            $issues[] = 'page-struct-parent-missing-parent-tree';
         }
         sort($issues, SORT_STRING);
 
@@ -20073,7 +20098,10 @@ final class PdfEngineHandoff
             'missingMarkedContentMcids' => $missingMarkedContentMcidList,
             'issues' => $issues,
             'entries' => $entries,
-        ];
+        ] + ($pageStructParentIndexList === [] ? [] : [
+            'pageStructParentIndexes' => $pageStructParentIndexList,
+            'missingPageStructParentIndexes' => $missingPageStructParentIndexList,
+        ]);
     }
 
     /**

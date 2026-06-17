@@ -13084,6 +13084,95 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfPageStructureParents'] ?? null);
     },
 
+    'fake runner reviews bounded pdf page structure parent tree coverage from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-struct-parent-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /StructParents 4 >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /StructParents 7 >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R] /ParentTree 12 0 R /ParentTreeNextKey 8 >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /P /P 9 0 R /Pg 3 0 R /K 0 >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Nums [4 [10 0 R]] /Limits [4 4] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/page-struct-parent-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/page-struct-parent-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'source' => 'structure-parent-tree',
+            'reviewStatus' => 'review',
+            'parentTreeEntryCount' => 1,
+            'structureElementCount' => 1,
+            'markedContentMcidCount' => 0,
+            'referencedStructureObjects' => ['10 0 R'],
+            'missingStructureReferences' => [],
+            'nonStructureReferences' => [],
+            'duplicateMcids' => [],
+            'outOfLimitMcids' => [],
+            'markedContentMcids' => [],
+            'missingMarkedContentMcids' => [],
+            'issues' => ['page-struct-parent-missing-parent-tree'],
+            'entries' => [
+                [
+                    'source' => 'structTreeRoot.ParentTree',
+                    'nodeObject' => '12 0 R',
+                    'mcid' => 4,
+                    'valueKind' => 'array',
+                    'structureReferences' => ['10 0 R'],
+                    'missingReferences' => [],
+                    'reviewStatus' => 'ok',
+                    'issues' => [],
+                ],
+            ],
+            'pageStructParentIndexes' => [4, 7],
+            'missingPageStructParentIndexes' => [7],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStructureParentTreePolicy'] ?? null);
+        $t->contains('pdf-byte-page-structure-parents:2', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy:review', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-entries:1', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-page-struct-parents:2', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-missing-page-struct-parents:1', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-issues:1', $diagnostics);
+        $t->contains('pdf-byte-structure-parent-tree-policy-issue:page-struct-parent-missing-parent-tree:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStructureParentTreePolicy'] ?? null);
+    },
+
     'fake runner extracts bounded pdf structure parent tree number mappings from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/parent-tree.pdf']);
