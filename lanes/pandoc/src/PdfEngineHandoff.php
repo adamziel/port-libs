@@ -6351,11 +6351,7 @@ final class PdfEngineHandoff
      */
     private function typstEnvironmentPathListValues(string $raw): array
     {
-        if ($raw === '') {
-            return [''];
-        }
-
-        return explode(PATH_SEPARATOR, $raw);
+        return $this->splitTypstFontPathValue($raw);
     }
 
     /**
