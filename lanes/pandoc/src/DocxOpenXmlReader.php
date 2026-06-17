@@ -607,6 +607,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartRootAttributeCount'] = $selectedXmlParts['rootAttributeCount'];
         $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarationCount'] = $selectedXmlParts['rootNamespaceDeclarationCount'];
         $packageProvenance['summary']['selectedXmlPartRootNamespacePrefixes'] = $selectedXmlParts['rootNamespacePrefixes'];
+        $packageProvenance['summary']['selectedXmlPartXmlDeclarationCount'] = $selectedXmlParts['xmlDeclarationCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDeclarationEncodingCounts'] = $selectedXmlParts['xmlDeclarationEncodingCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlStandaloneDeclarationCount'] = $selectedXmlParts['xmlStandaloneDeclarationCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlStandaloneYesCount'] = $selectedXmlParts['xmlStandaloneYesCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlStandaloneNoCount'] = $selectedXmlParts['xmlStandaloneNoCount'];
         $packageProvenance['summary']['stylesWithEffectsPart'] = $stylesWithEffectsPart['partName'];
         $packageProvenance['summary']['stylesWithEffectsExists'] = $stylesWithEffectsPart['exists'];
         $packageProvenance['summary']['stylesWithEffectsRelationshipId'] = $stylesWithEffectsPart['relationship']['id'] ?? null;
@@ -10505,11 +10510,31 @@ final class DocxOpenXmlReader
         $rootAttributeCount = 0;
         $rootNamespaceDeclarationCount = 0;
         $rootPrefixedCount = 0;
+        $xmlDeclarationCount = 0;
+        $xmlDeclarationEncodingCounts = [];
+        $xmlStandaloneDeclarationCount = 0;
+        $xmlStandaloneYesCount = 0;
+        $xmlStandaloneNoCount = 0;
         foreach ($items as $item) {
             $rootAttributeCount += (int) ($item['rootAttributeCount'] ?? 0);
             $rootNamespaceDeclarationCount += (int) ($item['rootNamespaceDeclarationCount'] ?? 0);
             if (($item['rootPrefix'] ?? null) !== null) {
                 ++$rootPrefixedCount;
+            }
+            if (($item['xmlDeclarationPresent'] ?? false) === true) {
+                ++$xmlDeclarationCount;
+            }
+            $encoding = is_string($item['xmlDeclarationEncoding'] ?? null) ? $item['xmlDeclarationEncoding'] : '';
+            if ($encoding !== '') {
+                $xmlDeclarationEncodingCounts[$encoding] = ($xmlDeclarationEncodingCounts[$encoding] ?? 0) + 1;
+            }
+            if (is_bool($item['xmlDeclarationStandalone'] ?? null)) {
+                ++$xmlStandaloneDeclarationCount;
+                if ($item['xmlDeclarationStandalone'] === true) {
+                    ++$xmlStandaloneYesCount;
+                } else {
+                    ++$xmlStandaloneNoCount;
+                }
             }
             foreach (($item['rootNamespacePrefixes'] ?? []) as $prefix) {
                 if (is_string($prefix)) {
@@ -10517,6 +10542,7 @@ final class DocxOpenXmlReader
                 }
             }
         }
+        ksort($xmlDeclarationEncodingCounts, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -10537,6 +10563,11 @@ final class DocxOpenXmlReader
             'rootAttributeCount' => $rootAttributeCount,
             'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
             'rootNamespacePrefixes' => $rootNamespacePrefixes,
+            'xmlDeclarationCount' => $xmlDeclarationCount,
+            'xmlDeclarationEncodingCounts' => $xmlDeclarationEncodingCounts,
+            'xmlStandaloneDeclarationCount' => $xmlStandaloneDeclarationCount,
+            'xmlStandaloneYesCount' => $xmlStandaloneYesCount,
+            'xmlStandaloneNoCount' => $xmlStandaloneNoCount,
             'issueCount' => $issueCount,
             'issueKinds' => $issueKinds,
             'byKind' => $byKind,
@@ -10599,6 +10630,11 @@ final class DocxOpenXmlReader
             'rootAttributeCount' => 0,
             'rootNamespaceDeclarationCount' => 0,
             'rootNamespacePrefixes' => [],
+            'xmlDeclarationPresent' => false,
+            'xmlDeclarationVersion' => null,
+            'xmlDeclarationEncoding' => null,
+            'xmlDeclarationStandalone' => null,
+            'xmlDeclarationAttributeCount' => 0,
             'validRoot' => null,
             'xmlParseError' => null,
             'expectedContentTypeBase' => $expectedContentTypeBase,
@@ -10643,6 +10679,12 @@ final class DocxOpenXmlReader
         }
 
         $xml = is_string($definition['xml']) ? $definition['xml'] : ($parts[$partName] ?? '');
+        $xmlDeclaration = $this->xmlDeclarationProvenance($xml);
+        $item['xmlDeclarationPresent'] = $xmlDeclaration['present'];
+        $item['xmlDeclarationVersion'] = $xmlDeclaration['version'];
+        $item['xmlDeclarationEncoding'] = $xmlDeclaration['encoding'];
+        $item['xmlDeclarationStandalone'] = $xmlDeclaration['standalone'];
+        $item['xmlDeclarationAttributeCount'] = $xmlDeclaration['attributeCount'];
         if ($xml === '') {
             $item['validRoot'] = false;
             $item['issues'][] = 'empty-xml-part';
@@ -10672,6 +10714,49 @@ final class DocxOpenXmlReader
         }
 
         return $item;
+    }
+
+    /**
+     * @return array{present:bool, version:?string, encoding:?string, standalone:?bool, attributeCount:int}
+     */
+    private function xmlDeclarationProvenance(string $xml): array
+    {
+        if (preg_match('/^(?:\xEF\xBB\xBF)?\s*<\?xml\s+([^?]*?)\?>/i', $xml, $match) !== 1) {
+            return [
+                'present' => false,
+                'version' => null,
+                'encoding' => null,
+                'standalone' => null,
+                'attributeCount' => 0,
+            ];
+        }
+
+        $attributes = [];
+        preg_match_all('/([A-Za-z_][A-Za-z0-9_.:-]*)\s*=\s*(["\'])(.*?)\2/s', (string) $match[1], $matches, PREG_SET_ORDER);
+        foreach ($matches as $attribute) {
+            $name = strtolower((string) $attribute[1]);
+            if (array_key_exists($name, $attributes)) {
+                continue;
+            }
+
+            $attributes[$name] = (string) $attribute[3];
+        }
+
+        $standalone = null;
+        $standaloneValue = strtolower($attributes['standalone'] ?? '');
+        if ($standaloneValue === 'yes') {
+            $standalone = true;
+        } elseif ($standaloneValue === 'no') {
+            $standalone = false;
+        }
+
+        return [
+            'present' => true,
+            'version' => isset($attributes['version']) && $attributes['version'] !== '' ? $attributes['version'] : null,
+            'encoding' => isset($attributes['encoding']) && $attributes['encoding'] !== '' ? $attributes['encoding'] : null,
+            'standalone' => $standalone,
+            'attributeCount' => count($attributes),
+        ];
     }
 
     /**

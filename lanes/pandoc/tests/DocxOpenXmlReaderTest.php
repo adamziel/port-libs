@@ -7426,6 +7426,64 @@ XML;
         $t->same(0, $byKind['comments']['rootNamespaceDeclarationCount']);
         $t->same([], $byKind['comments']['rootNamespacePrefixes']);
     },
+    'preserves docx selected openxml xml declaration provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/no-declaration-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '  <Relationship Id="rTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/no-declaration-theme.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="windows-1252" standalone="yes"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+        $parts['word/theme/no-declaration-theme.xml'] = <<<'XML'
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="No Declaration Theme">
+  <a:themeElements/>
+</a:theme>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $byKind = $selected['byKind'];
+
+        $t->same(18, $selected['count']);
+        $t->same(6, $selected['existingCount']);
+        $t->same(5, $selected['xmlDeclarationCount']);
+        $t->same(['UTF-8' => 4, 'windows-1252' => 1], $selected['xmlDeclarationEncodingCounts']);
+        $t->same(1, $selected['xmlStandaloneDeclarationCount']);
+        $t->same(1, $selected['xmlStandaloneYesCount']);
+        $t->same(0, $selected['xmlStandaloneNoCount']);
+        $t->same(5, $summary['selectedXmlPartXmlDeclarationCount']);
+        $t->same($selected['xmlDeclarationEncodingCounts'], $summary['selectedXmlPartXmlDeclarationEncodingCounts']);
+        $t->same(1, $summary['selectedXmlPartXmlStandaloneYesCount']);
+
+        $t->same(true, $byKind['settings']['xmlDeclarationPresent']);
+        $t->same('1.0', $byKind['settings']['xmlDeclarationVersion']);
+        $t->same('windows-1252', $byKind['settings']['xmlDeclarationEncoding']);
+        $t->same(true, $byKind['settings']['xmlDeclarationStandalone']);
+        $t->same(3, $byKind['settings']['xmlDeclarationAttributeCount']);
+        $t->same(false, $byKind['theme']['xmlDeclarationPresent']);
+        $t->same(null, $byKind['theme']['xmlDeclarationEncoding']);
+        $t->same(null, $byKind['theme']['xmlDeclarationStandalone']);
+        $t->same('UTF-8', $byKind['document']['xmlDeclarationEncoding']);
+        $t->same(null, $byKind['document']['xmlDeclarationStandalone']);
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
