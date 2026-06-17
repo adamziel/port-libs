@@ -584,6 +584,7 @@ final class DocxOpenXmlReader
             $this->selectedXmlPartDefinition('comments', $commentsPart['partName'], $commentsPart['xml'], $commentsPart['exists'], $commentsPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'comments', self::CT_WORD_COMMENTS),
             $this->selectedXmlPartDefinition('commentsExtended', $commentsExtendedPart['partName'], $commentsExtendedPart['xml'], $commentsExtendedPart['exists'], $commentsExtendedPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W15, 'commentsEx', self::CT_WORD_COMMENTS_EXTENDED),
             $this->selectedXmlPartDefinition('commentsIds', $commentsIdsPart['partName'], $commentsIdsPart['xml'], $commentsIdsPart['exists'], $commentsIdsPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W16CID, 'commentsIds', self::CT_WORD_COMMENTS_IDS),
+            $this->selectedXmlPartDefinition('people', $peoplePart['partName'], $peoplePart['xml'], $peoplePart['exists'], $peoplePart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W15, 'people', self::CT_WORD_PEOPLE),
         ]);
         $packageProvenance['selectedXmlParts'] = $selectedXmlParts;
         $packageProvenance['summary']['selectedXmlPartCount'] = $selectedXmlParts['count'];
