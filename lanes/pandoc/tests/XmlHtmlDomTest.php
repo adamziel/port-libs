@@ -4443,6 +4443,68 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/autofocus-conflict-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html autofocus document order for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="review-form"><input id="first" name="title" autofocus value="Title">'
+                . '<button id="second" type="button" autofocus>Second</button></form>'
+                . '<textarea id="third" name="body" autofocus>Body</textarea>',
+            'autofocus document order review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/autofocus-order-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $first = $summary[0]['children'][0];
+        $second = $summary[0]['children'][1];
+        $third = $summary[1];
+
+        $t->same('document-autofocus-candidate-review', $first['autofocusReviewPolicy']);
+        $t->same(3, $first['autofocusCandidateCount']);
+        $t->same(0, $first['autofocusIndex']);
+        $t->same(true, $first['autofocusFirstCandidateSelected']);
+        $t->same(false, $first['autofocusSuppressedByEarlierCandidate']);
+        $t->same('first', $first['autofocusCurrentCandidate']['id'] ?? null);
+        $t->same(null, $first['autofocusPreviousCandidate']);
+        $t->same([], $first['autofocusOrderIssueCodes']);
+        $t->same(['input', 'button', 'textarea'], $first['autofocusCandidateElementNames']);
+        $t->same(['first', 'second', 'third'], $first['autofocusCandidateIds']);
+        $t->same(true, $first['autofocusCandidates'][0]['current'] ?? null);
+        $t->same(false, $first['autofocusCandidates'][1]['current'] ?? null);
+        $t->same('first', $first['autofocusFirstCandidate']['id'] ?? null);
+
+        $t->same(1, $second['autofocusIndex']);
+        $t->same(false, $second['autofocusFirstCandidateSelected']);
+        $t->same(true, $second['autofocusSuppressedByEarlierCandidate']);
+        $t->same('second', $second['autofocusCurrentCandidate']['id'] ?? null);
+        $t->same('first', $second['autofocusPreviousCandidate']['id'] ?? null);
+        $t->same('input', $second['autofocusPreviousCandidate']['tag'] ?? null);
+        $t->same(['autofocus-suppressed-by-earlier-candidate'], $second['autofocusOrderIssueCodes']);
+        $t->same(true, $second['autofocusCandidates'][1]['current'] ?? null);
+        $t->same('button', $second['autofocusCandidates'][1]['buttonType'] ?? null);
+        $t->same('Second', $second['autofocusCandidates'][1]['text'] ?? null);
+
+        $t->same(2, $third['autofocusIndex']);
+        $t->same(true, $third['autofocusSuppressedByEarlierCandidate']);
+        $t->same('third', $third['autofocusCurrentCandidate']['id'] ?? null);
+        $t->same('second', $third['autofocusPreviousCandidate']['id'] ?? null);
+        $t->same('button', $third['autofocusPreviousCandidate']['tag'] ?? null);
+        $t->same(['autofocus-suppressed-by-earlier-candidate'], $third['autofocusOrderIssueCodes']);
+        $t->same('form-control', $third['autofocusCandidates'][2]['kind'] ?? null);
+        $t->same('Body', $third['autofocusCandidates'][2]['value'] ?? null);
+        $t->same(['input', 'button', 'textarea'], $third['autofocusCandidateElementNames']);
+
+        $t->same(
+            '<form id="review-form"><input autofocus id="first" name="title" value="Title">'
+                . '<button autofocus id="second" type="button">Second</button></form>'
+                . '<textarea autofocus id="third" name="body">Body</textarea>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/autofocus-order-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html inert and custom element export attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="widget-host" inert part="card title card" exportparts="title:review-title, icon, bad:mapping:extra, invalid name:alias" slot="primary-panel" is="review-widget"><button part="action primary" slot="controls" inert>Save</button></section>'

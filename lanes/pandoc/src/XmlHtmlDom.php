@@ -19126,7 +19126,14 @@ final class XmlHtmlDom
             }
         }
 
+        $currentCandidate = $currentIndex !== null ? ($candidates[$currentIndex] ?? null) : null;
+        $previousCandidate = $currentIndex !== null && $currentIndex > 0
+            ? ($candidates[$currentIndex - 1] ?? null)
+            : null;
         $issueCodes = count($candidates) > 1 ? ['multiple-autofocus-candidates'] : [];
+        $orderIssueCodes = $currentIndex !== null && $currentIndex > 0
+            ? ['autofocus-suppressed-by-earlier-candidate']
+            : [];
 
         return [
             'autofocusReviewPolicy' => 'document-autofocus-candidate-review',
@@ -19135,9 +19142,18 @@ final class XmlHtmlDom
             'autofocusFirst' => $currentIndex === 0,
             'autofocusConflict' => count($candidates) > 1,
             'autofocusCandidateIds' => $candidateIds,
+            'autofocusCandidateElementNames' => array_values(array_map(
+                static fn (array $candidate): string => (string) $candidate['tag'],
+                $candidates
+            )),
+            'autofocusFirstCandidateSelected' => $currentIndex === 0,
+            'autofocusSuppressedByEarlierCandidate' => $currentIndex !== null && $currentIndex > 0,
             'autofocusFirstCandidate' => $candidates[0] ?? null,
+            'autofocusCurrentCandidate' => $currentCandidate,
+            'autofocusPreviousCandidate' => $previousCandidate,
             'autofocusCandidates' => $candidates,
             'autofocusIssueCodes' => $issueCodes,
+            'autofocusOrderIssueCodes' => $orderIssueCodes,
         ];
     }
 
