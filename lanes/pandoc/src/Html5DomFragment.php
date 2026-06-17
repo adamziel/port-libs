@@ -273,7 +273,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'label-metadata-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-srcdoc-review', 'link-browsing-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'text-input-hint-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'label-metadata-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-srcdoc-review', 'link-browsing-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -6686,6 +6686,21 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlTextInputHintAttribute($name)) {
+                $textInputHintMetadata = self::normalizeHtmlTextInputHintAttribute(
+                    $name,
+                    $value,
+                    $tagName,
+                    $element,
+                    $diagnostics
+                );
+                if ($textInputHintMetadata !== null) {
+                    [$metadataName, $metadataValue] = $textInputHintMetadata;
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isHtmlRevisionMetadataAttribute($tagName, $name)) {
                 $revisionMetadata = self::normalizeHtmlRevisionMetadataAttribute(
                     $name,
@@ -7683,6 +7698,85 @@ final class Html5DomFragment
         }
 
         $diagnostics[] = self::diagnosticWithSourceLine($diagnostic, $element);
+    }
+
+    private static function isHtmlTextInputHintAttribute(string $name): bool
+    {
+        return in_array(strtolower($name), ['inputmode', 'enterkeyhint', 'autocapitalize'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:string, 1:string}|null
+     */
+    private static function normalizeHtmlTextInputHintAttribute(
+        string $name,
+        string $value,
+        string $tagName,
+        \DOMElement $element,
+        array &$diagnostics
+    ): ?array {
+        $attribute = strtolower($name);
+        $hint = self::normalizeHtmlTextInputHintToken($attribute, $value);
+        if ($hint === null) {
+            self::addHtmlInvalidTextInputHintDiagnostic($diagnostics, $tagName, $attribute, $element);
+
+            return null;
+        }
+
+        $metadataAttribute = 'data-pandoc-' . $attribute;
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'text-input-hint-review',
+            'tag' => $tagName,
+            'attribute' => $attribute,
+            'metadataAttribute' => $metadataAttribute,
+            'hint' => $hint,
+            'reason' => 'text-input-hint-preserved-as-review-metadata',
+        ], $element);
+
+        return [$metadataAttribute, $hint];
+    }
+
+    private static function normalizeHtmlTextInputHintToken(string $attribute, string $value): ?string
+    {
+        $hint = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($hint === '' || strlen($hint) > 32 || preg_match('/[<>"\'`{}]/u', $hint) === 1) {
+            return null;
+        }
+
+        if ($attribute === 'autocapitalize') {
+            $hint = match ($hint) {
+                'none' => 'off',
+                'on' => 'sentences',
+                default => $hint,
+            };
+        }
+
+        $allowedHints = match ($attribute) {
+            'inputmode' => ['none', 'text', 'tel', 'url', 'email', 'numeric', 'decimal', 'search'],
+            'enterkeyhint' => ['enter', 'done', 'go', 'next', 'previous', 'search', 'send'],
+            'autocapitalize' => ['off', 'sentences', 'words', 'characters'],
+            default => [],
+        };
+
+        return in_array($hint, $allowedHints, true) ? $hint : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlInvalidTextInputHintDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        string $attributeName,
+        \DOMElement $element
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'unsafe-attribute',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+            'reason' => 'invalid-text-input-hint-metadata',
+        ], $element);
     }
 
     private static function isHtmlRevisionMetadataAttribute(string $tagName, string $name): bool

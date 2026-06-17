@@ -4813,6 +4813,70 @@ return [
         }
         $t->true(!str_contains($blocks, ' translate='), 'Expected WordPress blocks to omit source translate attributes');
     },
+    'converts text input hint attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article inputmode=" numeric " enterkeyhint="NEXT" autocapitalize="words" data-pandoc-inputmode="source-spoof" data-pandoc-enterkeyhint="source-spoof" data-pandoc-autocapitalize="source-spoof">'
+            . '<p inputmode="email" enterkeyhint="send" autocapitalize="characters">Contact</p>'
+            . '<span inputmode="url" enterkeyhint="go" autocapitalize="none">Link hint</span>'
+            . '<em inputmode="bad mode" enterkeyhint="launch" autocapitalize="bad&lt;token">Invalid hints</em>'
+            . '</article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/text-input-hint-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article data-pandoc-inputmode="numeric" data-pandoc-enterkeyhint="next" data-pandoc-autocapitalize="words">'
+            . '<p data-pandoc-inputmode="email" data-pandoc-enterkeyhint="send" data-pandoc-autocapitalize="characters">Contact</p>'
+            . '<span data-pandoc-inputmode="url" data-pandoc-enterkeyhint="go" data-pandoc-autocapitalize="off">Link hint</span>'
+            . '<em>Invalid hints</em></article>';
+        $policyDiagnostics = array_count_values(array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        )));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('ContactLink hintInvalid hints', $fragment->textContent());
+        $t->same(['article', 'em', 'p', 'span'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([
+            'autocapitalize',
+            'data-pandoc-autocapitalize',
+            'data-pandoc-enterkeyhint',
+            'data-pandoc-inputmode',
+            'enterkeyhint',
+            'inputmode',
+        ], $summary['filteredAttributes']);
+        $t->same(9, $policyDiagnostics['text-input-hint-review'] ?? 0);
+        $t->same(6, $policyDiagnostics['unsafe-attribute'] ?? 0);
+        $t->same([
+            'data-pandoc-inputmode' => 'numeric',
+            'data-pandoc-enterkeyhint' => 'next',
+            'data-pandoc-autocapitalize' => 'words',
+        ], $nodes[0]['attrs']);
+        $t->same([
+            'data-pandoc-inputmode' => 'email',
+            'data-pandoc-enterkeyhint' => 'send',
+            'data-pandoc-autocapitalize' => 'characters',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'data-pandoc-inputmode' => 'url',
+            'data-pandoc-enterkeyhint' => 'go',
+            'data-pandoc-autocapitalize' => 'off',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same([], $nodes[0]['children'][2]['attrs']);
+        $t->same('/migration/text-input-hint-review.html', $document->children[0]->attr('part'));
+        foreach ([' inputmode=', ' enterkeyhint=', ' autocapitalize=', 'source-spoof', 'bad mode', 'launch', 'bad&lt;token'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected live text input hint metadata to be stripped or converted: ' . $blocked);
+        }
+        $t->true(!str_contains($blocks, ' inputmode='), 'Expected WordPress blocks to omit live inputmode attributes');
+        $t->true(!str_contains($blocks, ' enterkeyhint='), 'Expected WordPress blocks to omit live enterkeyhint attributes');
+        $t->true(!str_contains($blocks, ' autocapitalize='), 'Expected WordPress blocks to omit live autocapitalize attributes');
+    },
     'converts focus and keyboard shortcut attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article tabindex=" 0003 " accesskey="s S ?" autofocus data-pandoc-tabindex="source-spoof" data-pandoc-accesskey="source-spoof" data-pandoc-autofocus-state="source-spoof">'
