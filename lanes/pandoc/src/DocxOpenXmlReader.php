@@ -11067,6 +11067,7 @@ final class DocxOpenXmlReader
         );
         $largestRelationshipSourceParts = array_slice($relationshipSourceExistingParts, 0, 5);
         $relationshipSourceDirectories = $this->relationshipSourceDirectorySummary($relationshipSources);
+        $relationshipSourceContentTypes = $this->relationshipSourceContentTypeSummary($relationshipSources);
         $relationshipSourceBaseNames = $this->relationshipSourceBaseNameSummary($relationshipSources);
         $relationshipSourceBaseNameCounts = [];
         $duplicateRelationshipSourceBaseNames = [];
@@ -11185,6 +11186,8 @@ final class DocxOpenXmlReader
             'relationshipSourceRoleCounts' => $relationshipSourceRoleCounts,
             'relationshipSourceDirectoryCount' => count($relationshipSourceDirectories),
             'relationshipSourceDirectories' => $relationshipSourceDirectories,
+            'relationshipSourceContentTypeBucketCount' => count($relationshipSourceContentTypes),
+            'relationshipSourceContentTypes' => $relationshipSourceContentTypes,
             'relationshipSourceBaseNameCount' => count($relationshipSourceBaseNames),
             'relationshipSourceBaseNameCounts' => $relationshipSourceBaseNameCounts,
             'duplicateRelationshipSourceBaseNameCount' => count($duplicateRelationshipSourceBaseNames),
@@ -12502,6 +12505,111 @@ final class DocxOpenXmlReader
         }
 
         return array_values($baseNames);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipSourceContentTypeSummary(array $relationshipSources): array
+    {
+        $contentTypes = [];
+        foreach ($relationshipSources as $source) {
+            $contentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                ? $source['sourceContentTypeBase']
+                : '';
+            $contentTypeKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            if (!isset($contentTypes[$contentTypeKey])) {
+                $contentTypes[$contentTypeKey] = [
+                    'sourceContentTypeKey' => $contentTypeKey,
+                    'sourceContentTypeBase' => $contentTypeBase === '' ? null : $contentTypeBase,
+                    'sourceContentTypes' => [],
+                    'sourceCount' => 0,
+                    'existingSourceCount' => 0,
+                    'nonExistingSourceCount' => 0,
+                    'relationshipCount' => 0,
+                    'relationshipRecordCount' => 0,
+                    'existingSourceByteLength' => 0,
+                    'relationshipSourceKindCounts' => [],
+                    'sourceContentTypeSourceCounts' => [],
+                    'sourceBaseNameCounts' => [],
+                    'sourcePartExtensionCounts' => [],
+                    'sourceDirectories' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                ];
+            }
+
+            ++$contentTypes[$contentTypeKey]['sourceCount'];
+            $sourceExists = ($source['sourceExists'] ?? false) === true;
+            if ($sourceExists) {
+                ++$contentTypes[$contentTypeKey]['existingSourceCount'];
+            } else {
+                ++$contentTypes[$contentTypeKey]['nonExistingSourceCount'];
+            }
+            $contentTypes[$contentTypeKey]['relationshipCount'] += (int) ($source['relationshipCount'] ?? 0);
+            $contentTypes[$contentTypeKey]['relationshipRecordCount'] += (int) ($source['relationshipRecordCount'] ?? 0);
+            if (is_int($source['sourceBytes'] ?? null)) {
+                $contentTypes[$contentTypeKey]['existingSourceByteLength'] += (int) $source['sourceBytes'];
+            }
+
+            $sourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                ? $source['relationshipSourceKind']
+                : 'invalid-source';
+            $contentTypes[$contentTypeKey]['relationshipSourceKindCounts'][$sourceKind] =
+                ($contentTypes[$contentTypeKey]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+
+            $contentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                ? $source['sourceContentTypeSource']
+                : '';
+            $contentTypeSourceKey = $contentTypeSource === '' ? '(missing)' : $contentTypeSource;
+            $contentTypes[$contentTypeKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] =
+                ($contentTypes[$contentTypeKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+
+            $baseName = is_string($source['sourceBaseName'] ?? null) ? $source['sourceBaseName'] : '';
+            $baseNameKey = $baseName === '' ? '(invalid-source)' : $baseName;
+            $contentTypes[$contentTypeKey]['sourceBaseNameCounts'][$baseNameKey] =
+                ($contentTypes[$contentTypeKey]['sourceBaseNameCounts'][$baseNameKey] ?? 0) + 1;
+
+            $extension = is_string($source['sourcePartExtension'] ?? null)
+                ? $source['sourcePartExtension']
+                : null;
+            $extensionKey = $extension ?? '(none)';
+            $contentTypes[$contentTypeKey]['sourcePartExtensionCounts'][$extensionKey] =
+                ($contentTypes[$contentTypeKey]['sourcePartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+            $this->appendUniqueString(
+                $contentTypes[$contentTypeKey]['sourceContentTypes'],
+                is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : null,
+            );
+            $this->appendUniqueString(
+                $contentTypes[$contentTypeKey]['sourceDirectories'],
+                is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : null,
+            );
+            $this->appendUniqueString(
+                $contentTypes[$contentTypeKey]['sourceParts'],
+                is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : null,
+            );
+            $this->appendUniqueString(
+                $contentTypes[$contentTypeKey]['relationshipParts'],
+                is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : null,
+            );
+        }
+
+        ksort($contentTypes, SORT_STRING);
+        foreach ($contentTypes as $contentTypeKey => $summary) {
+            ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['sourceBaseNameCounts'], SORT_STRING);
+            ksort($summary['sourcePartExtensionCounts'], SORT_STRING);
+            sort($summary['sourceContentTypes'], SORT_STRING);
+            sort($summary['sourceDirectories'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            $contentTypes[$contentTypeKey] = $summary;
+        }
+
+        return array_values($contentTypes);
     }
 
     /**
