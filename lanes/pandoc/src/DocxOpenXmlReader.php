@@ -664,6 +664,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['fontTableIssueCount'] = (int) ($fontTable['issueCount'] ?? 0);
         $packageProvenance['summary']['fontTableIssueCodes'] = $fontTable['issueCodes'] ?? [];
         $webSettingsOutputPolicy = $webSettings['outputPolicy'] ?? null;
+        $packageProvenance['summary']['webSettingsInvalidXmlCount'] = ($webSettings['validXml'] ?? null) === false ? 1 : 0;
+        $packageProvenance['summary']['webSettingsIssueCount'] = (int) ($webSettings['issueCount'] ?? 0);
+        $packageProvenance['summary']['webSettingsIssueCodes'] = $webSettings['issueCodes'] ?? [];
         if (is_array($webSettingsOutputPolicy)) {
             $packageProvenance['summary']['webSettingsOutputPolicyFlagCount'] = (int) ($webSettingsOutputPolicy['flagCount'] ?? 0);
             $packageProvenance['summary']['webSettingsOutputPolicyFlags'] = $webSettingsOutputPolicy['flags'] ?? [];
@@ -13498,9 +13501,23 @@ final class DocxOpenXmlReader
             return [];
         }
 
-        $dom = $this->loadXml($xml, $partName);
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [
+                'validXml' => false,
+                'xmlParseError' => $this->lastXmlPreflightError($xml, $partName),
+                'issueCount' => 1,
+                'issueCodes' => ['invalid-web-settings-xml'],
+            ];
+        }
+
         $xpath = $this->xpath($dom);
-        $webSettings = [];
+        $webSettings = [
+            'validXml' => true,
+            'xmlParseError' => null,
+            'issueCount' => 0,
+            'issueCodes' => [],
+        ];
 
         foreach ([
             'optimizeForBrowser' => 'optimizeForBrowser',

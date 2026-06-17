@@ -7389,6 +7389,69 @@ XML;
         $t->same('1024x768', $webSettings['targetScreenSize']);
         $t->same(144, $webSettings['pixelsPerInch']);
     },
+    'reports malformed docx web settings xml without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/word/web/broken-web-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rBrokenWebSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings" Target="web/broken-web-settings.xml?profile=browser#web"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/web/broken-web-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:webSettings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:optimizeForBrowser>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $webSettings = $docx['webSettings'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $selected = $package['selectedXmlParts']['byKind']['webSettings'];
+
+        $t->same('document', $document->type);
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same('word/web/broken-web-settings.xml', $docx['webSettingsPart']);
+        $t->same('rBrokenWebSettings', $docx['webSettingsRelationship']['id']);
+        $t->same('web/broken-web-settings.xml?profile=browser#web', $docx['webSettingsRelationship']['target']);
+        $t->same('word/web/broken-web-settings.xml?profile=browser#web', $docx['webSettingsRelationship']['resolvedTarget']);
+        $t->same('word/web/broken-web-settings.xml', $docx['webSettingsRelationship']['targetPart']);
+        $t->same(true, $docx['webSettingsRelationship']['exists']);
+
+        $t->same(false, $webSettings['validXml']);
+        $t->contains('Premature end of data', $webSettings['xmlParseError']);
+        $t->same(1, $webSettings['issueCount']);
+        $t->same(['invalid-web-settings-xml'], $webSettings['issueCodes']);
+        $t->true(!isset($webSettings['outputPolicy']), 'malformed web settings should not emit output policy metadata');
+        $t->same(1, $summary['webSettingsInvalidXmlCount']);
+        $t->same(1, $summary['webSettingsIssueCount']);
+        $t->same(['invalid-web-settings-xml'], $summary['webSettingsIssueCodes']);
+        $t->same(1, $summary['selectedXmlPartInvalidXmlCount']);
+        $t->same(['webSettings'], $summary['selectedXmlPartIssueKinds']);
+
+        $t->same('relationship', $selected['selectionSource']);
+        $t->same('word/web/broken-web-settings.xml', $selected['partName']);
+        $t->same('rBrokenWebSettings', $selected['relationshipId']);
+        $t->same('word/web/broken-web-settings.xml?profile=browser#web', $selected['relationshipResolvedTarget']);
+        $t->same('profile=browser', $selected['targetQuery']);
+        $t->same('web', $selected['targetFragment']);
+        $t->same(true, $selected['exists']);
+        $t->same(false, $selected['validRoot']);
+        $t->same(null, $selected['rootNamespace']);
+        $t->same(null, $selected['rootLocalName']);
+        $t->same(true, $selected['contentTypeMatchesExpected']);
+        $t->same(['invalid-xml'], $selected['issues']);
+        $t->contains('Premature end of data', $selected['xmlParseError']);
+    },
     'summarizes docx web settings output policy for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
