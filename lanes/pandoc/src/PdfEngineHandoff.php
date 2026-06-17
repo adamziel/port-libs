@@ -7804,11 +7804,43 @@ final class PdfEngineHandoff
         $executionPolicy = is_array($provenance['executionPolicy'] ?? null) ? $provenance['executionPolicy'] : [];
         if ($executionPolicy !== []) {
             $jobs = is_array($executionPolicy['jobs'] ?? null) ? $executionPolicy['jobs'] : [];
-            $executionIssues = is_array($executionPolicy['issues'] ?? null) ? $executionPolicy['issues'] : [];
-            $appendCase('execution-policy', ($executionPolicy['reviewStatus'] ?? 'ok') === 'ok' && $executionIssues === [] ? 'ok' : 'review', $jobs === [] ? 0 : 1, [
+            $jobsHistory = is_array($provenance['jobsHistory'] ?? null) ? $provenance['jobsHistory'] : [];
+            $jobsBoundaryOverrides = array_values(array_filter(
+                is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+                static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'jobs'
+            ));
+            $executionIssues = array_merge(
+                is_array($executionPolicy['issues'] ?? null) ? $executionPolicy['issues'] : [],
+                $listIssues($jobsHistory),
+                $optionIssues($jobsBoundaryOverrides)
+            );
+            $invalidJobCount = 0;
+            $fixedJobCount = 0;
+            $autoJobCount = 0;
+            foreach ($jobsHistory as $jobHistoryEntry) {
+                if (!is_array($jobHistoryEntry)) {
+                    ++$invalidJobCount;
+                    continue;
+                }
+                if (($jobHistoryEntry['safe'] ?? false) !== true) {
+                    ++$invalidJobCount;
+                }
+                if (($jobHistoryEntry['mode'] ?? null) === 'fixed') {
+                    ++$fixedJobCount;
+                } elseif (($jobHistoryEntry['mode'] ?? null) === 'auto') {
+                    ++$autoJobCount;
+                }
+            }
+            $jobObservationCount = $jobsHistory === [] ? (int) ($jobs !== []) : count($jobsHistory);
+            $appendCase('execution-policy', ($executionPolicy['reviewStatus'] ?? 'ok') === 'ok' && $executionIssues === [] ? 'ok' : 'review', $jobObservationCount, [
                 'mode' => is_string($jobs['mode'] ?? null) ? $jobs['mode'] : null,
                 'jobCount' => is_int($jobs['jobCount'] ?? null) ? $jobs['jobCount'] : null,
                 'raw' => is_string($jobs['raw'] ?? null) ? $jobs['raw'] : null,
+                'historyEntryCount' => $jobObservationCount,
+                'overrideCount' => count($jobsBoundaryOverrides),
+                'invalidJobCount' => $invalidJobCount,
+                'fixedJobCount' => $fixedJobCount,
+                'autoJobCount' => $autoJobCount,
             ], $executionIssues);
         }
 
