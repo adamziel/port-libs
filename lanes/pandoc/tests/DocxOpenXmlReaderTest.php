@@ -1236,6 +1236,11 @@ XML;
         }
 
         $t->same(6, $summary['partExtensionCount']);
+        $t->same(4, $summary['partExtensionDefaultDeclaredCount']);
+        $t->same(2, $summary['partExtensionParameterizedBucketCount']);
+        $t->same(4, $summary['partExtensionParameterizedPartCount']);
+        $t->same(2, $summary['partExtensionMissingContentTypeBucketCount']);
+
         $t->same(5, $byExtension['xml']['partCount']);
         $t->same(3, $byExtension['xml']['parameterizedPartCount']);
         $t->same([
@@ -1248,6 +1253,9 @@ XML;
         $t->same('word', $byExtension['xml']['largestPart']['directory']);
         $t->same('override', $byExtension['xml']['largestPart']['contentTypeSource']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $byExtension['xml']['largestPart']['contentTypeBase']);
+        $t->same(null, $byExtension['xml']['largestPart']['defaultExtension']);
+        $t->same('word/document.xml', $byExtension['xml']['largestPart']['overridePartName']);
+        $t->same(false, $byExtension['xml']['largestPart']['isRelationshipPart']);
         $t->same(hash('sha256', $parts['word/document.xml']), $byExtension['xml']['largestPart']['sha256']);
         $t->same(['office-document', 'root-relationship-target'], $byExtension['xml']['largestPart']['roles']);
 
@@ -1264,6 +1272,9 @@ XML;
         $t->same('image/tiff; profile=scan', $byExtension['tiff']['largestPart']['contentType']);
         $t->same('image/tiff', $byExtension['tiff']['largestPart']['contentTypeBase']);
         $t->same('default', $byExtension['tiff']['largestPart']['contentTypeSource']);
+        $t->same('tiff', $byExtension['tiff']['largestPart']['defaultExtension']);
+        $t->same(null, $byExtension['tiff']['largestPart']['overridePartName']);
+        $t->same(false, $byExtension['tiff']['largestPart']['isRelationshipPart']);
         $t->same(['package-part'], $byExtension['tiff']['largestPart']['roles']);
 
         $t->same(1, $byExtension['bin']['partCount']);
@@ -1272,12 +1283,15 @@ XML;
         $t->same('customXml/raw-extension.bin', $byExtension['bin']['largestPart']['partName']);
         $t->same('', $byExtension['bin']['largestPart']['contentTypeBase']);
         $t->same('missing', $byExtension['bin']['largestPart']['contentTypeSource']);
+        $t->same('bin', $byExtension['bin']['largestPart']['defaultExtension']);
+        $t->same(null, $byExtension['bin']['largestPart']['overridePartName']);
 
         $t->same(1, $byExtension['(none)']['partCount']);
         $t->same(0, $byExtension['(none)']['parameterizedPartCount']);
         $t->same(['(missing)' => 1], $byExtension['(none)']['contentTypeBaseCounts']);
         $t->same('customXml/no-extension', $byExtension['(none)']['largestPart']['partName']);
         $t->same('no-extension', $byExtension['(none)']['largestPart']['baseName']);
+        $t->same(null, $byExtension['(none)']['largestPart']['defaultExtension']);
     },
     'summarizes docx package part content type extension mismatches for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

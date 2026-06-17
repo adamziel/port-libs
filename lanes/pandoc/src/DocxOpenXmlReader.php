@@ -10345,6 +10345,23 @@ final class DocxOpenXmlReader
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
         $contentTypeExtensionMismatches = $this->packagePartContentTypeExtensionMismatchSummary($partInventory);
         $partExtensionCaseVariants = $this->packagePartExtensionCaseVariantSummary($partInventory);
+        $parameterizedPartExtensionCount = 0;
+        $parameterizedPartExtensionBucketCount = 0;
+        $missingContentTypePartExtensionCount = 0;
+        $declaredDefaultPartExtensionCount = 0;
+        foreach ($partExtensions as $extensionSummary) {
+            $parameterizedPartCount = (int) ($extensionSummary['parameterizedPartCount'] ?? 0);
+            if ($parameterizedPartCount > 0) {
+                $parameterizedPartExtensionBucketCount++;
+                $parameterizedPartExtensionCount += $parameterizedPartCount;
+            }
+            if ((int) ($extensionSummary['missingContentTypePartCount'] ?? 0) > 0) {
+                $missingContentTypePartExtensionCount++;
+            }
+            if (($extensionSummary['defaultDeclared'] ?? false) === true) {
+                $declaredDefaultPartExtensionCount++;
+            }
+        }
         $partBaseNames = $this->packagePartBaseNameSummary($partInventory);
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
@@ -11115,6 +11132,10 @@ final class DocxOpenXmlReader
                 static fn (array $extension): int => (int) ($extension['uppercasePartCount'] ?? 0),
                 $partExtensionCaseVariants,
             )),
+            'partExtensionDefaultDeclaredCount' => $declaredDefaultPartExtensionCount,
+            'partExtensionParameterizedBucketCount' => $parameterizedPartExtensionBucketCount,
+            'partExtensionParameterizedPartCount' => $parameterizedPartExtensionCount,
+            'partExtensionMissingContentTypeBucketCount' => $missingContentTypePartExtensionCount,
             'partBaseNameCount' => count($partBaseNames),
             'duplicatePartBaseNameCount' => count($duplicatePartBaseNames),
             'duplicatePartBaseNames' => $duplicatePartBaseNames,
@@ -12217,6 +12238,9 @@ final class DocxOpenXmlReader
                 'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
                 'contentTypeBase' => $contentTypeBase,
                 'contentTypeSource' => $contentTypeSource,
+                'defaultExtension' => is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+                'overridePartName' => is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
                 'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
             ];
             $largestPart = $extensions[$key]['largestPart'];
