@@ -4306,6 +4306,100 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/language-tag-provenance-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html language tag canonicalization detail for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="packet" lang="EN-latn-us-x-review"><p id="child">Child</p><p id="override" xml:lang="fr-ca">French</p>'
+                . '<p id="private" lang="x-legacy-Import">Private</p><p id="bad-space" lang="en bad">Bad</p><p id="bad-underscore" lang="pt_BR">Bad region</p>'
+                . '<section id="empty" lang=""><span id="empty-child">Empty child</span></section></article>',
+            'language tag canonicalization review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/language-tag-canonicalization-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $child = $article['children'][0];
+        $override = $article['children'][1];
+        $private = $article['children'][2];
+        $badSpace = $article['children'][3];
+        $badUnderscore = $article['children'][4];
+        $empty = $article['children'][5];
+        $emptyChild = $empty['children'][0];
+
+        $t->same('html-language-tag-review', $article['languageTagReviewPolicy']);
+        $t->same('EN-latn-us-x-review', $article['languageTagRaw']);
+        $t->same('en-Latn-US-x-review', $article['languageTag']);
+        $t->same('en-Latn-US-x-review', $article['languageTagCanonical']);
+        $t->same(['EN', 'latn', 'us', 'x', 'review'], $article['languageTagSubtags']);
+        $t->same('en', $article['languageTagPrimarySubtag']);
+        $t->same('Latn', $article['languageTagScriptSubtag']);
+        $t->same('US', $article['languageTagRegionSubtag']);
+        $t->same(['review'], $article['languageTagPrivateUseSubtags']);
+        $t->same(true, $article['languageTagValid']);
+        $t->same([], $article['languageTagIssueCodes']);
+        $t->same('en-Latn-US-x-review', $article['effectiveLanguageTagCanonical']);
+        $t->same(false, $article['languageInherited']);
+        $t->same('self-lang', $article['languageSource']);
+
+        $t->same(true, $child['languageInherited']);
+        $t->same('ancestor-lang', $child['languageSource']);
+        $t->same('packet', $child['languageSourceElementId']);
+        $t->same('en-Latn-US-x-review', $child['effectiveLanguageTagCanonical']);
+        $t->same(['review'], $child['effectiveLanguageTagPrivateUseSubtags']);
+
+        $t->same('fr-ca', $override['languageTagRaw']);
+        $t->same('fr-CA', $override['languageTag']);
+        $t->same('fr-CA', $override['languageTagCanonical']);
+        $t->same('CA', $override['languageTagRegionSubtag']);
+        $t->same('self-xml:lang', $override['languageSource']);
+        $t->same(false, $override['languageInherited']);
+        $t->same(true, $override['effectiveLanguageTagValid']);
+
+        $t->same('x-legacy-Import', $private['languageTagRaw']);
+        $t->same('x-legacy-import', $private['languageTag']);
+        $t->same('x-legacy-import', $private['languageTagCanonical']);
+        $t->same('x', $private['languageTagPrimarySubtag']);
+        $t->same(['legacy', 'import'], $private['languageTagPrivateUseSubtags']);
+        $t->same(true, $private['languageTagValid']);
+
+        $t->same('en bad', $badSpace['languageTagRaw']);
+        $t->same(null, $badSpace['languageTagCanonical']);
+        $t->same(false, $badSpace['languageTagValid']);
+        $t->same([
+            'language-tag-ascii-whitespace',
+            'invalid-language-subtag',
+            'invalid-primary-language-subtag',
+        ], $badSpace['languageTagIssueCodes']);
+        $t->same(true, $badSpace['languageInherited']);
+        $t->same('en-Latn-US-x-review', $badSpace['effectiveLanguageTagCanonical']);
+
+        $t->same('pt_BR', $badUnderscore['languageTagRaw']);
+        $t->same(null, $badUnderscore['languageTagCanonical']);
+        $t->same(false, $badUnderscore['languageTagValid']);
+        $t->same([
+            'language-tag-underscore-separator',
+            'invalid-language-subtag',
+            'invalid-primary-language-subtag',
+        ], $badUnderscore['languageTagIssueCodes']);
+        $t->same(true, $badUnderscore['languageInherited']);
+        $t->same('en-Latn-US-x-review', $badUnderscore['effectiveLanguageTagCanonical']);
+
+        $t->same('', $empty['languageRaw']);
+        $t->same(null, $empty['languageTag']);
+        $t->same(false, $empty['languageTagValid']);
+        $t->same(['empty-language-tag'], $empty['languageTagIssueCodes']);
+        $t->same(true, $empty['languageInherited']);
+        $t->same('en-Latn-US-x-review', $empty['effectiveLanguageTagCanonical']);
+        $t->same(true, $emptyChild['languageInherited']);
+        $t->same('en-Latn-US-x-review', $emptyChild['effectiveLanguageTagCanonical']);
+
+        $t->same('<article id="packet" lang="EN-latn-us-x-review"><p id="child">Child</p><p id="override" xml:lang="fr-ca">French</p><p id="private" lang="x-legacy-Import">Private</p><p id="bad-space" lang="en bad">Bad</p><p id="bad-underscore" lang="pt_BR">Bad region</p><section id="empty" lang=""><span id="empty-child">Empty child</span></section></article>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/language-tag-canonicalization-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html dir auto first strong character resolution for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="auto-ar" dir="auto">123 العربية</section>'

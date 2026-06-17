@@ -18459,6 +18459,7 @@ final class XmlHtmlDom
             'languageEmptyValueIgnored' => $language === '',
             'languageInvalidValueIgnored' => $language !== '' && $languageTag === null,
         ];
+        $summary += self::languageTagReviewSummary($raw, 'language');
 
         if ($hasXmlLang) {
             $xmlRaw = $attributes['xml:lang'];
@@ -18540,6 +18541,109 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function languageTagReviewSummary(string $raw, string $prefix): array
+    {
+        $analysis = self::htmlLanguageTagAnalysis($raw);
+
+        return [
+            $prefix . 'TagReviewPolicy' => 'html-language-tag-review',
+            $prefix . 'TagRaw' => $raw,
+            $prefix . 'TagCanonical' => $analysis['canonical'],
+            $prefix . 'TagSubtags' => $analysis['subtags'],
+            $prefix . 'TagPrimarySubtag' => $analysis['primary'],
+            $prefix . 'TagScriptSubtag' => $analysis['script'],
+            $prefix . 'TagRegionSubtag' => $analysis['region'],
+            $prefix . 'TagPrivateUseSubtags' => $analysis['privateUse'],
+            $prefix . 'TagValid' => $analysis['valid'],
+            $prefix . 'TagIssueCodes' => $analysis['issues'],
+        ];
+    }
+
+    /**
+     * @return array{canonical:?string, subtags:list<string>, primary:?string, script:?string, region:?string, privateUse:list<string>, valid:bool, issues:list<string>}
+     */
+    private static function htmlLanguageTagAnalysis(string $raw): array
+    {
+        $trimmed = trim($raw);
+        $issues = [];
+
+        if ($trimmed === '') {
+            $issues[] = 'empty-language-tag';
+        }
+        if (preg_match('/[\t\n\f\r ]/', $raw) === 1) {
+            $issues[] = 'language-tag-ascii-whitespace';
+        }
+        if (str_contains($trimmed, '_')) {
+            $issues[] = 'language-tag-underscore-separator';
+        }
+
+        $subtags = $trimmed === '' ? [] : explode('-', $trimmed);
+        foreach ($subtags as $subtag) {
+            if ($subtag === '' || preg_match('/^[A-Za-z0-9]{1,8}$/', $subtag) !== 1) {
+                $issues[] = 'invalid-language-subtag';
+                break;
+            }
+        }
+
+        $primary = null;
+        if ($subtags !== []) {
+            $primaryRaw = $subtags[0];
+            if (preg_match('/^[A-Za-z]{2,8}$/', $primaryRaw) === 1 || strtolower($primaryRaw) === 'x') {
+                $primary = strtolower($primaryRaw);
+            } else {
+                $issues[] = 'invalid-primary-language-subtag';
+            }
+        }
+
+        $script = null;
+        $region = null;
+        $privateUse = [];
+        $privateUseStart = $primary === 'x' ? 0 : null;
+
+        foreach ($subtags as $index => $subtag) {
+            if ($index === 0) {
+                continue;
+            }
+
+            if (strtolower($subtag) === 'x') {
+                $privateUseStart = $index;
+                break;
+            }
+
+            if ($script === null && preg_match('/^[A-Za-z]{4}$/', $subtag) === 1) {
+                $script = ucfirst(strtolower($subtag));
+                continue;
+            }
+
+            if ($region === null && preg_match('/^(?:[A-Za-z]{2}|[0-9]{3})$/', $subtag) === 1) {
+                $region = strtoupper($subtag);
+            }
+        }
+
+        if ($privateUseStart !== null) {
+            $privateUse = array_map(
+                static fn (string $subtag): string => strtolower($subtag),
+                array_slice($subtags, $privateUseStart + 1)
+            );
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'canonical' => $issues === [] ? self::normalizeHtmlLanguageTag($raw) : null,
+            'subtags' => $subtags,
+            'primary' => $primary,
+            'script' => $script,
+            'region' => $region,
+            'privateUse' => $privateUse,
+            'valid' => $issues === [],
+            'issues' => $issues,
+        ];
     }
 
     /**
@@ -18632,7 +18736,7 @@ final class XmlHtmlDom
             'languageInherited' => $inherited,
             'languageSource' => $sourceKind,
             'languageSourceElement' => self::htmlElementName($source),
-        ];
+        ] + self::languageTagReviewSummary($raw, 'effectiveLanguage');
 
         $sourceId = self::attributeOrNull($source, 'id');
         if ($sourceId !== null && $sourceId !== '') {
