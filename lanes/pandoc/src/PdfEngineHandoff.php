@@ -7287,6 +7287,30 @@ final class PdfEngineHandoff
             ], $sourceInputIssues);
         }
 
+        $root = is_array($provenance['root'] ?? null) ? $provenance['root'] : [];
+        $rootHistory = is_array($provenance['rootHistory'] ?? null) ? $provenance['rootHistory'] : [];
+        $rootBoundaryOverrides = array_values(array_filter(
+            is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+            static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'root'
+        ));
+        $rootIssues = array_merge(
+            $entryIssues($root),
+            $listIssues($rootHistory),
+            $optionIssues($rootBoundaryOverrides)
+        );
+        if ($root !== [] || $rootHistory !== [] || $rootIssues !== []) {
+            $appendCase('root-boundary', ($root['safe'] ?? false) === true && $rootIssues === [] ? 'ok' : 'review', $rootHistory === [] ? (int) ($root !== []) : count($rootHistory), [
+                'raw' => is_string($root['raw'] ?? null) ? $root['raw'] : null,
+                'path' => is_string($root['path'] ?? null) ? $root['path'] : null,
+                'kind' => is_string($root['kind'] ?? null) ? $root['kind'] : null,
+                'safe' => ($root['safe'] ?? false) === true,
+                'source' => is_string($root['source'] ?? null) ? $root['source'] : null,
+                'environmentVariable' => is_string($root['environmentVariable'] ?? null) ? $root['environmentVariable'] : null,
+                'historyEntryCount' => $rootHistory === [] ? (int) ($root !== []) : count($rootHistory),
+                'overrideCount' => count($rootBoundaryOverrides),
+            ], $rootIssues);
+        }
+
         $shadowEntries = [];
         foreach ([
             'rootEnvironment',

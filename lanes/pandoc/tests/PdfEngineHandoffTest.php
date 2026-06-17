@@ -803,6 +803,71 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'maps typst root boundary history into matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/root-matrix.typ',
+            'outputPath' => 'build/root-matrix.pdf',
+            'source' => '= Typst Root Matrix Packet',
+            'engineOptions' => [
+                '--root=/srv/shared-typst-root',
+                '--root=workspace',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst root matrix packet\n%%EOF\n";
+        $expectedRootCase = [
+            'case' => 'root-boundary',
+            'reviewStatus' => 'review',
+            'observed' => 2,
+            'details' => [
+                'raw' => 'workspace',
+                'path' => 'workspace',
+                'kind' => 'relative',
+                'safe' => true,
+                'source' => null,
+                'environmentVariable' => null,
+                'historyEntryCount' => 2,
+                'overrideCount' => 1,
+            ],
+            'issues' => [
+                'root-boundary-overridden',
+                'root-external-boundary',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/root-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/root-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same('workspace', $plan['engineBoundaryRoot']);
+        $t->same([
+            'root-boundary',
+            'output-format',
+        ], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same($expectedRootCase, $plan['typstBoundaryMatrix']['cases'][0]);
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(2, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(1, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['issueCount']);
+        $t->contains('root-boundary:root-boundary-overridden', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('root-boundary:root-external-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('typst-boundary-matrix-cases:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-review-cases:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedRootCase, $result['typstBoundaryMatrix']['cases'][0]);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($expectedRootCase, $sequence['finalTypstBoundaryMatrix']['cases'][0]);
+    },
+
     'plans typst certificate boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
@@ -1423,7 +1488,7 @@ return [
         $t->same(0, $planCases['environment-shadows']['details']['shadowedCount']);
         $t->same([], $planCases['environment-shadows']['details']['shadowedVariables']);
         $t->same('ok', $planCases['environment-shadows']['reviewStatus']);
-        $t->contains('typst-boundary-matrix-cases:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-cases:4', implode(',', $plan['diagnostics']));
 
         $t->same(false, $result['ok']);
         $t->same('engine-boundary-violation', $result['reason']);
@@ -6698,6 +6763,7 @@ return [
         ]]);
 
         $t->same([
+            'root-boundary',
             'environment-shadows',
             'font-path-policy',
             'input-variables',
@@ -6714,8 +6780,8 @@ return [
             'open-output',
         ], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
         $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
-        $t->same(14, $plan['typstBoundaryMatrix']['caseCount']);
-        $t->contains('typst-boundary-matrix-cases:14', implode(',', $plan['diagnostics']));
+        $t->same(15, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->contains('typst-boundary-matrix-cases:15', implode(',', $plan['diagnostics']));
 
         $matrix = $result['typstBoundaryMatrix'];
         $cases = [];
@@ -6725,6 +6791,7 @@ return [
 
         $t->same(true, $result['ok']);
         $t->same([
+            'root-boundary',
             'environment-shadows',
             'font-path-policy',
             'input-variables',
@@ -6745,8 +6812,11 @@ return [
             'warning-provenance',
         ], array_column($matrix['cases'], 'case'));
         $t->same('review', $matrix['reviewStatus']);
-        $t->same(18, $matrix['caseCount']);
+        $t->same(19, $matrix['caseCount']);
         $t->same(11, $matrix['reviewCaseCount']);
+        $t->same('workspace', $cases['root-boundary']['details']['path']);
+        $t->same('relative', $cases['root-boundary']['details']['kind']);
+        $t->same('ok', $cases['root-boundary']['reviewStatus']);
         $t->same(5, $cases['environment-shadows']['details']['shadowedCount']);
         $t->same(2, $cases['font-path-policy']['observed']);
         $t->same(1, $cases['font-path-policy']['details']['unsafeFontPathCount']);
@@ -6772,7 +6842,7 @@ return [
         $t->same(1, $cases['warning-provenance']['details']['outsideRootCount']);
         $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
         $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
-        $t->contains('typst-boundary-matrix-cases:18', implode(',', $result['diagnostics']));
+        $t->contains('typst-boundary-matrix-cases:19', implode(',', $result['diagnostics']));
         $t->contains('environment-shadows:root-environment-shadowed', implode(',', $matrix['issues']));
         $t->contains('font-path-policy:font-path-external-boundary', implode(',', $matrix['issues']));
         $t->contains('input-variables:input-variable-boundary-overridden:audience', implode(',', $matrix['issues']));
