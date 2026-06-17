@@ -18267,18 +18267,31 @@ final class XmlHtmlDom
             }
         }
 
+        $issueCodes = [];
+        if ($tokens === []) {
+            $issueCodes[] = 'empty-html-class-attribute';
+        }
+        if ($duplicates !== []) {
+            $issueCodes[] = 'duplicate-html-class-token';
+        }
+
         return [
             'classAttributeReviewPolicy' => 'html-class-token-review',
+            'classReviewPolicy' => 'html-class-token-review',
             'classRaw' => $value,
             'classList' => $tokens,
             'classTokenCounts' => $counts,
             'classNames' => $names,
+            'classUniqueTokens' => $names,
             'duplicateClassTokens' => $duplicates,
             'classTokenCount' => count($tokens),
             'uniqueClassTokenCount' => count($names),
+            'classUniqueTokenCount' => count($names),
             'duplicateClassTokenCount' => count($duplicates),
             'classEmpty' => trim($value) === '',
             'classHasDuplicates' => $duplicates !== [],
+            'classHasDuplicateTokens' => $duplicates !== [],
+            'classIssueCodes' => $issueCodes,
         ];
     }
 

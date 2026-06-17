@@ -3709,6 +3709,60 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             $html
         );
     },
+    'summarizes html class token provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="packet" class=" alpha beta alpha gamma beta ">Review</section>'
+                . '<p id="empty" class="   ">Empty</p>'
+                . '<span id="single" class="note">Note</span>',
+            'class token provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/class-token-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $repeated = $summary[0];
+        $empty = $summary[1];
+        $single = $summary[2];
+
+        $t->same('html-class-token-review', $repeated['classReviewPolicy']);
+        $t->same(' alpha beta alpha gamma beta ', $repeated['classRaw']);
+        $t->same(['alpha', 'beta', 'alpha', 'gamma', 'beta'], $repeated['classList']);
+        $t->same(5, $repeated['classTokenCount']);
+        $t->same(['alpha', 'beta', 'gamma'], $repeated['classUniqueTokens']);
+        $t->same(3, $repeated['classUniqueTokenCount']);
+        $t->same(['alpha' => 2, 'beta' => 2, 'gamma' => 1], $repeated['classTokenCounts']);
+        $t->same(['alpha', 'beta'], $repeated['duplicateClassTokens']);
+        $t->same(true, $repeated['classHasDuplicateTokens']);
+        $t->same(false, $repeated['classEmpty']);
+        $t->same(['duplicate-html-class-token'], $repeated['classIssueCodes']);
+
+        $t->same('   ', $empty['classRaw']);
+        $t->same([], $empty['classList']);
+        $t->same(0, $empty['classTokenCount']);
+        $t->same([], $empty['classUniqueTokens']);
+        $t->same(0, $empty['classUniqueTokenCount']);
+        $t->same([], $empty['duplicateClassTokens']);
+        $t->same(false, $empty['classHasDuplicateTokens']);
+        $t->same(true, $empty['classEmpty']);
+        $t->same(['empty-html-class-attribute'], $empty['classIssueCodes']);
+
+        $t->same(['note'], $single['classList']);
+        $t->same(['note' => 1], $single['classTokenCounts']);
+        $t->same([], $single['duplicateClassTokens']);
+        $t->same([], $single['classIssueCodes']);
+
+        $t->same(
+            '<section class=" alpha beta alpha gamma beta " id="packet">Review</section>'
+                . '<p class="   " id="empty">Empty</p>'
+                . '<span class="note" id="single">Note</span>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/class-token-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html direction token provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="ltr" dir="LTR">Left</section>'
