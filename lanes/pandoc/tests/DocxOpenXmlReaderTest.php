@@ -1843,6 +1843,236 @@ XML;
         $t->same(2, $relationshipTypes[$imageRel]['externalCount']);
         $t->same(3, $relationshipTypes[$imageRel]['targetRoleCounts']['header-footer-media']);
     },
+    'summarizes docx header and footer hyperlink relationships for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $headerBytes = '<target kind="header">review</target>';
+        $footerBytes = '<target kind="footer">review</target>';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n" .
+            '  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' . "\n" .
+            '  <Relationship Id="rFooterDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            '    <w:sectPr>' . "\n" .
+            '      <w:headerReference w:type="default" r:id="rHeaderDefault"/>' . "\n" .
+            '      <w:footerReference w:type="default" r:id="rFooterDefault"/>' . "\n" .
+            '    </w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/header1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:p>
+    <w:r><w:t xml:space="preserve">Header </w:t></w:r>
+    <w:hyperlink r:id="rHeaderPortal"><w:r><w:t>portal</w:t></w:r></w:hyperlink>
+    <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+    <w:hyperlink r:id="rHeaderInternal"><w:r><w:t>package target</w:t></w:r></w:hyperlink>
+    <w:r><w:t xml:space="preserve"> plus </w:t></w:r>
+    <w:hyperlink r:id="rHeaderUnsafe"><w:r><w:t>unsafe</w:t></w:r></w:hyperlink>
+  </w:p>
+</w:hdr>
+XML;
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderPortal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/header?slot=default#top" TargetMode="External"/>
+  <Relationship Id="rHeaderInternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="linked/header-target.xml?rev=2#section"/>
+  <Relationship Id="rHeaderMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="linked/missing-target.unknown?missing=1#lost"/>
+  <Relationship Id="rHeaderUnsafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/footer1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:p>
+    <w:r><w:t xml:space="preserve">Footer </w:t></w:r>
+    <w:hyperlink r:id="rFooterInternal"><w:r><w:t>package target</w:t></w:r></w:hyperlink>
+  </w:p>
+</w:ftr>
+XML;
+        $parts['word/_rels/footer1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFooterInternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="linked/footer-target.xml?rev=footer#target"/>
+  <Relationship Id="rFooterExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/footer?orphan=1#outside" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/linked/header-target.xml'] = $headerBytes;
+        $parts['word/linked/footer-target.xml'] = $footerBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $hyperlinks = $docx['headerFooterHyperlinkRelationships'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $headerPortal = $hyperlinks['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderPortal'];
+        $headerInternal = $hyperlinks['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderInternal'];
+        $headerMissing = $hyperlinks['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderMissing'];
+        $headerUnsafe = $hyperlinks['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderUnsafe'];
+        $footerInternal = $hyperlinks['byRelationshipKey']['word/_rels/footer1.xml.rels#rFooterInternal'];
+        $footerExternal = $hyperlinks['byRelationshipKey']['word/_rels/footer1.xml.rels#rFooterExternal'];
+
+        $t->same($hyperlinks, $package['headerFooterHyperlinkRelationships']);
+        $t->same(6, $hyperlinks['count']);
+        $t->same(6, $hyperlinks['relationshipCount']);
+        $t->same(4, $hyperlinks['headerCount']);
+        $t->same(2, $hyperlinks['footerCount']);
+        $t->same(2, $hyperlinks['sourcePartCount']);
+        $t->same(4, $hyperlinks['referencedCount']);
+        $t->same(2, $hyperlinks['orphanedCount']);
+        $t->same(3, $hyperlinks['internalCount']);
+        $t->same(2, $hyperlinks['existingCount']);
+        $t->same(1, $hyperlinks['missingCount']);
+        $t->same(3, $hyperlinks['externalCount']);
+        $t->same(1, $hyperlinks['unsafeExternalTargetCount']);
+        $t->same(1, $hyperlinks['missingContentTypeCount']);
+        $t->same(2, $hyperlinks['issueCount']);
+        $t->same([
+            'external-target-unsafe-scheme',
+            'missing-header-footer-hyperlink-content-type',
+            'missing-header-footer-hyperlink-target',
+        ], $hyperlinks['issueCodes']);
+        $t->same([
+            'word/_rels/header1.xml.rels#rHeaderPortal',
+            'word/_rels/header1.xml.rels#rHeaderInternal',
+            'word/_rels/header1.xml.rels#rHeaderMissing',
+            'word/_rels/header1.xml.rels#rHeaderUnsafe',
+            'word/_rels/footer1.xml.rels#rFooterInternal',
+            'word/_rels/footer1.xml.rels#rFooterExternal',
+        ], $hyperlinks['relationshipKeys']);
+        $t->same([
+            'rHeaderPortal',
+            'rHeaderInternal',
+            'rHeaderMissing',
+            'rHeaderUnsafe',
+            'rFooterInternal',
+            'rFooterExternal',
+        ], $hyperlinks['relationshipIds']);
+        $t->same(['word/header1.xml', 'word/footer1.xml'], $hyperlinks['sourceParts']);
+        $t->same(['word/_rels/header1.xml.rels', 'word/_rels/footer1.xml.rels'], $hyperlinks['relationshipsParts']);
+        $t->same([
+            'word/linked/header-target.xml',
+            'word/linked/missing-target.unknown',
+            'word/linked/footer-target.xml',
+        ], $hyperlinks['partNames']);
+        $t->same([
+            'https://example.test/header?slot=default#top',
+            'javascript:alert(1)',
+            'https://example.test/footer?orphan=1#outside',
+        ], $hyperlinks['externalTargets']);
+        $t->same(['application/xml'], $hyperlinks['contentTypes']);
+        $t->same('header-footer-hyperlink-target-bytes-blocked', $hyperlinks['byteExposurePolicy']);
+        $t->same('header-footer-hyperlink-metadata-only', $hyperlinks['reviewPolicy']);
+        $t->same([$headerInternal], $hyperlinks['byRelationshipId']['rHeaderInternal']);
+
+        $t->same('header', $headerPortal['sourceType']);
+        $t->same('word/header1.xml', $headerPortal['sourcePart']);
+        $t->same(true, $headerPortal['sourcePartExists']);
+        $t->same(true, $headerPortal['sourcePartValidRoot']);
+        $t->same('hdr', $headerPortal['sourceRootName']);
+        $t->same('rHeaderDefault', $headerPortal['sourceRelationshipId']);
+        $t->same(true, $headerPortal['sourceReferenced']);
+        $t->same(['default'], $headerPortal['sourceReferenceTypes']);
+        $t->same($hyperlinkRel, $headerPortal['relationshipType']);
+        $t->same('https://example.test/header?slot=default#top', $headerPortal['target']);
+        $t->same(true, $headerPortal['external']);
+        $t->same('absolute-uri', $headerPortal['externalTargetKind']);
+        $t->same('https', $headerPortal['externalTargetScheme']);
+        $t->same(true, $headerPortal['externalTargetAllowed']);
+        $t->same('slot=default', $headerPortal['targetQuery']);
+        $t->same('top', $headerPortal['targetFragment']);
+        $t->same(true, $headerPortal['referenced']);
+        $t->same(false, $headerPortal['orphaned']);
+        $t->same([], $headerPortal['issues']);
+
+        $t->same('word/linked/header-target.xml', $headerInternal['targetPart']);
+        $t->same('linked/header-target.xml?rev=2#section', $headerInternal['target']);
+        $t->same('word/linked/header-target.xml?rev=2#section', $headerInternal['resolvedTarget']);
+        $t->same('rev=2', $headerInternal['targetQuery']);
+        $t->same('section', $headerInternal['targetFragment']);
+        $t->same('?rev=2#section', $headerInternal['targetReferenceSuffix']);
+        $t->same(true, $headerInternal['exists']);
+        $t->same(strlen($headerBytes), $headerInternal['byteLength']);
+        $t->same(sprintf('%08x', crc32($headerBytes)), $headerInternal['crc32']);
+        $t->same(hash('sha256', $headerBytes), $headerInternal['sha256']);
+        $t->same('application/xml', $headerInternal['contentType']);
+        $t->same('default', $headerInternal['contentTypeSource']);
+        $t->same(true, $headerInternal['referenced']);
+        $t->same(false, $headerInternal['orphaned']);
+        $t->same([], $headerInternal['issues']);
+        $t->same(true, $headerInternal['valid']);
+        $t->same('word/_rels/header1.xml.rels', $headerInternal['relationship']['relationshipsPart']);
+
+        $t->same(false, $headerMissing['referenced']);
+        $t->same(true, $headerMissing['orphaned']);
+        $t->same(false, $headerMissing['exists']);
+        $t->same('word/linked/missing-target.unknown', $headerMissing['targetPart']);
+        $t->same('missing=1', $headerMissing['targetQuery']);
+        $t->same('lost', $headerMissing['targetFragment']);
+        $t->same('missing', $headerMissing['contentTypeSource']);
+        $t->same(['missing-header-footer-hyperlink-content-type', 'missing-header-footer-hyperlink-target'], $headerMissing['issues']);
+
+        $t->same(true, $headerUnsafe['referenced']);
+        $t->same('javascript', $headerUnsafe['externalTargetScheme']);
+        $t->same(false, $headerUnsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $headerUnsafe['issues']);
+
+        $t->same('footer', $footerInternal['sourceType']);
+        $t->same('word/footer1.xml', $footerInternal['sourcePart']);
+        $t->same('rFooterDefault', $footerInternal['sourceRelationshipId']);
+        $t->same(['default'], $footerInternal['sourceReferenceTypes']);
+        $t->same('word/linked/footer-target.xml', $footerInternal['targetPart']);
+        $t->same('rev=footer', $footerInternal['targetQuery']);
+        $t->same('target', $footerInternal['targetFragment']);
+        $t->same(true, $footerInternal['referenced']);
+        $t->same(false, $footerInternal['orphaned']);
+        $t->same(strlen($footerBytes), $footerInternal['byteLength']);
+        $t->same(hash('sha256', $footerBytes), $footerInternal['sha256']);
+        $t->same([], $footerInternal['issues']);
+
+        $t->same('footer', $footerExternal['sourceType']);
+        $t->same(false, $footerExternal['referenced']);
+        $t->same(true, $footerExternal['orphaned']);
+        $t->same(true, $footerExternal['external']);
+        $t->same('orphan=1', $footerExternal['targetQuery']);
+        $t->same('outside', $footerExternal['targetFragment']);
+        $t->same([], $footerExternal['issues']);
+
+        $t->same(6, $summary['headerFooterHyperlinkRelationshipCount']);
+        $t->same(4, $summary['headerFooterHyperlinkRelationshipHeaderCount']);
+        $t->same(2, $summary['headerFooterHyperlinkRelationshipFooterCount']);
+        $t->same(4, $summary['headerFooterHyperlinkRelationshipReferencedCount']);
+        $t->same(2, $summary['headerFooterHyperlinkRelationshipOrphanedCount']);
+        $t->same(3, $summary['headerFooterHyperlinkRelationshipInternalCount']);
+        $t->same(2, $summary['headerFooterHyperlinkRelationshipExistingCount']);
+        $t->same(1, $summary['headerFooterHyperlinkRelationshipMissingCount']);
+        $t->same(3, $summary['headerFooterHyperlinkRelationshipExternalCount']);
+        $t->same(1, $summary['headerFooterHyperlinkRelationshipUnsafeExternalCount']);
+        $t->same(1, $summary['headerFooterHyperlinkRelationshipMissingContentTypeCount']);
+        $t->same(2, $summary['headerFooterHyperlinkRelationshipIssueCount']);
+        $t->same($hyperlinks['issueCodes'], $summary['headerFooterHyperlinkRelationshipIssueCodes']);
+
+        $t->true(in_array('header-footer-hyperlink-target', $inventory['word/linked/header-target.xml']['roles'], true), 'header-footer hyperlink role missing on header target');
+        $t->true(in_array('header-hyperlink-target', $inventory['word/linked/header-target.xml']['roles'], true), 'header hyperlink role missing');
+        $t->true(in_array('header-footer-hyperlink-target', $inventory['word/linked/footer-target.xml']['roles'], true), 'header-footer hyperlink role missing on footer target');
+        $t->true(in_array('footer-hyperlink-target', $inventory['word/linked/footer-target.xml']['roles'], true), 'footer hyperlink role missing');
+        $t->true(!isset($docx['media']['word/linked/header-target.xml']), 'Header hyperlink target should not be exposed as document media');
+        $t->true(!isset($docx['media']['word/linked/footer-target.xml']), 'Footer hyperlink target should not be exposed as document media');
+    },
     'preserves docx header and footer reference issue provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

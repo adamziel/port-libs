@@ -470,6 +470,12 @@ final class DocxOpenXmlReader
             $headers,
             $footers,
         );
+        $headerFooterHyperlinkRelationships = $this->readHeaderFooterHyperlinkRelationships(
+            $parts,
+            $contentTypes,
+            $headers,
+            $footers,
+        );
         $noteCommentMediaRelationships = $this->readNoteCommentMediaRelationships($parts, $contentTypes, [
             ['sourceKind' => 'footnote', 'summary' => $footnotes['summary']],
             ['sourceKind' => 'endnote', 'summary' => $endnotes['summary']],
@@ -557,6 +563,20 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['headerFooterMediaRelationshipUnsafeExternalCount'] = $headerFooterMediaRelationships['unsafeExternalTargetCount'];
         $packageProvenance['summary']['headerFooterMediaRelationshipIssueCount'] = $headerFooterMediaRelationships['issueCount'];
         $packageProvenance['summary']['headerFooterMediaRelationshipIssueCodes'] = $headerFooterMediaRelationships['issueCodes'];
+        $packageProvenance['headerFooterHyperlinkRelationships'] = $headerFooterHyperlinkRelationships;
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipCount'] = $headerFooterHyperlinkRelationships['count'];
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipHeaderCount'] = $headerFooterHyperlinkRelationships['headerCount'];
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipFooterCount'] = $headerFooterHyperlinkRelationships['footerCount'];
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipReferencedCount'] = $headerFooterHyperlinkRelationships['referencedCount'];
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipOrphanedCount'] = $headerFooterHyperlinkRelationships['orphanedCount'];
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipInternalCount'] = $headerFooterHyperlinkRelationships['internalCount'];
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipExistingCount'] = $headerFooterHyperlinkRelationships['existingCount'];
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipMissingCount'] = $headerFooterHyperlinkRelationships['missingCount'];
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipExternalCount'] = $headerFooterHyperlinkRelationships['externalCount'];
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipUnsafeExternalCount'] = $headerFooterHyperlinkRelationships['unsafeExternalTargetCount'];
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipMissingContentTypeCount'] = $headerFooterHyperlinkRelationships['missingContentTypeCount'];
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipIssueCount'] = $headerFooterHyperlinkRelationships['issueCount'];
+        $packageProvenance['summary']['headerFooterHyperlinkRelationshipIssueCodes'] = $headerFooterHyperlinkRelationships['issueCodes'];
         $packageProvenance['noteCommentMediaRelationships'] = $noteCommentMediaRelationships;
         $packageProvenance['summary']['noteCommentMediaRelationshipCount'] = $noteCommentMediaRelationships['count'];
         $packageProvenance['summary']['noteCommentMediaRelationshipFootnoteCount'] = $noteCommentMediaRelationships['footnoteCount'];
@@ -1077,6 +1097,7 @@ final class DocxOpenXmlReader
                 'documentHyperlinks' => $documentHyperlinks,
                 'documentMediaRelationships' => $documentMediaRelationships,
                 'headerFooterMediaRelationships' => $headerFooterMediaRelationships,
+                'headerFooterHyperlinkRelationships' => $headerFooterHyperlinkRelationships,
                 'noteCommentMediaRelationships' => $noteCommentMediaRelationships,
                 'noteCommentHyperlinkRelationships' => $noteCommentHyperlinkRelationships,
                 'documentBackgroundImages' => $documentBackgroundImages,
@@ -4011,6 +4032,253 @@ final class DocxOpenXmlReader
                 $item['issues'][] = 'missing-header-footer-media-content-type';
             } elseif ($relationship['type'] === self::IMAGE_REL && !$this->isImageContentType($contentType)) {
                 $item['issues'][] = 'unexpected-header-footer-media-content-type';
+            }
+        }
+
+        $item['issues'] = array_values(array_unique($item['issues']));
+        sort($item['issues'], SORT_STRING);
+        $item['valid'] = $item['issues'] === [];
+
+        return $item;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, mixed> $headers
+     * @param array<string, mixed> $footers
+     * @return array<string, mixed>
+     */
+    private function readHeaderFooterHyperlinkRelationships(
+        array $parts,
+        array $contentTypes,
+        array $headers,
+        array $footers
+    ): array {
+        $items = [];
+
+        foreach (['header' => $headers['items'] ?? [], 'footer' => $footers['items'] ?? []] as $sourceType => $sourceItems) {
+            if (!is_array($sourceItems)) {
+                continue;
+            }
+
+            foreach ($sourceItems as $sourceItem) {
+                if (!is_array($sourceItem)) {
+                    continue;
+                }
+
+                $sourcePart = is_string($sourceItem['partName'] ?? null) ? $sourceItem['partName'] : null;
+                $relationshipsPart = is_string($sourceItem['relationshipsPart'] ?? null) ? $sourceItem['relationshipsPart'] : null;
+                if ($sourcePart === null || $sourcePart === '' || $relationshipsPart === null || $relationshipsPart === '') {
+                    continue;
+                }
+
+                $referencedRelationshipIds = $this->headerFooterHyperlinkRelationshipIds($parts[$sourcePart] ?? '', $sourcePart);
+                foreach ($this->readRelationshipsPart($parts, $relationshipsPart) as $relationship) {
+                    if ($relationship['type'] !== self::HYPERLINK_REL) {
+                        continue;
+                    }
+
+                    $items[] = $this->headerFooterHyperlinkRelationshipItem(
+                        $parts,
+                        $relationship,
+                        $sourceType,
+                        $sourceItem,
+                        $sourcePart,
+                        $relationshipsPart,
+                        $contentTypes,
+                        count($items),
+                        in_array($relationship['id'], $referencedRelationshipIds, true),
+                    );
+                }
+            }
+        }
+
+        $byRelationshipKey = [];
+        $byRelationshipId = [];
+        $relationshipKeys = [];
+        $relationshipIds = [];
+        $sourceParts = [];
+        $relationshipsParts = [];
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        foreach ($items as $item) {
+            $relationshipKey = is_string($item['relationshipKey'] ?? null) ? $item['relationshipKey'] : '';
+            $relationshipId = is_string($item['relationshipId'] ?? null) ? $item['relationshipId'] : '';
+            if ($relationshipKey !== '') {
+                $byRelationshipKey[$relationshipKey] = $item;
+                $this->appendUniqueString($relationshipKeys, $relationshipKey);
+            }
+            if ($relationshipId !== '') {
+                $byRelationshipId[$relationshipId] ??= [];
+                $byRelationshipId[$relationshipId][] = $item;
+                $this->appendUniqueString($relationshipIds, $relationshipId);
+            }
+            $this->appendUniqueString($sourceParts, is_string($item['sourcePart'] ?? null) ? $item['sourcePart'] : null);
+            $this->appendUniqueString($relationshipsParts, is_string($item['relationshipsPart'] ?? null) ? $item['relationshipsPart'] : null);
+            if (($item['external'] ?? false) !== true) {
+                $this->appendUniqueString($partNames, is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            }
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count($items),
+            'headerCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'header')),
+            'footerCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'footer')),
+            'sourcePartCount' => count($sourceParts),
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
+            'orphanedCount' => count(array_filter($items, static fn (array $item): bool => $item['orphaned'] === true)),
+            'internalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false)),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-header-footer-hyperlink-target', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-target-unsafe-scheme', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-header-footer-hyperlink-content-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipKeys' => $relationshipKeys,
+            'relationshipIds' => $relationshipIds,
+            'sourceParts' => $sourceParts,
+            'relationshipsParts' => $relationshipsParts,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipKey' => $byRelationshipKey,
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+            'byteExposurePolicy' => 'header-footer-hyperlink-target-bytes-blocked',
+            'reviewPolicy' => 'header-footer-hyperlink-metadata-only',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function headerFooterHyperlinkRelationshipIds(string $xml, string $partName): array
+    {
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [];
+        }
+
+        $ids = [];
+        $xpath = $this->xpath($dom);
+        foreach ($this->elements($xpath, '//w:hyperlink[@r:id]') as $hyperlink) {
+            $this->appendUniqueString($ids, $hyperlink->getAttributeNS(self::NS_R, 'id'));
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array<string, mixed> $sourceItem
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function headerFooterHyperlinkRelationshipItem(
+        array $parts,
+        array $relationship,
+        string $sourceType,
+        array $sourceItem,
+        string $sourcePart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index,
+        bool $referenced
+    ): array {
+        $relationshipId = $relationship['id'];
+        $relationshipKey = $relationshipsPart . '#' . $relationshipId;
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) $summary['exists'];
+        $external = (bool) $summary['external'];
+        $sourceReferenceTypes = is_array($sourceItem['referenceTypes'] ?? null)
+            ? array_values(array_map('strval', $sourceItem['referenceTypes']))
+            : [];
+        $sourceIssues = is_array($sourceItem['issues'] ?? null)
+            ? array_values(array_map('strval', $sourceItem['issues']))
+            : [];
+
+        $item = [
+            'index' => $index,
+            'relationshipKey' => $relationshipKey,
+            'relationshipId' => $relationshipId,
+            'sourceType' => $sourceType,
+            'sourcePart' => $sourcePart,
+            'sourcePartExists' => (bool) ($sourceItem['exists'] ?? false),
+            'sourcePartValidRoot' => (bool) ($sourceItem['validRoot'] ?? false),
+            'sourceRootName' => is_string($sourceItem['rootName'] ?? null) ? $sourceItem['rootName'] : null,
+            'sourceRelationshipId' => is_string($sourceItem['relationshipId'] ?? null) ? $sourceItem['relationshipId'] : '',
+            'sourceReferenced' => (bool) ($sourceItem['referenced'] ?? false),
+            'sourceReferenceTypes' => $sourceReferenceTypes,
+            'sourceIssues' => $sourceIssues,
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipType' => $summary['type'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'external' => $external,
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'exists' => $exists,
+            'byteLength' => null,
+            'crc32' => null,
+            'sha256' => null,
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'externalTargetKind' => $summary['externalTargetKind'],
+            'externalTargetScheme' => $summary['externalTargetScheme'],
+            'externalTargetAllowed' => $summary['externalTargetAllowed'],
+            'referenced' => $referenced,
+            'orphaned' => !$referenced,
+            'byteExposurePolicy' => 'header-footer-hyperlink-target-bytes-blocked',
+            'reviewPolicy' => 'header-footer-hyperlink-metadata-only',
+            'valid' => false,
+            'issues' => [],
+            'relationship' => $summary,
+        ];
+
+        if ($relationship['type'] !== self::HYPERLINK_REL) {
+            $item['issues'][] = 'unexpected-relationship-type';
+        }
+
+        if ($external) {
+            $item['issues'] = array_values(array_unique(array_merge($item['issues'], $summary['externalTargetIssues'])));
+        } elseif ($targetPart !== null) {
+            if ($exists) {
+                $item['byteLength'] = strlen($parts[$targetPart]);
+                $item['crc32'] = sprintf('%08x', crc32($parts[$targetPart]));
+                $item['sha256'] = hash('sha256', $parts[$targetPart]);
+            } else {
+                $item['issues'][] = 'missing-header-footer-hyperlink-target';
+            }
+
+            if (($summary['contentTypeSource'] ?? '') === 'missing') {
+                $item['issues'][] = 'missing-header-footer-hyperlink-content-type';
             }
         }
 
@@ -14105,6 +14373,7 @@ final class DocxOpenXmlReader
             $this->addRelationshipTargetInventoryRole($rolesByPart, $targetPart, $relationship['type']);
         }
         $headerFooterSourceParts = [];
+        $headerFooterSourceTypes = [];
         foreach ($documentRelationships as $relationship) {
             if (
                 ($relationship['type'] !== self::HEADER_REL && $relationship['type'] !== self::FOOTER_REL)
@@ -14113,7 +14382,9 @@ final class DocxOpenXmlReader
                 continue;
             }
 
-            $headerFooterSourceParts[$this->stripQueryAndFragment($relationship['resolvedTarget'])] = true;
+            $targetPart = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+            $headerFooterSourceParts[$targetPart] = true;
+            $headerFooterSourceTypes[$targetPart][$relationship['type'] === self::HEADER_REL ? 'header' : 'footer'] = true;
         }
         foreach ($parts as $relationshipPart => $_contents) {
             if (
@@ -14133,6 +14404,10 @@ final class DocxOpenXmlReader
             $isThemeRelationshipPart = $relationshipSourceContentTypeBase === self::CT_THEME;
             $isHeaderFooterRelationshipPart = isset($headerFooterSourceParts[$relationshipSourcePart])
                 || in_array($relationshipSourceContentTypeBase, [self::CT_WORD_HEADER, self::CT_WORD_FOOTER], true);
+            $isHeaderRelationshipPart = isset($headerFooterSourceTypes[$relationshipSourcePart]['header'])
+                || $relationshipSourceContentTypeBase === self::CT_WORD_HEADER;
+            $isFooterRelationshipPart = isset($headerFooterSourceTypes[$relationshipSourcePart]['footer'])
+                || $relationshipSourceContentTypeBase === self::CT_WORD_FOOTER;
             $noteCommentMediaRole = match ($relationshipSourceContentTypeBase) {
                 self::CT_WORD_FOOTNOTES => 'footnote-media',
                 self::CT_WORD_ENDNOTES => 'endnote-media',
@@ -14161,6 +14436,15 @@ final class DocxOpenXmlReader
                 }
                 if ($isHeaderFooterRelationshipPart && $relationship['type'] === self::IMAGE_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, 'header-footer-media');
+                }
+                if ($isHeaderFooterRelationshipPart && $relationship['type'] === self::HYPERLINK_REL) {
+                    $this->addPartRole($rolesByPart, $targetPart, 'header-footer-hyperlink-target');
+                    if ($isHeaderRelationshipPart) {
+                        $this->addPartRole($rolesByPart, $targetPart, 'header-hyperlink-target');
+                    }
+                    if ($isFooterRelationshipPart) {
+                        $this->addPartRole($rolesByPart, $targetPart, 'footer-hyperlink-target');
+                    }
                 }
                 if ($noteCommentMediaRole !== null && $relationship['type'] === self::IMAGE_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, $noteCommentMediaRole);
