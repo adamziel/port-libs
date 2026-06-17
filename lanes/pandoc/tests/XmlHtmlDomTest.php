@@ -4088,6 +4088,84 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/language-direction-inheritance-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html dir auto first strong character resolution for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="auto-ar" dir="auto">123 العربية</section>'
+                . '<section id="auto-ltr" dir="auto">42 Alpha עברית</section>'
+                . '<section id="auto-neutral" dir="auto">123 - ?</section>'
+                . '<article id="auto-parent" dir="auto">123 שלום <span id="auto-child">Alpha child</span></article>',
+            'dir auto first strong character review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/dir-auto-first-strong-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $arabic = $summary[0];
+        $latin = $summary[1];
+        $neutral = $summary[2];
+        $parent = $summary[3];
+        $child = $parent['children'][1];
+
+        $t->same('section', $arabic['name']);
+        $t->same('auto', $arabic['direction']);
+        $t->same('auto', $arabic['effectiveDirection']);
+        $t->same('rtl', $arabic['effectiveDirectionResolved']);
+        $t->same('html-dir-auto-first-strong-character-review', $arabic['dirAutoReviewPolicy']);
+        $t->same('rtl', $arabic['dirAutoResolvedDirection']);
+        $t->same(true, $arabic['dirAutoResolved']);
+        $t->same(false, $arabic['dirAutoNeutral']);
+        $t->same(false, $arabic['dirAutoInherited']);
+        $t->same('ا', $arabic['dirAutoFirstStrongCharacter']);
+        $t->same('AL', $arabic['dirAutoFirstStrongBidiClass']);
+        $t->same(4, $arabic['dirAutoFirstStrongCharacterOffset']);
+        $t->same(4, $arabic['dirAutoFirstStrongByteOffset']);
+        $t->same('auto-ar', $arabic['dirAutoSourceElementId']);
+
+        $t->same('ltr', $latin['effectiveDirectionResolved']);
+        $t->same('ltr', $latin['dirAutoResolvedDirection']);
+        $t->same('A', $latin['dirAutoFirstStrongCharacter']);
+        $t->same('L', $latin['dirAutoFirstStrongBidiClass']);
+        $t->same(3, $latin['dirAutoFirstStrongCharacterOffset']);
+        $t->same(3, $latin['dirAutoFirstStrongByteOffset']);
+
+        $t->same('auto', $neutral['effectiveDirection']);
+        $t->same(null, $neutral['effectiveDirectionResolved']);
+        $t->same(null, $neutral['dirAutoResolvedDirection']);
+        $t->same(false, $neutral['dirAutoResolved']);
+        $t->same(true, $neutral['dirAutoNeutral']);
+        $t->same(null, $neutral['dirAutoFirstStrongCharacter']);
+        $t->same(null, $neutral['dirAutoFirstStrongBidiClass']);
+        $t->same(null, $neutral['dirAutoFirstStrongCharacterOffset']);
+        $t->same(null, $neutral['dirAutoFirstStrongByteOffset']);
+
+        $t->same('article', $parent['name']);
+        $t->same('rtl', $parent['effectiveDirectionResolved']);
+        $t->same('ש', $parent['dirAutoFirstStrongCharacter']);
+        $t->same('R', $parent['dirAutoFirstStrongBidiClass']);
+        $t->same(4, $parent['dirAutoFirstStrongCharacterOffset']);
+        $t->same(4, $parent['dirAutoFirstStrongByteOffset']);
+
+        $t->same('span', $child['name']);
+        $t->same('auto', $child['effectiveDirection']);
+        $t->same('rtl', $child['effectiveDirectionResolved']);
+        $t->same(true, $child['directionInherited']);
+        $t->same('ancestor-dir', $child['directionSource']);
+        $t->same('article', $child['directionSourceElement']);
+        $t->same('auto-parent', $child['directionSourceElementId']);
+        $t->same(true, $child['dirAutoInherited']);
+        $t->same('auto-parent', $child['dirAutoSourceElementId']);
+        $t->same('rtl', $child['dirAutoResolvedDirection']);
+        $t->same('ש', $child['dirAutoFirstStrongCharacter']);
+        $t->same('R', $child['dirAutoFirstStrongBidiClass']);
+
+        $t->contains('<section dir="auto" id="auto-ar">123 العربية</section>', $html);
+        $t->contains('<article dir="auto" id="auto-parent">123 שלום <span id="auto-child">Alpha child</span></article>', $blocks);
+        $t->same('/migration/dir-auto-first-strong-review.html', $document->children[0]->attr('part'));
+        json_encode($summary, JSON_THROW_ON_ERROR);
+    },
     'summarizes inherited html spellcheck state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="checked" spellcheck="false"><p id="body"><span id="invalid" spellcheck="maybe">Invalid</span><span id="enabled" spellcheck="true"><em id="enabled-child">Enabled</em></span></p></article>'

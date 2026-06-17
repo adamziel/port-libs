@@ -1685,5 +1685,7 @@
   "mappedXmlHtmlDomAutocapitalizeInheritanceCases": 1,
   "xmlHtmlDomAutocapitalizeInheritanceAssertions": 33,
   "mappedXmlHtmlDomDirAutoResolutionCases": 1,
-  "xmlHtmlDomDirAutoResolutionAssertions": 46
+  "xmlHtmlDomDirAutoResolutionAssertions": 46,
+  "mappedXmlHtmlDomDirAutoFirstStrongReviewCases": 1,
+  "xmlHtmlDomDirAutoFirstStrongReviewAssertions": 109
 }

@@ -1041,7 +1041,9 @@
     "mappedXmlHtmlDomAutocapitalizeInheritanceCases": 1,
     "xmlHtmlDomAutocapitalizeInheritanceAssertions": 33,
     "mappedXmlHtmlDomDirAutoResolutionCases": 1,
-    "xmlHtmlDomDirAutoResolutionAssertions": 46
+    "xmlHtmlDomDirAutoResolutionAssertions": 46,
+    "mappedXmlHtmlDomDirAutoFirstStrongReviewCases": 1,
+    "xmlHtmlDomDirAutoFirstStrongReviewAssertions": 109
   },
   "benchmarkDenominator": {
     "status": "XML/HTML DOM autofocus order review is verified after rebase onto current main e449b59b26; phpPass is 16938 and phpFail remains 0.",
@@ -3041,5 +3043,7 @@
   "mappedXmlHtmlDomAutocapitalizeInheritanceCases": 1,
   "xmlHtmlDomAutocapitalizeInheritanceAssertions": 33,
   "mappedXmlHtmlDomDirAutoResolutionCases": 1,
-  "xmlHtmlDomDirAutoResolutionAssertions": 46
+  "xmlHtmlDomDirAutoResolutionAssertions": 46,
+  "mappedXmlHtmlDomDirAutoFirstStrongReviewCases": 1,
+  "xmlHtmlDomDirAutoFirstStrongReviewAssertions": 109
 }

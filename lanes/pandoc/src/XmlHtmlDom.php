@@ -18217,6 +18217,7 @@ final class XmlHtmlDom
         $summary = [
             'effectiveDirectionRaw' => $raw,
             'effectiveDirection' => $direction,
+            'effectiveDirectionResolved' => $direction,
             'directionInherited' => $inherited,
             'directionSource' => $inherited ? 'ancestor-dir' : 'self-dir',
             'directionSourceElement' => self::htmlElementName($source),
@@ -18229,6 +18230,10 @@ final class XmlHtmlDom
 
         if ($direction === 'auto') {
             $summary += self::directionAutoResolutionSummary($source, $inherited);
+            $auto = self::dirAutoResolutionSummary($source, $inherited);
+            $summary['effectiveDirectionResolved'] = $auto['dirAutoResolvedDirection'];
+
+            return $summary + $auto;
         }
 
         return $summary;
@@ -18306,6 +18311,81 @@ final class XmlHtmlDom
         $direction = strtolower(trim($value));
 
         return in_array($direction, ['ltr', 'rtl', 'auto'], true) ? $direction : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function dirAutoResolutionSummary(\DOMElement $source, bool $inherited): array
+    {
+        $scan = self::firstStrongTextDirection(self::normalizedText($source));
+        $summary = [
+            'dirAutoReviewPolicy' => 'html-dir-auto-first-strong-character-review',
+            'dirAutoResolvedDirection' => $scan['direction'],
+            'dirAutoResolved' => $scan['direction'] !== null,
+            'dirAutoNeutral' => $scan['direction'] === null,
+            'dirAutoInherited' => $inherited,
+            'dirAutoSourceElement' => self::htmlElementName($source),
+            'dirAutoFirstStrongCharacter' => $scan['character'],
+            'dirAutoFirstStrongBidiClass' => $scan['bidiClass'],
+            'dirAutoFirstStrongCharacterOffset' => $scan['characterOffset'],
+            'dirAutoFirstStrongByteOffset' => $scan['byteOffset'],
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['dirAutoSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{direction:?string, character:?string, bidiClass:?string, characterOffset:?int, byteOffset:?int}
+     */
+    private static function firstStrongTextDirection(string $text): array
+    {
+        if (preg_match_all('/./us', $text, $matches, PREG_OFFSET_CAPTURE) !== false) {
+            foreach ($matches[0] as $index => $match) {
+                $character = (string) $match[0];
+                $byteOffset = (int) $match[1];
+                if (preg_match('/^\p{Bidi_Class:L}$/u', $character) === 1) {
+                    return [
+                        'direction' => 'ltr',
+                        'character' => $character,
+                        'bidiClass' => 'L',
+                        'characterOffset' => $index,
+                        'byteOffset' => $byteOffset,
+                    ];
+                }
+                if (preg_match('/^\p{Bidi_Class:R}$/u', $character) === 1) {
+                    return [
+                        'direction' => 'rtl',
+                        'character' => $character,
+                        'bidiClass' => 'R',
+                        'characterOffset' => $index,
+                        'byteOffset' => $byteOffset,
+                    ];
+                }
+                if (preg_match('/^\p{Bidi_Class:AL}$/u', $character) === 1) {
+                    return [
+                        'direction' => 'rtl',
+                        'character' => $character,
+                        'bidiClass' => 'AL',
+                        'characterOffset' => $index,
+                        'byteOffset' => $byteOffset,
+                    ];
+                }
+            }
+        }
+
+        return [
+            'direction' => null,
+            'character' => null,
+            'bidiClass' => null,
+            'characterOffset' => null,
+            'byteOffset' => null,
+        ];
     }
 
     private static function htmlTranslateState(string $value): ?bool
