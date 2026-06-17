@@ -800,6 +800,7 @@ final class PdfEngineHandoff
      *     pdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     pdfStructureNamespaces: list<array{object:string|null, type:string|null, namespace:string|null, schemaObject:string|null, schemaType:string|null, roleMap:array<string, string>, keys:list<string>}>,
+     *     pdfPageStructureParents: list<array{page:int, pageObject:string|null, structParents:int, source:string}>,
      *     pdfStructureParentTree: list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
      *     pdfStructureParentTreePolicy: array<string, mixed>,
      *     pdfStructureIdTree: list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>,
@@ -1489,6 +1490,7 @@ final class PdfEngineHandoff
         $pdfLegalAttestationMetadata = [];
         $pdfTaggingMetadata = [];
         $pdfStructureNamespaces = [];
+        $pdfPageStructureParents = [];
         $pdfStructureParentTree = [];
         $pdfStructureParentTreePolicy = [];
         $pdfStructureIdTree = [];
@@ -1634,6 +1636,7 @@ final class PdfEngineHandoff
                 $pdfLegalAttestationMetadata = $pdfInspection['legalAttestationMetadata'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
                 $pdfStructureNamespaces = $pdfInspection['structureNamespaces'];
+                $pdfPageStructureParents = $pdfInspection['pageStructureParents'];
                 $pdfStructureParentTree = $pdfInspection['structureParentTree'];
                 $pdfStructureParentTreePolicy = $pdfInspection['structureParentTreePolicy'];
                 $pdfStructureIdTree = $pdfInspection['structureIdTree'];
@@ -3056,6 +3059,12 @@ final class PdfEngineHandoff
                     }
                     if ($missingNamespaceCount > 0) {
                         $diagnostics[] = 'pdf-byte-structure-namespace-missing-uri:' . $missingNamespaceCount;
+                    }
+                }
+                if ($pdfPageStructureParents !== []) {
+                    $diagnostics[] = 'pdf-byte-page-structure-parents:' . count($pdfPageStructureParents);
+                    foreach ($this->summarizePdfPageStructureParentIndexes($pdfPageStructureParents) as $index => $count) {
+                        $diagnostics[] = 'pdf-byte-page-structure-parent-index:' . $index . ':' . $count;
                     }
                 }
                 if ($pdfStructureElements !== []) {
@@ -4938,6 +4947,7 @@ final class PdfEngineHandoff
             'pdfLegalAttestationMetadata' => $pdfLegalAttestationMetadata,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
             'pdfStructureNamespaces' => $pdfStructureNamespaces,
+            'pdfPageStructureParents' => $pdfPageStructureParents,
             'pdfStructureParentTree' => $pdfStructureParentTree,
             'pdfStructureParentTreePolicy' => $pdfStructureParentTreePolicy,
             'pdfStructureIdTree' => $pdfStructureIdTree,
@@ -5104,6 +5114,7 @@ final class PdfEngineHandoff
      *     finalPdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     finalPdfStructureNamespaces: list<array{object:string|null, type:string|null, namespace:string|null, schemaObject:string|null, schemaType:string|null, roleMap:array<string, string>, keys:list<string>}>,
+     *     finalPdfPageStructureParents: list<array{page:int, pageObject:string|null, structParents:int, source:string}>,
      *     finalPdfStructureParentTree: list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
      *     finalPdfStructureParentTreePolicy: array<string, mixed>,
      *     finalPdfStructureIdTree: list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>,
@@ -5426,6 +5437,7 @@ final class PdfEngineHandoff
             'finalPdfLegalAttestationMetadata' => is_array($finalRun) && is_array($finalRun['pdfLegalAttestationMetadata'] ?? null) ? $finalRun['pdfLegalAttestationMetadata'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
             'finalPdfStructureNamespaces' => is_array($finalRun) && is_array($finalRun['pdfStructureNamespaces'] ?? null) ? $finalRun['pdfStructureNamespaces'] : [],
+            'finalPdfPageStructureParents' => is_array($finalRun) && is_array($finalRun['pdfPageStructureParents'] ?? null) ? $finalRun['pdfPageStructureParents'] : [],
             'finalPdfStructureParentTree' => is_array($finalRun) && is_array($finalRun['pdfStructureParentTree'] ?? null) ? $finalRun['pdfStructureParentTree'] : [],
             'finalPdfStructureParentTreePolicy' => is_array($finalRun) && is_array($finalRun['pdfStructureParentTreePolicy'] ?? null) ? $finalRun['pdfStructureParentTreePolicy'] : [],
             'finalPdfStructureIdTree' => is_array($finalRun) && is_array($finalRun['pdfStructureIdTree'] ?? null) ? $finalRun['pdfStructureIdTree'] : [],
@@ -11361,6 +11373,7 @@ final class PdfEngineHandoff
      *     catalogRequirementPolicy:array<string, mixed>,
      *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     structureNamespaces:list<array{object:string|null, type:string|null, namespace:string|null, schemaObject:string|null, schemaType:string|null, roleMap:array<string, string>, keys:list<string>}>,
+     *     pageStructureParents:list<array{page:int, pageObject:string|null, structParents:int, source:string}>,
      *     structureParentTree:list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
      *     structureParentTreePolicy:array<string, mixed>,
      *     structureIdTree:list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}>,
@@ -11489,6 +11502,7 @@ final class PdfEngineHandoff
         $catalogRequirements = $this->extractPdfCatalogRequirements($pdfBytes, $catalog);
         $taggingMetadata = $this->extractPdfTaggingMetadata($pdfBytes, $catalog);
         $structureNamespaces = $this->extractPdfStructureNamespaces($pdfBytes, $catalog);
+        $pageStructureParents = $this->extractPdfPageStructureParents($pdfBytes, $catalog);
         $structureParentTree = $this->extractPdfStructureParentTree($pdfBytes, $catalog);
         $structureIdTree = $this->extractPdfStructureIdTree($pdfBytes, $catalog);
         $structureElements = $this->extractPdfStructureElements($pdfBytes);
@@ -11591,6 +11605,7 @@ final class PdfEngineHandoff
             'legalAttestationMetadata' => $this->extractPdfLegalAttestationMetadata($pdfBytes, $catalog),
             'taggingMetadata' => $taggingMetadata,
             'structureNamespaces' => $structureNamespaces,
+            'pageStructureParents' => $pageStructureParents,
             'structureParentTree' => $structureParentTree,
             'structureParentTreePolicy' => $structureParentTreePolicy,
             'structureIdTree' => $structureIdTree,
@@ -18812,6 +18827,127 @@ final class PdfEngineHandoff
             'roleMap' => $this->extractPdfStructureRoleMap($dictionary, $objects),
             'keys' => $keys,
         ];
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, structParents:int, source:string}>
+     */
+    private function extractPdfPageStructureParents(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $parents = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfPageStructureParentsFromTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $parents,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($parents === []) {
+            uksort($objects, fn (string $a, string $b): int => $this->pdfReferenceSortKey($a . ' R') <=> $this->pdfReferenceSortKey($b . ' R'));
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                $summary = $this->summarizePdfPageStructureParents($body, $reference, $pageNumber);
+                if ($summary !== null) {
+                    $parents[] = $summary;
+                }
+            }
+        }
+
+        return $parents;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, structParents:int, source:string}> $parents
+     */
+    private function collectPdfPageStructureParentsFromTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$parents,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $summary = $this->summarizePdfPageStructureParents($body, $reference, $pageNumber);
+            if ($summary !== null) {
+                $parents[] = $summary;
+            }
+
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfPageStructureParentsFromTree(
+                $objects,
+                $kidReference,
+                $visited,
+                $parents,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @return array{page:int, pageObject:string|null, structParents:int, source:string}|null
+     */
+    private function summarizePdfPageStructureParents(string $dictionary, ?string $reference, int $pageNumber): ?array
+    {
+        $structParents = $this->extractPdfIntegerToken($dictionary, 'StructParents');
+        if ($structParents === null) {
+            return null;
+        }
+
+        $pageObject = $reference === null ? null : $reference . ' R';
+
+        return [
+            'page' => $pageNumber,
+            'pageObject' => $pageObject,
+            'structParents' => $structParents,
+            'source' => ($pageObject === null ? 'page' : 'page:' . $pageObject) . '.StructParents',
+        ];
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, structParents:int, source:string}> $parents
+     * @return array<int, int>
+     */
+    private function summarizePdfPageStructureParentIndexes(array $parents): array
+    {
+        $indexes = [];
+        foreach ($parents as $entry) {
+            if (!isset($entry['structParents']) || !is_int($entry['structParents'])) {
+                continue;
+            }
+
+            $indexes[$entry['structParents']] = ($indexes[$entry['structParents']] ?? 0) + 1;
+        }
+        ksort($indexes, SORT_NUMERIC);
+
+        return $indexes;
     }
 
     /**

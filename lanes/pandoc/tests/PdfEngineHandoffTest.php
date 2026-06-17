@@ -12007,6 +12007,81 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfStructureRoleMapUsage']);
     },
 
+    'fake runner extracts bounded pdf page structure parent indexes from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-struct-parents.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 3 /Kids [3 0 R 4 0 R 5 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /StructParents 4 >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Page /Parent 2 0 R /StructParents 7 >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /ParentTree 12 0 R /ParentTreeNextKey 8 >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Nums [4 [10 0 R] 7 [11 0 R]] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /P /P 9 0 R /Pg 3 0 R /K 0 >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /StructElem /S /Figure /P 9 0 R /Pg 5 0 R /K 0 /Alt (Review figure) >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/page-struct-parents.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/page-struct-parents.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'structParents' => 4,
+                'source' => 'page:3 0 R.StructParents',
+            ],
+            [
+                'page' => 3,
+                'pageObject' => '5 0 R',
+                'structParents' => 7,
+                'source' => 'page:5 0 R.StructParents',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageStructureParents'] ?? null);
+        $t->contains('pdf-byte-page-structure-parents:2', $diagnostics);
+        $t->contains('pdf-byte-page-structure-parent-index:4:1', $diagnostics);
+        $t->contains('pdf-byte-page-structure-parent-index:7:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageStructureParents'] ?? null);
+    },
+
     'fake runner extracts bounded pdf structure parent tree number mappings from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/parent-tree.pdf']);
