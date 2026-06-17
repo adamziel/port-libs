@@ -3888,6 +3888,85 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'maps typst sidecar output histories into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/sidecar-output-matrix.pdf',
+            'source' => '= Typst Sidecar Output Matrix Packet',
+            'engineOptions' => [
+                '--deps=build/local-deps.d',
+                '--deps',
+                'https://deps.example.invalid/remote.d',
+                '--deps-format=custom format',
+                '--deps-format',
+                'json',
+                '--timings=build/local-timings.json',
+                '--timings',
+                'https://trace.example.invalid/timings.json',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst sidecar output matrix packet\n%%EOF\n";
+        $expectedCase = [
+            'case' => 'sidecar-outputs',
+            'reviewStatus' => 'review',
+            'observed' => 2,
+            'details' => [
+                'dependencyOutputPresent' => true,
+                'dependencyOutputPath' => 'https://deps.example.invalid/remote.d',
+                'dependencyFormat' => 'json',
+                'timingsOutputPresent' => true,
+                'timingsOutputPath' => 'https://trace.example.invalid/timings.json',
+                'dependencyOutputHistoryCount' => 2,
+                'dependencyFormatHistoryCount' => 2,
+                'timingsOutputHistoryCount' => 2,
+                'overrideCount' => 3,
+                'invalidDependencyOutputCount' => 1,
+                'invalidDependencyFormatCount' => 1,
+                'invalidTimingsOutputCount' => 1,
+            ],
+            'issues' => [
+                'dependency-format-boundary-overridden',
+                'dependency-format-invalid-boundary',
+                'dependency-output-boundary-overridden',
+                'dependency-output-external-boundary',
+                'timings-output-boundary-overridden',
+                'timings-output-external-boundary',
+            ],
+        ];
+        $planCases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $planCases[$case['case']] = $case;
+        }
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/sidecar-output-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/sidecar-output-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $resultCases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $resultCases[$case['case']] = $case;
+        }
+
+        $t->same($expectedCase, $planCases['sidecar-outputs']);
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->contains('sidecar-outputs:dependency-format-invalid-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('typst-boundary-matrix-review-cases:2', implode(',', $plan['diagnostics']));
+        $t->same([], $plan['expectedEngineArtifacts']);
+        $t->same(true, $result['ok']);
+        $t->same($expectedCase, $resultCases['sidecar-outputs']);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans typst dependency stdout boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

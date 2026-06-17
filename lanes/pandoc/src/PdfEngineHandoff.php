@@ -7328,6 +7328,16 @@ final class PdfEngineHandoff
 
             return $counts;
         };
+        $countUnsafe = static function (array $entries): int {
+            $count = 0;
+            foreach ($entries as $entry) {
+                if (!is_array($entry) || ($entry['safe'] ?? false) !== true) {
+                    ++$count;
+                }
+            }
+
+            return $count;
+        };
 
         $cases = [];
         $matrixIssues = [];
@@ -7714,7 +7724,22 @@ final class PdfEngineHandoff
         $dependencyOutput = is_array($provenance['dependencyOutput'] ?? null) ? $provenance['dependencyOutput'] : [];
         $timingsOutput = is_array($provenance['timingsOutput'] ?? null) ? $provenance['timingsOutput'] : [];
         if ($dependencyOutput !== [] || $timingsOutput !== []) {
-            $sidecarIssues = array_merge($entryIssues($dependencyOutput), $entryIssues($timingsOutput));
+            $dependencyOutputHistory = is_array($provenance['dependencyOutputHistory'] ?? null) ? $provenance['dependencyOutputHistory'] : [];
+            $dependencyFormatHistory = is_array($provenance['dependencyFormatHistory'] ?? null) ? $provenance['dependencyFormatHistory'] : [];
+            $timingsOutputHistory = is_array($provenance['timingsOutputHistory'] ?? null) ? $provenance['timingsOutputHistory'] : [];
+            $sidecarOverrides = array_values(array_filter(
+                is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+                static fn (mixed $entry): bool => is_array($entry)
+                    && in_array($entry['option'] ?? null, ['dependencyOutput', 'dependencyFormat', 'timingsOutput'], true)
+            ));
+            $sidecarIssues = array_merge(
+                $entryIssues($dependencyOutput),
+                $entryIssues($timingsOutput),
+                $listIssues($dependencyOutputHistory),
+                $listIssues($dependencyFormatHistory),
+                $listIssues($timingsOutputHistory),
+                $optionIssues($sidecarOverrides)
+            );
             $dependencyOutputFile = is_array($dependencyOutput['file'] ?? null) ? $dependencyOutput['file'] : [];
             $dependencyOutputFormat = is_array($dependencyOutput['format'] ?? null) ? $dependencyOutput['format'] : [];
             $sidecarCount = is_int($summary['sidecarOutputCount'] ?? null)
@@ -7726,6 +7751,13 @@ final class PdfEngineHandoff
                 'dependencyFormat' => is_string($dependencyOutputFormat['format'] ?? null) ? $dependencyOutputFormat['format'] : null,
                 'timingsOutputPresent' => $timingsOutput !== [],
                 'timingsOutputPath' => is_string($timingsOutput['path'] ?? null) ? $timingsOutput['path'] : null,
+                'dependencyOutputHistoryCount' => count($dependencyOutputHistory),
+                'dependencyFormatHistoryCount' => count($dependencyFormatHistory),
+                'timingsOutputHistoryCount' => count($timingsOutputHistory),
+                'overrideCount' => count($sidecarOverrides),
+                'invalidDependencyOutputCount' => $countUnsafe($dependencyOutputHistory),
+                'invalidDependencyFormatCount' => $countUnsafe($dependencyFormatHistory),
+                'invalidTimingsOutputCount' => $countUnsafe($timingsOutputHistory),
             ], $sidecarIssues);
         }
 
