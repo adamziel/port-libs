@@ -8,6 +8,27 @@ final class WordPressBlockWriter
 {
     private const TABLE_CELL_SCOPES = ['col', 'row', 'colgroup', 'rowgroup'];
 
+    private const HTML_WRITER_GLOBAL_ATTRIBUTES = [
+        'autocapitalize',
+        'autocorrect',
+        'class',
+        'dir',
+        'enterkeyhint',
+        'exportparts',
+        'id',
+        'inputmode',
+        'lang',
+        'part',
+        'role',
+        'slot',
+        'spellcheck',
+        'title',
+        'translate',
+        'virtualkeyboardpolicy',
+        'writingsuggestions',
+        'xml:lang',
+    ];
+
     /** @var list<array{id:string, label:string|null, node:AstNode}> */
     private array $footnotes = [];
 
@@ -1850,7 +1871,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'axis', 'bgcolor', 'char', 'charoff', 'dir', 'headers', 'height', 'lang', 'nowrap', 'role', 'scope', 'style', 'summary', 'title', 'translate', 'valign', 'width', 'xml:lang'], true);
+            || in_array($name, ['abbr', 'axis', 'autocapitalize', 'autocorrect', 'bgcolor', 'char', 'charoff', 'dir', 'enterkeyhint', 'headers', 'height', 'inputmode', 'lang', 'nowrap', 'role', 'scope', 'spellcheck', 'style', 'summary', 'title', 'translate', 'valign', 'virtualkeyboardpolicy', 'width', 'writingsuggestions', 'xml:lang'], true);
     }
 
     private function allowedTableHtmlAttrValue(string $name, mixed $value): ?string
@@ -3130,9 +3151,8 @@ final class WordPressBlockWriter
             return false;
         }
 
-        return str_starts_with($name, 'data-')
-            || str_starts_with($name, 'aria-')
-            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'role', 'title', 'translate', 'xml:lang'], true);
+        return $this->isAllowedHtmlWriterGlobalAttr($name)
+            || $name === 'cite';
     }
 
     private function renderHtmlWriterAttrs(AstNode $node, bool $includeIdentity): string
@@ -3187,7 +3207,14 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'title', 'translate', 'xml:lang'], true);
+            || in_array($name, self::HTML_WRITER_GLOBAL_ATTRIBUTES, true);
+    }
+
+    private function isAllowedHtmlWriterGlobalAttr(string $name): bool
+    {
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, self::HTML_WRITER_GLOBAL_ATTRIBUTES, true);
     }
 
     private function renderMathInline(AstNode $node): string
