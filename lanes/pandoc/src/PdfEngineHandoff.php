@@ -7422,11 +7422,17 @@ final class PdfEngineHandoff
         $pdfExportIssues = array_merge($pdfExportIssues, is_array($pdfStandardPolicy['issues'] ?? null) ? $pdfStandardPolicy['issues'] : []);
         $pdfExportControlCount = is_int($summary['pdfExportControlCount'] ?? null) ? $summary['pdfExportControlCount'] : 0;
         if ($pdfExportControlCount > 0 || $pdfExportIssues !== []) {
+            $tags = is_array($pdfExport['tags'] ?? null) ? $pdfExport['tags'] : [];
+            $pretty = is_array($pdfExport['pretty'] ?? null) ? $pdfExport['pretty'] : [];
             $appendCase('pdf-export-controls', $pdfExportIssues === [] ? 'ok' : 'review', $pdfExportControlCount, [
                 'pageSelectionPresent' => is_array($pdfExport['pageSelection'] ?? null),
                 'ppiPresent' => is_array($pdfExport['ppi'] ?? null),
                 'pdfStandardCount' => is_int($pdfStandardPolicy['standardCount'] ?? null) ? $pdfStandardPolicy['standardCount'] : 0,
                 'pdfVersionCount' => is_int($pdfStandardPolicy['pdfVersionCount'] ?? null) ? $pdfStandardPolicy['pdfVersionCount'] : 0,
+                'tagsDisabled' => ($tags['disabled'] ?? false) === true,
+                'tagsFlagCount' => is_int($tags['flagCount'] ?? null) ? $tags['flagCount'] : 0,
+                'prettyEnabled' => ($pretty['enabled'] ?? false) === true,
+                'prettyFlagCount' => is_int($pretty['flagCount'] ?? null) ? $pretty['flagCount'] : 0,
             ], $pdfExportIssues);
         }
 

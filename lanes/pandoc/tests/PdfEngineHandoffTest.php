@@ -6421,6 +6421,54 @@ return [
         $t->contains('warning-provenance:warning-source-outside-root', implode(',', $matrix['issues']));
     },
 
+    'maps typst pdf export tag and pretty controls into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-export-matrix-controls.pdf',
+            'source' => '= Typst PDF Export Matrix Controls Packet',
+            'engineOptions' => [
+                '--pages=1',
+                '--ppi=300',
+                '--no-pdf-tags',
+                '--pretty',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst PDF export matrix controls packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-export-matrix-controls.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-export-matrix-controls.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(true, $result['ok']);
+        $t->same('ok', $plan['typstBoundaryProvenance']['reviewStatus']);
+        $t->same(4, $plan['typstBoundarySummary']['pdfExportControlCount']);
+        $t->same(['output-format', 'pdf-export-controls'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('pdf', $cases['output-format']['details']['inferredOutputFormat']);
+        $t->same(4, $cases['pdf-export-controls']['observed']);
+        $t->same(true, $cases['pdf-export-controls']['details']['pageSelectionPresent']);
+        $t->same(true, $cases['pdf-export-controls']['details']['ppiPresent']);
+        $t->same(true, $cases['pdf-export-controls']['details']['tagsDisabled']);
+        $t->same(1, $cases['pdf-export-controls']['details']['tagsFlagCount']);
+        $t->same(true, $cases['pdf-export-controls']['details']['prettyEnabled']);
+        $t->same(1, $cases['pdf-export-controls']['details']['prettyFlagCount']);
+        $t->contains('typst-pdf-tags:disabled', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-pretty:enabled', implode(',', $plan['diagnostics']));
+        $t->same($plan['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
