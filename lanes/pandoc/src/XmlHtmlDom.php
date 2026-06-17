@@ -14663,20 +14663,20 @@ final class XmlHtmlDom
             }
         }
         if ($name === 'button') {
-            $buttonType = self::buttonType($node);
+            $buttonType = self::buttonTypeSummary($node);
             $summary['formControl'] = 'button';
             $summary += self::formOwnerSummary($node);
-            $summary['buttonType'] = $buttonType;
+            $summary += $buttonType;
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->getAttribute('value');
             $summary['label'] = self::normalizedText($node);
             $summary['disabled'] = $node->hasAttribute('disabled');
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary += self::buttonCommandSummary($node);
-            if (self::isButtonSubmitButton($node)) {
+            if ($buttonType['buttonSubmitButton']) {
                 $summary['submitter'] = self::formSubmitterSummary($node);
             }
-            if ($buttonType === 'reset') {
+            if ($buttonType['buttonType'] === 'reset') {
                 $summary += self::formResetControlSummary($node);
             }
         }
@@ -20909,6 +20909,31 @@ final class XmlHtmlDom
         $type = strtolower(trim($button->getAttribute('type')));
 
         return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function buttonTypeSummary(\DOMElement $button): array
+    {
+        $raw = self::attributeOrNull($button, 'type');
+        $token = $raw === null ? null : strtolower(trim($raw));
+        $known = is_string($token) && in_array($token, ['button', 'reset', 'submit'], true);
+        $missing = $raw === null;
+        $empty = $raw !== null && $token === '';
+        $type = $known ? (string) $token : 'submit';
+
+        return [
+            'buttonTypeRaw' => $raw,
+            'buttonType' => $type,
+            'buttonTypeState' => $missing ? 'missing' : ($empty ? 'empty' : ($known ? $type : 'invalid')),
+            'buttonTypeValid' => $missing || $known,
+            'buttonTypeKnown' => $known,
+            'buttonTypeDefaulted' => !$known,
+            'buttonTypeMissingDefaulted' => $missing,
+            'buttonTypeInvalidValueDefaulted' => !$missing && !$known,
+            'buttonSubmitButton' => self::isButtonSubmitButton($button),
+        ];
     }
 
     private static function isButtonSubmitButton(\DOMElement $button): bool

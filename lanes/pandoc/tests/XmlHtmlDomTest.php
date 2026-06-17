@@ -6870,6 +6870,93 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(true, $resetButton['disabled']);
         $t->same('<form id="review-form"><input name="title" value="Draft &amp; Source"><input checked disabled name="publish" type="checkbox"><textarea name="notes" readonly>Reviewer &amp; editor' . "\n" . 'note</textarea><button name="action" value="publish">Publish <strong>now</strong></button><button disabled type="reset">Clear</button></form>', $html);
     },
+    'summarizes html button type defaulting provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="buttons" action="/submit"><button id="missing" name="decision" value="approve">Approve</button>'
+                . '<button id="empty" type="" name="empty">Empty</button><button id="reset" type=" RESET " name="clear">Clear</button>'
+                . '<button id="invalid" type="menu" name="bad" formaction="/bad">Bad</button>'
+                . '<button id="command" type="bogus" commandfor="panel" command="show-popover">Show panel</button></form><section id="panel" popover>Panel</section>',
+            'button type provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/button-type-provenance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $form = $summary[0];
+        $missing = $form['children'][0];
+        $empty = $form['children'][1];
+        $reset = $form['children'][2];
+        $invalid = $form['children'][3];
+        $command = $form['children'][4];
+
+        $t->same('form', $form['formSubmission']);
+        $t->same(5, $form['controlCount']);
+        $t->same(['decision', 'empty', 'clear', 'bad'], $form['controlNames']);
+
+        $t->same(null, $missing['buttonTypeRaw']);
+        $t->same('submit', $missing['buttonType']);
+        $t->same('missing', $missing['buttonTypeState']);
+        $t->same(true, $missing['buttonTypeValid']);
+        $t->same(false, $missing['buttonTypeKnown']);
+        $t->same(true, $missing['buttonTypeDefaulted']);
+        $t->same(true, $missing['buttonTypeMissingDefaulted']);
+        $t->same(false, $missing['buttonTypeInvalidValueDefaulted']);
+        $t->same(true, $missing['buttonSubmitButton']);
+        $t->same('approve', $missing['value']);
+        $t->same(null, $missing['submitter']['formAction']);
+
+        $t->same('', $empty['buttonTypeRaw']);
+        $t->same('submit', $empty['buttonType']);
+        $t->same('empty', $empty['buttonTypeState']);
+        $t->same(false, $empty['buttonTypeValid']);
+        $t->same(true, $empty['buttonTypeDefaulted']);
+        $t->same(false, $empty['buttonTypeMissingDefaulted']);
+        $t->same(true, $empty['buttonTypeInvalidValueDefaulted']);
+        $t->same(true, $empty['buttonSubmitButton']);
+
+        $t->same(' RESET ', $reset['buttonTypeRaw']);
+        $t->same('reset', $reset['buttonType']);
+        $t->same('reset', $reset['buttonTypeState']);
+        $t->same(true, $reset['buttonTypeValid']);
+        $t->same(true, $reset['buttonTypeKnown']);
+        $t->same(false, $reset['buttonTypeDefaulted']);
+        $t->same(false, $reset['buttonSubmitButton']);
+        $t->true(!array_key_exists('submitter', $reset));
+
+        $t->same('menu', $invalid['buttonTypeRaw']);
+        $t->same('submit', $invalid['buttonType']);
+        $t->same('invalid', $invalid['buttonTypeState']);
+        $t->same(false, $invalid['buttonTypeValid']);
+        $t->same(false, $invalid['buttonTypeKnown']);
+        $t->same(true, $invalid['buttonTypeDefaulted']);
+        $t->same(true, $invalid['buttonTypeInvalidValueDefaulted']);
+        $t->same(true, $invalid['buttonSubmitButton']);
+        $t->same('/bad', $invalid['submitter']['formAction']);
+
+        $t->same('bogus', $command['buttonTypeRaw']);
+        $t->same('submit', $command['buttonType']);
+        $t->same('invalid', $command['buttonTypeState']);
+        $t->same(false, $command['buttonTypeValid']);
+        $t->same(true, $command['buttonTypeDefaulted']);
+        $t->same(false, $command['buttonSubmitButton']);
+        $t->true(!array_key_exists('submitter', $command));
+        $t->same('show-popover', $command['command']);
+        $t->same('popover', $command['commandTargetKind']);
+        $t->same(true, $command['commandInvokesTarget']);
+
+        $t->same(
+            '<form action="/submit" id="buttons"><button id="missing" name="decision" value="approve">Approve</button>'
+                . '<button id="empty" name="empty" type="">Empty</button><button id="reset" name="clear" type=" RESET ">Clear</button>'
+                . '<button formaction="/bad" id="invalid" name="bad" type="menu">Bad</button>'
+                . '<button command="show-popover" commandfor="panel" id="command" type="bogus">Show panel</button></form><section id="panel" popover="">Panel</section>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/button-type-provenance-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html form control constraint attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="constraints"><label for="slug">Slug</label><input id="slug" name="slug" type="text" value="post-42" minlength="3" maxlength="12" pattern="[a-z0-9-]+" autocomplete="section-review shipping url" dirname="slug.dir" required readonly size="24">'
