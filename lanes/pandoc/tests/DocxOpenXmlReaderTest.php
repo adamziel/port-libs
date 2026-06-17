@@ -7402,11 +7402,15 @@ XML;
         <a:latin typeface="Aptos Display"/>
         <a:ea typeface="Yu Gothic"/>
         <a:cs typeface="Arial"/>
+        <a:font script="Jpan" typeface="Yu Mincho"/>
+        <a:font script="Hans" typeface="DengXian"/>
       </a:majorFont>
       <a:minorFont>
         <a:latin typeface="Aptos"/>
         <a:ea typeface="Meiryo"/>
         <a:cs typeface="Times New Roman"/>
+        <a:font script="Arab" typeface="Arial"/>
+        <a:font script="Thai" typeface="Leelawadee UI"/>
       </a:minorFont>
     </a:fontScheme>
   </a:themeElements>
@@ -7416,6 +7420,7 @@ XML;
         $document = (new DocxOpenXmlReader())->readPackage($parts);
         $docx = $document->attr('docx');
         $theme = $docx['theme'];
+        $summary = $docx['packageProvenance']['summary'];
 
         $t->same('word/theme/review-theme.xml', $docx['themePart']);
         $t->same('rTheme', $docx['themeRelationship']['id']);
@@ -7434,6 +7439,22 @@ XML;
         $t->same('Aptos', $theme['fonts']['minorLatin']);
         $t->same('Meiryo', $theme['fonts']['minorEastAsia']);
         $t->same('Times New Roman', $theme['fonts']['minorComplexScript']);
+        $t->same(2, $theme['fonts']['majorSupplementalFontCount']);
+        $t->same([
+            ['script' => 'Jpan', 'typeface' => 'Yu Mincho'],
+            ['script' => 'Hans', 'typeface' => 'DengXian'],
+        ], $theme['fonts']['majorSupplementalFonts']);
+        $t->same('Yu Mincho', $theme['fonts']['majorSupplementalFontsByScript']['Jpan']);
+        $t->same(2, $theme['fonts']['minorSupplementalFontCount']);
+        $t->same([
+            ['script' => 'Arab', 'typeface' => 'Arial'],
+            ['script' => 'Thai', 'typeface' => 'Leelawadee UI'],
+        ], $theme['fonts']['minorSupplementalFonts']);
+        $t->same('Leelawadee UI', $theme['fonts']['minorSupplementalFontsByScript']['Thai']);
+        $t->same(4, $theme['fonts']['supplementalFontCount']);
+        $t->same(['Arab', 'Hans', 'Jpan', 'Thai'], $theme['fonts']['supplementalFontScripts']);
+        $t->same(4, $summary['themeSupplementalFontCount']);
+        $t->same(['Arab', 'Hans', 'Jpan', 'Thai'], $summary['themeSupplementalFontScripts']);
         $t->same('Review Colors', $theme['colors']['schemeName']);
         $t->same(6, $theme['colors']['count']);
         $t->same('system', $theme['colors']['items'][0]['kind']);

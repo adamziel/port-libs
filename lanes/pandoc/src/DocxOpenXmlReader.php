@@ -665,6 +665,11 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['webSettingsOutputPolicyFlagCount'] = (int) ($webSettingsOutputPolicy['flagCount'] ?? 0);
             $packageProvenance['summary']['webSettingsOutputPolicyFlags'] = $webSettingsOutputPolicy['flags'] ?? [];
         }
+        $themeFonts = $theme['fonts'] ?? null;
+        if (is_array($themeFonts) && isset($themeFonts['supplementalFontCount'])) {
+            $packageProvenance['summary']['themeSupplementalFontCount'] = (int) $themeFonts['supplementalFontCount'];
+            $packageProvenance['summary']['themeSupplementalFontScripts'] = $themeFonts['supplementalFontScripts'] ?? [];
+        }
         $mailMerge = $settings['mailMerge'] ?? null;
         if (is_array($mailMerge)) {
             $packageProvenance['summary']['mailMergeRelationshipCount'] = (int) ($mailMerge['relationshipCount'] ?? 0);
@@ -13623,6 +13628,8 @@ final class DocxOpenXmlReader
             $fonts['schemeName'] = $schemeName;
         }
 
+        $supplementalFontCount = 0;
+        $supplementalFontScripts = [];
         foreach ([
             'majorFont' => 'major',
             'minorFont' => 'minor',
@@ -13647,9 +13654,58 @@ final class DocxOpenXmlReader
                     $fonts[$prefix . $target] = $typeface;
                 }
             }
+
+            $supplemental = $this->themeSupplementalFonts($fontElement);
+            if ($supplemental['items'] !== []) {
+                $fonts[$prefix . 'SupplementalFontCount'] = count($supplemental['items']);
+                $fonts[$prefix . 'SupplementalFonts'] = $supplemental['items'];
+                $fonts[$prefix . 'SupplementalFontsByScript'] = $supplemental['byScript'];
+                $supplementalFontCount += count($supplemental['items']);
+                foreach (array_keys($supplemental['byScript']) as $script) {
+                    $supplementalFontScripts[$script] = true;
+                }
+            }
+        }
+
+        if ($supplementalFontCount > 0) {
+            $fonts['supplementalFontCount'] = $supplementalFontCount;
+            $scripts = array_keys($supplementalFontScripts);
+            sort($scripts, SORT_STRING);
+            $fonts['supplementalFontScripts'] = $scripts;
         }
 
         return $fonts;
+    }
+
+    /**
+     * @return array{items:list<array{script:string, typeface:string}>, byScript:array<string, string>}
+     */
+    private function themeSupplementalFonts(\DOMElement $fontElement): array
+    {
+        $items = [];
+        $byScript = [];
+        foreach ($fontElement->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_A || $child->localName !== 'font') {
+                continue;
+            }
+
+            $script = trim($child->getAttribute('script'));
+            $typeface = trim($child->getAttribute('typeface'));
+            if ($script === '' || $typeface === '') {
+                continue;
+            }
+
+            $items[] = [
+                'script' => $script,
+                'typeface' => $typeface,
+            ];
+            $byScript[$script] = $typeface;
+        }
+
+        return [
+            'items' => $items,
+            'byScript' => $byScript,
+        ];
     }
 
     /**
