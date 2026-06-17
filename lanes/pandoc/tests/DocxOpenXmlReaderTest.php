@@ -2069,7 +2069,7 @@ XML;
             '  <Relationship Id="rPackageAudit" Type="' . $resourceType . '" Target="docProps/review-audit.xml?slot=root#review"/>' . "\n" .
             '  <Relationship Id="rPackageSidecar" Type="' . $resourceType . '" Target="docProps/sidecar-audit.xml"/>' . "\n" .
             '  <Relationship Id="rMissingPackageAudit" Type="' . $resourceType . '" Target="docProps/missing-audit.xml"/>' . "\n" .
-            '  <Relationship Id="rExternalPackageAudit" Type="' . $resourceType . '" Target="https://example.test/root-audit.xml?remote=1#payload" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rExternalPackageAudit" Type="' . $resourceType . '" Target="file:///C:/review/root-audit.xml?remote=1#payload" TargetMode="External"/>' . "\n" .
             '</Relationships>',
             $parts['_rels/.rels']
         );
@@ -2101,11 +2101,11 @@ XML;
         $t->same(1, $resources['externalCount']);
         $t->same(1, $resources['targetRelationshipCount']);
         $t->same(2, $resources['issueCount']);
-        $t->same(['external-package-root-relationship', 'missing-package-root-target'], $resources['issueCodes']);
+        $t->same(['external-package-root-relationship', 'external-target-unsafe-scheme', 'missing-package-root-target'], $resources['issueCodes']);
         $t->same(['rPackageAudit', 'rPackageSidecar', 'rMissingPackageAudit', 'rExternalPackageAudit'], $resources['relationshipIds']);
         $t->same([$resourceType], $resources['relationshipTypes']);
         $t->same(['docProps/review-audit.xml', 'docProps/sidecar-audit.xml', 'docProps/missing-audit.xml'], $resources['targetParts']);
-        $t->same(['https://example.test/root-audit.xml?remote=1#payload'], $resources['externalTargets']);
+        $t->same(['file:///C:/review/root-audit.xml?remote=1#payload'], $resources['externalTargets']);
         $t->same('package-root-relationship-bytes-blocked', $resources['byteExposurePolicy']);
         $t->same('package-root-relationship-metadata-only', $resources['reviewPolicy']);
         $t->same(false, $resources['canExposeBytes']);
@@ -2141,10 +2141,14 @@ XML;
 
         $t->same(true, $external['external']);
         $t->same(null, $external['targetPart']);
+        $t->same('absolute-uri', $external['externalTargetKind']);
+        $t->same('file', $external['externalTargetScheme']);
+        $t->same(false, $external['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $external['externalTargetIssues']);
         $t->same('remote=1', $external['targetQuery']);
         $t->same('payload', $external['targetFragment']);
         $t->same(null, $external['byteLength']);
-        $t->same(['external-package-root-relationship'], $external['issues']);
+        $t->same(['external-package-root-relationship', 'external-target-unsafe-scheme'], $external['issues']);
         $t->same(false, $external['valid']);
 
         $t->same(4, $summary['packageRootRelationshipResourceCount']);

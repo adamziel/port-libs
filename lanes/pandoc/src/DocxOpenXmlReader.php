@@ -8873,10 +8873,14 @@ final class DocxOpenXmlReader
             $exists = (bool) ($summary['exists'] ?? false);
             $relationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
             $targetHasRelationships = $relationshipsPart !== null && isset($parts[$relationshipsPart]);
+            $externalTargetIssues = is_array($summary['externalTargetIssues'] ?? null)
+                ? array_values(array_map('strval', $summary['externalTargetIssues']))
+                : [];
             $issues = [];
 
             if ($external) {
                 $issues[] = 'external-package-root-relationship';
+                $issues = array_merge($issues, $externalTargetIssues);
             } elseif (!$exists) {
                 $issues[] = 'missing-package-root-target';
             }
@@ -8905,6 +8909,10 @@ final class DocxOpenXmlReader
                 'targetHasParentTraversal' => $summary['targetHasParentTraversal'],
                 'targetStartsAtPackageRoot' => $summary['targetStartsAtPackageRoot'],
                 'sameSourcePart' => $summary['sameSourcePart'],
+                'externalTargetKind' => $summary['externalTargetKind'],
+                'externalTargetScheme' => $summary['externalTargetScheme'],
+                'externalTargetAllowed' => $summary['externalTargetAllowed'],
+                'externalTargetIssues' => $externalTargetIssues,
                 'exists' => $exists,
                 'contentType' => $summary['contentType'],
                 'contentTypeBase' => $summary['contentTypeBase'],
