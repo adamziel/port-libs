@@ -922,6 +922,8 @@
     "xmlHtmlDomShadowRootRegistryBooleanAssertions": 15,
     "mappedXmlHtmlDomPopoverTargetReferenceCases": 1,
     "xmlHtmlDomPopoverTargetReferenceAssertions": 39,
+    "mappedXmlHtmlDomNonceProvenanceCases": 1,
+    "xmlHtmlDomNonceProvenanceAssertions": 43,
     "mappedXmlHtmlDomAutofocusConflictCases": 1,
     "xmlHtmlDomAutofocusConflictAssertions": 32,
     "mappedDocxStylesWithEffectsSelectedXmlCases": 1,
@@ -3021,5 +3023,7 @@
   "mappedXmlHtmlDomAccesskeyConflictReviewCases": 1,
   "xmlHtmlDomAccesskeyConflictReviewAssertions": 43,
   "mappedXmlHtmlDomCdataDeclarationRecoveryCases": 1,
-  "xmlHtmlDomCdataDeclarationRecoveryAssertions": 24
+  "xmlHtmlDomCdataDeclarationRecoveryAssertions": 24,
+  "mappedXmlHtmlDomNonceProvenanceCases": 1,
+  "xmlHtmlDomNonceProvenanceAssertions": 43
 }

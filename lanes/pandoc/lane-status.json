@@ -255,6 +255,8 @@
   "xmlHtmlDomSvgStitchTilesAttributeAssertions": 12,
   "mappedXmlHtmlDomStyleAttributeCases": 1,
   "xmlHtmlDomStyleAttributeAssertions": 25,
+  "mappedXmlHtmlDomNonceProvenanceCases": 1,
+  "xmlHtmlDomNonceProvenanceAssertions": 43,
   "mappedXmlHtmlDomSpellcheckInheritanceCases": 1,
   "xmlHtmlDomSpellcheckInheritanceAssertions": 33,
   "mappedXmlHtmlDomInertInheritanceCases": 2,

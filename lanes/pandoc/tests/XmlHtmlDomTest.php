@@ -3709,6 +3709,80 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             $html
         );
     },
+    'summarizes html nonce token metadata without raw token leakage for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<script id="valid-script" type="module" src="app.js" nonce="n0Nc3Token-42_=="></script>'
+                . '<style id="spaced-style" nonce=" token with space ">body { color: red; }</style>'
+                . '<div id="empty-nonce" nonce>Empty nonce</div>'
+                . '<section id="invalid-nonce" nonce="bad token!">Bad nonce</section>',
+            'nonce token provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/nonce-token-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $validScript = $summary[0];
+        $spacedStyle = $summary[1];
+        $empty = $summary[2];
+        $invalid = $summary[3];
+
+        $t->same('html-nonce-token-review', $validScript['nonceReviewPolicy']);
+        $t->same(true, $validScript['noncePresent']);
+        $t->same(false, $validScript['nonceEmpty']);
+        $t->same(16, $validScript['nonceLength']);
+        $t->same(16, $validScript['nonceTrimmedLength']);
+        $t->same('10573ca3c4d712298c6c17e9122065efea17a3ddd2ace404202448ef92ea2285', $validScript['nonceSha256']);
+        $t->same(false, $validScript['nonceHasAsciiWhitespace']);
+        $t->same(true, $validScript['nonceBase64Candidate']);
+        $t->same(true, $validScript['nonceValid']);
+        $t->same([], $validScript['nonceIssueCodes']);
+        $t->true(!array_key_exists('nonceRaw', $validScript));
+
+        $t->same('html-nonce-token-review', $spacedStyle['nonceReviewPolicy']);
+        $t->same(false, $spacedStyle['nonceEmpty']);
+        $t->same(18, $spacedStyle['nonceLength']);
+        $t->same(16, $spacedStyle['nonceTrimmedLength']);
+        $t->same('ccf0adf4e4a4e3097b285e391e09a92614e66d2d8c3aca177fef82d233558ada', $spacedStyle['nonceSha256']);
+        $t->same(true, $spacedStyle['nonceHasAsciiWhitespace']);
+        $t->same(false, $spacedStyle['nonceBase64Candidate']);
+        $t->same(false, $spacedStyle['nonceValid']);
+        $t->same(['html-nonce-ascii-whitespace', 'html-nonce-non-base64-candidate'], $spacedStyle['nonceIssueCodes']);
+        $t->true(!array_key_exists('nonceRaw', $spacedStyle));
+
+        $t->same('html-nonce-token-review', $empty['nonceReviewPolicy']);
+        $t->same(true, $empty['nonceEmpty']);
+        $t->same(0, $empty['nonceLength']);
+        $t->same(0, $empty['nonceTrimmedLength']);
+        $t->same('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', $empty['nonceSha256']);
+        $t->same(false, $empty['nonceHasAsciiWhitespace']);
+        $t->same(false, $empty['nonceBase64Candidate']);
+        $t->same(false, $empty['nonceValid']);
+        $t->same(['empty-html-nonce'], $empty['nonceIssueCodes']);
+
+        $t->same('html-nonce-token-review', $invalid['nonceReviewPolicy']);
+        $t->same(false, $invalid['nonceEmpty']);
+        $t->same(10, $invalid['nonceLength']);
+        $t->same(10, $invalid['nonceTrimmedLength']);
+        $t->same('567de50b1142dad0f2c59469e6fe5907f0ef587761127cc64c17d1bec72dfe22', $invalid['nonceSha256']);
+        $t->same(true, $invalid['nonceHasAsciiWhitespace']);
+        $t->same(false, $invalid['nonceBase64Candidate']);
+        $t->same(false, $invalid['nonceValid']);
+        $t->same(['html-nonce-ascii-whitespace', 'html-nonce-non-base64-candidate'], $invalid['nonceIssueCodes']);
+
+        $t->same(
+            '<script id="valid-script" nonce="n0Nc3Token-42_==" src="app.js" type="module"></script>'
+                . '<style id="spaced-style" nonce=" token with space ">body { color: red; }</style>'
+                . '<div id="empty-nonce" nonce="">Empty nonce</div>'
+                . '<section id="invalid-nonce" nonce="bad token!">Bad nonce</section>',
+            $html
+        );
+        $t->contains('nonce="n0Nc3Token-42_=="', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/nonce-token-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html style attribute declarations for reviewer handoff' => static function (TestRunner $t): void {
         $styleRaw = 'color: red; --review-tone: highlight; background-image: url(cover;v1.png); color: blue !important; broken; : missing-property; bad<prop: value; padding: ';
         $dom = XmlHtmlDom::loadHtmlFragment(

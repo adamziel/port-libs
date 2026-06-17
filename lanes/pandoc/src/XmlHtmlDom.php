@@ -17711,6 +17711,10 @@ final class XmlHtmlDom
             $summary += self::styleAttributeSummary($attributes['style']);
         }
 
+        if (array_key_exists('nonce', $attributes)) {
+            $summary += self::htmlNonceSummary($attributes['nonce']);
+        }
+
         if (array_key_exists('hidden', $attributes)) {
             $hidden = strtolower(trim($attributes['hidden']));
             $hiddenKeyword = match ($hidden) {
@@ -17908,6 +17912,40 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlNonceSummary(string $value): array
+    {
+        $trimmed = trim($value);
+        $hasAsciiWhitespace = preg_match('/[\t\n\f\r ]/', $value) === 1;
+        $base64Candidate = $trimmed !== '' && preg_match('/^[A-Za-z0-9+\/_-]+={0,2}$/', $trimmed) === 1;
+        $issues = [];
+
+        if ($trimmed === '') {
+            $issues[] = 'empty-html-nonce';
+        }
+        if ($hasAsciiWhitespace) {
+            $issues[] = 'html-nonce-ascii-whitespace';
+        }
+        if ($trimmed !== '' && !$base64Candidate) {
+            $issues[] = 'html-nonce-non-base64-candidate';
+        }
+
+        return [
+            'nonceReviewPolicy' => 'html-nonce-token-review',
+            'noncePresent' => true,
+            'nonceEmpty' => $trimmed === '',
+            'nonceLength' => strlen($value),
+            'nonceTrimmedLength' => strlen($trimmed),
+            'nonceSha256' => hash('sha256', $value),
+            'nonceHasAsciiWhitespace' => $hasAsciiWhitespace,
+            'nonceBase64Candidate' => $base64Candidate,
+            'nonceValid' => $issues === [],
+            'nonceIssueCodes' => $issues,
+        ];
     }
 
     /**
