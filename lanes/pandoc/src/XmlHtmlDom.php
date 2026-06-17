@@ -18389,28 +18389,81 @@ final class XmlHtmlDom
      */
     private static function htmlLanguageAttributeSummary(array $attributes): array
     {
-        foreach (['lang', 'xml:lang'] as $attribute) {
-            if (!array_key_exists($attribute, $attributes)) {
-                continue;
-            }
+        $hasLang = array_key_exists('lang', $attributes);
+        $hasXmlLang = array_key_exists('xml:lang', $attributes);
+        if (!$hasLang && !$hasXmlLang) {
+            return [];
+        }
 
-            $raw = $attributes[$attribute];
-            $language = trim($raw);
-            $languageTag = self::normalizeHtmlLanguageTag($raw);
+        $sourceAttribute = $hasLang ? 'lang' : 'xml:lang';
+        $raw = $attributes[$sourceAttribute];
+        $language = trim($raw);
+        $languageTag = self::normalizeHtmlLanguageTag($raw);
+        $issues = [];
 
-            return [
-                'languageReviewPolicy' => 'html-language-tag-review',
-                'languageSourceAttribute' => $attribute,
-                'languageRaw' => $raw,
-                'language' => $language,
-                'languageTag' => $languageTag,
-                'languageValid' => $languageTag !== null,
-                'languageEmptyValueIgnored' => $language === '',
-                'languageInvalidValueIgnored' => $language !== '' && $languageTag === null,
+        if ($language === '') {
+            $issues[] = ['code' => 'empty-' . $sourceAttribute . '-attribute'];
+        } elseif ($languageTag === null) {
+            $issues[] = [
+                'code' => 'invalid-' . $sourceAttribute . '-attribute',
+                'raw' => $raw,
             ];
         }
 
-        return [];
+        $summary = [
+            'languageReviewPolicy' => 'html-language-tag-review',
+            'languageAttributeReviewPolicy' => 'html-language-attribute-review',
+            'languageSourceAttribute' => $sourceAttribute,
+            'languageRaw' => $raw,
+            'language' => $language,
+            'languageTag' => $languageTag,
+            'languageNormalized' => $languageTag,
+            'languageValid' => $languageTag !== null,
+            'languageEmptyValueIgnored' => $language === '',
+            'languageInvalidValueIgnored' => $language !== '' && $languageTag === null,
+        ];
+
+        if ($hasXmlLang) {
+            $xmlRaw = $attributes['xml:lang'];
+            $xmlLanguage = trim($xmlRaw);
+            $xmlLanguageTag = self::normalizeHtmlLanguageTag($xmlRaw);
+            $summary['xmlLanguageRaw'] = $xmlRaw;
+            $summary['xmlLanguage'] = $xmlLanguage;
+            $summary['xmlLanguageNormalized'] = $xmlLanguageTag;
+            $summary['xmlLanguageValid'] = $xmlLanguageTag !== null;
+
+            if ($sourceAttribute !== 'xml:lang' && $xmlLanguage === '') {
+                $issues[] = ['code' => 'empty-xml:lang-attribute'];
+            } elseif ($sourceAttribute !== 'xml:lang' && $xmlLanguageTag === null) {
+                $issues[] = [
+                    'code' => 'invalid-xml:lang-attribute',
+                    'raw' => $xmlRaw,
+                ];
+            }
+            if (
+                $hasLang
+                && $languageTag !== null
+                && $xmlLanguageTag !== null
+                && $languageTag !== $xmlLanguageTag
+            ) {
+                $issues[] = [
+                    'code' => 'conflicting-language-attributes',
+                    'lang' => $languageTag,
+                    'xml:lang' => $xmlLanguageTag,
+                ];
+            }
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        $summary['languageAttributeConflict'] = in_array('conflicting-language-attributes', $issueCodes, true);
+        $summary['languageAttributeIssues'] = $issues;
+        $summary['languageAttributeIssueCodes'] = $issueCodes;
+
+        return $summary;
     }
 
     /**
@@ -18472,6 +18525,7 @@ final class XmlHtmlDom
         $summary = [
             'effectiveLanguageRaw' => $raw,
             'effectiveLanguage' => $language,
+            'effectiveLanguageValid' => true,
             'languageInherited' => $inherited,
             'languageSource' => $sourceKind,
             'languageSourceElement' => self::htmlElementName($source),
