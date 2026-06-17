@@ -3785,6 +3785,64 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/language-direction-inheritance-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes inherited html spellcheck state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="checked" spellcheck="false"><p id="body"><span id="invalid" spellcheck="maybe">Invalid</span><span id="enabled" spellcheck="true"><em id="enabled-child">Enabled</em></span></p></article>'
+                . '<section id="plain"><p id="plain-child">Plain</p></section>',
+            'spellcheck inheritance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/spellcheck-inheritance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $body = $article['children'][0];
+        $invalid = $body['children'][0];
+        $enabled = $body['children'][1];
+        $enabledChild = $enabled['children'][0];
+        $plainChild = $summary[1]['children'][0];
+
+        $t->same('article', $article['name']);
+        $t->same('false', $article['spellcheckRaw']);
+        $t->same(false, $article['spellcheck']);
+        $t->same(true, $article['spellcheckValid']);
+        $t->same('false', $article['effectiveSpellcheckRaw']);
+        $t->same(false, $article['effectiveSpellcheck']);
+        $t->same(false, $article['spellcheckInherited']);
+        $t->same('self-spellcheck', $article['spellcheckSource']);
+
+        $t->true(!array_key_exists('spellcheckRaw', $body));
+        $t->same(false, $body['effectiveSpellcheck']);
+        $t->same(true, $body['spellcheckInherited']);
+        $t->same('article', $body['spellcheckSourceElement']);
+        $t->same('checked', $body['spellcheckSourceElementId']);
+
+        $t->same('maybe', $invalid['spellcheckRaw']);
+        $t->same(null, $invalid['spellcheck']);
+        $t->same(false, $invalid['spellcheckValid']);
+        $t->same(false, $invalid['effectiveSpellcheck']);
+        $t->same(true, $invalid['spellcheckInherited']);
+        $t->same('checked', $invalid['spellcheckSourceElementId']);
+
+        $t->same('true', $enabled['spellcheckRaw']);
+        $t->same(true, $enabled['spellcheck']);
+        $t->same(true, $enabled['spellcheckValid']);
+        $t->same(true, $enabled['effectiveSpellcheck']);
+        $t->same(false, $enabled['spellcheckInherited']);
+        $t->same('self-spellcheck', $enabled['spellcheckSource']);
+
+        $t->same(true, $enabledChild['effectiveSpellcheck']);
+        $t->same(true, $enabledChild['spellcheckInherited']);
+        $t->same('span', $enabledChild['spellcheckSourceElement']);
+        $t->same('enabled', $enabledChild['spellcheckSourceElementId']);
+        $t->true(!array_key_exists('effectiveSpellcheck', $plainChild));
+        $t->contains('<article id="checked" spellcheck="false">', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/spellcheck-inheritance-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes inherited html contenteditable state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="editor" contenteditable="plaintext-only"><p id="body">Body <span id="bad" contenteditable="maybe">Bad</span><span id="off" contenteditable="false"><em id="locked-child">Locked</em></span></p></article>'

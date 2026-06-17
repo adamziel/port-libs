@@ -17755,14 +17755,13 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('spellcheck', $attributes)) {
-            $spellcheck = strtolower(trim($attributes['spellcheck']));
+            $spellcheck = self::htmlSpellcheckState($attributes['spellcheck']);
             $summary['spellcheckRaw'] = $attributes['spellcheck'];
-            $summary['spellcheck'] = match ($spellcheck) {
-                '', 'true' => true,
-                'false' => false,
-                default => null,
-            };
+            $summary['spellcheck'] = $spellcheck;
+            $summary['spellcheckValid'] = $spellcheck !== null;
         }
+
+        $summary += self::effectiveSpellcheckSummary($element, $attributes);
 
         if (array_key_exists('slot', $attributes)) {
             $slot = self::slotAttributeSummary($attributes['slot']);
@@ -18132,6 +18131,70 @@ final class XmlHtmlDom
             '', 'true' => true,
             'false' => false,
             'plaintext-only' => 'plaintext-only',
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveSpellcheckSummary(\DOMElement $element, array $attributes): array
+    {
+        if (array_key_exists('spellcheck', $attributes)) {
+            $state = self::htmlSpellcheckState($attributes['spellcheck']);
+            if ($state !== null) {
+                return self::spellcheckProvenanceSummary($element, $attributes['spellcheck'], $state, false);
+            }
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (!array_key_exists('spellcheck', $ancestorAttributes)) {
+                continue;
+            }
+
+            $state = self::htmlSpellcheckState($ancestorAttributes['spellcheck']);
+            if ($state !== null) {
+                return self::spellcheckProvenanceSummary($ancestor, $ancestorAttributes['spellcheck'], $state, true);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function spellcheckProvenanceSummary(
+        \DOMElement $source,
+        string $raw,
+        bool $state,
+        bool $inherited
+    ): array {
+        $summary = [
+            'effectiveSpellcheckRaw' => $raw,
+            'effectiveSpellcheck' => $state,
+            'spellcheckInherited' => $inherited,
+            'spellcheckSource' => $inherited ? 'ancestor-spellcheck' : 'self-spellcheck',
+            'spellcheckSourceElement' => self::htmlElementName($source),
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['spellcheckSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
+    }
+
+    private static function htmlSpellcheckState(string $value): ?bool
+    {
+        $value = strtolower(trim($value));
+
+        return match ($value) {
+            '', 'true' => true,
+            'false' => false,
             default => null,
         };
     }
