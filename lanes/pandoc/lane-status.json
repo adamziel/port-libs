@@ -1689,5 +1689,7 @@
   "mappedXmlHtmlDomDirAutoFirstStrongReviewCases": 1,
   "xmlHtmlDomDirAutoFirstStrongReviewAssertions": 109,
   "mappedXmlHtmlDomInputHintReviewCases": 1,
-  "xmlHtmlDomInputHintReviewAssertions": 33
+  "xmlHtmlDomInputHintReviewAssertions": 33,
+  "mappedXmlHtmlDomDirectionTokenCases": 1,
+  "xmlHtmlDomDirectionTokenAssertions": 35
 }

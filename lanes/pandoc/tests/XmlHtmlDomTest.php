@@ -3709,6 +3709,73 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             $html
         );
     },
+    'summarizes html direction token provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="ltr" dir="LTR">Left</section>'
+                . '<section id="auto" dir=" auto ">Auto</section>'
+                . '<section id="bad" dir="sideways"><span id="bad-child">Bad child</span></section>'
+                . '<section id="empty" dir="">Empty</section>',
+            'direction token provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/direction-token-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $ltr = $summary[0];
+        $auto = $summary[1];
+        $bad = $summary[2];
+        $badChild = $bad['children'][0];
+        $empty = $summary[3];
+
+        $t->same('html-dir-token-review', $ltr['directionTokenReviewPolicy']);
+        $t->same('LTR', $ltr['dirRaw']);
+        $t->same('ltr', $ltr['direction']);
+        $t->same('ltr', $ltr['directionKeyword']);
+        $t->same(true, $ltr['directionValid']);
+        $t->same(false, $ltr['directionAuto']);
+        $t->same(false, $ltr['directionInvalidValueIgnored']);
+        $t->same('LTR', $ltr['effectiveDirectionRaw']);
+        $t->same('ltr', $ltr['effectiveDirection']);
+        $t->same(false, $ltr['directionInherited']);
+
+        $t->same(' auto ', $auto['dirRaw']);
+        $t->same('auto', $auto['direction']);
+        $t->same('auto', $auto['directionKeyword']);
+        $t->same(true, $auto['directionValid']);
+        $t->same(true, $auto['directionAuto']);
+        $t->same(false, $auto['directionInvalidValueIgnored']);
+        $t->same(' auto ', $auto['effectiveDirectionRaw']);
+        $t->same('auto', $auto['effectiveDirection']);
+        $t->same(false, $auto['directionInherited']);
+
+        $t->same('sideways', $bad['dirRaw']);
+        $t->same(null, $bad['direction']);
+        $t->same(null, $bad['directionKeyword']);
+        $t->same(false, $bad['directionValid']);
+        $t->same(false, $bad['directionAuto']);
+        $t->same(true, $bad['directionInvalidValueIgnored']);
+        $t->true(!array_key_exists('effectiveDirection', $bad));
+        $t->true(!array_key_exists('effectiveDirection', $badChild));
+
+        $t->same('', $empty['dirRaw']);
+        $t->same(null, $empty['direction']);
+        $t->same(false, $empty['directionValid']);
+        $t->same(true, $empty['directionInvalidValueIgnored']);
+        $t->true(!array_key_exists('effectiveDirection', $empty));
+
+        $t->same(
+            '<section dir="LTR" id="ltr">Left</section>'
+                . '<section dir=" auto " id="auto">Auto</section>'
+                . '<section dir="sideways" id="bad"><span id="bad-child">Bad child</span></section>'
+                . '<section dir="" id="empty">Empty</section>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/direction-token-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html nonce token metadata without raw token leakage for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<script id="valid-script" type="module" src="app.js" nonce="n0Nc3Token-42_=="></script>'

@@ -17696,9 +17696,12 @@ final class XmlHtmlDom
 
         if (array_key_exists('dir', $attributes)) {
             $dir = self::htmlDirectionState($attributes['dir']);
+            $summary['directionTokenReviewPolicy'] = 'html-dir-token-review';
             $summary['dirRaw'] = $attributes['dir'];
             $summary['direction'] = $dir;
+            $summary['directionKeyword'] = $dir;
             $summary['directionValid'] = $dir !== null;
+            $summary['directionAuto'] = $dir === 'auto';
             $summary['directionInvalidValueIgnored'] = $dir === null;
         }
 
