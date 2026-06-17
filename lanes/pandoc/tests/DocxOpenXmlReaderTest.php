@@ -2840,6 +2840,56 @@ XML;
         $t->same(['missing-relationship-id'], $summary['invalidRelationshipRecords'][0]['issues']);
         $t->same(1, $summary['relationshipTypeCounts']['(missing-type)']);
     },
+    'reports malformed docx relationship sidecar xml without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/review-source.xml'] = '<review-source/>';
+        $parts['word/_rels/review-source.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rBroken" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/broken.png">
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/review-source.xml.rels'];
+        $inventory = $package['parts'];
+        $invalidPart = $summary['invalidRelationshipParts'][0];
+
+        $t->same('document', $document->type);
+        $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
+        $t->same('word/review-source.xml', $relationshipPart['sourcePart']);
+        $t->same(true, $relationshipPart['sourceExists']);
+        $t->same(true, $relationshipPart['exists']);
+        $t->same(strlen($parts['word/_rels/review-source.xml.rels']), $relationshipPart['bytes']);
+        $t->same(false, $relationshipPart['validXml']);
+        $t->contains('Invalid DOCX XML part word/_rels/review-source.xml.rels:', $relationshipPart['xmlParseError']);
+        $t->same(0, $relationshipPart['relationshipCount']);
+        $t->same(0, $relationshipPart['relationshipRecordCount']);
+        $t->same(0, $relationshipPart['invalidRelationshipRecordCount']);
+        $t->same(1, $relationshipPart['relationshipPartIssueCount']);
+        $t->same(['invalid-xml'], $relationshipPart['relationshipPartIssueCodes']);
+
+        $t->same(3, $summary['relationshipPartCount']);
+        $t->same(4, $summary['relationshipCount']);
+        $t->same(4, $summary['relationshipRecordCount']);
+        $t->same(0, $summary['invalidRelationshipRecordCount']);
+        $t->same(1, $summary['relationshipPartInvalidXmlCount']);
+        $t->same(1, $summary['relationshipPartIssueCount']);
+        $t->same(['invalid-xml'], $summary['relationshipPartIssueCodes']);
+        $t->same(['word/_rels/review-source.xml.rels'], $summary['relationshipPartsWithInvalidXml']);
+        $t->same([], $summary['relationshipPartsWithInvalidRecords']);
+        $t->same('word/_rels/review-source.xml.rels', $invalidPart['partName']);
+        $t->same('word/review-source.xml', $invalidPart['sourcePart']);
+        $t->same(true, $invalidPart['sourceExists']);
+        $t->same(strlen($parts['word/_rels/review-source.xml.rels']), $invalidPart['bytes']);
+        $t->contains('Invalid DOCX XML part word/_rels/review-source.xml.rels:', $invalidPart['xmlParseError']);
+        $t->same(['invalid-xml'], $invalidPart['issues']);
+        $t->same('word/review-source.xml', $inventory['word/_rels/review-source.xml.rels']['relationshipSourcePart']);
+        $t->same(true, $inventory['word/_rels/review-source.xml.rels']['relationshipSourceExists']);
+        $t->true(in_array('relationship-part', $inventory['word/_rels/review-source.xml.rels']['roles'], true), 'malformed relationship sidecar role missing');
+    },
     'summarizes docx relationship target mode declarations for package review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['_rels/.rels'] = str_replace(

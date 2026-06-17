@@ -1034,11 +1034,37 @@ final class DocxOpenXmlReader
      */
     private function readRelationshipRecordsPart(array $parts, string $partName): array
     {
+        return $this->readRelationshipRecordsPartDiagnostics($parts, $partName)['records'];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @return array{records:list<array{ordinal:int, id:string, type:string, target:string, targetMode:string, resolvedTarget:string}>, exists:bool, validXml:?bool, xmlParseError:?string, issues:list<string>}
+     */
+    private function readRelationshipRecordsPartDiagnostics(array $parts, string $partName): array
+    {
         if (!isset($parts[$partName])) {
-            return [];
+            return [
+                'records' => [],
+                'exists' => false,
+                'validXml' => null,
+                'xmlParseError' => null,
+                'issues' => [],
+            ];
         }
 
-        $dom = $this->loadXml($parts[$partName], $partName);
+        try {
+            $dom = $this->loadXml($parts[$partName], $partName);
+        } catch (\RuntimeException $error) {
+            return [
+                'records' => [],
+                'exists' => true,
+                'validXml' => false,
+                'xmlParseError' => $error->getMessage(),
+                'issues' => ['invalid-xml'],
+            ];
+        }
+
         $xpath = $this->xpath($dom);
         $records = [];
         $ordinal = 0;
@@ -1057,7 +1083,13 @@ final class DocxOpenXmlReader
             ];
         }
 
-        return $records;
+        return [
+            'records' => $records,
+            'exists' => true,
+            'validXml' => true,
+            'xmlParseError' => null,
+            'issues' => [],
+        ];
     }
 
     /**
@@ -7334,6 +7366,8 @@ final class DocxOpenXmlReader
         $duplicateRelationshipRecordCount = 0;
         $invalidRelationshipRecordCount = 0;
         $relationshipRecordIssueCount = 0;
+        $relationshipPartInvalidXmlCount = 0;
+        $relationshipPartIssueCount = 0;
         $relationshipRecordTargetModeCounts = [];
         $relationshipRecordImplicitInternalTargetModeCount = 0;
         $relationshipRecordExplicitInternalTargetModeCount = 0;
@@ -7358,14 +7392,17 @@ final class DocxOpenXmlReader
         $relationshipSourceExistingParts = [];
         $relationshipPartsWithDuplicateRelationshipIds = [];
         $relationshipPartsWithInvalidRecords = [];
+        $relationshipPartsWithInvalidXml = [];
         $relationshipPartsWithExplicitInternalTargetMode = [];
         $relationshipPartsWithUnexpectedTargetMode = [];
         $duplicateRelationshipIds = [];
         $duplicateRelationshipIdItems = [];
         $invalidRelationshipRecords = [];
+        $invalidRelationshipParts = [];
         $relationshipsWithExplicitInternalTargetMode = [];
         $relationshipsWithUnexpectedTargetMode = [];
         $relationshipRecordIssueCodes = [];
+        $relationshipPartIssueCodes = [];
         $targetParts = [];
         $partsWithoutContentType = [];
 
@@ -7492,6 +7529,28 @@ final class DocxOpenXmlReader
                 $missingSourceSummary = $this->missingRelationshipSourceSummary((string) $relationshipsPart, $relationshipPart);
                 $relationshipFromMissingSourceCount += (int) $missingSourceSummary['relationshipCount'];
                 $relationshipsFromMissingSources[] = $missingSourceSummary;
+            }
+
+            $relationshipPartIssueCount += (int) ($relationshipPart['relationshipPartIssueCount'] ?? 0);
+            $relationshipPartIssues = array_values(array_map('strval', $relationshipPart['relationshipPartIssueCodes'] ?? []));
+            foreach ($relationshipPartIssues as $issue) {
+                if ($issue !== '') {
+                    $relationshipPartIssueCodes[$issue] = true;
+                }
+            }
+            if (($relationshipPart['validXml'] ?? null) === false) {
+                ++$relationshipPartInvalidXmlCount;
+                $relationshipPartsWithInvalidXml[] = (string) $relationshipsPart;
+                $invalidRelationshipParts[] = [
+                    'partName' => (string) $relationshipsPart,
+                    'sourcePart' => $sourcePart,
+                    'sourceExists' => $sourceExists,
+                    'bytes' => (int) ($relationshipPart['bytes'] ?? 0),
+                    'xmlParseError' => is_string($relationshipPart['xmlParseError'] ?? null)
+                        ? $relationshipPart['xmlParseError']
+                        : null,
+                    'issues' => $relationshipPartIssues,
+                ];
             }
 
             foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
@@ -7668,6 +7727,7 @@ final class DocxOpenXmlReader
         ksort($externalRelationshipTargetIssueCounts);
         ksort($relationshipRecordTargetModeCounts);
         ksort($relationshipRecordIssueCodes);
+        ksort($relationshipPartIssueCodes);
         ksort($relationshipSourceKindCounts);
         ksort($relationshipSourceDirectoryCounts);
         ksort($relationshipSourceContentTypeCounts);
@@ -7713,6 +7773,9 @@ final class DocxOpenXmlReader
             'invalidRelationshipRecordCount' => $invalidRelationshipRecordCount,
             'relationshipRecordIssueCount' => $relationshipRecordIssueCount,
             'relationshipRecordIssueCodes' => array_keys($relationshipRecordIssueCodes),
+            'relationshipPartInvalidXmlCount' => $relationshipPartInvalidXmlCount,
+            'relationshipPartIssueCount' => $relationshipPartIssueCount,
+            'relationshipPartIssueCodes' => array_keys($relationshipPartIssueCodes),
             'relationshipRecordTargetModeCounts' => $relationshipRecordTargetModeCounts,
             'relationshipRecordImplicitInternalTargetModeCount' => $relationshipRecordImplicitInternalTargetModeCount,
             'relationshipRecordExplicitInternalTargetModeCount' => $relationshipRecordExplicitInternalTargetModeCount,
@@ -7802,6 +7865,7 @@ final class DocxOpenXmlReader
             'relationshipPartsWithSameSourceTargets' => array_keys($relationshipPartsWithSameSourceTargets),
             'relationshipPartsWithDuplicateRelationshipIds' => $relationshipPartsWithDuplicateRelationshipIds,
             'relationshipPartsWithInvalidRecords' => $relationshipPartsWithInvalidRecords,
+            'relationshipPartsWithInvalidXml' => $relationshipPartsWithInvalidXml,
             'relationshipPartsWithExplicitInternalTargetMode' => array_keys($relationshipPartsWithExplicitInternalTargetMode),
             'relationshipPartsWithUnexpectedTargetMode' => array_keys($relationshipPartsWithUnexpectedTargetMode),
             'relationshipPartsWithUnsafeExternalTargets' => array_keys($relationshipPartsWithUnsafeExternalTargets),
@@ -7817,6 +7881,7 @@ final class DocxOpenXmlReader
             'unsafeExternalRelationshipTargets' => $unsafeExternalRelationshipTargets,
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
             'invalidRelationshipRecords' => $invalidRelationshipRecords,
+            'invalidRelationshipParts' => $invalidRelationshipParts,
             'relationshipsWithExplicitInternalTargetMode' => $relationshipsWithExplicitInternalTargetMode,
             'relationshipsWithUnexpectedTargetMode' => $relationshipsWithUnexpectedTargetMode,
         ];
@@ -10067,6 +10132,7 @@ final class DocxOpenXmlReader
         array $relationships,
         array $contentTypes,
     ): array {
+        $recordDiagnostics = $this->readRelationshipRecordsPartDiagnostics($parts, $relationshipsPart);
         $relationshipSummaries = [];
         foreach ($relationships as $id => $relationship) {
             $relationshipSummaries[$id] = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
@@ -10076,7 +10142,9 @@ final class DocxOpenXmlReader
             $relationshipsPart,
             $sourcePart,
             $contentTypes,
+            $recordDiagnostics['records'],
         );
+        $relationshipPartIssueCodes = array_values(array_map('strval', $recordDiagnostics['issues']));
         $duplicateIds = [];
         foreach ($relationshipRecords as $record) {
             if (($record['duplicateId'] ?? false) === true) {
@@ -10104,8 +10172,12 @@ final class DocxOpenXmlReader
             'sourceExists' => $this->relationshipSourceExists($parts, $sourcePart),
             'exists' => isset($parts[$relationshipsPart]),
             'bytes' => isset($parts[$relationshipsPart]) ? strlen($parts[$relationshipsPart]) : 0,
+            'validXml' => $recordDiagnostics['validXml'],
+            'xmlParseError' => $recordDiagnostics['xmlParseError'],
             'relationshipCount' => count($relationshipSummaries),
             'relationshipRecordCount' => count($relationshipRecords),
+            'relationshipPartIssueCount' => count($relationshipPartIssueCodes),
+            'relationshipPartIssueCodes' => $relationshipPartIssueCodes,
             'duplicateRelationshipIdCount' => count($duplicateIds),
             'duplicateRelationshipRecordCount' => $duplicateRecordCount,
             'duplicateRelationshipIds' => array_keys($duplicateIds),
@@ -10122,6 +10194,7 @@ final class DocxOpenXmlReader
     /**
      * @param array<string, string> $parts
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param list<array{ordinal:int, id:string, type:string, target:string, targetMode:string, resolvedTarget:string}>|null $records
      * @return list<array<string, mixed>>
      */
     private function relationshipRecordProvenance(
@@ -10129,8 +10202,9 @@ final class DocxOpenXmlReader
         string $relationshipsPart,
         string $sourcePart,
         array $contentTypes,
+        ?array $records = null,
     ): array {
-        $records = $this->readRelationshipRecordsPart($parts, $relationshipsPart);
+        $records ??= $this->readRelationshipRecordsPart($parts, $relationshipsPart);
         $idCounts = [];
         foreach ($records as $record) {
             $idCounts[$record['id']] = ($idCounts[$record['id']] ?? 0) + 1;
