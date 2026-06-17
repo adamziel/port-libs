@@ -17810,6 +17810,7 @@ final class XmlHtmlDom
         if (array_key_exists('autofocus', $attributes)) {
             $summary['autofocusRaw'] = $attributes['autofocus'];
             $summary['autofocus'] = true;
+            $summary += self::autofocusReviewSummary($element);
         }
 
         if (array_key_exists('tabindex', $attributes)) {
@@ -18901,6 +18902,126 @@ final class XmlHtmlDom
         }
 
         return preg_match_all('/./us', $token) === 1;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function autofocusReviewSummary(\DOMElement $element): array
+    {
+        $candidates = self::autofocusCandidateSummaries($element);
+        $currentIndex = null;
+        foreach ($candidates as $candidate) {
+            if (($candidate['current'] ?? false) === true) {
+                $currentIndex = (int) $candidate['index'];
+                break;
+            }
+        }
+
+        $candidateIds = [];
+        foreach ($candidates as $candidate) {
+            $id = $candidate['id'] ?? null;
+            if (is_string($id) && $id !== '' && !in_array($id, $candidateIds, true)) {
+                $candidateIds[] = $id;
+            }
+        }
+
+        $issueCodes = count($candidates) > 1 ? ['multiple-autofocus-candidates'] : [];
+
+        return [
+            'autofocusReviewPolicy' => 'document-autofocus-candidate-review',
+            'autofocusCandidateCount' => count($candidates),
+            'autofocusIndex' => $currentIndex,
+            'autofocusFirst' => $currentIndex === 0,
+            'autofocusConflict' => count($candidates) > 1,
+            'autofocusCandidateIds' => $candidateIds,
+            'autofocusFirstCandidate' => $candidates[0] ?? null,
+            'autofocusCandidates' => $candidates,
+            'autofocusIssueCodes' => $issueCodes,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function autofocusCandidateSummaries(\DOMElement $context): array
+    {
+        $document = $context->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $candidates = [];
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement) {
+                continue;
+            }
+
+            if (!array_key_exists('autofocus', self::htmlAttributes($candidate))) {
+                continue;
+            }
+
+            $candidates[] = self::autofocusCandidateSummary($candidate, count($candidates), $candidate->isSameNode($context));
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function autofocusCandidateSummary(\DOMElement $element, int $index, bool $current): array
+    {
+        $name = self::htmlElementName($element);
+        $isControl = self::isFormControlElement($element);
+        $summary = [
+            'index' => $index,
+            'tag' => $name,
+            'id' => self::attributeOrNull($element, 'id'),
+            'controlName' => self::attributeOrNull($element, 'name'),
+            'kind' => self::autofocusCandidateKind($element, $name, $isControl),
+            'formControl' => $isControl,
+            'current' => $current,
+            'text' => self::normalizedText($element),
+        ];
+
+        if ($isControl) {
+            $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($element);
+        }
+        if ($name === 'input') {
+            $summary['inputType'] = self::inputType($element);
+            $summary['value'] = self::attributeOrNull($element, 'value');
+        } elseif ($name === 'button') {
+            $summary['buttonType'] = self::buttonType($element);
+            $summary['value'] = self::attributeOrNull($element, 'value');
+            $summary['label'] = self::normalizedText($element);
+        } elseif ($name === 'textarea') {
+            $summary['value'] = $element->textContent;
+        }
+
+        if ($element->hasAttribute('tabindex')) {
+            $summary['tabIndex'] = self::integerAttribute($element, 'tabindex', null);
+        }
+
+        return $summary;
+    }
+
+    private static function autofocusCandidateKind(\DOMElement $element, string $name, bool $isControl): string
+    {
+        if ($isControl) {
+            return 'form-control';
+        }
+        if (($name === 'a' || $name === 'area') && $element->hasAttribute('href')) {
+            return 'hyperlink';
+        }
+        if (in_array($name, ['iframe', 'object', 'embed'], true)) {
+            return 'embedded';
+        }
+        if ($element->hasAttribute('tabindex')) {
+            return 'tabindex';
+        }
+
+        return 'element';
     }
 
     /**

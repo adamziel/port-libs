@@ -1516,6 +1516,8 @@
   "xmlHtmlDomShadowRootRegistryBooleanAssertions": 15,
   "mappedXmlHtmlDomPopoverTargetReferenceCases": 1,
   "xmlHtmlDomPopoverTargetReferenceAssertions": 39,
+  "mappedXmlHtmlDomAutofocusConflictCases": 1,
+  "xmlHtmlDomAutofocusConflictAssertions": 32,
   "mappedDocxStylesWithEffectsSelectedXmlCases": 1,
   "docxStylesWithEffectsSelectedXmlAssertions": 51,
   "mappedDocxOpenXmlPeoplePartCases": 1,

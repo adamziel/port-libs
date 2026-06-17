@@ -4272,6 +4272,60 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/focus-navigation-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html autofocus candidate conflicts for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="focus-form"><input id="title" name="title" value="Draft" autofocus><button id="save" disabled autofocus>Save</button></form>'
+                . '<section id="panel" tabindex="-1" autofocus>Panel body</section>',
+            'autofocus conflict review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/autofocus-conflict-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $form = $summary[0];
+        $title = $form['children'][0];
+        $save = $form['children'][1];
+        $panel = $summary[1];
+
+        $t->same('document-autofocus-candidate-review', $title['autofocusReviewPolicy']);
+        $t->same(3, $title['autofocusCandidateCount']);
+        $t->same(0, $title['autofocusIndex']);
+        $t->same(true, $title['autofocusFirst']);
+        $t->same(true, $title['autofocusConflict']);
+        $t->same(['multiple-autofocus-candidates'], $title['autofocusIssueCodes']);
+        $t->same(['title', 'save', 'panel'], $title['autofocusCandidateIds']);
+        $t->same('input', $title['autofocusFirstCandidate']['tag'] ?? null);
+        $t->same('title', $title['autofocusFirstCandidate']['id'] ?? null);
+        $t->same(true, $title['autofocusFirstCandidate']['current'] ?? null);
+        $t->same('form-control', $title['autofocusCandidates'][0]['kind'] ?? null);
+        $t->same('text', $title['autofocusCandidates'][0]['inputType'] ?? null);
+        $t->same('title', $title['autofocusCandidates'][0]['controlName'] ?? null);
+        $t->same('Draft', $title['autofocusCandidates'][0]['value'] ?? null);
+
+        $t->same(1, $save['autofocusIndex']);
+        $t->same(false, $save['autofocusFirst']);
+        $t->same(true, $save['autofocusCandidates'][1]['current'] ?? null);
+        $t->same('form-control', $save['autofocusCandidates'][1]['kind'] ?? null);
+        $t->same('submit', $save['autofocusCandidates'][1]['buttonType'] ?? null);
+        $t->same(true, $save['autofocusCandidates'][1]['effectiveDisabled'] ?? null);
+        $t->same('Save', $save['autofocusCandidates'][1]['label'] ?? null);
+
+        $t->same(2, $panel['autofocusIndex']);
+        $t->same(false, $panel['autofocusFirst']);
+        $t->same('tabindex', $panel['autofocusCandidates'][2]['kind'] ?? null);
+        $t->same(true, $panel['autofocusCandidates'][2]['current'] ?? null);
+        $t->same(-1, $panel['tabIndex']);
+        $t->same(-1, $panel['autofocusCandidates'][2]['tabIndex'] ?? null);
+        $t->same('Panel body', $panel['autofocusCandidates'][2]['text'] ?? null);
+        $t->same(['multiple-autofocus-candidates'], $panel['autofocusIssueCodes']);
+
+        $t->same('<form id="focus-form"><input autofocus id="title" name="title" value="Draft"><button autofocus disabled id="save">Save</button></form><section autofocus id="panel" tabindex="-1">Panel body</section>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/autofocus-conflict-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html inert and custom element export attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="widget-host" inert part="card title card" exportparts="title:review-title, icon, bad:mapping:extra, invalid name:alias" slot="primary-panel" is="review-widget"><button part="action primary" slot="controls" inert>Save</button></section>'
