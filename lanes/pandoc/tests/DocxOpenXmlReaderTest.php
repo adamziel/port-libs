@@ -2304,6 +2304,99 @@ XML;
         $t->same('word/embeddings/review-package', $package['existingTargetPartDigests'][1]['partName']);
         $t->same(null, $package['existingTargetPartDigests'][1]['partExtension']);
     },
+    'summarizes docx relationship target directories for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $glossaryRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=directory-review"/>' . "\n" .
+            '  <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootCustomDirectory" Type="' . $customXmlRel . '" Target="/customXml/root-target.xml?root=1#custom"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsDirectory" Type="' . $commentsRel . '" Target="comments.xml?review=directory#comments"/>' . "\n" .
+            '  <Relationship Id="rMissingDirectoryImage" Type="' . $imageRel . '" Target="media/missing-directory.png?missing=1#image"/>' . "\n" .
+            '  <Relationship Id="rCustomDirectory" Type="' . $customXmlRel . '" Target="../customXml/item-directory.xml?store=directory#item"/>' . "\n" .
+            '  <Relationship Id="rGlossaryDirectory" Type="' . $glossaryRel . '" Target="glossary/document.xml"/>' . "\n" .
+            '  <Relationship Id="rExternalDirectory" Type="' . $hyperlinkRel . '" Target="https://example.test/directory-target" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/root-target.xml'] = '<root-target/>';
+        $parts['customXml/item-directory.xml'] = '<item-directory/>';
+        $parts['word/comments.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/glossary/document.xml'] = '<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docParts/></w:glossaryDocument>';
+        $parts['word/header/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Directory audit header</w:t></w:r></w:p></w:hdr>';
+        $parts['word/header/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderDirectoryImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/header-directory.png"/>
+</Relationships>
+XML;
+        $parts['word/media/header-directory.png'] = 'header directory image bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $directories = [];
+        foreach ($summary['relationshipTargetDirectories'] as $directory) {
+            $directories[$directory['directory']] = $directory;
+        }
+
+        $t->same(5, $summary['relationshipTargetDirectoryCount']);
+        $t->same([
+            'customXml' => 2,
+            'docProps' => 1,
+            'word' => 2,
+            'word/glossary' => 1,
+            'word/media' => 3,
+        ], $summary['relationshipTargetDirectoryCounts']);
+        $t->same([
+            'customXml' => 2,
+            'docProps' => 1,
+            'word' => 2,
+            'word/glossary' => 1,
+            'word/media' => 2,
+        ], $summary['relationshipTargetExistingDirectoryCounts']);
+        $t->same(['word/media' => 1], $summary['relationshipTargetMissingDirectoryCounts']);
+
+        $t->same(3, $directories['word/media']['relationshipCount']);
+        $t->same(2, $directories['word/media']['existingTargetCount']);
+        $t->same(1, $directories['word/media']['missingTargetCount']);
+        $t->same(['default' => 3], $directories['word/media']['contentTypeSourceCounts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/header/_rels/header1.xml.rels'], $directories['word/media']['relationshipParts']);
+        $t->same(['rImage', 'rMissingDirectoryImage', 'rHeaderDirectoryImage'], $directories['word/media']['relationshipIds']);
+        $t->same(['word/media/review.png', 'word/media/missing-directory.png', 'word/media/header-directory.png'], $directories['word/media']['targetParts']);
+
+        $t->same(2, $directories['customXml']['relationshipCount']);
+        $t->same(['default' => 2], $directories['customXml']['contentTypeSourceCounts']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $directories['customXml']['relationshipParts']);
+        $t->same(['rRootCustomDirectory', 'rCustomDirectory'], $directories['customXml']['relationshipIds']);
+        $t->same(['customXml/root-target.xml', 'customXml/item-directory.xml'], $directories['customXml']['targetParts']);
+
+        $t->same(2, $directories['word']['relationshipCount']);
+        $t->same(1, $directories['word']['parameterizedTargetCount']);
+        $t->same(['override' => 2], $directories['word']['contentTypeSourceCounts']);
+        $t->same(['rDoc', 'rCommentsDirectory'], $directories['word']['relationshipIds']);
+        $t->same(['word/document.xml', 'word/comments.xml'], $directories['word']['targetParts']);
+
+        $t->same(1, $directories['word/glossary']['relationshipCount']);
+        $t->same(['rGlossaryDirectory'], $directories['word/glossary']['relationshipIds']);
+        $t->same(['word/glossary/document.xml'], $directories['word/glossary']['targetParts']);
+        $t->same(2, $summary['externalRelationshipCount']);
+    },
     'summarizes docx relationship type package matrix rollups for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
