@@ -9179,6 +9179,79 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/hyperlink-navigation-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html hyperlink fragment target provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<h2 id="intro">Intro</h2>'
+                . '<p><a href="#intro">Intro link</a><a href="#legacy">Legacy link</a><a href="#">Top</a><a href="#missing">Missing</a><a href="#bad target">Bad</a></p>'
+                . '<a name="legacy">Legacy target</a>'
+                . '<div id="dup">First duplicate</div><section id="dup">Second duplicate</section>'
+                . '<p><a href="#dup">Duplicate</a></p>'
+                . '<map name="toc"><area href="#intro" alt="Intro area"></map>',
+            'hyperlink fragment target review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/hyperlink-fragment-target-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $intro = $summary[1]['children'][0];
+        $legacy = $summary[1]['children'][1];
+        $top = $summary[1]['children'][2];
+        $missing = $summary[1]['children'][3];
+        $invalid = $summary[1]['children'][4];
+        $duplicate = $summary[5]['children'][0];
+        $area = $summary[6]['children'][0];
+
+        $t->same('hyperlink-fragment-target-review', $intro['hrefFragmentReviewPolicy']);
+        $t->same('intro', $intro['hrefFragmentRaw']);
+        $t->same('intro', $intro['hrefFragmentTarget']);
+        $t->same(true, $intro['hrefFragmentTargetValid']);
+        $t->same(true, $intro['hrefFragmentTargetFound']);
+        $t->same(1, $intro['hrefFragmentTargetCount']);
+        $t->same('id', $intro['hrefFragmentTargetKind']);
+        $t->same('h2', $intro['hrefFragmentTargetElement']['tag']);
+        $t->same(2, $intro['hrefFragmentTargetElement']['headingLevel']);
+        $t->same([], $intro['hrefFragmentIssueCodes']);
+
+        $t->same('anchor-name', $legacy['hrefFragmentTargetKind']);
+        $t->same('a', $legacy['hrefFragmentTargetElement']['tag']);
+        $t->same('legacy', $legacy['hrefFragmentTargetElement']['nameAttribute']);
+        $t->same('Legacy target', $legacy['hrefFragmentTargetElement']['text']);
+        $t->same([], $legacy['hrefFragmentIssueCodes']);
+
+        $t->same('', $top['hrefFragmentRaw']);
+        $t->same(true, $top['hrefFragmentDocumentTop']);
+        $t->same(false, $top['hrefFragmentTargetFound']);
+        $t->same('document-top', $top['hrefFragmentTargetKind']);
+        $t->same([], $top['hrefFragmentIssueCodes']);
+
+        $t->same('missing-target', $missing['hrefFragmentTargetKind']);
+        $t->same(['missing-hyperlink-fragment-target'], $missing['hrefFragmentIssueCodes']);
+        $t->same([['code' => 'missing-hyperlink-fragment-target', 'fragmentTarget' => 'missing']], $missing['hrefFragmentIssues']);
+
+        $t->same(false, $invalid['hrefFragmentTargetValid']);
+        $t->same('invalid-reference', $invalid['hrefFragmentTargetKind']);
+        $t->same(['invalid-hyperlink-fragment-target'], $invalid['hrefFragmentIssueCodes']);
+
+        $t->same('duplicate-id', $duplicate['hrefFragmentTargetKind']);
+        $t->same(2, $duplicate['hrefFragmentTargetCount']);
+        $t->same(['duplicate-hyperlink-fragment-target'], $duplicate['hrefFragmentIssueCodes']);
+        $t->same(['div', 'section'], array_map(static fn (array $target): string => (string) $target['tag'], $duplicate['hrefFragmentTargetElements']));
+        $t->same([[
+            'code' => 'duplicate-hyperlink-fragment-target',
+            'fragmentTarget' => 'dup',
+            'targetType' => 'id',
+            'count' => 2,
+        ]], $duplicate['hrefFragmentIssues']);
+
+        $t->same('id', $area['hrefFragmentTargetKind']);
+        $t->same('h2', $area['hrefFragmentTargetElement']['tag']);
+        $t->contains('<a href="#bad target">Bad</a>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/hyperlink-fragment-target-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html base link and meta metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<base href="https://example.test/docs/" target="_blank">'

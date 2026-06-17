@@ -21857,18 +21857,47 @@ final class XmlHtmlDom
 
     private static function htmlElementById(\DOMElement $context, string $id): ?\DOMElement
     {
+        return self::htmlElementsById($context, $id)[0] ?? null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function htmlElementsById(\DOMElement $context, string $id): array
+    {
         $document = $context->ownerDocument;
         if (!$document instanceof \DOMDocument) {
-            return null;
+            return [];
         }
 
+        $matches = [];
         foreach ($document->getElementsByTagName('*') as $element) {
             if ($element instanceof \DOMElement && $element->getAttribute('id') === $id) {
-                return $element;
+                $matches[] = $element;
             }
         }
 
-        return null;
+        return $matches;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function htmlNamedAnchorElements(\DOMElement $context, string $name): array
+    {
+        $document = $context->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $matches = [];
+        foreach ($document->getElementsByTagName('a') as $element) {
+            if ($element instanceof \DOMElement && $element->getAttribute('name') === $name) {
+                $matches[] = $element;
+            }
+        }
+
+        return $matches;
     }
 
     private static function isLabelableElement(\DOMElement $element): bool
@@ -22395,6 +22424,7 @@ final class XmlHtmlDom
         $downloadRequested = $element->hasAttribute('download');
         $referrerPolicyRaw = self::attributeOrNull($element, 'referrerpolicy');
         $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
+        $fragmentTarget = self::hyperlinkFragmentTargetSummary($element, $href);
         $pingUrls = $pingRaw === null ? [] : self::spaceSeparatedTokens($pingRaw);
         $pingRecords = [];
         $unsafePingUrls = [];
@@ -22488,7 +22518,126 @@ final class XmlHtmlDom
             'unsafePingUrls' => $unsafePingUrls,
             'nonHttpPingUrls' => $nonHttpPingUrls,
             'navigationIssues' => $issues,
+        ] + $fragmentTarget;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function hyperlinkFragmentTargetSummary(\DOMElement $element, ?string $href): array
+    {
+        $hrefRaw = $href === null ? null : trim($href);
+        if ($hrefRaw === null || !str_starts_with($hrefRaw, '#')) {
+            return [];
+        }
+
+        $fragmentRaw = substr($hrefRaw, 1);
+        $fragmentTarget = rawurldecode($fragmentRaw);
+        $documentTop = $fragmentTarget === '';
+        $targetValid = $documentTop || self::isHtmlIdReferenceToken($fragmentTarget);
+        $targetType = null;
+        $targets = [];
+        $issues = [];
+
+        if (!$targetValid) {
+            $issues[] = [
+                'code' => 'invalid-hyperlink-fragment-target',
+                'fragmentRaw' => $fragmentRaw,
+            ];
+        } elseif (!$documentTop) {
+            $targets = self::htmlElementsById($element, $fragmentTarget);
+            $targetType = $targets === [] ? null : 'id';
+
+            if ($targets === []) {
+                $targets = self::htmlNamedAnchorElements($element, $fragmentTarget);
+                $targetType = $targets === [] ? null : 'anchor-name';
+            }
+
+            if ($targets === []) {
+                $issues[] = [
+                    'code' => 'missing-hyperlink-fragment-target',
+                    'fragmentTarget' => $fragmentTarget,
+                ];
+            } elseif (count($targets) > 1) {
+                $issues[] = [
+                    'code' => 'duplicate-hyperlink-fragment-target',
+                    'fragmentTarget' => $fragmentTarget,
+                    'targetType' => $targetType,
+                    'count' => count($targets),
+                ];
+            }
+        }
+
+        $targetSummaries = [];
+        foreach ($targets as $target) {
+            $targetSummaries[] = self::hyperlinkFragmentTargetElementSummary($target, $targetType ?? 'element');
+        }
+
+        return [
+            'hrefFragmentReviewPolicy' => 'hyperlink-fragment-target-review',
+            'hrefFragmentRaw' => $fragmentRaw,
+            'hrefFragmentTarget' => $documentTop ? null : $fragmentTarget,
+            'hrefFragmentTargetValid' => $targetValid,
+            'hrefFragmentDocumentTop' => $documentTop,
+            'hrefFragmentTargetFound' => $targetSummaries !== [],
+            'hrefFragmentTargetCount' => count($targetSummaries),
+            'hrefFragmentTargetKind' => self::hyperlinkFragmentTargetKind(
+                $documentTop,
+                $targetValid,
+                $targetType,
+                count($targetSummaries)
+            ),
+            'hrefFragmentTargetElement' => $targetSummaries[0] ?? null,
+            'hrefFragmentTargetElements' => $targetSummaries,
+            'hrefFragmentIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $issues
+            )),
+            'hrefFragmentIssues' => $issues,
         ];
+    }
+
+    private static function hyperlinkFragmentTargetKind(
+        bool $documentTop,
+        bool $targetValid,
+        ?string $targetType,
+        int $targetCount
+    ): string {
+        if ($documentTop) {
+            return 'document-top';
+        }
+        if (!$targetValid) {
+            return 'invalid-reference';
+        }
+        if ($targetType === null) {
+            return 'missing-target';
+        }
+        if ($targetCount > 1) {
+            return 'duplicate-' . $targetType;
+        }
+
+        return $targetType;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function hyperlinkFragmentTargetElementSummary(\DOMElement $target, string $targetType): array
+    {
+        $name = self::htmlElementName($target);
+        $summary = [
+            'targetType' => $targetType,
+            'tag' => $name,
+            'id' => self::attributeOrNull($target, 'id'),
+            'nameAttribute' => self::attributeOrNull($target, 'name'),
+            'text' => self::normalizedText($target),
+        ];
+
+        if (self::isHtmlHeadingElementName($name)) {
+            $summary['headingLevel'] = self::htmlHeadingLevel($name);
+        }
+
+        return $summary;
     }
 
     /**
