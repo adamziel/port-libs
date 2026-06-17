@@ -14637,6 +14637,9 @@ final class XmlHtmlDom
             if (self::isInputSubmitterType($inputType)) {
                 $summary['submitter'] = self::formSubmitterSummary($node);
             }
+            if ($inputType === 'reset') {
+                $summary += self::formResetControlSummary($node);
+            }
         }
         if ($name === 'textarea') {
             $summary['formControl'] = 'textarea';
@@ -14665,6 +14668,9 @@ final class XmlHtmlDom
             $summary += self::buttonCommandSummary($node);
             if (self::isButtonSubmitButton($node)) {
                 $summary['submitter'] = self::formSubmitterSummary($node);
+            }
+            if ($buttonType === 'reset') {
+                $summary += self::formResetControlSummary($node);
             }
         }
         if ($name === 'output') {
@@ -21349,6 +21355,125 @@ final class XmlHtmlDom
             'formTarget' => self::attributeOrNull($submitter, 'formtarget'),
             'formNoValidate' => $submitter->hasAttribute('formnovalidate'),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formResetControlSummary(\DOMElement $resetter): array
+    {
+        $form = self::formOwnerElement($resetter);
+        $controls = $form instanceof \DOMElement ? self::formResettableControlSummaries($form) : [];
+        $issues = [];
+
+        if (!$form instanceof \DOMElement) {
+            $issues[] = ['code' => 'missing-form-owner'];
+        }
+        if (self::isEffectivelyDisabledFormControl($resetter)) {
+            $issues[] = ['code' => 'disabled-reset-control'];
+        }
+
+        return [
+            'formResetReviewPolicy' => 'form-reset-control-review',
+            'formResetControl' => self::htmlElementName($resetter),
+            'formResetControlId' => self::attributeOrNull($resetter, 'id'),
+            'formResetFormOwnerId' => $form instanceof \DOMElement ? self::attributeOrNull($form, 'id') : null,
+            'formResetFormOwnerFound' => $form instanceof \DOMElement,
+            'formResetEffectiveDisabled' => self::isEffectivelyDisabledFormControl($resetter),
+            'formResetWouldReset' => $form instanceof \DOMElement && !self::isEffectivelyDisabledFormControl($resetter),
+            'formResetControlCount' => count($controls),
+            'formResetControlNames' => self::formOwnedControlNames($controls),
+            'formResetControlTags' => array_values(array_map(
+                static fn (array $control): string => (string) ($control['tag'] ?? ''),
+                $controls
+            )),
+            'formResetControlIds' => array_values(array_filter(
+                array_map(static fn (array $control): ?string => $control['id'] ?? null, $controls),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'formResetControls' => $controls,
+            'formResetIssues' => $issues,
+            'formResetIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function formResettableControlSummaries(\DOMElement $form): array
+    {
+        $document = $form->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $controls = [];
+        foreach ($document->getElementsByTagName('*') as $control) {
+            if (!$control instanceof \DOMElement || !self::isResettableFormControlElement($control)) {
+                continue;
+            }
+            if (!self::formOwnerElement($control)?->isSameNode($form)) {
+                continue;
+            }
+
+            $controls[] = self::formResettableControlSummary($control);
+        }
+
+        return $controls;
+    }
+
+    private static function isResettableFormControlElement(\DOMElement $control): bool
+    {
+        $name = self::htmlElementName($control);
+        if ($name === 'input') {
+            return !in_array(self::inputType($control), ['button', 'image', 'reset', 'submit'], true);
+        }
+
+        return in_array($name, ['select', 'textarea'], true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formResettableControlSummary(\DOMElement $control): array
+    {
+        $name = self::htmlElementName($control);
+        $summary = [
+            'tag' => $name,
+            'id' => self::attributeOrNull($control, 'id'),
+            'controlName' => self::attributeOrNull($control, 'name'),
+            'formOwnerSource' => self::attributeOrNull($control, 'form') === null ? 'ancestor' : 'form-attribute',
+            'effectiveDisabled' => self::isEffectivelyDisabledFormControl($control),
+        ];
+
+        if ($name === 'input') {
+            $type = self::inputType($control);
+            $summary['type'] = $type;
+            $summary['defaultValue'] = $control->getAttribute('value');
+            if ($type === 'checkbox' || $type === 'radio') {
+                $summary['defaultChecked'] = $control->hasAttribute('checked');
+            }
+
+            return $summary;
+        }
+
+        if ($name === 'select') {
+            $options = self::selectOptionSummaries($control);
+            $summary['defaultSelectedValues'] = array_values(array_map(
+                static fn (array $option): string => (string) $option['value'],
+                array_filter($options, static fn (array $option): bool => (bool) ($option['selected'] ?? false))
+            ));
+            $summary['optionCount'] = count($options);
+
+            return $summary;
+        }
+
+        $summary['defaultValue'] = $control->textContent;
+
+        return $summary;
     }
 
     private static function isInputSubmitterType(string $type): bool

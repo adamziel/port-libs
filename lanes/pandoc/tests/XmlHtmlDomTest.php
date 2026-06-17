@@ -6947,6 +6947,113 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         ], $defaultButton['submitter']);
         $t->same('<form accept-charset="UTF-8 ISO-8859-1" action="https://forms.example.invalid/submit" autocomplete="off" enctype="multipart/form-data" id="remote-review" method="POST" novalidate target="_blank"><input name="title" value="Packet"><input formaction="/image-submit" formenctype="multipart/form-data" formmethod="POST" formnovalidate formtarget="_parent" src="submit.png" type="image"><button formaction="/local-submit" formenctype="text/plain" formmethod="dialog" formnovalidate formtarget="_self" type="submit">Send</button></form><form autocomplete="maybe" enctype="application/json" id="invalid-method" method="TRACE"><button>Default</button></form>', $html);
     },
+    'summarizes html form reset controls for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="draft"><input id="title" name="title" value="Draft"><input id="publish" type="checkbox" name="publish" checked>'
+                . '<textarea id="notes" name="notes">Original note</textarea><select id="state" name="state"><option value="draft" selected>Draft</option><option value="review">Review</option></select>'
+                . '<button id="reset-button" type="reset">Clear form</button><input id="reset-input" type="reset" value="Reset all"></form>'
+                . '<input id="remote" name="remote" value="Remote" form="draft"><button id="orphan-reset" type="reset" form="missing">Missing form</button>'
+                . '<button id="disabled-reset" type="reset" disabled form="draft">Disabled reset</button>',
+            'form reset control review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/form-reset-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $form = $summary[0];
+        $buttonReset = $form['children'][4];
+        $inputReset = $form['children'][5];
+        $orphanReset = $summary[2];
+        $disabledReset = $summary[3];
+        $expectedControls = [
+            [
+                'tag' => 'input',
+                'id' => 'title',
+                'controlName' => 'title',
+                'formOwnerSource' => 'ancestor',
+                'effectiveDisabled' => false,
+                'type' => 'text',
+                'defaultValue' => 'Draft',
+            ],
+            [
+                'tag' => 'input',
+                'id' => 'publish',
+                'controlName' => 'publish',
+                'formOwnerSource' => 'ancestor',
+                'effectiveDisabled' => false,
+                'type' => 'checkbox',
+                'defaultValue' => '',
+                'defaultChecked' => true,
+            ],
+            [
+                'tag' => 'textarea',
+                'id' => 'notes',
+                'controlName' => 'notes',
+                'formOwnerSource' => 'ancestor',
+                'effectiveDisabled' => false,
+                'defaultValue' => 'Original note',
+            ],
+            [
+                'tag' => 'select',
+                'id' => 'state',
+                'controlName' => 'state',
+                'formOwnerSource' => 'ancestor',
+                'effectiveDisabled' => false,
+                'defaultSelectedValues' => ['draft'],
+                'optionCount' => 2,
+            ],
+            [
+                'tag' => 'input',
+                'id' => 'remote',
+                'controlName' => 'remote',
+                'formOwnerSource' => 'form-attribute',
+                'effectiveDisabled' => false,
+                'type' => 'text',
+                'defaultValue' => 'Remote',
+            ],
+        ];
+
+        $t->same(8, $form['controlCount']);
+        $t->same(2, $form['externalControlCount']);
+        $t->same(['title', 'publish', 'notes', 'state', 'remote'], $form['controlNames']);
+
+        $t->same('form-reset-control-review', $buttonReset['formResetReviewPolicy']);
+        $t->same('button', $buttonReset['formResetControl']);
+        $t->same('draft', $buttonReset['formResetFormOwnerId']);
+        $t->same(true, $buttonReset['formResetFormOwnerFound']);
+        $t->same(true, $buttonReset['formResetWouldReset']);
+        $t->same(false, $buttonReset['formResetEffectiveDisabled']);
+        $t->same(5, $buttonReset['formResetControlCount']);
+        $t->same(['title', 'publish', 'notes', 'state', 'remote'], $buttonReset['formResetControlNames']);
+        $t->same(['input', 'input', 'textarea', 'select', 'input'], $buttonReset['formResetControlTags']);
+        $t->same(['title', 'publish', 'notes', 'state', 'remote'], $buttonReset['formResetControlIds']);
+        $t->same($expectedControls, $buttonReset['formResetControls']);
+
+        $t->same('reset', $inputReset['inputType']);
+        $t->same('form-reset-control-review', $inputReset['formResetReviewPolicy']);
+        $t->same('input', $inputReset['formResetControl']);
+        $t->same(['title', 'publish', 'notes', 'state', 'remote'], $inputReset['formResetControlIds']);
+        $t->same(true, $inputReset['formResetWouldReset']);
+
+        $t->same('form-reset-control-review', $orphanReset['formResetReviewPolicy']);
+        $t->same(false, $orphanReset['formResetFormOwnerFound']);
+        $t->same(false, $orphanReset['formResetWouldReset']);
+        $t->same(0, $orphanReset['formResetControlCount']);
+        $t->same(['missing-form-owner'], $orphanReset['formResetIssueCodes']);
+
+        $t->same('draft', $disabledReset['formResetFormOwnerId']);
+        $t->same(true, $disabledReset['formResetEffectiveDisabled']);
+        $t->same(false, $disabledReset['formResetWouldReset']);
+        $t->same(5, $disabledReset['formResetControlCount']);
+        $t->same(['disabled-reset-control'], $disabledReset['formResetIssueCodes']);
+
+        $t->same('<form id="draft"><input id="title" name="title" value="Draft"><input checked id="publish" name="publish" type="checkbox"><textarea id="notes" name="notes">Original note</textarea><select id="state" name="state"><option selected value="draft">Draft</option><option value="review">Review</option></select><button id="reset-button" type="reset">Clear form</button><input id="reset-input" type="reset" value="Reset all"></form><input form="draft" id="remote" name="remote" value="Remote"><button form="missing" id="orphan-reset" type="reset">Missing form</button><button disabled form="draft" id="disabled-reset" type="reset">Disabled reset</button>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/form-reset-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html form owner associations for remote controls' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="primary" action="/save" method="POST" enctype="multipart/form-data" target="_blank"><input id="inside" name="title" value="Draft"></form>'

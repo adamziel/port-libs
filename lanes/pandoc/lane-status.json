@@ -407,6 +407,8 @@
   "epubAgentDisplayOrderPackageAssertions": 25,
   "mappedXmlHtmlDomFormOwnerCases": 1,
   "xmlHtmlDomFormOwnerAssertions": 37,
+  "mappedXmlHtmlDomFormResetReviewCases": 1,
+  "xmlHtmlDomFormResetReviewAssertions": 32,
   "mappedEpubRightsLicenseLinkPackageCases": 1,
   "epubRightsLicenseLinkPackageAssertions": 48,
   "mappedCslDirectHowpublishedMediumAliasCases": 1,
