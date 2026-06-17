@@ -8671,6 +8671,228 @@ XML;
         $t->same(true, $comments['relationships']['rCommentOrphan']['orphaned']);
         $t->same('audit=orphan', $comments['relationships']['rCommentOrphan']['targetQuery']);
     },
+    'summarizes docx note and comment media relationships for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $footBytes = 'footnote media bytes';
+        $commentBytes = 'comment media bytes';
+        $endBytes = 'endnote non-image bytes';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="jpg" ContentType="image/jpeg; profile=comment-media"/>' . "\n" .
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/notes/review-footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' . "\n" .
+            '  <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="notes/review-footnotes.xml"/>' . "\n" .
+            '  <Relationship Id="rEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>' . "\n" .
+            '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments/review-comments.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/notes/review-footnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <w:footnote w:id="42">
+    <w:p><w:r><w:drawing><a:blip r:embed="rFootImage"/></w:drawing></w:r></w:p>
+    <w:p><w:r><w:drawing><a:blip r:link="rFootExternal"/></w:drawing></w:r></w:p>
+  </w:footnote>
+</w:footnotes>
+XML;
+        $parts['word/notes/_rels/review-footnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFootImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/foot.png?rev=1#img"/>
+  <Relationship Id="rFootMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/missing-foot.dat?missing=1#foot"/>
+  <Relationship Id="rFootExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="javascript:alert(1)" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/endnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="7"><w:p><w:r><w:t>Endnote audit.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+XML;
+        $parts['word/_rels/endnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rEndBad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/end.bin?bad=1#end"/>
+</Relationships>
+XML;
+        $parts['word/comments/review-comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <w:comment w:id="12">
+    <w:p><w:r><w:drawing><a:blip r:embed="rCommentImage"/></w:drawing></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+        $parts['word/comments/_rels/review-comments.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/comment.jpg?thread=7#comment"/>
+</Relationships>
+XML;
+        $parts['word/media/foot.png'] = $footBytes;
+        $parts['word/media/comment.jpg'] = $commentBytes;
+        $parts['word/media/end.bin'] = $endBytes;
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $package = $docx['packageProvenance'];
+        $media = $docx['noteCommentMediaRelationships'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $footKey = 'word/notes/_rels/review-footnotes.xml.rels#rFootImage';
+        $missingKey = 'word/notes/_rels/review-footnotes.xml.rels#rFootMissing';
+        $externalKey = 'word/notes/_rels/review-footnotes.xml.rels#rFootExternal';
+        $endKey = 'word/_rels/endnotes.xml.rels#rEndBad';
+        $commentKey = 'word/comments/_rels/review-comments.xml.rels#rCommentImage';
+        $foot = $media['byRelationshipKey'][$footKey];
+        $missing = $media['byRelationshipKey'][$missingKey];
+        $external = $media['byRelationshipKey'][$externalKey];
+        $end = $media['byRelationshipKey'][$endKey];
+        $comment = $media['byRelationshipKey'][$commentKey];
+
+        $t->same($media, $package['noteCommentMediaRelationships']);
+        $t->same(5, $media['count']);
+        $t->same(5, $media['relationshipCount']);
+        $t->same(3, $media['footnoteCount']);
+        $t->same(1, $media['endnoteCount']);
+        $t->same(1, $media['commentCount']);
+        $t->same(3, $media['referencedCount']);
+        $t->same(2, $media['orphanedCount']);
+        $t->same(3, $media['existingCount']);
+        $t->same(1, $media['missingCount']);
+        $t->same(1, $media['externalCount']);
+        $t->same(1, $media['unsafeExternalTargetCount']);
+        $t->same(1, $media['missingContentTypeCount']);
+        $t->same(1, $media['unexpectedContentTypeCount']);
+        $t->same(3, $media['issueCount']);
+        $t->same([
+            'external-note-comment-media-target',
+            'external-target-unsafe-scheme',
+            'missing-note-comment-media-content-type',
+            'missing-note-comment-media-part',
+            'unexpected-note-comment-media-content-type',
+        ], $media['issueCodes']);
+        $t->same([
+            'rCommentImage',
+            'rEndBad',
+            'rFootExternal',
+            'rFootImage',
+            'rFootMissing',
+        ], $media['relationshipIds']);
+        $t->true(in_array($footKey, $media['relationshipKeys'], true), 'footnote media relationship key missing');
+        $t->true(in_array($commentKey, $media['relationshipKeys'], true), 'comment media relationship key missing');
+        $t->true(in_array('word/media/foot.png', $media['partNames'], true), 'footnote media part missing from aggregate');
+        $t->true(in_array('word/media/missing-foot.dat', $media['partNames'], true), 'missing footnote media part missing from aggregate');
+        $t->true(in_array('word/media/comment.jpg', $media['partNames'], true), 'comment media part missing from aggregate');
+        $t->true(in_array('word/media/end.bin', $media['partNames'], true), 'endnote media part missing from aggregate');
+        $t->same(['javascript:alert(1)'], $media['externalTargets']);
+        $t->same(['image/png', 'application/octet-stream', 'image/jpeg; profile=comment-media'], $media['contentTypes']);
+        $t->same('note-comment-media-bytes-blocked', $media['byteExposurePolicy']);
+        $t->same('note-comment-media-metadata-only', $media['reviewPolicy']);
+
+        $t->same('footnote', $foot['sourceKind']);
+        $t->same('word/notes/review-footnotes.xml', $foot['sourcePart']);
+        $t->same('word/notes/_rels/review-footnotes.xml.rels', $foot['relationshipsPart']);
+        $t->same('rFootImage', $foot['relationshipId']);
+        $t->same($footKey, $foot['relationshipKey']);
+        $t->same('../media/foot.png?rev=1#img', $foot['target']);
+        $t->same('word/media/foot.png?rev=1#img', $foot['resolvedTarget']);
+        $t->same('word/media/foot.png', $foot['targetPart']);
+        $t->same('rev=1', $foot['targetQuery']);
+        $t->same('img', $foot['targetFragment']);
+        $t->same('?rev=1#img', $foot['targetReferenceSuffix']);
+        $t->same(true, $foot['referenced']);
+        $t->same(false, $foot['orphaned']);
+        $t->same(['42'], $foot['referencedItemIds']);
+        $t->same(1, $foot['referencedItemCount']);
+        $t->same(true, $foot['exists']);
+        $t->same(strlen($footBytes), $foot['byteLength']);
+        $t->same(sprintf('%08x', crc32($footBytes)), $foot['crc32']);
+        $t->same(hash('sha256', $footBytes), $foot['sha256']);
+        $t->same('image/png', $foot['contentType']);
+        $t->same([], $foot['issues']);
+        $t->same(true, $foot['valid']);
+
+        $t->same('rFootMissing', $missing['relationshipId']);
+        $t->same(false, $missing['referenced']);
+        $t->same(true, $missing['orphaned']);
+        $t->same(false, $missing['exists']);
+        $t->same('word/media/missing-foot.dat', $missing['targetPart']);
+        $t->same('missing=1', $missing['targetQuery']);
+        $t->same('foot', $missing['targetFragment']);
+        $t->same(null, $missing['byteLength']);
+        $t->same('missing', $missing['contentTypeSource']);
+        $t->same(['missing-note-comment-media-content-type', 'missing-note-comment-media-part'], $missing['issues']);
+
+        $t->same(true, $external['external']);
+        $t->same('javascript:alert(1)', $external['target']);
+        $t->same('absolute-uri', $external['externalTargetKind']);
+        $t->same('javascript', $external['externalTargetScheme']);
+        $t->same(false, $external['externalTargetAllowed']);
+        $t->same(true, $external['referenced']);
+        $t->same(['42'], $external['referencedItemIds']);
+        $t->same(['external-note-comment-media-target', 'external-target-unsafe-scheme'], $external['issues']);
+
+        $t->same('endnote', $end['sourceKind']);
+        $t->same('word/endnotes.xml', $end['sourcePart']);
+        $t->same('word/_rels/endnotes.xml.rels', $end['relationshipsPart']);
+        $t->same('word/media/end.bin', $end['targetPart']);
+        $t->same(true, $end['exists']);
+        $t->same(false, $end['referenced']);
+        $t->same(true, $end['orphaned']);
+        $t->same(strlen($endBytes), $end['byteLength']);
+        $t->same(hash('sha256', $endBytes), $end['sha256']);
+        $t->same('application/octet-stream', $end['contentType']);
+        $t->same(['unexpected-note-comment-media-content-type'], $end['issues']);
+
+        $t->same('comment', $comment['sourceKind']);
+        $t->same('word/comments/review-comments.xml', $comment['sourcePart']);
+        $t->same('word/comments/_rels/review-comments.xml.rels', $comment['relationshipsPart']);
+        $t->same('word/media/comment.jpg', $comment['targetPart']);
+        $t->same('thread=7', $comment['targetQuery']);
+        $t->same('comment', $comment['targetFragment']);
+        $t->same(true, $comment['referenced']);
+        $t->same(['12'], $comment['referencedItemIds']);
+        $t->same(strlen($commentBytes), $comment['byteLength']);
+        $t->same(sprintf('%08x', crc32($commentBytes)), $comment['crc32']);
+        $t->same(hash('sha256', $commentBytes), $comment['sha256']);
+        $t->same('image/jpeg; profile=comment-media', $comment['contentType']);
+        $t->same('image/jpeg', $comment['contentTypeBase']);
+        $t->same(['profile' => 'comment-media'], $comment['contentTypeParameterMap']);
+        $t->same([], $comment['issues']);
+
+        $t->same(5, $summary['noteCommentMediaRelationshipCount']);
+        $t->same(3, $summary['noteCommentMediaRelationshipFootnoteCount']);
+        $t->same(1, $summary['noteCommentMediaRelationshipEndnoteCount']);
+        $t->same(1, $summary['noteCommentMediaRelationshipCommentCount']);
+        $t->same(3, $summary['noteCommentMediaRelationshipReferencedCount']);
+        $t->same(2, $summary['noteCommentMediaRelationshipOrphanedCount']);
+        $t->same(3, $summary['noteCommentMediaRelationshipExistingCount']);
+        $t->same(1, $summary['noteCommentMediaRelationshipMissingCount']);
+        $t->same(1, $summary['noteCommentMediaRelationshipExternalCount']);
+        $t->same(1, $summary['noteCommentMediaRelationshipUnsafeExternalCount']);
+        $t->same(3, $summary['noteCommentMediaRelationshipIssueCount']);
+        $t->same($media['issueCodes'], $summary['noteCommentMediaRelationshipIssueCodes']);
+
+        $t->true(in_array('note-comment-media', $inventory['word/media/foot.png']['roles'], true), 'footnote note-comment-media inventory role missing');
+        $t->true(in_array('footnote-media', $inventory['word/media/foot.png']['roles'], true), 'footnote-media inventory role missing');
+        $t->true(in_array('comment-media', $inventory['word/media/comment.jpg']['roles'], true), 'comment-media inventory role missing');
+        $t->true(in_array('endnote-media', $inventory['word/media/end.bin']['roles'], true), 'endnote-media inventory role missing');
+        $t->true(in_array('note-comment-media', $inventory['word/media/comment.jpg']['roles'], true), 'comment note-comment-media inventory role missing');
+        $t->true(in_array('note-comment-media', $inventory['word/media/end.bin']['roles'], true), 'endnote note-comment-media inventory role missing');
+    },
     'summarizes docx note and comment same-mode relationship collisions' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
