@@ -4155,6 +4155,78 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/language-direction-inheritance-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html language tag provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="root" lang="en-US"><p id="canonical" lang=" EN-us ">Canonical</p>'
+                . '<p id="private" lang="x-review">Private</p>'
+                . '<p id="bad" lang="bad_tag">Bad <span id="bad-child">Child</span></p>'
+                . '<p id="empty" lang="">Empty</p>'
+                . '<div id="xml" xml:lang="de-DE"><span id="xml-child">Kind</span></div></article>',
+            'language tag provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/language-tag-provenance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $canonical = $article['children'][0];
+        $private = $article['children'][1];
+        $bad = $article['children'][2];
+        $badChild = $bad['children'][1];
+        $empty = $article['children'][3];
+        $xmlScope = $article['children'][4];
+        $xmlChild = $xmlScope['children'][0];
+
+        $t->same('html-language-tag-review', $canonical['languageReviewPolicy']);
+        $t->same('lang', $canonical['languageSourceAttribute']);
+        $t->same(' EN-us ', $canonical['languageRaw']);
+        $t->same('EN-us', $canonical['language']);
+        $t->same('en-US', $canonical['languageTag']);
+        $t->same(true, $canonical['languageValid']);
+        $t->same(false, $canonical['languageInvalidValueIgnored']);
+        $t->same('en-US', $canonical['effectiveLanguage']);
+        $t->same(false, $canonical['languageInherited']);
+        $t->same('self-lang', $canonical['languageSource']);
+
+        $t->same('x-review', $private['languageTag']);
+        $t->same(true, $private['languageValid']);
+        $t->same(false, $private['languageEmptyValueIgnored']);
+        $t->same('x-review', $private['effectiveLanguage']);
+
+        $t->same('bad_tag', $bad['languageRaw']);
+        $t->same(null, $bad['languageTag']);
+        $t->same(false, $bad['languageValid']);
+        $t->same(true, $bad['languageInvalidValueIgnored']);
+        $t->same(false, $bad['languageEmptyValueIgnored']);
+        $t->same('en-US', $bad['effectiveLanguage']);
+        $t->same(true, $bad['languageInherited']);
+        $t->same('ancestor-lang', $bad['languageSource']);
+        $t->same('root', $bad['languageSourceElementId']);
+        $t->same('en-US', $badChild['effectiveLanguage']);
+        $t->same(true, $badChild['languageInherited']);
+
+        $t->same('', $empty['languageRaw']);
+        $t->same(null, $empty['languageTag']);
+        $t->same(false, $empty['languageValid']);
+        $t->same(true, $empty['languageEmptyValueIgnored']);
+        $t->same(false, $empty['languageInvalidValueIgnored']);
+        $t->same('en-US', $empty['effectiveLanguage']);
+
+        $t->same('xml:lang', $xmlScope['languageSourceAttribute']);
+        $t->same('de-DE', $xmlScope['languageTag']);
+        $t->same(true, $xmlScope['languageValid']);
+        $t->same('self-xml:lang', $xmlScope['languageSource']);
+        $t->same('de-DE', $xmlChild['effectiveLanguage']);
+        $t->same(true, $xmlChild['languageInherited']);
+        $t->same('div', $xmlChild['languageSourceElement']);
+        $t->contains('lang=" EN-us "', $html);
+        $t->contains('xml:lang="de-DE"', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/language-tag-provenance-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html dir auto first strong character resolution for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="auto-ar" dir="auto">123 العربية</section>'

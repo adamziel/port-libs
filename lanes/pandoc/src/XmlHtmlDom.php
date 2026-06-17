@@ -17875,12 +17875,9 @@ final class XmlHtmlDom
             $summary += $rdfa;
         }
 
-        if (array_key_exists('lang', $attributes)) {
-            $summary['languageRaw'] = $attributes['lang'];
-            $summary['language'] = trim($attributes['lang']);
-        } elseif (array_key_exists('xml:lang', $attributes)) {
-            $summary['languageRaw'] = $attributes['xml:lang'];
-            $summary['language'] = trim($attributes['xml:lang']);
+        $language = self::htmlLanguageAttributeSummary($attributes);
+        if ($language !== []) {
+            $summary += $language;
         }
 
         $summary += self::effectiveLanguageSummary($element, $attributes);
@@ -18324,13 +18321,49 @@ final class XmlHtmlDom
      * @param array<string, string> $attributes
      * @return array<string, mixed>
      */
+    private static function htmlLanguageAttributeSummary(array $attributes): array
+    {
+        foreach (['lang', 'xml:lang'] as $attribute) {
+            if (!array_key_exists($attribute, $attributes)) {
+                continue;
+            }
+
+            $raw = $attributes[$attribute];
+            $language = trim($raw);
+            $languageTag = self::normalizeHtmlLanguageTag($raw);
+
+            return [
+                'languageReviewPolicy' => 'html-language-tag-review',
+                'languageSourceAttribute' => $attribute,
+                'languageRaw' => $raw,
+                'language' => $language,
+                'languageTag' => $languageTag,
+                'languageValid' => $languageTag !== null,
+                'languageEmptyValueIgnored' => $language === '',
+                'languageInvalidValueIgnored' => $language !== '' && $languageTag === null,
+            ];
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
     private static function effectiveLanguageSummary(\DOMElement $element, array $attributes): array
     {
         foreach (['lang', 'xml:lang'] as $attribute) {
-            if (array_key_exists($attribute, $attributes) && trim($attributes[$attribute]) !== '') {
+            if (!array_key_exists($attribute, $attributes)) {
+                continue;
+            }
+
+            $language = self::normalizeHtmlLanguageTag($attributes[$attribute]);
+            if ($language !== null) {
                 return self::languageProvenanceSummary(
                     $element,
                     $attributes[$attribute],
+                    $language,
                     'self-' . $attribute,
                     false
                 );
@@ -18340,10 +18373,16 @@ final class XmlHtmlDom
         for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
             $ancestorAttributes = self::htmlAttributes($ancestor);
             foreach (['lang', 'xml:lang'] as $attribute) {
-                if (array_key_exists($attribute, $ancestorAttributes) && trim($ancestorAttributes[$attribute]) !== '') {
+                if (!array_key_exists($attribute, $ancestorAttributes)) {
+                    continue;
+                }
+
+                $language = self::normalizeHtmlLanguageTag($ancestorAttributes[$attribute]);
+                if ($language !== null) {
                     return self::languageProvenanceSummary(
                         $ancestor,
                         $ancestorAttributes[$attribute],
+                        $language,
                         'ancestor-' . $attribute,
                         true
                     );
@@ -18360,12 +18399,13 @@ final class XmlHtmlDom
     private static function languageProvenanceSummary(
         \DOMElement $source,
         string $raw,
+        string $language,
         string $sourceKind,
         bool $inherited
     ): array {
         $summary = [
             'effectiveLanguageRaw' => $raw,
-            'effectiveLanguage' => trim($raw),
+            'effectiveLanguage' => $language,
             'languageInherited' => $inherited,
             'languageSource' => $sourceKind,
             'languageSourceElement' => self::htmlElementName($source),
@@ -23628,7 +23668,7 @@ final class XmlHtmlDom
         $kindRaw = self::attributeOrNull($track, 'kind');
         $kind = self::trackKind($track);
         $srclangRaw = self::attributeOrNull($track, 'srclang');
-        $srclang = $srclangRaw === null ? null : self::normalizeHtmlTrackLanguageTag($srclangRaw);
+        $srclang = $srclangRaw === null ? null : self::normalizeHtmlLanguageTag($srclangRaw);
         $languageRequired = in_array($kind, ['captions', 'subtitles'], true);
 
         return [
@@ -24336,7 +24376,7 @@ final class XmlHtmlDom
         return in_array($kind, ['subtitles', 'captions', 'descriptions', 'chapters', 'metadata'], true);
     }
 
-    private static function normalizeHtmlTrackLanguageTag(string $value): ?string
+    private static function normalizeHtmlLanguageTag(string $value): ?string
     {
         $language = trim($value);
         if ($language === '') {
