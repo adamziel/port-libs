@@ -10654,6 +10654,9 @@ final class DocxOpenXmlReader
             $sourcePathDepth = is_int($relationshipPart['sourcePathDepth'] ?? null)
                 ? (int) $relationshipPart['sourcePathDepth']
                 : null;
+            $sourcePathSegments = $sourcePart === '' ? [] : $this->packagePartPathSegments($sourcePart);
+            $sourcePathSegmentCount = count($sourcePathSegments);
+            $sourceDirectoryDepth = $this->packagePartDirectoryDepth($sourceDirectory);
             if ($sourceDirectory !== '') {
                 $relationshipSourceDirectoryCounts[$sourceDirectory] =
                     ($relationshipSourceDirectoryCounts[$sourceDirectory] ?? 0) + 1;
@@ -10740,6 +10743,9 @@ final class DocxOpenXmlReader
                     'relationshipSourceKind' => $relationshipSourceKind,
                     'sourceDirectory' => $sourceDirectory,
                     'sourcePathDepth' => $sourcePathDepth,
+                    'sourceDirectoryDepth' => $sourceDirectoryDepth,
+                    'sourcePathSegments' => $sourcePathSegments,
+                    'sourcePathSegmentCount' => $sourcePathSegmentCount,
                     'sourceBaseName' => is_string($relationshipPart['sourceBaseName'] ?? null) ? $relationshipPart['sourceBaseName'] : null,
                     'sourcePartExtension' => is_string($relationshipPart['sourcePartExtension'] ?? null) ? $relationshipPart['sourcePartExtension'] : null,
                     'sourceContentType' => $sourceContentType,
@@ -10767,6 +10773,9 @@ final class DocxOpenXmlReader
                 'relationshipRecordCount' => (int) ($relationshipPart['relationshipRecordCount'] ?? 0),
                 'sourceDirectory' => $sourceDirectory,
                 'sourcePathDepth' => $sourcePathDepth,
+                'sourceDirectoryDepth' => $sourceDirectoryDepth,
+                'sourcePathSegments' => $sourcePathSegments,
+                'sourcePathSegmentCount' => $sourcePathSegmentCount,
                 'sourceBaseName' => is_string($relationshipPart['sourceBaseName'] ?? null) ? $relationshipPart['sourceBaseName'] : null,
                 'sourcePartExtension' => is_string($relationshipPart['sourcePartExtension'] ?? null) ? $relationshipPart['sourcePartExtension'] : null,
                 'sourceContentType' => $sourceContentType,
@@ -11464,6 +11473,18 @@ final class DocxOpenXmlReader
             $relationshipSourcePathDepthCounts[$depthKey] = (int) ($sourcePathDepthSummary['sourceCount'] ?? 0);
         }
         ksort($relationshipSourcePathDepthCounts, SORT_STRING);
+        $maxRelationshipSourcePathSegmentCount = 0;
+        $deepestRelationshipSourceParts = [];
+        foreach ($relationshipSourcePathDepths as $sourcePathDepthSummary) {
+            $pathSegmentCount = (int) ($sourcePathDepthSummary['pathSegmentCount'] ?? 0);
+            if ($pathSegmentCount >= $maxRelationshipSourcePathSegmentCount) {
+                $maxRelationshipSourcePathSegmentCount = $pathSegmentCount;
+                $deepestRelationshipSourceParts = array_values(array_map(
+                    'strval',
+                    $sourcePathDepthSummary['sourceParts'] ?? [],
+                ));
+            }
+        }
         $relationshipSourceContentTypes = $this->relationshipSourceContentTypeSummary($relationshipSources);
         $relationshipSourceTopLevelSegments = $this->relationshipSourceTopLevelSegmentSummary($relationshipSources);
         $relationshipSourceTopLevelSegmentCounts = [];
@@ -11644,6 +11665,8 @@ final class DocxOpenXmlReader
             'relationshipSourceDirectories' => $relationshipSourceDirectories,
             'relationshipSourcePathDepthCount' => count($relationshipSourcePathDepths),
             'relationshipSourcePathDepthCounts' => $relationshipSourcePathDepthCounts,
+            'maxRelationshipSourcePathSegmentCount' => $maxRelationshipSourcePathSegmentCount,
+            'deepestRelationshipSourceParts' => $deepestRelationshipSourceParts,
             'relationshipSourcePathDepths' => $relationshipSourcePathDepths,
             'relationshipSourceContentTypeBucketCount' => count($relationshipSourceContentTypes),
             'relationshipSourceContentTypes' => $relationshipSourceContentTypes,
@@ -12797,10 +12820,15 @@ final class DocxOpenXmlReader
         foreach ($relationshipSources as $source) {
             $depth = is_int($source['sourcePathDepth'] ?? null) ? (int) $source['sourcePathDepth'] : null;
             $depthKey = $depth === null ? '(invalid-source)' : (string) $depth;
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            $pathSegmentCount = is_int($source['sourcePathSegmentCount'] ?? null)
+                ? (int) $source['sourcePathSegmentCount']
+                : count($sourcePart === '' ? [] : $this->packagePartPathSegments($sourcePart));
             if (!isset($depths[$depthKey])) {
                 $depths[$depthKey] = [
                     'sourcePathDepthKey' => $depthKey,
                     'sourcePathDepth' => $depth,
+                    'pathSegmentCount' => $pathSegmentCount,
                     'sourceCount' => 0,
                     'existingSourceCount' => 0,
                     'nonExistingSourceCount' => 0,
@@ -12877,7 +12905,7 @@ final class DocxOpenXmlReader
             $this->appendUniqueString($depths[$depthKey]['sourceDirectories'], $directory === '' ? null : $directory);
             $this->appendUniqueString(
                 $depths[$depthKey]['sourceParts'],
-                is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : null,
+                $sourcePart === '' ? null : $sourcePart,
             );
             $this->appendUniqueString(
                 $depths[$depthKey]['relationshipParts'],
@@ -12888,11 +12916,20 @@ final class DocxOpenXmlReader
                 $sourceBytes = (int) $source['sourceBytes'];
                 $depths[$depthKey]['existingSourceByteLength'] += $sourceBytes;
                 $sourceSummary = [
-                    'sourcePart' => is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '',
+                    'sourcePart' => $sourcePart,
                     'relationshipsPart' => is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '',
                     'relationshipSourceKind' => $sourceKind,
                     'sourceDirectory' => $directory === '' ? null : $directory,
                     'sourcePathDepth' => $depth,
+                    'sourceDirectoryDepth' => is_int($source['sourceDirectoryDepth'] ?? null)
+                        ? (int) $source['sourceDirectoryDepth']
+                        : $this->packagePartDirectoryDepth($directory),
+                    'sourceBaseName' => $baseName === '' ? null : $baseName,
+                    'sourcePartExtension' => $extension,
+                    'sourcePathSegments' => is_array($source['sourcePathSegments'] ?? null)
+                        ? array_values(array_map('strval', $source['sourcePathSegments']))
+                        : ($sourcePart === '' ? [] : $this->packagePartPathSegments($sourcePart)),
+                    'sourcePathSegmentCount' => $pathSegmentCount,
                     'sourceBytes' => $sourceBytes,
                     'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
                     'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
