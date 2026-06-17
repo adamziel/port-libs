@@ -4657,6 +4657,75 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/accesskey-conflict-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html accesskey collision provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<nav id="toolbar" accesskey="s"><button id="save" accesskey="s k">Save</button><button id="send" accesskey="k">Send</button><a id="skip" href="#main" accesskey="s">Skip</a><button id="wide" accesskey="wide x">Wide</button><button id="solo" accesskey="z">Solo</button></nav>'
+                . '<main id="main" accesskey="x">Main</main>',
+            'accesskey collision review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/accesskey-collision-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $toolbar = $summary[0];
+        $save = $toolbar['children'][0];
+        $send = $toolbar['children'][1];
+        $skip = $toolbar['children'][2];
+        $wide = $toolbar['children'][3];
+        $solo = $toolbar['children'][4];
+        $main = $summary[1];
+
+        $t->same('document-accesskey-assignment-review', $toolbar['accessKeyReviewPolicy']);
+        $t->same('html-accesskey-collision-review', $toolbar['accessKeyCollisionReviewPolicy']);
+        $t->same(['s'], $toolbar['accessKeyCollisionKeys']);
+        $t->same(1, $toolbar['accessKeyCollisionCount']);
+        $t->same(true, $toolbar['accessKeyHasCollision']);
+        $t->same(['toolbar', 'save', 'skip'], $toolbar['accessKeyCollisions'][0]['candidateIds']);
+        $t->same(0, $toolbar['accessKeyCollisions'][0]['currentIndex']);
+        $t->same('save', $toolbar['accessKeyCollisions'][0]['candidates'][1]['id']);
+        $t->same(false, $toolbar['accessKeyCollisions'][0]['candidates'][1]['current']);
+
+        $t->same(['s', 'k'], $save['accessKeys']);
+        $t->same(['s', 'k'], $save['accessKeyCollisionKeys']);
+        $t->same(2, $save['accessKeyCollisionCount']);
+        $t->same(['toolbar', 'save', 'skip'], $save['accessKeyCollisions'][0]['candidateIds']);
+        $t->same(1, $save['accessKeyCollisions'][0]['currentIndex']);
+        $t->same('k', $save['accessKeyCollisions'][1]['key']);
+        $t->same(['save', 'send'], $save['accessKeyCollisions'][1]['candidateIds']);
+        $t->same(0, $save['accessKeyCollisions'][1]['currentIndex']);
+
+        $t->same(['k'], $send['accessKeyCollisionKeys']);
+        $t->same(1, $send['accessKeyCollisionCount']);
+        $t->same(1, $send['accessKeyCollisions'][0]['currentIndex']);
+        $t->same('button', $send['accessKeyCollisions'][0]['candidates'][0]['tag']);
+        $t->same('Save', $send['accessKeyCollisions'][0]['candidates'][0]['text']);
+
+        $t->same(['s'], $skip['accessKeyCollisionKeys']);
+        $t->same(2, $skip['accessKeyCollisions'][0]['currentIndex']);
+
+        $t->same(['wide', 'x'], $wide['accessKeyTokens']);
+        $t->same(['x'], $wide['accessKeys']);
+        $t->same(['wide'], $wide['invalidAccessKeyTokens']);
+        $t->same(false, $wide['accessKeyValid']);
+        $t->same(['x'], $wide['accessKeyCollisionKeys']);
+        $t->same(['wide', 'main'], $wide['accessKeyCollisions'][0]['candidateIds']);
+        $t->same(false, $wide['accessKeyCollisions'][0]['candidates'][0]['accessKeyValid']);
+
+        $t->same(['x'], $main['accessKeyCollisionKeys']);
+        $t->same(1, $main['accessKeyCollisions'][0]['currentIndex']);
+        $t->same('wide', $main['accessKeyCollisions'][0]['candidates'][0]['id']);
+        $t->true(!array_key_exists('accessKeyCollisionReviewPolicy', $solo));
+
+        $t->same(
+            '<nav accesskey="s" id="toolbar"><button accesskey="s k" id="save">Save</button><button accesskey="k" id="send">Send</button><a accesskey="s" href="#main" id="skip">Skip</a><button accesskey="wide x" id="wide">Wide</button><button accesskey="z" id="solo">Solo</button></nav><main accesskey="x" id="main">Main</main>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/accesskey-collision-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html autofocus candidate conflicts for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="focus-form"><input id="title" name="title" value="Draft" autofocus><button id="save" disabled autofocus>Save</button></form>'

@@ -17812,6 +17812,9 @@ final class XmlHtmlDom
             $summary['duplicateAccessKeyTokens'] = $accessKey['duplicates'];
             $summary['accessKeyValid'] = $accessKey['valid'];
             $summary += self::accessKeyDocumentSummary($element, $accessKey['keys']);
+            if ($accessKey['keys'] !== []) {
+                $summary += self::accessKeyCollisionSummary($element, $accessKey['keys']);
+            }
         }
 
         if (array_key_exists('autofocus', $attributes)) {
@@ -19307,6 +19310,122 @@ final class XmlHtmlDom
         }
 
         return preg_match_all('/./us', $token) === 1;
+    }
+
+    /**
+     * @param list<string> $keys
+     * @return array<string, mixed>
+     */
+    private static function accessKeyCollisionSummary(\DOMElement $element, array $keys): array
+    {
+        $collisions = [];
+
+        foreach ($keys as $key) {
+            $candidates = self::accessKeyCandidatesForKey($element, $key);
+            if (count($candidates) <= 1) {
+                continue;
+            }
+
+            $currentIndex = null;
+            $candidateIds = [];
+            $candidateSummaries = [];
+
+            foreach ($candidates as $index => $candidate) {
+                $current = $candidate->isSameNode($element);
+                if ($current) {
+                    $currentIndex = $index;
+                }
+
+                $candidateId = self::attributeOrNull($candidate, 'id');
+                if ($candidateId !== null && $candidateId !== '') {
+                    $candidateIds[] = $candidateId;
+                }
+
+                $candidateSummaries[] = self::accessKeyCandidateSummary($candidate, $key, $current);
+            }
+
+            if ($currentIndex === null) {
+                continue;
+            }
+
+            $collisions[] = [
+                'key' => $key,
+                'candidateCount' => count($candidates),
+                'candidateIds' => $candidateIds,
+                'currentIndex' => $currentIndex,
+                'candidates' => $candidateSummaries,
+            ];
+        }
+
+        if ($collisions === []) {
+            return [];
+        }
+
+        return [
+            'accessKeyCollisionReviewPolicy' => 'html-accesskey-collision-review',
+            'accessKeyCollisionKeys' => array_map(
+                static fn (array $collision): string => (string) $collision['key'],
+                $collisions
+            ),
+            'accessKeyCollisionCount' => count($collisions),
+            'accessKeyHasCollision' => true,
+            'accessKeyCollisions' => $collisions,
+        ];
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function accessKeyCandidatesForKey(\DOMElement $context, string $key): array
+    {
+        $document = $context->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $candidates = [];
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement) {
+                continue;
+            }
+
+            $attributes = self::htmlAttributes($candidate);
+            if (!array_key_exists('accesskey', $attributes)) {
+                continue;
+            }
+
+            $accessKey = self::accessKeySummary($attributes['accesskey']);
+            if (in_array($key, $accessKey['keys'], true)) {
+                $candidates[] = $candidate;
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function accessKeyCandidateSummary(\DOMElement $element, string $key, bool $current): array
+    {
+        $attributes = self::htmlAttributes($element);
+        $accessKey = self::accessKeySummary($attributes['accesskey'] ?? '');
+        $summary = [
+            'tag' => self::htmlElementName($element),
+            'id' => self::attributeOrNull($element, 'id'),
+            'key' => $key,
+            'accessKeyRaw' => $attributes['accesskey'] ?? '',
+            'accessKeys' => $accessKey['keys'],
+            'accessKeyValid' => $accessKey['valid'],
+            'current' => $current,
+        ];
+
+        $text = self::normalizedText($element);
+        if ($text !== '') {
+            $summary['text'] = $text;
+        }
+
+        return $summary;
     }
 
     /**
