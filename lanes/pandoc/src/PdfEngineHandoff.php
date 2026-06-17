@@ -7689,6 +7689,12 @@ final class PdfEngineHandoff
             is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
             static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'features'
         ));
+        $invalidFeatureHistoryCount = 0;
+        foreach ($featureGateHistory as $featureGateEntry) {
+            if (!is_array($featureGateEntry) || ($featureGateEntry['safe'] ?? false) !== true) {
+                ++$invalidFeatureHistoryCount;
+            }
+        }
         $featureGateIssues = array_merge(
             $entryIssues($featureGates),
             $entryIssues($featureGateEnvironment),
@@ -7715,6 +7721,8 @@ final class PdfEngineHandoff
                 'environmentShadowed' => is_string($featureGateEnvironment['shadowedBy'] ?? null),
                 'selected' => is_string($featureGateEnvironment['selected'] ?? null) ? $featureGateEnvironment['selected'] : null,
                 'historyEntryCount' => $featureGateHistory === [] ? (int) ($featureGates !== []) : count($featureGateHistory),
+                'featureHistoryCount' => count($featureGateHistory),
+                'invalidFeatureHistoryCount' => $invalidFeatureHistoryCount,
                 'overrideCount' => count($featureGateOverrides),
             ], $featureGateIssues);
         }

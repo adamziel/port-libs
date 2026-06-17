@@ -2904,6 +2904,71 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'maps typst feature gate history into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/feature-gate-history-matrix.pdf',
+            'source' => '= Typst Feature Gate History Matrix Packet',
+            'engineOptions' => [
+                '--features=html,unsafe feature,',
+                '--features',
+                'html,packages',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst feature gate history matrix packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/feature-gate-history-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/feature-gate-history-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $matrix = $plan['typstBoundaryMatrix'];
+        $cases = [];
+        foreach ($matrix['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+        $overrideCase = $cases['boundary-overrides'];
+        $featureCase = $cases['feature-gates'];
+
+        $t->same(['boundary-overrides', 'feature-gates', 'output-format'], array_column($matrix['cases'], 'case'));
+        $t->same('review', $matrix['reviewStatus']);
+        $t->same(3, $matrix['caseCount']);
+        $t->same(2, $matrix['reviewCaseCount']);
+        $t->same(4, $matrix['issueCount']);
+        $t->same('review', $overrideCase['reviewStatus']);
+        $t->same(1, $overrideCase['details']['overrideCount']);
+        $t->same(['features'], $overrideCase['details']['overriddenOptions']);
+        $t->same('review', $featureCase['reviewStatus']);
+        $t->same(2, $featureCase['observed']);
+        $t->same(2, $featureCase['details']['featureCount']);
+        $t->same(0, $featureCase['details']['environmentFeatureCount']);
+        $t->same(2, $featureCase['details']['featureHistoryCount']);
+        $t->same(1, $featureCase['details']['invalidFeatureHistoryCount']);
+        $t->same(1, $featureCase['details']['overrideCount']);
+        $t->same(['html', 'packages'], $featureCase['details']['features']);
+        $t->same([], $featureCase['details']['environmentFeatures']);
+        $t->same([
+            'features-boundary-overridden',
+            'features-empty-token-boundary',
+            'features-invalid-token-boundary:unsafe feature',
+        ], $featureCase['issues']);
+        $t->contains('boundary-overrides:features-boundary-overridden', implode(',', $matrix['issues']));
+        $t->contains('feature-gates:features-invalid-token-boundary:unsafe feature', implode(',', $matrix['issues']));
+        $t->contains('feature-gates:features-boundary-overridden', implode(',', $matrix['issues']));
+        $t->contains('typst-boundary-matrix-review-cases:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($matrix, $result['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'preserves typst feature environment shadow provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
