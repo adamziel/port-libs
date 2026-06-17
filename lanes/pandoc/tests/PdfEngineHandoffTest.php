@@ -1938,6 +1938,64 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'maps typst font access environment flags into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/font-access-env-matrix.pdf',
+            'source' => '= Typst Font Access Environment Matrix Packet',
+            'engineEnvironment' => [
+                'TYPST_IGNORE_SYSTEM_FONTS' => 'maybe',
+                'TYPST_IGNORE_EMBEDDED_FONTS' => 'sometimes',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst font access environment matrix packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/font-access-env-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/font-access-env-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(['TYPST_IGNORE_SYSTEM_FONTS', 'TYPST_IGNORE_EMBEDDED_FONTS'], $plan['typstBoundaryProvenance']['environmentVariables']);
+        $t->same(['environment-shadows', 'font-access-controls', 'output-format'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(1, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['issueCount']);
+        $t->same(2, $cases['environment-shadows']['observed']);
+        $t->same(2, $cases['environment-shadows']['details']['environmentVariableCount']);
+        $t->same(0, $cases['environment-shadows']['details']['shadowedCount']);
+        $t->same(0, $cases['font-access-controls']['observed']);
+        $t->same(false, $cases['font-access-controls']['details']['systemFontAccessDisabled']);
+        $t->same(false, $cases['font-access-controls']['details']['embeddedFontAccessDisabled']);
+        $t->same([
+            'ignore-embedded-fonts-environment-invalid-boundary',
+            'ignore-system-fonts-environment-invalid-boundary',
+        ], $cases['font-access-controls']['issues']);
+        $t->same([
+            'font-access-controls:ignore-embedded-fonts-environment-invalid-boundary',
+            'font-access-controls:ignore-system-fonts-environment-invalid-boundary',
+        ], $plan['typstBoundaryMatrix']['issues']);
+        $t->same('pdf', $cases['output-format']['details']['inferredOutputFormat']);
+        $t->contains('typst-boundary-matrix-cases:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-review-cases:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($plan['typstBoundaryMatrix'], $result['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans typst open output side effect provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
