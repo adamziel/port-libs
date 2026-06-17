@@ -4309,6 +4309,70 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'preserves typst package storage environment shadows in boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/package-storage-env-shadow-matrix.pdf',
+            'source' => '= Typst Package Storage Environment Shadow Matrix Packet',
+            'engineOptions' => [
+                '--package-path=vendor/typst',
+                '--package-cache=cache/typst',
+            ],
+            'engineEnvironment' => [
+                'TYPST_PACKAGE_PATH' => '/srv/typst-packages',
+                'TYPST_PACKAGE_CACHE_PATH' => 'https://cache.example.invalid/typst',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst package storage environment shadow matrix packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/package-storage-env-shadow-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/package-storage-env-shadow-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $planMatrix = $plan['typstBoundaryMatrix'];
+        $planCases = [];
+        foreach ($planMatrix['cases'] as $case) {
+            $planCases[$case['case']] = $case;
+        }
+
+        $t->same([
+            'environment-shadows',
+            'package-storage',
+            'output-format',
+        ], array_column($planMatrix['cases'], 'case'));
+        $t->same('review', $planMatrix['reviewStatus']);
+        $t->same(3, $planMatrix['caseCount']);
+        $t->same(2, $planMatrix['reviewCaseCount']);
+        $t->same(8, $planMatrix['issueCount']);
+        $t->same(2, $planCases['environment-shadows']['details']['environmentVariableCount']);
+        $t->same(2, $planCases['environment-shadows']['details']['shadowedCount']);
+        $t->same([
+            'TYPST_PACKAGE_CACHE_PATH',
+            'TYPST_PACKAGE_PATH',
+        ], $planCases['environment-shadows']['details']['shadowedVariables']);
+        $t->same(4, $planCases['package-storage']['observed']);
+        $t->same(2, $planCases['package-storage']['details']['unsafeStorageEntryCount']);
+        $t->same('pdf', $planCases['output-format']['details']['inferredOutputFormat']);
+        $t->contains('environment-shadows:package-cache-environment-shadowed', implode(',', $planMatrix['issues']));
+        $t->contains('environment-shadows:package-path-external-boundary', implode(',', $planMatrix['issues']));
+        $t->contains('package-storage:package-cache-environment-shadowed', implode(',', $planMatrix['issues']));
+        $t->contains('package-storage:package-path-external-boundary', implode(',', $planMatrix['issues']));
+        $t->contains('typst-boundary-matrix-cases:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-review-cases:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($planMatrix, $result['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans unsafe typst boundary override histories without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $timestamp = '1700000000';
