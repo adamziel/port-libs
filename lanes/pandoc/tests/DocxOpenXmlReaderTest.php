@@ -1151,6 +1151,76 @@ XML;
         $t->same(1, $byExtension['(none)']['missingContentTypePartCount']);
         $t->same(['customXml/no-extension'], $byExtension['(none)']['partNames']);
     },
+    'summarizes docx package part extension content type buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            [
+                '<Default Extension="xml" ContentType="application/xml"/>',
+                '</Types>',
+            ],
+            [
+                '<Default Extension="xml" ContentType="application/xml; profile=extension-bucket"/>',
+                '  <Default Extension="TIFF" ContentType="image/tiff; profile=scan"/>' . "\n" .
+                '</Types>',
+            ],
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/media/scan.TIFF'] = 'scan tiff bytes';
+        $parts['customXml/raw-extension.bin'] = 'raw extension payload bytes';
+        $parts['customXml/no-extension'] = 'extensionless payload';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $byExtension = [];
+        foreach ($summary['partExtensions'] as $extension) {
+            $byExtension[$extension['extension'] ?? '(none)'] = $extension;
+        }
+
+        $t->same(6, $summary['partExtensionCount']);
+        $t->same(5, $byExtension['xml']['partCount']);
+        $t->same(3, $byExtension['xml']['parameterizedPartCount']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+            'application/xml' => 3,
+        ], $byExtension['xml']['contentTypeBaseCounts']);
+        $t->same('word/document.xml', $byExtension['xml']['largestPart']['partName']);
+        $t->same('document.xml', $byExtension['xml']['largestPart']['baseName']);
+        $t->same('word', $byExtension['xml']['largestPart']['directory']);
+        $t->same('override', $byExtension['xml']['largestPart']['contentTypeSource']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $byExtension['xml']['largestPart']['contentTypeBase']);
+        $t->same(hash('sha256', $parts['word/document.xml']), $byExtension['xml']['largestPart']['sha256']);
+        $t->same(['office-document', 'root-relationship-target'], $byExtension['xml']['largestPart']['roles']);
+
+        $t->same(2, $byExtension['rels']['partCount']);
+        $t->same(0, $byExtension['rels']['parameterizedPartCount']);
+        $t->same(['application/vnd.openxmlformats-package.relationships+xml' => 2], $byExtension['rels']['contentTypeBaseCounts']);
+
+        $t->same(1, $byExtension['tiff']['partCount']);
+        $t->same(1, $byExtension['tiff']['parameterizedPartCount']);
+        $t->same(['image/tiff' => 1], $byExtension['tiff']['contentTypeBaseCounts']);
+        $t->same('word/media/scan.TIFF', $byExtension['tiff']['largestPart']['partName']);
+        $t->same('scan.TIFF', $byExtension['tiff']['largestPart']['baseName']);
+        $t->same('word/media', $byExtension['tiff']['largestPart']['directory']);
+        $t->same('image/tiff; profile=scan', $byExtension['tiff']['largestPart']['contentType']);
+        $t->same('image/tiff', $byExtension['tiff']['largestPart']['contentTypeBase']);
+        $t->same('default', $byExtension['tiff']['largestPart']['contentTypeSource']);
+        $t->same(['package-part'], $byExtension['tiff']['largestPart']['roles']);
+
+        $t->same(1, $byExtension['bin']['partCount']);
+        $t->same(0, $byExtension['bin']['parameterizedPartCount']);
+        $t->same(['(missing)' => 1], $byExtension['bin']['contentTypeBaseCounts']);
+        $t->same('customXml/raw-extension.bin', $byExtension['bin']['largestPart']['partName']);
+        $t->same('', $byExtension['bin']['largestPart']['contentTypeBase']);
+        $t->same('missing', $byExtension['bin']['largestPart']['contentTypeSource']);
+
+        $t->same(1, $byExtension['(none)']['partCount']);
+        $t->same(0, $byExtension['(none)']['parameterizedPartCount']);
+        $t->same(['(missing)' => 1], $byExtension['(none)']['contentTypeBaseCounts']);
+        $t->same('customXml/no-extension', $byExtension['(none)']['largestPart']['partName']);
+        $t->same('no-extension', $byExtension['(none)']['largestPart']['baseName']);
+    },
     'summarizes docx package part base names for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/item1.xml'] = '<customItem/>';
