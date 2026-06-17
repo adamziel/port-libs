@@ -10560,6 +10560,8 @@ final class DocxOpenXmlReader
         $relationshipTargetExistingBaseNameCounts = [];
         $relationshipTargetMissingBaseNameCounts = [];
         $relationshipTargetBaseNames = [];
+        $relationshipTargetPathDepthCounts = [];
+        $relationshipTargetPathDepths = [];
         $relationshipTargetContentTypeCounts = [];
         $relationshipTargetContentTypeSourceCounts = [];
         $relationshipTargetContentTypes = [];
@@ -10900,6 +10902,10 @@ final class DocxOpenXmlReader
                     $targetBaseName = is_array($targetInventory) && is_string($targetInventory['baseName'] ?? null)
                         ? $targetInventory['baseName']
                         : $this->packagePartBaseName($targetPart);
+                    $targetPathDepth = is_array($targetInventory) && is_int($targetInventory['pathSegmentCount'] ?? null)
+                        ? (int) $targetInventory['pathSegmentCount']
+                        : count($this->packagePartPathSegments($targetPart));
+                    $targetPathDepthKey = (string) $targetPathDepth;
                     $targetContentTypeBase = is_string($relationship['contentTypeBase'] ?? null)
                         ? $relationship['contentTypeBase']
                         : '';
@@ -11061,6 +11067,99 @@ final class DocxOpenXmlReader
                     }
                     if (($relationship['contentTypeHasParameters'] ?? false) === true) {
                         ++$relationshipTargetBaseNames[$targetBaseName]['parameterizedTargetCount'];
+                    }
+
+                    if (!isset($relationshipTargetPathDepths[$targetPathDepthKey])) {
+                        $relationshipTargetPathDepths[$targetPathDepthKey] = [
+                            'targetPathDepthKey' => $targetPathDepthKey,
+                            'targetPathDepth' => $targetPathDepth,
+                            'relationshipCount' => 0,
+                            'existingTargetCount' => 0,
+                            'missingTargetCount' => 0,
+                            'missingContentTypeTargetCount' => 0,
+                            'parameterizedTargetCount' => 0,
+                            'existingTargetPartByteLength' => 0,
+                            'targetDirectoryCounts' => [],
+                            'contentTypeBaseCounts' => [],
+                            'contentTypeSourceCounts' => [],
+                            'relationshipTypeCounts' => [],
+                            'sourceParts' => [],
+                            'relationshipParts' => [],
+                            'relationshipIds' => [],
+                            'targetParts' => [],
+                            'contentTypes' => [],
+                            'largestExistingTargetPart' => null,
+                            '_seenExistingTargetParts' => [],
+                        ];
+                    }
+
+                    ++$relationshipTargetPathDepths[$targetPathDepthKey]['relationshipCount'];
+                    $relationshipTargetPathDepthCounts[$targetPathDepthKey] =
+                        ($relationshipTargetPathDepthCounts[$targetPathDepthKey] ?? 0) + 1;
+                    $relationshipTargetPathDepths[$targetPathDepthKey]['targetDirectoryCounts'][$targetDirectory] =
+                        ($relationshipTargetPathDepths[$targetPathDepthKey]['targetDirectoryCounts'][$targetDirectory] ?? 0) + 1;
+                    $relationshipTargetPathDepths[$targetPathDepthKey]['contentTypeBaseCounts'][$targetContentTypeKey] =
+                        ($relationshipTargetPathDepths[$targetPathDepthKey]['contentTypeBaseCounts'][$targetContentTypeKey] ?? 0) + 1;
+                    $relationshipTargetPathDepths[$targetPathDepthKey]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                        ($relationshipTargetPathDepths[$targetPathDepthKey]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                    $relationshipTargetPathDepths[$targetPathDepthKey]['relationshipTypeCounts'][$typeKey] =
+                        ($relationshipTargetPathDepths[$targetPathDepthKey]['relationshipTypeCounts'][$typeKey] ?? 0) + 1;
+                    $this->appendUniqueString(
+                        $relationshipTargetPathDepths[$targetPathDepthKey]['sourceParts'],
+                        is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetPathDepths[$targetPathDepthKey]['relationshipParts'],
+                        is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetPathDepths[$targetPathDepthKey]['relationshipIds'],
+                        is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                    );
+                    $this->appendUniqueString($relationshipTargetPathDepths[$targetPathDepthKey]['targetParts'], $targetPart);
+                    $this->appendUniqueString($relationshipTargetPathDepths[$targetPathDepthKey]['contentTypes'], $targetContentType);
+                    if (($relationship['exists'] ?? false) === true) {
+                        ++$relationshipTargetPathDepths[$targetPathDepthKey]['existingTargetCount'];
+                    } else {
+                        ++$relationshipTargetPathDepths[$targetPathDepthKey]['missingTargetCount'];
+                    }
+                    if ($targetContentTypeSource === 'missing') {
+                        ++$relationshipTargetPathDepths[$targetPathDepthKey]['missingContentTypeTargetCount'];
+                    }
+                    if (($relationship['contentTypeHasParameters'] ?? false) === true) {
+                        ++$relationshipTargetPathDepths[$targetPathDepthKey]['parameterizedTargetCount'];
+                    }
+                    if (
+                        ($relationship['exists'] ?? false) === true
+                        && is_array($targetInventory)
+                        && !isset($relationshipTargetPathDepths[$targetPathDepthKey]['_seenExistingTargetParts'][$targetPart])
+                    ) {
+                        $relationshipTargetPathDepths[$targetPathDepthKey]['_seenExistingTargetParts'][$targetPart] = true;
+                        $targetPartSummary = [
+                            'partName' => $targetPart,
+                            'directory' => $targetDirectory,
+                            'targetPathDepth' => $targetPathDepth,
+                            'partExtension' => is_string($targetInventory['partExtension'] ?? null) ? $targetInventory['partExtension'] : $this->packagePartExtension($targetPart),
+                            'bytes' => (int) ($targetInventory['bytes'] ?? 0),
+                            'crc32' => is_string($targetInventory['crc32'] ?? null) ? $targetInventory['crc32'] : null,
+                            'sha256' => is_string($targetInventory['sha256'] ?? null) ? $targetInventory['sha256'] : null,
+                            'contentType' => is_string($targetInventory['contentType'] ?? null) ? $targetInventory['contentType'] : '',
+                            'contentTypeBase' => is_string($targetInventory['contentTypeBase'] ?? null) ? $targetInventory['contentTypeBase'] : '',
+                            'contentTypeSource' => is_string($targetInventory['contentTypeSource'] ?? null) ? $targetInventory['contentTypeSource'] : 'missing',
+                            'roles' => array_values(array_map('strval', $targetInventory['roles'] ?? [])),
+                        ];
+                        $relationshipTargetPathDepths[$targetPathDepthKey]['existingTargetPartByteLength'] += $targetPartSummary['bytes'];
+                        $largestTargetPart = $relationshipTargetPathDepths[$targetPathDepthKey]['largestExistingTargetPart'];
+                        if (
+                            !is_array($largestTargetPart)
+                            || $targetPartSummary['bytes'] > (int) ($largestTargetPart['bytes'] ?? 0)
+                            || (
+                                $targetPartSummary['bytes'] === (int) ($largestTargetPart['bytes'] ?? 0)
+                                && strcmp($targetPartSummary['partName'], (string) ($largestTargetPart['partName'] ?? '')) < 0
+                            )
+                        ) {
+                            $relationshipTargetPathDepths[$targetPathDepthKey]['largestExistingTargetPart'] = $targetPartSummary;
+                        }
                     }
 
                     if (!isset($relationshipTargetContentTypes[$targetContentTypeKey])) {
@@ -11307,6 +11406,21 @@ final class DocxOpenXmlReader
             array_keys($relationshipTargetBaseNameCounts),
             static fn (string $baseName): bool => ($relationshipTargetBaseNameCounts[$baseName] ?? 0) > 1,
         ));
+        ksort($relationshipTargetPathDepthCounts, SORT_NUMERIC);
+        ksort($relationshipTargetPathDepths, SORT_NUMERIC);
+        foreach ($relationshipTargetPathDepths as &$targetPathDepthSummary) {
+            ksort($targetPathDepthSummary['targetDirectoryCounts'], SORT_STRING);
+            ksort($targetPathDepthSummary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($targetPathDepthSummary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($targetPathDepthSummary['relationshipTypeCounts'], SORT_STRING);
+            sort($targetPathDepthSummary['sourceParts'], SORT_STRING);
+            sort($targetPathDepthSummary['relationshipParts'], SORT_STRING);
+            sort($targetPathDepthSummary['relationshipIds'], SORT_STRING);
+            sort($targetPathDepthSummary['targetParts'], SORT_STRING);
+            sort($targetPathDepthSummary['contentTypes'], SORT_STRING);
+            unset($targetPathDepthSummary['_seenExistingTargetParts']);
+        }
+        unset($targetPathDepthSummary);
         ksort($relationshipTargetContentTypeCounts);
         ksort($relationshipTargetContentTypeSourceCounts);
         ksort($relationshipTargetContentTypes);
@@ -11547,6 +11661,9 @@ final class DocxOpenXmlReader
             'duplicateRelationshipTargetBaseNameCount' => count($duplicateRelationshipTargetBaseNames),
             'duplicateRelationshipTargetBaseNames' => $duplicateRelationshipTargetBaseNames,
             'relationshipTargetBaseNames' => array_values($relationshipTargetBaseNames),
+            'relationshipTargetPathDepthCount' => count($relationshipTargetPathDepths),
+            'relationshipTargetPathDepthCounts' => $relationshipTargetPathDepthCounts,
+            'relationshipTargetPathDepths' => array_values($relationshipTargetPathDepths),
             'relationshipTargetContentTypeCounts' => $relationshipTargetContentTypeCounts,
             'relationshipTargetContentTypeSourceCounts' => $relationshipTargetContentTypeSourceCounts,
             'relationshipTargetParameterizedContentTypeCount' => $relationshipTargetParameterizedContentTypeCount,

@@ -5822,6 +5822,122 @@ XML;
         $t->same(['word/raw/missing.bin'], $missing['targetParts']);
         $t->same(2, $summary['externalRelationshipCount']);
     },
+    'summarizes docx relationship target path depth buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $officeDocumentRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+        $coreRel = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=depth"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootDepth" Type="' . $customXmlRel . '" Target="/root-depth.xml?root=1#depth"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsDepth" Type="' . $commentsRel . '" Target="comments.xml?review=depth#comments"/>' . "\n" .
+            '  <Relationship Id="rMissingDepthImage" Type="' . $imageRel . '" Target="media/missing-depth.png"/>' . "\n" .
+            '  <Relationship Id="rDeepDepthBin" Type="' . $customXmlRel . '" Target="media/deep/target.bin"/>' . "\n" .
+            '  <Relationship Id="rNoTypeDepth" Type="' . $customXmlRel . '" Target="raw/no-type"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['root-depth.xml'] = '<rootDepth/>';
+        $parts['word/comments.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/media/deep/target.bin'] = 'deep target binary bytes for path depth buckets';
+        $parts['word/raw/no-type'] = 'missing content type target bytes';
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $depths = [];
+        foreach ($summary['relationshipTargetPathDepths'] as $depth) {
+            $depths[$depth['targetPathDepthKey']] = $depth;
+        }
+
+        $t->same(4, $summary['relationshipTargetPathDepthCount']);
+        $t->same(['1' => 1, '2' => 3, '3' => 3, '4' => 1], $summary['relationshipTargetPathDepthCounts']);
+        $t->same(['1', '2', '3', '4'], array_column($summary['relationshipTargetPathDepths'], 'targetPathDepthKey'));
+
+        $root = $depths['1'];
+        $t->same(1, $root['targetPathDepth']);
+        $t->same(1, $root['relationshipCount']);
+        $t->same(1, $root['existingTargetCount']);
+        $t->same(0, $root['missingTargetCount']);
+        $t->same(['/' => 1], $root['targetDirectoryCounts']);
+        $t->same(['application/xml' => 1], $root['contentTypeBaseCounts']);
+        $t->same(['default' => 1], $root['contentTypeSourceCounts']);
+        $t->same([$customXmlRel => 1], $root['relationshipTypeCounts']);
+        $t->same(['/'], $root['sourceParts']);
+        $t->same(['_rels/.rels'], $root['relationshipParts']);
+        $t->same(['rRootDepth'], $root['relationshipIds']);
+        $t->same(['root-depth.xml'], $root['targetParts']);
+        $t->same(['application/xml'], $root['contentTypes']);
+        $t->same('root-depth.xml', $root['largestExistingTargetPart']['partName']);
+
+        $twoSegments = $depths['2'];
+        $t->same(2, $twoSegments['targetPathDepth']);
+        $t->same(3, $twoSegments['relationshipCount']);
+        $t->same(3, $twoSegments['existingTargetCount']);
+        $t->same(0, $twoSegments['missingTargetCount']);
+        $t->same(1, $twoSegments['parameterizedTargetCount']);
+        $t->same(['docProps' => 1, 'word' => 2], $twoSegments['targetDirectoryCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+        ], $twoSegments['contentTypeBaseCounts']);
+        $t->same(['override' => 3], $twoSegments['contentTypeSourceCounts']);
+        $t->same([
+            $commentsRel => 1,
+            $officeDocumentRel => 1,
+            $coreRel => 1,
+        ], $twoSegments['relationshipTypeCounts']);
+        $t->same(['/', 'word/document.xml'], $twoSegments['sourceParts']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $twoSegments['relationshipParts']);
+        $t->same(['rCommentsDepth', 'rCore', 'rDoc'], $twoSegments['relationshipIds']);
+        $t->same(['docProps/core.xml', 'word/comments.xml', 'word/document.xml'], $twoSegments['targetParts']);
+        $t->same('word/document.xml', $twoSegments['largestExistingTargetPart']['partName']);
+
+        $threeSegments = $depths['3'];
+        $t->same(3, $threeSegments['targetPathDepth']);
+        $t->same(3, $threeSegments['relationshipCount']);
+        $t->same(2, $threeSegments['existingTargetCount']);
+        $t->same(1, $threeSegments['missingTargetCount']);
+        $t->same(1, $threeSegments['missingContentTypeTargetCount']);
+        $t->same(['word/media' => 2, 'word/raw' => 1], $threeSegments['targetDirectoryCounts']);
+        $t->same(['(missing)' => 1, 'image/png' => 2], $threeSegments['contentTypeBaseCounts']);
+        $t->same(['default' => 2, 'missing' => 1], $threeSegments['contentTypeSourceCounts']);
+        $t->same([$customXmlRel => 1, $imageRel => 2], $threeSegments['relationshipTypeCounts']);
+        $t->same(['word/document.xml'], $threeSegments['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels'], $threeSegments['relationshipParts']);
+        $t->same(['rImage', 'rMissingDepthImage', 'rNoTypeDepth'], $threeSegments['relationshipIds']);
+        $t->same(['word/media/missing-depth.png', 'word/media/review.png', 'word/raw/no-type'], $threeSegments['targetParts']);
+        $t->same(['image/png'], $threeSegments['contentTypes']);
+        $t->same('word/raw/no-type', $threeSegments['largestExistingTargetPart']['partName']);
+
+        $fourSegments = $depths['4'];
+        $t->same(4, $fourSegments['targetPathDepth']);
+        $t->same(1, $fourSegments['relationshipCount']);
+        $t->same(1, $fourSegments['existingTargetCount']);
+        $t->same(['word/media/deep' => 1], $fourSegments['targetDirectoryCounts']);
+        $t->same(['application/octet-stream' => 1], $fourSegments['contentTypeBaseCounts']);
+        $t->same(['default' => 1], $fourSegments['contentTypeSourceCounts']);
+        $t->same([$customXmlRel => 1], $fourSegments['relationshipTypeCounts']);
+        $t->same(['rDeepDepthBin'], $fourSegments['relationshipIds']);
+        $t->same(['word/media/deep/target.bin'], $fourSegments['targetParts']);
+        $t->same('word/media/deep/target.bin', $fourSegments['largestExistingTargetPart']['partName']);
+
+        $t->same(1, $summary['externalRelationshipCount']);
+        $t->true(!in_array('rLink', array_merge(...array_column($summary['relationshipTargetPathDepths'], 'relationshipIds')), true), 'external targets should not enter path depth buckets');
+    },
     'summarizes docx relationship type package matrix rollups for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
