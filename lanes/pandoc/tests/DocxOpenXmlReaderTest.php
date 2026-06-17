@@ -2395,6 +2395,176 @@ XML;
         $t->same(['external-target-unsafe-scheme' => 1], $images['externalTargetIssueCounts']);
         $t->same(['rUnsafeScript'], array_column($images['unsafeExternalTargets'], 'id'));
     },
+    'summarizes docx document hyperlink relationships for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/linked/target.xml" ContentType="application/xml; profile=document-hyperlink"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rInternalLink" Type="' . $hyperlinkType . '" Target="linked/target.xml?view=full#part"/>' . "\n" .
+            '  <Relationship Id="rMissingLink" Type="' . $hyperlinkType . '" Target="missing/raw-link"/>' . "\n" .
+            '  <Relationship Id="rUnsafeLink" Type="' . $hyperlinkType . '" Target="javascript:alert(1)" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rOrphanLink" Type="' . $hyperlinkType . '" Target="https://example.test/orphan?review=1#src" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            <<<'XML'
+    <w:p>
+      <w:hyperlink w:anchor="localBookmark" w:tooltip="Bookmark jump"><w:r><w:t>bookmark</w:t></w:r></w:hyperlink>
+      <w:hyperlink r:id="rInternalLink" w:anchor="section2" w:history="1" w:tgtFrame="_blank" w:tooltip="Internal package target"><w:r><w:t>internal</w:t></w:r></w:hyperlink>
+      <w:hyperlink r:id="rMissingLink"><w:r><w:t>missing</w:t></w:r></w:hyperlink>
+      <w:hyperlink r:id="rUnsafeLink"><w:r><w:t>unsafe</w:t></w:r></w:hyperlink>
+      <w:hyperlink r:id="rUnknownLink" w:anchor="fallbackAnchor"><w:r><w:t>unknown</w:t></w:r></w:hyperlink>
+      <w:hyperlink><w:r><w:t>empty</w:t></w:r></w:hyperlink>
+    </w:p>
+  </w:body>
+XML,
+            $parts['word/document.xml']
+        );
+        $parts['word/linked/target.xml'] = '<target><title>Linked package target</title></target>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $hyperlinks = $docx['documentHyperlinks'];
+        $summary = $package['summary'];
+        $byId = $hyperlinks['byRelationshipId'];
+        $rLink = $byId['rLink'];
+        $internal = $byId['rInternalLink'];
+        $missing = $byId['rMissingLink'];
+        $unsafe = $byId['rUnsafeLink'];
+        $unknown = $byId['rUnknownLink'];
+        $orphan = $byId['rOrphanLink'];
+        $anchorOnly = $hyperlinks['items'][1];
+        $empty = $hyperlinks['items'][6];
+        $relationshipType = $package['relationshipTypes'][$hyperlinkType];
+        $documentRelationships = $package['relationshipParts']['word/_rels/document.xml.rels'];
+
+        $t->same($hyperlinks, $package['documentHyperlinks']);
+        $t->same(8, $hyperlinks['count']);
+        $t->same(5, $hyperlinks['relationshipCount']);
+        $t->same(7, $hyperlinks['referenceCount']);
+        $t->same(4, $hyperlinks['referencedRelationshipCount']);
+        $t->same(1, $hyperlinks['unreferencedRelationshipCount']);
+        $t->same(1, $hyperlinks['anchorOnlyCount']);
+        $t->same(2, $hyperlinks['anchorRelationshipCount']);
+        $t->same(3, $hyperlinks['externalCount']);
+        $t->same(1, $hyperlinks['unsafeExternalTargetCount']);
+        $t->same(1, $hyperlinks['internalTargetExistingCount']);
+        $t->same(1, $hyperlinks['internalTargetMissingCount']);
+        $t->same(1, $hyperlinks['unknownRelationshipCount']);
+        $t->same(1, $hyperlinks['missingContentTypeCount']);
+        $t->same(0, $hyperlinks['unexpectedRelationshipTypeCount']);
+        $t->same(4, $hyperlinks['issueCount']);
+        $t->same([
+            'external-target-unsafe-scheme',
+            'missing-hyperlink-content-type',
+            'missing-hyperlink-target',
+            'unknown-relationship',
+        ], $hyperlinks['issueCodes']);
+        $t->same(['rLink', 'rInternalLink', 'rMissingLink', 'rUnsafeLink', 'rUnknownLink', 'rOrphanLink'], $hyperlinks['relationshipIds']);
+        $t->same(['rLink', 'rInternalLink', 'rMissingLink', 'rUnsafeLink', 'rUnknownLink'], $hyperlinks['referencedRelationshipIds']);
+        $t->same(['rLink', 'rInternalLink', 'rMissingLink', 'rUnsafeLink'], $hyperlinks['referencedHyperlinkRelationshipIds']);
+        $t->same(['rOrphanLink'], $hyperlinks['unreferencedRelationshipIds']);
+        $t->same(['localBookmark', 'section2', 'fallbackAnchor'], $hyperlinks['anchors']);
+        $t->same(['word/linked/target.xml', 'word/missing/raw-link'], $hyperlinks['targetParts']);
+        $t->same([
+            'https://example.test/source?post=42',
+            'javascript:alert(1)',
+            'https://example.test/orphan?review=1#src',
+        ], $hyperlinks['externalTargets']);
+        $t->same('document-hyperlink-target-bytes-blocked', $hyperlinks['byteExposurePolicy']);
+        $t->same('document-hyperlink-metadata-only', $hyperlinks['reviewPolicy']);
+
+        $t->same(8, $summary['documentHyperlinkCount']);
+        $t->same(5, $summary['documentHyperlinkRelationshipCount']);
+        $t->same(7, $summary['documentHyperlinkReferenceCount']);
+        $t->same(4, $summary['documentHyperlinkReferencedRelationshipCount']);
+        $t->same(1, $summary['documentHyperlinkUnreferencedRelationshipCount']);
+        $t->same(1, $summary['documentHyperlinkAnchorOnlyCount']);
+        $t->same(2, $summary['documentHyperlinkAnchorRelationshipCount']);
+        $t->same(3, $summary['documentHyperlinkExternalCount']);
+        $t->same(1, $summary['documentHyperlinkUnsafeExternalCount']);
+        $t->same(1, $summary['documentHyperlinkInternalTargetExistingCount']);
+        $t->same(1, $summary['documentHyperlinkInternalTargetMissingCount']);
+        $t->same(1, $summary['documentHyperlinkUnknownRelationshipCount']);
+        $t->same(4, $summary['documentHyperlinkIssueCount']);
+        $t->same($hyperlinks['issueCodes'], $summary['documentHyperlinkIssueCodes']);
+
+        $t->same('relationship', $rLink['referenceKind']);
+        $t->same('https://example.test/source?post=42', $rLink['url']);
+        $t->same(true, $rLink['external']);
+        $t->same(true, $rLink['valid']);
+        $t->same([], $rLink['issues']);
+        $t->same('anchor', $anchorOnly['referenceKind']);
+        $t->same('#localBookmark', $anchorOnly['url']);
+        $t->same('Bookmark jump', $anchorOnly['tooltip']);
+        $t->same(true, $anchorOnly['valid']);
+
+        $t->same('relationship-anchor', $internal['referenceKind']);
+        $t->same('word/linked/target.xml?view=full#part#section2', $internal['url']);
+        $t->same('word/linked/target.xml', $internal['targetPart']);
+        $t->same('view=full', $internal['targetQuery']);
+        $t->same('part', $internal['targetFragment']);
+        $t->same('?view=full#part', $internal['targetReferenceSuffix']);
+        $t->same('section2', $internal['anchor']);
+        $t->same('1', $internal['history']);
+        $t->same('_blank', $internal['targetFrame']);
+        $t->same('Internal package target', $internal['tooltip']);
+        $t->same(true, $internal['exists']);
+        $t->same(strlen($parts['word/linked/target.xml']), $internal['byteLength']);
+        $t->same(sprintf('%08x', crc32($parts['word/linked/target.xml'])), $internal['crc32']);
+        $t->same(hash('sha256', $parts['word/linked/target.xml']), $internal['sha256']);
+        $t->same('application/xml; profile=document-hyperlink', $internal['contentType']);
+        $t->same('application/xml', $internal['contentTypeBase']);
+        $t->same(['profile' => 'document-hyperlink'], $internal['contentTypeParameterMap']);
+        $t->same('override', $internal['contentTypeSource']);
+        $t->same(true, $internal['valid']);
+
+        $t->same('word/missing/raw-link', $missing['targetPart']);
+        $t->same(false, $missing['exists']);
+        $t->same(['missing-hyperlink-content-type', 'missing-hyperlink-target'], $missing['issues']);
+        $t->same('missing', $missing['contentTypeSource']);
+        $t->same(false, $missing['valid']);
+        $t->same(true, $unsafe['external']);
+        $t->same('javascript', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['issues']);
+        $t->same(false, $unsafe['valid']);
+        $t->same(['unknown-relationship'], $unknown['issues']);
+        $t->same('#fallbackAnchor', $unknown['url']);
+        $t->same(false, $unknown['valid']);
+        $t->same(['missing-hyperlink-target'], $empty['issues']);
+        $t->same('', $empty['url']);
+        $t->same(false, $empty['valid']);
+        $t->same(false, $orphan['referenced']);
+        $t->same('https://example.test/orphan?review=1#src', $orphan['target']);
+        $t->same('review=1', $orphan['targetQuery']);
+        $t->same('src', $orphan['targetFragment']);
+        $t->same(true, $orphan['externalTargetAllowed']);
+        $t->same(true, $orphan['valid']);
+
+        $t->same(6, $documentRelationships['relationshipCount']);
+        $t->same($hyperlinkType, $documentRelationships['relationships']['rInternalLink']['type']);
+        $t->same('word/linked/target.xml', $documentRelationships['relationships']['rInternalLink']['targetPart']);
+        $t->same(5, $relationshipType['count']);
+        $t->same(2, $relationshipType['internalCount']);
+        $t->same(3, $relationshipType['externalCount']);
+        $t->same(1, $relationshipType['existingTargetCount']);
+        $t->same(1, $relationshipType['missingTargetCount']);
+        $t->same(['word/linked/target.xml'], $relationshipType['existingTargetParts']);
+        $t->same(['word/missing/raw-link'], $relationshipType['missingTargetParts']);
+        $t->same(['https://example.test/source?post=42', 'javascript:alert(1)', 'https://example.test/orphan?review=1#src'], $relationshipType['externalTargets']);
+        $t->true(!isset($docx['media']['word/linked/target.xml']), 'Document hyperlink target should not be exposed as media');
+    },
     'summarizes docx relationship target part extension buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
