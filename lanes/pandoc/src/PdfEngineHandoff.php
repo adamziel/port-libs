@@ -7876,15 +7876,41 @@ final class PdfEngineHandoff
 
         if ($warningProvenance !== []) {
             $warningIssues = $listIssues($warningProvenance);
+            $insideRootCount = 0;
             $outsideRootCount = 0;
+            $unboundedCount = 0;
+            $externalSourceCount = 0;
+            $unknownSourceCount = 0;
+            $locatedSourceCount = 0;
+            $hintCount = 0;
             foreach ($warningProvenance as $warning) {
-                if (is_array($warning) && ($warning['boundaryStatus'] ?? null) === 'outside-root') {
-                    ++$outsideRootCount;
+                if (!is_array($warning)) {
+                    continue;
                 }
+
+                if (is_string($warning['sourceFile'] ?? null) && $warning['sourceFile'] !== '') {
+                    ++$locatedSourceCount;
+                }
+                $hintCount += count(is_array($warning['hints'] ?? null) ? $warning['hints'] : []);
+
+                match ($warning['boundaryStatus'] ?? null) {
+                    'inside-root' => ++$insideRootCount,
+                    'outside-root' => ++$outsideRootCount,
+                    'unbounded' => ++$unboundedCount,
+                    'external-source' => ++$externalSourceCount,
+                    'unknown-source' => ++$unknownSourceCount,
+                    default => null,
+                };
             }
             $appendCase('warning-provenance', $warningIssues === [] ? 'ok' : 'review', count($warningProvenance), [
                 'sourceIssueCount' => count($warningIssues),
+                'locatedSourceCount' => $locatedSourceCount,
+                'insideRootCount' => $insideRootCount,
                 'outsideRootCount' => $outsideRootCount,
+                'unboundedCount' => $unboundedCount,
+                'externalSourceCount' => $externalSourceCount,
+                'unknownSourceCount' => $unknownSourceCount,
+                'hintCount' => $hintCount,
             ], $warningIssues);
         }
 

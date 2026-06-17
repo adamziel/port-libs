@@ -7104,12 +7104,108 @@ return [
         $t->same('pdf', $cases['output-format']['details']['inferredOutputFormat']);
         $t->same(1, $cases['warning-provenance']['observed']);
         $t->same(0, $cases['warning-provenance']['details']['sourceIssueCount']);
+        $t->same(1, $cases['warning-provenance']['details']['locatedSourceCount']);
+        $t->same(0, $cases['warning-provenance']['details']['insideRootCount']);
         $t->same(0, $cases['warning-provenance']['details']['outsideRootCount']);
+        $t->same(1, $cases['warning-provenance']['details']['unboundedCount']);
+        $t->same(0, $cases['warning-provenance']['details']['externalSourceCount']);
+        $t->same(0, $cases['warning-provenance']['details']['unknownSourceCount']);
+        $t->same(1, $cases['warning-provenance']['details']['hintCount']);
         $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
         $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
         $t->contains('typst-warning-provenance:1', implode(',', $result['diagnostics']));
         $t->contains('typst-boundary-matrix-cases:2', implode(',', $result['diagnostics']));
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+    },
+
+    'fake runner maps typst warning status buckets into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'project/main.typ',
+            'outputPath' => 'build/warning-buckets.pdf',
+            'source' => '= Typst Warning Bucket Matrix Packet',
+            'engineOptions' => ['--root=project', '--diagnostic-format=json'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst warning bucket matrix packet\n%%EOF\n";
+        $stderr = implode("\n", [
+            json_encode([
+                'severity' => 'warning',
+                'message' => 'inside-root warning',
+                'span' => [
+                    'path' => 'project/main.typ',
+                    'start' => ['line' => 4, 'column' => 2],
+                    'end' => ['line' => 4, 'column' => 10],
+                ],
+                'hints' => ['inside hint', 'secondary inside note'],
+            ], JSON_THROW_ON_ERROR),
+            json_encode([
+                'kind' => 'warning',
+                'text' => 'outside-root warning',
+                'location' => [
+                    'source' => ['path' => 'shared/theme.typ'],
+                    'start' => ['line' => 8, 'character' => 5],
+                ],
+                'help' => 'move shared theme under project/',
+            ], JSON_THROW_ON_ERROR),
+            json_encode([
+                'level' => 'warning',
+                'title' => 'external warning',
+                'span' => [
+                    'path' => 'https://cdn.example.invalid/typst/theme.typ',
+                    'start' => ['lineNumber' => 1, 'columnNumber' => 1],
+                ],
+                'hint' => 'vendor remote sources before compile',
+            ], JSON_THROW_ON_ERROR),
+            json_encode([
+                'severity' => 'warning',
+                'message' => 'missing source warning',
+                'help' => 'emit source spans for review',
+            ], JSON_THROW_ON_ERROR),
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'stderr' => $stderr,
+            'files' => [
+                'build/warning-buckets.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'stderr' => $stderr,
+            'files' => [
+                'build/warning-buckets.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $matrix = $result['typstBoundaryMatrix'];
+        $cases = [];
+        foreach ($matrix['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(true, $result['ok']);
+        $t->same(['inside-root', 'outside-root', 'external-source', 'unknown-source'], array_column($result['typstWarningProvenance'], 'boundaryStatus'));
+        $t->same(['root-boundary', 'output-format', 'diagnostic-output', 'root-read-boundary', 'warning-provenance'], array_column($matrix['cases'], 'case'));
+        $t->same('review', $matrix['reviewStatus']);
+        $t->same(5, $matrix['caseCount']);
+        $t->same(1, $matrix['reviewCaseCount']);
+        $t->same(3, $matrix['issueCount']);
+        $t->same(4, $cases['warning-provenance']['observed']);
+        $t->same(3, $cases['warning-provenance']['details']['sourceIssueCount']);
+        $t->same(3, $cases['warning-provenance']['details']['locatedSourceCount']);
+        $t->same(1, $cases['warning-provenance']['details']['insideRootCount']);
+        $t->same(1, $cases['warning-provenance']['details']['outsideRootCount']);
+        $t->same(0, $cases['warning-provenance']['details']['unboundedCount']);
+        $t->same(1, $cases['warning-provenance']['details']['externalSourceCount']);
+        $t->same(1, $cases['warning-provenance']['details']['unknownSourceCount']);
+        $t->same(5, $cases['warning-provenance']['details']['hintCount']);
+        $t->contains('warning-provenance:warning-source-external', implode(',', $matrix['issues']));
+        $t->contains('warning-provenance:warning-source-missing', implode(',', $matrix['issues']));
+        $t->contains('warning-provenance:warning-source-outside-root', implode(',', $matrix['issues']));
+        $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
+        $t->contains('typst-warning-source-issues:3', implode(',', $result['diagnostics']));
+        $t->contains('typst-boundary-matrix-cases:5', implode(',', $result['diagnostics']));
     },
 
     'fake runner recovers nested typst json warning source provenance without executing' => static function (TestRunner $t) use ($document): void {
