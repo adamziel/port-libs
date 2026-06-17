@@ -15474,6 +15474,18 @@ final class XmlHtmlDom
         $preloadAsValid = !$hasPreload || ($as !== null && isset($preloadDestinations[$as]));
         $href = self::attributeOrNull($link, 'href');
         $hrefRequired = $resourceRelTokens !== [];
+        $crossoriginRaw = self::attributeOrNull($link, 'crossorigin');
+        $crossorigin = $crossoriginRaw === null ? null : self::htmlCorsSettingsAttributeState($crossoriginRaw);
+        $fetchPriorityRaw = self::attributeOrNull($link, 'fetchpriority');
+        $fetchPriority = $fetchPriorityRaw === null ? null : self::fetchPriorityState($fetchPriorityRaw);
+        $referrerPolicyRaw = self::attributeOrNull($link, 'referrerpolicy');
+        $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
+        $integrityRaw = self::attributeOrNull($link, 'integrity');
+        $integrityTokens = $integrityRaw === null ? [] : self::spaceSeparatedTokens($integrityRaw);
+        $integrityAppliesToResource = $integrityRaw !== null
+            && (in_array('preload', $resourceKinds, true)
+                || in_array('modulepreload', $resourceKinds, true)
+                || in_array('stylesheet', $resourceKinds, true));
         $blockingRaw = self::attributeOrNull($link, 'blocking');
         $blockingTokens = $blockingRaw === null ? [] : self::spaceSeparatedTokens($blockingRaw);
         $blocking = self::htmlBlockingTokenSummary($link);
@@ -15491,14 +15503,9 @@ final class XmlHtmlDom
             $renderBlockingTokenPresent => 'declared-render-blocking-non-resource',
             default => 'declared-non-render-token',
         };
-        $crossoriginRaw = self::attributeOrNull($link, 'crossorigin');
-        $crossorigin = $crossoriginRaw === null ? null : self::htmlCorsSettingsAttributeState($crossoriginRaw);
-        $fetchPriorityRaw = self::attributeOrNull($link, 'fetchpriority');
-        $fetchPriority = $fetchPriorityRaw === null ? null : self::fetchPriorityState($fetchPriorityRaw);
-        $referrerPolicyRaw = self::attributeOrNull($link, 'referrerpolicy');
-        $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
         $issues = [];
         $loadingIssues = [];
+        $fetchPolicyIssues = [];
 
         foreach ($invalid as $token) {
             $issues[] = ['code' => 'invalid-link-rel-token', 'relToken' => $token];
@@ -15514,6 +15521,25 @@ final class XmlHtmlDom
         } elseif ($hasPreload && !isset($preloadDestinations[$as])) {
             $issues[] = ['code' => 'invalid-preload-as', 'asRaw' => $asRaw];
         }
+        if ($crossoriginRaw !== null && $crossorigin === null) {
+            $fetchPolicyIssues[] = ['code' => 'invalid-link-crossorigin', 'crossoriginRaw' => $crossoriginRaw];
+        }
+        if ($fetchPriorityRaw !== null && $fetchPriority === null) {
+            $fetchPolicyIssues[] = ['code' => 'invalid-link-fetchpriority', 'fetchpriorityRaw' => $fetchPriorityRaw];
+        }
+        if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
+            $fetchPolicyIssues[] = ['code' => 'invalid-link-referrerpolicy', 'referrerpolicyRaw' => $referrerPolicyRaw];
+        }
+        if ($integrityRaw !== null && $integrityTokens === []) {
+            $fetchPolicyIssues[] = ['code' => 'empty-link-integrity'];
+        }
+        if ($integrityRaw !== null && !$integrityAppliesToResource) {
+            $fetchPolicyIssues[] = [
+                'code' => 'link-integrity-without-fetch-resource',
+                'relTokens' => $resourceRelTokens,
+            ];
+        }
+        array_push($issues, ...$fetchPolicyIssues);
         foreach ($invalidBlockingTokens as $token) {
             $issues[] = [
                 'code' => 'invalid-link-blocking-token',
@@ -15565,6 +15591,22 @@ final class XmlHtmlDom
             'preloadAs' => $as === '' ? null : $as,
             'preloadAsRequired' => $hasPreload,
             'preloadAsValid' => $preloadAsValid,
+            'linkFetchPolicyReviewPolicy' => 'link-fetch-policy-review',
+            'linkCrossoriginRaw' => $crossoriginRaw,
+            'linkCrossoriginState' => $crossorigin,
+            'linkCrossoriginValid' => $crossoriginRaw === null ? null : $crossorigin !== null,
+            'linkFetchPriorityRaw' => $fetchPriorityRaw,
+            'linkFetchPriority' => $fetchPriority,
+            'linkFetchPriorityValid' => $fetchPriorityRaw === null ? null : $fetchPriority !== null,
+            'linkReferrerPolicyRaw' => $referrerPolicyRaw,
+            'linkReferrerPolicy' => $referrerPolicy,
+            'linkReferrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
+            'linkIntegrityRaw' => $integrityRaw,
+            'linkIntegrityTokens' => $integrityTokens,
+            'linkIntegrityTokenCount' => count($integrityTokens),
+            'linkIntegrityPresent' => $integrityRaw !== null,
+            'linkIntegrityEmpty' => $integrityRaw !== null && $integrityTokens === [],
+            'linkIntegrityAppliesToResource' => $integrityAppliesToResource,
             'linkBlockingReviewPolicy' => 'link-render-blocking-token-review',
             'linkBlockingAttributePresent' => $blockingRaw !== null,
             'linkBlockingTokens' => $blockingTokens,
@@ -15576,18 +15618,17 @@ final class XmlHtmlDom
             'linkBlockingReviewKind' => $blockingReviewKind,
             'linkIssues' => $issues,
             'linkLoadingPolicyReview' => 'link-loading-policy-metadata-review',
-            'linkCrossoriginState' => $crossorigin,
-            'linkCrossoriginValid' => $crossoriginRaw === null ? null : $crossorigin !== null,
-            'linkReferrerPolicy' => $referrerPolicy,
-            'linkReferrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
-            'linkFetchPriority' => $fetchPriority,
-            'linkFetchPriorityValid' => $fetchPriorityRaw === null ? null : $fetchPriority !== null,
             'linkBlockingAllTokensValid' => $blocking['invalid'] === [],
             'linkLoadingIssues' => $loadingIssues,
             'linkLoadingIssueCodes' => array_values(array_unique(array_map(
                 static fn (array $issue): string => (string) ($issue['code'] ?? ''),
                 $loadingIssues
             ))),
+            'linkFetchPolicyIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $fetchPolicyIssues
+            ))),
+            'linkFetchPolicyValid' => $fetchPolicyIssues === [],
         ];
     }
 

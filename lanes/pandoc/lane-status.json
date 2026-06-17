@@ -3,7 +3,7 @@
   "library": "pandoc",
   "estimatedProgress": 96,
   "suiteProgress": "pandoc-xml-html-dom-form-owner-idref-review maps 1 XML/HTML DOM recovery fixture for HTML form owner idref provenance after rebase onto current main dc07b76658. XmlHtmlDom extends form-owner reviewer metadata with multi-target id lookup, non-form target diagnostics, missing/empty/invalid owner references, duplicate form-owner target IDs, selected owner provenance, target element summaries, action/method handoff, deterministic serialization, raw HTML, and WordPress handoff. Accounting moves mappedXmlHtmlDomFormOwnerCases 1 -> 2 and xmlHtmlDomFormOwnerAssertions 37 -> 84; phpPass moves 16974 -> 16975, phpFail remains 0, mapped upstream manifest cases move 16560 -> 16561, root mapped inventory moves 16529 -> 16530, benchmark denominator mapped cases move 3698 -> 3699, and full Pandoc test coverage is 257 files / 174907 assertions after verification. No Pandoc, cmark/commonmark runners, Cabal/Haskell runners, browser renderers, Node tooling, external validators, online services, live provider tests, or live-service provider tests are invoked. Verification passed: php -l for XmlHtmlDom.php and XmlHtmlDomTest.php; focused XmlHtmlDomTest.php (1 file / 6163 assertions / 0 failures); HTML/XML DOM cluster (28 files / 10080 assertions / 0 failures); full lanes/pandoc/tests (257 files / 174907 assertions / 0 failures); JSON status/manifest validation; conflict-marker scan; and git diff --check.",
-  "phpPass": 16978,
+  "phpPass": 16979,
   "phpFail": 0,
   "latestPdfTypstSlice": "pandoc-pdf-typst-source-input-boundary-matrix maps 1 PDF/Typst recovery fixture for Typst stdin source-input matrix provenance after rebase onto origin/main 75f24df1f2. PdfEngineHandoff now feeds sourceInput into typstBoundaryMatrixFor, emitting a source-input review case with source-stdin-boundary through plan, fakeRun artifact review, and fakeRunSequence while preserving inferred output-format policy. Accounting moves mappedTypstBoundaryMatrixCases 18 -> 19 and typstBoundaryMatrixAssertions 41 -> 55; phpPass moves 16977 -> 16978, phpFail remains 0, mapped upstream manifest cases move 16563 -> 16564, root mapped inventory moves 16532 -> 16533, benchmark denominator mapped cases move 3701 -> 3702, and full Pandoc test coverage is 257 files / 174973 assertions. No Pandoc, Typst, TeX/PDF engine, browser renderer, Node tooling, external validators, online services, live provider tests, or live-service provider tests were invoked. Verification passed php -l for PdfEngineHandoff.php and PdfEngineHandoffTest.php, focused PdfEngineHandoffTest.php (1 file / 2628 assertions / 0 failures), and full lanes/pandoc/tests (257 files / 174973 assertions / 0 failures).",
   "wordpressScenarios": "HTML form owner idref review preserves raw HTML and WordPress handoff for remote form owner provenance.",
@@ -1750,5 +1750,7 @@
   "mappedXmlHtmlDomFileInputReviewCases": 1,
   "xmlHtmlDomFileInputReviewAssertions": 43,
   "mappedXmlHtmlDomScriptAttributionSourceCases": 1,
-  "xmlHtmlDomScriptAttributionSourceAssertions": 33
+  "xmlHtmlDomScriptAttributionSourceAssertions": 33,
+  "mappedXmlHtmlDomLinkFetchPolicyReviewCases": 1,
+  "xmlHtmlDomLinkFetchPolicyReviewAssertions": 44
 }
