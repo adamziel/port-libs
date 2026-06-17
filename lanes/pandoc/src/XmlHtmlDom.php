@@ -17174,12 +17174,17 @@ final class XmlHtmlDom
         $candidate = $raw ?? $text;
         $summary = [
             'time' => 'time',
+            'timeElement' => true,
             'timeText' => $text,
             'timeDatetimeRaw' => $raw,
             'timeDatetimeSource' => $source,
             'timeDatetime' => null,
             'timeDatetimeKind' => $source === 'missing' ? 'missing' : null,
             'timeDatetimeValid' => false,
+            'timeValueRaw' => $candidate,
+            'timeValue' => null,
+            'timeValueKind' => null,
+            'timeValueValid' => false,
         ];
 
         if ($source === 'missing') {
@@ -17189,6 +17194,7 @@ final class XmlHtmlDom
         $datetime = self::timeDatetimeSummary($candidate);
         if ($datetime === null) {
             $summary['timeDatetimeKind'] = 'invalid';
+            $summary['timeValueKind'] = 'invalid';
 
             return $summary;
         }
@@ -17196,6 +17202,9 @@ final class XmlHtmlDom
         $summary['timeDatetime'] = $datetime['value'];
         $summary['timeDatetimeKind'] = $datetime['kind'];
         $summary['timeDatetimeValid'] = true;
+        $summary['timeValue'] = $datetime['value'];
+        $summary['timeValueKind'] = $datetime['kind'];
+        $summary['timeValueValid'] = true;
 
         return $summary;
     }
@@ -17267,6 +17276,13 @@ final class XmlHtmlDom
 
         if (preg_match('/^[0-9]{4}$/', $value) === 1) {
             return ['kind' => 'year', 'value' => $value];
+        }
+
+        if (preg_match('/^' . $timePattern . $timezonePattern . '$/', $value, $matches) === 1) {
+            return [
+                'kind' => 'global-time',
+                'value' => (string) $matches[1] . self::normalizeTimezone((string) $matches[2]),
+            ];
         }
 
         if (preg_match('/^' . $timePattern . '$/', $value, $matches) === 1) {

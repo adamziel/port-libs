@@ -6957,6 +6957,73 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/time-datetime-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html time value aliases for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p><time datetime="14:05:30.125-0500" data-window="cutoff">Cutoff</time>'
+                . '<time datetime="2026-06-11">Date</time>'
+                . '<time>09:15Z</time>'
+                . '<time datetime="bad&lt;tag">Invalid</time>'
+                . '<time></time></p>',
+            'time value alias review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/time-value-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $summary[0];
+        $zonedTime = $paragraph['children'][0];
+        $date = $paragraph['children'][1];
+        $textTime = $paragraph['children'][2];
+        $invalid = $paragraph['children'][3];
+        $missing = $paragraph['children'][4];
+
+        $t->same('p', $paragraph['name']);
+        $t->same('CutoffDate09:15ZInvalid', $paragraph['text']);
+
+        $t->same('time', $zonedTime['name']);
+        $t->same(true, $zonedTime['timeElement']);
+        $t->same('Cutoff', $zonedTime['timeText']);
+        $t->same('14:05:30.125-0500', $zonedTime['timeDatetimeRaw']);
+        $t->same('datetime-attribute', $zonedTime['timeDatetimeSource']);
+        $t->same('14:05:30.125-05:00', $zonedTime['timeDatetime']);
+        $t->same('global-time', $zonedTime['timeDatetimeKind']);
+        $t->same(true, $zonedTime['timeDatetimeValid']);
+        $t->same('14:05:30.125-0500', $zonedTime['timeValueRaw']);
+        $t->same('14:05:30.125-05:00', $zonedTime['timeValue']);
+        $t->same('global-time', $zonedTime['timeValueKind']);
+        $t->same(true, $zonedTime['timeValueValid']);
+        $t->same(['window' => 'cutoff'], $zonedTime['dataset']);
+
+        $t->same('2026-06-11', $date['timeDatetime']);
+        $t->same('date', $date['timeValueKind']);
+        $t->same('2026-06-11', $date['timeValue']);
+        $t->same(true, $date['timeValueValid']);
+
+        $t->same(null, $textTime['timeDatetimeRaw']);
+        $t->same('text', $textTime['timeDatetimeSource']);
+        $t->same('09:15Z', $textTime['timeValueRaw']);
+        $t->same('09:15Z', $textTime['timeValue']);
+        $t->same('global-time', $textTime['timeValueKind']);
+        $t->same(true, $textTime['timeValueValid']);
+
+        $t->same('bad<tag', $invalid['timeValueRaw']);
+        $t->same(null, $invalid['timeValue']);
+        $t->same('invalid', $invalid['timeValueKind']);
+        $t->same(false, $invalid['timeValueValid']);
+
+        $t->same('missing', $missing['timeDatetimeSource']);
+        $t->same('', $missing['timeValueRaw']);
+        $t->same(null, $missing['timeValue']);
+        $t->same(null, $missing['timeValueKind']);
+        $t->same(false, $missing['timeValueValid']);
+
+        $t->same('<p><time data-window="cutoff" datetime="14:05:30.125-0500">Cutoff</time><time datetime="2026-06-11">Date</time><time>09:15Z</time><time datetime="bad&lt;tag">Invalid</time><time></time></p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/time-value-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html preformatted code block provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<pre id="snippet"><code class="language-php reviewer-snippet">echo &quot;Hi&quot;' . "\n" . 'return $value' . "\n" . '</code></pre>'
