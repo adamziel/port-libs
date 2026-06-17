@@ -14649,6 +14649,9 @@ final class XmlHtmlDom
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['required'] = $node->hasAttribute('required');
             $summary += self::formControlConstraintSummary($node, $name);
+            if ($inputType === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
+                $summary += self::fileInputReviewSummary($node, $inputType);
+            }
             if ($node->hasAttribute('placeholder')) {
                 $summary['placeholder'] = $node->getAttribute('placeholder');
             }
@@ -21532,6 +21535,129 @@ final class XmlHtmlDom
         $type = strtolower(trim($input->getAttribute('type')));
 
         return $type === '' ? 'text' : $type;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function fileInputReviewSummary(\DOMElement $input, string $inputType): array
+    {
+        $acceptRaw = self::attributeOrNull($input, 'accept');
+        $accept = $acceptRaw === null ? self::emptyFileAcceptSummary() : self::fileAcceptSummary($acceptRaw);
+        $captureRaw = self::attributeOrNull($input, 'capture');
+        $capture = $captureRaw === null ? null : self::fileInputCaptureState($captureRaw);
+        $issues = [];
+
+        if ($inputType !== 'file') {
+            $issues[] = 'non-file-input-upload-attribute';
+        }
+        if ($acceptRaw !== null && !$accept['valid']) {
+            $issues[] = 'invalid-file-accept-token';
+        }
+        if ($captureRaw !== null && $capture === null) {
+            $issues[] = 'invalid-file-capture-token';
+        }
+
+        return [
+            'fileInputReviewPolicy' => 'html-file-input-accept-capture-review',
+            'fileInput' => $inputType === 'file',
+            'fileInputType' => $inputType,
+            'fileInputAcceptRaw' => $acceptRaw,
+            'fileInputAcceptTokens' => $accept['tokens'],
+            'fileInputAcceptedExtensions' => $accept['extensions'],
+            'fileInputAcceptedMimeTypes' => $accept['mimeTypes'],
+            'fileInputAcceptedWildcardMimeTypes' => $accept['wildcardMimeTypes'],
+            'fileInputInvalidAcceptTokens' => $accept['invalid'],
+            'fileInputAcceptValid' => $acceptRaw === null ? null : $accept['valid'],
+            'fileInputCaptureRaw' => $captureRaw,
+            'fileInputCaptureState' => $capture,
+            'fileInputCaptureValid' => $captureRaw === null ? null : $capture !== null,
+            'fileInputIssueCodes' => $issues,
+            'fileInputValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array{tokens:list<string>, extensions:list<string>, mimeTypes:list<string>, wildcardMimeTypes:list<string>, invalid:list<string>, valid:bool}
+     */
+    private static function emptyFileAcceptSummary(): array
+    {
+        return [
+            'tokens' => [],
+            'extensions' => [],
+            'mimeTypes' => [],
+            'wildcardMimeTypes' => [],
+            'invalid' => [],
+            'valid' => true,
+        ];
+    }
+
+    /**
+     * @return array{tokens:list<string>, extensions:list<string>, mimeTypes:list<string>, wildcardMimeTypes:list<string>, invalid:list<string>, valid:bool}
+     */
+    private static function fileAcceptSummary(string $value): array
+    {
+        $tokens = [];
+        $extensions = [];
+        $mimeTypes = [];
+        $wildcardMimeTypes = [];
+        $invalid = [];
+
+        foreach (explode(',', $value) as $rawToken) {
+            $token = trim($rawToken);
+            if ($token === '') {
+                continue;
+            }
+
+            $tokens[] = $token;
+            $normalized = strtolower($token);
+
+            if (self::isSafeFileExtensionAcceptToken($normalized)) {
+                self::appendUniqueString($extensions, $normalized);
+                continue;
+            }
+
+            if (self::isSafeMimeAcceptToken($normalized)) {
+                if (str_ends_with($normalized, '/*')) {
+                    self::appendUniqueString($wildcardMimeTypes, $normalized);
+                } else {
+                    self::appendUniqueString($mimeTypes, $normalized);
+                }
+                continue;
+            }
+
+            $invalid[] = $token;
+        }
+
+        return [
+            'tokens' => $tokens,
+            'extensions' => $extensions,
+            'mimeTypes' => $mimeTypes,
+            'wildcardMimeTypes' => $wildcardMimeTypes,
+            'invalid' => $invalid,
+            'valid' => $tokens !== [] && $invalid === [],
+        ];
+    }
+
+    private static function isSafeFileExtensionAcceptToken(string $token): bool
+    {
+        return preg_match('/^\.[a-z0-9][a-z0-9._+-]{0,63}$/', $token) === 1;
+    }
+
+    private static function isSafeMimeAcceptToken(string $token): bool
+    {
+        return preg_match('/^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/(?:[a-z0-9][a-z0-9!#$&^_.+-]{0,126}|\*)$/', $token) === 1;
+    }
+
+    private static function fileInputCaptureState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return match ($value) {
+            '' => 'capture',
+            'user', 'environment' => $value,
+            default => null,
+        };
     }
 
     private static function buttonType(\DOMElement $button): string
