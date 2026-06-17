@@ -909,6 +909,70 @@ return [
             $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to strip live or unsafe source content: ' . $blocked);
         }
     },
+    'converts button command target metadata into inert reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<dialog id="confirm" open>Confirm body</dialog>'
+            . '<div id="menu" popover="manual">Menu</div>'
+            . '<section id="card">Card</section>'
+            . '<p>'
+            . '<button commandfor="menu" command="show-popover" data-pandoc-button-command="source-spoof">Show menu</button>'
+            . '<button commandfor="confirm" command="request-close">Close dialog</button>'
+            . '<button type="button" commandfor="card" command="--mark-reviewed">Mark reviewed</button>'
+            . '<button commandfor="missing" command="toggle-popover">Missing target</button>'
+            . '<button commandfor="bad target" command="close">Bad target</button>'
+            . '<button commandfor="card" command="rotate">Bad command</button>'
+            . '</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/button-command-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_count_values(array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        )));
+
+        $expected = '<div id="confirm" data-pandoc-dialog-state="open">Confirm body</div>'
+            . '<div id="menu" data-pandoc-popover-state="manual">Menu</div>'
+            . '<section id="card">Card</section>'
+            . '<p>'
+            . '<span data-pandoc-button-type="submit" data-pandoc-button-command-state="show-popover" data-pandoc-button-command="show-popover" data-pandoc-button-command-family="popover" data-pandoc-button-commandfor="menu" data-pandoc-button-command-target="popover" data-pandoc-button-command-target-tag="div" data-pandoc-button-command-target-id="menu" data-pandoc-button-command-target-popover="manual">Show menu</span>'
+            . '<span data-pandoc-button-type="submit" data-pandoc-button-command-state="request-close" data-pandoc-button-command="request-close" data-pandoc-button-command-family="dialog" data-pandoc-button-commandfor="confirm" data-pandoc-button-command-target="dialog" data-pandoc-button-command-target-tag="dialog" data-pandoc-button-command-target-id="confirm" data-pandoc-button-command-target-dialog-state="open">Close dialog</span>'
+            . '<span data-pandoc-button-type="button" data-pandoc-button-command-state="custom" data-pandoc-button-command="--mark-reviewed" data-pandoc-button-command-family="custom" data-pandoc-button-commandfor="card" data-pandoc-button-command-target="element" data-pandoc-button-command-target-tag="section" data-pandoc-button-command-target-id="card">Mark reviewed</span>'
+            . '<span data-pandoc-button-type="submit" data-pandoc-button-command-state="toggle-popover" data-pandoc-button-command="toggle-popover" data-pandoc-button-command-family="popover" data-pandoc-button-commandfor="missing" data-pandoc-button-command-target="missing-target" data-pandoc-button-command-issues="missing-button-command-target">Missing target</span>'
+            . '<span data-pandoc-button-type="submit" data-pandoc-button-command-state="close" data-pandoc-button-command="close" data-pandoc-button-command-family="dialog" data-pandoc-button-command-target="invalid-reference" data-pandoc-button-command-issues="invalid-button-commandfor-target">Bad target</span>'
+            . '<span data-pandoc-button-type="submit" data-pandoc-button-command-state="unknown" data-pandoc-button-commandfor="card" data-pandoc-button-command-target="element" data-pandoc-button-command-target-tag="section" data-pandoc-button-command-target-id="card" data-pandoc-button-command-issues="unknown-button-command">Bad command</span>'
+            . '</p>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Confirm bodyMenuCardShow menuClose dialogMark reviewedMissing targetBad targetBad command', $fragment->textContent());
+        $t->same(['div', 'p', 'section', 'span'], $summary['elementNames']);
+        $t->same(['button'], $summary['blockedTags']);
+        $t->same(['command', 'commandfor', 'data-pandoc-button-command', 'open', 'popover', 'type'], $summary['filteredAttributes']);
+        $t->same(6, $policyDiagnostics['blocked-tag'] ?? 0);
+        $t->same(46, $policyDiagnostics['button-metadata-review'] ?? 0);
+        $t->same(3, $policyDiagnostics['unsafe-attribute'] ?? 0);
+        $t->same(1, $policyDiagnostics['dialog-review'] ?? 0);
+        $t->same(1, $policyDiagnostics['popover-review'] ?? 0);
+        $t->same('span', $nodes[3]['children'][0]['name']);
+        $t->same('popover', $nodes[3]['children'][0]['attrs']['data-pandoc-button-command-target']);
+        $t->same('manual', $nodes[3]['children'][0]['attrs']['data-pandoc-button-command-target-popover']);
+        $t->same('dialog', $nodes[3]['children'][1]['attrs']['data-pandoc-button-command-target']);
+        $t->same('open', $nodes[3]['children'][1]['attrs']['data-pandoc-button-command-target-dialog-state']);
+        $t->same('custom', $nodes[3]['children'][2]['attrs']['data-pandoc-button-command-family']);
+        $t->same('missing-button-command-target', $nodes[3]['children'][3]['attrs']['data-pandoc-button-command-issues']);
+        $t->same('invalid-reference', $nodes[3]['children'][4]['attrs']['data-pandoc-button-command-target']);
+        $t->same('unknown-button-command', $nodes[3]['children'][5]['attrs']['data-pandoc-button-command-issues']);
+        $t->same('/migration/button-command-review.html', $document->children[0]->attr('part'));
+        foreach (['<button', ' command=', ' commandfor=', 'source-spoof', 'bad target', 'rotate'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected command button handoff to strip live or unsafe source content: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to strip live or unsafe source content: ' . $blocked);
+        }
+    },
     'unwraps active embed fallback content while dropping unsafe containers' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<iframe src="javascript:alert(1)">Fallback <b>caption</b><script>drop()</script></iframe>'

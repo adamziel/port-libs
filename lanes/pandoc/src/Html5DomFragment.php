@@ -36,6 +36,30 @@ final class Html5DomFragment
         'typemustmatch' => true,
     ];
 
+    /** @var array<string, string> */
+    private const HTML_BUTTON_COMMAND_STATES = [
+        'toggle-popover' => 'toggle-popover',
+        'show-popover' => 'show-popover',
+        'hide-popover' => 'hide-popover',
+        'close' => 'close',
+        'request-close' => 'request-close',
+        'show-modal' => 'show-modal',
+    ];
+
+    /** @var array<string, true> */
+    private const HTML_BUTTON_POPOVER_COMMANDS = [
+        'toggle-popover' => true,
+        'show-popover' => true,
+        'hide-popover' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const HTML_BUTTON_DIALOG_COMMANDS = [
+        'close' => true,
+        'request-close' => true,
+        'show-modal' => true,
+    ];
+
     /** @var array<string, array<string, true>> */
     private const HTML5_TABLE_ALLOWED_CHILDREN = [
         'table' => [
@@ -2526,6 +2550,10 @@ final class Html5DomFragment
             self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, $sourceAttribute, $metadataAttribute);
         }
 
+        if ($element->hasAttribute('command') || $element->hasAttribute('commandfor')) {
+            self::addHtmlButtonCommandMetadata($attrs, $diagnostics, $element);
+        }
+
         if ($children === []) {
             $children = [[
                 'type' => 'text',
@@ -2539,6 +2567,196 @@ final class Html5DomFragment
             'attrs' => $attrs,
             'children' => $children,
         ], $element);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlButtonCommandMetadata(
+        array &$attrs,
+        array &$diagnostics,
+        \DOMElement $element
+    ): void {
+        $commandRaw = $element->hasAttribute('command') ? $element->getAttribute('command') : null;
+        $command = self::htmlButtonCommandState($commandRaw);
+        $commandForRaw = $element->hasAttribute('commandfor') ? $element->getAttribute('commandfor') : null;
+        $commandFor = self::htmlButtonCommandFor($commandForRaw);
+        $target = $commandFor === null ? null : self::htmlElementById($element, $commandFor);
+        $issues = [];
+
+        if ($commandRaw === null || trim($commandRaw) === '') {
+            $issues[] = 'missing-button-command';
+        } elseif ($command['state'] === 'unknown') {
+            $issues[] = 'unknown-button-command';
+            self::addHtmlInvalidButtonMetadataDiagnostic($diagnostics, $element, 'command');
+        }
+
+        if ($commandForRaw === null || trim($commandForRaw) === '') {
+            $issues[] = 'missing-button-commandfor';
+        } elseif ($commandFor === null) {
+            $issues[] = 'invalid-button-commandfor-target';
+            self::addHtmlInvalidButtonMetadataDiagnostic($diagnostics, $element, 'commandfor');
+        } elseif (!$target instanceof \DOMElement) {
+            $issues[] = 'missing-button-command-target';
+        }
+
+        if ($target instanceof \DOMElement) {
+            $targetName = self::htmlNormalizedElementName($target);
+            if (($command['family'] ?? null) === 'popover' && !$target->hasAttribute('popover')) {
+                $issues[] = 'non-popover-button-command-target';
+            }
+            if (($command['family'] ?? null) === 'dialog' && $targetName !== 'dialog') {
+                $issues[] = 'non-dialog-button-command-target';
+            }
+        }
+
+        $attrs['data-pandoc-button-command-state'] = $command['state'];
+        self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, 'command', 'data-pandoc-button-command-state');
+
+        if ($command['command'] !== null) {
+            $attrs['data-pandoc-button-command'] = $command['command'];
+            self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, 'command', 'data-pandoc-button-command');
+        }
+
+        if ($command['family'] !== null) {
+            $attrs['data-pandoc-button-command-family'] = $command['family'];
+            self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, 'command', 'data-pandoc-button-command-family');
+        }
+
+        if ($commandFor !== null) {
+            $attrs['data-pandoc-button-commandfor'] = $commandFor;
+            self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, 'commandfor', 'data-pandoc-button-commandfor');
+        }
+
+        $attrs['data-pandoc-button-command-target'] = self::htmlButtonCommandTargetKind($target, $commandForRaw, $commandFor !== null);
+        self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, 'commandfor', 'data-pandoc-button-command-target');
+
+        if ($target instanceof \DOMElement) {
+            foreach (self::htmlButtonCommandTargetMetadata($target) as $metadataAttribute => $metadataValue) {
+                $attrs[$metadataAttribute] = $metadataValue;
+                self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, 'commandfor', $metadataAttribute);
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+        if ($issues !== []) {
+            $attrs['data-pandoc-button-command-issues'] = implode(' ', $issues);
+            self::addHtmlButtonMetadataDiagnostic($diagnostics, $element, 'command', 'data-pandoc-button-command-issues');
+        }
+    }
+
+    /**
+     * @return array{command:?string, state:string, family:?string}
+     */
+    private static function htmlButtonCommandState(?string $commandRaw): array
+    {
+        if ($commandRaw === null || trim($commandRaw) === '') {
+            return [
+                'command' => null,
+                'state' => 'missing',
+                'family' => null,
+            ];
+        }
+
+        $command = strtolower(trim($commandRaw));
+        if (isset(self::HTML_BUTTON_COMMAND_STATES[$command])) {
+            return [
+                'command' => $command,
+                'state' => self::HTML_BUTTON_COMMAND_STATES[$command],
+                'family' => isset(self::HTML_BUTTON_POPOVER_COMMANDS[$command])
+                    ? 'popover'
+                    : (isset(self::HTML_BUTTON_DIALOG_COMMANDS[$command]) ? 'dialog' : null),
+            ];
+        }
+
+        $custom = trim($commandRaw);
+        if (preg_match('/^--[A-Za-z0-9._:-]+$/', $custom) === 1) {
+            return [
+                'command' => $custom,
+                'state' => 'custom',
+                'family' => 'custom',
+            ];
+        }
+
+        return [
+            'command' => null,
+            'state' => 'unknown',
+            'family' => null,
+        ];
+    }
+
+    private static function htmlButtonCommandFor(?string $commandForRaw): ?string
+    {
+        if ($commandForRaw === null) {
+            return null;
+        }
+
+        $commandFor = self::cleanHtmlMetadataAttribute($commandForRaw);
+        if ($commandFor === '' || strlen($commandFor) > 128 || !self::isSafeHtmlAriaIdToken($commandFor)) {
+            return null;
+        }
+
+        return $commandFor;
+    }
+
+    private static function htmlButtonCommandTargetKind(?\DOMElement $target, ?string $commandForRaw, bool $commandForValid): string
+    {
+        if (!$target instanceof \DOMElement) {
+            if ($commandForRaw === null || trim($commandForRaw) === '') {
+                return 'missing-reference';
+            }
+
+            return $commandForValid ? 'missing-target' : 'invalid-reference';
+        }
+
+        $targetName = self::htmlNormalizedElementName($target);
+        if ($targetName === 'dialog') {
+            return 'dialog';
+        }
+        if ($target->hasAttribute('popover')) {
+            return 'popover';
+        }
+
+        return 'element';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function htmlButtonCommandTargetMetadata(\DOMElement $target): array
+    {
+        $metadata = [
+            'data-pandoc-button-command-target-tag' => self::htmlNormalizedElementName($target),
+        ];
+
+        $id = self::cleanHtmlMetadataAttribute($target->getAttribute('id'));
+        if ($id !== '' && strlen($id) <= 128 && self::isSafeHtmlAriaIdToken($id)) {
+            $metadata['data-pandoc-button-command-target-id'] = $id;
+        }
+
+        if (self::htmlNormalizedElementName($target) === 'dialog') {
+            $metadata['data-pandoc-button-command-target-dialog-state'] = $target->hasAttribute('open') ? 'open' : 'closed';
+        }
+
+        if ($target->hasAttribute('popover')) {
+            $state = self::normalizeHtmlPopoverMetadataState($target->getAttribute('popover'));
+            if ($state !== null) {
+                $metadata['data-pandoc-button-command-target-popover'] = $state;
+            }
+        }
+
+        return $metadata;
+    }
+
+    private static function normalizeHtmlPopoverMetadataState(string $value): ?string
+    {
+        $state = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($state === '') {
+            $state = 'auto';
+        }
+
+        return in_array($state, ['auto', 'manual', 'hint'], true) ? $state : null;
     }
 
     /**
