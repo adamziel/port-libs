@@ -10387,6 +10387,13 @@ final class DocxOpenXmlReader
             $partContentTypeStructuredSyntaxPartCount += (int) ($syntaxSuffixSummary['structuredSyntaxPartCount'] ?? 0);
         }
         ksort($partContentTypeSyntaxSuffixCounts, SORT_STRING);
+        $partContentTypeSources = $this->packagePartContentTypeSourceSummary($partInventory);
+        $partContentTypeSourceCounts = [];
+        foreach ($partContentTypeSources as $sourceSummary) {
+            $sourceKey = (string) ($sourceSummary['contentTypeSource'] ?? 'missing');
+            $partContentTypeSourceCounts[$sourceKey] = (int) ($sourceSummary['partCount'] ?? 0);
+        }
+        ksort($partContentTypeSourceCounts, SORT_STRING);
         $duplicatePartBaseNames = [];
         foreach ($partBaseNames as $baseNameSummary) {
             if ((int) ($baseNameSummary['partCount'] ?? 0) > 1) {
@@ -11542,6 +11549,8 @@ final class DocxOpenXmlReader
             'partContentTypeSyntaxSuffixCount' => count($partContentTypeSyntaxSuffixes),
             'partContentTypeSyntaxSuffixCounts' => $partContentTypeSyntaxSuffixCounts,
             'partContentTypeStructuredSyntaxPartCount' => $partContentTypeStructuredSyntaxPartCount,
+            'partContentTypeSourceCount' => count($partContentTypeSources),
+            'partContentTypeSourceCounts' => $partContentTypeSourceCounts,
             'partContentTypeCount' => count($partContentTypes),
             'partContentTypeMediaTypeCount' => count($partContentTypeMediaTypes),
             'partContentTypeMediaTypeCounts' => $partContentTypeMediaTypeCounts,
@@ -11750,6 +11759,7 @@ final class DocxOpenXmlReader
             'partCaseFoldBaseNames' => $partCaseFoldBaseNames,
             'partNameCharacterReviewParts' => $partNameCharacters['parts'],
             'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
+            'partContentTypeSources' => $partContentTypeSources,
             'partContentTypes' => $partContentTypes,
             'partContentTypeMediaTypes' => $partContentTypeMediaTypes,
             'partRoles' => $partRoles,
@@ -12069,6 +12079,144 @@ final class DocxOpenXmlReader
         }
 
         return array_values($contentTypes);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartContentTypeSourceSummary(array $partInventory): array
+    {
+        $sources = [];
+        foreach ($partInventory as $partName => $part) {
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+
+            if (!isset($sources[$contentTypeSource])) {
+                $sources[$contentTypeSource] = [
+                    'contentTypeSource' => $contentTypeSource,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'structuredSyntaxPartCount' => 0,
+                    'contentTypes' => [],
+                    'contentTypeBaseCounts' => [],
+                    'contentTypeSyntaxSuffixCounts' => [],
+                    'partExtensionCounts' => [],
+                    'defaultExtensions' => [],
+                    'overridePartNames' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$sources[$contentTypeSource]['partCount'];
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $sources[$contentTypeSource]['byteLength'] += $bytes;
+            $sources[$contentTypeSource]['partNames'][] = (string) ($part['partName'] ?? $partName);
+
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$sources[$contentTypeSource]['relationshipPartCount'];
+            }
+            if ($contentTypeSource === 'missing') {
+                ++$sources[$contentTypeSource]['missingContentTypePartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$sources[$contentTypeSource]['parameterizedPartCount'];
+            }
+
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $sources[$contentTypeSource]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($sources[$contentTypeSource]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $contentTypeSuffix = $this->contentTypeStructuredSyntaxSuffix($contentTypeBase);
+            $contentTypeSyntaxSuffixKey = $contentTypeBase === '' ? '(missing)' : ($contentTypeSuffix ?? '(none)');
+            $sources[$contentTypeSource]['contentTypeSyntaxSuffixCounts'][$contentTypeSyntaxSuffixKey] =
+                ($sources[$contentTypeSource]['contentTypeSyntaxSuffixCounts'][$contentTypeSyntaxSuffixKey] ?? 0) + 1;
+            if ($contentTypeSuffix !== null) {
+                ++$sources[$contentTypeSource]['structuredSyntaxPartCount'];
+            }
+
+            $partExtension = is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null;
+            $partExtensionKey = $partExtension ?? '(none)';
+            $sources[$contentTypeSource]['partExtensionCounts'][$partExtensionKey] =
+                ($sources[$contentTypeSource]['partExtensionCounts'][$partExtensionKey] ?? 0) + 1;
+
+            $this->appendUniqueString(
+                $sources[$contentTypeSource]['contentTypes'],
+                is_string($part['contentType'] ?? null) ? $part['contentType'] : null,
+            );
+            $this->appendUniqueString(
+                $sources[$contentTypeSource]['defaultExtensions'],
+                is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+            );
+            $this->appendUniqueString(
+                $sources[$contentTypeSource]['overridePartNames'],
+                is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+            );
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $sources[$contentTypeSource]['roleCounts'][$role] =
+                    ($sources[$contentTypeSource]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => is_string($part['directory'] ?? null)
+                    ? $part['directory']
+                    : $this->packagePartDirectory((string) $partName),
+                'baseName' => is_string($part['baseName'] ?? null)
+                    ? $part['baseName']
+                    : $this->packagePartBaseName((string) $partName),
+                'partExtension' => $partExtension,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSyntaxSuffix' => $contentTypeSuffix,
+                'contentTypeSource' => $contentTypeSource,
+                'defaultExtension' => is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+                'overridePartName' => is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $sources[$contentTypeSource]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $sources[$contentTypeSource]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($sources, SORT_STRING);
+        foreach ($sources as $source => $summary) {
+            sort($summary['contentTypes'], SORT_STRING);
+            sort($summary['defaultExtensions'], SORT_STRING);
+            sort($summary['overridePartNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['contentTypeSyntaxSuffixCounts'], SORT_STRING);
+            ksort($summary['partExtensionCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $sources[$source] = $summary;
+        }
+
+        return array_values($sources);
     }
 
     /**

@@ -7808,6 +7808,118 @@ XML;
         $t->same(['package-part' => 1], $missing['roleCounts']);
         $t->same('customXml/no-type.bin', $missing['largestPart']['partName']);
     },
+    'summarizes docx package part content type source buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            [
+                '<Default Extension="xml" ContentType="application/xml"/>',
+                '<Default Extension="png" ContentType="image/png"/>',
+                '</Types>',
+            ],
+            [
+                '<Default Extension="xml" ContentType="application/xml; profile=source-bucket"/>',
+                '<Default Extension="png" ContentType="image/png; profile=source-media"/>',
+                '  <Default Extension="json" ContentType="application/vnd.example.review+json; profile=source-bucket"/>' . "\n" .
+                '  <Override PartName="/customXml/override-source.xml" ContentType="application/vnd.example.override+xml; profile=source-override"/>' . "\n" .
+                '</Types>',
+            ],
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/default-source.json'] = str_repeat('D', 2048);
+        $parts['customXml/override-source.xml'] = '<override-source/>';
+        $parts['customXml/untyped-source.bin'] = 'missing source bucket bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $buckets = [];
+        foreach ($summary['partContentTypeSources'] as $bucket) {
+            $buckets[$bucket['contentTypeSource']] = $bucket;
+        }
+
+        $t->same(3, $summary['partContentTypeSourceCount']);
+        $t->same(['default' => 7, 'missing' => 1, 'override' => 3], $summary['partContentTypeSourceCounts']);
+        $t->same(['default', 'missing', 'override'], array_column($summary['partContentTypeSources'], 'contentTypeSource'));
+        $t->same(['default' => 7, 'missing' => 1, 'override' => 3], $summary['contentTypeSourceCounts']);
+
+        $default = $buckets['default'];
+        $t->same(7, $default['partCount']);
+        $t->same(2, $default['relationshipPartCount']);
+        $t->same(0, $default['missingContentTypePartCount']);
+        $t->same(5, $default['parameterizedPartCount']);
+        $t->same(3, $default['structuredSyntaxPartCount']);
+        $t->same([
+            'application/vnd.example.review+json' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 2,
+            'application/xml' => 3,
+            'image/png' => 1,
+        ], $default['contentTypeBaseCounts']);
+        $t->same(['(none)' => 4, 'json' => 1, 'xml' => 2], $default['contentTypeSyntaxSuffixCounts']);
+        $t->same(['json' => 1, 'png' => 1, 'rels' => 2, 'xml' => 3], $default['partExtensionCounts']);
+        $t->same(['json', 'png', 'rels', 'xml'], $default['defaultExtensions']);
+        $t->same([], $default['overridePartNames']);
+        $t->same([
+            'content-types' => 1,
+            'document-relationship-target' => 1,
+            'office-document-relationships' => 1,
+            'package-part' => 3,
+            'package-relationships' => 1,
+            'relationship-part' => 2,
+        ], $default['roleCounts']);
+        $t->same('customXml/default-source.json', $default['largestPart']['partName']);
+        $t->same('customXml', $default['largestPart']['directory']);
+        $t->same('default-source.json', $default['largestPart']['baseName']);
+        $t->same('json', $default['largestPart']['partExtension']);
+        $t->same(2048, $default['largestPart']['bytes']);
+        $t->same(hash('sha256', $parts['customXml/default-source.json']), $default['largestPart']['sha256']);
+        $t->same('application/vnd.example.review+json', $default['largestPart']['contentTypeBase']);
+        $t->same('json', $default['largestPart']['contentTypeSyntaxSuffix']);
+        $t->same('default', $default['largestPart']['contentTypeSource']);
+        $t->same('json', $default['largestPart']['defaultExtension']);
+        $t->same(null, $default['largestPart']['overridePartName']);
+        $t->same(false, $default['largestPart']['isRelationshipPart']);
+        $t->same(['package-part'], $default['largestPart']['roles']);
+
+        $override = $buckets['override'];
+        $t->same(3, $override['partCount']);
+        $t->same(0, $override['relationshipPartCount']);
+        $t->same(1, $override['parameterizedPartCount']);
+        $t->same(3, $override['structuredSyntaxPartCount']);
+        $t->same([
+            'application/vnd.example.override+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+        ], $override['contentTypeBaseCounts']);
+        $t->same(['xml' => 3], $override['contentTypeSyntaxSuffixCounts']);
+        $t->same(['xml' => 3], $override['partExtensionCounts']);
+        $t->same(['customXml/override-source.xml', 'docProps/core.xml', 'word/document.xml'], $override['overridePartNames']);
+        $t->same(['office-document' => 1, 'package-part' => 1, 'root-relationship-target' => 2], $override['roleCounts']);
+        $t->same('word/document.xml', $override['largestPart']['partName']);
+        $t->same('word', $override['largestPart']['directory']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $override['largestPart']['contentTypeBase']);
+        $t->same(null, $override['largestPart']['defaultExtension']);
+        $t->same('word/document.xml', $override['largestPart']['overridePartName']);
+        $t->same(['office-document', 'root-relationship-target'], $override['largestPart']['roles']);
+
+        $missing = $buckets['missing'];
+        $t->same(1, $missing['partCount']);
+        $t->same(strlen($parts['customXml/untyped-source.bin']), $missing['byteLength']);
+        $t->same(1, $missing['missingContentTypePartCount']);
+        $t->same(0, $missing['parameterizedPartCount']);
+        $t->same(0, $missing['structuredSyntaxPartCount']);
+        $t->same(['(missing)' => 1], $missing['contentTypeBaseCounts']);
+        $t->same(['(missing)' => 1], $missing['contentTypeSyntaxSuffixCounts']);
+        $t->same(['bin' => 1], $missing['partExtensionCounts']);
+        $t->same(['bin'], $missing['defaultExtensions']);
+        $t->same(['package-part' => 1], $missing['roleCounts']);
+        $t->same(['customXml/untyped-source.bin'], $missing['partNames']);
+        $t->same('customXml/untyped-source.bin', $missing['largestPart']['partName']);
+        $t->same('', $missing['largestPart']['contentTypeBase']);
+        $t->same(null, $missing['largestPart']['contentTypeSyntaxSuffix']);
+        $t->same('missing', $missing['largestPart']['contentTypeSource']);
+        $t->same('bin', $missing['largestPart']['defaultExtension']);
+        $t->same(hash('sha256', $parts['customXml/untyped-source.bin']), $missing['largestPart']['sha256']);
+    },
     'summarizes docx package part roles for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $embeddedPackageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
