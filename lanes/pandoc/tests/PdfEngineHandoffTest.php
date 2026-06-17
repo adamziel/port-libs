@@ -850,18 +850,19 @@ return [
         $t->same('workspace', $plan['engineBoundaryRoot']);
         $t->same([
             'root-boundary',
+            'boundary-overrides',
             'output-format',
         ], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
         $t->same($expectedRootCase, $plan['typstBoundaryMatrix']['cases'][0]);
         $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
-        $t->same(2, $plan['typstBoundaryMatrix']['caseCount']);
-        $t->same(1, $plan['typstBoundaryMatrix']['reviewCaseCount']);
-        $t->same(2, $plan['typstBoundaryMatrix']['issueCount']);
+        $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(3, $plan['typstBoundaryMatrix']['issueCount']);
         $t->contains('root-boundary:root-boundary-overridden', implode(',', $plan['typstBoundaryMatrix']['issues']));
         $t->contains('root-boundary:root-external-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
-        $t->contains('typst-boundary-matrix-cases:2', implode(',', $plan['diagnostics']));
-        $t->contains('typst-boundary-matrix-review-cases:1', implode(',', $plan['diagnostics']));
-        $t->contains('typst-boundary-matrix-issues:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-cases:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-review-cases:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-issues:3', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expectedRootCase, $result['typstBoundaryMatrix']['cases'][0]);
         $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
@@ -3551,10 +3552,10 @@ return [
 
         $t->same($expectedCase, $planCases['diagnostic-output']);
         $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
-        $t->same(2, $plan['typstBoundaryMatrix']['caseCount']);
-        $t->same(1, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['reviewCaseCount']);
         $t->contains('diagnostic-output:diagnostic-format-invalid-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
-        $t->contains('typst-boundary-matrix-review-cases:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-review-cases:2', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expectedCase, $resultCases['diagnostic-output']);
         $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
@@ -4690,8 +4691,39 @@ return [
                 'build/override-boundary.pdf' => $pdfBytes,
             ],
         ]]);
+        $planCases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $planCases[$case['case']] = $case;
+        }
+        $resultCases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $resultCases[$case['case']] = $case;
+        }
+        $expectedOverrideCase = [
+            'case' => 'boundary-overrides',
+            'reviewStatus' => 'review',
+            'observed' => 4,
+            'details' => [
+                'overrideCount' => 4,
+                'historyEntryCount' => 8,
+                'overriddenOptions' => ['creationTimestamp', 'packageCache', 'packagePath', 'root'],
+                'selectedByOption' => [
+                    'creationTimestamp' => $timestamp,
+                    'packageCache' => 'cache/typst',
+                    'packagePath' => 'vendor/typst-packages',
+                    'root' => 'workspace',
+                ],
+            ],
+            'issues' => [
+                'creation-timestamp-boundary-overridden',
+                'package-cache-boundary-overridden',
+                'package-path-boundary-overridden',
+                'root-boundary-overridden',
+            ],
+        ];
 
         $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->same($expectedOverrideCase, $planCases['boundary-overrides']);
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-root-boundary:workspace', implode(',', $plan['diagnostics']));
         $t->contains('typst-package-path:vendor/typst-packages', implode(',', $plan['diagnostics']));
@@ -4703,10 +4735,14 @@ return [
         $t->contains('typst-boundary-issues:8', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expectedOverrideCase, $resultCases['boundary-overrides']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('boundary-overrides:root-boundary-overridden', implode(',', $result['typstBoundaryMatrix']['issues']));
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
     },
 
     'fake runner preserves typst dependency sidecar provenance without executing' => static function (TestRunner $t) use ($document): void {
@@ -7068,6 +7104,7 @@ return [
             'environment-shadows',
             'font-path-policy',
             'input-variables',
+            'boundary-overrides',
             'feature-gates',
             'font-access-controls',
             'certificate-paths',
@@ -7081,8 +7118,8 @@ return [
             'open-output',
         ], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
         $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
-        $t->same(15, $plan['typstBoundaryMatrix']['caseCount']);
-        $t->contains('typst-boundary-matrix-cases:15', implode(',', $plan['diagnostics']));
+        $t->same(16, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->contains('typst-boundary-matrix-cases:16', implode(',', $plan['diagnostics']));
 
         $matrix = $result['typstBoundaryMatrix'];
         $cases = [];
@@ -7096,6 +7133,7 @@ return [
             'environment-shadows',
             'font-path-policy',
             'input-variables',
+            'boundary-overrides',
             'feature-gates',
             'font-access-controls',
             'certificate-paths',
@@ -7113,8 +7151,8 @@ return [
             'warning-provenance',
         ], array_column($matrix['cases'], 'case'));
         $t->same('review', $matrix['reviewStatus']);
-        $t->same(19, $matrix['caseCount']);
-        $t->same(11, $matrix['reviewCaseCount']);
+        $t->same(20, $matrix['caseCount']);
+        $t->same(12, $matrix['reviewCaseCount']);
         $t->same('workspace', $cases['root-boundary']['details']['path']);
         $t->same('relative', $cases['root-boundary']['details']['kind']);
         $t->same('ok', $cases['root-boundary']['reviewStatus']);
@@ -7123,6 +7161,8 @@ return [
         $t->same(1, $cases['font-path-policy']['details']['unsafeFontPathCount']);
         $t->same(2, $cases['input-variables']['observed']);
         $t->same(['audience'], $cases['input-variables']['details']['overriddenInputNames']);
+        $t->same(3, $cases['boundary-overrides']['observed']);
+        $t->same(['features', 'input:audience', 'outputFormat'], $cases['boundary-overrides']['details']['overriddenOptions']);
         $t->same(3, $cases['feature-gates']['observed']);
         $t->same(2, $cases['font-access-controls']['observed']);
         $t->same(true, $cases['font-access-controls']['details']['systemFontAccessDisabled']);
@@ -7143,10 +7183,11 @@ return [
         $t->same(1, $cases['warning-provenance']['details']['outsideRootCount']);
         $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
         $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
-        $t->contains('typst-boundary-matrix-cases:19', implode(',', $result['diagnostics']));
+        $t->contains('typst-boundary-matrix-cases:20', implode(',', $result['diagnostics']));
         $t->contains('environment-shadows:root-environment-shadowed', implode(',', $matrix['issues']));
         $t->contains('font-path-policy:font-path-external-boundary', implode(',', $matrix['issues']));
         $t->contains('input-variables:input-variable-boundary-overridden:audience', implode(',', $matrix['issues']));
+        $t->contains('boundary-overrides:format-boundary-overridden', implode(',', $matrix['issues']));
         $t->contains('open-output:open-output-side-effect-boundary', implode(',', $matrix['issues']));
         $t->contains('package-dependencies:package-version-conflict:preview/cetz', implode(',', $matrix['issues']));
         $t->contains('warning-provenance:warning-source-outside-root', implode(',', $matrix['issues']));

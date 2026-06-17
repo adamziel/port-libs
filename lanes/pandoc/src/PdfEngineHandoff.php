@@ -7521,6 +7521,40 @@ final class PdfEngineHandoff
             ], $inputIssues);
         }
 
+        $boundaryOverrides = is_array($provenance['overrides'] ?? null) ? array_values(array_filter(
+            $provenance['overrides'],
+            static fn (mixed $entry): bool => is_array($entry)
+        )) : [];
+        if ($boundaryOverrides !== []) {
+            $overriddenOptions = [];
+            $selectedByOption = [];
+            $historyEntryCount = 0;
+            foreach ($boundaryOverrides as $override) {
+                $option = is_string($override['option'] ?? null) ? $override['option'] : '';
+                if ($option === '') {
+                    continue;
+                }
+
+                $overriddenOptions[] = $option;
+                if (is_string($override['selected'] ?? null)) {
+                    $selectedByOption[$option] = $override['selected'];
+                }
+                $historyEntryCount += is_int($override['count'] ?? null)
+                    ? $override['count']
+                    : count(is_array($override['values'] ?? null) ? $override['values'] : []);
+            }
+            $overriddenOptions = array_values(array_unique($overriddenOptions));
+            sort($overriddenOptions);
+            ksort($selectedByOption);
+            $overrideIssues = $optionIssues($boundaryOverrides);
+            $appendCase('boundary-overrides', 'review', count($boundaryOverrides), [
+                'overrideCount' => count($boundaryOverrides),
+                'historyEntryCount' => $historyEntryCount,
+                'overriddenOptions' => $overriddenOptions,
+                'selectedByOption' => $selectedByOption,
+            ], $overrideIssues);
+        }
+
         $featureGates = is_array($provenance['featureGates'] ?? null) ? $provenance['featureGates'] : [];
         $featureGateEnvironment = is_array($provenance['featureGateEnvironment'] ?? null) ? $provenance['featureGateEnvironment'] : [];
         $featureGateIssues = array_merge($entryIssues($featureGates), $entryIssues($featureGateEnvironment));
