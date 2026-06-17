@@ -729,6 +729,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['glossaryDocumentRelationshipIssueCodes'] = $glossaryDocument['relationshipIssueCodes'];
         $packageProvenance['summary']['glossaryDocumentBuildingBlockCount'] = $glossaryDocument['count'];
         $packageProvenance['summary']['glossaryDocumentBodyBlockCount'] = $glossaryDocument['bodyBlockCount'];
+        $packageProvenance['summary']['glossaryDocumentInvalidXmlCount'] = $glossaryDocument['invalidXmlCount'];
+        $packageProvenance['summary']['glossaryDocumentInvalidRootCount'] = $glossaryDocument['invalidRootCount'];
         $packageProvenance['summary']['glossaryDocumentIssueCount'] = $glossaryDocument['issueCount'];
         $packageProvenance['summary']['glossaryDocumentIssueCodes'] = $glossaryDocument['issueCodes'];
         $packageProvenance['customXmlParts'] = $customXmlParts;
@@ -17343,6 +17345,8 @@ final class DocxOpenXmlReader
             'validRoot' => null,
             'rootNamespace' => null,
             'rootLocalName' => null,
+            'invalidXmlCount' => 0,
+            'invalidRootCount' => 0,
             'count' => 0,
             'bodyBlockCount' => 0,
             'names' => [],
@@ -17370,7 +17374,10 @@ final class DocxOpenXmlReader
         $dom = $this->loadXmlForProvenance($xml, $partName);
         if (!$dom instanceof \DOMDocument) {
             $summary['validXml'] = false;
+            $summary['validRoot'] = false;
             $summary['xmlParseError'] = $this->lastXmlPreflightError($xml, $partName);
+            $summary['invalidXmlCount'] = 1;
+            $summary['invalidRootCount'] = 1;
             $summary['issueCount'] = 1;
             $summary['issueCodes'] = ['invalid-xml'];
 
@@ -17386,6 +17393,7 @@ final class DocxOpenXmlReader
             && $root->localName === 'glossaryDocument';
 
         if ($summary['validRoot'] !== true) {
+            $summary['invalidRootCount'] = 1;
             $summary['issueCount'] = 1;
             $summary['issueCodes'] = ['unexpected-root'];
 

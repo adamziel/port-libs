@@ -9598,6 +9598,72 @@ XML;
         $t->same(['invalid-xml'], $glossary['issues']);
         $t->true(is_string($glossary['xmlParseError']) && $glossary['xmlParseError'] !== '', 'malformed glossary XML should retain the parser diagnostic');
     },
+    'summarizes malformed docx glossary document xml in dedicated package provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml; profile=broken"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rBrokenGlossary" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument" Target="glossary/document.xml?profile=broken#docparts"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/glossary/document.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docParts><w:docPart><w:docPartPr><w:name w:val="Broken Boilerplate"/></w:docPartPr>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $glossary = $docx['glossaryDocument'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+
+        $t->same('document', $document->type);
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same($glossary, $package['glossaryDocument']);
+        $t->same('word/glossary/document.xml', $docx['glossaryDocumentPart']);
+        $t->same('rBrokenGlossary', $docx['glossaryDocumentRelationship']['id']);
+        $t->same('glossary/document.xml?profile=broken#docparts', $docx['glossaryDocumentRelationship']['target']);
+        $t->same('word/glossary/document.xml', $docx['glossaryDocumentRelationship']['targetPart']);
+        $t->same(true, $docx['glossaryDocumentRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml; profile=broken', $docx['glossaryDocumentRelationship']['contentType']);
+        $t->same(['profile' => 'broken'], $docx['glossaryDocumentRelationship']['contentTypeParameterMap']);
+
+        $t->same('word/glossary/document.xml', $glossary['partName']);
+        $t->same(true, $glossary['exists']);
+        $t->same('word/glossary/_rels/document.xml.rels', $glossary['relationshipsPart']);
+        $t->same(false, $glossary['validXml']);
+        $t->same(false, $glossary['validRoot']);
+        $t->same(null, $glossary['rootNamespace']);
+        $t->same(null, $glossary['rootLocalName']);
+        $t->contains('Premature end of data', $glossary['xmlParseError']);
+        $t->same(1, $glossary['invalidXmlCount']);
+        $t->same(1, $glossary['invalidRootCount']);
+        $t->same(0, $glossary['count']);
+        $t->same(0, $glossary['bodyBlockCount']);
+        $t->same([], $glossary['items']);
+        $t->same([], $glossary['byName']);
+        $t->same(1, $glossary['issueCount']);
+        $t->same(['invalid-xml'], $glossary['issueCodes']);
+        $t->same(0, $glossary['relationshipCount']);
+
+        $t->same(1, $summary['glossaryDocumentInvalidXmlCount']);
+        $t->same(1, $summary['glossaryDocumentInvalidRootCount']);
+        $t->same(0, $summary['glossaryDocumentBuildingBlockCount']);
+        $t->same(0, $summary['glossaryDocumentBodyBlockCount']);
+        $t->same(1, $summary['glossaryDocumentIssueCount']);
+        $t->same(['invalid-xml'], $summary['glossaryDocumentIssueCodes']);
+        $t->same(1, $summary['selectedXmlPartInvalidXmlCount']);
+        $t->same(['glossaryDocument'], $summary['selectedXmlPartIssueKinds']);
+    },
     'resolves docx web settings from relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
