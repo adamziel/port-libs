@@ -8708,6 +8708,105 @@ XML;
         $t->same('00ABCDEF', $replyNote->attr('commentParentParaId'));
         $t->same(false, $replyNote->attr('commentResolved'));
     },
+    'reports malformed docx commentsExtended xml without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/broken-comments-extended.xml" ContentType="application/vnd.ms-word.commentsExt+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments/review-comments.xml"/>' . "\n" .
+            '  <Relationship Id="rBrokenCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="comments/broken-comments-extended.xml?thread=broken#commentsEx"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>',
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> with malformed thread metadata </w:t></w:r>' . "\n" .
+            '      <w:r><w:commentReference w:id="12"/></w:r>',
+            $parts['word/document.xml']
+        );
+        $parts['word/comments/review-comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+  <w:comment w:id="12" w:author="Review Lead" w:initials="RL" w:date="2026-06-17T14:00:00Z">
+    <w:p w14:paraId="00BADBAD"><w:r><w:t>Comment survives bad extended sidecar.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+        $parts['word/comments/broken-comments-extended.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w15:commentEx w15:paraId="00BADBAD" w15:done="1"
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $commentsExtended = $docx['commentsExtended'];
+        $relationship = $docx['commentsExtendedRelationship'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $selected = $package['selectedXmlParts']['byKind']['commentsExtended'];
+        $paragraph = $document->children[1];
+        $notes = array_values(array_filter($paragraph->children, static fn (AstNode $node): bool => $node->type === 'note'));
+        $note = $notes[0];
+
+        $t->same('word/comments/broken-comments-extended.xml', $docx['commentsExtendedPart']);
+        $t->same('rBrokenCommentsExtended', $relationship['id']);
+        $t->same('comments/broken-comments-extended.xml?thread=broken#commentsEx', $relationship['target']);
+        $t->same('word/comments/broken-comments-extended.xml?thread=broken#commentsEx', $relationship['resolvedTarget']);
+        $t->same('word/comments/broken-comments-extended.xml', $relationship['targetPart']);
+        $t->same('thread=broken', $relationship['targetQuery']);
+        $t->same('commentsEx', $relationship['targetFragment']);
+        $t->same(true, $relationship['exists']);
+        $t->same('application/vnd.ms-word.commentsExt+xml', $relationship['contentType']);
+
+        $t->same(0, $commentsExtended['count']);
+        $t->same(0, $commentsExtended['resolvedCount']);
+        $t->same(0, $commentsExtended['threadedCount']);
+        $t->same([], $commentsExtended['paraIds']);
+        $t->same([], $commentsExtended['byParaId']);
+        $t->same([], $commentsExtended['items']);
+        $t->same(false, $commentsExtended['validXml']);
+        $t->contains('attributes construct error', (string) $commentsExtended['xmlParseError']);
+        $t->same(null, $commentsExtended['rootNamespace']);
+        $t->same(null, $commentsExtended['rootLocalName']);
+        $t->same(false, $commentsExtended['validRoot']);
+        $t->same(1, $commentsExtended['invalidXmlCount']);
+        $t->same(1, $commentsExtended['issueCount']);
+        $t->same(['invalid-comments-extended-xml'], $commentsExtended['issueCodes']);
+
+        $t->same(0, $summary['commentsExtendedCount']);
+        $t->same(0, $summary['commentsExtendedResolvedCount']);
+        $t->same(0, $summary['commentsExtendedThreadedCount']);
+        $t->same(1, $summary['commentsExtendedInvalidXmlCount']);
+        $t->same(1, $summary['commentsExtendedIssueCount']);
+        $t->same(['invalid-comments-extended-xml'], $summary['commentsExtendedIssueCodes']);
+        $t->same(1, $summary['selectedXmlPartInvalidXmlCount']);
+        $t->true(in_array('commentsExtended', $summary['selectedXmlPartIssueKinds'], true), 'commentsExtended should be marked in selected XML issue kinds');
+
+        $t->same('relationship', $selected['selectionSource']);
+        $t->same('rBrokenCommentsExtended', $selected['relationshipId']);
+        $t->same('word/comments/broken-comments-extended.xml', $selected['partName']);
+        $t->same(false, $selected['validRoot']);
+        $t->contains('attributes construct error', (string) $selected['xmlParseError']);
+        $t->same(['invalid-xml'], $selected['issues']);
+        $t->same('thread=broken', $selected['targetQuery']);
+        $t->same('commentsEx', $selected['targetFragment']);
+        $t->same(true, $selected['contentTypeMatchesExpected']);
+
+        $t->same('00BADBAD', $docx['comments']['byId']['12']['commentParaId']);
+        $t->true(!isset($docx['comments']['byId']['12']['commentResolved']), 'malformed commentsExtended XML should not invent resolved metadata');
+        $t->same('12', $note->attr('id'));
+        $t->same('00BADBAD', $note->attr('commentParaId'));
+        $t->same(null, $note->attr('commentResolved'));
+        $t->same(null, $note->attr('commentsExtendedPart'));
+    },
     'preserves docx commentsIds durable id package metadata from relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

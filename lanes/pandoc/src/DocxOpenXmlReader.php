@@ -610,6 +610,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['stylesWithEffectsPart'] = $stylesWithEffectsPart['partName'];
         $packageProvenance['summary']['stylesWithEffectsExists'] = $stylesWithEffectsPart['exists'];
         $packageProvenance['summary']['stylesWithEffectsRelationshipId'] = $stylesWithEffectsPart['relationship']['id'] ?? null;
+        $packageProvenance['summary']['commentsExtendedCount'] = $commentsExtended['summary']['count'];
+        $packageProvenance['summary']['commentsExtendedResolvedCount'] = $commentsExtended['summary']['resolvedCount'];
+        $packageProvenance['summary']['commentsExtendedThreadedCount'] = $commentsExtended['summary']['threadedCount'];
+        $packageProvenance['summary']['commentsExtendedInvalidXmlCount'] = $commentsExtended['summary']['invalidXmlCount'];
+        $packageProvenance['summary']['commentsExtendedIssueCount'] = $commentsExtended['summary']['issueCount'];
+        $packageProvenance['summary']['commentsExtendedIssueCodes'] = $commentsExtended['summary']['issueCodes'];
         $packageProvenance['summary']['commentsIdsCount'] = $commentsIds['summary']['count'];
         $packageProvenance['summary']['commentsIdsMissingParaIdCount'] = $commentsIds['summary']['missingParaIdCount'];
         $packageProvenance['summary']['commentsIdsMissingDurableIdCount'] = $commentsIds['summary']['missingDurableIdCount'];
@@ -15360,22 +15366,61 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{summary:array{count:int, resolvedCount:int, threadedCount:int, paraIds:list<string>, byParaId:array<string, array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}>, items:list<array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}>}, byParaId:array<string, array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}>}
+     * @return array{summary:array<string, mixed>, byParaId:array<string, array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}>}
      */
     private function readCommentsExtended(string $xml, string $partName): array
     {
+        $empty = [
+            'count' => 0,
+            'resolvedCount' => 0,
+            'threadedCount' => 0,
+            'paraIds' => [],
+            'byParaId' => [],
+            'items' => [],
+            'validXml' => null,
+            'xmlParseError' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'validRoot' => null,
+            'invalidXmlCount' => 0,
+            'issueCount' => 0,
+            'issueCodes' => [],
+        ];
         if ($xml === '') {
             return [
-                'summary' => ['count' => 0, 'resolvedCount' => 0, 'threadedCount' => 0, 'paraIds' => [], 'byParaId' => [], 'items' => []],
+                'summary' => $empty,
                 'byParaId' => [],
             ];
         }
 
-        $dom = $this->loadXml($xml, $partName);
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [
+                'summary' => [
+                    ...$empty,
+                    'validXml' => false,
+                    'xmlParseError' => $this->lastXmlPreflightError($xml, $partName),
+                    'validRoot' => false,
+                    'invalidXmlCount' => 1,
+                    'issueCount' => 1,
+                    'issueCodes' => ['invalid-comments-extended-xml'],
+                ],
+                'byParaId' => [],
+            ];
+        }
+
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_W15 || $root->localName !== 'commentsEx') {
             return [
-                'summary' => ['count' => 0, 'resolvedCount' => 0, 'threadedCount' => 0, 'paraIds' => [], 'byParaId' => [], 'items' => []],
+                'summary' => [
+                    ...$empty,
+                    'validXml' => $root instanceof \DOMElement,
+                    'rootNamespace' => $root instanceof \DOMElement ? $root->namespaceURI : null,
+                    'rootLocalName' => $root instanceof \DOMElement ? $root->localName : null,
+                    'validRoot' => false,
+                    'issueCount' => 1,
+                    'issueCodes' => ['unexpected-comments-extended-root'],
+                ],
                 'byParaId' => [],
             ];
         }
@@ -15415,6 +15460,14 @@ final class DocxOpenXmlReader
                 'paraIds' => array_column($items, 'paraId'),
                 'byParaId' => $byParaId,
                 'items' => $items,
+                'validXml' => true,
+                'xmlParseError' => null,
+                'rootNamespace' => $root->namespaceURI,
+                'rootLocalName' => $root->localName,
+                'validRoot' => true,
+                'invalidXmlCount' => 0,
+                'issueCount' => 0,
+                'issueCodes' => [],
             ],
             'byParaId' => $byParaId,
         ];
