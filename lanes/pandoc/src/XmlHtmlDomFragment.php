@@ -92,6 +92,7 @@ final class XmlHtmlDomFragment
     public static function parseHtml(string $html): self
     {
         self::assertSafeHtmlSource($html, 'HTML fragment');
+        $html = XmlHtmlDom::protectHtmlRcdataElements($html);
 
         $previous = libxml_use_internal_errors(true);
         $dom = new \DOMDocument('1.0', 'UTF-8');
