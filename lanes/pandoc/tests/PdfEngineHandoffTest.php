@@ -6448,6 +6448,68 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstDependencyOutputPolicy']);
     },
 
+    'maps typst dependency output policy paths into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/output-matrix.pdf',
+            'source' => '= Typst Output Matrix Packet',
+            'engineOptions' => ['--deps=build/output-matrix.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst output matrix packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/output-matrix.pdf build/output-matrix.svg: build/output-matrix.typ figures/chart.svg',
+            '',
+        ]);
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'declaredOutputFile' => 'build/output-matrix.pdf',
+            'dependencyOutputFiles' => ['build/output-matrix.pdf', 'build/output-matrix.svg'],
+            'declaredOutputPresent' => true,
+            'extraOutputFiles' => ['build/output-matrix.svg'],
+            'issues' => ['unexpected-output-files:1'],
+        ];
+        $expectedDetails = [
+            'declaredOutputPresent' => true,
+            'declaredOutputFile' => 'build/output-matrix.pdf',
+            'dependencyOutputFiles' => ['build/output-matrix.pdf', 'build/output-matrix.svg'],
+            'extraOutputFileCount' => 1,
+            'extraOutputFiles' => ['build/output-matrix.svg'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/output-matrix.d' => $depfile,
+                'build/output-matrix.pdf' => $pdfBytes,
+                'figures/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/output-matrix.d' => $depfile,
+                'build/output-matrix.pdf' => $pdfBytes,
+                'figures/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+            ],
+        ]]);
+        $cases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(true, $result['ok']);
+        $t->same(['build/output-matrix.pdf', 'build/output-matrix.svg'], $result['engineOutputFiles']);
+        $t->same($expectedPolicy, $result['typstDependencyOutputPolicy']);
+        $t->same('dependency-output-policy', $cases['dependency-output-policy']['case']);
+        $t->same('review', $cases['dependency-output-policy']['reviewStatus']);
+        $t->same(2, $cases['dependency-output-policy']['observed']);
+        $t->same($expectedDetails, $cases['dependency-output-policy']['details']);
+        $t->same(['unexpected-output-files:1'], $cases['dependency-output-policy']['issues']);
+        $t->contains('dependency-output-policy:unexpected-output-files:1', implode(',', $result['typstBoundaryMatrix']['issues']));
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+        $t->contains('typst-boundary-matrix-cases:2', implode(',', $result['diagnostics']));
+    },
+
     'fake runner reviews typst output format boundary provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $okPlan = $handoff->plan($document(), [

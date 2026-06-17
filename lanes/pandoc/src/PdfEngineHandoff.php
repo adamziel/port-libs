@@ -7878,9 +7878,20 @@ final class PdfEngineHandoff
 
         if ($dependencyOutputPolicy !== []) {
             $dependencyOutputIssues = is_array($dependencyOutputPolicy['issues'] ?? null) ? $dependencyOutputPolicy['issues'] : [];
+            $dependencyOutputFiles = array_values(array_filter(
+                is_array($dependencyOutputPolicy['dependencyOutputFiles'] ?? null) ? $dependencyOutputPolicy['dependencyOutputFiles'] : [],
+                static fn (mixed $path): bool => is_string($path) && $path !== ''
+            ));
+            $extraOutputFiles = array_values(array_filter(
+                is_array($dependencyOutputPolicy['extraOutputFiles'] ?? null) ? $dependencyOutputPolicy['extraOutputFiles'] : [],
+                static fn (mixed $path): bool => is_string($path) && $path !== ''
+            ));
             $appendCase('dependency-output-policy', ($dependencyOutputPolicy['reviewStatus'] ?? 'ok') === 'ok' && $dependencyOutputIssues === [] ? 'ok' : 'review', count(is_array($dependencyOutputPolicy['dependencyOutputFiles'] ?? null) ? $dependencyOutputPolicy['dependencyOutputFiles'] : []), [
                 'declaredOutputPresent' => ($dependencyOutputPolicy['declaredOutputPresent'] ?? false) === true,
-                'extraOutputFileCount' => count(is_array($dependencyOutputPolicy['extraOutputFiles'] ?? null) ? $dependencyOutputPolicy['extraOutputFiles'] : []),
+                'declaredOutputFile' => is_string($dependencyOutputPolicy['declaredOutputFile'] ?? null) ? $dependencyOutputPolicy['declaredOutputFile'] : null,
+                'dependencyOutputFiles' => $dependencyOutputFiles,
+                'extraOutputFileCount' => count($extraOutputFiles),
+                'extraOutputFiles' => $extraOutputFiles,
             ], $dependencyOutputIssues);
         }
 
