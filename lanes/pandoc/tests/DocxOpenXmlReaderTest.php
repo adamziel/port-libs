@@ -10667,6 +10667,209 @@ XML;
         $t->true(in_array('note-comment-media', $inventory['word/media/comment.jpg']['roles'], true), 'comment note-comment-media inventory role missing');
         $t->true(in_array('note-comment-media', $inventory['word/media/end.bin']['roles'], true), 'endnote note-comment-media inventory role missing');
     },
+    'summarizes docx note and comment hyperlink relationships for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $targetBytes = '<target source="footnote"/>';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/notes/review-footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' . "\n" .
+            '  <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="notes/review-footnotes.xml"/>' . "\n" .
+            '  <Relationship Id="rEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>' . "\n" .
+            '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments/review-comments.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/notes/review-footnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:footnote w:id="42">
+    <w:p><w:hyperlink r:id="rFootExternal"><w:r><w:t>external source</w:t></w:r></w:hyperlink></w:p>
+    <w:p><w:hyperlink r:id="rFootInternal"><w:r><w:t>internal source</w:t></w:r></w:hyperlink></w:p>
+  </w:footnote>
+</w:footnotes>
+XML;
+        $parts['word/notes/_rels/review-footnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFootExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/footnote-source?review=1#src" TargetMode="External"/>
+  <Relationship Id="rFootInternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="../links/foot-target.xml?via=note#frag"/>
+  <Relationship Id="rFootMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="../links/missing-foot.missing?missing=1#lost"/>
+</Relationships>
+XML;
+        $parts['word/endnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="7"><w:p><w:r><w:t>Endnote audit.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+XML;
+        $parts['word/_rels/endnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rEndOrphan" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/end-orphan" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/comments/review-comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:comment w:id="12">
+    <w:p><w:hyperlink r:id="rCommentUnsafe"><w:r><w:t>unsafe source</w:t></w:r></w:hyperlink></w:p>
+  </w:comment>
+</w:comments>
+XML;
+        $parts['word/comments/_rels/review-comments.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCommentUnsafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/links/foot-target.xml'] = $targetBytes;
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $package = $docx['packageProvenance'];
+        $hyperlinks = $docx['noteCommentHyperlinkRelationships'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $footExternalKey = 'word/notes/_rels/review-footnotes.xml.rels#rFootExternal';
+        $footInternalKey = 'word/notes/_rels/review-footnotes.xml.rels#rFootInternal';
+        $footMissingKey = 'word/notes/_rels/review-footnotes.xml.rels#rFootMissing';
+        $endKey = 'word/_rels/endnotes.xml.rels#rEndOrphan';
+        $commentKey = 'word/comments/_rels/review-comments.xml.rels#rCommentUnsafe';
+        $footExternal = $hyperlinks['byRelationshipKey'][$footExternalKey];
+        $footInternal = $hyperlinks['byRelationshipKey'][$footInternalKey];
+        $footMissing = $hyperlinks['byRelationshipKey'][$footMissingKey];
+        $end = $hyperlinks['byRelationshipKey'][$endKey];
+        $comment = $hyperlinks['byRelationshipKey'][$commentKey];
+
+        $t->same($hyperlinks, $package['noteCommentHyperlinkRelationships']);
+        $t->same(5, $hyperlinks['count']);
+        $t->same(5, $hyperlinks['relationshipCount']);
+        $t->same(3, $hyperlinks['footnoteCount']);
+        $t->same(1, $hyperlinks['endnoteCount']);
+        $t->same(1, $hyperlinks['commentCount']);
+        $t->same(3, $hyperlinks['referencedCount']);
+        $t->same(2, $hyperlinks['orphanedCount']);
+        $t->same(2, $hyperlinks['internalCount']);
+        $t->same(1, $hyperlinks['existingCount']);
+        $t->same(1, $hyperlinks['missingCount']);
+        $t->same(3, $hyperlinks['externalCount']);
+        $t->same(1, $hyperlinks['unsafeExternalTargetCount']);
+        $t->same(1, $hyperlinks['missingContentTypeCount']);
+        $t->same(2, $hyperlinks['issueCount']);
+        $t->same([
+            'external-target-unsafe-scheme',
+            'missing-note-comment-hyperlink-content-type',
+            'missing-note-comment-hyperlink-target',
+        ], $hyperlinks['issueCodes']);
+        $t->same([
+            'rCommentUnsafe',
+            'rEndOrphan',
+            'rFootExternal',
+            'rFootInternal',
+            'rFootMissing',
+        ], $hyperlinks['relationshipIds']);
+        $t->true(in_array($footInternalKey, $hyperlinks['relationshipKeys'], true), 'footnote hyperlink relationship key missing');
+        $t->true(in_array($commentKey, $hyperlinks['relationshipKeys'], true), 'comment hyperlink relationship key missing');
+        $t->same(['word/links/foot-target.xml', 'word/links/missing-foot.missing'], $hyperlinks['partNames']);
+        $t->same([
+            'https://example.test/footnote-source?review=1#src',
+            'https://example.test/end-orphan',
+            'javascript:alert(1)',
+        ], $hyperlinks['externalTargets']);
+        $t->same(['application/xml'], $hyperlinks['contentTypes']);
+        $t->same('note-comment-hyperlink-bytes-blocked', $hyperlinks['byteExposurePolicy']);
+        $t->same('note-comment-hyperlink-metadata-only', $hyperlinks['reviewPolicy']);
+
+        $t->same('footnote', $footExternal['sourceKind']);
+        $t->same('word/notes/review-footnotes.xml', $footExternal['sourcePart']);
+        $t->same('word/notes/_rels/review-footnotes.xml.rels', $footExternal['relationshipsPart']);
+        $t->same('rFootExternal', $footExternal['relationshipId']);
+        $t->same($footExternalKey, $footExternal['relationshipKey']);
+        $t->same('https://example.test/footnote-source?review=1#src', $footExternal['target']);
+        $t->same('External', $footExternal['targetMode']);
+        $t->same(true, $footExternal['external']);
+        $t->same('absolute-uri', $footExternal['externalTargetKind']);
+        $t->same('https', $footExternal['externalTargetScheme']);
+        $t->same(true, $footExternal['externalTargetAllowed']);
+        $t->same('review=1', $footExternal['targetQuery']);
+        $t->same('src', $footExternal['targetFragment']);
+        $t->same('?review=1#src', $footExternal['targetReferenceSuffix']);
+        $t->same(true, $footExternal['referenced']);
+        $t->same(false, $footExternal['orphaned']);
+        $t->same(['42'], $footExternal['referencedItemIds']);
+        $t->same([], $footExternal['issues']);
+        $t->same(true, $footExternal['valid']);
+
+        $t->same('rFootInternal', $footInternal['relationshipId']);
+        $t->same('../links/foot-target.xml?via=note#frag', $footInternal['target']);
+        $t->same('word/links/foot-target.xml?via=note#frag', $footInternal['resolvedTarget']);
+        $t->same('word/links/foot-target.xml', $footInternal['targetPart']);
+        $t->same('via=note', $footInternal['targetQuery']);
+        $t->same('frag', $footInternal['targetFragment']);
+        $t->same(1, $footInternal['targetParentTraversalCount']);
+        $t->same(true, $footInternal['targetHasParentTraversal']);
+        $t->same(true, $footInternal['referenced']);
+        $t->same(['42'], $footInternal['referencedItemIds']);
+        $t->same(true, $footInternal['exists']);
+        $t->same(strlen($targetBytes), $footInternal['byteLength']);
+        $t->same(sprintf('%08x', crc32($targetBytes)), $footInternal['crc32']);
+        $t->same(hash('sha256', $targetBytes), $footInternal['sha256']);
+        $t->same('application/xml', $footInternal['contentType']);
+        $t->same('default', $footInternal['contentTypeSource']);
+        $t->same([], $footInternal['issues']);
+
+        $t->same('rFootMissing', $footMissing['relationshipId']);
+        $t->same(false, $footMissing['referenced']);
+        $t->same(true, $footMissing['orphaned']);
+        $t->same('word/links/missing-foot.missing', $footMissing['targetPart']);
+        $t->same(false, $footMissing['exists']);
+        $t->same(null, $footMissing['byteLength']);
+        $t->same('missing', $footMissing['contentTypeSource']);
+        $t->same(['missing-note-comment-hyperlink-content-type', 'missing-note-comment-hyperlink-target'], $footMissing['issues']);
+
+        $t->same('endnote', $end['sourceKind']);
+        $t->same(false, $end['referenced']);
+        $t->same(true, $end['orphaned']);
+        $t->same(true, $end['external']);
+        $t->same(true, $end['externalTargetAllowed']);
+        $t->same([], $end['issues']);
+
+        $t->same('comment', $comment['sourceKind']);
+        $t->same('word/comments/review-comments.xml', $comment['sourcePart']);
+        $t->same('rCommentUnsafe', $comment['relationshipId']);
+        $t->same(true, $comment['referenced']);
+        $t->same(['12'], $comment['referencedItemIds']);
+        $t->same('javascript:alert(1)', $comment['target']);
+        $t->same('absolute-uri', $comment['externalTargetKind']);
+        $t->same('javascript', $comment['externalTargetScheme']);
+        $t->same(false, $comment['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $comment['issues']);
+
+        $t->same(5, $summary['noteCommentHyperlinkRelationshipCount']);
+        $t->same(3, $summary['noteCommentHyperlinkRelationshipFootnoteCount']);
+        $t->same(1, $summary['noteCommentHyperlinkRelationshipEndnoteCount']);
+        $t->same(1, $summary['noteCommentHyperlinkRelationshipCommentCount']);
+        $t->same(3, $summary['noteCommentHyperlinkRelationshipReferencedCount']);
+        $t->same(2, $summary['noteCommentHyperlinkRelationshipOrphanedCount']);
+        $t->same(2, $summary['noteCommentHyperlinkRelationshipInternalCount']);
+        $t->same(1, $summary['noteCommentHyperlinkRelationshipExistingCount']);
+        $t->same(1, $summary['noteCommentHyperlinkRelationshipMissingCount']);
+        $t->same(3, $summary['noteCommentHyperlinkRelationshipExternalCount']);
+        $t->same(1, $summary['noteCommentHyperlinkRelationshipUnsafeExternalCount']);
+        $t->same(1, $summary['noteCommentHyperlinkRelationshipMissingContentTypeCount']);
+        $t->same(2, $summary['noteCommentHyperlinkRelationshipIssueCount']);
+        $t->same($hyperlinks['issueCodes'], $summary['noteCommentHyperlinkRelationshipIssueCodes']);
+
+        $t->true(in_array('note-comment-hyperlink-target', $inventory['word/links/foot-target.xml']['roles'], true), 'note-comment hyperlink inventory role missing');
+        $t->true(in_array('footnote-hyperlink-target', $inventory['word/links/foot-target.xml']['roles'], true), 'footnote hyperlink inventory role missing');
+        $t->true(!isset($docx['media']['word/links/foot-target.xml']), 'hyperlink target should not be exposed as media');
+    },
     'summarizes docx note and comment same-mode relationship collisions' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

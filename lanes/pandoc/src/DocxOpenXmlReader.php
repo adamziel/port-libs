@@ -57,8 +57,8 @@ final class DocxOpenXmlReader
     private const HEADER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
     private const FOOTER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     private const SUBDOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument';
-    private const HYPERLINK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
     private const IMAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+    private const HYPERLINK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
     private const CUSTOM_XML_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
     private const CUSTOM_XML_PROPS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
@@ -475,6 +475,11 @@ final class DocxOpenXmlReader
             ['sourceKind' => 'endnote', 'summary' => $endnotes['summary']],
             ['sourceKind' => 'comment', 'summary' => $comments['summary']],
         ]);
+        $noteCommentHyperlinkRelationships = $this->readNoteCommentHyperlinkRelationships($parts, $contentTypes, [
+            ['sourceKind' => 'footnote', 'summary' => $footnotes['summary']],
+            ['sourceKind' => 'endnote', 'summary' => $endnotes['summary']],
+            ['sourceKind' => 'comment', 'summary' => $comments['summary']],
+        ]);
         $documentBackgroundImages = $this->readDocumentBackgroundImages(
             $parts,
             $parts[$documentPart],
@@ -565,6 +570,21 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['noteCommentMediaRelationshipUnsafeExternalCount'] = $noteCommentMediaRelationships['unsafeExternalTargetCount'];
         $packageProvenance['summary']['noteCommentMediaRelationshipIssueCount'] = $noteCommentMediaRelationships['issueCount'];
         $packageProvenance['summary']['noteCommentMediaRelationshipIssueCodes'] = $noteCommentMediaRelationships['issueCodes'];
+        $packageProvenance['noteCommentHyperlinkRelationships'] = $noteCommentHyperlinkRelationships;
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipCount'] = $noteCommentHyperlinkRelationships['count'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipFootnoteCount'] = $noteCommentHyperlinkRelationships['footnoteCount'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipEndnoteCount'] = $noteCommentHyperlinkRelationships['endnoteCount'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipCommentCount'] = $noteCommentHyperlinkRelationships['commentCount'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipReferencedCount'] = $noteCommentHyperlinkRelationships['referencedCount'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipOrphanedCount'] = $noteCommentHyperlinkRelationships['orphanedCount'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipInternalCount'] = $noteCommentHyperlinkRelationships['internalCount'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipExistingCount'] = $noteCommentHyperlinkRelationships['existingCount'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipMissingCount'] = $noteCommentHyperlinkRelationships['missingCount'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipExternalCount'] = $noteCommentHyperlinkRelationships['externalCount'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipUnsafeExternalCount'] = $noteCommentHyperlinkRelationships['unsafeExternalTargetCount'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipMissingContentTypeCount'] = $noteCommentHyperlinkRelationships['missingContentTypeCount'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipIssueCount'] = $noteCommentHyperlinkRelationships['issueCount'];
+        $packageProvenance['summary']['noteCommentHyperlinkRelationshipIssueCodes'] = $noteCommentHyperlinkRelationships['issueCodes'];
         $packageProvenance['documentBackgroundImages'] = $documentBackgroundImages;
         $packageProvenance['summary']['documentBackgroundImageCount'] = $documentBackgroundImages['count'];
         $packageProvenance['summary']['documentBackgroundImageRelationshipCount'] = $documentBackgroundImages['relationshipCount'];
@@ -1056,6 +1076,7 @@ final class DocxOpenXmlReader
                 'documentMediaRelationships' => $documentMediaRelationships,
                 'headerFooterMediaRelationships' => $headerFooterMediaRelationships,
                 'noteCommentMediaRelationships' => $noteCommentMediaRelationships,
+                'noteCommentHyperlinkRelationships' => $noteCommentHyperlinkRelationships,
                 'documentBackgroundImages' => $documentBackgroundImages,
                 'bibliographyParts' => $bibliographyParts,
                 'chartParts' => $chartParts,
@@ -4150,6 +4171,189 @@ final class DocxOpenXmlReader
             'referencedItemCount' => (int) ($relationship['referencedItemCount'] ?? 0),
             'byteExposurePolicy' => 'note-comment-media-bytes-blocked',
             'reviewPolicy' => 'note-comment-media-metadata-only',
+            'valid' => $issues === [],
+            'issues' => $issues,
+            'relationship' => $relationship,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param list<array{sourceKind:string, summary:array<string, mixed>}> $sources
+     * @return array<string, mixed>
+     */
+    private function readNoteCommentHyperlinkRelationships(array $parts, array $contentTypes, array $sources): array
+    {
+        $items = [];
+        $byRelationshipKey = [];
+        $relationshipIds = [];
+        $relationshipKeys = [];
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        $sourceCounts = ['footnote' => 0, 'endnote' => 0, 'comment' => 0];
+
+        foreach ($sources as $source) {
+            $sourceKind = $source['sourceKind'];
+            $relationships = is_array($source['summary']['relationships'] ?? null)
+                ? $source['summary']['relationships']
+                : [];
+
+            foreach ($relationships as $relationship) {
+                if (!is_array($relationship) || ($relationship['type'] ?? null) !== self::HYPERLINK_REL) {
+                    continue;
+                }
+
+                $item = $this->noteCommentHyperlinkRelationshipItem(
+                    $parts,
+                    $contentTypes,
+                    $sourceKind,
+                    $relationship,
+                    count($items),
+                );
+                $items[] = $item;
+                $sourceCounts[$sourceKind] = ($sourceCounts[$sourceKind] ?? 0) + 1;
+
+                $relationshipId = is_string($item['relationshipId'] ?? null) ? $item['relationshipId'] : '';
+                $relationshipKey = is_string($item['relationshipKey'] ?? null) ? $item['relationshipKey'] : '';
+                $this->appendUniqueString($relationshipIds, $relationshipId);
+                $this->appendUniqueString($relationshipKeys, $relationshipKey);
+                if ($relationshipKey !== '') {
+                    $byRelationshipKey[$relationshipKey] = $item;
+                }
+                if (($item['external'] ?? false) === true) {
+                    $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                } else {
+                    $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+                }
+                $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+                foreach (($item['issues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issueCodes[$issue] = true;
+                    }
+                }
+            }
+        }
+
+        sort($relationshipIds, SORT_STRING);
+        sort($relationshipKeys, SORT_STRING);
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count($items),
+            'footnoteCount' => $sourceCounts['footnote'] ?? 0,
+            'endnoteCount' => $sourceCounts['endnote'] ?? 0,
+            'commentCount' => $sourceCounts['comment'] ?? 0,
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => ($item['referenced'] ?? false) === true)),
+            'orphanedCount' => count(array_filter($items, static fn (array $item): bool => ($item['orphaned'] ?? false) === true)),
+            'internalCount' => count(array_filter($items, static fn (array $item): bool => ($item['external'] ?? false) === false)),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => ($item['external'] ?? false) === false && ($item['exists'] ?? false) === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-note-comment-hyperlink-target', $item['issues'] ?? [], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => ($item['external'] ?? false) === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-target-unsafe-scheme', $item['issues'] ?? [], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-note-comment-hyperlink-content-type', $item['issues'] ?? [], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => ($item['issues'] ?? []) !== [])),
+            'relationshipIds' => $relationshipIds,
+            'relationshipKeys' => $relationshipKeys,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipKey' => $byRelationshipKey,
+            'items' => $items,
+            'byteExposurePolicy' => 'note-comment-hyperlink-bytes-blocked',
+            'reviewPolicy' => 'note-comment-hyperlink-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, mixed> $relationship
+     * @return array<string, mixed>
+     */
+    private function noteCommentHyperlinkRelationshipItem(
+        array $parts,
+        array $contentTypes,
+        string $sourceKind,
+        array $relationship,
+        int $index
+    ): array {
+        $targetPart = is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : null;
+        $exists = $targetPart !== null && isset($parts[$targetPart]);
+        $external = ($relationship['external'] ?? false) === true;
+        $contentTypeResolution = $targetPart === null
+            ? $this->missingContentTypeResolution(null)
+            : $this->contentTypeResolutionForPart($targetPart, $contentTypes);
+        $issues = [];
+
+        if ($external) {
+            foreach (($relationship['externalTargetIssues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issues[] = $issue;
+                }
+            }
+        } else {
+            if (!$exists) {
+                $issues[] = 'missing-note-comment-hyperlink-target';
+            }
+            if (($contentTypeResolution['contentTypeSource'] ?? '') === 'missing') {
+                $issues[] = 'missing-note-comment-hyperlink-content-type';
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        $relationshipId = is_string($relationship['id'] ?? null) ? $relationship['id'] : '';
+        $relationshipsPart = is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : '';
+
+        return [
+            'index' => $index,
+            'sourceKind' => $sourceKind,
+            'sourcePart' => is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : '',
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipId' => $relationshipId,
+            'relationshipKey' => $relationshipsPart . '#' . $relationshipId,
+            'relationshipType' => is_string($relationship['type'] ?? null) ? $relationship['type'] : '',
+            'target' => is_string($relationship['target'] ?? null) ? $relationship['target'] : '',
+            'targetMode' => is_string($relationship['targetMode'] ?? null) ? $relationship['targetMode'] : '',
+            'resolvedTarget' => is_string($relationship['resolvedTarget'] ?? null) ? $relationship['resolvedTarget'] : '',
+            'external' => $external,
+            'partName' => $targetPart,
+            'targetPart' => $targetPart,
+            'targetQuery' => $relationship['targetQuery'] ?? null,
+            'targetFragment' => $relationship['targetFragment'] ?? null,
+            'targetReferenceSuffix' => is_string($relationship['targetReferenceSuffix'] ?? null) ? $relationship['targetReferenceSuffix'] : '',
+            'targetParentTraversalCount' => (int) ($relationship['targetParentTraversalCount'] ?? 0),
+            'targetHasParentTraversal' => ($relationship['targetHasParentTraversal'] ?? false) === true,
+            'targetStartsAtPackageRoot' => ($relationship['targetStartsAtPackageRoot'] ?? false) === true,
+            'sameSourcePart' => ($relationship['sameSourcePart'] ?? false) === true,
+            'exists' => $exists,
+            'byteLength' => $exists ? strlen($parts[$targetPart]) : null,
+            'crc32' => $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'sha256' => $exists ? hash('sha256', $parts[$targetPart]) : null,
+            'contentType' => $contentTypeResolution['contentType'],
+            'contentTypeBase' => $contentTypeResolution['contentTypeBase'],
+            'contentTypeHasParameters' => $contentTypeResolution['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $contentTypeResolution['contentTypeParameterCount'],
+            'contentTypeParameters' => $contentTypeResolution['contentTypeParameters'],
+            'contentTypeParameterMap' => $contentTypeResolution['contentTypeParameterMap'],
+            'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
+            'defaultExtension' => $contentTypeResolution['defaultExtension'],
+            'overridePartName' => $contentTypeResolution['overridePartName'],
+            'externalTargetKind' => $relationship['externalTargetKind'] ?? null,
+            'externalTargetScheme' => $relationship['externalTargetScheme'] ?? null,
+            'externalTargetAllowed' => $relationship['externalTargetAllowed'] ?? null,
+            'referenced' => ($relationship['referenced'] ?? false) === true,
+            'orphaned' => ($relationship['orphaned'] ?? false) === true,
+            'referencedItemIds' => is_array($relationship['referencedItemIds'] ?? null) ? $relationship['referencedItemIds'] : [],
+            'referencedItemCount' => (int) ($relationship['referencedItemCount'] ?? 0),
+            'byteExposurePolicy' => 'note-comment-hyperlink-bytes-blocked',
+            'reviewPolicy' => 'note-comment-hyperlink-metadata-only',
             'valid' => $issues === [],
             'issues' => $issues,
             'relationship' => $relationship,
@@ -13657,6 +13861,12 @@ final class DocxOpenXmlReader
                 self::CT_WORD_COMMENTS => 'comment-media',
                 default => null,
             };
+            $noteCommentHyperlinkRole = match ($relationshipSourceContentTypeBase) {
+                self::CT_WORD_FOOTNOTES => 'footnote-hyperlink-target',
+                self::CT_WORD_ENDNOTES => 'endnote-hyperlink-target',
+                self::CT_WORD_COMMENTS => 'comment-hyperlink-target',
+                default => null,
+            };
 
             foreach ($this->readRelationshipsPart($parts, $relationshipPart) as $relationship) {
                 if ($this->isExternalRelationshipTarget($relationship)) {
@@ -13677,6 +13887,10 @@ final class DocxOpenXmlReader
                 if ($noteCommentMediaRole !== null && $relationship['type'] === self::IMAGE_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, $noteCommentMediaRole);
                     $this->addPartRole($rolesByPart, $targetPart, 'note-comment-media');
+                }
+                if ($noteCommentHyperlinkRole !== null && $relationship['type'] === self::HYPERLINK_REL) {
+                    $this->addPartRole($rolesByPart, $targetPart, $noteCommentHyperlinkRole);
+                    $this->addPartRole($rolesByPart, $targetPart, 'note-comment-hyperlink-target');
                 }
             }
         }
