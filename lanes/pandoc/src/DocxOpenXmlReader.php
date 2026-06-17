@@ -1113,7 +1113,7 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, string> $parts
-     * @return array{records:list<array{ordinal:int, id:string, type:string, target:string, targetMode:string, resolvedTarget:string}>, exists:bool, validXml:?bool, xmlParseError:?string, issues:list<string>}
+     * @return array{records:list<array{ordinal:int, id:string, type:string, target:string, targetMode:string, resolvedTarget:string}>, exists:bool, validXml:?bool, validRoot:?bool, rootNamespace:?string, rootLocalName:?string, xmlParseError:?string, issues:list<string>}
      */
     private function readRelationshipRecordsPartDiagnostics(array $parts, string $partName): array
     {
@@ -1122,6 +1122,9 @@ final class DocxOpenXmlReader
                 'records' => [],
                 'exists' => false,
                 'validXml' => null,
+                'validRoot' => null,
+                'rootNamespace' => null,
+                'rootLocalName' => null,
                 'xmlParseError' => null,
                 'issues' => [],
             ];
@@ -1134,10 +1137,19 @@ final class DocxOpenXmlReader
                 'records' => [],
                 'exists' => true,
                 'validXml' => false,
+                'validRoot' => false,
+                'rootNamespace' => null,
+                'rootLocalName' => null,
                 'xmlParseError' => $error->getMessage(),
                 'issues' => ['invalid-xml'],
             ];
         }
+
+        $root = $dom->documentElement;
+        $rootNamespace = $root instanceof \DOMElement ? $root->namespaceURI : null;
+        $rootLocalName = $root instanceof \DOMElement ? $root->localName : null;
+        $validRoot = $rootNamespace === self::NS_REL && $rootLocalName === 'Relationships';
+        $issues = $validRoot ? [] : ['unexpected-root'];
 
         $xpath = $this->xpath($dom);
         $records = [];
@@ -1161,8 +1173,11 @@ final class DocxOpenXmlReader
             'records' => $records,
             'exists' => true,
             'validXml' => true,
+            'validRoot' => $validRoot,
+            'rootNamespace' => $rootNamespace,
+            'rootLocalName' => $rootLocalName,
             'xmlParseError' => null,
-            'issues' => [],
+            'issues' => $issues,
         ];
     }
 
@@ -8029,6 +8044,7 @@ final class DocxOpenXmlReader
         $invalidRelationshipRecordCount = 0;
         $relationshipRecordIssueCount = 0;
         $relationshipPartInvalidXmlCount = 0;
+        $relationshipPartUnexpectedRootCount = 0;
         $relationshipPartIssueCount = 0;
         $relationshipRecordTargetModeCounts = [];
         $relationshipRecordImplicitInternalTargetModeCount = 0;
@@ -8059,12 +8075,14 @@ final class DocxOpenXmlReader
         $relationshipPartsWithDuplicateRelationshipIds = [];
         $relationshipPartsWithInvalidRecords = [];
         $relationshipPartsWithInvalidXml = [];
+        $relationshipPartsWithUnexpectedRoot = [];
         $relationshipPartsWithExplicitInternalTargetMode = [];
         $relationshipPartsWithUnexpectedTargetMode = [];
         $duplicateRelationshipIds = [];
         $duplicateRelationshipIdItems = [];
         $invalidRelationshipRecords = [];
         $invalidRelationshipParts = [];
+        $unexpectedRootRelationshipParts = [];
         $relationshipsWithExplicitInternalTargetMode = [];
         $relationshipsWithUnexpectedTargetMode = [];
         $relationshipRecordIssueCodes = [];
@@ -8214,6 +8232,23 @@ final class DocxOpenXmlReader
                     'bytes' => (int) ($relationshipPart['bytes'] ?? 0),
                     'xmlParseError' => is_string($relationshipPart['xmlParseError'] ?? null)
                         ? $relationshipPart['xmlParseError']
+                        : null,
+                    'issues' => $relationshipPartIssues,
+                ];
+            }
+            if (($relationshipPart['validXml'] ?? null) === true && ($relationshipPart['validRoot'] ?? null) === false) {
+                ++$relationshipPartUnexpectedRootCount;
+                $relationshipPartsWithUnexpectedRoot[] = (string) $relationshipsPart;
+                $unexpectedRootRelationshipParts[] = [
+                    'partName' => (string) $relationshipsPart,
+                    'sourcePart' => $sourcePart,
+                    'sourceExists' => $sourceExists,
+                    'bytes' => (int) ($relationshipPart['bytes'] ?? 0),
+                    'rootNamespace' => is_string($relationshipPart['rootNamespace'] ?? null)
+                        ? $relationshipPart['rootNamespace']
+                        : null,
+                    'rootLocalName' => is_string($relationshipPart['rootLocalName'] ?? null)
+                        ? $relationshipPart['rootLocalName']
                         : null,
                     'issues' => $relationshipPartIssues,
                 ];
@@ -8498,6 +8533,7 @@ final class DocxOpenXmlReader
             'relationshipRecordIssueCount' => $relationshipRecordIssueCount,
             'relationshipRecordIssueCodes' => array_keys($relationshipRecordIssueCodes),
             'relationshipPartInvalidXmlCount' => $relationshipPartInvalidXmlCount,
+            'relationshipPartUnexpectedRootCount' => $relationshipPartUnexpectedRootCount,
             'relationshipPartIssueCount' => $relationshipPartIssueCount,
             'relationshipPartIssueCodes' => array_keys($relationshipPartIssueCodes),
             'relationshipRecordTargetModeCounts' => $relationshipRecordTargetModeCounts,
@@ -8600,6 +8636,7 @@ final class DocxOpenXmlReader
             'relationshipPartsWithDuplicateRelationshipIds' => $relationshipPartsWithDuplicateRelationshipIds,
             'relationshipPartsWithInvalidRecords' => $relationshipPartsWithInvalidRecords,
             'relationshipPartsWithInvalidXml' => $relationshipPartsWithInvalidXml,
+            'relationshipPartsWithUnexpectedRoot' => $relationshipPartsWithUnexpectedRoot,
             'relationshipPartsWithExplicitInternalTargetMode' => array_keys($relationshipPartsWithExplicitInternalTargetMode),
             'relationshipPartsWithUnexpectedTargetMode' => array_keys($relationshipPartsWithUnexpectedTargetMode),
             'relationshipPartsWithUnsafeExternalTargets' => array_keys($relationshipPartsWithUnsafeExternalTargets),
@@ -8617,6 +8654,7 @@ final class DocxOpenXmlReader
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
             'invalidRelationshipRecords' => $invalidRelationshipRecords,
             'invalidRelationshipParts' => $invalidRelationshipParts,
+            'unexpectedRootRelationshipParts' => $unexpectedRootRelationshipParts,
             'relationshipsWithExplicitInternalTargetMode' => $relationshipsWithExplicitInternalTargetMode,
             'relationshipsWithUnexpectedTargetMode' => $relationshipsWithUnexpectedTargetMode,
         ];
@@ -11016,6 +11054,9 @@ final class DocxOpenXmlReader
             'exists' => isset($parts[$relationshipsPart]),
             'bytes' => isset($parts[$relationshipsPart]) ? strlen($parts[$relationshipsPart]) : 0,
             'validXml' => $recordDiagnostics['validXml'],
+            'validRoot' => $recordDiagnostics['validRoot'],
+            'rootNamespace' => $recordDiagnostics['rootNamespace'],
+            'rootLocalName' => $recordDiagnostics['rootLocalName'],
             'xmlParseError' => $recordDiagnostics['xmlParseError'],
             'relationshipCount' => count($relationshipSummaries),
             'relationshipRecordCount' => count($relationshipRecords),

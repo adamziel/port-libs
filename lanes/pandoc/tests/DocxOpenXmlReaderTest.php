@@ -3062,6 +3062,52 @@ XML;
         $t->same(true, $inventory['word/_rels/review-source.xml.rels']['relationshipSourceExists']);
         $t->true(in_array('relationship-part', $inventory['word/_rels/review-source.xml.rels']['roles'], true), 'malformed relationship sidecar role missing');
     },
+    'reports docx relationship sidecars with unexpected roots without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/review-source.xml'] = '<review-source/>';
+        $parts['word/_rels/review-source.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<pkg:Relationships xmlns:pkg="urn:example:relationships">
+  <pkg:Relationship Id="rIgnored" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/ignored.png"/>
+</pkg:Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/review-source.xml.rels'];
+        $unexpectedRootPart = $summary['unexpectedRootRelationshipParts'][0];
+
+        $t->same('document', $document->type);
+        $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
+        $t->same(true, $relationshipPart['validXml']);
+        $t->same(false, $relationshipPart['validRoot']);
+        $t->same('urn:example:relationships', $relationshipPart['rootNamespace']);
+        $t->same('Relationships', $relationshipPart['rootLocalName']);
+        $t->same(null, $relationshipPart['xmlParseError']);
+        $t->same(0, $relationshipPart['relationshipCount']);
+        $t->same(0, $relationshipPart['relationshipRecordCount']);
+        $t->same(1, $relationshipPart['relationshipPartIssueCount']);
+        $t->same(['unexpected-root'], $relationshipPart['relationshipPartIssueCodes']);
+        $t->same([], $relationshipPart['relationships']);
+        $t->same([], $relationshipPart['relationshipRecords']);
+
+        $t->same(3, $summary['relationshipPartCount']);
+        $t->same(4, $summary['relationshipCount']);
+        $t->same(4, $summary['relationshipRecordCount']);
+        $t->same(0, $summary['relationshipPartInvalidXmlCount']);
+        $t->same(1, $summary['relationshipPartUnexpectedRootCount']);
+        $t->same(1, $summary['relationshipPartIssueCount']);
+        $t->same(['unexpected-root'], $summary['relationshipPartIssueCodes']);
+        $t->same([], $summary['relationshipPartsWithInvalidXml']);
+        $t->same(['word/_rels/review-source.xml.rels'], $summary['relationshipPartsWithUnexpectedRoot']);
+        $t->same('word/_rels/review-source.xml.rels', $unexpectedRootPart['partName']);
+        $t->same('word/review-source.xml', $unexpectedRootPart['sourcePart']);
+        $t->same(true, $unexpectedRootPart['sourceExists']);
+        $t->same('urn:example:relationships', $unexpectedRootPart['rootNamespace']);
+        $t->same('Relationships', $unexpectedRootPart['rootLocalName']);
+        $t->same(['unexpected-root'], $unexpectedRootPart['issues']);
+    },
     'summarizes docx relationship target mode declarations for package review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['_rels/.rels'] = str_replace(
