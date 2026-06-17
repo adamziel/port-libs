@@ -4085,6 +4085,182 @@ XML;
         $t->same(['word/header/header1.xml'], $header['sourceParts']);
         $t->same(['word/header/_rels/header1.xml.rels'], $header['relationshipParts']);
     },
+    'summarizes docx relationship source role buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $rootSourceXml = '<rootRole/>';
+        $wordSourceXml = '<wordRole/>';
+        $customSourceXml = '<customRole>' . str_repeat('C', 128) . '</customRole>';
+        $parts['root-role.xml'] = $rootSourceXml;
+        $parts['word/source-role.xml'] = $wordSourceXml;
+        $parts['customXml/source-role.xml'] = $customSourceXml;
+        $parts['word/media/root-role.png'] = 'root source role image bytes';
+        $parts['word/media/word-role.png'] = 'word source role image bytes';
+        $parts['word/media/custom-role.png'] = 'custom source role image bytes';
+        $parts['word/media/content-types-role.png'] = 'content types source role image bytes';
+        $parts['word/media/missing-role.png'] = 'missing source role image bytes';
+        $parts['word/media/relationship-role.png'] = 'relationship source role image bytes';
+        $parts['word/media/invalid-role.png'] = 'invalid source role image bytes';
+        $parts['_rels/root-role.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRootRoleImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/root-role.png"/>
+</Relationships>
+XML;
+        $parts['_rels/[Content_Types].xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rContentTypesRoleImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/content-types-role.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source-role.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rWordRoleImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/word-role.png"/>
+</Relationships>
+XML;
+        $parts['customXml/_rels/source-role.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCustomRoleImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/custom-role.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-role.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingRoleImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-role.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/_rels/document.xml.rels.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRelationshipRoleImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/relationship-role.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/media/document.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rInvalidRoleImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/invalid-role.png"/>
+</Relationships>
+XML;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $roles = [];
+        foreach ($summary['relationshipSourceRoles'] as $role) {
+            $roles[$role['sourceRoleKey']] = $role;
+        }
+
+        $t->same(8, $summary['relationshipSourceRoleBucketCount']);
+        $t->same([
+            '(missing)' => 2,
+            'content-types' => 1,
+            'office-document' => 1,
+            'office-document-relationships' => 1,
+            'package-part' => 3,
+            'package-root' => 1,
+            'relationship-part' => 1,
+            'root-relationship-target' => 1,
+        ], $summary['relationshipSourceRoleBucketCounts']);
+        $t->same([
+            'content-types' => 1,
+            'office-document' => 1,
+            'office-document-relationships' => 1,
+            'package-part' => 3,
+            'package-root' => 1,
+            'relationship-part' => 1,
+            'root-relationship-target' => 1,
+        ], $summary['relationshipSourceRoleCounts']);
+        $t->same([
+            '(missing)',
+            'content-types',
+            'office-document',
+            'office-document-relationships',
+            'package-part',
+            'package-root',
+            'relationship-part',
+            'root-relationship-target',
+        ], array_column($summary['relationshipSourceRoles'], 'sourceRoleKey'));
+
+        $missing = $roles['(missing)'];
+        $t->same(null, $missing['sourceRole']);
+        $t->same(2, $missing['sourceCount']);
+        $t->same(0, $missing['existingSourceCount']);
+        $t->same(2, $missing['nonExistingSourceCount']);
+        $t->same(2, $missing['relationshipCount']);
+        $t->same(['invalid-source' => 1, 'missing-source' => 1], $missing['relationshipSourceKindCounts']);
+        $t->same(['(invalid-source)' => 1, 'word' => 1], $missing['sourceDirectoryCounts']);
+        $t->same(['(invalid-source)' => 1, 'missing-role.xml' => 1], $missing['sourceBaseNameCounts']);
+        $t->same(['(missing)' => 2], $missing['sourceContentTypeBaseCounts']);
+        $t->same(['word/missing-role.xml'], $missing['sourceParts']);
+        $t->same(['word/_rels/media/document.xml.rels', 'word/_rels/missing-role.xml.rels'], $missing['relationshipParts']);
+        $t->same(null, $missing['largestExistingSourcePart']);
+
+        $packagePart = $roles['package-part'];
+        $t->same('package-part', $packagePart['sourceRole']);
+        $t->same(3, $packagePart['sourceCount']);
+        $t->same(3, $packagePart['existingSourceCount']);
+        $t->same(0, $packagePart['nonExistingSourceCount']);
+        $t->same(3, $packagePart['relationshipCount']);
+        $t->same(strlen($rootSourceXml) + strlen($wordSourceXml) + strlen($customSourceXml), $packagePart['existingSourceByteLength']);
+        $t->same(['package-part' => 3], $packagePart['relationshipSourceKindCounts']);
+        $t->same(['/' => 1, 'customXml' => 1, 'word' => 1], $packagePart['sourceDirectoryCounts']);
+        $t->same(['root-role.xml' => 1, 'source-role.xml' => 2], $packagePart['sourceBaseNameCounts']);
+        $t->same(['xml' => 3], $packagePart['sourcePartExtensionCounts']);
+        $t->same(['application/xml' => 3], $packagePart['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 3], $packagePart['sourceContentTypeSourceCounts']);
+        $t->same(['/', 'customXml', 'word'], $packagePart['sourceDirectories']);
+        $t->same(['customXml/source-role.xml', 'root-role.xml', 'word/source-role.xml'], $packagePart['sourceParts']);
+        $t->same(['_rels/root-role.xml.rels', 'customXml/_rels/source-role.xml.rels', 'word/_rels/source-role.xml.rels'], $packagePart['relationshipParts']);
+        $t->same('customXml/source-role.xml', $packagePart['largestExistingSourcePart']['sourcePart']);
+        $t->same(hash('sha256', $customSourceXml), $packagePart['largestExistingSourcePart']['sourceSha256']);
+
+        $contentTypes = $roles['content-types'];
+        $t->same(1, $contentTypes['sourceCount']);
+        $t->same(['content-types-item' => 1], $contentTypes['relationshipSourceKindCounts']);
+        $t->same(['/' => 1], $contentTypes['sourceDirectoryCounts']);
+        $t->same(['[Content_Types].xml'], $contentTypes['sourceParts']);
+        $t->same(['_rels/[Content_Types].xml.rels'], $contentTypes['relationshipParts']);
+        $t->same('application/xml', $contentTypes['largestExistingSourcePart']['sourceContentTypeBase']);
+
+        $officeDocument = $roles['office-document'];
+        $t->same(1, $officeDocument['sourceCount']);
+        $t->same(2, $officeDocument['relationshipCount']);
+        $t->same(['package-part' => 1], $officeDocument['relationshipSourceKindCounts']);
+        $t->same(['word/document.xml'], $officeDocument['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels'], $officeDocument['relationshipParts']);
+        $t->same('word/document.xml', $officeDocument['largestExistingSourcePart']['sourcePart']);
+        $rootRelationshipTarget = $roles['root-relationship-target'];
+        $t->same('root-relationship-target', $rootRelationshipTarget['sourceRole']);
+        $t->same($officeDocument['sourceCount'], $rootRelationshipTarget['sourceCount']);
+        $t->same($officeDocument['relationshipSourceKindCounts'], $rootRelationshipTarget['relationshipSourceKindCounts']);
+        $t->same($officeDocument['sourceParts'], $rootRelationshipTarget['sourceParts']);
+        $t->same($officeDocument['relationshipParts'], $rootRelationshipTarget['relationshipParts']);
+        $t->same($officeDocument['largestExistingSourcePart'], $rootRelationshipTarget['largestExistingSourcePart']);
+
+        $packageRoot = $roles['package-root'];
+        $t->same(1, $packageRoot['sourceCount']);
+        $t->same(2, $packageRoot['relationshipCount']);
+        $t->same(['package-root' => 1], $packageRoot['relationshipSourceKindCounts']);
+        $t->same(['(missing)' => 1], $packageRoot['sourceContentTypeBaseCounts']);
+        $t->same(['/'], $packageRoot['sourceParts']);
+        $t->same(['_rels/.rels'], $packageRoot['relationshipParts']);
+        $t->same(null, $packageRoot['largestExistingSourcePart']);
+
+        $relationshipPart = $roles['relationship-part'];
+        $t->same(1, $relationshipPart['sourceCount']);
+        $t->same(1, $relationshipPart['relationshipCount']);
+        $t->same(['relationship-part' => 1], $relationshipPart['relationshipSourceKindCounts']);
+        $t->same(['word/_rels' => 1], $relationshipPart['sourceDirectoryCounts']);
+        $t->same(['application/vnd.openxmlformats-package.relationships+xml' => 1], $relationshipPart['sourceContentTypeBaseCounts']);
+        $t->same(['word/_rels/document.xml.rels'], $relationshipPart['sourceParts']);
+        $t->same(['word/_rels/_rels/document.xml.rels.rels'], $relationshipPart['relationshipParts']);
+        $officeDocumentRelationships = $roles['office-document-relationships'];
+        $t->same('office-document-relationships', $officeDocumentRelationships['sourceRole']);
+        $t->same($relationshipPart['sourceCount'], $officeDocumentRelationships['sourceCount']);
+        $t->same($relationshipPart['relationshipSourceKindCounts'], $officeDocumentRelationships['relationshipSourceKindCounts']);
+        $t->same($relationshipPart['sourceParts'], $officeDocumentRelationships['sourceParts']);
+        $t->same($relationshipPart['relationshipParts'], $officeDocumentRelationships['relationshipParts']);
+        $t->same($relationshipPart['largestExistingSourcePart'], $officeDocumentRelationships['largestExistingSourcePart']);
+    },
     'summarizes docx relationship source digests for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $sourceDigestXml = str_repeat('A', 20000);
