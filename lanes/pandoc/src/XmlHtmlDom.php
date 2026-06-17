@@ -16734,8 +16734,13 @@ final class XmlHtmlDom
             $summary += self::definitionTermReviewSummary($element);
         }
         if ($name === 'bdi' || $name === 'bdo') {
-            $direction = strtolower(trim($element->getAttribute('dir')));
-            $summary['textDirection'] = in_array($direction, ['auto', 'ltr', 'rtl'], true) ? $direction : null;
+            if ($name === 'bdi' && !$element->hasAttribute('dir')) {
+                $summary['textDirection'] = 'auto';
+                $summary['textDirectionImplicitDefault'] = true;
+            } else {
+                $direction = strtolower(trim($element->getAttribute('dir')));
+                $summary['textDirection'] = in_array($direction, ['auto', 'ltr', 'rtl'], true) ? $direction : null;
+            }
         }
 
         return $summary;
@@ -18927,6 +18932,10 @@ final class XmlHtmlDom
             }
         }
 
+        if (self::htmlElementName($element) === 'bdi' && !array_key_exists('dir', $attributes)) {
+            return self::implicitBdiDirectionSummary($element);
+        }
+
         for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
             $ancestorAttributes = self::htmlAttributes($ancestor);
             if (!array_key_exists('dir', $ancestorAttributes)) {
@@ -18945,18 +18954,36 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    private static function implicitBdiDirectionSummary(\DOMElement $element): array
+    {
+        return self::directionProvenanceSummary(
+            $element,
+            'auto',
+            'auto',
+            false,
+            'implicit-bdi-dir-auto'
+        ) + [
+            'directionImplicitDefault' => true,
+            'directionImplicitDefaultElement' => 'bdi',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private static function directionProvenanceSummary(
         \DOMElement $source,
         string $raw,
         string $direction,
-        bool $inherited
+        bool $inherited,
+        ?string $sourceKind = null
     ): array {
         $summary = [
             'effectiveDirectionRaw' => $raw,
             'effectiveDirection' => $direction,
             'effectiveDirectionResolved' => $direction,
             'directionInherited' => $inherited,
-            'directionSource' => $inherited ? 'ancestor-dir' : 'self-dir',
+            'directionSource' => $sourceKind ?? ($inherited ? 'ancestor-dir' : 'self-dir'),
             'directionSourceElement' => self::htmlElementName($source),
         ];
 
