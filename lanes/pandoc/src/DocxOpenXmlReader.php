@@ -10259,6 +10259,30 @@ final class DocxOpenXmlReader
         $partRoles = $this->packagePartRoleSummary($partInventory);
         $largestParts = $this->largestPackagePartSummary($partInventory);
         $largestPart = $largestParts[0] ?? null;
+        $zeroByteParts = $this->zeroBytePackagePartSummary($partInventory);
+        $zeroByteRelationshipPartCount = 0;
+        $zeroByteMissingContentTypePartCount = 0;
+        $zeroByteContentTypeSourceCounts = [];
+        $zeroByteRoleCounts = [];
+        foreach ($zeroByteParts as $zeroBytePart) {
+            if (($zeroBytePart['isRelationshipPart'] ?? false) === true) {
+                ++$zeroByteRelationshipPartCount;
+            }
+            $contentTypeSource = is_string($zeroBytePart['contentTypeSource'] ?? null)
+                ? $zeroBytePart['contentTypeSource']
+                : 'missing';
+            $zeroByteContentTypeSourceCounts[$contentTypeSource] =
+                ($zeroByteContentTypeSourceCounts[$contentTypeSource] ?? 0) + 1;
+            if ($contentTypeSource === 'missing') {
+                ++$zeroByteMissingContentTypePartCount;
+            }
+            foreach (($zeroBytePart['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $zeroByteRoleCounts[$role] = ($zeroByteRoleCounts[$role] ?? 0) + 1;
+            }
+        }
+        ksort($zeroByteContentTypeSourceCounts);
+        ksort($zeroByteRoleCounts);
         $maxPartPathSegmentCount = 0;
         $deepestParts = [];
         foreach ($partInventory as $partName => $part) {
@@ -10964,6 +10988,15 @@ final class DocxOpenXmlReader
             'largestPartCount' => count($largestParts),
             'largestPartName' => $largestPart['partName'] ?? null,
             'largestPartBytes' => $largestPart['bytes'] ?? 0,
+            'zeroBytePartCount' => count($zeroByteParts),
+            'zeroBytePartNames' => array_values(array_map(
+                static fn (array $part): string => (string) $part['partName'],
+                $zeroByteParts,
+            )),
+            'zeroByteRelationshipPartCount' => $zeroByteRelationshipPartCount,
+            'zeroByteMissingContentTypePartCount' => $zeroByteMissingContentTypePartCount,
+            'zeroByteContentTypeSourceCounts' => $zeroByteContentTypeSourceCounts,
+            'zeroByteRoleCounts' => $zeroByteRoleCounts,
             'relationshipPartCount' => $relationshipPartCount,
             'relationshipPartByteLength' => $relationshipPartByteLength,
             'relationshipCount' => $relationshipCount,
@@ -11100,6 +11133,7 @@ final class DocxOpenXmlReader
             'partRoles' => $partRoles,
             'largestPart' => $largestPart,
             'largestParts' => $largestParts,
+            'zeroByteParts' => $zeroByteParts,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
@@ -11167,6 +11201,46 @@ final class DocxOpenXmlReader
         );
 
         return array_slice($items, 0, max(0, $limit));
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function zeroBytePackagePartSummary(array $partInventory): array
+    {
+        $items = [];
+        foreach ($partInventory as $partName => $part) {
+            if ((int) ($part['bytes'] ?? 0) !== 0) {
+                continue;
+            }
+
+            $items[] = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory((string) $partName),
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName((string) $partName),
+                'partExtension' => is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null,
+                'bytes' => 0,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                'contentTypeHasParameters' => (bool) ($part['contentTypeHasParameters'] ?? false),
+                'contentTypeParameterCount' => (int) ($part['contentTypeParameterCount'] ?? 0),
+                'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                'defaultExtension' => is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+                'overridePartName' => is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+        }
+
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
+        );
+
+        return $items;
     }
 
     /**

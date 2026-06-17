@@ -779,6 +779,53 @@ return [
         $t->same('bin', $largestParts[1]['defaultExtension']);
         $t->same(['package-part'], $largestParts[1]['roles']);
     },
+    'summarizes docx zero byte package parts for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/empty.bin'] = '';
+        $parts['customXml/empty-no-type.payload'] = '';
+        $parts['word/media/empty.png'] = '';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $zeroByteParts = $summary['zeroByteParts'];
+
+        $t->same(3, $summary['zeroBytePartCount']);
+        $t->same(['customXml/empty-no-type.payload', 'customXml/empty.bin', 'word/media/empty.png'], $summary['zeroBytePartNames']);
+        $t->same(0, $summary['zeroByteRelationshipPartCount']);
+        $t->same(1, $summary['zeroByteMissingContentTypePartCount']);
+        $t->same(['default' => 2, 'missing' => 1], $summary['zeroByteContentTypeSourceCounts']);
+        $t->same(['package-part' => 3], $summary['zeroByteRoleCounts']);
+
+        $t->same('customXml/empty-no-type.payload', $zeroByteParts[0]['partName']);
+        $t->same('customXml', $zeroByteParts[0]['directory']);
+        $t->same('empty-no-type.payload', $zeroByteParts[0]['baseName']);
+        $t->same('payload', $zeroByteParts[0]['partExtension']);
+        $t->same(0, $zeroByteParts[0]['bytes']);
+        $t->same('00000000', $zeroByteParts[0]['crc32']);
+        $t->same(hash('sha256', ''), $zeroByteParts[0]['sha256']);
+        $t->same('missing', $zeroByteParts[0]['contentTypeSource']);
+        $t->same('', $zeroByteParts[0]['contentType']);
+        $t->same(['package-part'], $zeroByteParts[0]['roles']);
+
+        $t->same('customXml/empty.bin', $zeroByteParts[1]['partName']);
+        $t->same('application/octet-stream', $zeroByteParts[1]['contentType']);
+        $t->same('bin', $zeroByteParts[1]['defaultExtension']);
+        $t->same('default', $zeroByteParts[1]['contentTypeSource']);
+        $t->same(['package-part'], $zeroByteParts[1]['roles']);
+
+        $t->same('word/media/empty.png', $zeroByteParts[2]['partName']);
+        $t->same('word/media', $zeroByteParts[2]['directory']);
+        $t->same('image/png', $zeroByteParts[2]['contentType']);
+        $t->same('image/png', $zeroByteParts[2]['contentTypeBase']);
+        $t->same('png', $zeroByteParts[2]['defaultExtension']);
+        $t->same(['package-part'], $zeroByteParts[2]['roles']);
+    },
     'summarizes docx package part directories for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';
