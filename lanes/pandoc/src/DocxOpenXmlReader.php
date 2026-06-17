@@ -10249,10 +10249,17 @@ final class DocxOpenXmlReader
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
         $partBaseNames = $this->packagePartBaseNameSummary($partInventory);
+        $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
         $duplicatePartBaseNames = [];
         foreach ($partBaseNames as $baseNameSummary) {
             if ((int) ($baseNameSummary['partCount'] ?? 0) > 1) {
                 $duplicatePartBaseNames[] = (string) ($baseNameSummary['baseName'] ?? '');
+            }
+        }
+        $duplicatePartCaseFoldBaseNames = [];
+        foreach ($partCaseFoldBaseNames as $caseFoldBaseNameSummary) {
+            if ((int) ($caseFoldBaseNameSummary['caseVariantCount'] ?? 0) > 1) {
+                $duplicatePartCaseFoldBaseNames[] = (string) ($caseFoldBaseNameSummary['caseFoldBaseName'] ?? '');
             }
         }
         $partContentTypes = $this->packagePartContentTypeSummary($partInventory);
@@ -10982,6 +10989,9 @@ final class DocxOpenXmlReader
             'partBaseNameCount' => count($partBaseNames),
             'duplicatePartBaseNameCount' => count($duplicatePartBaseNames),
             'duplicatePartBaseNames' => $duplicatePartBaseNames,
+            'partCaseFoldBaseNameCount' => count($partCaseFoldBaseNames),
+            'duplicatePartCaseFoldBaseNameCount' => count($duplicatePartCaseFoldBaseNames),
+            'duplicatePartCaseFoldBaseNames' => $duplicatePartCaseFoldBaseNames,
             'partContentTypeCount' => count($partContentTypes),
             'partRoleCount' => count($partRoles),
             'packageByteLength' => $packageByteLength,
@@ -11129,6 +11139,7 @@ final class DocxOpenXmlReader
             'deepestParts' => $deepestParts,
             'partExtensions' => $partExtensions,
             'partBaseNames' => $partBaseNames,
+            'partCaseFoldBaseNames' => $partCaseFoldBaseNames,
             'partContentTypes' => $partContentTypes,
             'partRoles' => $partRoles,
             'largestPart' => $largestPart,
@@ -11776,6 +11787,108 @@ final class DocxOpenXmlReader
             ksort($summary['roleCounts'], SORT_STRING);
             sort($summary['directories'], SORT_STRING);
             $baseNames[$baseName] = $summary;
+        }
+
+        return array_values($baseNames);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartCaseFoldBaseNameSummary(array $partInventory): array
+    {
+        $baseNames = [];
+        foreach ($partInventory as $partName => $part) {
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName((string) $partName);
+            $caseFoldBaseName = is_string($part['caseFoldBaseName'] ?? null)
+                ? $part['caseFoldBaseName']
+                : $this->packagePartCaseFoldKey($baseName);
+            if (!isset($baseNames[$caseFoldBaseName])) {
+                $baseNames[$caseFoldBaseName] = [
+                    'caseFoldBaseName' => $caseFoldBaseName,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'caseVariantCount' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'baseNameCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'directories' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$baseNames[$caseFoldBaseName]['partCount'];
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $baseNames[$caseFoldBaseName]['byteLength'] += $bytes;
+            $baseNames[$caseFoldBaseName]['partNames'][] = (string) $partName;
+            $baseNames[$caseFoldBaseName]['baseNameCounts'][$baseName] =
+                ($baseNames[$caseFoldBaseName]['baseNameCounts'][$baseName] ?? 0) + 1;
+            $this->appendUniqueString(
+                $baseNames[$caseFoldBaseName]['directories'],
+                is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory((string) $partName),
+            );
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$baseNames[$caseFoldBaseName]['relationshipPartCount'];
+            }
+
+            $contentTypeSource = (string) ($part['contentTypeSource'] ?? 'missing');
+            if ($contentTypeSource === 'missing') {
+                ++$baseNames[$caseFoldBaseName]['missingContentTypePartCount'];
+            }
+            $baseNames[$caseFoldBaseName]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($baseNames[$caseFoldBaseName]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $baseNames[$caseFoldBaseName]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($baseNames[$caseFoldBaseName]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $baseNames[$caseFoldBaseName]['roleCounts'][$role] =
+                    ($baseNames[$caseFoldBaseName]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory((string) $partName),
+                'baseName' => $baseName,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $baseNames[$caseFoldBaseName]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $baseNames[$caseFoldBaseName]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($baseNames, SORT_STRING);
+        foreach ($baseNames as $caseFoldBaseName => $summary) {
+            ksort($summary['baseNameCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            sort($summary['directories'], SORT_STRING);
+            $summary['caseVariantCount'] = count($summary['baseNameCounts']);
+            $baseNames[$caseFoldBaseName] = $summary;
         }
 
         return array_values($baseNames);
@@ -14547,6 +14660,7 @@ final class DocxOpenXmlReader
                 'directory' => $directory,
                 'directoryDepth' => $this->packagePartDirectoryDepth($directory),
                 'baseName' => $this->packagePartBaseName($partName),
+                'caseFoldBaseName' => $this->packagePartCaseFoldKey($this->packagePartBaseName($partName)),
                 'pathSegments' => $pathSegments,
                 'topLevelSegment' => $pathSegments[0] ?? '',
                 'pathSegmentCount' => count($pathSegments),
@@ -14626,6 +14740,18 @@ final class DocxOpenXmlReader
         $extension = strtolower(pathinfo($partName, PATHINFO_EXTENSION));
 
         return $extension === '' ? null : $extension;
+    }
+
+    private function packagePartCaseFoldKey(string $name): string
+    {
+        if (class_exists(\Normalizer::class)) {
+            $normalized = \Normalizer::normalize($name, \Normalizer::FORM_C);
+            if (is_string($normalized)) {
+                $name = $normalized;
+            }
+        }
+
+        return function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
     }
 
     /**

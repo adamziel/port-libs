@@ -1119,6 +1119,61 @@ XML;
         $t->same(['missing' => 1], $byBaseName['no-type.bin']['contentTypeSourceCounts']);
         $t->same(['package-part' => 1], $byBaseName['no-type.bin']['roleCounts']);
     },
+    'summarizes docx package part case-folded base names for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/Review.PNG'] = 'custom review png bytes';
+        $parts['word/media/REVIEW.PNG'] = 'upper review png bytes';
+        $parts['word/Diagram.XML'] = '<diagram/>';
+        $parts['customXml/diagram.xml'] = '<customDiagram/>';
+        $parts['customXml/no-type.BIN'] = 'untyped base-name bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byCaseFoldBaseName = [];
+        foreach ($summary['partCaseFoldBaseNames'] as $baseName) {
+            $byCaseFoldBaseName[$baseName['caseFoldBaseName']] = $baseName;
+        }
+
+        $t->same(10, $summary['partCaseFoldBaseNameCount']);
+        $t->same(2, $summary['duplicatePartCaseFoldBaseNameCount']);
+        $t->same(['diagram.xml', 'review.png'], $summary['duplicatePartCaseFoldBaseNames']);
+        $t->same('review.png', $inventory['word/media/review.png']['caseFoldBaseName']);
+        $t->same('review.png', $inventory['customXml/Review.PNG']['caseFoldBaseName']);
+        $t->same('review.png', $inventory['word/media/REVIEW.PNG']['caseFoldBaseName']);
+        $t->same('diagram.xml', $inventory['word/Diagram.XML']['caseFoldBaseName']);
+        $t->same('no-type.bin', $inventory['customXml/no-type.BIN']['caseFoldBaseName']);
+
+        $review = $byCaseFoldBaseName['review.png'];
+        $t->same(3, $review['partCount']);
+        $t->same(3, $review['caseVariantCount']);
+        $t->same(['REVIEW.PNG' => 1, 'Review.PNG' => 1, 'review.png' => 1], $review['baseNameCounts']);
+        $t->same(['customXml', 'word/media'], $review['directories']);
+        $t->same(['word/media/review.png', 'customXml/Review.PNG', 'word/media/REVIEW.PNG'], $review['partNames']);
+        $t->same(['image/png' => 3], $review['contentTypeBaseCounts']);
+        $t->same(['default' => 3], $review['contentTypeSourceCounts']);
+        $t->same(['document-relationship-target' => 1, 'package-part' => 2], $review['roleCounts']);
+        $t->same('customXml/Review.PNG', $review['largestPart']['partName']);
+        $t->same('Review.PNG', $review['largestPart']['baseName']);
+        $t->same(hash('sha256', $parts['customXml/Review.PNG']), $review['largestPart']['sha256']);
+
+        $diagram = $byCaseFoldBaseName['diagram.xml'];
+        $t->same(2, $diagram['partCount']);
+        $t->same(2, $diagram['caseVariantCount']);
+        $t->same(['Diagram.XML' => 1, 'diagram.xml' => 1], $diagram['baseNameCounts']);
+        $t->same(['customXml', 'word'], $diagram['directories']);
+        $t->same(['application/xml' => 2], $diagram['contentTypeBaseCounts']);
+        $t->same(['package-part' => 2], $diagram['roleCounts']);
+
+        $untyped = $byCaseFoldBaseName['no-type.bin'];
+        $t->same(1, $untyped['partCount']);
+        $t->same(1, $untyped['caseVariantCount']);
+        $t->same(1, $untyped['missingContentTypePartCount']);
+        $t->same(['no-type.BIN' => 1], $untyped['baseNameCounts']);
+        $t->same(['(missing)' => 1], $untyped['contentTypeBaseCounts']);
+        $t->same(['missing' => 1], $untyped['contentTypeSourceCounts']);
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
