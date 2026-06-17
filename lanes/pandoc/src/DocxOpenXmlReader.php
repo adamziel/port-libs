@@ -206,6 +206,17 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['digitalSignatureUnexpectedRootCount'] = $digitalSignatures['unexpectedSignatureRootCount'];
         $packageProvenance['summary']['digitalSignatureIssueCount'] = $digitalSignatures['issueCount'];
         $packageProvenance['summary']['digitalSignatureIssueCodes'] = $digitalSignatures['issueCodes'];
+        $packageProvenance['summary']['digitalSignatureReferenceCount'] = $digitalSignatures['referenceCount'];
+        $packageProvenance['summary']['digitalSignatureReferenceUriKindCounts'] = $digitalSignatures['referenceUriKindCounts'];
+        $packageProvenance['summary']['digitalSignaturePackageReferenceCount'] = $digitalSignatures['packageReferenceCount'];
+        $packageProvenance['summary']['digitalSignatureSameDocumentReferenceCount'] = $digitalSignatures['sameDocumentReferenceCount'];
+        $packageProvenance['summary']['digitalSignatureExternalReferenceCount'] = $digitalSignatures['externalReferenceCount'];
+        $packageProvenance['summary']['digitalSignatureRelativeReferenceCount'] = $digitalSignatures['relativeReferenceCount'];
+        $packageProvenance['summary']['digitalSignatureEmptyReferenceCount'] = $digitalSignatures['emptyReferenceCount'];
+        $packageProvenance['summary']['digitalSignatureReferenceTransformCount'] = $digitalSignatures['referenceTransformCount'];
+        $packageProvenance['summary']['digitalSignatureReferenceDigestValueCount'] = $digitalSignatures['referenceDigestValueCount'];
+        $packageProvenance['summary']['digitalSignatureReferenceDigestValueMissingCount'] = $digitalSignatures['referenceDigestValueMissingCount'];
+        $packageProvenance['summary']['digitalSignatureValuePresentCount'] = $digitalSignatures['signatureValuePresentCount'];
         $packageRootResources = $this->packageRootRelationshipResources($parts, $rootRelationships, $contentTypes);
         $packageProvenance['packageRootRelationshipResources'] = $packageRootResources;
         $packageProvenance['summary']['packageRootRelationshipResourceCount'] = $packageRootResources['count'];
@@ -9808,6 +9819,60 @@ final class DocxOpenXmlReader
 
         ksort($issueCodes, SORT_STRING);
 
+        $referenceUriKindCounts = [];
+        $referenceUris = [];
+        $referenceTransformAlgorithms = [];
+        $digestMethodAlgorithms = [];
+        $signatureMethodAlgorithms = [];
+        $canonicalizationMethodAlgorithms = [];
+        $referenceCount = 0;
+        $packageReferenceCount = 0;
+        $sameDocumentReferenceCount = 0;
+        $externalReferenceCount = 0;
+        $relativeReferenceCount = 0;
+        $emptyReferenceCount = 0;
+        $referenceTransformCount = 0;
+        $referenceDigestValueCount = 0;
+        $referenceDigestValueMissingCount = 0;
+        $signatureValuePresentCount = 0;
+        foreach ($signatures as $signature) {
+            $referenceCount += (int) ($signature['referenceCount'] ?? 0);
+            $packageReferenceCount += (int) ($signature['packageReferenceCount'] ?? 0);
+            $sameDocumentReferenceCount += (int) ($signature['sameDocumentReferenceCount'] ?? 0);
+            $externalReferenceCount += (int) ($signature['externalReferenceCount'] ?? 0);
+            $relativeReferenceCount += (int) ($signature['relativeReferenceCount'] ?? 0);
+            $emptyReferenceCount += (int) ($signature['emptyReferenceCount'] ?? 0);
+            $referenceTransformCount += (int) ($signature['referenceTransformCount'] ?? 0);
+            $referenceDigestValueCount += (int) ($signature['referenceDigestValueCount'] ?? 0);
+            $referenceDigestValueMissingCount += (int) ($signature['referenceDigestValueMissingCount'] ?? 0);
+            if (($signature['hasSignatureValue'] ?? false) === true) {
+                ++$signatureValuePresentCount;
+            }
+
+            foreach (($signature['referenceUriKindCounts'] ?? []) as $kind => $count) {
+                if (!is_string($kind) || $kind === '') {
+                    continue;
+                }
+                $referenceUriKindCounts[$kind] = ($referenceUriKindCounts[$kind] ?? 0) + (int) $count;
+            }
+            foreach (($signature['referenceUris'] ?? []) as $uri) {
+                $this->appendUniqueString($referenceUris, is_string($uri) ? $uri : null);
+            }
+            foreach (($signature['referenceTransformAlgorithms'] ?? []) as $algorithm) {
+                $this->appendUniqueString($referenceTransformAlgorithms, is_string($algorithm) ? $algorithm : null);
+            }
+            foreach (($signature['digestMethodAlgorithms'] ?? []) as $algorithm) {
+                $this->appendUniqueString($digestMethodAlgorithms, is_string($algorithm) ? $algorithm : null);
+            }
+            foreach (($signature['signatureMethodAlgorithms'] ?? []) as $algorithm) {
+                $this->appendUniqueString($signatureMethodAlgorithms, is_string($algorithm) ? $algorithm : null);
+            }
+            foreach (($signature['canonicalizationMethodAlgorithms'] ?? []) as $algorithm) {
+                $this->appendUniqueString($canonicalizationMethodAlgorithms, is_string($algorithm) ? $algorithm : null);
+            }
+        }
+        ksort($referenceUriKindCounts, SORT_STRING);
+
         return [
             'present' => $origins !== [],
             'originCount' => count($origins),
@@ -9853,6 +9918,22 @@ final class DocxOpenXmlReader
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),
+            'referenceCount' => $referenceCount,
+            'referenceUriKindCounts' => $referenceUriKindCounts,
+            'referenceUris' => $referenceUris,
+            'packageReferenceCount' => $packageReferenceCount,
+            'sameDocumentReferenceCount' => $sameDocumentReferenceCount,
+            'externalReferenceCount' => $externalReferenceCount,
+            'relativeReferenceCount' => $relativeReferenceCount,
+            'emptyReferenceCount' => $emptyReferenceCount,
+            'referenceTransformCount' => $referenceTransformCount,
+            'referenceTransformAlgorithms' => $referenceTransformAlgorithms,
+            'referenceDigestValueCount' => $referenceDigestValueCount,
+            'referenceDigestValueMissingCount' => $referenceDigestValueMissingCount,
+            'digestMethodAlgorithms' => $digestMethodAlgorithms,
+            'signatureMethodAlgorithms' => $signatureMethodAlgorithms,
+            'canonicalizationMethodAlgorithms' => $canonicalizationMethodAlgorithms,
+            'signatureValuePresentCount' => $signatureValuePresentCount,
             'byOriginRelationshipId' => $byOriginRelationshipId,
             'bySignatureRelationshipId' => $bySignatureRelationshipId,
             'origins' => $origins,

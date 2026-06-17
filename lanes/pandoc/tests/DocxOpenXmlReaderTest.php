@@ -2775,6 +2775,34 @@ XML;
             'unexpected-signature-content-type',
             'unexpected-signature-root',
         ], $signatures['issueCodes']);
+        $t->same(4, $signatures['referenceCount']);
+        $t->same(['external' => 1, 'package-part' => 1, 'relative' => 1, 'same-document' => 1], $signatures['referenceUriKindCounts']);
+        $t->same([
+            '/word/document.xml?review=1#body',
+            '#manifestPackageParts',
+            'https://example.test/signature-source.xml?remote=1#sig',
+            'customXml/item1.xml?slot=1#payload',
+        ], $signatures['referenceUris']);
+        $t->same(1, $signatures['packageReferenceCount']);
+        $t->same(1, $signatures['sameDocumentReferenceCount']);
+        $t->same(1, $signatures['externalReferenceCount']);
+        $t->same(1, $signatures['relativeReferenceCount']);
+        $t->same(0, $signatures['emptyReferenceCount']);
+        $t->same(2, $signatures['referenceTransformCount']);
+        $t->same([
+            'http://schemas.openxmlformats.org/package/2006/RelationshipTransform',
+            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+        ], $signatures['referenceTransformAlgorithms']);
+        $t->same(3, $signatures['referenceDigestValueCount']);
+        $t->same(1, $signatures['referenceDigestValueMissingCount']);
+        $t->same([
+            'http://www.w3.org/2001/04/xmlenc#sha256',
+            'http://www.w3.org/2000/09/xmldsig#sha1',
+            'http://www.w3.org/2001/04/xmlenc#sha512',
+        ], $signatures['digestMethodAlgorithms']);
+        $t->same(['http://www.w3.org/2001/04/xmldsig-more#rsa-sha256'], $signatures['signatureMethodAlgorithms']);
+        $t->same(['http://www.w3.org/TR/2001/REC-xml-c14n-20010315'], $signatures['canonicalizationMethodAlgorithms']);
+        $t->same(1, $signatures['signatureValuePresentCount']);
         $t->same(['rSignatureOrigin', 'rMissingSignatureOrigin', 'rExternalSignatureOrigin'], $signatures['originRelationshipIds']);
         $t->same(['rSignature1', 'rMissingSignature', 'rExternalSignature', 'rBadSignature'], $signatures['signatureRelationshipIds']);
         $t->same(['_xmlsignatures/origin.sigs', '_xmlsignatures/missing-origin.sigs'], $signatures['originParts']);
@@ -2890,6 +2918,10 @@ XML;
         $t->same(1, $summary['digitalSignatureUnexpectedRootCount']);
         $t->same(5, $summary['digitalSignatureIssueCount']);
         $t->same($signatures['issueCodes'], $summary['digitalSignatureIssueCodes']);
+        $t->same(4, $summary['digitalSignatureReferenceCount']);
+        $t->same($signatures['referenceUriKindCounts'], $summary['digitalSignatureReferenceUriKindCounts']);
+        $t->same(1, $summary['digitalSignatureReferenceDigestValueMissingCount']);
+        $t->same(1, $summary['digitalSignatureValuePresentCount']);
         $t->same(3, $summary['relationshipTypeCounts'][$originType]);
         $t->same(4, $summary['relationshipTypeCounts'][$signatureType]);
 
