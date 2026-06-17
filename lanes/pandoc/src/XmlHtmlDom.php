@@ -17996,6 +17996,10 @@ final class XmlHtmlDom
             $summary['exportPartsValid'] = $exportParts['valid'];
         }
 
+        if (array_key_exists('part', $attributes) || array_key_exists('exportparts', $attributes)) {
+            $summary += self::partExportReviewSummary($element, $attributes);
+        }
+
         if (array_key_exists('is', $attributes)) {
             $custom = self::customElementNameSummary($attributes['is']);
             $summary['isRaw'] = $attributes['is'];
@@ -19789,6 +19793,177 @@ final class XmlHtmlDom
             'invalid' => $invalid,
             'valid' => $items !== [] && $invalid === [],
         ];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function partExportReviewSummary(\DOMElement $element, array $attributes): array
+    {
+        $part = array_key_exists('part', $attributes)
+            ? self::partTokenListSummary($attributes['part'])
+            : ['tokens' => [], 'names' => [], 'invalid' => [], 'valid' => true];
+        $duplicatePartTokens = self::duplicateStringValues($part['tokens']);
+        $visibleParts = self::visiblePartRecords($element);
+        $visiblePartNames = [];
+        foreach ($visibleParts as $record) {
+            self::appendUniqueString($visiblePartNames, (string) $record['name']);
+        }
+
+        $exportParts = array_key_exists('exportparts', $attributes)
+            ? self::exportPartsSummary($attributes['exportparts'])
+            : ['items' => [], 'names' => [], 'aliases' => [], 'invalid' => [], 'valid' => true];
+        $exportMappings = [];
+        $observedExportPartNames = [];
+        $unobservedExportPartNames = [];
+        $validSources = [];
+        $validAliases = [];
+        $renamedCount = 0;
+        foreach ($exportParts['items'] as $item) {
+            $source = is_string($item['source'] ?? null) ? $item['source'] : null;
+            $alias = is_string($item['alias'] ?? null) ? $item['alias'] : null;
+            $valid = ($item['valid'] ?? false) === true;
+            $matches = $valid && $source !== null ? self::partRecordsForName($visibleParts, $source) : [];
+
+            if ($valid && $source !== null) {
+                $validSources[] = $source;
+                if ($alias !== null) {
+                    $validAliases[] = $alias;
+                }
+                if (($item['renamed'] ?? false) === true) {
+                    ++$renamedCount;
+                }
+                if ($matches === []) {
+                    self::appendUniqueString($unobservedExportPartNames, $source);
+                } else {
+                    self::appendUniqueString($observedExportPartNames, $source);
+                }
+            }
+
+            $exportMappings[] = [
+                'raw' => $item['raw'] ?? '',
+                'source' => $source,
+                'alias' => $alias,
+                'renamed' => ($item['renamed'] ?? false) === true,
+                'valid' => $valid,
+                'sourceObservedInFragment' => $matches !== [],
+                'sourceElementIds' => self::partRecordFieldValues($matches, 'id'),
+                'sourceElementNames' => self::partRecordFieldValues($matches, 'element'),
+            ];
+        }
+
+        $duplicateExportPartSources = self::duplicateStringValues($validSources);
+        $duplicateExportPartAliases = self::duplicateStringValues($validAliases);
+        $issueCodes = [];
+        if (($part['invalid'] ?? []) !== []) {
+            $issueCodes[] = 'invalid-part-token';
+        }
+        if ($duplicatePartTokens !== []) {
+            $issueCodes[] = 'duplicate-part-token';
+        }
+        if (($exportParts['invalid'] ?? []) !== []) {
+            $issueCodes[] = 'invalid-exportparts-mapping';
+        }
+        if ($duplicateExportPartSources !== []) {
+            $issueCodes[] = 'duplicate-exportparts-source';
+        }
+        if ($duplicateExportPartAliases !== []) {
+            $issueCodes[] = 'duplicate-exportparts-alias';
+        }
+        if ($unobservedExportPartNames !== []) {
+            $issueCodes[] = 'unobserved-exportparts-source';
+        }
+
+        return [
+            'partExportReviewPolicy' => 'html-part-exportparts-fragment-review',
+            'partExportElement' => self::htmlElementName($element),
+            'partExportElementId' => self::attributeOrNull($element, 'id'),
+            'partDuplicateTokens' => $duplicatePartTokens,
+            'visiblePartNames' => $visiblePartNames,
+            'visiblePartCount' => count($visibleParts),
+            'visibleParts' => $visibleParts,
+            'exportPartMappingCount' => count($exportParts['items']),
+            'validExportPartMappingCount' => count($validSources),
+            'renamedExportPartMappingCount' => $renamedCount,
+            'exportPartMappings' => $exportMappings,
+            'observedExportPartNames' => $observedExportPartNames,
+            'unobservedExportPartNames' => $unobservedExportPartNames,
+            'duplicateExportPartSources' => $duplicateExportPartSources,
+            'duplicateExportPartAliases' => $duplicateExportPartAliases,
+            'partExportIssueCodes' => $issueCodes,
+            'partExportValid' => $issueCodes === [],
+        ];
+    }
+
+    /**
+     * @return list<array{name:string, element:string, id:?string, source:string}>
+     */
+    private static function visiblePartRecords(\DOMElement $element): array
+    {
+        $records = [];
+        foreach (self::elementAndDescendantHtmlElements($element) as $candidate) {
+            $partRaw = self::attributeOrNull($candidate, 'part');
+            if ($partRaw === null) {
+                continue;
+            }
+
+            $parts = self::partTokenListSummary($partRaw);
+            foreach ($parts['names'] as $name) {
+                $records[] = [
+                    'name' => $name,
+                    'element' => self::htmlElementName($candidate),
+                    'id' => self::attributeOrNull($candidate, 'id'),
+                    'source' => $candidate->isSameNode($element) ? 'self' : 'descendant',
+                ];
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function elementAndDescendantHtmlElements(\DOMElement $element): array
+    {
+        $elements = [$element];
+        foreach ($element->getElementsByTagName('*') as $descendant) {
+            if ($descendant instanceof \DOMElement) {
+                $elements[] = $descendant;
+            }
+        }
+
+        return $elements;
+    }
+
+    /**
+     * @param list<array{name:string, element:string, id:?string, source:string}> $records
+     * @return list<array{name:string, element:string, id:?string, source:string}>
+     */
+    private static function partRecordsForName(array $records, string $name): array
+    {
+        return array_values(array_filter(
+            $records,
+            static fn (array $record): bool => $record['name'] === $name
+        ));
+    }
+
+    /**
+     * @param list<array{name:string, element:string, id:?string, source:string}> $records
+     * @return list<string>
+     */
+    private static function partRecordFieldValues(array $records, string $field): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            $value = $record[$field] ?? null;
+            if (is_string($value)) {
+                self::appendUniqueString($values, $value);
+            }
+        }
+
+        return $values;
     }
 
     /**
