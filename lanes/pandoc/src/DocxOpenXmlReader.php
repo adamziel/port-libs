@@ -5072,10 +5072,23 @@ final class DocxOpenXmlReader
         $relationshipIds = [];
         $xpath = $this->xpath($dom);
         foreach ($this->elements($xpath, '//c:externalData') as $externalData) {
-            $this->appendUniqueString($relationshipIds, $externalData->getAttributeNS(self::NS_R, 'id'));
+            $this->appendUniqueString($relationshipIds, $this->chartExternalDataRelationshipId($externalData));
         }
 
         return $relationshipIds;
+    }
+
+    /**
+     * @return string
+     */
+    private function chartExternalDataRelationshipId(\DOMElement $externalData): string
+    {
+        $relationshipId = trim($externalData->getAttributeNS(self::NS_R, 'id'));
+        if ($relationshipId !== '') {
+            return $relationshipId;
+        }
+
+        return trim($externalData->getAttribute('id'));
     }
 
     /**

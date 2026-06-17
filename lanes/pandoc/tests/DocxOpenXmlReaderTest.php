@@ -12087,6 +12087,118 @@ XML;
         $t->true(in_array('relationship-target', $inventory['word/embeddings/unreferenced-workbook.xlsx']['roles'], true), 'unreferenced chart workbook target role missing');
         $t->true(!isset($docx['media']['word/embeddings/chart-workbook.xlsx']), 'Chart workbook package should not be exposed as document media');
     },
+    'recovers docx chart external data relationships with unqualified id attributes' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $chartContentType = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+        $workbookContentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        $workbookBytes = 'loose chart external data workbook bytes';
+        $chartXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+  <c:chart>
+    <c:externalData id="rLooseWorkbook"/>
+  </c:chart>
+</c:chartSpace>
+XML;
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/charts/loose-external-data.xml" ContentType="' . $chartContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/loose-workbook.xlsx" ContentType="' . $workbookContentType . '; profile=loose-chart-data"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rLooseChart" Type="' . $chartRel . '" Target="charts/loose-external-data.xml?chart=loose#chart"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            "      </w:r>\n    </w:p>\n    <w:tbl>",
+            "      </w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart r:id=\"rLooseChart\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "    </w:p>\n    <w:tbl>",
+            $parts['word/document.xml']
+        );
+        $parts['word/charts/loose-external-data.xml'] = $chartXml;
+        $parts['word/charts/_rels/loose-external-data.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rLooseWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/loose-workbook.xlsx?sheet=Loose#data"/>
+</Relationships>
+XML;
+        $parts['word/embeddings/loose-workbook.xlsx'] = $workbookBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $charts = $docx['chartParts'];
+        $summary = $package['summary'];
+        $chart = $charts['byRelationshipId']['rLooseChart'];
+        $embeddedPackages = $chart['embeddedPackages'];
+        $workbook = $embeddedPackages['byRelationshipId']['rLooseWorkbook'];
+        $chartRelationshipsPart = $package['relationshipParts']['word/charts/_rels/loose-external-data.xml.rels'];
+        $inventory = $package['parts'];
+        $relationshipTypes = $package['relationshipTypes'];
+
+        $t->same(['rLooseWorkbook'], $chart['externalDataRelationshipIds']);
+        $t->same(1, $embeddedPackages['count']);
+        $t->same(1, $embeddedPackages['relationshipCount']);
+        $t->same(1, $embeddedPackages['referencedCount']);
+        $t->same(0, $embeddedPackages['unreferencedRelationshipCount']);
+        $t->same(1, $embeddedPackages['existingCount']);
+        $t->same(0, $embeddedPackages['missingCount']);
+        $t->same(0, $embeddedPackages['externalCount']);
+        $t->same(0, $embeddedPackages['issueCount']);
+        $t->same([], $embeddedPackages['issueCodes']);
+        $t->same(['rLooseWorkbook'], $embeddedPackages['relationshipIds']);
+        $t->same(['rLooseWorkbook'], $embeddedPackages['referencedRelationshipIds']);
+        $t->same([], $embeddedPackages['unreferencedRelationshipIds']);
+
+        $t->same(true, $workbook['referenced']);
+        $t->same(true, $workbook['exists']);
+        $t->same(false, $workbook['external']);
+        $t->same($packageRel, $workbook['type']);
+        $t->same('../embeddings/loose-workbook.xlsx?sheet=Loose#data', $workbook['target']);
+        $t->same('word/embeddings/loose-workbook.xlsx?sheet=Loose#data', $workbook['resolvedTarget']);
+        $t->same('word/embeddings/loose-workbook.xlsx', $workbook['targetPart']);
+        $t->same('sheet=Loose', $workbook['targetQuery']);
+        $t->same('data', $workbook['targetFragment']);
+        $t->same('?sheet=Loose#data', $workbook['targetReferenceSuffix']);
+        $t->same($workbookContentType . '; profile=loose-chart-data', $workbook['contentType']);
+        $t->same($workbookContentType, $workbook['contentTypeBase']);
+        $t->same(['profile' => 'loose-chart-data'], $workbook['contentTypeParameterMap']);
+        $t->same(strlen($workbookBytes), $workbook['byteLength']);
+        $t->same(sprintf('%08x', crc32($workbookBytes)), $workbook['crc32']);
+        $t->same(hash('sha256', $workbookBytes), $workbook['sha256']);
+        $t->same([], $workbook['issues']);
+        $t->same(true, $workbook['valid']);
+        $t->same(true, $chart['valid']);
+        $t->same([], $chart['issues']);
+
+        $t->same(1, $summary['chartEmbeddedPackageCount']);
+        $t->same(1, $summary['chartEmbeddedPackageExistingCount']);
+        $t->same(0, $summary['chartEmbeddedPackageMissingCount']);
+        $t->same(0, $summary['chartEmbeddedPackageExternalCount']);
+        $t->same(0, $summary['chartEmbeddedPackageIssueCount']);
+        $t->same([], $summary['chartEmbeddedPackageIssueCodes']);
+        $t->same(1, $chartRelationshipsPart['relationshipCount']);
+        $t->same('word/charts/loose-external-data.xml', $chartRelationshipsPart['sourcePart']);
+        $t->same($workbookContentType, $chartRelationshipsPart['relationships']['rLooseWorkbook']['contentTypeBase']);
+        $t->same(1, $relationshipTypes[$packageRel]['count']);
+        $t->same(1, $relationshipTypes[$packageRel]['internalCount']);
+        $t->same(0, $relationshipTypes[$packageRel]['externalCount']);
+        $t->same(['word/embeddings/loose-workbook.xlsx'], $relationshipTypes[$packageRel]['existingTargetParts']);
+        $t->true(in_array('embedded-package', $inventory['word/embeddings/loose-workbook.xlsx']['roles'], true), 'loose chart workbook inventory role missing');
+        $t->true(!isset($docx['media']['word/embeddings/loose-workbook.xlsx']), 'Loose chart workbook package should not be exposed as document media');
+    },
     'summarizes docx diagram embedded package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $dataRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
