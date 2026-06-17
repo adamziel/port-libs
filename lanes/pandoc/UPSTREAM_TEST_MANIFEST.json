@@ -136,6 +136,8 @@
     "xmlHtmlDomContentEditableInheritanceAssertions": 33,
     "mappedXmlHtmlDomTranslateInheritanceCases": 1,
     "xmlHtmlDomTranslateInheritanceAssertions": 33,
+    "mappedXmlHtmlDomDraggableAutoCases": 1,
+    "xmlHtmlDomDraggableAutoAssertions": 22,
     "mappedJsonNativeHeaderPayloadCases": 1,
     "jsonNativeHeaderPayloadAssertions": 24,
     "mappedEpubOcfManifestSidecarCases": 1,

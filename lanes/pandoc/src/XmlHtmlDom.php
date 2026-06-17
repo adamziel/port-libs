@@ -17744,13 +17744,10 @@ final class XmlHtmlDom
         $summary += self::effectiveContentEditableSummary($element, $attributes);
 
         if (array_key_exists('draggable', $attributes)) {
-            $draggable = strtolower(trim($attributes['draggable']));
+            $draggable = self::draggableState($attributes['draggable']);
             $summary['draggableRaw'] = $attributes['draggable'];
-            $summary['draggable'] = match ($draggable) {
-                'true' => true,
-                'false' => false,
-                default => null,
-            };
+            $summary['draggable'] = $draggable;
+            $summary['draggableValid'] = $draggable !== null;
         }
 
         if (array_key_exists('dropzone', $attributes)) {
@@ -18705,6 +18702,18 @@ final class XmlHtmlDom
         return in_array($value, ['none', 'text', 'tel', 'email', 'url', 'numeric', 'decimal', 'search'], true)
             ? $value
             : null;
+    }
+
+    private static function draggableState(string $value): bool|string|null
+    {
+        $value = strtolower(trim($value));
+
+        return match ($value) {
+            'true' => true,
+            'false' => false,
+            'auto' => 'auto',
+            default => null,
+        };
     }
 
     private static function enterKeyHintState(string $value): ?string

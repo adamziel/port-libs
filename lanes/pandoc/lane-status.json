@@ -253,6 +253,8 @@
   "xmlHtmlDomWritingAssistanceAssertions": 35,
   "mappedXmlHtmlDomTranslateInheritanceCases": 1,
   "xmlHtmlDomTranslateInheritanceAssertions": 33,
+  "mappedXmlHtmlDomDraggableAutoCases": 1,
+  "xmlHtmlDomDraggableAutoAssertions": 22,
   "mappedDirectCslJournalAbbreviationAliasCases": 1,
   "directCslJournalAbbreviationAliasAssertions": 16,
   "mappedDocxOpenXmlGlossaryDocumentCases": 1,
