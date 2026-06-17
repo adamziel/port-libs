@@ -1122,6 +1122,206 @@ XML;
         $t->same('override', $footer['relationship']['contentTypeSource']);
         $t->true(in_array('footer-part', $inventory['word/footer1.xml']['roles'], true), 'footer inventory role missing');
     },
+    'summarizes docx header and footer media relationships for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $headerBytes = 'header logo bytes';
+        $footerBytes = 'footer logo bytes';
+        $badBytes = 'header ole preview bytes';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n" .
+            '  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' . "\n" .
+            '  <Override PartName="/word/media/header-bad.bin" ContentType="application/octet-stream"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' . "\n" .
+            '  <Relationship Id="rFooterEven" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            '    <w:sectPr>' . "\n" .
+            '      <w:headerReference w:type="default" r:id="rHeaderDefault"/>' . "\n" .
+            '      <w:footerReference w:type="even" r:id="rFooterEven"/>' . "\n" .
+            '    </w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/header1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:p><w:r><w:t>Header media review</w:t></w:r></w:p>
+  <w:p><w:r><w:drawing><wp:inline><wp:docPr id="41" name="Header logo"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rHeaderLogo"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
+</w:hdr>
+XML;
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header-logo.png?asset=header#logo"/>
+  <Relationship Id="rHeaderMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header-missing.png"/>
+  <Relationship Id="rHeaderExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://cdn.example.test/header.png?remote=1#h" TargetMode="External"/>
+  <Relationship Id="rHeaderUnsafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="javascript:alert(1)" TargetMode="External"/>
+  <Relationship Id="rHeaderBad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header-bad.bin"/>
+  <Relationship Id="rHeaderLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/header" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/footer1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:p><w:r><w:t>Footer media review</w:t></w:r></w:p>
+  <w:p><w:r><w:drawing><wp:inline><wp:docPr id="42" name="Footer logo"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rFooterLogo"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
+</w:ftr>
+XML;
+        $parts['word/_rels/footer1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFooterLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/footer-logo.png"/>
+</Relationships>
+XML;
+        $parts['word/media/header-logo.png'] = $headerBytes;
+        $parts['word/media/footer-logo.png'] = $footerBytes;
+        $parts['word/media/header-bad.bin'] = $badBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $media = $docx['headerFooterMediaRelationships'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $headerLogo = $media['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderLogo'];
+        $missing = $media['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderMissing'];
+        $external = $media['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderExternal'];
+        $unsafe = $media['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderUnsafe'];
+        $bad = $media['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderBad'];
+        $footerLogo = $media['byRelationshipKey']['word/_rels/footer1.xml.rels#rFooterLogo'];
+
+        $t->same($media, $package['headerFooterMediaRelationships']);
+        $t->same(6, $media['count']);
+        $t->same(6, $media['relationshipCount']);
+        $t->same(5, $media['headerCount']);
+        $t->same(1, $media['footerCount']);
+        $t->same(2, $media['sourcePartCount']);
+        $t->same(3, $media['existingCount']);
+        $t->same(1, $media['missingCount']);
+        $t->same(2, $media['externalCount']);
+        $t->same(1, $media['unsafeExternalTargetCount']);
+        $t->same(0, $media['missingContentTypeCount']);
+        $t->same(1, $media['unexpectedContentTypeCount']);
+        $t->same(4, $media['issueCount']);
+        $t->same([
+            'external-header-footer-media-target',
+            'external-target-unsafe-scheme',
+            'missing-header-footer-media-part',
+            'unexpected-header-footer-media-content-type',
+        ], $media['issueCodes']);
+        $t->same([
+            'word/_rels/header1.xml.rels#rHeaderLogo',
+            'word/_rels/header1.xml.rels#rHeaderMissing',
+            'word/_rels/header1.xml.rels#rHeaderExternal',
+            'word/_rels/header1.xml.rels#rHeaderUnsafe',
+            'word/_rels/header1.xml.rels#rHeaderBad',
+            'word/_rels/footer1.xml.rels#rFooterLogo',
+        ], $media['relationshipKeys']);
+        $t->same([
+            'rHeaderLogo',
+            'rHeaderMissing',
+            'rHeaderExternal',
+            'rHeaderUnsafe',
+            'rHeaderBad',
+            'rFooterLogo',
+        ], $media['relationshipIds']);
+        $t->same(['word/header1.xml', 'word/footer1.xml'], $media['sourceParts']);
+        $t->same(['word/_rels/header1.xml.rels', 'word/_rels/footer1.xml.rels'], $media['relationshipsParts']);
+        $t->same([
+            'word/media/header-logo.png',
+            'word/media/header-missing.png',
+            'word/media/header-bad.bin',
+            'word/media/footer-logo.png',
+        ], $media['partNames']);
+        $t->same([
+            'https://cdn.example.test/header.png?remote=1#h',
+            'javascript:alert(1)',
+        ], $media['externalTargets']);
+        $t->same(['image/png', 'application/octet-stream'], $media['contentTypes']);
+        $t->same('header-footer-media-bytes-blocked', $media['byteExposurePolicy']);
+        $t->same('header-footer-media-metadata-only', $media['reviewPolicy']);
+        $t->same([$headerLogo], $media['byRelationshipId']['rHeaderLogo']);
+
+        $t->same('word/_rels/header1.xml.rels#rHeaderLogo', $headerLogo['relationshipKey']);
+        $t->same('header', $headerLogo['sourceType']);
+        $t->same('word/header1.xml', $headerLogo['sourcePart']);
+        $t->same(true, $headerLogo['sourcePartExists']);
+        $t->same(true, $headerLogo['sourcePartValidRoot']);
+        $t->same('hdr', $headerLogo['sourceRootName']);
+        $t->same('rHeaderDefault', $headerLogo['sourceRelationshipId']);
+        $t->same(true, $headerLogo['sourceReferenced']);
+        $t->same(['default'], $headerLogo['sourceReferenceTypes']);
+        $t->same('word/_rels/header1.xml.rels', $headerLogo['relationshipsPart']);
+        $t->same($imageRel, $headerLogo['relationshipType']);
+        $t->same('media/header-logo.png?asset=header#logo', $headerLogo['target']);
+        $t->same('word/media/header-logo.png?asset=header#logo', $headerLogo['resolvedTarget']);
+        $t->same('word/media/header-logo.png', $headerLogo['targetPart']);
+        $t->same('asset=header', $headerLogo['targetQuery']);
+        $t->same('logo', $headerLogo['targetFragment']);
+        $t->same('?asset=header#logo', $headerLogo['targetReferenceSuffix']);
+        $t->same(true, $headerLogo['exists']);
+        $t->same(strlen($headerBytes), $headerLogo['byteLength']);
+        $t->same(sprintf('%08x', crc32($headerBytes)), $headerLogo['crc32']);
+        $t->same(hash('sha256', $headerBytes), $headerLogo['sha256']);
+        $t->same('image/png', $headerLogo['contentType']);
+        $t->same('default', $headerLogo['contentTypeSource']);
+        $t->same([], $headerLogo['issues']);
+        $t->same(true, $headerLogo['valid']);
+        $t->same('word/header1.xml', $headerLogo['relationship']['sourcePart']);
+        $t->same('word/_rels/header1.xml.rels', $headerLogo['relationship']['relationshipsPart']);
+
+        $t->same(['missing-header-footer-media-part'], $missing['issues']);
+        $t->same(false, $missing['exists']);
+        $t->same('word/media/header-missing.png', $missing['targetPart']);
+        $t->same(['external-header-footer-media-target'], $external['issues']);
+        $t->same(true, $external['external']);
+        $t->same('https', $external['externalTargetScheme']);
+        $t->same(true, $external['externalTargetAllowed']);
+        $t->same('remote=1', $external['targetQuery']);
+        $t->same('h', $external['targetFragment']);
+        $t->same(['external-header-footer-media-target', 'external-target-unsafe-scheme'], $unsafe['issues']);
+        $t->same('javascript', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['unexpected-header-footer-media-content-type'], $bad['issues']);
+        $t->same('application/octet-stream', $bad['contentType']);
+        $t->same(strlen($badBytes), $bad['byteLength']);
+
+        $t->same('footer', $footerLogo['sourceType']);
+        $t->same('word/footer1.xml', $footerLogo['sourcePart']);
+        $t->same('rFooterEven', $footerLogo['sourceRelationshipId']);
+        $t->same(['even'], $footerLogo['sourceReferenceTypes']);
+        $t->same(strlen($footerBytes), $footerLogo['byteLength']);
+        $t->same('image/png', $footerLogo['contentType']);
+        $t->same([], $footerLogo['issues']);
+
+        $t->same(6, $summary['headerFooterMediaRelationshipCount']);
+        $t->same(5, $summary['headerFooterMediaRelationshipHeaderCount']);
+        $t->same(1, $summary['headerFooterMediaRelationshipFooterCount']);
+        $t->same(3, $summary['headerFooterMediaRelationshipExistingCount']);
+        $t->same(1, $summary['headerFooterMediaRelationshipMissingCount']);
+        $t->same(2, $summary['headerFooterMediaRelationshipExternalCount']);
+        $t->same(1, $summary['headerFooterMediaRelationshipUnsafeExternalCount']);
+        $t->same(4, $summary['headerFooterMediaRelationshipIssueCount']);
+        $t->same($media['issueCodes'], $summary['headerFooterMediaRelationshipIssueCodes']);
+        $t->true(in_array('header-footer-media', $inventory['word/media/header-logo.png']['roles'], true), 'header image inventory role missing');
+        $t->true(in_array('header-footer-media', $inventory['word/media/header-bad.bin']['roles'], true), 'header bad image inventory role missing');
+        $t->true(in_array('header-footer-media', $inventory['word/media/footer-logo.png']['roles'], true), 'footer image inventory role missing');
+        $t->same(7, $relationshipTypes[$imageRel]['count']);
+        $t->same(2, $relationshipTypes[$imageRel]['externalCount']);
+        $t->same(3, $relationshipTypes[$imageRel]['targetRoleCounts']['header-footer-media']);
+    },
     'preserves docx header and footer reference issue provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
