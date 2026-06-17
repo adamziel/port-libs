@@ -7254,7 +7254,7 @@ final class PdfEngineHandoff
         ));
         sort($environmentVariables);
         if ($shadowEntries !== [] || $environmentVariables !== []) {
-            $appendCase('environment-shadows', $shadowedVariables === [] ? 'ok' : 'review', count($shadowEntries), [
+            $appendCase('environment-shadows', $shadowedVariables === [] ? 'ok' : 'review', max(count($environmentVariables), count($shadowEntries)), [
                 'environmentVariableCount' => count($environmentVariables),
                 'shadowedCount' => count($shadowedVariables),
                 'shadowedVariables' => $shadowedVariables,

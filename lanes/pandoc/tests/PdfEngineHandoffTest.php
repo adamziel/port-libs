@@ -1362,6 +1362,90 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'maps typst environment root matrix and read boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Typst Environment Root Matrix Packet\n\n#image(\"assets/chart.svg\")\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/env-root.typ',
+            'outputPath' => 'build/env-root.pdf',
+            'source' => $source,
+            'engineOptions' => ['--deps=build/env-root.d', '--deps-format=make'],
+            'engineEnvironment' => [
+                'TYPST_ROOT' => 'workspace',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst environment root matrix packet\n%%EOF\n";
+        $depfile = 'build/env-root.pdf: workspace/env-root.typ workspace/assets/chart.svg shared/leak.typ';
+        $expectedReadPolicy = [
+            'reviewStatus' => 'review',
+            'root' => 'workspace',
+            'sourceFile' => 'workspace/env-root.typ',
+            'inputFiles' => ['shared/leak.typ', 'workspace/assets/chart.svg', 'workspace/env-root.typ'],
+            'insideRootFiles' => ['workspace/assets/chart.svg', 'workspace/env-root.typ'],
+            'outsideRootFiles' => ['shared/leak.typ'],
+            'issues' => ['input-outside-root:1'],
+        ];
+        $planCases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $planCases[$case['case']] = $case;
+        }
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/env-root.d' => $depfile,
+                'build/env-root.pdf' => $pdfBytes,
+                'workspace/env-root.typ' => $source,
+                'workspace/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                'shared/leak.typ' => '= outside root',
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/env-root.d' => $depfile,
+                'build/env-root.pdf' => $pdfBytes,
+                'workspace/env-root.typ' => $source,
+                'workspace/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                'shared/leak.typ' => '= outside root',
+            ],
+        ]]);
+        $resultCases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $resultCases[$case['case']] = $case;
+        }
+
+        $t->same('workspace', $plan['engineBoundaryRoot']);
+        $t->same('environment', $plan['typstBoundaryProvenance']['root']['source']);
+        $t->same('TYPST_ROOT', $plan['typstBoundaryProvenance']['root']['environmentVariable']);
+        $t->same(['TYPST_ROOT'], $plan['typstBoundaryProvenance']['environmentVariables']);
+        $t->same(1, $planCases['environment-shadows']['observed']);
+        $t->same(1, $planCases['environment-shadows']['details']['environmentVariableCount']);
+        $t->same(0, $planCases['environment-shadows']['details']['shadowedCount']);
+        $t->same([], $planCases['environment-shadows']['details']['shadowedVariables']);
+        $t->same('ok', $planCases['environment-shadows']['reviewStatus']);
+        $t->contains('typst-boundary-matrix-cases:3', implode(',', $plan['diagnostics']));
+
+        $t->same(false, $result['ok']);
+        $t->same('engine-boundary-violation', $result['reason']);
+        $t->same('workspace', $result['engineBoundaryRoot']);
+        $t->same(['shared/leak.typ'], $result['engineBoundaryViolations']);
+        $t->same($expectedReadPolicy, $result['typstReadBoundaryPolicy']);
+        $t->same($expectedReadPolicy, $result['artifactProvenanceReview']['typstReadBoundaryPolicy']);
+        $t->same($expectedReadPolicy, $sequence['finalTypstReadBoundaryPolicy']);
+        $t->same('review', $resultCases['root-read-boundary']['reviewStatus']);
+        $t->same(3, $resultCases['root-read-boundary']['observed']);
+        $t->same(2, $resultCases['root-read-boundary']['details']['insideRootCount']);
+        $t->same(1, $resultCases['root-read-boundary']['details']['outsideRootCount']);
+        $t->same(1, $resultCases['environment-shadows']['observed']);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+        $t->contains('engine-boundary-violation:shared/leak.typ', implode(',', $result['diagnostics']));
+        $t->contains('typst-root-boundary-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-root-boundary-outside-inputs:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-boundary-violations:1', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('typst-root-boundary-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+    },
+
     'preserves typst font path environment uri provenance without splitting scheme boundary' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $fontUri = 'https://fonts.example.invalid/typst';
