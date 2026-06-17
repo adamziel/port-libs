@@ -335,6 +335,78 @@ return [
         $t->same(strlen($unsupportedBytes), $methodBuckets[12]['compressedBytes']);
         $t->same(strlen($unsupportedBytes), $methodBuckets[12]['uncompressedBytes']);
     },
+    'summarizes docx source zip compression byte rollups for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $storedNames = [
+            'word/media/' => true,
+            '[Content_Types].xml' => true,
+            'word/media/review.png' => true,
+        ];
+        $zipParts = [
+            ['name' => 'word/media/', 'data' => '', 'compressionMethod' => 0],
+        ];
+        $expectedStoredCompressedBytes = 0;
+        $expectedStoredUncompressedBytes = 0;
+        $expectedDeflatedCompressedBytes = 0;
+        $expectedDeflatedUncompressedBytes = 0;
+        foreach ($parts as $name => $data) {
+            $stored = isset($storedNames[$name]);
+            $zipParts[] = [
+                'name' => $name,
+                'data' => $data,
+                'compressionMethod' => $stored ? 0 : 8,
+            ];
+            if ($stored) {
+                $expectedStoredCompressedBytes += strlen($data);
+                $expectedStoredUncompressedBytes += strlen($data);
+                continue;
+            }
+
+            $deflated = gzdeflate($data);
+            $t->true(is_string($deflated), "fixture {$name} should deflate");
+            $expectedDeflatedCompressedBytes += strlen($deflated);
+            $expectedDeflatedUncompressedBytes += strlen($data);
+        }
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(ZipPackage::fromParts($zipParts));
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $compression = $package['zipPackage']['compressionMethods'];
+        $entriesByName = [];
+        foreach ($compression['entries'] as $entry) {
+            $entriesByName[$entry['name']] = $entry;
+        }
+
+        $t->same(count($zipParts), $compression['entryCount']);
+        $t->same(count($zipParts), $summary['zipCompressionEntryCount']);
+        $t->same(count($zipParts), $compression['supportedEntryCount']);
+        $t->same(count($zipParts), $summary['zipSupportedCompressionEntryCount']);
+        $t->same(3, $compression['storedEntryCount']);
+        $t->same(3, $summary['zipStoredEntryCount']);
+        $t->same(count($zipParts) - 3, $compression['deflatedEntryCount']);
+        $t->same(count($zipParts) - 3, $summary['zipDeflatedEntryCount']);
+        $t->same(0, $compression['unsupportedCompressionMethodCount']);
+        $t->same(0, $summary['zipUnsupportedCompressionMethodCount']);
+        $t->same($expectedStoredCompressedBytes, $compression['storedCompressedBytes']);
+        $t->same($expectedStoredCompressedBytes, $summary['zipStoredCompressedByteLength']);
+        $t->same($expectedStoredUncompressedBytes, $compression['storedUncompressedBytes']);
+        $t->same($expectedStoredUncompressedBytes, $summary['zipStoredUncompressedByteLength']);
+        $t->same($expectedDeflatedCompressedBytes, $compression['deflatedCompressedBytes']);
+        $t->same($expectedDeflatedCompressedBytes, $summary['zipDeflatedCompressedByteLength']);
+        $t->same($expectedDeflatedUncompressedBytes, $compression['deflatedUncompressedBytes']);
+        $t->same($expectedDeflatedUncompressedBytes, $summary['zipDeflatedUncompressedByteLength']);
+        $t->same(0, $summary['zipUnsupportedCompressedByteLength']);
+        $t->same(0, $summary['zipUnsupportedUncompressedByteLength']);
+        $t->same('stored', $summary['zipCompressionMethods'][0]['compressionMethodName']);
+        $t->same(3, $summary['zipCompressionMethods'][0]['entryCount']);
+        $t->same($expectedStoredCompressedBytes, $summary['zipCompressionMethods'][0]['compressedBytes']);
+        $t->same('deflated', $summary['zipCompressionMethods'][1]['compressionMethodName']);
+        $t->same(count($zipParts) - 3, $summary['zipCompressionMethods'][1]['entryCount']);
+        $t->same($expectedDeflatedCompressedBytes, $summary['zipCompressionMethods'][1]['compressedBytes']);
+        $t->same(0, $entriesByName['[Content_Types].xml']['compressionMethod']);
+        $t->same(8, $entriesByName['word/document.xml']['compressionMethod']);
+        $t->same(true, $entriesByName['word/document.xml']['isSupported']);
+    },
     'preserves docx zip entry name policy provenance for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $zipParts = docx_openxml_reader_zip_parts($parts);

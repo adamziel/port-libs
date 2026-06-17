@@ -8457,6 +8457,15 @@ final class DocxOpenXmlReader
         $summary['zipUnsupportedCompressionEntries'] = $unsupportedCompressionEntries;
         $summary['zipCentralDirectoryOrderMatchesLocalHeaderOrder'] = $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'];
         $summary['zipCompressionMethods'] = $compressionMethods['methodBuckets'] ?? [];
+        $summary['zipCompressionEntryCount'] = (int) ($compressionMethods['entryCount'] ?? 0);
+        $summary['zipStoredEntryCount'] = (int) ($compressionMethods['storedEntryCount'] ?? 0);
+        $summary['zipDeflatedEntryCount'] = (int) ($compressionMethods['deflatedEntryCount'] ?? 0);
+        $summary['zipStoredCompressedByteLength'] = (int) ($compressionMethods['storedCompressedBytes'] ?? 0);
+        $summary['zipStoredUncompressedByteLength'] = (int) ($compressionMethods['storedUncompressedBytes'] ?? 0);
+        $summary['zipDeflatedCompressedByteLength'] = (int) ($compressionMethods['deflatedCompressedBytes'] ?? 0);
+        $summary['zipDeflatedUncompressedByteLength'] = (int) ($compressionMethods['deflatedUncompressedBytes'] ?? 0);
+        $summary['zipUnsupportedCompressedByteLength'] = (int) ($compressionMethods['unsupportedCompressedBytes'] ?? 0);
+        $summary['zipUnsupportedUncompressedByteLength'] = (int) ($compressionMethods['unsupportedUncompressedBytes'] ?? 0);
         $zipNamePolicy = $zipPackage['namePolicy'];
         $summary['zipNamePolicyValid'] = $zipNamePolicy['valid'];
         $summary['zipNamePolicyIssueCount'] = $zipNamePolicy['issueCount'];
