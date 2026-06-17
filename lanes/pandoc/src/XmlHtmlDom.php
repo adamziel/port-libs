@@ -160,6 +160,13 @@ final class XmlHtmlDom
     ];
 
     /** @var array<string, true> */
+    private const HTML_MEDIA_CONTROLSLIST_TOKENS = [
+        'nodownload' => true,
+        'nofullscreen' => true,
+        'noremoteplayback' => true,
+    ];
+
+    /** @var array<string, true> */
     private const HTML_REFERRER_POLICIES = [
         'no-referrer' => true,
         'no-referrer-when-downgrade' => true,
@@ -23611,6 +23618,7 @@ final class XmlHtmlDom
             'tracks' => self::mediaTrackSummaries($element),
         ];
         $summary += self::mediaTextTrackReviewSummary($element);
+        $summary += self::mediaPolicyReviewSummary($element);
 
         if ($name === 'video') {
             $summary['poster'] = self::attributeOrNull($element, 'poster');
@@ -23622,6 +23630,95 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mediaPolicyReviewSummary(\DOMElement $element): array
+    {
+        $controlsListRaw = self::attributeOrNull($element, 'controlslist');
+        $controlsList = $controlsListRaw === null
+            ? [
+                'controlsListTokens' => [],
+                'controlsListValidTokens' => [],
+                'invalidControlsListTokens' => [],
+                'duplicateControlsListTokens' => [],
+                'controlsListTokenCounts' => [],
+                'controlsListTokenCount' => 0,
+                'controlsListValidTokenCount' => 0,
+                'controlsListNormalized' => null,
+                'controlsListValid' => null,
+            ]
+            : self::mediaControlsListSummary($controlsListRaw);
+        $issueCodes = [];
+
+        if (($controlsList['controlsListValid'] ?? null) === false) {
+            $issueCodes[] = 'invalid-media-controlslist-token';
+        }
+        if (($controlsList['duplicateControlsListTokens'] ?? []) !== []) {
+            $issueCodes[] = 'duplicate-media-controlslist-token';
+        }
+
+        return [
+            'mediaPolicyReview' => 'html-media-controls-policy-review',
+            'playsInline' => $element->hasAttribute('playsinline'),
+            'disablePictureInPicture' => $element->hasAttribute('disablepictureinpicture'),
+            'disableRemotePlayback' => $element->hasAttribute('disableremoteplayback'),
+            'controlsListRaw' => $controlsListRaw,
+            'mediaPolicyIssueCodes' => $issueCodes,
+            'mediaPolicyIssueCount' => count($issueCodes),
+        ] + $controlsList;
+    }
+
+    /**
+     * @return array{controlsListTokens:list<string>, controlsListValidTokens:list<string>, invalidControlsListTokens:list<string>, duplicateControlsListTokens:list<string>, controlsListTokenCounts:array<string, int>, controlsListTokenCount:int, controlsListValidTokenCount:int, controlsListNormalized:?string, controlsListValid:bool}
+     */
+    private static function mediaControlsListSummary(string $value): array
+    {
+        $tokens = array_map(
+            static fn (string $token): string => strtolower(trim($token)),
+            self::spaceSeparatedTokens(str_replace("\0", '', $value))
+        );
+        $valid = [];
+        $invalid = [];
+        $duplicates = [];
+        $counts = [];
+
+        foreach ($tokens as $token) {
+            if ($token === '') {
+                continue;
+            }
+
+            if (!isset(self::HTML_MEDIA_CONTROLSLIST_TOKENS[$token])) {
+                if (!in_array($token, $invalid, true)) {
+                    $invalid[] = $token;
+                }
+                continue;
+            }
+
+            $counts[$token] = ($counts[$token] ?? 0) + 1;
+            if ($counts[$token] > 1) {
+                if (!in_array($token, $duplicates, true)) {
+                    $duplicates[] = $token;
+                }
+                continue;
+            }
+
+            $valid[] = $token;
+        }
+
+        return [
+            'controlsListTokens' => $tokens,
+            'controlsListValidTokens' => $valid,
+            'invalidControlsListTokens' => $invalid,
+            'duplicateControlsListTokens' => $duplicates,
+            'controlsListTokenCounts' => $counts,
+            'controlsListTokenCount' => count($tokens),
+            'controlsListValidTokenCount' => count($valid),
+            'controlsListNormalized' => $valid === [] ? null : implode(' ', $valid),
+            'controlsListValid' => $tokens !== [] && $invalid === [],
+        ];
     }
 
     /**
