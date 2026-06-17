@@ -10410,6 +10410,23 @@ final class DocxOpenXmlReader
         $partRoles = $this->packagePartRoleSummary($partInventory);
         $largestParts = $this->largestPackagePartSummary($partInventory);
         $largestPart = $largestParts[0] ?? null;
+        $duplicatePartDigests = $this->duplicatePackagePartDigestSummary($partInventory);
+        $duplicatePartDigestPartCount = 0;
+        $duplicatePartDigestByteLength = 0;
+        $duplicatePartDigestPartNames = [];
+        $duplicatePartDigestSha256Values = [];
+        foreach ($duplicatePartDigests as $digestSummary) {
+            $duplicatePartDigestPartCount += (int) ($digestSummary['partCount'] ?? 0);
+            $duplicatePartDigestByteLength += (int) ($digestSummary['byteLength'] ?? 0);
+            $this->appendUniqueString(
+                $duplicatePartDigestSha256Values,
+                is_string($digestSummary['sha256'] ?? null) ? $digestSummary['sha256'] : null,
+            );
+            foreach (($digestSummary['partNames'] ?? []) as $partName) {
+                $this->appendUniqueString($duplicatePartDigestPartNames, is_string($partName) ? $partName : null);
+            }
+        }
+        sort($duplicatePartDigestPartNames, SORT_STRING);
         $zeroByteParts = $this->zeroBytePackagePartSummary($partInventory);
         $zeroByteRelationshipPartCount = 0;
         $zeroByteMissingContentTypePartCount = 0;
@@ -11349,6 +11366,11 @@ final class DocxOpenXmlReader
             'largestPartCount' => count($largestParts),
             'largestPartName' => $largestPart['partName'] ?? null,
             'largestPartBytes' => $largestPart['bytes'] ?? 0,
+            'duplicatePartDigestGroupCount' => count($duplicatePartDigests),
+            'duplicatePartDigestPartCount' => $duplicatePartDigestPartCount,
+            'duplicatePartDigestByteLength' => $duplicatePartDigestByteLength,
+            'duplicatePartDigestSha256Values' => $duplicatePartDigestSha256Values,
+            'duplicatePartDigestPartNames' => $duplicatePartDigestPartNames,
             'zeroBytePartCount' => count($zeroByteParts),
             'zeroBytePartNames' => array_values(array_map(
                 static fn (array $part): string => (string) $part['partName'],
@@ -11530,6 +11552,7 @@ final class DocxOpenXmlReader
             'partRoles' => $partRoles,
             'largestPart' => $largestPart,
             'largestParts' => $largestParts,
+            'duplicatePartDigests' => $duplicatePartDigests,
             'zeroByteParts' => $zeroByteParts,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
@@ -11598,6 +11621,115 @@ final class DocxOpenXmlReader
         );
 
         return array_slice($items, 0, max(0, $limit));
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function duplicatePackagePartDigestSummary(array $partInventory): array
+    {
+        $digests = [];
+        foreach ($partInventory as $partName => $part) {
+            $sha256 = is_string($part['sha256'] ?? null) ? $part['sha256'] : '';
+            if ($sha256 === '') {
+                continue;
+            }
+
+            if (!isset($digests[$sha256])) {
+                $digests[$sha256] = [
+                    'sha256' => $sha256,
+                    'crc32Values' => [],
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'directories' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            $partName = (string) ($part['partName'] ?? $partName);
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory($partName);
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+
+            ++$digests[$sha256]['partCount'];
+            $digests[$sha256]['byteLength'] += $bytes;
+            $digests[$sha256]['partNames'][] = $partName;
+            $digests[$sha256]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($digests[$sha256]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $digests[$sha256]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($digests[$sha256]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+            $this->appendUniqueString($digests[$sha256]['directories'], $directory);
+            $this->appendUniqueString(
+                $digests[$sha256]['crc32Values'],
+                is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+            );
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $digests[$sha256]['roleCounts'][$role] =
+                    ($digests[$sha256]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName($partName),
+                'partExtension' => is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => $sha256,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'defaultExtension' => is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+                'overridePartName' => is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $digests[$sha256]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $digests[$sha256]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($digests, SORT_STRING);
+        $duplicates = [];
+        foreach ($digests as $summary) {
+            if ((int) ($summary['partCount'] ?? 0) < 2) {
+                continue;
+            }
+
+            sort($summary['crc32Values'], SORT_STRING);
+            sort($summary['directories'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $duplicates[] = $summary;
+        }
+
+        return $duplicates;
     }
 
     /**

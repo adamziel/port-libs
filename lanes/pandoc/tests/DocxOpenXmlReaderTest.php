@@ -697,6 +697,87 @@ return [
         $t->same('customXml/raw-review.bin', $missingContentType['partName']);
         $t->same($inventory['customXml/raw-review.bin']['sha256'], $missingContentType['sha256']);
     },
+    'summarizes docx package part duplicate digest groups for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $sharedXml = '<sharedReview>duplicate payload</sharedReview>';
+        $binaryPayload = 'duplicate binary payload';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Override PartName="/word/review/shared.xml" ContentType="application/vnd.example.shared+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSharedDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/shared.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/shared.xml'] = $sharedXml;
+        $parts['word/media/shared.xml'] = $sharedXml;
+        $parts['word/review/shared.xml'] = $sharedXml;
+        $parts['customXml/shared.bin'] = $binaryPayload;
+        $parts['customXml/shared.payload'] = $binaryPayload;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $sharedSha256 = hash('sha256', $sharedXml);
+        $binarySha256 = hash('sha256', $binaryPayload);
+        $expectedSha256Values = [$binarySha256, $sharedSha256];
+        sort($expectedSha256Values, SORT_STRING);
+        $bySha256 = [];
+        foreach ($summary['duplicatePartDigests'] as $digest) {
+            $bySha256[$digest['sha256']] = $digest;
+        }
+
+        $t->same(2, $summary['duplicatePartDigestGroupCount']);
+        $t->same(5, $summary['duplicatePartDigestPartCount']);
+        $t->same((3 * strlen($sharedXml)) + (2 * strlen($binaryPayload)), $summary['duplicatePartDigestByteLength']);
+        $t->same($expectedSha256Values, $summary['duplicatePartDigestSha256Values']);
+        $t->same([
+            'customXml/shared.bin',
+            'customXml/shared.payload',
+            'customXml/shared.xml',
+            'word/media/shared.xml',
+            'word/review/shared.xml',
+        ], $summary['duplicatePartDigestPartNames']);
+
+        $shared = $bySha256[$sharedSha256];
+        $t->same($sharedSha256, $shared['sha256']);
+        $t->same([sprintf('%08x', crc32($sharedXml))], $shared['crc32Values']);
+        $t->same(3, $shared['partCount']);
+        $t->same(3 * strlen($sharedXml), $shared['byteLength']);
+        $t->same(['customXml', 'word/media', 'word/review'], $shared['directories']);
+        $t->same(['default' => 2, 'override' => 1], $shared['contentTypeSourceCounts']);
+        $t->same([
+            'application/vnd.example.shared+xml' => 1,
+            'application/xml' => 2,
+        ], $shared['contentTypeBaseCounts']);
+        $t->same(['document-relationship-target' => 1, 'package-part' => 2], $shared['roleCounts']);
+        $t->same(['customXml/shared.xml', 'word/media/shared.xml', 'word/review/shared.xml'], $shared['partNames']);
+        $t->same('customXml/shared.xml', $shared['largestPart']['partName']);
+        $t->same('customXml', $shared['largestPart']['directory']);
+        $t->same('shared.xml', $shared['largestPart']['baseName']);
+        $t->same('xml', $shared['largestPart']['partExtension']);
+        $t->same($sharedSha256, $shared['largestPart']['sha256']);
+        $t->same('application/xml', $shared['largestPart']['contentTypeBase']);
+        $t->same('default', $shared['largestPart']['contentTypeSource']);
+        $t->same(['package-part'], $shared['largestPart']['roles']);
+
+        $binary = $bySha256[$binarySha256];
+        $t->same([sprintf('%08x', crc32($binaryPayload))], $binary['crc32Values']);
+        $t->same(2, $binary['partCount']);
+        $t->same(2 * strlen($binaryPayload), $binary['byteLength']);
+        $t->same(['customXml'], $binary['directories']);
+        $t->same(['default' => 1, 'missing' => 1], $binary['contentTypeSourceCounts']);
+        $t->same(['(missing)' => 1, 'application/octet-stream' => 1], $binary['contentTypeBaseCounts']);
+        $t->same(['package-part' => 2], $binary['roleCounts']);
+        $t->same(['customXml/shared.bin', 'customXml/shared.payload'], $binary['partNames']);
+        $t->same('customXml/shared.bin', $binary['largestPart']['partName']);
+        $t->same('application/octet-stream', $binary['largestPart']['contentTypeBase']);
+        $t->same('default', $binary['largestPart']['contentTypeSource']);
+    },
     'summarizes docx package inventory byte buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
