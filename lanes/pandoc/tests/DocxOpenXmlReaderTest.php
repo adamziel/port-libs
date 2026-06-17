@@ -356,6 +356,46 @@ return [
         $t->same('customXml/raw-review.bin', $missingContentType['partName']);
         $t->same($inventory['customXml/raw-review.bin']['sha256'], $missingContentType['sha256']);
     },
+    'summarizes docx package inventory byte buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/embeddings/review.bin'] = str_repeat('B', 31);
+        $parts['customXml/no-type.payload'] = str_repeat('M', 17);
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+
+        $relationshipPartBytes = strlen($parts['_rels/.rels']) + strlen($parts['word/_rels/document.xml.rels']);
+        $overrideBytes = strlen($parts['word/document.xml']) + strlen($parts['docProps/core.xml']);
+        $missingBytes = strlen($parts['customXml/no-type.payload']);
+        $defaultBytes = array_sum(array_map('strlen', $parts)) - $overrideBytes - $missingBytes;
+        $packagePartBytes = strlen($parts['word/styles.xml'])
+            + strlen($parts['word/numbering.xml'])
+            + strlen($parts['word/embeddings/review.bin'])
+            + strlen($parts['customXml/no-type.payload']);
+
+        $t->same(array_sum(array_map('strlen', $parts)), $summary['packageByteLength']);
+        $t->same($relationshipPartBytes, $summary['relationshipPartByteLength']);
+        $t->same($missingBytes, $summary['missingContentTypePartByteLength']);
+        $t->same(['default' => 7, 'missing' => 1, 'override' => 2], $summary['contentTypeSourceCounts']);
+        $t->same($defaultBytes, $summary['contentTypeSourceByteLengths']['default']);
+        $t->same($missingBytes, $summary['contentTypeSourceByteLengths']['missing']);
+        $t->same($overrideBytes, $summary['contentTypeSourceByteLengths']['override']);
+
+        $t->same(strlen($parts['[Content_Types].xml']), $summary['roleByteLengths']['content-types']);
+        $t->same($relationshipPartBytes, $summary['roleByteLengths']['relationship-part']);
+        $t->same(strlen($parts['_rels/.rels']), $summary['roleByteLengths']['package-relationships']);
+        $t->same(strlen($parts['word/_rels/document.xml.rels']), $summary['roleByteLengths']['office-document-relationships']);
+        $t->same(strlen($parts['word/document.xml']), $summary['roleByteLengths']['office-document']);
+        $t->same($overrideBytes, $summary['roleByteLengths']['root-relationship-target']);
+        $t->same(strlen($parts['word/media/review.png']), $summary['roleByteLengths']['document-relationship-target']);
+        $t->same($packagePartBytes, $summary['roleByteLengths']['package-part']);
+    },
     'summarizes largest docx package parts for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/media/full-resolution-review.png'] = str_repeat('P', 20000);

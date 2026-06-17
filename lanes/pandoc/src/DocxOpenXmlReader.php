@@ -7303,24 +7303,37 @@ final class DocxOpenXmlReader
     private function packageProvenanceSummary(array $contentTypesPart, array $relationshipParts, array $partInventory): array
     {
         $roleCounts = [];
+        $roleByteLengths = [];
         $contentTypeSourceCounts = [];
+        $contentTypeSourceByteLengths = [];
         $packageByteLength = 0;
         $relationshipPartCount = 0;
+        $relationshipPartByteLength = 0;
+        $missingContentTypePartByteLength = 0;
         foreach ($partInventory as $part) {
-            $packageByteLength += (int) ($part['bytes'] ?? 0);
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $packageByteLength += $bytes;
             $source = (string) ($part['contentTypeSource'] ?? 'missing');
             $contentTypeSourceCounts[$source] = ($contentTypeSourceCounts[$source] ?? 0) + 1;
+            $contentTypeSourceByteLengths[$source] = ($contentTypeSourceByteLengths[$source] ?? 0) + $bytes;
             foreach (($part['roles'] ?? []) as $role) {
                 $role = (string) $role;
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                $roleByteLengths[$role] = ($roleByteLengths[$role] ?? 0) + $bytes;
             }
             if (($part['isRelationshipPart'] ?? false) === true) {
                 ++$relationshipPartCount;
+                $relationshipPartByteLength += $bytes;
+            }
+            if ($source === 'missing') {
+                $missingContentTypePartByteLength += $bytes;
             }
         }
 
         ksort($roleCounts);
+        ksort($roleByteLengths);
         ksort($contentTypeSourceCounts);
+        ksort($contentTypeSourceByteLengths);
 
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
@@ -7756,6 +7769,7 @@ final class DocxOpenXmlReader
             'largestPartName' => $largestPart['partName'] ?? null,
             'largestPartBytes' => $largestPart['bytes'] ?? 0,
             'relationshipPartCount' => $relationshipPartCount,
+            'relationshipPartByteLength' => $relationshipPartByteLength,
             'relationshipCount' => $relationshipCount,
             'relationshipRecordCount' => $relationshipRecordCount,
             'internalRelationshipCount' => $internalRelationshipCount,
@@ -7850,7 +7864,9 @@ final class DocxOpenXmlReader
             'contentTypeOverrideDeclarationIssueCounts' => $contentTypesPart['overrideDeclarationIssueCounts'] ?? [],
             'contentTypeOverrideDeclarationIssues' => $contentTypesPart['overrideDeclarationIssues'] ?? [],
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
+            'contentTypeSourceByteLengths' => $contentTypeSourceByteLengths,
             'roleCounts' => $roleCounts,
+            'roleByteLengths' => $roleByteLengths,
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'partDirectories' => $partDirectories,
             'partExtensions' => $partExtensions,
@@ -7870,6 +7886,7 @@ final class DocxOpenXmlReader
             'relationshipPartsWithExplicitInternalTargetMode' => array_keys($relationshipPartsWithExplicitInternalTargetMode),
             'relationshipPartsWithUnexpectedTargetMode' => array_keys($relationshipPartsWithUnexpectedTargetMode),
             'relationshipPartsWithUnsafeExternalTargets' => array_keys($relationshipPartsWithUnsafeExternalTargets),
+            'missingContentTypePartByteLength' => $missingContentTypePartByteLength,
             'partsWithoutContentType' => $partsWithoutContentType,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
