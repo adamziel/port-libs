@@ -7829,10 +7829,10 @@ MARKDOWN);
             '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
             'endobj',
             '3 0 obj',
-            '<< /Type /Page /Parent 2 0 R /UserUnit 2 /Tabs /S /Group << /S /Transparency /CS /DeviceRGB /I true /K false >> /Thumb 5 0 R /LastModified (D:20260606093000Z) >>',
+            '<< /Type /Page /Parent 2 0 R /Lang (en-US) /UserUnit 2 /Tabs /S /Group << /S /Transparency /CS /DeviceRGB /I true /K false >> /Thumb 5 0 R /LastModified (D:20260606093000Z) >>',
             'endobj',
             '4 0 obj',
-            '<< /Type /Page /Parent 2 0 R /Tabs /R /Group 6 0 R >>',
+            '<< /Type /Page /Parent 2 0 R /Lang /fr-CA /Tabs /R /Group 6 0 R >>',
             'endobj',
             '5 0 obj',
             '<< /Type /XObject /Subtype /Image /Width 16 /Height 16 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Length 0 >>',
@@ -7869,6 +7869,7 @@ MARKDOWN);
             [
                 'page' => 1,
                 'pageObject' => '3 0 R',
+                'language' => 'en-US',
                 'userUnit' => 2.0,
                 'tabOrder' => 'S',
                 'groupSubtype' => 'Transparency',
@@ -7881,6 +7882,7 @@ MARKDOWN);
             [
                 'page' => 2,
                 'pageObject' => '4 0 R',
+                'language' => 'fr-CA',
                 'userUnit' => null,
                 'tabOrder' => 'R',
                 'groupSubtype' => 'Transparency',
@@ -7901,6 +7903,7 @@ MARKDOWN);
         $t->contains('pdf-byte-page-tab-order:S:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-groups:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-thumbnails:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-languages:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-last-modified:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfPageDisplayMetadata']);

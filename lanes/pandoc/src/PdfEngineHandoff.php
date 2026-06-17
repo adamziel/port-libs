@@ -740,7 +740,7 @@ final class PdfEngineHandoff
      *     pdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pdfPageRotations: array<int, int>,
      *     pdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
-     *     pdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
+     *     pdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pdfPageThumbnails: list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
      *     pdfPageThumbnailPolicy: array{reviewStatus:string, pageCount:int|null, thumbnailCount:int, thumbnailPages:list<int>, imageThumbnailCount:int, missingObjectCount:int, nonImageCount:int, missingStreamCount:int, skippedStreamCount:int, streamCount:int, colorSpaces:array<string, int>, filters:array<string, int>, issues:list<string>}|array{},
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
@@ -1764,8 +1764,12 @@ final class PdfEngineHandoff
                     $pageTabOrderCount = 0;
                     $pageGroupCount = 0;
                     $pageThumbnailCount = 0;
+                    $pageLanguageCount = 0;
                     $pageLastModifiedCount = 0;
                     foreach ($pdfPageDisplayMetadata as $pageDisplay) {
+                        if (($pageDisplay['language'] ?? null) !== null) {
+                            $pageLanguageCount++;
+                        }
                         if (($pageDisplay['userUnit'] ?? null) !== null) {
                             $pageUserUnitCount++;
                         }
@@ -1796,6 +1800,9 @@ final class PdfEngineHandoff
                     }
                     if ($pageThumbnailCount > 0) {
                         $diagnostics[] = 'pdf-byte-page-thumbnails:' . $pageThumbnailCount;
+                    }
+                    if ($pageLanguageCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-languages:' . $pageLanguageCount;
                     }
                     if ($pageLastModifiedCount > 0) {
                         $diagnostics[] = 'pdf-byte-page-last-modified:' . $pageLastModifiedCount;
@@ -5027,7 +5034,7 @@ final class PdfEngineHandoff
      *     finalPdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     finalPdfPageRotations: array<int, int>,
      *     finalPdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
-     *     finalPdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
+     *     finalPdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     finalPdfPageThumbnails: list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
      *     finalPdfPageThumbnailPolicy: array{reviewStatus:string, pageCount:int|null, thumbnailCount:int, thumbnailPages:list<int>, imageThumbnailCount:int, missingObjectCount:int, nonImageCount:int, missingStreamCount:int, skippedStreamCount:int, streamCount:int, colorSpaces:array<string, int>, filters:array<string, int>, issues:list<string>}|array{},
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
@@ -11264,7 +11271,7 @@ final class PdfEngineHandoff
      *     pageCount:int|null,
      *     pageBoxes:list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pageRotations:array<int, int>,
-     *     pageDisplayMetadata:list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
+     *     pageDisplayMetadata:list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pageThumbnails:list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
      *     pageThumbnailPolicy:array{reviewStatus:string, pageCount:int|null, thumbnailCount:int, thumbnailPages:list<int>, imageThumbnailCount:int, missingObjectCount:int, nonImageCount:int, missingStreamCount:int, skippedStreamCount:int, streamCount:int, colorSpaces:array<string, int>, filters:array<string, int>, issues:list<string>}|array{},
      *     pageLabels:list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
@@ -24783,7 +24790,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>
+     * @return list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>
      */
     private function extractPdfPageDisplayMetadata(string $pdfBytes, ?string $catalog): array
     {
@@ -24825,7 +24832,7 @@ final class PdfEngineHandoff
     /**
      * @param array<string, string> $objects
      * @param array<string, bool> $visited
-     * @param list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}> $metadata
+     * @param list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}> $metadata
      */
     private function collectPdfPageDisplayMetadataFromTree(
         array $objects,
@@ -24866,7 +24873,7 @@ final class PdfEngineHandoff
 
     /**
      * @param array<string, string> $objects
-     * @return array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}
+     * @return array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}
      */
     private function summarizePdfPageDisplayMetadata(string $dictionary, ?string $reference, array $objects, int $pageNumber): array
     {
@@ -24875,6 +24882,7 @@ final class PdfEngineHandoff
         return [
             'page' => $pageNumber,
             'pageObject' => $reference === null ? null : $reference . ' R',
+            'language' => $this->extractPdfStringOrNameValue($dictionary, 'Lang'),
             'userUnit' => $this->extractPdfNumberToken($dictionary, 'UserUnit'),
             'tabOrder' => $this->extractPdfNameToken($dictionary, 'Tabs'),
             'groupSubtype' => $group === null ? null : $this->extractPdfNameToken($group, 'S'),
@@ -24891,7 +24899,7 @@ final class PdfEngineHandoff
      */
     private function pdfPageDisplayMetadataHasValues(array $metadata): bool
     {
-        foreach (['userUnit', 'tabOrder', 'groupSubtype', 'groupColorSpace', 'groupIsolated', 'groupKnockout', 'thumbnailObject', 'lastModified'] as $key) {
+        foreach (['language', 'userUnit', 'tabOrder', 'groupSubtype', 'groupColorSpace', 'groupIsolated', 'groupKnockout', 'thumbnailObject', 'lastModified'] as $key) {
             if (($metadata[$key] ?? null) !== null) {
                 return true;
             }
@@ -24901,7 +24909,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @param list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}> $metadata
+     * @param list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}> $metadata
      * @return array<string, int>
      */
     private function summarizePdfPageTabOrders(array $metadata): array
