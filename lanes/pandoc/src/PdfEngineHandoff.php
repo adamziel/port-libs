@@ -7577,12 +7577,39 @@ final class PdfEngineHandoff
         if ($diagnosticOutput !== []) {
             $diagnosticFormat = is_array($diagnosticOutput['format'] ?? null) ? $diagnosticOutput['format'] : [];
             $diagnosticColor = is_array($diagnosticOutput['color'] ?? null) ? $diagnosticOutput['color'] : [];
-            $diagnosticIssues = is_array($diagnosticOutput['issues'] ?? null) ? $diagnosticOutput['issues'] : [];
+            $diagnosticFormatHistory = is_array($provenance['diagnosticFormatHistory'] ?? null) ? $provenance['diagnosticFormatHistory'] : [];
+            $diagnosticColorHistory = is_array($provenance['diagnosticColorHistory'] ?? null) ? $provenance['diagnosticColorHistory'] : [];
+            $diagnosticOverrides = array_values(array_filter(
+                is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+                static fn (mixed $entry): bool => is_array($entry)
+                    && in_array($entry['option'] ?? null, ['diagnosticFormat', 'diagnosticColor'], true)
+            ));
+            $countUnsafe = static function (array $entries): int {
+                $count = 0;
+                foreach ($entries as $entry) {
+                    if (!is_array($entry) || ($entry['safe'] ?? false) !== true) {
+                        ++$count;
+                    }
+                }
+
+                return $count;
+            };
+            $diagnosticIssues = array_merge(
+                is_array($diagnosticOutput['issues'] ?? null) ? $diagnosticOutput['issues'] : [],
+                $listIssues($diagnosticFormatHistory),
+                $listIssues($diagnosticColorHistory),
+                $optionIssues($diagnosticOverrides)
+            );
             $appendCase('diagnostic-output', $diagnosticIssues === [] ? 'ok' : 'review', (int) ($diagnosticFormat !== []) + (int) ($diagnosticColor !== []), [
                 'format' => is_string($diagnosticFormat['format'] ?? null) ? $diagnosticFormat['format'] : null,
                 'machineReadable' => ($diagnosticFormat['machineReadable'] ?? false) === true,
                 'color' => is_string($diagnosticColor['color'] ?? null) ? $diagnosticColor['color'] : null,
                 'ansiColor' => is_string($diagnosticColor['ansiColor'] ?? null) ? $diagnosticColor['ansiColor'] : null,
+                'formatHistoryCount' => count($diagnosticFormatHistory),
+                'colorHistoryCount' => count($diagnosticColorHistory),
+                'overrideCount' => count($diagnosticOverrides),
+                'invalidFormatCount' => $countUnsafe($diagnosticFormatHistory),
+                'invalidColorCount' => $countUnsafe($diagnosticColorHistory),
             ], $diagnosticIssues);
         }
 

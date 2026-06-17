@@ -3435,6 +3435,74 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'maps typst diagnostic output history into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/diagnostic-output-matrix.pdf',
+            'source' => '= Typst Diagnostic Output Matrix Packet',
+            'engineOptions' => [
+                '--diagnostic-format=xml',
+                '--diagnostic-format=json',
+                '--color=rainbow',
+                '--color=never',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst diagnostic output matrix packet\n%%EOF\n";
+        $expectedCase = [
+            'case' => 'diagnostic-output',
+            'reviewStatus' => 'review',
+            'observed' => 2,
+            'details' => [
+                'format' => 'json',
+                'machineReadable' => true,
+                'color' => 'never',
+                'ansiColor' => 'disabled',
+                'formatHistoryCount' => 2,
+                'colorHistoryCount' => 2,
+                'overrideCount' => 2,
+                'invalidFormatCount' => 1,
+                'invalidColorCount' => 1,
+            ],
+            'issues' => [
+                'diagnostic-color-boundary-overridden',
+                'diagnostic-color-invalid-boundary',
+                'diagnostic-format-boundary-overridden',
+                'diagnostic-format-invalid-boundary',
+            ],
+        ];
+        $planCases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $planCases[$case['case']] = $case;
+        }
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/diagnostic-output-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/diagnostic-output-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $resultCases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $resultCases[$case['case']] = $case;
+        }
+
+        $t->same($expectedCase, $planCases['diagnostic-output']);
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(2, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(1, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->contains('diagnostic-output:diagnostic-format-invalid-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('typst-boundary-matrix-review-cases:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedCase, $resultCases['diagnostic-output']);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans typst dependency sidecar format boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
