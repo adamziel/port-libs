@@ -8229,6 +8229,79 @@ return [
         $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
     },
 
+    'maps typst pdf export histories into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-export-history-matrix.pdf',
+            'source' => '= Typst PDF Export History Matrix Packet',
+            'engineOptions' => [
+                '--pages=1-3',
+                '--pages=0,5-2,',
+                '--ppi=0',
+                '--ppi=300',
+                '--pdf-standard=1.7,',
+                '--pdf-standard=2.0',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst PDF export history matrix packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-export-history-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-export-history-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $planCases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $planCases[$case['case']] = $case;
+        }
+        $resultCases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $resultCases[$case['case']] = $case;
+        }
+        $details = $planCases['pdf-export-controls']['details'];
+
+        $t->same(true, $result['ok']);
+        $t->same(['boundary-overrides', 'output-format', 'pdf-export-controls'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(11, $plan['typstBoundaryMatrix']['issueCount']);
+        $t->same(3, $planCases['pdf-export-controls']['observed']);
+        $t->same(true, $details['pageSelectionPresent']);
+        $t->same(3, $details['pageSelectionSegmentCount']);
+        $t->same(2, $details['pageSelectionHistoryCount']);
+        $t->same(1, $details['invalidPageSelectionCount']);
+        $t->same(true, $details['ppiPresent']);
+        $t->same(300, $details['ppi']);
+        $t->same(2, $details['ppiHistoryCount']);
+        $t->same(1, $details['invalidPpiCount']);
+        $t->same(1, $details['pdfStandardCount']);
+        $t->same(1, $details['pdfVersionCount']);
+        $t->same(['2.0'], $details['pdfStandards']);
+        $t->same(2, $details['pdfStandardHistoryCount']);
+        $t->same(1, $details['invalidPdfStandardCount']);
+        $t->same(false, $details['tagsDisabled']);
+        $t->same(0, $details['tagsFlagCount']);
+        $t->same(false, $details['prettyEnabled']);
+        $t->same(0, $details['prettyFlagCount']);
+        $t->same(3, $details['overrideCount']);
+        $t->contains('pdf-export-controls:pages-invalid-segment-boundary:0', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('pdf-export-controls:ppi-nonpositive-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('pdf-export-controls:pdf-standard-empty-token-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('pdf-export-controls:pdf-standard-boundary-overridden', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('typst-boundary-matrix-review-cases:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-issues:11', implode(',', $plan['diagnostics']));
+        $t->same($details, $resultCases['pdf-export-controls']['details']);
+        $t->same($plan['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
