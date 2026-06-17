@@ -200,6 +200,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['digitalSignatureExistingSignatureCount'] = $digitalSignatures['existingSignatureCount'];
         $packageProvenance['summary']['digitalSignatureMissingSignatureCount'] = $digitalSignatures['missingSignatureCount'];
         $packageProvenance['summary']['digitalSignatureExternalSignatureCount'] = $digitalSignatures['externalSignatureCount'];
+        $packageProvenance['summary']['digitalSignatureOriginSha256Count'] = $digitalSignatures['originSha256Count'];
+        $packageProvenance['summary']['digitalSignatureSignatureSha256Count'] = $digitalSignatures['signatureSha256Count'];
         $packageProvenance['summary']['digitalSignatureInvalidXmlCount'] = $digitalSignatures['invalidSignatureXmlCount'];
         $packageProvenance['summary']['digitalSignatureUnexpectedRootCount'] = $digitalSignatures['unexpectedSignatureRootCount'];
         $packageProvenance['summary']['digitalSignatureIssueCount'] = $digitalSignatures['issueCount'];
@@ -9711,6 +9713,8 @@ final class DocxOpenXmlReader
         $signatureRelationshipIds = [];
         $originParts = [];
         $signatureParts = [];
+        $originSha256s = [];
+        $signatureSha256s = [];
         $externalTargets = [];
         $contentTypesSeen = [];
         $issueCodes = [];
@@ -9721,6 +9725,7 @@ final class DocxOpenXmlReader
             $byOriginRelationshipId[(string) $origin['id']] = $origin;
             $originRelationshipIds[] = (string) $origin['id'];
             $this->appendUniqueString($originParts, is_string($origin['targetPart'] ?? null) ? $origin['targetPart'] : null);
+            $this->appendUniqueString($originSha256s, is_string($origin['sha256'] ?? null) ? $origin['sha256'] : null);
             $this->appendUniqueString($contentTypesSeen, is_string($origin['contentType'] ?? null) ? $origin['contentType'] : null);
             if (($origin['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($origin['target'] ?? null) ? $origin['target'] : null);
@@ -9737,6 +9742,7 @@ final class DocxOpenXmlReader
                 $bySignatureRelationshipId[(string) $signature['id']] = $signature;
                 $signatureRelationshipIds[] = (string) $signature['id'];
                 $this->appendUniqueString($signatureParts, is_string($signature['targetPart'] ?? null) ? $signature['targetPart'] : null);
+                $this->appendUniqueString($signatureSha256s, is_string($signature['sha256'] ?? null) ? $signature['sha256'] : null);
                 $this->appendUniqueString($contentTypesSeen, is_string($signature['contentType'] ?? null) ? $signature['contentType'] : null);
                 if (($signature['external'] ?? false) === true) {
                     $this->appendUniqueString($externalTargets, is_string($signature['target'] ?? null) ? $signature['target'] : null);
@@ -9787,6 +9793,10 @@ final class DocxOpenXmlReader
             'signatureRelationshipIds' => $signatureRelationshipIds,
             'originParts' => $originParts,
             'signatureParts' => $signatureParts,
+            'originSha256Count' => count($originSha256s),
+            'signatureSha256Count' => count($signatureSha256s),
+            'originSha256s' => $originSha256s,
+            'signatureSha256s' => $signatureSha256s,
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),

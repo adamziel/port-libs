@@ -2953,6 +2953,75 @@ XML;
         $t->same([], $signatures['issueCodes']);
         $t->same('digital-signature-metadata-only', $signatures['reviewPolicy']);
     },
+    'summarizes docx digital signature sha256 hashes for package review' => static function (TestRunner $t): void {
+        $originType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
+        $signatureType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+        $originBytes = 'signature origin bytes for sha256 review';
+        $signatureXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/document.xml">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>bodyDigest</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+  <ds:SignatureValue>signature-value-for-review</ds:SignatureValue>
+</ds:Signature>
+XML;
+
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/_xmlsignatures/origin-sha.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>' . "\n" .
+            '  <Override PartName="/_xmlsignatures/sig-sha.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>' . "\n" .
+            '  <Override PartName="/_xmlsignatures/missing-sha.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSignatureOriginSha" Type="' . $originType . '" Target="_xmlsignatures/origin-sha.sigs"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['_xmlsignatures/origin-sha.sigs'] = $originBytes;
+        $parts['_xmlsignatures/_rels/origin-sha.sigs.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSignatureSha" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig-sha.xml"/>
+  <Relationship Id="rMissingSignatureSha" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="missing-sha.xml"/>
+  <Relationship Id="rExternalSignatureSha" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="https://example.test/signature.xml" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['_xmlsignatures/sig-sha.xml'] = $signatureXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $signatures = $package['digitalSignatures'];
+        $missing = $signatures['bySignatureRelationshipId']['rMissingSignatureSha'];
+        $external = $signatures['bySignatureRelationshipId']['rExternalSignatureSha'];
+        $originSha256 = hash('sha256', $originBytes);
+        $signatureSha256 = hash('sha256', $signatureXml);
+
+        $t->same(1, $signatures['originSha256Count']);
+        $t->same(1, $signatures['signatureSha256Count']);
+        $t->same([$originSha256], $signatures['originSha256s']);
+        $t->same([$signatureSha256], $signatures['signatureSha256s']);
+        $t->same(1, $summary['digitalSignatureOriginSha256Count']);
+        $t->same(1, $summary['digitalSignatureSignatureSha256Count']);
+        $t->same(null, $missing['sha256']);
+        $t->same(null, $external['sha256']);
+        $t->same(['missing-signature-part'], $missing['issues']);
+        $t->same(['external-signature-target'], $external['issues']);
+        $t->same(['external-signature-target', 'missing-signature-part'], $signatures['issueCodes']);
+        $t->same(['_xmlsignatures/origin-sha.sigs'], $signatures['originParts']);
+        $t->same(['_xmlsignatures/sig-sha.xml', '_xmlsignatures/missing-sha.xml'], $signatures['signatureParts']);
+        $t->same(['https://example.test/signature.xml'], $signatures['externalTargets']);
+        $t->same(1, $summary['digitalSignatureMissingSignatureCount']);
+        $t->same(1, $summary['digitalSignatureExternalSignatureCount']);
+    },
     'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
