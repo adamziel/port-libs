@@ -5243,6 +5243,137 @@ XML;
         $t->same(['customXml/itemProps1.xml', 'customXml/itemPropsBad.xml', 'customXml/itemPropsNoId.xml'], $relationshipTypes[$customXmlPropsRel]['existingTargetParts']);
         $t->same(['customXml/missingProps.xml'], $relationshipTypes[$customXmlPropsRel]['missingTargetParts']);
     },
+    'reports malformed docx custom xml data store parts without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $customXmlPropsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/broken-item.xml" ContentType="application/xml; profile=broken"/>' . "\n" .
+            '  <Override PartName="/customXml/broken-props.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rBrokenCustomXml" Type="' . $customXmlRel . '" Target="../customXml/broken-item.xml?slot=broken#payload"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/broken-item.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<review><title>Broken custom XML packet</title>
+XML;
+        $parts['customXml/_rels/broken-item.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rBrokenProps" Type="{$customXmlPropsRel}" Target="broken-props.xml?slot=props#meta"/>
+</Relationships>
+XML;
+        $parts['customXml/broken-props.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem ds:itemID="{77777777-8888-9999-aaaa-bbbbbbbbbbbb}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml">
+  <ds:schemaRefs>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $customXml = $docx['customXmlParts'];
+        $summary = $docx['packageProvenance']['summary'];
+        $inventory = $docx['packageProvenance']['parts'];
+        $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
+        $item = $customXml['byRelationshipId']['rBrokenCustomXml'];
+        $properties = $item['propertiesParts']['byRelationshipId']['rBrokenProps'];
+
+        $t->same($customXml, $docx['packageProvenance']['customXmlParts']);
+        $t->same(1, $customXml['count']);
+        $t->same(1, $customXml['relationshipCount']);
+        $t->same(1, $customXml['existingCount']);
+        $t->same(0, $customXml['missingCount']);
+        $t->same(0, $customXml['externalCount']);
+        $t->same(1, $customXml['invalidXmlCount']);
+        $t->same(0, $customXml['missingContentTypeCount']);
+        $t->same(0, $customXml['missingPropertiesRelationshipCount']);
+        $t->same(1, $customXml['propertiesPartCount']);
+        $t->same(1, $customXml['existingPropertiesPartCount']);
+        $t->same(0, $customXml['missingPropertiesPartCount']);
+        $t->same(0, $customXml['externalPropertiesPartCount']);
+        $t->same(1, $customXml['invalidPropertiesXmlCount']);
+        $t->same(0, $customXml['invalidPropertiesRootCount']);
+        $t->same(0, $customXml['missingPropertiesStoreItemIdCount']);
+        $t->same(2, $customXml['issueCount']);
+        $t->same(['invalid-xml'], $customXml['issueCodes']);
+        $t->same(1, $customXml['propertiesIssueCount']);
+        $t->same(['invalid-xml'], $customXml['propertiesIssueCodes']);
+        $t->same([], $customXml['schemaRefs']);
+        $t->same(0, $customXml['schemaRefCount']);
+        $t->same([], $customXml['rootNames']);
+
+        $t->same(1, $summary['customXmlPartCount']);
+        $t->same(1, $summary['customXmlPropertiesPartCount']);
+        $t->same(1, $summary['customXmlPropertiesExistingPartCount']);
+        $t->same(1, $summary['customXmlPropertiesInvalidXmlCount']);
+        $t->same(0, $summary['customXmlPropertiesInvalidRootCount']);
+        $t->same(0, $summary['customXmlPropertiesMissingStoreItemIdCount']);
+        $t->same(2, $summary['customXmlIssueCount']);
+        $t->same(['invalid-xml'], $summary['customXmlIssueCodes']);
+        $t->same(1, $summary['customXmlPropertiesIssueCount']);
+        $t->same(['invalid-xml'], $summary['customXmlPropertiesIssueCodes']);
+        $t->same([], $summary['customXmlRootNames']);
+
+        $t->same(0, $item['index']);
+        $t->same('rBrokenCustomXml', $item['relationshipId']);
+        $t->same('../customXml/broken-item.xml?slot=broken#payload', $item['target']);
+        $t->same('customXml/broken-item.xml?slot=broken#payload', $item['resolvedTarget']);
+        $t->same('customXml/broken-item.xml', $item['partName']);
+        $t->same('slot=broken', $item['targetQuery']);
+        $t->same('payload', $item['targetFragment']);
+        $t->same('?slot=broken#payload', $item['targetReferenceSuffix']);
+        $t->same(true, $item['exists']);
+        $t->same(strlen($parts['customXml/broken-item.xml']), $item['bytes']);
+        $t->same('application/xml; profile=broken', $item['contentType']);
+        $t->same('application/xml', $item['contentTypeBase']);
+        $t->same(true, $item['contentTypeHasParameters']);
+        $t->same(['profile' => 'broken'], $item['contentTypeParameterMap']);
+        $t->same(false, $item['validXml']);
+        $t->contains('Premature end of data', (string) $item['xmlParseError']);
+        $t->same(null, $item['rootName']);
+        $t->same(null, $item['textPreview']);
+        $t->same('customXml/_rels/broken-item.xml.rels', $item['relationshipsPart']);
+        $t->same(1, $item['relationshipCount']);
+        $t->same(['invalid-xml'], $item['issues']);
+
+        $t->same(1, $item['propertiesParts']['count']);
+        $t->same(1, $item['propertiesParts']['existingCount']);
+        $t->same(1, $item['propertiesParts']['invalidXmlCount']);
+        $t->same(['rBrokenProps'], $item['propertiesParts']['relationshipIds']);
+        $t->same(['customXml/broken-props.xml'], $item['propertiesParts']['partNames']);
+        $t->same('customXml/broken-props.xml', $properties['partName']);
+        $t->same('broken-props.xml?slot=props#meta', $properties['target']);
+        $t->same('customXml/broken-props.xml?slot=props#meta', $properties['resolvedTarget']);
+        $t->same('slot=props', $properties['targetQuery']);
+        $t->same('meta', $properties['targetFragment']);
+        $t->same('?slot=props#meta', $properties['targetReferenceSuffix']);
+        $t->same(true, $properties['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.customXmlProperties+xml', $properties['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.customxmlproperties+xml', $properties['contentTypeBase']);
+        $t->same(true, $properties['contentTypeMatchesExpected']);
+        $t->same(false, $properties['validXml']);
+        $t->same(false, $properties['validRoot']);
+        $t->same(null, $properties['itemId']);
+        $t->same([], $properties['schemaRefs']);
+        $t->contains('Premature end of data', (string) $properties['xmlParseError']);
+        $t->same(['invalid-xml'], $properties['issues']);
+
+        $t->true(in_array('document-relationship-target', $inventory['customXml/broken-item.xml']['roles'], true), 'broken custom XML relationship inventory role missing');
+        $t->true(in_array('custom-xml-part', $inventory['customXml/broken-item.xml']['roles'], true), 'broken custom XML item inventory role missing');
+        $t->true(in_array('relationship-target', $inventory['customXml/broken-props.xml']['roles'], true), 'broken custom XML props target inventory role missing');
+        $t->true(in_array('custom-xml-properties', $inventory['customXml/broken-props.xml']['roles'], true), 'broken custom XML props inventory role missing');
+        $t->same(1, $summary['roleCounts']['custom-xml-part']);
+        $t->same(1, $summary['roleCounts']['custom-xml-properties']);
+        $t->same(['customXml/broken-item.xml'], $relationshipTypes[$customXmlRel]['existingTargetParts']);
+        $t->same(['customXml/broken-props.xml'], $relationshipTypes[$customXmlPropsRel]['existingTargetParts']);
+    },
     'summarizes duplicate docx custom xml store item ids for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
