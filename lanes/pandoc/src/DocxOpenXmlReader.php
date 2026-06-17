@@ -10531,6 +10531,10 @@ final class DocxOpenXmlReader
         $relationshipSourceRoleCounts = [];
         $relationshipPartsBySourceKind = [];
         $relationshipSources = [];
+        $relationshipTargetTopLevelSegmentCounts = [];
+        $relationshipTargetExistingTopLevelSegmentCounts = [];
+        $relationshipTargetMissingTopLevelSegmentCounts = [];
+        $relationshipTargetTopLevelSegments = [];
         $relationshipTargetDirectoryCounts = [];
         $relationshipTargetExistingDirectoryCounts = [];
         $relationshipTargetMissingDirectoryCounts = [];
@@ -10866,6 +10870,9 @@ final class DocxOpenXmlReader
                 if (is_string($targetPart) && $targetPart !== '') {
                     $targetParts[$targetPart] = true;
                     $targetInventory = is_array($partInventory[$targetPart] ?? null) ? $partInventory[$targetPart] : null;
+                    $targetTopLevelSegment = is_array($targetInventory) && is_string($targetInventory['topLevelSegment'] ?? null)
+                        ? $targetInventory['topLevelSegment']
+                        : $this->packagePartTopLevelSegment($targetPart);
                     $targetDirectory = is_array($targetInventory) && is_string($targetInventory['directory'] ?? null)
                         ? $targetInventory['directory']
                         : $this->packagePartDirectory($targetPart);
@@ -10882,6 +10889,56 @@ final class DocxOpenXmlReader
                     if ($targetContentTypeSource === '') {
                         $targetContentTypeSource = 'missing';
                     }
+                    if (!isset($relationshipTargetTopLevelSegments[$targetTopLevelSegment])) {
+                        $relationshipTargetTopLevelSegments[$targetTopLevelSegment] = [
+                            'topLevelSegment' => $targetTopLevelSegment,
+                            'relationshipCount' => 0,
+                            'existingTargetCount' => 0,
+                            'missingTargetCount' => 0,
+                            'parameterizedTargetCount' => 0,
+                            'contentTypeSourceCounts' => [],
+                            'sourceParts' => [],
+                            'relationshipParts' => [],
+                            'relationshipIds' => [],
+                            'relationshipTypes' => [],
+                            'contentTypes' => [],
+                            'targetParts' => [],
+                        ];
+                    }
+
+                    ++$relationshipTargetTopLevelSegments[$targetTopLevelSegment]['relationshipCount'];
+                    $relationshipTargetTopLevelSegmentCounts[$targetTopLevelSegment] =
+                        ($relationshipTargetTopLevelSegmentCounts[$targetTopLevelSegment] ?? 0) + 1;
+                    $relationshipTargetTopLevelSegments[$targetTopLevelSegment]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                        ($relationshipTargetTopLevelSegments[$targetTopLevelSegment]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                    $this->appendUniqueString(
+                        $relationshipTargetTopLevelSegments[$targetTopLevelSegment]['sourceParts'],
+                        is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetTopLevelSegments[$targetTopLevelSegment]['relationshipParts'],
+                        is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetTopLevelSegments[$targetTopLevelSegment]['relationshipIds'],
+                        is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                    );
+                    $this->appendUniqueString($relationshipTargetTopLevelSegments[$targetTopLevelSegment]['relationshipTypes'], $type);
+                    $this->appendUniqueString($relationshipTargetTopLevelSegments[$targetTopLevelSegment]['contentTypes'], $targetContentType);
+                    $this->appendUniqueString($relationshipTargetTopLevelSegments[$targetTopLevelSegment]['targetParts'], $targetPart);
+                    if (($relationship['exists'] ?? false) === true) {
+                        ++$relationshipTargetTopLevelSegments[$targetTopLevelSegment]['existingTargetCount'];
+                        $relationshipTargetExistingTopLevelSegmentCounts[$targetTopLevelSegment] =
+                            ($relationshipTargetExistingTopLevelSegmentCounts[$targetTopLevelSegment] ?? 0) + 1;
+                    } else {
+                        ++$relationshipTargetTopLevelSegments[$targetTopLevelSegment]['missingTargetCount'];
+                        $relationshipTargetMissingTopLevelSegmentCounts[$targetTopLevelSegment] =
+                            ($relationshipTargetMissingTopLevelSegmentCounts[$targetTopLevelSegment] ?? 0) + 1;
+                    }
+                    if (($relationship['contentTypeHasParameters'] ?? false) === true) {
+                        ++$relationshipTargetTopLevelSegments[$targetTopLevelSegment]['parameterizedTargetCount'];
+                    }
+
                     if (!isset($relationshipTargetDirectories[$targetDirectory])) {
                         $relationshipTargetDirectories[$targetDirectory] = [
                             'directory' => $targetDirectory,
@@ -11148,6 +11205,14 @@ final class DocxOpenXmlReader
         ksort($relationshipSourceContentTypeParameterSourceCounts);
         ksort($relationshipSourceRoleCounts);
         ksort($relationshipPartsBySourceKind);
+        ksort($relationshipTargetTopLevelSegmentCounts);
+        ksort($relationshipTargetExistingTopLevelSegmentCounts);
+        ksort($relationshipTargetMissingTopLevelSegmentCounts);
+        ksort($relationshipTargetTopLevelSegments);
+        foreach ($relationshipTargetTopLevelSegments as &$targetTopLevelSegmentSummary) {
+            ksort($targetTopLevelSegmentSummary['contentTypeSourceCounts']);
+        }
+        unset($targetTopLevelSegmentSummary);
         ksort($relationshipTargetDirectoryCounts);
         ksort($relationshipTargetExistingDirectoryCounts);
         ksort($relationshipTargetMissingDirectoryCounts);
@@ -11364,6 +11429,11 @@ final class DocxOpenXmlReader
             'relationshipSourcePartExtensions' => $relationshipSourcePartExtensions,
             'relationshipPartsBySourceKind' => $relationshipPartsBySourceKind,
             'relationshipSources' => $relationshipSources,
+            'relationshipTargetTopLevelSegmentCount' => count($relationshipTargetTopLevelSegments),
+            'relationshipTargetTopLevelSegmentCounts' => $relationshipTargetTopLevelSegmentCounts,
+            'relationshipTargetExistingTopLevelSegmentCounts' => $relationshipTargetExistingTopLevelSegmentCounts,
+            'relationshipTargetMissingTopLevelSegmentCounts' => $relationshipTargetMissingTopLevelSegmentCounts,
+            'relationshipTargetTopLevelSegments' => array_values($relationshipTargetTopLevelSegments),
             'relationshipTargetDirectoryCount' => count($relationshipTargetDirectories),
             'relationshipTargetDirectoryCounts' => $relationshipTargetDirectoryCounts,
             'relationshipTargetExistingDirectoryCounts' => $relationshipTargetExistingDirectoryCounts,

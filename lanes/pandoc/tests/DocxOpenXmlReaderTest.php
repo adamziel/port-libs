@@ -5436,6 +5436,88 @@ XML;
         $t->same(['word/glossary/document.xml'], $directories['word/glossary']['targetParts']);
         $t->same(2, $summary['externalRelationshipCount']);
     },
+    'summarizes docx relationship target top-level segments for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=segment-review"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootCustomSegment" Type="' . $customXmlRel . '" Target="/customXml/root-segment.xml?root=segment#custom"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsSegment" Type="' . $commentsRel . '" Target="comments.xml?segment=word#comments"/>' . "\n" .
+            '  <Relationship Id="rMissingSegmentImage" Type="' . $imageRel . '" Target="media/missing-segment.png?missing=1#image"/>' . "\n" .
+            '  <Relationship Id="rEmbeddedSegment" Type="' . $packageRel . '" Target="../embeddings/package.bin?payload=1#bin"/>' . "\n" .
+            '  <Relationship Id="rExternalSegment" Type="' . $hyperlinkRel . '" Target="https://example.test/segment" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/root-segment.xml'] = '<root-segment/>';
+        $parts['word/comments.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['embeddings/package.bin'] = 'embedded package segment bytes';
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $segments = [];
+        foreach ($summary['relationshipTargetTopLevelSegments'] as $segment) {
+            $segments[$segment['topLevelSegment']] = $segment;
+        }
+
+        $t->same(4, $summary['relationshipTargetTopLevelSegmentCount']);
+        $t->same([
+            'customXml' => 1,
+            'docProps' => 1,
+            'embeddings' => 1,
+            'word' => 4,
+        ], $summary['relationshipTargetTopLevelSegmentCounts']);
+        $t->same([
+            'customXml' => 1,
+            'docProps' => 1,
+            'embeddings' => 1,
+            'word' => 3,
+        ], $summary['relationshipTargetExistingTopLevelSegmentCounts']);
+        $t->same(['word' => 1], $summary['relationshipTargetMissingTopLevelSegmentCounts']);
+        $t->same(['customXml', 'docProps', 'embeddings', 'word'], array_column($summary['relationshipTargetTopLevelSegments'], 'topLevelSegment'));
+
+        $word = $segments['word'];
+        $t->same(4, $word['relationshipCount']);
+        $t->same(3, $word['existingTargetCount']);
+        $t->same(1, $word['missingTargetCount']);
+        $t->same(1, $word['parameterizedTargetCount']);
+        $t->same(['default' => 2, 'override' => 2], $word['contentTypeSourceCounts']);
+        $t->same(['/', 'word/document.xml'], $word['sourceParts']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $word['relationshipParts']);
+        $t->same(['rDoc', 'rImage', 'rCommentsSegment', 'rMissingSegmentImage'], $word['relationshipIds']);
+        $t->same(['word/document.xml', 'word/media/review.png', 'word/comments.xml', 'word/media/missing-segment.png'], $word['targetParts']);
+
+        $customXml = $segments['customXml'];
+        $t->same(1, $customXml['relationshipCount']);
+        $t->same(['default' => 1], $customXml['contentTypeSourceCounts']);
+        $t->same(['_rels/.rels'], $customXml['relationshipParts']);
+        $t->same(['rRootCustomSegment'], $customXml['relationshipIds']);
+        $t->same(['customXml/root-segment.xml'], $customXml['targetParts']);
+
+        $embeddings = $segments['embeddings'];
+        $t->same(1, $embeddings['relationshipCount']);
+        $t->same(1, $embeddings['existingTargetCount']);
+        $t->same(0, $embeddings['missingTargetCount']);
+        $t->same(['missing' => 1], $embeddings['contentTypeSourceCounts']);
+        $t->same(['rEmbeddedSegment'], $embeddings['relationshipIds']);
+        $t->same(['embeddings/package.bin'], $embeddings['targetParts']);
+        $t->same(2, $summary['externalRelationshipCount']);
+    },
     'summarizes docx relationship type package matrix rollups for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
