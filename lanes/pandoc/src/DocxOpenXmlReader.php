@@ -272,7 +272,18 @@ final class DocxOpenXmlReader
         $fontTablePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FONT_TABLE_REL, 'fontTable.xml');
         $fontTable = $this->readFontTable($fontTablePart['xml'], $fontTablePart['partName'], $parts, $contentTypes);
         $themePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::THEME_REL, 'theme/theme1.xml');
+        $themeRelationshipsPart = $this->relationshipsPartFor($themePart['partName']);
+        $themeRelationships = $this->readRelationshipsPart($parts, $themeRelationshipsPart);
         $theme = $this->readTheme($themePart['xml'], $themePart['partName']);
+        $themeMediaRelationships = $this->readThemeMediaRelationships(
+            $parts,
+            $themePart['xml'],
+            $themePart['partName'],
+            $themePart['exists'],
+            $themeRelationshipsPart,
+            $themeRelationships,
+            $contentTypes,
+        );
         $glossaryDocumentPart = $this->relatedDocumentPart(
             $parts,
             $documentRelationships,
@@ -752,6 +763,17 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['themeColorTransformCount'] = (int) $themeColors['transformCount'];
             $packageProvenance['summary']['themeColorTransformNames'] = $themeColors['transformNames'] ?? [];
         }
+        $packageProvenance['themeMediaRelationships'] = $themeMediaRelationships;
+        $packageProvenance['summary']['themeMediaRelationshipCount'] = $themeMediaRelationships['count'];
+        $packageProvenance['summary']['themeMediaRelationshipDeclarationCount'] = $themeMediaRelationships['relationshipCount'];
+        $packageProvenance['summary']['themeMediaRelationshipReferencedCount'] = $themeMediaRelationships['referencedCount'];
+        $packageProvenance['summary']['themeMediaRelationshipUnreferencedCount'] = $themeMediaRelationships['unreferencedRelationshipCount'];
+        $packageProvenance['summary']['themeMediaRelationshipExistingCount'] = $themeMediaRelationships['existingCount'];
+        $packageProvenance['summary']['themeMediaRelationshipMissingCount'] = $themeMediaRelationships['missingCount'];
+        $packageProvenance['summary']['themeMediaRelationshipExternalCount'] = $themeMediaRelationships['externalCount'];
+        $packageProvenance['summary']['themeMediaRelationshipUnsafeExternalCount'] = $themeMediaRelationships['unsafeExternalTargetCount'];
+        $packageProvenance['summary']['themeMediaRelationshipIssueCount'] = $themeMediaRelationships['issueCount'];
+        $packageProvenance['summary']['themeMediaRelationshipIssueCodes'] = $themeMediaRelationships['issueCodes'];
         $mailMerge = $settings['mailMerge'] ?? null;
         if (is_array($mailMerge)) {
             $packageProvenance['summary']['mailMergeRelationshipCount'] = (int) ($mailMerge['relationshipCount'] ?? 0);
@@ -938,6 +960,9 @@ final class DocxOpenXmlReader
                 'fontTable' => $fontTable,
                 'themePart' => $themePart['partName'],
                 'theme' => $theme,
+                'themeRelationshipsPart' => $themeRelationshipsPart,
+                'themeRelationships' => $themeRelationships,
+                'themeMediaRelationships' => $themeMediaRelationships,
                 'glossaryDocumentPart' => $glossaryDocumentPart['partName'],
                 'glossaryDocument' => $glossaryDocument,
                 'extendedPropertiesPart' => $extendedPropertiesPart['partName'],
@@ -3764,6 +3789,277 @@ final class DocxOpenXmlReader
             'issues' => $issues,
             'relationship' => $relationship,
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readThemeMediaRelationships(
+        array $parts,
+        string $xml,
+        string $themePart,
+        bool $themeExists,
+        string $relationshipsPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $referencedRelationshipIds = [];
+        $referencedImageRelationshipIds = [];
+
+        if ($xml !== '') {
+            $dom = $this->loadXmlForProvenance($xml, $themePart);
+            if ($dom instanceof \DOMDocument) {
+                $xpath = $this->xpath($dom);
+                foreach ($this->elements($xpath, '//a:blip') as $blip) {
+                    $relationshipId = $blip->getAttributeNS(self::NS_R, 'embed');
+                    $referenceKind = 'embed';
+                    if ($relationshipId === '') {
+                        $relationshipId = $blip->getAttributeNS(self::NS_R, 'link');
+                        $referenceKind = $relationshipId === '' ? 'missing' : 'link';
+                    }
+
+                    $item = $this->themeMediaRelationshipItem(
+                        $parts,
+                        $relationships[$relationshipId] ?? null,
+                        $themePart,
+                        $themeExists,
+                        $relationshipsPart,
+                        $contentTypes,
+                        $relationshipId,
+                        count($items),
+                        true,
+                        $referenceKind,
+                    );
+                    $items[] = $item;
+
+                    $this->appendUniqueString($relationshipIds, $relationshipId);
+                    $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                    if ($item['relationshipType'] === self::IMAGE_REL) {
+                        $this->appendUniqueString($referencedImageRelationshipIds, $relationshipId);
+                    }
+                    if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                        $byRelationshipId[$relationshipId] = $item;
+                    }
+                }
+            }
+        }
+
+        $unreferencedRelationshipIds = [];
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::IMAGE_REL) {
+                continue;
+            }
+
+            $relationshipId = $relationship['id'];
+            if (in_array($relationshipId, $referencedImageRelationshipIds, true)) {
+                continue;
+            }
+
+            $item = $this->themeMediaRelationshipItem(
+                $parts,
+                $relationship,
+                $themePart,
+                $themeExists,
+                $relationshipsPart,
+                $contentTypes,
+                $relationshipId,
+                count($items),
+                false,
+                'relationship',
+            );
+            $items[] = $item;
+
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            $this->appendUniqueString($unreferencedRelationshipIds, $relationshipId);
+            if (!isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+        }
+
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        foreach ($items as $item) {
+            if (($item['relationshipType'] ?? null) === self::IMAGE_REL) {
+                $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            }
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['relationshipType'] ?? null) === self::IMAGE_REL && ($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count(array_filter($relationships, static fn (array $relationship): bool => $relationship['type'] === self::IMAGE_REL)),
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
+            'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-theme-media-part', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-target-unsafe-scheme', $item['issues'], true))),
+            'unresolvedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
+            )),
+            'unexpectedRelationshipTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-relationship-type', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-theme-media-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-theme-media-content-type', $item['issues'], true))),
+            'relationshipIds' => $relationshipIds,
+            'referencedRelationshipIds' => $referencedRelationshipIds,
+            'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+            'byteExposurePolicy' => 'theme-media-bytes-blocked',
+            'reviewPolicy' => 'theme-media-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function themeMediaRelationshipItem(
+        array $parts,
+        ?array $relationship,
+        string $themePart,
+        bool $themeExists,
+        string $relationshipsPart,
+        array $contentTypes,
+        string $relationshipId,
+        int $index,
+        bool $referenced,
+        string $referenceKind
+    ): array {
+        $item = [
+            'index' => $index,
+            'relationshipId' => $relationshipId,
+            'sourcePart' => $themePart,
+            'sourcePartExists' => $themeExists,
+            'relationshipsPart' => $relationshipsPart,
+            'referenced' => $referenced,
+            'referenceKind' => $referenceKind,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'external' => false,
+            'partName' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'exists' => false,
+            'byteLength' => null,
+            'crc32' => null,
+            'sha256' => null,
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'byteExposurePolicy' => 'theme-media-bytes-blocked',
+            'reviewPolicy' => 'theme-media-metadata-only',
+            'valid' => false,
+            'issues' => [],
+            'relationship' => null,
+        ];
+
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+            return $item;
+        }
+
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'unknown-relationship';
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $themePart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) $summary['exists'];
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['external'] = (bool) $summary['external'];
+        $item['partName'] = $targetPart;
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['exists'] = $exists;
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $summary['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $summary['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $summary['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $summary['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['externalTargetKind'] = $summary['externalTargetKind'];
+        $item['externalTargetScheme'] = $summary['externalTargetScheme'];
+        $item['externalTargetAllowed'] = $summary['externalTargetAllowed'];
+        $item['relationship'] = $summary;
+
+        if ($relationship['type'] !== self::IMAGE_REL) {
+            $item['issues'][] = 'unexpected-relationship-type';
+        }
+
+        if ($item['external']) {
+            $item['issues'][] = 'external-theme-media-target';
+            $item['issues'] = array_values(array_unique(array_merge($item['issues'], $summary['externalTargetIssues'])));
+        } elseif ($targetPart !== null) {
+            if ($exists) {
+                $item['byteLength'] = strlen($parts[$targetPart]);
+                $item['crc32'] = sprintf('%08x', crc32($parts[$targetPart]));
+                $item['sha256'] = hash('sha256', $parts[$targetPart]);
+            } else {
+                $item['issues'][] = 'missing-theme-media-part';
+            }
+
+            $contentType = is_string($summary['contentType'] ?? null) ? $summary['contentType'] : '';
+            if (($summary['contentTypeSource'] ?? '') === 'missing') {
+                $item['issues'][] = 'missing-theme-media-content-type';
+            } elseif ($relationship['type'] === self::IMAGE_REL && !$this->isImageContentType($contentType)) {
+                $item['issues'][] = 'unexpected-theme-media-content-type';
+            }
+        }
+
+        $item['issues'] = array_values(array_unique($item['issues']));
+        sort($item['issues'], SORT_STRING);
+        $item['valid'] = $item['issues'] === [];
+
+        return $item;
     }
 
     /**
@@ -12871,6 +13167,7 @@ final class DocxOpenXmlReader
                 $relationshipSourceContentTypeBase = $this->contentTypeResolutionForPart($relationshipSourcePart, $contentTypes)['contentTypeBase'];
             }
             $isNumberingRelationshipPart = $relationshipSourceContentTypeBase === self::CT_WORD_NUMBERING;
+            $isThemeRelationshipPart = $relationshipSourceContentTypeBase === self::CT_THEME;
             $isHeaderFooterRelationshipPart = isset($headerFooterSourceParts[$relationshipSourcePart])
                 || in_array($relationshipSourceContentTypeBase, [self::CT_WORD_HEADER, self::CT_WORD_FOOTER], true);
             $noteCommentMediaRole = match ($relationshipSourceContentTypeBase) {
@@ -12889,6 +13186,9 @@ final class DocxOpenXmlReader
                 $this->addRelationshipTargetInventoryRole($rolesByPart, $targetPart, $relationship['type']);
                 if ($isNumberingRelationshipPart && $relationship['type'] === self::IMAGE_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, 'numbering-picture-bullet');
+                }
+                if ($isThemeRelationshipPart && $relationship['type'] === self::IMAGE_REL) {
+                    $this->addPartRole($rolesByPart, $targetPart, 'theme-media');
                 }
                 if ($isHeaderFooterRelationshipPart && $relationship['type'] === self::IMAGE_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, 'header-footer-media');

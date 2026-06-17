@@ -9356,6 +9356,209 @@ XML;
         $t->same([['name' => 'shade', 'value' => '50000']], $followed['transforms']);
         $t->same('accent1', $followed['value']);
     },
+    'summarizes docx theme media relationships for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $themeBytes = 'theme background image bytes';
+        $badBytes = 'theme media bad bytes';
+        $rawBytes = 'theme media without content type bytes';
+        $unreferencedBytes = 'theme unreferenced image bytes';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/theme-media.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml; profile=media"/>' . "\n" .
+            '  <Override PartName="/word/theme/media/theme-bad.bin" ContentType="application/octet-stream"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rThemeMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme-media.xml?palette=media#theme"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/theme/theme-media.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" name="Media Review Theme">
+  <a:themeElements>
+    <a:clrScheme name="Media Colors">
+      <a:dk1><a:srgbClr val="111111"/></a:dk1>
+      <a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>
+      <a:accent1><a:srgbClr val="4472C4"/></a:accent1>
+    </a:clrScheme>
+    <a:fontScheme name="Media Fonts">
+      <a:majorFont><a:latin typeface="Aptos Display"/></a:majorFont>
+      <a:minorFont><a:latin typeface="Aptos"/></a:minorFont>
+    </a:fontScheme>
+    <a:fmtScheme name="Media Fills">
+      <a:fillStyleLst>
+        <a:blipFill><a:blip r:embed="rThemeImage"/></a:blipFill>
+        <a:blipFill><a:blip r:link="rThemeExternal"/></a:blipFill>
+        <a:blipFill><a:blip r:embed="rThemeMissing"/></a:blipFill>
+        <a:blipFill><a:blip r:embed="rThemeBad"/></a:blipFill>
+        <a:blipFill><a:blip r:embed="rThemeMissingType"/></a:blipFill>
+        <a:blipFill><a:blip r:link="rThemeUnsafe"/></a:blipFill>
+      </a:fillStyleLst>
+      <a:lnStyleLst/>
+      <a:effectStyleLst/>
+      <a:bgFillStyleLst/>
+    </a:fmtScheme>
+  </a:themeElements>
+</a:theme>
+XML;
+        $parts['word/theme/_rels/theme-media.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rThemeImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/theme-bg.png?asset=theme#bg"/>
+  <Relationship Id="rThemeExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://cdn.example.test/theme.png?remote=1#theme" TargetMode="External"/>
+  <Relationship Id="rThemeMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-theme.png"/>
+  <Relationship Id="rThemeBad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/theme-bad.bin"/>
+  <Relationship Id="rThemeMissingType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/theme-raw"/>
+  <Relationship Id="rThemeUnsafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="javascript:alert(1)" TargetMode="External"/>
+  <Relationship Id="rThemeUnreferenced" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/unreferenced.png"/>
+</Relationships>
+XML;
+        $parts['word/theme/media/theme-bg.png'] = $themeBytes;
+        $parts['word/theme/media/theme-bad.bin'] = $badBytes;
+        $parts['word/theme/media/theme-raw'] = $rawBytes;
+        $parts['word/theme/media/unreferenced.png'] = $unreferencedBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $media = $docx['themeMediaRelationships'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $themeImage = $media['byRelationshipId']['rThemeImage'];
+        $external = $media['byRelationshipId']['rThemeExternal'];
+        $missing = $media['byRelationshipId']['rThemeMissing'];
+        $bad = $media['byRelationshipId']['rThemeBad'];
+        $missingType = $media['byRelationshipId']['rThemeMissingType'];
+        $unsafe = $media['byRelationshipId']['rThemeUnsafe'];
+        $unreferenced = $media['byRelationshipId']['rThemeUnreferenced'];
+
+        $t->same($media, $package['themeMediaRelationships']);
+        $t->same('word/theme/theme-media.xml', $docx['themePart']);
+        $t->same('word/theme/_rels/theme-media.xml.rels', $docx['themeRelationshipsPart']);
+        $t->same(7, $media['count']);
+        $t->same(7, $media['relationshipCount']);
+        $t->same(6, $media['referencedCount']);
+        $t->same(1, $media['unreferencedRelationshipCount']);
+        $t->same(4, $media['existingCount']);
+        $t->same(1, $media['missingCount']);
+        $t->same(2, $media['externalCount']);
+        $t->same(1, $media['unsafeExternalTargetCount']);
+        $t->same(0, $media['unresolvedCount']);
+        $t->same(1, $media['missingContentTypeCount']);
+        $t->same(1, $media['unexpectedContentTypeCount']);
+        $t->same(5, $media['issueCount']);
+        $t->same([
+            'external-target-unsafe-scheme',
+            'external-theme-media-target',
+            'missing-theme-media-content-type',
+            'missing-theme-media-part',
+            'unexpected-theme-media-content-type',
+        ], $media['issueCodes']);
+        $t->same([
+            'rThemeImage',
+            'rThemeExternal',
+            'rThemeMissing',
+            'rThemeBad',
+            'rThemeMissingType',
+            'rThemeUnsafe',
+            'rThemeUnreferenced',
+        ], $media['relationshipIds']);
+        $t->same([
+            'rThemeImage',
+            'rThemeExternal',
+            'rThemeMissing',
+            'rThemeBad',
+            'rThemeMissingType',
+            'rThemeUnsafe',
+        ], $media['referencedRelationshipIds']);
+        $t->same(['rThemeUnreferenced'], $media['unreferencedRelationshipIds']);
+        $t->same([
+            'word/theme/media/theme-bg.png',
+            'word/theme/media/missing-theme.png',
+            'word/theme/media/theme-bad.bin',
+            'word/theme/media/theme-raw',
+            'word/theme/media/unreferenced.png',
+        ], $media['partNames']);
+        $t->same([
+            'https://cdn.example.test/theme.png?remote=1#theme',
+            'javascript:alert(1)',
+        ], $media['externalTargets']);
+        $t->same(['image/png', 'application/octet-stream'], $media['contentTypes']);
+        $t->same('theme-media-bytes-blocked', $media['byteExposurePolicy']);
+        $t->same('theme-media-metadata-only', $media['reviewPolicy']);
+
+        $t->same('rThemeImage', $themeImage['relationshipId']);
+        $t->same(true, $themeImage['referenced']);
+        $t->same('embed', $themeImage['referenceKind']);
+        $t->same('word/theme/theme-media.xml', $themeImage['sourcePart']);
+        $t->same(true, $themeImage['sourcePartExists']);
+        $t->same('word/theme/_rels/theme-media.xml.rels', $themeImage['relationshipsPart']);
+        $t->same($imageRel, $themeImage['relationshipType']);
+        $t->same('media/theme-bg.png?asset=theme#bg', $themeImage['target']);
+        $t->same('word/theme/media/theme-bg.png?asset=theme#bg', $themeImage['resolvedTarget']);
+        $t->same('word/theme/media/theme-bg.png', $themeImage['targetPart']);
+        $t->same('asset=theme', $themeImage['targetQuery']);
+        $t->same('bg', $themeImage['targetFragment']);
+        $t->same('?asset=theme#bg', $themeImage['targetReferenceSuffix']);
+        $t->same(true, $themeImage['exists']);
+        $t->same(strlen($themeBytes), $themeImage['byteLength']);
+        $t->same(sprintf('%08x', crc32($themeBytes)), $themeImage['crc32']);
+        $t->same(hash('sha256', $themeBytes), $themeImage['sha256']);
+        $t->same('image/png', $themeImage['contentType']);
+        $t->same('default', $themeImage['contentTypeSource']);
+        $t->same([], $themeImage['issues']);
+        $t->same(true, $themeImage['valid']);
+        $t->same('word/theme/theme-media.xml', $themeImage['relationship']['sourcePart']);
+
+        $t->same(['external-theme-media-target'], $external['issues']);
+        $t->same(true, $external['external']);
+        $t->same('link', $external['referenceKind']);
+        $t->same('https', $external['externalTargetScheme']);
+        $t->same(true, $external['externalTargetAllowed']);
+        $t->same('remote=1', $external['targetQuery']);
+        $t->same('theme', $external['targetFragment']);
+        $t->same(['missing-theme-media-part'], $missing['issues']);
+        $t->same(false, $missing['exists']);
+        $t->same('word/theme/media/missing-theme.png', $missing['targetPart']);
+        $t->same(['unexpected-theme-media-content-type'], $bad['issues']);
+        $t->same('application/octet-stream', $bad['contentType']);
+        $t->same(strlen($badBytes), $bad['byteLength']);
+        $t->same(['missing-theme-media-content-type'], $missingType['issues']);
+        $t->same(true, $missingType['exists']);
+        $t->same('missing', $missingType['contentTypeSource']);
+        $t->same(strlen($rawBytes), $missingType['byteLength']);
+        $t->same(['external-target-unsafe-scheme', 'external-theme-media-target'], $unsafe['issues']);
+        $t->same('javascript', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(false, $unreferenced['referenced']);
+        $t->same('relationship', $unreferenced['referenceKind']);
+        $t->same(strlen($unreferencedBytes), $unreferenced['byteLength']);
+
+        $t->same(7, $summary['themeMediaRelationshipCount']);
+        $t->same(7, $summary['themeMediaRelationshipDeclarationCount']);
+        $t->same(6, $summary['themeMediaRelationshipReferencedCount']);
+        $t->same(1, $summary['themeMediaRelationshipUnreferencedCount']);
+        $t->same(4, $summary['themeMediaRelationshipExistingCount']);
+        $t->same(1, $summary['themeMediaRelationshipMissingCount']);
+        $t->same(2, $summary['themeMediaRelationshipExternalCount']);
+        $t->same(1, $summary['themeMediaRelationshipUnsafeExternalCount']);
+        $t->same(5, $summary['themeMediaRelationshipIssueCount']);
+        $t->same($media['issueCodes'], $summary['themeMediaRelationshipIssueCodes']);
+        $t->true(in_array('theme-media', $inventory['word/theme/media/theme-bg.png']['roles'], true), 'theme image inventory role missing');
+        $t->true(in_array('theme-media', $inventory['word/theme/media/theme-bad.bin']['roles'], true), 'theme bad media inventory role missing');
+        $t->true(in_array('theme-media', $inventory['word/theme/media/theme-raw']['roles'], true), 'theme missing content type media inventory role missing');
+        $t->true(in_array('theme-media', $inventory['word/theme/media/unreferenced.png']['roles'], true), 'theme unreferenced media inventory role missing');
+        $t->same(8, $relationshipTypes[$imageRel]['count']);
+        $t->same(2, $relationshipTypes[$imageRel]['externalCount']);
+        $t->same(4, $relationshipTypes[$imageRel]['targetRoleCounts']['theme-media']);
+        $t->true(!isset($docx['media']['word/theme/media/theme-bg.png']), 'Theme media should not be exposed as document media');
+    },
     'resolves docx footnotes and endnotes from relationship targets' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
