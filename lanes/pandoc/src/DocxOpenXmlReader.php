@@ -805,6 +805,23 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['settingsDocumentVariableIssueCount'] = (int) ($documentVariableDetails['issueCount'] ?? 0);
             $packageProvenance['summary']['settingsDocumentVariableIssueCodes'] = $documentVariableDetails['issueCodes'] ?? [];
         }
+        $rsidDetails = $settings['rsidDetails'] ?? null;
+        if (is_array($rsidDetails)) {
+            $packageProvenance['summary']['settingsRsidRootPresent'] = (bool) ($rsidDetails['rootPresent'] ?? false);
+            $packageProvenance['summary']['settingsRsidRootValue'] = $rsidDetails['rootValue'] ?? '';
+            $packageProvenance['summary']['settingsRsidRootValidHex'] = (bool) ($rsidDetails['rootValidHex'] ?? false);
+            $packageProvenance['summary']['settingsRsidRootIssueCount'] = (int) ($rsidDetails['rootIssueCount'] ?? 0);
+            $packageProvenance['summary']['settingsRsidRootIssueCodes'] = $rsidDetails['rootIssueCodes'] ?? [];
+            $packageProvenance['summary']['settingsRsidCount'] = (int) ($rsidDetails['count'] ?? 0);
+            $packageProvenance['summary']['settingsRsidNonEmptyCount'] = (int) ($rsidDetails['nonEmptyCount'] ?? 0);
+            $packageProvenance['summary']['settingsRsidEmptyValueCount'] = (int) ($rsidDetails['emptyValueCount'] ?? 0);
+            $packageProvenance['summary']['settingsRsidUniqueValueCount'] = (int) ($rsidDetails['uniqueValueCount'] ?? 0);
+            $packageProvenance['summary']['settingsRsidDuplicateValueCount'] = (int) ($rsidDetails['duplicateValueCount'] ?? 0);
+            $packageProvenance['summary']['settingsRsidDuplicateValues'] = $rsidDetails['duplicateValues'] ?? [];
+            $packageProvenance['summary']['settingsRsidInvalidValueCount'] = (int) ($rsidDetails['invalidValueCount'] ?? 0);
+            $packageProvenance['summary']['settingsRsidIssueCount'] = (int) ($rsidDetails['issueCount'] ?? 0);
+            $packageProvenance['summary']['settingsRsidIssueCodes'] = $rsidDetails['issueCodes'] ?? [];
+        }
         $packageProvenance['numberingPictureBullets'] = $numberingPictureBullets;
         $packageProvenance['summary']['numberingPictureBulletCount'] = $numberingPictureBullets['count'];
         $packageProvenance['summary']['numberingPictureBulletRelationshipCount'] = $numberingPictureBullets['relationshipCount'];
@@ -13889,6 +13906,14 @@ final class DocxOpenXmlReader
             $settings['documentVariableDetails'] = $documentVariables;
         }
 
+        $rsidDetails = $this->readSettingsRsids($xpath, $dom);
+        if ($rsidDetails['rootPresent'] || $rsidDetails['items'] !== []) {
+            $settings['rsidDetails'] = $rsidDetails;
+        }
+        if ($rsidDetails['nonEmptyValues'] !== []) {
+            $settings['rsids'] = $rsidDetails['nonEmptyValues'];
+        }
+
         $mailMerge = $this->readMailMergeSettings(
             $dom,
             $parts,
@@ -14062,6 +14087,107 @@ final class DocxOpenXmlReader
             'items' => $items,
             'byName' => $byName,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readSettingsRsids(\DOMXPath $xpath, \DOMDocument $dom): array
+    {
+        $root = $this->firstElement($xpath, '/w:settings/w:rsids/w:rsidRoot', $dom);
+        $rootPresent = $root instanceof \DOMElement;
+        $rootValue = $rootPresent ? $root->getAttributeNS(self::NS_W, 'val') : '';
+        $rootIssues = [];
+        if ($rootPresent && $rootValue === '') {
+            $rootIssues[] = 'missing-root-value';
+        } elseif ($rootPresent && !$this->isOpenXmlRsidValue($rootValue)) {
+            $rootIssues[] = 'invalid-root-hex';
+        }
+
+        $items = [];
+        $values = [];
+        $nonEmptyValues = [];
+        $valueCounts = [];
+        $invalidValueCount = 0;
+        foreach ($this->elements($xpath, '/w:settings/w:rsids/w:rsid', $dom) as $rsid) {
+            $value = $rsid->getAttributeNS(self::NS_W, 'val');
+            $validHex = $value !== '' && $this->isOpenXmlRsidValue($value);
+            $issues = [];
+            if ($value === '') {
+                $issues[] = 'missing-value';
+            } else {
+                $nonEmptyValues[] = $value;
+                $valueCounts[$value] = ($valueCounts[$value] ?? 0) + 1;
+                if (!$validHex) {
+                    $issues[] = 'invalid-hex';
+                    ++$invalidValueCount;
+                }
+            }
+            $values[] = $value;
+            $items[] = [
+                'index' => count($items),
+                'value' => $value,
+                'valueLength' => strlen($value),
+                'validHex' => $validHex,
+                'issues' => $issues,
+            ];
+        }
+
+        $duplicateValues = [];
+        foreach ($valueCounts as $value => $count) {
+            if ($count > 1) {
+                $duplicateValues[] = $value;
+            }
+        }
+        sort($duplicateValues, SORT_STRING);
+
+        $duplicateLookup = array_fill_keys($duplicateValues, true);
+        $issueCodes = [];
+        $issueCount = 0;
+        foreach ($items as &$item) {
+            $value = $item['value'];
+            $item['duplicateValue'] = is_string($value) && $value !== '' && isset($duplicateLookup[$value]);
+            if ($item['duplicateValue']) {
+                $item['issues'][] = 'duplicate-value';
+            }
+            if ($item['issues'] !== []) {
+                ++$issueCount;
+                foreach ($item['issues'] as $issue) {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        unset($item);
+        ksort($issueCodes, SORT_STRING);
+
+        $rootIssueCodes = array_fill_keys($rootIssues, true);
+        ksort($rootIssueCodes, SORT_STRING);
+
+        return [
+            'rootPresent' => $rootPresent,
+            'rootValue' => $rootValue,
+            'rootValueLength' => strlen($rootValue),
+            'rootValidHex' => $rootPresent && $this->isOpenXmlRsidValue($rootValue),
+            'rootIssueCount' => count($rootIssues),
+            'rootIssueCodes' => array_keys($rootIssueCodes),
+            'count' => count($items),
+            'nonEmptyCount' => count($nonEmptyValues),
+            'emptyValueCount' => count($items) - count($nonEmptyValues),
+            'uniqueValueCount' => count($valueCounts),
+            'duplicateValueCount' => count($duplicateValues),
+            'duplicateValues' => $duplicateValues,
+            'invalidValueCount' => $invalidValueCount,
+            'issueCount' => $issueCount,
+            'issueCodes' => array_keys($issueCodes),
+            'values' => $values,
+            'nonEmptyValues' => $nonEmptyValues,
+            'items' => $items,
+        ];
+    }
+
+    private function isOpenXmlRsidValue(string $value): bool
+    {
+        return preg_match('/\A[0-9A-Fa-f]{8}\z/', $value) === 1;
     }
 
     /**

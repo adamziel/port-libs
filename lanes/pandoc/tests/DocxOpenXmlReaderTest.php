@@ -7208,6 +7208,123 @@ XML;
         $t->same(3, $summary['settingsDocumentVariableIssueCount']);
         $t->same(['duplicate-name', 'missing-name'], $summary['settingsDocumentVariableIssueCodes']);
     },
+    'summarizes docx settings rsid provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/rsid-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRsidSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../docSettings/rsid-settings.xml?rsids=review#settings"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docSettings/rsid-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:rsids>
+    <w:rsidRoot w:val="00ABCDEF"/>
+    <w:rsid w:val="00ABCDEF"/>
+    <w:rsid w:val="00112233"/>
+    <w:rsid w:val="00ABCDEF"/>
+    <w:rsid/>
+    <w:rsid w:val="not-hex"/>
+  </w:rsids>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $settings = $docx['settings'];
+        $details = $settings['rsidDetails'];
+        $summary = $docx['packageProvenance']['summary'];
+        $inventory = $docx['packageProvenance']['parts']['docSettings/rsid-settings.xml'];
+        $selectedSettings = $docx['packageProvenance']['selectedXmlParts']['byKind']['settings'];
+
+        $t->same('docSettings/rsid-settings.xml', $docx['settingsPart']);
+        $t->same('rRsidSettings', $docx['settingsRelationship']['id']);
+        $t->same('../docSettings/rsid-settings.xml?rsids=review#settings', $docx['settingsRelationship']['target']);
+        $t->same('docSettings/rsid-settings.xml', $docx['settingsRelationship']['targetPart']);
+        $t->same('rsids=review', $docx['settingsRelationship']['targetQuery']);
+        $t->same('settings', $docx['settingsRelationship']['targetFragment']);
+        $t->same('settings', $selectedSettings['rootLocalName']);
+        $t->same(true, $selectedSettings['contentTypeMatchesExpected']);
+        $t->true(in_array('settings', $inventory['roles'], true), 'settings inventory role missing');
+        $t->same(1, $summary['roleCounts']['settings']);
+
+        $t->same(['00ABCDEF', '00112233', '00ABCDEF', 'not-hex'], $settings['rsids']);
+        $t->same(true, $details['rootPresent']);
+        $t->same('00ABCDEF', $details['rootValue']);
+        $t->same(8, $details['rootValueLength']);
+        $t->same(true, $details['rootValidHex']);
+        $t->same(0, $details['rootIssueCount']);
+        $t->same([], $details['rootIssueCodes']);
+        $t->same(5, $details['count']);
+        $t->same(4, $details['nonEmptyCount']);
+        $t->same(1, $details['emptyValueCount']);
+        $t->same(3, $details['uniqueValueCount']);
+        $t->same(1, $details['duplicateValueCount']);
+        $t->same(['00ABCDEF'], $details['duplicateValues']);
+        $t->same(1, $details['invalidValueCount']);
+        $t->same(4, $details['issueCount']);
+        $t->same(['duplicate-value', 'invalid-hex', 'missing-value'], $details['issueCodes']);
+        $t->same(['00ABCDEF', '00112233', '00ABCDEF', '', 'not-hex'], $details['values']);
+        $t->same(['00ABCDEF', '00112233', '00ABCDEF', 'not-hex'], $details['nonEmptyValues']);
+
+        $first = $details['items'][0];
+        $second = $details['items'][1];
+        $third = $details['items'][2];
+        $missingValue = $details['items'][3];
+        $invalidValue = $details['items'][4];
+
+        $t->same(0, $first['index']);
+        $t->same('00ABCDEF', $first['value']);
+        $t->same(8, $first['valueLength']);
+        $t->same(true, $first['validHex']);
+        $t->same(true, $first['duplicateValue']);
+        $t->same(['duplicate-value'], $first['issues']);
+
+        $t->same('00112233', $second['value']);
+        $t->same(true, $second['validHex']);
+        $t->same(false, $second['duplicateValue']);
+        $t->same([], $second['issues']);
+
+        $t->same(2, $third['index']);
+        $t->same('00ABCDEF', $third['value']);
+        $t->same(true, $third['validHex']);
+        $t->same(true, $third['duplicateValue']);
+        $t->same(['duplicate-value'], $third['issues']);
+
+        $t->same('', $missingValue['value']);
+        $t->same(0, $missingValue['valueLength']);
+        $t->same(false, $missingValue['validHex']);
+        $t->same(false, $missingValue['duplicateValue']);
+        $t->same(['missing-value'], $missingValue['issues']);
+
+        $t->same('not-hex', $invalidValue['value']);
+        $t->same(7, $invalidValue['valueLength']);
+        $t->same(false, $invalidValue['validHex']);
+        $t->same(false, $invalidValue['duplicateValue']);
+        $t->same(['invalid-hex'], $invalidValue['issues']);
+
+        $t->same(true, $summary['settingsRsidRootPresent']);
+        $t->same('00ABCDEF', $summary['settingsRsidRootValue']);
+        $t->same(true, $summary['settingsRsidRootValidHex']);
+        $t->same(0, $summary['settingsRsidRootIssueCount']);
+        $t->same([], $summary['settingsRsidRootIssueCodes']);
+        $t->same(5, $summary['settingsRsidCount']);
+        $t->same(4, $summary['settingsRsidNonEmptyCount']);
+        $t->same(1, $summary['settingsRsidEmptyValueCount']);
+        $t->same(3, $summary['settingsRsidUniqueValueCount']);
+        $t->same(1, $summary['settingsRsidDuplicateValueCount']);
+        $t->same(['00ABCDEF'], $summary['settingsRsidDuplicateValues']);
+        $t->same(1, $summary['settingsRsidInvalidValueCount']);
+        $t->same(4, $summary['settingsRsidIssueCount']);
+        $t->same(['duplicate-value', 'invalid-hex', 'missing-value'], $summary['settingsRsidIssueCodes']);
+    },
     'preflights docx font table embedded font package relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $fontKey = '{00112233-4455-6677-8899-AABBCCDDEEFF}';
