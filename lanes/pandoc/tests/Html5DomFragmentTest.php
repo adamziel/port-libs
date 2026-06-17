@@ -2386,6 +2386,10 @@ return [
             . '<div id="hint-pop" popover="hint"><p>Hint note</p></div>'
             . '<div id="invalid-pop" popover="bad state"><p>Invalid note</p></div>'
             . '<a href="./control.html" popovertarget="manual-pop" popovertargetaction="hide">Control link</a>'
+            . '<button popovertarget="missing-pop">Missing target</button>'
+            . '<button popovertarget="bad target" popovertargetaction="dismiss">Bad target</button>'
+            . '<a href="./plain.html" popovertarget="plain-pop">Plain target</a>'
+            . '<section id="plain-pop">Plain target body</section>'
         );
         $summary = $fragment->summary();
         $nodes = $fragment->nodes();
@@ -2395,40 +2399,38 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<span data-pandoc-button-type="submit">Open note</span>'
+        $expected = '<span data-pandoc-button-type="submit" data-pandoc-popover-action="show" data-pandoc-popover-action-defaulted="false" data-pandoc-popover-target-kind="popover" data-pandoc-popover-target="review-pop" data-pandoc-popover-target-tag="aside" data-pandoc-popover-target-id="review-pop" data-pandoc-popover-target-state="auto">Open note</span>'
             . '<aside id="review-pop" data-pandoc-popover-state="auto"><p>Auto <a href="https://source.example.test/import/posts/auto.html">note</a><a>bad</a></p></aside>'
             . '<section id="manual-pop" data-pandoc-popover-state="manual"><p>Manual note</p></section>'
             . '<div id="hint-pop" data-pandoc-popover-state="hint"><p>Hint note</p></div>'
             . '<div id="invalid-pop" data-pandoc-popover-state="manual"><p>Invalid note</p></div>'
-            . '<a href="https://source.example.test/import/posts/control.html">Control link</a>';
-        $policyDiagnostics = array_values(array_filter(
+            . '<a href="https://source.example.test/import/posts/control.html" data-pandoc-popover-action="hide" data-pandoc-popover-action-defaulted="false" data-pandoc-popover-target-kind="popover" data-pandoc-popover-target="manual-pop" data-pandoc-popover-target-tag="section" data-pandoc-popover-target-id="manual-pop" data-pandoc-popover-target-state="manual">Control link</a>'
+            . '<span data-pandoc-button-type="submit" data-pandoc-popover-action="toggle" data-pandoc-popover-action-defaulted="true" data-pandoc-popover-target-kind="missing-target" data-pandoc-popover-target="missing-pop" data-pandoc-popover-target-issues="missing-popover-target">Missing target</span>'
+            . '<span data-pandoc-button-type="submit" data-pandoc-popover-action="invalid" data-pandoc-popover-action-defaulted="false" data-pandoc-popover-target-kind="invalid-reference" data-pandoc-popover-target-issues="invalid-popover-target-reference invalid-popover-target-action">Bad target</span>'
+            . '<a href="https://source.example.test/import/posts/plain.html" data-pandoc-popover-action="toggle" data-pandoc-popover-action-defaulted="true" data-pandoc-popover-target-kind="element" data-pandoc-popover-target="plain-pop" data-pandoc-popover-target-tag="section" data-pandoc-popover-target-id="plain-pop" data-pandoc-popover-target-issues="non-popover-target">Plain target</a>'
+            . '<section id="plain-pop">Plain target body</section>';
+        $policyDiagnostics = array_count_values(array_values(array_filter(
             $fragment->diagnosticCodes(),
             static fn (string $code): bool => $code !== 'libxml-repair'
-        ));
+        )));
 
         $t->same($expected, $html);
         $t->contains($expected, $blocks);
         $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
-        $t->same('Open noteAuto notebadManual noteHint noteInvalid noteControl link', $fragment->textContent());
+        $t->same('Open noteAuto notebadManual noteHint noteInvalid noteControl linkMissing targetBad targetPlain targetPlain target body', $fragment->textContent());
         $t->same(['a', 'aside', 'div', 'p', 'section', 'span'], $summary['elementNames']);
         $t->same(['base', 'button'], $summary['blockedTags']);
         $t->same(['data-pandoc-popover-state', 'href', 'popover', 'popovertarget', 'popovertargetaction', 'type'], $summary['filteredAttributes']);
-        $t->same([
-            'blocked-tag',
-            'blocked-tag',
-            'button-metadata-review',
-            'popover-review',
-            'unsafe-attribute',
-            'unsafe-url',
-            'popover-review',
-            'popover-review',
-            'unsafe-attribute',
-            'popover-review',
-            'unsafe-attribute',
-            'unsafe-attribute',
-        ], $policyDiagnostics);
+        $t->same(4, $policyDiagnostics['blocked-tag'] ?? 0);
+        $t->same(3, $policyDiagnostics['button-metadata-review'] ?? 0);
+        $t->same(34, $policyDiagnostics['popover-review'] ?? 0);
+        $t->same(4, $policyDiagnostics['unsafe-attribute'] ?? 0);
+        $t->same(1, $policyDiagnostics['unsafe-url'] ?? 0);
         $t->same('span', $nodes[0]['name']);
-        $t->same(['data-pandoc-button-type' => 'submit'], $nodes[0]['attrs']);
+        $t->same('submit', $nodes[0]['attrs']['data-pandoc-button-type']);
+        $t->same('show', $nodes[0]['attrs']['data-pandoc-popover-action']);
+        $t->same('popover', $nodes[0]['attrs']['data-pandoc-popover-target-kind']);
+        $t->same('auto', $nodes[0]['attrs']['data-pandoc-popover-target-state']);
         $t->same('Open note', $nodes[0]['children'][0]['text']);
         $t->same('aside', $nodes[1]['name']);
         $t->same([
@@ -2449,13 +2451,20 @@ return [
             'id' => 'invalid-pop',
             'data-pandoc-popover-state' => 'manual',
         ], $nodes[4]['attrs']);
-        $t->same(['href' => 'https://source.example.test/import/posts/control.html'], $nodes[5]['attrs']);
+        $t->same('hide', $nodes[5]['attrs']['data-pandoc-popover-action']);
+        $t->same('manual', $nodes[5]['attrs']['data-pandoc-popover-target-state']);
+        $t->same('missing-popover-target', $nodes[6]['attrs']['data-pandoc-popover-target-issues']);
+        $t->same('invalid-reference', $nodes[7]['attrs']['data-pandoc-popover-target-kind']);
+        $t->same('invalid-popover-target-reference invalid-popover-target-action', $nodes[7]['attrs']['data-pandoc-popover-target-issues']);
+        $t->same('element', $nodes[8]['attrs']['data-pandoc-popover-target-kind']);
+        $t->same('non-popover-target', $nodes[8]['attrs']['data-pandoc-popover-target-issues']);
         $t->same('/migration/popover-review.html', $document->children[0]->attr('part'));
         $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
         $t->true(!str_contains($html, ' popover'), 'Expected live popover attributes to be replaced with inert metadata');
         $t->true(!str_contains($html, 'popovertarget'), 'Expected popover invoker attributes to be stripped');
         $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned popover metadata to be stripped');
         $t->true(!str_contains($html, 'bad state'), 'Expected invalid popover token to stay diagnostic-only');
+        $t->true(!str_contains($html, 'dismiss'), 'Expected invalid popover action to stay diagnostic-only');
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe popover links to be stripped');
         $t->true(!str_contains($blocks, ' popover'), 'Expected WordPress blocks to omit live popover attributes');
     },

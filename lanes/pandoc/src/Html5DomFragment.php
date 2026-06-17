@@ -2554,6 +2554,12 @@ final class Html5DomFragment
             self::addHtmlButtonCommandMetadata($attrs, $diagnostics, $element);
         }
 
+        if ($element->hasAttribute('popovertarget') || $element->hasAttribute('popovertargetaction')) {
+            foreach (self::normalizeHtmlPopoverTargetInvokerAttributes($element, 'button', $diagnostics) as $metadataAttribute => $metadataValue) {
+                $attrs[$metadataAttribute] = $metadataValue;
+            }
+        }
+
         if ($children === []) {
             $children = [[
                 'type' => 'text',
@@ -2747,16 +2753,6 @@ final class Html5DomFragment
         }
 
         return $metadata;
-    }
-
-    private static function normalizeHtmlPopoverMetadataState(string $value): ?string
-    {
-        $state = strtolower(self::cleanHtmlMetadataAttribute($value));
-        if ($state === '') {
-            $state = 'auto';
-        }
-
-        return in_array($state, ['auto', 'manual', 'hint'], true) ? $state : null;
     }
 
     /**
@@ -6613,6 +6609,15 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlPopoverTargetInvokerAttribute($name)) {
+                if (!isset($attrs['data-pandoc-popover-target-kind'])) {
+                    foreach (self::normalizeHtmlPopoverTargetInvokerAttributes($element, $tagName, $diagnostics) as $metadataName => $metadataValue) {
+                        $attrs[$metadataName] = $metadataValue;
+                    }
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isHtmlEditingStateAttribute($name)) {
                 $editingMetadata = self::normalizeHtmlEditingStateAttribute($name, $value, $tagName, $element, $diagnostics);
                 if ($editingMetadata !== null) {
@@ -7259,6 +7264,184 @@ final class Html5DomFragment
         ], $element);
 
         return $state;
+    }
+
+    private static function isHtmlPopoverTargetInvokerAttribute(string $name): bool
+    {
+        return in_array(strtolower($name), ['popovertarget', 'popovertargetaction'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function normalizeHtmlPopoverTargetInvokerAttributes(
+        \DOMElement $element,
+        string $tagName,
+        array &$diagnostics
+    ): array {
+        $hasTarget = $element->hasAttribute('popovertarget');
+        $hasAction = $element->hasAttribute('popovertargetaction');
+        $targetRaw = $hasTarget ? $element->getAttribute('popovertarget') : '';
+        $targetId = $hasTarget ? self::normalizeHtmlPopoverTargetReference($targetRaw) : null;
+        $target = $targetId === null ? null : self::htmlElementById($element, $targetId);
+        $actionRaw = $hasAction ? $element->getAttribute('popovertargetaction') : '';
+        $action = self::normalizeHtmlPopoverTargetAction($actionRaw);
+        $issues = [];
+
+        if (!$hasTarget || trim($targetRaw) === '') {
+            $issues[] = 'missing-popover-target-reference';
+        } elseif ($targetId === null) {
+            $issues[] = 'invalid-popover-target-reference';
+            self::addHtmlInvalidPopoverTargetDiagnostic($diagnostics, $tagName, $element, 'popovertarget');
+        } elseif (!$target instanceof \DOMElement) {
+            $issues[] = 'missing-popover-target';
+        }
+
+        if ($hasAction && $action === null) {
+            $issues[] = 'invalid-popover-target-action';
+            self::addHtmlInvalidPopoverTargetDiagnostic($diagnostics, $tagName, $element, 'popovertargetaction');
+        }
+
+        if ($target instanceof \DOMElement) {
+            if (!$target->hasAttribute('popover')) {
+                $issues[] = 'non-popover-target';
+            } elseif (self::normalizeHtmlPopoverMetadataState($target->getAttribute('popover')) === null) {
+                $issues[] = 'invalid-popover-target-state';
+            }
+        }
+
+        $metadata = [
+            'data-pandoc-popover-action' => $action ?? 'invalid',
+            'data-pandoc-popover-action-defaulted' => $hasAction ? 'false' : 'true',
+            'data-pandoc-popover-target-kind' => self::htmlPopoverTargetKind($target, $targetRaw, $targetId),
+        ];
+        self::addHtmlPopoverTargetReviewDiagnostic($diagnostics, $tagName, $element, 'popovertargetaction', 'data-pandoc-popover-action');
+        self::addHtmlPopoverTargetReviewDiagnostic($diagnostics, $tagName, $element, 'popovertargetaction', 'data-pandoc-popover-action-defaulted');
+        self::addHtmlPopoverTargetReviewDiagnostic($diagnostics, $tagName, $element, 'popovertarget', 'data-pandoc-popover-target-kind');
+
+        if ($targetId !== null) {
+            $metadata['data-pandoc-popover-target'] = $targetId;
+            self::addHtmlPopoverTargetReviewDiagnostic($diagnostics, $tagName, $element, 'popovertarget', 'data-pandoc-popover-target');
+        }
+
+        if ($target instanceof \DOMElement) {
+            foreach (self::htmlPopoverTargetElementMetadata($target) as $metadataAttribute => $metadataValue) {
+                $metadata[$metadataAttribute] = $metadataValue;
+                self::addHtmlPopoverTargetReviewDiagnostic($diagnostics, $tagName, $element, 'popovertarget', $metadataAttribute);
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+        if ($issues !== []) {
+            $metadata['data-pandoc-popover-target-issues'] = implode(' ', $issues);
+            self::addHtmlPopoverTargetReviewDiagnostic($diagnostics, $tagName, $element, 'popovertarget', 'data-pandoc-popover-target-issues');
+        }
+
+        return $metadata;
+    }
+
+    private static function normalizeHtmlPopoverTargetReference(string $value): ?string
+    {
+        $target = self::cleanHtmlMetadataAttribute($value);
+        if ($target === '' || strlen($target) > 128 || !self::isSafeHtmlAriaIdToken($target)) {
+            return null;
+        }
+
+        return $target;
+    }
+
+    private static function normalizeHtmlPopoverTargetAction(string $value): ?string
+    {
+        $action = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($action === '') {
+            return 'toggle';
+        }
+
+        return in_array($action, ['hide', 'show', 'toggle'], true) ? $action : null;
+    }
+
+    private static function htmlPopoverTargetKind(?\DOMElement $target, string $targetRaw, ?string $targetId): string
+    {
+        if (!$target instanceof \DOMElement) {
+            if ($targetId === null) {
+                return trim($targetRaw) === '' ? 'missing-reference' : 'invalid-reference';
+            }
+
+            return 'missing-target';
+        }
+
+        return $target->hasAttribute('popover') ? 'popover' : 'element';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function htmlPopoverTargetElementMetadata(\DOMElement $target): array
+    {
+        $metadata = [
+            'data-pandoc-popover-target-tag' => self::htmlNormalizedElementName($target),
+        ];
+
+        $id = self::cleanHtmlMetadataAttribute($target->getAttribute('id'));
+        if ($id !== '' && strlen($id) <= 128 && self::isSafeHtmlAriaIdToken($id)) {
+            $metadata['data-pandoc-popover-target-id'] = $id;
+        }
+
+        if ($target->hasAttribute('popover')) {
+            $state = self::normalizeHtmlPopoverMetadataState($target->getAttribute('popover'));
+            if ($state !== null) {
+                $metadata['data-pandoc-popover-target-state'] = $state;
+            }
+        }
+
+        return $metadata;
+    }
+
+    private static function normalizeHtmlPopoverMetadataState(string $value): ?string
+    {
+        $state = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($state === '') {
+            $state = 'auto';
+        }
+
+        return in_array($state, ['auto', 'manual', 'hint'], true) ? $state : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlPopoverTargetReviewDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        \DOMElement $element,
+        string $attributeName,
+        string $metadataAttribute
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'popover-review',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+            'metadataAttribute' => $metadataAttribute,
+            'reason' => 'popover-target-metadata-preserved',
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlInvalidPopoverTargetDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        \DOMElement $element,
+        string $attributeName
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'unsafe-attribute',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+            'reason' => 'invalid-popover-target-metadata',
+        ], $element);
     }
 
     private static function isHtmlEditingStateAttribute(string $name): bool
