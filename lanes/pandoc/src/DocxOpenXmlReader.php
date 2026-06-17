@@ -217,7 +217,17 @@ final class DocxOpenXmlReader
         $styleReferences = $this->styleReferenceSummary($styles, $stylesPart['partName']);
         $latentStyles = $this->readLatentStyles($stylesPart['xml'], $stylesPart['partName']);
         $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
-        $numbering = $this->readNumbering($numberingPart['xml'], $numberingPart['partName']);
+        $numberingRelationshipsPart = $this->relationshipsPartFor($numberingPart['partName']);
+        $numberingRelationships = $this->readRelationshipsPart($parts, $numberingRelationshipsPart);
+        $numberingPictureBullets = $this->readNumberingPictureBullets(
+            $numberingPart['xml'],
+            $numberingPart['partName'],
+            $parts,
+            $numberingRelationshipsPart,
+            $numberingRelationships,
+            $contentTypes,
+        );
+        $numbering = $this->readNumbering($numberingPart['xml'], $numberingPart['partName'], $numberingPictureBullets['byId']);
         $settingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::SETTINGS_REL, 'settings.xml');
         $settingsRelationshipsPart = $this->relationshipsPartFor($settingsPart['partName']);
         $settingsRelationships = $this->readRelationshipsPart($parts, $settingsRelationshipsPart);
@@ -674,6 +684,17 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['settingsDocumentVariableIssueCount'] = (int) ($documentVariableDetails['issueCount'] ?? 0);
             $packageProvenance['summary']['settingsDocumentVariableIssueCodes'] = $documentVariableDetails['issueCodes'] ?? [];
         }
+        $packageProvenance['numberingPictureBullets'] = $numberingPictureBullets;
+        $packageProvenance['summary']['numberingPictureBulletCount'] = $numberingPictureBullets['count'];
+        $packageProvenance['summary']['numberingPictureBulletRelationshipCount'] = $numberingPictureBullets['relationshipCount'];
+        $packageProvenance['summary']['numberingPictureBulletImageRelationshipCount'] = $numberingPictureBullets['imageRelationshipCount'];
+        $packageProvenance['summary']['numberingPictureBulletReferencedRelationshipCount'] = $numberingPictureBullets['referencedRelationshipCount'];
+        $packageProvenance['summary']['numberingPictureBulletUnreferencedRelationshipCount'] = $numberingPictureBullets['unreferencedRelationshipCount'];
+        $packageProvenance['summary']['numberingPictureBulletExistingCount'] = $numberingPictureBullets['existingCount'];
+        $packageProvenance['summary']['numberingPictureBulletMissingCount'] = $numberingPictureBullets['missingCount'];
+        $packageProvenance['summary']['numberingPictureBulletExternalCount'] = $numberingPictureBullets['externalCount'];
+        $packageProvenance['summary']['numberingPictureBulletIssueCount'] = $numberingPictureBullets['issueCount'];
+        $packageProvenance['summary']['numberingPictureBulletIssueCodes'] = $numberingPictureBullets['issueCodes'];
         $packageProvenance['chartParts'] = $chartParts;
         $packageProvenance['summary']['chartPartCount'] = $chartParts['count'];
         $packageProvenance['summary']['chartPartRelationshipCount'] = $chartParts['relationshipCount'];
@@ -758,6 +779,9 @@ final class DocxOpenXmlReader
                 'latentStyles' => $latentStyles,
                 'numberingPart' => $numberingPart['partName'],
                 'numbering' => $numbering,
+                'numberingRelationshipsPart' => $numberingRelationshipsPart,
+                'numberingRelationships' => $numberingRelationships,
+                'numberingPictureBullets' => $numberingPictureBullets,
                 'settingsPart' => $settingsPart['partName'],
                 'settings' => $settings,
                 'settingsRelationshipsPart' => $settingsRelationshipsPart,
@@ -9605,6 +9629,17 @@ final class DocxOpenXmlReader
         return null;
     }
 
+    private function firstDescendantElementByNamespace(\DOMElement $parent, string $namespace, string $localName): ?\DOMElement
+    {
+        foreach ($parent->getElementsByTagNameNS($namespace, $localName) as $candidate) {
+            if ($candidate instanceof \DOMElement) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
      * @return array<string, mixed>
@@ -11090,6 +11125,13 @@ final class DocxOpenXmlReader
                 continue;
             }
 
+            $relationshipSourcePart = $this->relationshipSourcePartForInventory($relationshipPart);
+            $relationshipSourceContentTypeBase = '';
+            if ($relationshipSourcePart !== '' && isset($parts[$relationshipSourcePart])) {
+                $relationshipSourceContentTypeBase = $this->contentTypeResolutionForPart($relationshipSourcePart, $contentTypes)['contentTypeBase'];
+            }
+            $isNumberingRelationshipPart = $relationshipSourceContentTypeBase === self::CT_WORD_NUMBERING;
+
             foreach ($this->readRelationshipsPart($parts, $relationshipPart) as $relationship) {
                 if ($this->isExternalRelationshipTarget($relationship)) {
                     continue;
@@ -11097,6 +11139,9 @@ final class DocxOpenXmlReader
                 $targetPart = $this->stripQueryAndFragment($relationship['resolvedTarget']);
                 $this->addPartRole($rolesByPart, $targetPart, 'relationship-target');
                 $this->addRelationshipTargetInventoryRole($rolesByPart, $targetPart, $relationship['type']);
+                if ($isNumberingRelationshipPart && $relationship['type'] === self::IMAGE_REL) {
+                    $this->addPartRole($rolesByPart, $targetPart, 'numbering-picture-bullet');
+                }
             }
         }
 
@@ -11429,9 +11474,10 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}>
+     * @param array<string, array<string, mixed>> $pictureBullets
+     * @return array<string, array{abstractNumId:string, levels:array<int, array<string, mixed>>}>
      */
-    private function readNumbering(string $xml, string $partName): array
+    private function readNumbering(string $xml, string $partName, array $pictureBullets = []): array
     {
         if ($xml === '') {
             return [];
@@ -11449,11 +11495,19 @@ final class DocxOpenXmlReader
             $levels = [];
             foreach ($this->elements($xpath, 'w:lvl', $abstract) as $level) {
                 $ilvl = (int) $level->getAttributeNS(self::NS_W, 'ilvl');
-                $levels[$ilvl] = [
+                $levelDefinition = [
                     'format' => $this->childAttr($level, 'numFmt', 'val') ?: 'decimal',
                     'text' => $this->childAttr($level, 'lvlText', 'val') ?: '%' . ($ilvl + 1) . '.',
                     'start' => max(1, (int) ($this->childAttr($level, 'start', 'val') ?: '1')),
                 ];
+                $pictureBulletId = $this->childAttr($level, 'lvlPicBulletId', 'val');
+                if ($pictureBulletId !== '') {
+                    $levelDefinition['pictureBulletId'] = $pictureBulletId;
+                    if (isset($pictureBullets[$pictureBulletId])) {
+                        $levelDefinition['pictureBullet'] = $pictureBullets[$pictureBulletId];
+                    }
+                }
+                $levels[$ilvl] = $levelDefinition;
             }
             $abstracts[$abstractId] = $levels;
         }
@@ -11482,6 +11536,304 @@ final class DocxOpenXmlReader
         }
 
         return $numbering;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readNumberingPictureBullets(
+        string $xml,
+        string $partName,
+        array $parts,
+        string $relationshipsPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $empty = [
+            'partName' => $partName,
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipsPartExists' => isset($parts[$relationshipsPart]),
+            'count' => 0,
+            'relationshipCount' => count($relationships),
+            'imageRelationshipCount' => 0,
+            'referencedRelationshipCount' => 0,
+            'unreferencedRelationshipCount' => 0,
+            'existingCount' => 0,
+            'missingCount' => 0,
+            'externalCount' => 0,
+            'unexpectedRelationshipTypeCount' => 0,
+            'missingContentTypeCount' => 0,
+            'unexpectedContentTypeCount' => 0,
+            'issueCount' => 0,
+            'ids' => [],
+            'relationshipIds' => [],
+            'referencedRelationshipIds' => [],
+            'unreferencedRelationshipIds' => [],
+            'partNames' => [],
+            'externalTargets' => [],
+            'contentTypes' => [],
+            'issueCodes' => [],
+            'byId' => [],
+            'byRelationshipId' => [],
+            'items' => [],
+            'byteExposurePolicy' => 'numbering-picture-bullet-bytes-blocked',
+            'reviewPolicy' => 'numbering-picture-bullet-metadata-only',
+        ];
+
+        if ($xml === '') {
+            return $empty;
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $xpath = $this->xpath($dom);
+        $items = [];
+        $byId = [];
+        $byRelationshipId = [];
+        $ids = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+
+        foreach ($this->elements($xpath, '/w:numbering/w:numPicBullet') as $pictureBullet) {
+            $id = $pictureBullet->getAttributeNS(self::NS_W, 'numPicBulletId');
+            if ($id === '') {
+                continue;
+            }
+
+            $item = $this->numberingPictureBulletItem(
+                $pictureBullet,
+                $id,
+                count($items),
+                $parts,
+                $partName,
+                $relationshipsPart,
+                $relationships,
+                $contentTypes,
+            );
+            $items[] = $item;
+            $byId[$id] = $item;
+            $ids[] = $id;
+
+            $relationshipId = is_string($item['relationshipId'] ?? null) ? $item['relationshipId'] : '';
+            if ($relationshipId !== '') {
+                $this->appendUniqueString($relationshipIds, $relationshipId);
+                $byRelationshipId[$relationshipId] = $item;
+            }
+            if (($item['relationshipType'] ?? null) === self::IMAGE_REL) {
+                $this->appendUniqueString($partNames, is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            }
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+
+        $imageRelationshipIds = [];
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] === self::IMAGE_REL) {
+                $this->appendUniqueString($imageRelationshipIds, $relationship['id']);
+            }
+        }
+        $unreferencedRelationshipIds = array_values(array_diff($imageRelationshipIds, $relationshipIds));
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'partName' => $partName,
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipsPartExists' => isset($parts[$relationshipsPart]),
+            'count' => count($items),
+            'relationshipCount' => count($relationships),
+            'imageRelationshipCount' => count($imageRelationshipIds),
+            'referencedRelationshipCount' => count($relationshipIds),
+            'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => ($item['relationshipType'] ?? null) === self::IMAGE_REL && $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-numbering-picture-bullet-image', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => ($item['relationshipType'] ?? null) === self::IMAGE_REL && $item['external'] === true)),
+            'unexpectedRelationshipTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-relationship-type', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-numbering-picture-bullet-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-numbering-picture-bullet-content-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'ids' => $ids,
+            'relationshipIds' => $relationshipIds,
+            'referencedRelationshipIds' => $relationshipIds,
+            'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byId' => $byId,
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+            'byteExposurePolicy' => 'numbering-picture-bullet-bytes-blocked',
+            'reviewPolicy' => 'numbering-picture-bullet-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function numberingPictureBulletItem(
+        \DOMElement $pictureBullet,
+        string $id,
+        int $index,
+        array $parts,
+        string $partName,
+        string $relationshipsPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $item = [
+            'index' => $index,
+            'id' => $id,
+            'sourcePart' => $partName,
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipsPartExists' => isset($parts[$relationshipsPart]),
+            'relationshipId' => null,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'external' => false,
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'exists' => false,
+            'byteLength' => null,
+            'bytes' => null,
+            'crc32' => null,
+            'sha256' => null,
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'shapeAlt' => null,
+            'title' => null,
+            'byteExposurePolicy' => 'numbering-picture-bullet-bytes-blocked',
+            'reviewPolicy' => 'numbering-picture-bullet-metadata-only',
+            'valid' => false,
+            'issues' => [],
+            'relationship' => null,
+        ];
+
+        $imageData = $this->firstDescendantElementByNamespace($pictureBullet, self::NS_V, 'imagedata');
+        if (!$imageData instanceof \DOMElement) {
+            $item['issues'][] = 'missing-image-data';
+            return $item;
+        }
+
+        $title = trim($imageData->getAttributeNS(self::NS_O, 'title'));
+        if ($title !== '') {
+            $item['title'] = $title;
+        }
+        $shape = $imageData->parentNode;
+        if ($shape instanceof \DOMElement && $shape->namespaceURI === self::NS_V && $shape->localName === 'shape') {
+            $alt = trim($shape->getAttribute('alt'));
+            if ($alt !== '') {
+                $item['shapeAlt'] = $alt;
+            }
+        }
+
+        $relationshipId = $imageData->getAttributeNS(self::NS_R, 'id');
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+            return $item;
+        }
+
+        $item['relationshipId'] = $relationshipId;
+        if (!isset($parts[$relationshipsPart])) {
+            $item['issues'][] = 'missing-numbering-relationships';
+            return $item;
+        }
+
+        $relationship = $relationships[$relationshipId] ?? null;
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'missing-relationship';
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $partName, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) ($summary['exists'] ?? false);
+        $external = (bool) ($summary['external'] ?? false);
+        $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['external'] = $external;
+        $item['externalTargetKind'] = $summary['externalTargetKind'];
+        $item['externalTargetScheme'] = $summary['externalTargetScheme'];
+        $item['externalTargetAllowed'] = $summary['externalTargetAllowed'];
+        $item['exists'] = $exists;
+        $item['byteLength'] = $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null;
+        $item['bytes'] = $item['byteLength'];
+        $item['crc32'] = $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+        $item['sha256'] = $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null;
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $contentTypeBase;
+        $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $summary['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $summary['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $summary['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['relationship'] = $summary;
+
+        if ($relationship['type'] !== self::IMAGE_REL) {
+            $item['issues'][] = 'unexpected-relationship-type';
+        }
+
+        if ($external) {
+            $item['issues'][] = 'external-numbering-picture-bullet';
+            foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $item['issues'][] = $issue;
+                }
+            }
+        } else {
+            if (!$exists) {
+                $item['issues'][] = 'missing-numbering-picture-bullet-image';
+            }
+            if (($summary['contentTypeSource'] ?? '') === 'missing') {
+                $item['issues'][] = 'missing-numbering-picture-bullet-content-type';
+            } elseif (!str_starts_with($contentTypeBase, 'image/')) {
+                $item['issues'][] = 'unexpected-numbering-picture-bullet-content-type';
+            }
+        }
+
+        $item['issues'] = array_values(array_unique($item['issues']));
+        sort($item['issues'], SORT_STRING);
+        $item['valid'] = $item['issues'] === [];
+
+        return $item;
     }
 
     /**
@@ -14146,7 +14498,7 @@ final class DocxOpenXmlReader
 
                 $list = $this->paragraphListAttrs($child, $numbering);
                 if ($list !== null && $paragraph->type === 'paragraph') {
-                    $key = $list['type'] . ':' . $list['numId'] . ':' . $list['level'] . ':' . ($list['style'] ?? '') . ':' . ($list['delimiter'] ?? '') . ':' . $list['start'];
+                    $key = $list['type'] . ':' . $list['numId'] . ':' . $list['level'] . ':' . ($list['style'] ?? '') . ':' . ($list['delimiter'] ?? '') . ':' . $list['start'] . ':' . ($list['pictureBulletId'] ?? '');
                     if (!is_array($currentList) || $currentList['key'] !== $key) {
                         $this->flushCurrentList($currentList, $blocks);
                         $attrs = [
@@ -14159,6 +14511,12 @@ final class DocxOpenXmlReader
                             $attrs['delimiter'] = $list['delimiter'];
                         } else {
                             $attrs['bulletChar'] = $list['text'];
+                        }
+                        if (is_string($list['pictureBulletId'] ?? null)) {
+                            $attrs['pictureBulletId'] = $list['pictureBulletId'];
+                        }
+                        if (is_array($list['pictureBullet'] ?? null)) {
+                            $attrs['pictureBullet'] = $list['pictureBullet'];
                         }
                         $currentList = [
                             'key' => $key,
@@ -14288,7 +14646,7 @@ final class DocxOpenXmlReader
 
                 $list = $this->paragraphListAttrs($bodyChild, $numbering);
                 if ($list !== null && $paragraph->type === 'paragraph') {
-                    $key = $list['type'] . ':' . $list['numId'] . ':' . $list['level'] . ':' . ($list['style'] ?? '') . ':' . ($list['delimiter'] ?? '') . ':' . $list['start'];
+                    $key = $list['type'] . ':' . $list['numId'] . ':' . $list['level'] . ':' . ($list['style'] ?? '') . ':' . ($list['delimiter'] ?? '') . ':' . $list['start'] . ':' . ($list['pictureBulletId'] ?? '');
                     if (!is_array($currentList) || $currentList['key'] !== $key) {
                         $this->flushCurrentList($currentList, $blocks);
                         $attrs = [
@@ -14301,6 +14659,12 @@ final class DocxOpenXmlReader
                             $attrs['delimiter'] = $list['delimiter'];
                         } else {
                             $attrs['bulletChar'] = $list['text'];
+                        }
+                        if (is_string($list['pictureBulletId'] ?? null)) {
+                            $attrs['pictureBulletId'] = $list['pictureBulletId'];
+                        }
+                        if (is_array($list['pictureBullet'] ?? null)) {
+                            $attrs['pictureBullet'] = $list['pictureBullet'];
                         }
                         $currentList = [
                             'key' => $key,
@@ -14670,8 +15034,8 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
-     * @return array{type:string, numId:string, level:int, start:int, style:string, delimiter:string, text:string}|null
+     * @param array<string, array{abstractNumId:string, levels:array<int, array<string, mixed>>}> $numbering
+     * @return array<string, mixed>|null
      */
     private function paragraphListAttrs(\DOMElement $paragraph, array $numbering): ?array
     {
@@ -14691,7 +15055,7 @@ final class DocxOpenXmlReader
         $format = $level['format'];
         $type = $format === 'bullet' ? 'bullet_list' : 'ordered_list';
 
-        return [
+        $attrs = [
             'type' => $type,
             'numId' => $numId,
             'level' => $ilvl,
@@ -14700,6 +15064,14 @@ final class DocxOpenXmlReader
             'delimiter' => $this->listDelimiterForText($level['text']),
             'text' => $level['text'],
         ];
+        if (is_string($level['pictureBulletId'] ?? null)) {
+            $attrs['pictureBulletId'] = $level['pictureBulletId'];
+        }
+        if (is_array($level['pictureBullet'] ?? null)) {
+            $attrs['pictureBullet'] = $level['pictureBullet'];
+        }
+
+        return $attrs;
     }
 
     private function paragraphStyleId(\DOMElement $paragraph): string

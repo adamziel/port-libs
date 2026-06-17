@@ -4522,6 +4522,199 @@ XML;
         $t->same('bullet_list', $bullet->type);
         $t->same('-', $bullet->attr('bulletChar'));
     },
+    'summarizes docx numbering picture bullet relationships for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $numberingContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+        $pictureBytes = 'picture bullet';
+        $badBytes = '<not-image/>';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="' . $numberingContentType . '"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/numbering.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:o="urn:schemas-microsoft-com:office:office">
+  <w:numPicBullet w:numPicBulletId="7">
+    <w:pict><v:shape alt="Picture bullet alt"><v:imagedata r:id="rPictureBullet" o:title="Picture bullet title"/></v:shape></w:pict>
+  </w:numPicBullet>
+  <w:numPicBullet w:numPicBulletId="8">
+    <w:pict><v:shape><v:imagedata r:id="rMissingPicture"/></v:shape></w:pict>
+  </w:numPicBullet>
+  <w:numPicBullet w:numPicBulletId="9">
+    <w:pict><v:shape><v:imagedata r:id="rExternalPicture"/></v:shape></w:pict>
+  </w:numPicBullet>
+  <w:numPicBullet w:numPicBulletId="10">
+    <w:pict><v:shape><v:imagedata r:id="rBadPicture"/></v:shape></w:pict>
+  </w:numPicBullet>
+  <w:numPicBullet w:numPicBulletId="11">
+    <w:pict/>
+  </w:numPicBullet>
+  <w:abstractNum w:abstractNumId="90">
+    <w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="*"/><w:lvlPicBulletId w:val="7"/></w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="91">
+    <w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="-"/><w:lvlPicBulletId w:val="8"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="7"><w:abstractNumId w:val="90"/></w:num>
+  <w:num w:numId="8"><w:abstractNumId w:val="91"/></w:num>
+</w:numbering>
+XML;
+        $parts['word/_rels/numbering.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPictureBullet" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/picture-bullet.png?asset=bullet#image"/>
+  <Relationship Id="rMissingPicture" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-picture.png"/>
+  <Relationship Id="rExternalPicture" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://cdn.example.test/bullet.png?remote=1#image" TargetMode="External"/>
+  <Relationship Id="rBadPicture" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="media/bad-picture.xml"/>
+  <Relationship Id="rUnreferencedPicture" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/unreferenced-bullet.png"/>
+</Relationships>
+XML;
+        $parts['word/media/picture-bullet.png'] = $pictureBytes;
+        $parts['word/media/bad-picture.xml'] = $badBytes;
+        $parts['word/media/unreferenced-bullet.png'] = 'unreferenced bullet bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $bullets = $docx['numberingPictureBullets'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $list = $document->children[2];
+        $good = $bullets['byId']['7'];
+        $missing = $bullets['byId']['8'];
+        $external = $bullets['byId']['9'];
+        $bad = $bullets['byId']['10'];
+        $noImage = $bullets['byId']['11'];
+
+        $t->same($bullets, $package['numberingPictureBullets']);
+        $t->same('word/numbering.xml', $bullets['partName']);
+        $t->same('word/_rels/numbering.xml.rels', $bullets['relationshipsPart']);
+        $t->same(true, $bullets['relationshipsPartExists']);
+        $t->same(5, $bullets['count']);
+        $t->same(5, $bullets['relationshipCount']);
+        $t->same(4, $bullets['imageRelationshipCount']);
+        $t->same(4, $bullets['referencedRelationshipCount']);
+        $t->same(1, $bullets['unreferencedRelationshipCount']);
+        $t->same(1, $bullets['existingCount']);
+        $t->same(1, $bullets['missingCount']);
+        $t->same(1, $bullets['externalCount']);
+        $t->same(1, $bullets['unexpectedRelationshipTypeCount']);
+        $t->same(0, $bullets['missingContentTypeCount']);
+        $t->same(1, $bullets['unexpectedContentTypeCount']);
+        $t->same(4, $bullets['issueCount']);
+        $t->same(['7', '8', '9', '10', '11'], $bullets['ids']);
+        $t->same(['rPictureBullet', 'rMissingPicture', 'rExternalPicture', 'rBadPicture'], $bullets['relationshipIds']);
+        $t->same(['rUnreferencedPicture'], $bullets['unreferencedRelationshipIds']);
+        $t->same(['word/media/picture-bullet.png', 'word/media/missing-picture.png'], $bullets['partNames']);
+        $t->same(['https://cdn.example.test/bullet.png?remote=1#image'], $bullets['externalTargets']);
+        $t->same(['image/png', 'application/xml'], $bullets['contentTypes']);
+        $t->same([
+            'external-numbering-picture-bullet',
+            'missing-image-data',
+            'missing-numbering-picture-bullet-image',
+            'unexpected-numbering-picture-bullet-content-type',
+            'unexpected-relationship-type',
+        ], $bullets['issueCodes']);
+        $t->same('numbering-picture-bullet-bytes-blocked', $bullets['byteExposurePolicy']);
+        $t->same('numbering-picture-bullet-metadata-only', $bullets['reviewPolicy']);
+
+        $t->same('bullet_list', $list->type);
+        $t->same('7', $list->attr('pictureBulletId'));
+        $t->same($good, $list->attr('pictureBullet'));
+        $t->same('rPictureBullet', $list->attr('pictureBullet')['relationshipId']);
+        $t->same('word/numbering.xml', $docx['numberingPart']);
+        $t->same('word/_rels/numbering.xml.rels', $docx['numberingRelationshipsPart']);
+        $t->same($bullets['byRelationshipId']['rPictureBullet'], $good);
+        $t->same($bullets['byRelationshipId']['rMissingPicture'], $missing);
+
+        $t->same('7', $good['id']);
+        $t->same(0, $good['index']);
+        $t->same('rPictureBullet', $good['relationshipId']);
+        $t->same($imageRel, $good['relationshipType']);
+        $t->same('media/picture-bullet.png?asset=bullet#image', $good['target']);
+        $t->same('word/media/picture-bullet.png?asset=bullet#image', $good['resolvedTarget']);
+        $t->same('word/media/picture-bullet.png', $good['targetPart']);
+        $t->same('asset=bullet', $good['targetQuery']);
+        $t->same('image', $good['targetFragment']);
+        $t->same('?asset=bullet#image', $good['targetReferenceSuffix']);
+        $t->same(false, $good['external']);
+        $t->same(true, $good['exists']);
+        $t->same(strlen($pictureBytes), $good['byteLength']);
+        $t->same(strlen($pictureBytes), $good['bytes']);
+        $t->same(sprintf('%08x', crc32($pictureBytes)), $good['crc32']);
+        $t->same(hash('sha256', $pictureBytes), $good['sha256']);
+        $t->same('image/png', $good['contentType']);
+        $t->same('image/png', $good['contentTypeBase']);
+        $t->same('default', $good['contentTypeSource']);
+        $t->same('png', $good['defaultExtension']);
+        $t->same('Picture bullet alt', $good['shapeAlt']);
+        $t->same('Picture bullet title', $good['title']);
+        $t->same('numbering-picture-bullet-bytes-blocked', $good['byteExposurePolicy']);
+        $t->same('numbering-picture-bullet-metadata-only', $good['reviewPolicy']);
+        $t->same(true, $good['valid']);
+        $t->same([], $good['issues']);
+
+        $t->same('8', $missing['id']);
+        $t->same('rMissingPicture', $missing['relationshipId']);
+        $t->same($imageRel, $missing['relationshipType']);
+        $t->same('word/media/missing-picture.png', $missing['targetPart']);
+        $t->same(false, $missing['external']);
+        $t->same(false, $missing['exists']);
+        $t->same(null, $missing['byteLength']);
+        $t->same('image/png', $missing['contentType']);
+        $t->same(false, $missing['valid']);
+        $t->same(['missing-numbering-picture-bullet-image'], $missing['issues']);
+
+        $t->same('9', $external['id']);
+        $t->same('rExternalPicture', $external['relationshipId']);
+        $t->same($imageRel, $external['relationshipType']);
+        $t->same(true, $external['external']);
+        $t->same('https://cdn.example.test/bullet.png?remote=1#image', $external['target']);
+        $t->same('remote=1', $external['targetQuery']);
+        $t->same('image', $external['targetFragment']);
+        $t->same(true, $external['externalTargetAllowed']);
+        $t->same(null, $external['targetPart']);
+        $t->same(false, $external['valid']);
+        $t->same(['external-numbering-picture-bullet'], $external['issues']);
+
+        $t->same('10', $bad['id']);
+        $t->same('rBadPicture', $bad['relationshipId']);
+        $t->same($hyperlinkRel, $bad['relationshipType']);
+        $t->same('word/media/bad-picture.xml', $bad['targetPart']);
+        $t->same(true, $bad['exists']);
+        $t->same(strlen($badBytes), $bad['byteLength']);
+        $t->same('application/xml', $bad['contentType']);
+        $t->same('application/xml', $bad['contentTypeBase']);
+        $t->same(false, $bad['valid']);
+        $t->same(['unexpected-numbering-picture-bullet-content-type', 'unexpected-relationship-type'], $bad['issues']);
+
+        $t->same('11', $noImage['id']);
+        $t->same(null, $noImage['relationshipId']);
+        $t->same(null, $noImage['targetPart']);
+        $t->same(false, $noImage['valid']);
+        $t->same(['missing-image-data'], $noImage['issues']);
+
+        $t->same(5, $summary['numberingPictureBulletCount']);
+        $t->same(5, $summary['numberingPictureBulletRelationshipCount']);
+        $t->same(4, $summary['numberingPictureBulletImageRelationshipCount']);
+        $t->same(4, $summary['numberingPictureBulletReferencedRelationshipCount']);
+        $t->same(1, $summary['numberingPictureBulletUnreferencedRelationshipCount']);
+        $t->same(1, $summary['numberingPictureBulletExistingCount']);
+        $t->same(1, $summary['numberingPictureBulletMissingCount']);
+        $t->same(1, $summary['numberingPictureBulletExternalCount']);
+        $t->same(4, $summary['numberingPictureBulletIssueCount']);
+        $t->same($bullets['issueCodes'], $summary['numberingPictureBulletIssueCodes']);
+        $t->true(in_array('numbering-picture-bullet', $inventory['word/media/picture-bullet.png']['roles'], true), 'picture bullet role missing');
+        $t->true(in_array('relationship-target', $inventory['word/media/picture-bullet.png']['roles'], true), 'relationship target role missing');
+        $t->true(in_array('numbering-picture-bullet', $inventory['word/media/unreferenced-bullet.png']['roles'], true), 'unreferenced picture bullet role missing');
+    },
     'resolves docx styles and core properties from relationship targets' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
