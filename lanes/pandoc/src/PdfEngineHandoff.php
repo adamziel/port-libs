@@ -7591,10 +7591,37 @@ final class PdfEngineHandoff
             ], $fontAccessIssues);
         }
 
+        $certificates = is_array($provenance['certificates'] ?? null) ? $provenance['certificates'] : [];
+        $certificateEnvironment = is_array($provenance['certificateEnvironment'] ?? null) ? $provenance['certificateEnvironment'] : [];
+        $certificateEntries = array_values(array_filter(
+            array_merge($certificates, [$certificateEnvironment]),
+            static fn (mixed $entry): bool => is_array($entry)
+        ));
+        $cliCertificateCount = 0;
+        $environmentCertificateCount = 0;
+        $certificateEnvironmentVariables = [];
+        foreach ($certificateEntries as $certificateEntry) {
+            if (($certificateEntry['source'] ?? null) === 'environment') {
+                ++$environmentCertificateCount;
+                if (is_string($certificateEntry['environmentVariable'] ?? null) && $certificateEntry['environmentVariable'] !== '') {
+                    $certificateEnvironmentVariables[] = $certificateEntry['environmentVariable'];
+                }
+            } else {
+                ++$cliCertificateCount;
+            }
+        }
+        $certificateEnvironmentVariables = array_values(array_unique($certificateEnvironmentVariables));
+        sort($certificateEnvironmentVariables);
+        $certificateKindCount = static function (array $entries, string $kind): int {
+            return count(array_filter(
+                $entries,
+                static fn (mixed $entry): bool => is_array($entry) && ($entry['kind'] ?? null) === $kind
+            ));
+        };
         $certificatePolicy = is_array($provenance['certificatePolicy'] ?? null) ? $provenance['certificatePolicy'] : [];
         $certificateIssues = array_merge(
-            $listIssues(is_array($provenance['certificates'] ?? null) ? $provenance['certificates'] : []),
-            $entryIssues($provenance['certificateEnvironment'] ?? null),
+            $listIssues($certificates),
+            $entryIssues($certificateEnvironment),
             is_array($certificatePolicy['issues'] ?? null) ? $certificatePolicy['issues'] : []
         );
         $certificateCount = is_int($certificatePolicy['certificateCount'] ?? null)
@@ -7604,7 +7631,15 @@ final class PdfEngineHandoff
             $appendCase('certificate-paths', ($certificatePolicy['reviewStatus'] ?? 'ok') === 'ok' && $certificateIssues === [] ? 'ok' : 'review', $certificateCount, [
                 'safeCertificateCount' => is_int($certificatePolicy['safeCertificateCount'] ?? null) ? $certificatePolicy['safeCertificateCount'] : 0,
                 'unsafeCertificateCount' => is_int($certificatePolicy['unsafeCertificateCount'] ?? null) ? $certificatePolicy['unsafeCertificateCount'] : 0,
-                'environmentCertificatePresent' => is_array($provenance['certificateEnvironment'] ?? null),
+                'relativeCertificateCount' => is_int($certificatePolicy['relativeCertificateCount'] ?? null) ? $certificatePolicy['relativeCertificateCount'] : $certificateKindCount($certificateEntries, 'relative'),
+                'workspaceCertificateCount' => is_int($certificatePolicy['workspaceCertificateCount'] ?? null) ? $certificatePolicy['workspaceCertificateCount'] : $certificateKindCount($certificateEntries, 'workspace'),
+                'absoluteCertificateCount' => is_int($certificatePolicy['absoluteCertificateCount'] ?? null) ? $certificatePolicy['absoluteCertificateCount'] : $certificateKindCount($certificateEntries, 'absolute'),
+                'uriCertificateCount' => is_int($certificatePolicy['uriCertificateCount'] ?? null) ? $certificatePolicy['uriCertificateCount'] : $certificateKindCount($certificateEntries, 'uri'),
+                'invalidCertificateCount' => is_int($certificatePolicy['invalidCertificateCount'] ?? null) ? $certificatePolicy['invalidCertificateCount'] : $certificateKindCount($certificateEntries, 'invalid'),
+                'cliCertificateCount' => $cliCertificateCount,
+                'environmentCertificateCount' => $environmentCertificateCount,
+                'environmentVariables' => $certificateEnvironmentVariables,
+                'environmentCertificatePresent' => $certificateEnvironment !== [],
             ], $certificateIssues);
         }
 

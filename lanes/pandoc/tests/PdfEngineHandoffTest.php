@@ -1091,6 +1091,64 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'maps typst certificate source details into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/cert-source-matrix.pdf',
+            'source' => '= Typst Certificate Source Matrix Packet',
+            'engineOptions' => [
+                '--cert=certs/cli-ca.pem',
+                '--cert=/srv/reviewer-ca.pem',
+            ],
+            'engineEnvironment' => [
+                'TYPST_CERT' => 'https://ca.example.invalid/root.pem',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst certificate source matrix packet\n%%EOF\n";
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/cert-source-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/cert-source-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $planCases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $planCases[$case['case']] = $case;
+        }
+        $resultCases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $resultCases[$case['case']] = $case;
+        }
+
+        $t->same(true, $result['ok']);
+        $t->same(['environment-shadows', 'certificate-paths', 'output-format'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(3, $planCases['certificate-paths']['observed']);
+        $t->same(1, $planCases['certificate-paths']['details']['safeCertificateCount']);
+        $t->same(2, $planCases['certificate-paths']['details']['unsafeCertificateCount']);
+        $t->same(1, $planCases['certificate-paths']['details']['relativeCertificateCount']);
+        $t->same(0, $planCases['certificate-paths']['details']['workspaceCertificateCount']);
+        $t->same(1, $planCases['certificate-paths']['details']['absoluteCertificateCount']);
+        $t->same(1, $planCases['certificate-paths']['details']['uriCertificateCount']);
+        $t->same(0, $planCases['certificate-paths']['details']['invalidCertificateCount']);
+        $t->same(2, $planCases['certificate-paths']['details']['cliCertificateCount']);
+        $t->same(1, $planCases['certificate-paths']['details']['environmentCertificateCount']);
+        $t->same(['TYPST_CERT'], $planCases['certificate-paths']['details']['environmentVariables']);
+        $t->same(true, $planCases['certificate-paths']['details']['environmentCertificatePresent']);
+        $t->contains('certificate-paths:certificate-external-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('certificate-paths:certificate-environment-shadowed', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('typst-boundary-matrix-cases:3', implode(',', $plan['diagnostics']));
+        $t->same($planCases['certificate-paths']['details'], $resultCases['certificate-paths']['details']);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans typst system font boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
