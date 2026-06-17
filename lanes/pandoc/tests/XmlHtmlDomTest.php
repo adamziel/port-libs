@@ -3844,6 +3844,65 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/contenteditable-inheritance-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes inherited html translate state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="locked" translate="no"><p id="body"><span id="invalid" translate="maybe">Invalid</span><span id="open" translate="yes"><em id="open-child">Open</em></span></p></article>'
+                . '<section id="plain"><p id="plain-child">Plain</p></section>',
+            'translate inheritance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/translate-inheritance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $body = $article['children'][0];
+        $invalid = $body['children'][0];
+        $open = $body['children'][1];
+        $openChild = $open['children'][0];
+        $plain = $summary[1];
+        $plainChild = $plain['children'][0];
+
+        $t->same('article', $article['name']);
+        $t->same('no', $article['translateRaw']);
+        $t->same(false, $article['translate']);
+        $t->same(true, $article['translateValid']);
+        $t->same('no', $article['effectiveTranslateRaw']);
+        $t->same(false, $article['effectiveTranslate']);
+        $t->same(false, $article['translateInherited']);
+        $t->same('self-translate', $article['translateSource']);
+
+        $t->true(!array_key_exists('translateRaw', $body));
+        $t->same(false, $body['effectiveTranslate']);
+        $t->same(true, $body['translateInherited']);
+        $t->same('article', $body['translateSourceElement']);
+        $t->same('locked', $body['translateSourceElementId']);
+
+        $t->same('maybe', $invalid['translateRaw']);
+        $t->same(null, $invalid['translate']);
+        $t->same(false, $invalid['translateValid']);
+        $t->same(false, $invalid['effectiveTranslate']);
+        $t->same(true, $invalid['translateInherited']);
+        $t->same('locked', $invalid['translateSourceElementId']);
+
+        $t->same('yes', $open['translateRaw']);
+        $t->same(true, $open['translate']);
+        $t->same(true, $open['translateValid']);
+        $t->same(true, $open['effectiveTranslate']);
+        $t->same(false, $open['translateInherited']);
+        $t->same('self-translate', $open['translateSource']);
+
+        $t->same(true, $openChild['effectiveTranslate']);
+        $t->same(true, $openChild['translateInherited']);
+        $t->same('span', $openChild['translateSourceElement']);
+        $t->same('open', $openChild['translateSourceElementId']);
+        $t->true(!array_key_exists('effectiveTranslate', $plainChild));
+        $t->contains('<article id="locked" translate="no">', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/translate-inheritance-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html dropzone tokens for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="drop" draggable="true" dropzone="copy string:text/plain file:image/png string:text/html">Drop files</section>'

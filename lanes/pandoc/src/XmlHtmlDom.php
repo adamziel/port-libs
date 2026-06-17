@@ -17713,14 +17713,13 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('translate', $attributes)) {
-            $translate = strtolower(trim($attributes['translate']));
+            $translate = self::htmlTranslateState($attributes['translate']);
             $summary['translateRaw'] = $attributes['translate'];
-            $summary['translate'] = match ($translate) {
-                '', 'yes' => true,
-                'no' => false,
-                default => null,
-            };
+            $summary['translate'] = $translate;
+            $summary['translateValid'] = $translate !== null;
         }
+
+        $summary += self::effectiveTranslateSummary($element, $attributes);
 
         if (array_key_exists('contenteditable', $attributes)) {
             $contentEditable = self::contentEditableState($attributes['contenteditable']);
@@ -17893,6 +17892,59 @@ final class XmlHtmlDom
      * @param array<string, string> $attributes
      * @return array<string, mixed>
      */
+    private static function effectiveTranslateSummary(\DOMElement $element, array $attributes): array
+    {
+        if (array_key_exists('translate', $attributes)) {
+            $translate = self::htmlTranslateState($attributes['translate']);
+            if ($translate !== null) {
+                return self::translateProvenanceSummary($element, $attributes['translate'], $translate, false);
+            }
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (!array_key_exists('translate', $ancestorAttributes)) {
+                continue;
+            }
+
+            $translate = self::htmlTranslateState($ancestorAttributes['translate']);
+            if ($translate !== null) {
+                return self::translateProvenanceSummary($ancestor, $ancestorAttributes['translate'], $translate, true);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function translateProvenanceSummary(
+        \DOMElement $source,
+        string $raw,
+        bool $translate,
+        bool $inherited
+    ): array {
+        $summary = [
+            'effectiveTranslateRaw' => $raw,
+            'effectiveTranslate' => $translate,
+            'translateInherited' => $inherited,
+            'translateSource' => $inherited ? 'ancestor-translate' : 'self-translate',
+            'translateSourceElement' => self::htmlElementName($source),
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['translateSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
     private static function effectiveLanguageSummary(\DOMElement $element, array $attributes): array
     {
         foreach (['lang', 'xml:lang'] as $attribute) {
@@ -18006,6 +18058,17 @@ final class XmlHtmlDom
         $direction = strtolower(trim($value));
 
         return in_array($direction, ['ltr', 'rtl', 'auto'], true) ? $direction : null;
+    }
+
+    private static function htmlTranslateState(string $value): ?bool
+    {
+        $translate = strtolower(trim($value));
+
+        return match ($translate) {
+            '', 'yes' => true,
+            'no' => false,
+            default => null,
+        };
     }
 
     /**
