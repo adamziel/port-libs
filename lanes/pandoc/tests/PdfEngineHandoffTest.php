@@ -1681,6 +1681,64 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'maps typst font path source details into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/font-path-source-matrix.pdf',
+            'source' => '= Typst Font Path Source Matrix Packet',
+            'engineOptions' => [
+                '--font-path=fonts/cli',
+                '--font-path=https://fonts.example.invalid/typst',
+            ],
+            'engineEnvironment' => [
+                'TYPST_FONT_PATHS' => '/srv/env-fonts',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst font path source matrix packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/font-path-source-matrix.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/font-path-source-matrix.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $planCases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $planCases[$case['case']] = $case;
+        }
+        $matrix = $result['typstBoundaryMatrix'];
+        $cases = [];
+        foreach ($matrix['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+        $details = $cases['font-path-policy']['details'];
+
+        $t->same(true, $result['ok']);
+        $t->contains('font-path-policy', implode(',', array_column($matrix['cases'], 'case')));
+        $t->same('review', $cases['font-path-policy']['reviewStatus']);
+        $t->same(3, $cases['font-path-policy']['observed']);
+        $t->same(1, $details['safeFontPathCount']);
+        $t->same(2, $details['unsafeFontPathCount']);
+        $t->same(1, $details['relativeFontPathCount']);
+        $t->same(0, $details['workspaceFontPathCount']);
+        $t->same(1, $details['absoluteFontPathCount']);
+        $t->same(1, $details['uriFontPathCount']);
+        $t->same(0, $details['invalidFontPathCount']);
+        $t->same(2, $details['cliFontPathCount']);
+        $t->same(1, $details['environmentFontPathCount']);
+        $t->same(['TYPST_FONT_PATHS'], $details['environmentVariables']);
+        $t->same($details, $planCases['font-path-policy']['details']);
+        $t->contains('font-path-policy:font-path-external-boundary', implode(',', $matrix['issues']));
+        $t->contains('typst-boundary-matrix-cases:3', implode(',', $plan['diagnostics']));
+        $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans typst invalid font environment flag provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

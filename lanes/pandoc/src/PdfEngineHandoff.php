@@ -7440,11 +7440,33 @@ final class PdfEngineHandoff
             ? $fontPathPolicy['fontPathCount']
             : (is_int($summary['fontPathCount'] ?? null) ? $summary['fontPathCount'] : count($fontPaths));
         if ($fontPathCount > 0 || $fontPathIssues !== []) {
+            $environmentFontPathCount = 0;
+            $cliFontPathCount = 0;
+            $fontPathEnvironmentVariables = [];
+            foreach ($fontPaths as $fontPath) {
+                if (is_array($fontPath) && ($fontPath['source'] ?? null) === 'environment') {
+                    ++$environmentFontPathCount;
+                    if (is_string($fontPath['environmentVariable'] ?? null) && $fontPath['environmentVariable'] !== '') {
+                        $fontPathEnvironmentVariables[] = $fontPath['environmentVariable'];
+                    }
+                    continue;
+                }
+
+                ++$cliFontPathCount;
+            }
+            $fontPathEnvironmentVariables = array_values(array_unique($fontPathEnvironmentVariables));
+            sort($fontPathEnvironmentVariables);
             $appendCase('font-path-policy', ($fontPathPolicy['reviewStatus'] ?? 'ok') === 'ok' && $fontPathIssues === [] ? 'ok' : 'review', $fontPathCount, [
                 'safeFontPathCount' => is_int($fontPathPolicy['safeFontPathCount'] ?? null) ? $fontPathPolicy['safeFontPathCount'] : count(array_filter($fontPaths, static fn (mixed $entry): bool => is_array($entry) && ($entry['safe'] ?? false) === true)),
                 'unsafeFontPathCount' => is_int($fontPathPolicy['unsafeFontPathCount'] ?? null) ? $fontPathPolicy['unsafeFontPathCount'] : count(array_filter($fontPaths, static fn (mixed $entry): bool => !is_array($entry) || ($entry['safe'] ?? false) !== true)),
+                'relativeFontPathCount' => is_int($fontPathPolicy['relativeFontPathCount'] ?? null) ? $fontPathPolicy['relativeFontPathCount'] : 0,
+                'workspaceFontPathCount' => is_int($fontPathPolicy['workspaceFontPathCount'] ?? null) ? $fontPathPolicy['workspaceFontPathCount'] : 0,
                 'absoluteFontPathCount' => is_int($fontPathPolicy['absoluteFontPathCount'] ?? null) ? $fontPathPolicy['absoluteFontPathCount'] : 0,
                 'uriFontPathCount' => is_int($fontPathPolicy['uriFontPathCount'] ?? null) ? $fontPathPolicy['uriFontPathCount'] : 0,
+                'invalidFontPathCount' => is_int($fontPathPolicy['invalidFontPathCount'] ?? null) ? $fontPathPolicy['invalidFontPathCount'] : 0,
+                'cliFontPathCount' => $cliFontPathCount,
+                'environmentFontPathCount' => $environmentFontPathCount,
+                'environmentVariables' => $fontPathEnvironmentVariables,
             ], $fontPathIssues);
         }
 
