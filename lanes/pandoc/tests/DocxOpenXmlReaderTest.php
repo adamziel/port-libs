@@ -407,6 +407,107 @@ return [
         $t->same(8, $entriesByName['word/document.xml']['compressionMethod']);
         $t->same(true, $entriesByName['word/document.xml']['isSupported']);
     },
+    'preserves docx zip data descriptor provenance across package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        foreach ($zipParts as &$zipPart) {
+            if ($zipPart['name'] === 'word/document.xml') {
+                $zipPart['compressionMethod'] = 8;
+                $zipPart['descriptor'] = true;
+            }
+            if ($zipPart['name'] === 'word/media/review.png') {
+                $zipPart['compressionMethod'] = 0;
+                $zipPart['descriptor'] = true;
+                $zipPart['descriptorSignature'] = false;
+            }
+        }
+        unset($zipPart);
+
+        $documentXml = $parts['word/document.xml'];
+        $mediaBytes = $parts['word/media/review.png'];
+        $deflatedDocument = gzdeflate($documentXml);
+        $zip = ZipPackage::fromString(docx_openxml_reader_data_descriptor_zip($zipParts));
+        $document = (new DocxOpenXmlReader())->readZipPackage($zip);
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $dataDescriptors = $zipPackage['dataDescriptors'];
+        $inventory = $package['parts'];
+        $summary = $package['summary'];
+        $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
+        $mediaEntry = $zipPackage['byPackagePath']['word/media/review.png'];
+        $contentTypesEntry = $zipPackage['byPackagePath']['[Content_Types].xml'];
+
+        $t->true(is_string($deflatedDocument), 'fixture document XML should deflate');
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $zipPackage['present']);
+        $t->same(count($zipParts), $dataDescriptors['entryCount']);
+        $t->same(2, $dataDescriptors['descriptorEntryCount']);
+        $t->same(1, $dataDescriptors['signedDescriptorEntryCount']);
+        $t->same(1, $dataDescriptors['unsignedDescriptorEntryCount']);
+        $t->same(0, $dataDescriptors['zip64SizedDescriptorEntryCount']);
+        $t->same(2, $dataDescriptors['matchedDescriptorEntryCount']);
+        $t->same(0, $dataDescriptors['issueEntryCount']);
+        $t->same(0, $dataDescriptors['issueCount']);
+        $t->same([], $dataDescriptors['issueCodes']);
+        $t->same(28, $dataDescriptors['descriptorByteLength']);
+        $t->same(['word/document.xml', 'word/media/review.png'], array_column($dataDescriptors['descriptorEntries'], 'name'));
+
+        $t->same(true, $documentEntry['usesDataDescriptor']);
+        $t->same(true, $documentEntry['dataDescriptorHasSignature']);
+        $t->same(16, $documentEntry['dataDescriptorLength']);
+        $t->same($documentEntry['dataDescriptorOffset'] + 4, $documentEntry['dataDescriptorValueOffset']);
+        $t->same($documentEntry['dataDescriptorOffset'] + 16, $documentEntry['dataDescriptorEnd']);
+        $t->same(0, $documentEntry['dataDescriptorSurplusBytes']);
+        $t->same(0, $documentEntry['dataDescriptorTruncatedBytes']);
+        $t->same(strlen($deflatedDocument), $documentEntry['dataDescriptorCompressedSize']);
+        $t->same(strlen($documentXml), $documentEntry['dataDescriptorUncompressedSize']);
+        $t->same($documentEntry['crc32'], $documentEntry['dataDescriptorCrc32Hex']);
+        $t->same(true, $documentEntry['dataDescriptorValuesMatchCentral']);
+        $t->same(0, $documentEntry['dataDescriptorLocalHeaderCrc32']);
+        $t->same(0, $documentEntry['dataDescriptorLocalHeaderCompressedSize']);
+        $t->same(0, $documentEntry['dataDescriptorLocalHeaderUncompressedSize']);
+        $t->same(true, $documentEntry['hasZeroLocalHeaderPlaceholders']);
+        $t->same(0, $documentEntry['dataDescriptorIssueCount']);
+        $t->same([], $documentEntry['dataDescriptorIssues']);
+
+        $t->same(true, $mediaEntry['usesDataDescriptor']);
+        $t->same(false, $mediaEntry['dataDescriptorHasSignature']);
+        $t->same(12, $mediaEntry['dataDescriptorLength']);
+        $t->same($mediaEntry['dataDescriptorOffset'], $mediaEntry['dataDescriptorValueOffset']);
+        $t->same($mediaEntry['dataDescriptorOffset'] + 12, $mediaEntry['dataDescriptorEnd']);
+        $t->same(strlen($mediaBytes), $mediaEntry['dataDescriptorCompressedSize']);
+        $t->same(strlen($mediaBytes), $mediaEntry['dataDescriptorUncompressedSize']);
+        $t->same($mediaEntry['crc32'], $mediaEntry['dataDescriptorCrc32Hex']);
+        $t->same(true, $mediaEntry['dataDescriptorValuesMatchCentral']);
+        $t->same(true, $mediaEntry['hasZeroLocalHeaderPlaceholders']);
+        $t->same([], $mediaEntry['dataDescriptorIssues']);
+
+        $t->same(false, $contentTypesEntry['usesDataDescriptor']);
+        $t->same(null, $contentTypesEntry['dataDescriptorHasSignature']);
+        $t->same(null, $contentTypesEntry['dataDescriptorLength']);
+        $t->same([], $contentTypesEntry['dataDescriptorIssues']);
+
+        $t->same(true, $inventory['word/document.xml']['usesDataDescriptor']);
+        $t->same(true, $inventory['word/document.xml']['dataDescriptorHasSignature']);
+        $t->same(16, $inventory['word/document.xml']['dataDescriptorLength']);
+        $t->same($documentEntry['dataDescriptorOffset'], $inventory['word/document.xml']['dataDescriptorOffset']);
+        $t->same($documentEntry['dataDescriptorEnd'], $inventory['word/document.xml']['dataDescriptorEnd']);
+        $t->same($documentEntry['dataDescriptorCrc32Hex'], $inventory['word/document.xml']['dataDescriptorCrc32Hex']);
+        $t->same(true, $inventory['word/document.xml']['dataDescriptorValuesMatchCentral']);
+        $t->same(true, $inventory['word/document.xml']['hasZeroLocalHeaderPlaceholders']);
+        $t->same([], $inventory['word/document.xml']['dataDescriptorIssues']);
+        $t->same(false, $inventory['[Content_Types].xml']['usesDataDescriptor']);
+
+        $t->same(2, $summary['zipDataDescriptorEntryCount']);
+        $t->same(1, $summary['zipSignedDataDescriptorEntryCount']);
+        $t->same(1, $summary['zipUnsignedDataDescriptorEntryCount']);
+        $t->same(0, $summary['zipZip64SizedDataDescriptorEntryCount']);
+        $t->same(2, $summary['zipDataDescriptorMatchedEntryCount']);
+        $t->same(0, $summary['zipDataDescriptorIssueEntryCount']);
+        $t->same(0, $summary['zipDataDescriptorIssueCount']);
+        $t->same([], $summary['zipDataDescriptorIssueCodes']);
+        $t->same(28, $summary['zipDataDescriptorByteLength']);
+    },
     'preserves docx zip entry name policy provenance for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $zipParts = docx_openxml_reader_zip_parts($parts);
@@ -11380,6 +11481,89 @@ function docx_openxml_reader_zip_package_with_compression_methods(array $parts, 
 function docx_openxml_reader_zip_package(array $parts): ZipPackage
 {
     return ZipPackage::fromParts(docx_openxml_reader_zip_parts($parts));
+}
+
+/**
+ * @param list<array{name:string, data?:string, compressionMethod?:int, descriptor?:bool, descriptorSignature?:bool}> $parts
+ */
+function docx_openxml_reader_data_descriptor_zip(array $parts): string
+{
+    $body = '';
+    $central = '';
+
+    foreach ($parts as $part) {
+        $name = $part['name'];
+        $data = $part['data'] ?? '';
+        $method = $part['compressionMethod'] ?? ($data === '' || str_ends_with($name, '/') ? 0 : 8);
+        $compressed = match ($method) {
+            0 => $data,
+            8 => gzdeflate($data),
+            default => throw new RuntimeException("Unsupported fixture compression method {$method}"),
+        };
+        if (!is_string($compressed)) {
+            throw new RuntimeException("Unable to deflate fixture ZIP entry {$name}");
+        }
+
+        $usesDescriptor = ($part['descriptor'] ?? false) === true;
+        $flags = 0x0800 | ($usesDescriptor ? 0x0008 : 0);
+        $crc32 = (int) sprintf('%u', crc32($data));
+        $compressedSize = strlen($compressed);
+        $uncompressedSize = strlen($data);
+        $localHeaderOffset = strlen($body);
+        $localCrc32 = $usesDescriptor ? 0 : $crc32;
+        $localCompressedSize = $usesDescriptor ? 0 : $compressedSize;
+        $localUncompressedSize = $usesDescriptor ? 0 : $uncompressedSize;
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $localCrc32,
+            $localCompressedSize,
+            $localUncompressedSize,
+            strlen($name),
+            0
+        );
+        $body .= $name . $compressed;
+        if ($usesDescriptor) {
+            if (($part['descriptorSignature'] ?? true) === true) {
+                $body .= "PK\x07\x08";
+            }
+            $body .= pack('VVV', $crc32, $compressedSize, $uncompressedSize);
+        }
+
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc32,
+            $compressedSize,
+            $uncompressedSize,
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            str_ends_with($name, '/') ? 0x10 : 0,
+            $localHeaderOffset
+        );
+        $central .= $name;
+    }
+
+    $centralDirectoryOffset = strlen($body);
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($parts), count($parts), strlen($central), $centralDirectoryOffset, 0);
 }
 
 /**

@@ -8479,6 +8479,16 @@ final class DocxOpenXmlReader
         $summary['zipDeflatedUncompressedByteLength'] = (int) ($compressionMethods['deflatedUncompressedBytes'] ?? 0);
         $summary['zipUnsupportedCompressedByteLength'] = (int) ($compressionMethods['unsupportedCompressedBytes'] ?? 0);
         $summary['zipUnsupportedUncompressedByteLength'] = (int) ($compressionMethods['unsupportedUncompressedBytes'] ?? 0);
+        $zipDataDescriptors = $zipPackage['dataDescriptors'];
+        $summary['zipDataDescriptorEntryCount'] = $zipDataDescriptors['descriptorEntryCount'];
+        $summary['zipSignedDataDescriptorEntryCount'] = $zipDataDescriptors['signedDescriptorEntryCount'];
+        $summary['zipUnsignedDataDescriptorEntryCount'] = $zipDataDescriptors['unsignedDescriptorEntryCount'];
+        $summary['zipZip64SizedDataDescriptorEntryCount'] = $zipDataDescriptors['zip64SizedDescriptorEntryCount'];
+        $summary['zipDataDescriptorMatchedEntryCount'] = $zipDataDescriptors['matchedDescriptorEntryCount'];
+        $summary['zipDataDescriptorIssueEntryCount'] = $zipDataDescriptors['issueEntryCount'];
+        $summary['zipDataDescriptorIssueCount'] = $zipDataDescriptors['issueCount'];
+        $summary['zipDataDescriptorIssueCodes'] = $zipDataDescriptors['issueCodes'];
+        $summary['zipDataDescriptorByteLength'] = $zipDataDescriptors['descriptorByteLength'];
         $zipNamePolicy = $zipPackage['namePolicy'];
         $summary['zipNamePolicyValid'] = $zipNamePolicy['valid'];
         $summary['zipNamePolicyIssueCount'] = $zipNamePolicy['issueCount'];
@@ -8554,6 +8564,7 @@ final class DocxOpenXmlReader
                     'mismatchedEntries' => [],
                     'entries' => [],
                 ],
+                'dataDescriptors' => $this->emptyZipDataDescriptorProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
                 'canExposeBytes' => false,
@@ -8564,6 +8575,13 @@ final class DocxOpenXmlReader
 
         $localHeaderOrder = $sourcePackage->localHeaderOrderPreflight();
         $compressionMethods = $sourcePackage->compressionMethodPreflight();
+        $dataDescriptors = $this->zipDataDescriptorProvenance($sourcePackage->dataDescriptorPreflight());
+        $dataDescriptorByName = [];
+        foreach ($dataDescriptors['entries'] as $descriptorEntry) {
+            if (is_array($descriptorEntry) && is_string($descriptorEntry['name'] ?? null)) {
+                $dataDescriptorByName[$descriptorEntry['name']] = $descriptorEntry;
+            }
+        }
         $localOrderByName = [];
         foreach ($localHeaderOrder['entries'] as $entry) {
             $localOrderByName[(string) $entry['name']] = $entry;
@@ -8611,7 +8629,7 @@ final class DocxOpenXmlReader
                 'loadedPart' => $loadedPart,
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
-            ];
+            ] + $this->zipDataDescriptorEntryProvenance($dataDescriptorByName[$entry->name] ?? null);
             $entries[] = $summary;
             $byPackagePath[$entry->name] = $summary;
         }
@@ -8629,12 +8647,129 @@ final class DocxOpenXmlReader
             'directoryPackagePaths' => $directoryPackagePaths,
             'loadedPartNames' => $loadedPartNames,
             'compressionMethods' => $compressionMethods,
+            'dataDescriptors' => $dataDescriptors,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'localHeaderOrder' => $localHeaderOrder,
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             'canExposeBytes' => false,
             'entries' => $entries,
             'byPackagePath' => $byPackagePath,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipDataDescriptorProvenance(): array
+    {
+        return [
+            'present' => false,
+            'entryCount' => 0,
+            'descriptorEntryCount' => 0,
+            'signedDescriptorEntryCount' => 0,
+            'unsignedDescriptorEntryCount' => 0,
+            'zip64SizedDescriptorEntryCount' => 0,
+            'matchedDescriptorEntryCount' => 0,
+            'issueEntryCount' => 0,
+            'issueCount' => 0,
+            'issueCodes' => [],
+            'descriptorByteLength' => 0,
+            'descriptorEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $dataDescriptors
+     * @return array<string, mixed>
+     */
+    private function zipDataDescriptorProvenance(array $dataDescriptors): array
+    {
+        $issueCodes = [];
+        $issueEntryCount = 0;
+        $matchedDescriptorEntryCount = 0;
+        $descriptorByteLength = 0;
+        $descriptorEntries = is_array($dataDescriptors['descriptorEntries'] ?? null)
+            ? $dataDescriptors['descriptorEntries']
+            : [];
+
+        foreach ($descriptorEntries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $length = $entry['descriptorLength'] ?? null;
+            if (is_int($length)) {
+                $descriptorByteLength += $length;
+            }
+
+            $issues = is_array($entry['issues'] ?? null) ? $entry['issues'] : [];
+            if ($issues !== []) {
+                ++$issueEntryCount;
+            }
+            foreach ($issues as $issue) {
+                if (is_string($issue) && !in_array($issue, $issueCodes, true)) {
+                    $issueCodes[] = $issue;
+                }
+            }
+
+            if (($entry['descriptorValuesMatchCentral'] ?? null) === true && $issues === []) {
+                ++$matchedDescriptorEntryCount;
+            }
+        }
+
+        return [
+            'present' => true,
+            'entryCount' => (int) ($dataDescriptors['entryCount'] ?? 0),
+            'descriptorEntryCount' => (int) ($dataDescriptors['descriptorEntryCount'] ?? 0),
+            'signedDescriptorEntryCount' => (int) ($dataDescriptors['signedDescriptorEntryCount'] ?? 0),
+            'unsignedDescriptorEntryCount' => (int) ($dataDescriptors['unsignedDescriptorEntryCount'] ?? 0),
+            'zip64SizedDescriptorEntryCount' => (int) ($dataDescriptors['zip64SizedDescriptorEntryCount'] ?? 0),
+            'matchedDescriptorEntryCount' => $matchedDescriptorEntryCount,
+            'issueEntryCount' => $issueEntryCount,
+            'issueCount' => count($issueCodes),
+            'issueCodes' => $issueCodes,
+            'descriptorByteLength' => $descriptorByteLength,
+            'descriptorEntries' => $descriptorEntries,
+            'entries' => is_array($dataDescriptors['entries'] ?? null) ? $dataDescriptors['entries'] : [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private function zipDataDescriptorEntryProvenance(?array $entry): array
+    {
+        $usesDataDescriptor = is_array($entry) && ($entry['usesDataDescriptor'] ?? false) === true;
+        $issues = is_array($entry['issues'] ?? null) ? array_values(array_filter(
+            $entry['issues'],
+            static fn (mixed $issue): bool => is_string($issue)
+        )) : [];
+
+        return [
+            'usesDataDescriptor' => $usesDataDescriptor,
+            'dataDescriptorHasSignature' => $entry['hasSignature'] ?? null,
+            'dataDescriptorOffset' => $entry['descriptorOffset'] ?? null,
+            'dataDescriptorValueOffset' => $entry['valueOffset'] ?? null,
+            'dataDescriptorLength' => $entry['descriptorLength'] ?? null,
+            'dataDescriptorNextOffset' => $entry['nextOffset'] ?? null,
+            'dataDescriptorSpan' => $entry['descriptorSpan'] ?? null,
+            'dataDescriptorEnd' => $entry['descriptorEnd'] ?? null,
+            'dataDescriptorSurplusBytes' => $entry['surplusDescriptorBytes'] ?? null,
+            'dataDescriptorTruncatedBytes' => $entry['truncatedDescriptorBytes'] ?? null,
+            'dataDescriptorCrc32' => $entry['crc32'] ?? null,
+            'dataDescriptorCrc32Hex' => $entry['crc32Hex'] ?? null,
+            'dataDescriptorCompressedSize' => $entry['compressedSize'] ?? null,
+            'dataDescriptorUncompressedSize' => $entry['uncompressedSize'] ?? null,
+            'dataDescriptorUsesZip64SizedFields' => $entry['usesZip64SizedDescriptor'] ?? false,
+            'dataDescriptorValuesMatchCentral' => $entry['descriptorValuesMatchCentral'] ?? null,
+            'dataDescriptorLocalHeaderCrc32' => $entry['localHeaderCrc32'] ?? null,
+            'dataDescriptorLocalHeaderCompressedSize' => $entry['localHeaderCompressedSize'] ?? null,
+            'dataDescriptorLocalHeaderUncompressedSize' => $entry['localHeaderUncompressedSize'] ?? null,
+            'hasZeroLocalHeaderPlaceholders' => $entry['hasZeroLocalHeaderPlaceholders'] ?? null,
+            'dataDescriptorIssueCount' => count($issues),
+            'dataDescriptorIssues' => $issues,
         ];
     }
 
@@ -8784,6 +8919,17 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['zipCrc32'] = $entry['crc32'] ?? null;
             $partInventory[$partName]['zipByteExposurePolicy'] = $entry['byteExposurePolicy'] ?? null;
             $partInventory[$partName]['zipCanExposeBytes'] = $entry['canExposeBytes'] ?? null;
+            $partInventory[$partName]['usesDataDescriptor'] = $entry['usesDataDescriptor'] ?? false;
+            $partInventory[$partName]['dataDescriptorHasSignature'] = $entry['dataDescriptorHasSignature'] ?? null;
+            $partInventory[$partName]['dataDescriptorOffset'] = $entry['dataDescriptorOffset'] ?? null;
+            $partInventory[$partName]['dataDescriptorValueOffset'] = $entry['dataDescriptorValueOffset'] ?? null;
+            $partInventory[$partName]['dataDescriptorLength'] = $entry['dataDescriptorLength'] ?? null;
+            $partInventory[$partName]['dataDescriptorEnd'] = $entry['dataDescriptorEnd'] ?? null;
+            $partInventory[$partName]['dataDescriptorCrc32Hex'] = $entry['dataDescriptorCrc32Hex'] ?? null;
+            $partInventory[$partName]['dataDescriptorValuesMatchCentral'] = $entry['dataDescriptorValuesMatchCentral'] ?? null;
+            $partInventory[$partName]['hasZeroLocalHeaderPlaceholders'] = $entry['hasZeroLocalHeaderPlaceholders'] ?? null;
+            $partInventory[$partName]['dataDescriptorIssueCount'] = $entry['dataDescriptorIssueCount'] ?? 0;
+            $partInventory[$partName]['dataDescriptorIssues'] = $entry['dataDescriptorIssues'] ?? [];
         }
 
         return $partInventory;
