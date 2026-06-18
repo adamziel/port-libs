@@ -11168,6 +11168,7 @@ final class DocxOpenXmlReader
                             'parameterizedTargetCount' => 0,
                             'existingTargetPartByteLength' => 0,
                             'contentTypeSourceCounts' => [],
+                            'relationshipTypeCounts' => [],
                             'sourceParts' => [],
                             'relationshipParts' => [],
                             'relationshipIds' => [],
@@ -11184,6 +11185,8 @@ final class DocxOpenXmlReader
                         ($relationshipTargetTopLevelSegmentCounts[$targetTopLevelSegment] ?? 0) + 1;
                     $relationshipTargetTopLevelSegments[$targetTopLevelSegment]['contentTypeSourceCounts'][$targetContentTypeSource] =
                         ($relationshipTargetTopLevelSegments[$targetTopLevelSegment]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                    $relationshipTargetTopLevelSegments[$targetTopLevelSegment]['relationshipTypeCounts'][$typeKey] =
+                        ($relationshipTargetTopLevelSegments[$targetTopLevelSegment]['relationshipTypeCounts'][$typeKey] ?? 0) + 1;
                     $this->appendUniqueString(
                         $relationshipTargetTopLevelSegments[$targetTopLevelSegment]['sourceParts'],
                         is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
@@ -12222,6 +12225,7 @@ final class DocxOpenXmlReader
         ksort($relationshipTargetTopLevelSegments);
         foreach ($relationshipTargetTopLevelSegments as &$targetTopLevelSegmentSummary) {
             ksort($targetTopLevelSegmentSummary['contentTypeSourceCounts']);
+            ksort($targetTopLevelSegmentSummary['relationshipTypeCounts']);
             unset($targetTopLevelSegmentSummary['_seenExistingTargetParts']);
         }
         unset($targetTopLevelSegmentSummary);
