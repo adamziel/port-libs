@@ -10407,6 +10407,13 @@ final class DocxOpenXmlReader
             }
         }
         $partContentTypes = $this->packagePartContentTypeSummary($partInventory);
+        $partContentTypeParameterValues = $this->packagePartContentTypeParameterValueSummary($partInventory);
+        $partContentTypeParameterValueCounts = [];
+        foreach ($partContentTypeParameterValues as $parameterValueSummary) {
+            $parameterValueKey = (string) ($parameterValueSummary['contentTypeParameterValueKey'] ?? '');
+            $partContentTypeParameterValueCounts[$parameterValueKey] = (int) ($parameterValueSummary['partCount'] ?? 0);
+        }
+        ksort($partContentTypeParameterValueCounts, SORT_STRING);
         $partContentTypeMediaTypes = $this->packagePartContentTypeMediaTypeSummary($partInventory);
         $partContentTypeMediaTypeCounts = [];
         foreach ($partContentTypeMediaTypes as $mediaTypeSummary) {
@@ -11580,6 +11587,8 @@ final class DocxOpenXmlReader
             'partContentTypeSourceCount' => count($partContentTypeSources),
             'partContentTypeSourceCounts' => $partContentTypeSourceCounts,
             'partContentTypeCount' => count($partContentTypes),
+            'partContentTypeParameterValueCount' => count($partContentTypeParameterValues),
+            'partContentTypeParameterValueCounts' => $partContentTypeParameterValueCounts,
             'partContentTypeMediaTypeCount' => count($partContentTypeMediaTypes),
             'partContentTypeMediaTypeCounts' => $partContentTypeMediaTypeCounts,
             'partContentTypeSubtypeCount' => count($partContentTypeSubtypes),
@@ -11793,6 +11802,7 @@ final class DocxOpenXmlReader
             'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
             'partContentTypeSources' => $partContentTypeSources,
             'partContentTypes' => $partContentTypes,
+            'partContentTypeParameterValues' => $partContentTypeParameterValues,
             'partContentTypeMediaTypes' => $partContentTypeMediaTypes,
             'partContentTypeSubtypes' => $partContentTypeSubtypes,
             'partRoles' => $partRoles,
@@ -12112,6 +12122,134 @@ final class DocxOpenXmlReader
         }
 
         return array_values($contentTypes);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartContentTypeParameterValueSummary(array $partInventory): array
+    {
+        $parameterValues = [];
+        foreach ($partInventory as $partName => $part) {
+            $parameterMap = is_array($part['contentTypeParameterMap'] ?? null)
+                ? $part['contentTypeParameterMap']
+                : [];
+            if ($parameterMap === []) {
+                continue;
+            }
+
+            foreach ($parameterMap as $parameterName => $parameterValue) {
+                if (!is_string($parameterName) || $parameterName === '') {
+                    continue;
+                }
+
+                $parameterValue = is_scalar($parameterValue) ? (string) $parameterValue : '';
+                $parameterValueKey = $parameterValue === '' ? '(empty)' : $parameterValue;
+                $bucketKey = $parameterName . '=' . $parameterValueKey;
+                if (!isset($parameterValues[$bucketKey])) {
+                    $parameterValues[$bucketKey] = [
+                        'contentTypeParameterValueKey' => $bucketKey,
+                        'parameterName' => $parameterName,
+                        'parameterValue' => $parameterValue,
+                        'parameterValueKey' => $parameterValueKey,
+                        'partCount' => 0,
+                        'byteLength' => 0,
+                        'relationshipPartCount' => 0,
+                        'contentTypes' => [],
+                        'contentTypeBaseCounts' => [],
+                        'contentTypeSourceCounts' => [],
+                        'defaultExtensions' => [],
+                        'overridePartNames' => [],
+                        'roleCounts' => [],
+                        'partNames' => [],
+                        'largestPart' => null,
+                    ];
+                }
+
+                ++$parameterValues[$bucketKey]['partCount'];
+                $bytes = (int) ($part['bytes'] ?? 0);
+                $parameterValues[$bucketKey]['byteLength'] += $bytes;
+                $parameterValues[$bucketKey]['partNames'][] = (string) $partName;
+                if (($part['isRelationshipPart'] ?? false) === true) {
+                    ++$parameterValues[$bucketKey]['relationshipPartCount'];
+                }
+
+                $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+                $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+                $parameterValues[$bucketKey]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                    ($parameterValues[$bucketKey]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+                $contentTypeSource = is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing';
+                if ($contentTypeSource === '') {
+                    $contentTypeSource = 'missing';
+                }
+                $parameterValues[$bucketKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                    ($parameterValues[$bucketKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+                $this->appendUniqueString(
+                    $parameterValues[$bucketKey]['contentTypes'],
+                    is_string($part['contentType'] ?? null) ? $part['contentType'] : null,
+                );
+                $this->appendUniqueString(
+                    $parameterValues[$bucketKey]['defaultExtensions'],
+                    is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+                );
+                $this->appendUniqueString(
+                    $parameterValues[$bucketKey]['overridePartNames'],
+                    is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+                );
+
+                foreach (($part['roles'] ?? []) as $role) {
+                    $role = (string) $role;
+                    $parameterValues[$bucketKey]['roleCounts'][$role] =
+                        ($parameterValues[$bucketKey]['roleCounts'][$role] ?? 0) + 1;
+                }
+
+                $partSummary = [
+                    'partName' => (string) ($part['partName'] ?? $partName),
+                    'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory((string) $partName),
+                    'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName((string) $partName),
+                    'partExtension' => is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null,
+                    'bytes' => $bytes,
+                    'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                    'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => $contentTypeBase,
+                    'contentTypeSource' => $contentTypeSource,
+                    'contentTypeParameterMap' => is_array($part['contentTypeParameterMap'] ?? null) ? $part['contentTypeParameterMap'] : [],
+                    'defaultExtension' => is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+                    'overridePartName' => is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+                    'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                    'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+                ];
+                $largestPart = $parameterValues[$bucketKey]['largestPart'];
+                if (
+                    !is_array($largestPart)
+                    || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                    || (
+                        $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                        && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                    )
+                ) {
+                    $parameterValues[$bucketKey]['largestPart'] = $partSummary;
+                }
+            }
+        }
+
+        ksort($parameterValues, SORT_STRING);
+        foreach ($parameterValues as $bucketKey => $summary) {
+            sort($summary['contentTypes'], SORT_STRING);
+            sort($summary['defaultExtensions'], SORT_STRING);
+            sort($summary['overridePartNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $parameterValues[$bucketKey] = $summary;
+        }
+
+        return array_values($parameterValues);
     }
 
     /**

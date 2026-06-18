@@ -2119,6 +2119,108 @@ XML;
         ], $profile['contentTypeBases']);
         $t->same($parameterizedPartNames, $profile['partNames']);
     },
+    'summarizes docx content type parameter value buckets for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            [
+                '<Default Extension="xml" ContentType="application/xml"/>',
+                '<Default Extension="png" ContentType="image/png"/>',
+                '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>',
+                '</Types>',
+            ],
+            [
+                '<Default Extension="xml" ContentType="application/xml; charset=UTF-8; profile=package-default"/>',
+                '<Default Extension="png" ContentType="image/png; profile=media-default; variant=inline"/>',
+                '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml; charset=&quot;utf-8&quot;; profile=main-doc"/>',
+                '  <Override PartName="/customXml/override-profile.xml" ContentType="application/vnd.example.audit+xml; profile=package-default; variant=shadow"/>' . "\n" .
+                '</Types>',
+            ],
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/default-profile.xml'] = str_repeat('D', 4096);
+        $parts['customXml/override-profile.xml'] = '<override-profile/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $buckets = [];
+        foreach ($summary['partContentTypeParameterValues'] as $bucket) {
+            $buckets[$bucket['contentTypeParameterValueKey']] = $bucket;
+        }
+
+        $t->same(7, $summary['partContentTypeParameterValueCount']);
+        $t->same([
+            'charset=UTF-8' => 4,
+            'charset=utf-8' => 1,
+            'profile=main-doc' => 1,
+            'profile=media-default' => 1,
+            'profile=package-default' => 5,
+            'variant=inline' => 1,
+            'variant=shadow' => 1,
+        ], $summary['partContentTypeParameterValueCounts']);
+
+        $packageProfile = $buckets['profile=package-default'];
+        $t->same('profile', $packageProfile['parameterName']);
+        $t->same('package-default', $packageProfile['parameterValue']);
+        $t->same(5, $packageProfile['partCount']);
+        $t->same(
+            strlen($parts['[Content_Types].xml'])
+                + strlen($parts['customXml/default-profile.xml'])
+                + strlen($parts['customXml/override-profile.xml'])
+                + strlen($parts['word/numbering.xml'])
+                + strlen($parts['word/styles.xml']),
+            $packageProfile['byteLength']
+        );
+        $t->same(0, $packageProfile['relationshipPartCount']);
+        $t->same(['default' => 4, 'override' => 1], $packageProfile['contentTypeSourceCounts']);
+        $t->same([
+            'application/vnd.example.audit+xml' => 1,
+            'application/xml' => 4,
+        ], $packageProfile['contentTypeBaseCounts']);
+        $t->same(['xml'], $packageProfile['defaultExtensions']);
+        $t->same(['customXml/override-profile.xml'], $packageProfile['overridePartNames']);
+        $t->same(['content-types' => 1, 'package-part' => 4], $packageProfile['roleCounts']);
+        $t->same([
+            '[Content_Types].xml',
+            'customXml/default-profile.xml',
+            'customXml/override-profile.xml',
+            'word/numbering.xml',
+            'word/styles.xml',
+        ], $packageProfile['partNames']);
+        $t->same('customXml/default-profile.xml', $packageProfile['largestPart']['partName']);
+        $t->same(4096, $packageProfile['largestPart']['bytes']);
+        $t->same(hash('sha256', $parts['customXml/default-profile.xml']), $packageProfile['largestPart']['sha256']);
+        $t->same('application/xml', $packageProfile['largestPart']['contentTypeBase']);
+        $t->same(['charset' => 'UTF-8', 'profile' => 'package-default'], $packageProfile['largestPart']['contentTypeParameterMap']);
+        $t->same('default', $packageProfile['largestPart']['contentTypeSource']);
+
+        $inlineVariant = $buckets['variant=inline'];
+        $t->same(1, $inlineVariant['partCount']);
+        $t->same(['image/png' => 1], $inlineVariant['contentTypeBaseCounts']);
+        $t->same(['default' => 1], $inlineVariant['contentTypeSourceCounts']);
+        $t->same(['png'], $inlineVariant['defaultExtensions']);
+        $t->same('word/media/review.png', $inlineVariant['largestPart']['partName']);
+        $t->same(['profile' => 'media-default', 'variant' => 'inline'], $inlineVariant['largestPart']['contentTypeParameterMap']);
+        $t->same(['document-relationship-target'], $inlineVariant['largestPart']['roles']);
+
+        $shadowVariant = $buckets['variant=shadow'];
+        $t->same(1, $shadowVariant['partCount']);
+        $t->same(['override' => 1], $shadowVariant['contentTypeSourceCounts']);
+        $t->same(['customXml/override-profile.xml'], $shadowVariant['overridePartNames']);
+        $t->same('customXml/override-profile.xml', $shadowVariant['largestPart']['partName']);
+        $t->same(['profile' => 'package-default', 'variant' => 'shadow'], $shadowVariant['largestPart']['contentTypeParameterMap']);
+        $t->same(['package-part'], $shadowVariant['largestPart']['roles']);
+
+        $defaultCharset = $buckets['charset=UTF-8'];
+        $t->same(4, $defaultCharset['partCount']);
+        $t->same(['default' => 4], $defaultCharset['contentTypeSourceCounts']);
+        $t->same('customXml/default-profile.xml', $defaultCharset['largestPart']['partName']);
+
+        $documentCharset = $buckets['charset=utf-8'];
+        $t->same(1, $documentCharset['partCount']);
+        $t->same(['override' => 1], $documentCharset['contentTypeSourceCounts']);
+        $t->same('word/document.xml', $documentCharset['largestPart']['partName']);
+        $t->same(['office-document', 'root-relationship-target'], $documentCharset['largestPart']['roles']);
+    },
     'reports docx content type declaration collisions without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
