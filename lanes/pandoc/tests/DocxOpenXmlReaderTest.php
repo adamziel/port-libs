@@ -8378,12 +8378,26 @@ XML;
         $t->same([$commentsType . '; profile=review'], $comments['contentTypes']);
         $t->same(['word/comments.xml'], $comments['targetParts']);
         $t->same(['rCommentsTargetType'], $comments['relationshipIds']);
+        $t->same(strlen($parts['word/comments.xml']), $comments['existingTargetPartByteLength']);
+        $t->same('word/comments.xml', $comments['largestExistingTargetPart']['partName']);
+        $t->same('word', $comments['largestExistingTargetPart']['topLevelSegment']);
+        $t->same('comments.xml', $comments['largestExistingTargetPart']['baseName']);
+        $t->same('xml', $comments['largestExistingTargetPart']['partExtension']);
+        $t->same($commentsType . '; profile=review', $comments['largestExistingTargetPart']['contentType']);
+        $t->same($commentsType, $comments['largestExistingTargetPart']['contentTypeBase']);
+        $t->same('override', $comments['largestExistingTargetPart']['contentTypeSource']);
+        $t->same(hash('sha256', $parts['word/comments.xml']), $comments['largestExistingTargetPart']['sha256']);
 
         $xml = $targetTypes['application/xml'];
         $t->same(['default' => 1], $xml['contentTypeSourceCounts']);
         $t->same([$customXmlRel => 1], $xml['relationshipTypeCounts']);
         $t->same(['customXml/target.xml'], $xml['targetParts']);
         $t->same(['rCustomXmlTargetType'], $xml['relationshipIds']);
+        $t->same(strlen($parts['customXml/target.xml']), $xml['existingTargetPartByteLength']);
+        $t->same('customXml/target.xml', $xml['largestExistingTargetPart']['partName']);
+        $t->same('customXml', $xml['largestExistingTargetPart']['topLevelSegment']);
+        $t->same('application/xml', $xml['largestExistingTargetPart']['contentTypeBase']);
+        $t->same('default', $xml['largestExistingTargetPart']['contentTypeSource']);
 
         $missing = $targetTypes['(missing)'];
         $t->same('', $missing['contentTypeBase']);
@@ -8395,6 +8409,12 @@ XML;
         $t->same([], $missing['contentTypes']);
         $t->same(['word/raw/no-type.bin'], $missing['targetParts']);
         $t->same(['rMissingTargetType'], $missing['relationshipIds']);
+        $t->same(strlen($parts['word/raw/no-type.bin']), $missing['existingTargetPartByteLength']);
+        $t->same('word/raw/no-type.bin', $missing['largestExistingTargetPart']['partName']);
+        $t->same('', $missing['largestExistingTargetPart']['contentTypeBase']);
+        $t->same('missing', $missing['largestExistingTargetPart']['contentTypeSource']);
+        $t->same('bin', $missing['largestExistingTargetPart']['partExtension']);
+        $t->same(hash('sha256', $parts['word/raw/no-type.bin']), $missing['largestExistingTargetPart']['sha256']);
     },
     'summarizes docx relationship target content type source buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

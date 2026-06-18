@@ -11482,6 +11482,9 @@ final class DocxOpenXmlReader
                             'contentTypeParameterNameCounts' => [],
                             'contentTypeParameterValueCounts' => [],
                             'contentTypeParameterSourceCounts' => [],
+                            'existingTargetPartByteLength' => 0,
+                            'largestExistingTargetPart' => null,
+                            '_seenExistingTargetParts' => [],
                         ];
                     }
 
@@ -11677,6 +11680,41 @@ final class DocxOpenXmlReader
                             ) {
                                 $relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['largestExistingTargetPart'] = $targetPartSummary;
                             }
+                        }
+                    }
+
+                    if (
+                        $targetExists
+                        && is_array($targetInventory)
+                        && !isset($relationshipTargetContentTypes[$targetContentTypeKey]['_seenExistingTargetParts'][$targetPart])
+                    ) {
+                        $relationshipTargetContentTypes[$targetContentTypeKey]['_seenExistingTargetParts'][$targetPart] = true;
+                        $targetPartSummary = [
+                            'partName' => $targetPart,
+                            'directory' => $targetDirectory,
+                            'topLevelSegment' => $targetTopLevelSegment,
+                            'baseName' => $targetBaseName,
+                            'targetPathDepth' => $targetPathDepth,
+                            'partExtension' => $targetPartExtension,
+                            'bytes' => (int) ($targetInventory['bytes'] ?? 0),
+                            'crc32' => is_string($targetInventory['crc32'] ?? null) ? $targetInventory['crc32'] : null,
+                            'sha256' => is_string($targetInventory['sha256'] ?? null) ? $targetInventory['sha256'] : null,
+                            'contentType' => $targetContentType,
+                            'contentTypeBase' => $targetContentTypeBase,
+                            'contentTypeSource' => $targetContentTypeSource,
+                            'roles' => array_keys($targetRoles),
+                        ];
+                        $relationshipTargetContentTypes[$targetContentTypeKey]['existingTargetPartByteLength'] += $targetPartSummary['bytes'];
+                        $largestTargetPart = $relationshipTargetContentTypes[$targetContentTypeKey]['largestExistingTargetPart'];
+                        if (
+                            !is_array($largestTargetPart)
+                            || $targetPartSummary['bytes'] > (int) ($largestTargetPart['bytes'] ?? 0)
+                            || (
+                                $targetPartSummary['bytes'] === (int) ($largestTargetPart['bytes'] ?? 0)
+                                && strcmp($targetPartSummary['partName'], (string) ($largestTargetPart['partName'] ?? '')) < 0
+                            )
+                        ) {
+                            $relationshipTargetContentTypes[$targetContentTypeKey]['largestExistingTargetPart'] = $targetPartSummary;
                         }
                     }
 
@@ -12589,6 +12627,7 @@ final class DocxOpenXmlReader
             }
             unset($targetBucketParameterValueCounts);
             ksort($targetContentTypeSummary['contentTypeParameterSourceCounts']);
+            unset($targetContentTypeSummary['_seenExistingTargetParts']);
         }
         unset($targetContentTypeSummary);
         ksort($relationshipTargetContentTypeMediaTypeCounts, SORT_STRING);
