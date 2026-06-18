@@ -2489,6 +2489,96 @@ XML;
         ], $profile['contentTypeBases']);
         $t->same($parameterizedPartNames, $profile['partNames']);
     },
+    'summarizes docx package part content type parameter names for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            [
+                '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>',
+                '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>',
+                '</Types>',
+            ],
+            [
+                '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml; profile=relations"/>',
+                '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml; charset=&quot;utf-8&quot;; profile=document"/>',
+                '  <Default Extension="bin" ContentType="application/octet-stream; charset=latin1; profile=binary"/>' . "\n" .
+                '  <Override PartName="/customXml/profile.xml" ContentType="application/xml; charset=utf-8; profile=custom"/>' . "\n" .
+                '</Types>',
+            ],
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/profile.xml'] = '<profile/>';
+        $parts['word/embeddings/package.bin'] = str_repeat('B', 10000);
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $parameterNames = [];
+        foreach ($summary['partContentTypeParameterNames'] as $parameterName) {
+            $parameterNames[$parameterName['parameterName']] = $parameterName;
+        }
+
+        $t->same(2, $summary['partContentTypeParameterNameCount']);
+        $t->same(['charset' => 3, 'profile' => 5], $summary['partContentTypeParameterNameCounts']);
+        $t->same(['charset', 'profile'], array_column($summary['partContentTypeParameterNames'], 'parameterName'));
+
+        $charset = $parameterNames['charset'];
+        $t->same(3, $charset['partCount']);
+        $t->same(strlen($parts['customXml/profile.xml']) + strlen($parts['word/document.xml']) + strlen($parts['word/embeddings/package.bin']), $charset['byteLength']);
+        $t->same(0, $charset['relationshipPartCount']);
+        $t->same(['latin1' => 1, 'utf-8' => 2], $charset['valueCounts']);
+        $t->same(['default' => 1, 'override' => 2], $charset['contentTypeSourceCounts']);
+        $t->same([
+            'application/octet-stream' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/xml' => 1,
+        ], $charset['contentTypeBaseCounts']);
+        $t->same(['bin'], $charset['defaultExtensions']);
+        $t->same(['customXml/profile.xml', 'word/document.xml'], $charset['overridePartNames']);
+        $t->same(['office-document' => 1, 'package-part' => 2, 'root-relationship-target' => 1], $charset['roleCounts']);
+        $t->same(['customXml/profile.xml', 'word/document.xml', 'word/embeddings/package.bin'], $charset['partNames']);
+        $t->same('word/embeddings/package.bin', $charset['largestPart']['partName']);
+        $t->same(10000, $charset['largestPart']['bytes']);
+        $t->same(hash('sha256', str_repeat('B', 10000)), $charset['largestPart']['sha256']);
+        $t->same(['charset' => 'latin1', 'profile' => 'binary'], $charset['largestPart']['contentTypeParameterMap']);
+
+        $profile = $parameterNames['profile'];
+        $t->same(5, $profile['partCount']);
+        $t->same(
+            strlen($parts['_rels/.rels'])
+                + strlen($parts['customXml/profile.xml'])
+                + strlen($parts['word/_rels/document.xml.rels'])
+                + strlen($parts['word/document.xml'])
+                + strlen($parts['word/embeddings/package.bin']),
+            $profile['byteLength']
+        );
+        $t->same(2, $profile['relationshipPartCount']);
+        $t->same(['binary' => 1, 'custom' => 1, 'document' => 1, 'relations' => 2], $profile['valueCounts']);
+        $t->same(['default' => 3, 'override' => 2], $profile['contentTypeSourceCounts']);
+        $t->same([
+            'application/octet-stream' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 2,
+            'application/xml' => 1,
+        ], $profile['contentTypeBaseCounts']);
+        $t->same(['bin', 'rels'], $profile['defaultExtensions']);
+        $t->same(['customXml/profile.xml', 'word/document.xml'], $profile['overridePartNames']);
+        $t->same([
+            '_rels/.rels',
+            'customXml/profile.xml',
+            'word/_rels/document.xml.rels',
+            'word/document.xml',
+            'word/embeddings/package.bin',
+        ], $profile['partNames']);
+        $t->same([
+            'office-document' => 1,
+            'office-document-relationships' => 1,
+            'package-part' => 2,
+            'package-relationships' => 1,
+            'relationship-part' => 2,
+            'root-relationship-target' => 1,
+        ], $profile['roleCounts']);
+        $t->same('word/embeddings/package.bin', $profile['largestPart']['partName']);
+        $t->same('application/octet-stream', $profile['largestPart']['contentTypeBase']);
+        $t->same('default', $profile['largestPart']['contentTypeSource']);
+    },
     'summarizes docx content type parameter value buckets for package review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
