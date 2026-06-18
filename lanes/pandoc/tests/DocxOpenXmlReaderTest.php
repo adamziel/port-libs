@@ -7600,6 +7600,129 @@ XML;
         $t->same(['profile' => 'target-override', 'flavor' => 'review'], $relationships['rReviewTargetParam']['contentTypeParameterMap']);
         $t->true(!in_array('rExternalTargetParam', $parameterRelationshipIds, true), 'external targets should not enter target content type parameter buckets');
     },
+    'summarizes docx relationship target content type parameter value buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
+        $headerType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
+        $binaryType = 'application/vnd.example.target.bin';
+        $parts['[Content_Types].xml'] = str_replace(
+            [
+                '<Default Extension="xml" ContentType="application/xml"/>',
+                '</Types>',
+            ],
+            [
+                '<Default Extension="xml" ContentType="application/xml; profile=shared; variant=default-target"/>',
+                '  <Default Extension="bin" ContentType="' . $binaryType . '; profile=shared; variant=default-bin"/>' . "\n" .
+                '  <Override PartName="/word/comments-value.xml" ContentType="' . $commentsType . '; profile=shared; variant=review"/>' . "\n" .
+                '  <Override PartName="/word/header-value.xml" ContentType="' . $headerType . '; charset=UTF-8; profile=header-only"/>' . "\n" .
+                '  <Override PartName="/word/missing-value.xml" ContentType="application/xml; profile=missing-target; variant=review"/>' . "\n" .
+                '</Types>',
+            ],
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsTargetParamValue" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments-value.xml"/>' . "\n" .
+            '  <Relationship Id="rHeaderTargetParamValue" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header-value.xml"/>' . "\n" .
+            '  <Relationship Id="rCustomTargetParamValue" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/target-value.xml"/>' . "\n" .
+            '  <Relationship Id="rBinaryTargetParamValue" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/target-value.bin"/>' . "\n" .
+            '  <Relationship Id="rMissingTargetParamValue" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="missing-value.xml"/>' . "\n" .
+            '  <Relationship Id="rExternalTargetParamValue" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/target-param-value" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/comments-value.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' . str_repeat(' ', 80) . '</w:comments>';
+        $parts['word/header-value.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p/></w:hdr>';
+        $parts['customXml/target-value.xml'] = '<target-value>' . str_repeat('X', 256) . '</target-value>';
+        $parts['embeddings/target-value.bin'] = str_repeat('B', 64);
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $buckets = [];
+        foreach ($summary['relationshipTargetContentTypeParameterValueBuckets'] as $bucket) {
+            $buckets[$bucket['contentTypeParameterValueKey']] = $bucket;
+        }
+
+        $t->same(7, $summary['relationshipTargetContentTypeParameterValueBucketCount']);
+        $t->same([
+            'charset=UTF-8' => 1,
+            'profile=header-only' => 1,
+            'profile=missing-target' => 1,
+            'profile=shared' => 3,
+            'variant=default-bin' => 1,
+            'variant=default-target' => 1,
+            'variant=review' => 2,
+        ], $summary['relationshipTargetContentTypeParameterValueBucketCounts']);
+
+        $shared = $buckets['profile=shared'];
+        $t->same('profile', $shared['parameterName']);
+        $t->same('shared', $shared['parameterValue']);
+        $t->same(3, $shared['relationshipCount']);
+        $t->same(3, $shared['existingTargetCount']);
+        $t->same(0, $shared['missingTargetCount']);
+        $t->same(
+            strlen($parts['word/comments-value.xml'])
+                + strlen($parts['customXml/target-value.xml'])
+                + strlen($parts['embeddings/target-value.bin']),
+            $shared['existingTargetPartByteLength']
+        );
+        $t->same(['default' => 2, 'override' => 1], $shared['contentTypeSourceCounts']);
+        $t->same([
+            $binaryType => 1,
+            $commentsType => 1,
+            'application/xml' => 1,
+        ], $shared['contentTypeBaseCounts']);
+        $t->same(['word/document.xml'], $shared['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels'], $shared['relationshipParts']);
+        $t->same([
+            'rBinaryTargetParamValue',
+            'rCommentsTargetParamValue',
+            'rCustomTargetParamValue',
+        ], $shared['relationshipIds']);
+        $t->same([
+            'customXml/target-value.xml',
+            'embeddings/target-value.bin',
+            'word/comments-value.xml',
+        ], $shared['targetParts']);
+        $t->same('customXml/target-value.xml', $shared['largestExistingTargetPart']['partName']);
+        $t->same(strlen($parts['customXml/target-value.xml']), $shared['largestExistingTargetPart']['bytes']);
+        $t->same(hash('sha256', $parts['customXml/target-value.xml']), $shared['largestExistingTargetPart']['sha256']);
+        $t->same('application/xml', $shared['largestExistingTargetPart']['contentTypeBase']);
+        $t->same('default', $shared['largestExistingTargetPart']['contentTypeSource']);
+        $t->same([
+            'profile' => 'shared',
+            'variant' => 'default-target',
+        ], $shared['largestExistingTargetPart']['contentTypeParameterMap']);
+
+        $review = $buckets['variant=review'];
+        $t->same(2, $review['relationshipCount']);
+        $t->same(1, $review['existingTargetCount']);
+        $t->same(1, $review['missingTargetCount']);
+        $t->same(strlen($parts['word/comments-value.xml']), $review['existingTargetPartByteLength']);
+        $t->same(['override' => 2], $review['contentTypeSourceCounts']);
+        $t->same([
+            $commentsType => 1,
+            'application/xml' => 1,
+        ], $review['contentTypeBaseCounts']);
+        $t->same(['rCommentsTargetParamValue', 'rMissingTargetParamValue'], $review['relationshipIds']);
+        $t->same(['word/comments-value.xml', 'word/missing-value.xml'], $review['targetParts']);
+        $t->same('word/comments-value.xml', $review['largestExistingTargetPart']['partName']);
+
+        $headerCharset = $buckets['charset=UTF-8'];
+        $t->same(1, $headerCharset['relationshipCount']);
+        $t->same([$headerType => 1], $headerCharset['contentTypeBaseCounts']);
+        $t->same(['word/header-value.xml'], $headerCharset['targetParts']);
+
+        $binaryVariant = $buckets['variant=default-bin'];
+        $t->same(1, $binaryVariant['relationshipCount']);
+        $t->same([$binaryType => 1], $binaryVariant['contentTypeBaseCounts']);
+        $t->same('embeddings/target-value.bin', $binaryVariant['largestExistingTargetPart']['partName']);
+
+        $missingProfile = $buckets['profile=missing-target'];
+        $t->same(1, $missingProfile['relationshipCount']);
+        $t->same(0, $missingProfile['existingTargetCount']);
+        $t->same(1, $missingProfile['missingTargetCount']);
+        $t->same(null, $missingProfile['largestExistingTargetPart']);
+    },
     'summarizes docx relationship target inventory role buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

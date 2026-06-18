@@ -10616,6 +10616,8 @@ final class DocxOpenXmlReader
         $relationshipTargetContentTypeParameterValueCounts = [];
         $relationshipTargetContentTypeParameterSourceCounts = [];
         $relationshipTargetContentTypeParameters = [];
+        $relationshipTargetContentTypeParameterValueBucketCounts = [];
+        $relationshipTargetContentTypeParameterValueBuckets = [];
         $relationshipTargetRoleCounts = [];
         $relationshipTargetExistingRoleCounts = [];
         $relationshipTargetMissingRoleCounts = [];
@@ -11011,6 +11013,7 @@ final class DocxOpenXmlReader
                     $targetContentTypeHasParameters = (bool) ($relationship['contentTypeHasParameters'] ?? false)
                         || $targetContentTypeParameterCount > 0
                         || $targetContentTypeParameterMap !== [];
+                    $targetExists = ($relationship['exists'] ?? false) === true;
                     if (!isset($relationshipTargetTopLevelSegments[$targetTopLevelSegment])) {
                         $relationshipTargetTopLevelSegments[$targetTopLevelSegment] = [
                             'topLevelSegment' => $targetTopLevelSegment,
@@ -11326,6 +11329,90 @@ final class DocxOpenXmlReader
                             ++$relationshipTargetContentTypeParameters[$parameterName]['existingTargetCount'];
                         } else {
                             ++$relationshipTargetContentTypeParameters[$parameterName]['missingTargetCount'];
+                        }
+
+                        $parameterValueBucketKey = $parameterName . '=' . $parameterValueKey;
+                        if (!isset($relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey])) {
+                            $relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey] = [
+                                'contentTypeParameterValueKey' => $parameterValueBucketKey,
+                                'parameterName' => $parameterName,
+                                'parameterValue' => $parameterValue,
+                                'parameterValueKey' => $parameterValueKey,
+                                'relationshipCount' => 0,
+                                'existingTargetCount' => 0,
+                                'missingTargetCount' => 0,
+                                'existingTargetPartByteLength' => 0,
+                                'contentTypes' => [],
+                                'contentTypeBaseCounts' => [],
+                                'contentTypeSourceCounts' => [],
+                                'sourceParts' => [],
+                                'relationshipParts' => [],
+                                'relationshipIds' => [],
+                                'targetParts' => [],
+                                'largestExistingTargetPart' => null,
+                                '_seenExistingTargetParts' => [],
+                            ];
+                        }
+
+                        $relationshipTargetContentTypeParameterValueBucketCounts[$parameterValueBucketKey] =
+                            ($relationshipTargetContentTypeParameterValueBucketCounts[$parameterValueBucketKey] ?? 0) + 1;
+                        ++$relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['relationshipCount'];
+                        if ($targetExists) {
+                            ++$relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['existingTargetCount'];
+                        } else {
+                            ++$relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['missingTargetCount'];
+                        }
+                        $relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['contentTypeBaseCounts'][$targetContentTypeKey] =
+                            ($relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['contentTypeBaseCounts'][$targetContentTypeKey] ?? 0) + 1;
+                        $relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                            ($relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                        $this->appendUniqueString(
+                            $relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['sourceParts'],
+                            is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                        );
+                        $this->appendUniqueString(
+                            $relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['relationshipParts'],
+                            is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : null,
+                        );
+                        $this->appendUniqueString(
+                            $relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['relationshipIds'],
+                            is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                        );
+                        $this->appendUniqueString($relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['targetParts'], $targetPart);
+                        $this->appendUniqueString($relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['contentTypes'], $targetContentType);
+                        if (
+                            $targetExists
+                            && is_array($targetInventory)
+                            && !isset($relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['_seenExistingTargetParts'][$targetPart])
+                        ) {
+                            $relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['_seenExistingTargetParts'][$targetPart] = true;
+                            $targetPartSummary = [
+                                'partName' => $targetPart,
+                                'directory' => $targetDirectory,
+                                'baseName' => $targetBaseName,
+                                'targetPathDepth' => $targetPathDepth,
+                                'partExtension' => is_string($targetInventory['partExtension'] ?? null) ? $targetInventory['partExtension'] : $this->packagePartExtension($targetPart),
+                                'bytes' => (int) ($targetInventory['bytes'] ?? 0),
+                                'crc32' => is_string($targetInventory['crc32'] ?? null) ? $targetInventory['crc32'] : null,
+                                'sha256' => is_string($targetInventory['sha256'] ?? null) ? $targetInventory['sha256'] : null,
+                                'contentType' => is_string($targetInventory['contentType'] ?? null) ? $targetInventory['contentType'] : '',
+                                'contentTypeBase' => is_string($targetInventory['contentTypeBase'] ?? null) ? $targetInventory['contentTypeBase'] : '',
+                                'contentTypeSource' => is_string($targetInventory['contentTypeSource'] ?? null) ? $targetInventory['contentTypeSource'] : 'missing',
+                                'contentTypeParameterMap' => is_array($targetInventory['contentTypeParameterMap'] ?? null) ? $targetInventory['contentTypeParameterMap'] : [],
+                                'roles' => array_values(array_map('strval', $targetInventory['roles'] ?? [])),
+                            ];
+                            $relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['existingTargetPartByteLength'] += $targetPartSummary['bytes'];
+                            $largestTargetPart = $relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['largestExistingTargetPart'];
+                            if (
+                                !is_array($largestTargetPart)
+                                || $targetPartSummary['bytes'] > (int) ($largestTargetPart['bytes'] ?? 0)
+                                || (
+                                    $targetPartSummary['bytes'] === (int) ($largestTargetPart['bytes'] ?? 0)
+                                    && strcmp($targetPartSummary['partName'], (string) ($largestTargetPart['partName'] ?? '')) < 0
+                                )
+                            ) {
+                                $relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['largestExistingTargetPart'] = $targetPartSummary;
+                            }
                         }
                     }
 
@@ -11770,6 +11857,19 @@ final class DocxOpenXmlReader
             sort($targetContentTypeParameter['targetParts'], SORT_STRING);
         }
         unset($targetContentTypeParameter);
+        ksort($relationshipTargetContentTypeParameterValueBucketCounts);
+        ksort($relationshipTargetContentTypeParameterValueBuckets);
+        foreach ($relationshipTargetContentTypeParameterValueBuckets as &$targetParameterValueBucket) {
+            sort($targetParameterValueBucket['contentTypes'], SORT_STRING);
+            sort($targetParameterValueBucket['sourceParts'], SORT_STRING);
+            sort($targetParameterValueBucket['relationshipParts'], SORT_STRING);
+            sort($targetParameterValueBucket['relationshipIds'], SORT_STRING);
+            sort($targetParameterValueBucket['targetParts'], SORT_STRING);
+            ksort($targetParameterValueBucket['contentTypeBaseCounts'], SORT_STRING);
+            ksort($targetParameterValueBucket['contentTypeSourceCounts'], SORT_STRING);
+            unset($targetParameterValueBucket['_seenExistingTargetParts']);
+        }
+        unset($targetParameterValueBucket);
         ksort($relationshipTargetContentTypes);
         foreach ($relationshipTargetContentTypes as &$targetContentTypeSummary) {
             ksort($targetContentTypeSummary['contentTypeSourceCounts']);
@@ -12127,6 +12227,9 @@ final class DocxOpenXmlReader
             'relationshipTargetContentTypeParameterValueCounts' => $relationshipTargetContentTypeParameterValueCounts,
             'relationshipTargetContentTypeParameterSourceCounts' => $relationshipTargetContentTypeParameterSourceCounts,
             'relationshipTargetContentTypeParameters' => array_values($relationshipTargetContentTypeParameters),
+            'relationshipTargetContentTypeParameterValueBucketCount' => count($relationshipTargetContentTypeParameterValueBuckets),
+            'relationshipTargetContentTypeParameterValueBucketCounts' => $relationshipTargetContentTypeParameterValueBucketCounts,
+            'relationshipTargetContentTypeParameterValueBuckets' => array_values($relationshipTargetContentTypeParameterValueBuckets),
             'relationshipTargetContentTypes' => array_values($relationshipTargetContentTypes),
             'relationshipTargetContentTypeMediaTypeCount' => count($relationshipTargetContentTypeMediaTypes),
             'relationshipTargetContentTypeMediaTypeCounts' => $relationshipTargetContentTypeMediaTypeCounts,
