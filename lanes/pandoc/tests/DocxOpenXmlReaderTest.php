@@ -4576,6 +4576,162 @@ XML;
         $t->same(['_rels/.rels', 'word/_rels/missing-source-media.rels'], $missing['relationshipParts']);
         $t->same(null, $missing['largestExistingSourcePart']);
     },
+    'summarizes docx relationship source content type syntax suffix buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="json" ContentType="application/vnd.example.source+json; profile=source-json"/>' . "\n" .
+            '  <Default Extension="dat" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Override PartName="/word/source-custom.xml" ContentType="application/vnd.example.relationship-source+xml; profile=source-xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $jsonSource = '{"source":"json"}';
+        $plainSource = 'plain source package bytes';
+        $xmlSource = '<sourceCustom>' . str_repeat('xml', 16) . '</sourceCustom>';
+        $parts['customXml/source-data.json'] = $jsonSource;
+        $parts['word/source-plain.dat'] = $plainSource;
+        $parts['word/source-custom.xml'] = $xmlSource;
+        $parts['word/media/source-json.png'] = 'json source target';
+        $parts['word/media/source-plain.png'] = 'plain source target';
+        $parts['word/media/source-custom.png'] = 'custom source target';
+        $parts['word/media/missing-syntax-source.png'] = 'missing syntax source target';
+        $parts['customXml/_rels/source-data.json.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rJsonSyntaxSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/source-json.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source-plain.dat.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPlainSyntaxSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-plain.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source-custom.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCustomSyntaxSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-custom.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-syntax-source.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingSyntaxSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-syntax-source.png"/>
+</Relationships>
+XML;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $bySuffix = [];
+        foreach ($summary['relationshipSourceContentTypeSyntaxSuffixes'] as $suffixSummary) {
+            $bySuffix[$suffixSummary['sourceContentTypeSyntaxSuffixKey']] = $suffixSummary;
+        }
+
+        $t->same(6, $summary['relationshipSourceCount']);
+        $t->same(4, $summary['relationshipSourceContentTypeSyntaxSuffixBucketCount']);
+        $t->same(3, $summary['relationshipSourceContentTypeStructuredSyntaxSourceCount']);
+        $t->same(['(missing)' => 2, '(none)' => 1, 'json' => 1, 'xml' => 2], $summary['relationshipSourceContentTypeSyntaxSuffixCounts']);
+        $t->same(['(missing)', '(none)', 'json', 'xml'], array_column($summary['relationshipSourceContentTypeSyntaxSuffixes'], 'sourceContentTypeSyntaxSuffixKey'));
+
+        $json = $bySuffix['json'];
+        $t->same('json', $json['sourceContentTypeSyntaxSuffix']);
+        $t->same(true, $json['hasStructuredSyntaxSuffix']);
+        $t->same(1, $json['sourceCount']);
+        $t->same(1, $json['structuredSyntaxSourceCount']);
+        $t->same(1, $json['existingSourceCount']);
+        $t->same(0, $json['nonExistingSourceCount']);
+        $t->same(0, $json['missingContentTypeSourceCount']);
+        $t->same(1, $json['parameterizedSourceCount']);
+        $t->same(1, $json['relationshipCount']);
+        $t->same(1, $json['relationshipRecordCount']);
+        $t->same(strlen($jsonSource), $json['existingSourceByteLength']);
+        $t->same(['package-part' => 1], $json['relationshipSourceKindCounts']);
+        $t->same(['application/vnd.example.source+json' => 1], $json['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 1], $json['sourceContentTypeSourceCounts']);
+        $t->same(['application' => 1], $json['sourceContentTypeMediaTypeCounts']);
+        $t->same(['customXml' => 1], $json['sourceDirectoryCounts']);
+        $t->same(['source-data.json' => 1], $json['sourceBaseNameCounts']);
+        $t->same(['json' => 1], $json['sourcePartExtensionCounts']);
+        $t->same(['package-part' => 1], $json['sourceRoleCounts']);
+        $t->same(['application/vnd.example.source+json; profile=source-json'], $json['sourceContentTypes']);
+        $t->same(['customXml/source-data.json'], $json['sourceParts']);
+        $t->same(['customXml/_rels/source-data.json.rels'], $json['relationshipParts']);
+        $t->same('customXml/source-data.json', $json['largestExistingSourcePart']['sourcePart']);
+        $t->same('json', $json['largestExistingSourcePart']['sourceContentTypeSyntaxSuffix']);
+        $t->same(['profile' => 'source-json'], $json['largestExistingSourcePart']['sourceContentTypeParameterMap']);
+        $t->same(hash('sha256', $jsonSource), $json['largestExistingSourcePart']['sourceSha256']);
+
+        $xml = $bySuffix['xml'];
+        $t->same('xml', $xml['sourceContentTypeSyntaxSuffix']);
+        $t->same(true, $xml['hasStructuredSyntaxSuffix']);
+        $t->same(2, $xml['sourceCount']);
+        $t->same(2, $xml['structuredSyntaxSourceCount']);
+        $t->same(2, $xml['existingSourceCount']);
+        $t->same(0, $xml['nonExistingSourceCount']);
+        $t->same(0, $xml['missingContentTypeSourceCount']);
+        $t->same(1, $xml['parameterizedSourceCount']);
+        $t->same(3, $xml['relationshipCount']);
+        $t->same(3, $xml['relationshipRecordCount']);
+        $t->same(strlen($parts['word/document.xml']) + strlen($xmlSource), $xml['existingSourceByteLength']);
+        $t->same(['package-part' => 2], $xml['relationshipSourceKindCounts']);
+        $t->same([
+            'application/vnd.example.relationship-source+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+        ], $xml['sourceContentTypeBaseCounts']);
+        $t->same(['override' => 2], $xml['sourceContentTypeSourceCounts']);
+        $t->same(['application' => 2], $xml['sourceContentTypeMediaTypeCounts']);
+        $t->same(['word' => 2], $xml['sourceDirectoryCounts']);
+        $t->same(['document.xml' => 1, 'source-custom.xml' => 1], $xml['sourceBaseNameCounts']);
+        $t->same(['xml' => 2], $xml['sourcePartExtensionCounts']);
+        $t->same(['office-document' => 1, 'package-part' => 1, 'root-relationship-target' => 1], $xml['sourceRoleCounts']);
+        $t->same([
+            'application/vnd.example.relationship-source+xml; profile=source-xml',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+        ], $xml['sourceContentTypes']);
+        $t->same(['word/document.xml', 'word/source-custom.xml'], $xml['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/source-custom.xml.rels'], $xml['relationshipParts']);
+        $t->same('word/document.xml', $xml['largestExistingSourcePart']['sourcePart']);
+        $t->same('xml', $xml['largestExistingSourcePart']['sourceContentTypeSyntaxSuffix']);
+        $t->same(hash('sha256', $parts['word/document.xml']), $xml['largestExistingSourcePart']['sourceSha256']);
+
+        $none = $bySuffix['(none)'];
+        $t->same(null, $none['sourceContentTypeSyntaxSuffix']);
+        $t->same(false, $none['hasStructuredSyntaxSuffix']);
+        $t->same(1, $none['sourceCount']);
+        $t->same(0, $none['structuredSyntaxSourceCount']);
+        $t->same(1, $none['existingSourceCount']);
+        $t->same(0, $none['parameterizedSourceCount']);
+        $t->same(1, $none['relationshipCount']);
+        $t->same(strlen($plainSource), $none['existingSourceByteLength']);
+        $t->same(['application/octet-stream' => 1], $none['sourceContentTypeBaseCounts']);
+        $t->same(['application' => 1], $none['sourceContentTypeMediaTypeCounts']);
+        $t->same(['dat' => 1], $none['sourcePartExtensionCounts']);
+        $t->same('word/source-plain.dat', $none['largestExistingSourcePart']['sourcePart']);
+        $t->same(null, $none['largestExistingSourcePart']['sourceContentTypeSyntaxSuffix']);
+
+        $missing = $bySuffix['(missing)'];
+        $t->same(null, $missing['sourceContentTypeSyntaxSuffix']);
+        $t->same(false, $missing['hasStructuredSyntaxSuffix']);
+        $t->same(2, $missing['sourceCount']);
+        $t->same(0, $missing['structuredSyntaxSourceCount']);
+        $t->same(1, $missing['existingSourceCount']);
+        $t->same(1, $missing['nonExistingSourceCount']);
+        $t->same(2, $missing['missingContentTypeSourceCount']);
+        $t->same(3, $missing['relationshipCount']);
+        $t->same(0, $missing['existingSourceByteLength']);
+        $t->same(['missing-source' => 1, 'package-root' => 1], $missing['relationshipSourceKindCounts']);
+        $t->same(['(missing)' => 2], $missing['sourceContentTypeBaseCounts']);
+        $t->same(['(missing)' => 2], $missing['sourceContentTypeSourceCounts']);
+        $t->same(['(missing)' => 2], $missing['sourceContentTypeMediaTypeCounts']);
+        $t->same(['/' => 1, 'word' => 1], $missing['sourceDirectoryCounts']);
+        $t->same(['/' => 1, 'missing-syntax-source' => 1], $missing['sourceBaseNameCounts']);
+        $t->same(['(none)' => 2], $missing['sourcePartExtensionCounts']);
+        $t->same(['package-root' => 1], $missing['sourceRoleCounts']);
+        $t->same([], $missing['sourceContentTypes']);
+        $t->same(['/', 'word/missing-syntax-source'], $missing['sourceParts']);
+        $t->same(['_rels/.rels', 'word/_rels/missing-syntax-source.rels'], $missing['relationshipParts']);
+        $t->same(null, $missing['largestExistingSourcePart']);
+    },
     'summarizes docx relationship source filename buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['root-source.xml'] = '<rootSource/>';

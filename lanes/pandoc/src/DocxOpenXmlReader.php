@@ -12666,6 +12666,17 @@ final class DocxOpenXmlReader
                 (int) ($sourceContentTypeMediaTypeSummary['sourceCount'] ?? 0);
         }
         ksort($relationshipSourceContentTypeMediaTypeCounts, SORT_STRING);
+        $relationshipSourceContentTypeSyntaxSuffixes = $this->relationshipSourceContentTypeSyntaxSuffixSummary($relationshipSources);
+        $relationshipSourceContentTypeSyntaxSuffixCounts = [];
+        $relationshipSourceContentTypeStructuredSyntaxSourceCount = 0;
+        foreach ($relationshipSourceContentTypeSyntaxSuffixes as $syntaxSuffixSummary) {
+            $syntaxSuffixKey = (string) ($syntaxSuffixSummary['sourceContentTypeSyntaxSuffixKey'] ?? '');
+            $relationshipSourceContentTypeSyntaxSuffixCounts[$syntaxSuffixKey] =
+                (int) ($syntaxSuffixSummary['sourceCount'] ?? 0);
+            $relationshipSourceContentTypeStructuredSyntaxSourceCount +=
+                (int) ($syntaxSuffixSummary['structuredSyntaxSourceCount'] ?? 0);
+        }
+        ksort($relationshipSourceContentTypeSyntaxSuffixCounts, SORT_STRING);
         $relationshipSourceContentTypeParameterValues = $this->relationshipSourceContentTypeParameterValueSummary($relationshipSources);
         $relationshipSourceContentTypeParameterValueBucketCounts = [];
         foreach ($relationshipSourceContentTypeParameterValues as $parameterValueSummary) {
@@ -12932,6 +12943,10 @@ final class DocxOpenXmlReader
             'relationshipSourceContentTypeMediaTypeBucketCount' => count($relationshipSourceContentTypeMediaTypes),
             'relationshipSourceContentTypeMediaTypeBucketCounts' => $relationshipSourceContentTypeMediaTypeCounts,
             'relationshipSourceContentTypeMediaTypes' => $relationshipSourceContentTypeMediaTypes,
+            'relationshipSourceContentTypeSyntaxSuffixBucketCount' => count($relationshipSourceContentTypeSyntaxSuffixes),
+            'relationshipSourceContentTypeSyntaxSuffixCounts' => $relationshipSourceContentTypeSyntaxSuffixCounts,
+            'relationshipSourceContentTypeStructuredSyntaxSourceCount' => $relationshipSourceContentTypeStructuredSyntaxSourceCount,
+            'relationshipSourceContentTypeSyntaxSuffixes' => $relationshipSourceContentTypeSyntaxSuffixes,
             'relationshipSourceContentTypeSourceBucketCount' => count($relationshipSourceContentTypeSources),
             'relationshipSourceContentTypeSourceBucketCounts' => $relationshipSourceContentTypeSourceBucketCounts,
             'relationshipSourceContentTypeSources' => $relationshipSourceContentTypeSources,
@@ -16910,6 +16925,198 @@ final class DocxOpenXmlReader
         }
 
         return array_values($mediaTypes);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipSourceContentTypeSyntaxSuffixSummary(array $relationshipSources): array
+    {
+        $suffixes = [];
+        foreach ($relationshipSources as $source) {
+            $contentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                ? $source['sourceContentTypeBase']
+                : '';
+            $contentTypeSuffix = $this->contentTypeStructuredSyntaxSuffix($contentTypeBase);
+            $suffixKey = $contentTypeBase === '' ? '(missing)' : ($contentTypeSuffix ?? '(none)');
+            if (!isset($suffixes[$suffixKey])) {
+                $suffixes[$suffixKey] = [
+                    'sourceContentTypeSyntaxSuffixKey' => $suffixKey,
+                    'sourceContentTypeSyntaxSuffix' => $contentTypeSuffix,
+                    'hasStructuredSyntaxSuffix' => $contentTypeSuffix !== null,
+                    'sourceCount' => 0,
+                    'structuredSyntaxSourceCount' => 0,
+                    'existingSourceCount' => 0,
+                    'nonExistingSourceCount' => 0,
+                    'missingContentTypeSourceCount' => 0,
+                    'parameterizedSourceCount' => 0,
+                    'relationshipCount' => 0,
+                    'relationshipRecordCount' => 0,
+                    'existingSourceByteLength' => 0,
+                    'relationshipSourceKindCounts' => [],
+                    'sourceContentTypeBaseCounts' => [],
+                    'sourceContentTypeSourceCounts' => [],
+                    'sourceContentTypeMediaTypeCounts' => [],
+                    'sourceDirectoryCounts' => [],
+                    'sourceBaseNameCounts' => [],
+                    'sourcePartExtensionCounts' => [],
+                    'sourceRoleCounts' => [],
+                    'sourceContentTypes' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'largestExistingSourcePart' => null,
+                ];
+            }
+
+            ++$suffixes[$suffixKey]['sourceCount'];
+            if ($contentTypeSuffix !== null) {
+                ++$suffixes[$suffixKey]['structuredSyntaxSourceCount'];
+            }
+
+            $sourceExists = ($source['sourceExists'] ?? false) === true;
+            if ($sourceExists) {
+                ++$suffixes[$suffixKey]['existingSourceCount'];
+            } else {
+                ++$suffixes[$suffixKey]['nonExistingSourceCount'];
+            }
+            if ($contentTypeBase === '') {
+                ++$suffixes[$suffixKey]['missingContentTypeSourceCount'];
+            }
+
+            $sourceContentTypeParameterCount = is_int($source['sourceContentTypeParameterCount'] ?? null)
+                ? (int) $source['sourceContentTypeParameterCount']
+                : 0;
+            $sourceContentTypeParameters = is_array($source['sourceContentTypeParameters'] ?? null)
+                ? $source['sourceContentTypeParameters']
+                : [];
+            $sourceContentTypeParameterMap = is_array($source['sourceContentTypeParameterMap'] ?? null)
+                ? $source['sourceContentTypeParameterMap']
+                : [];
+            $sourceContentTypeHasParameters = ($source['sourceContentTypeHasParameters'] ?? false) === true
+                || $sourceContentTypeParameterCount > 0
+                || $sourceContentTypeParameters !== []
+                || $sourceContentTypeParameterMap !== [];
+            if ($sourceContentTypeHasParameters) {
+                ++$suffixes[$suffixKey]['parameterizedSourceCount'];
+            }
+
+            $suffixes[$suffixKey]['relationshipCount'] += (int) ($source['relationshipCount'] ?? 0);
+            $suffixes[$suffixKey]['relationshipRecordCount'] += (int) ($source['relationshipRecordCount'] ?? 0);
+
+            $sourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                ? $source['relationshipSourceKind']
+                : 'invalid-source';
+            $suffixes[$suffixKey]['relationshipSourceKindCounts'][$sourceKind] =
+                ($suffixes[$suffixKey]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $suffixes[$suffixKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($suffixes[$suffixKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $contentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                ? $source['sourceContentTypeSource']
+                : '';
+            $contentTypeSourceKey = $contentTypeSource === '' ? '(missing)' : $contentTypeSource;
+            $suffixes[$suffixKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] =
+                ($suffixes[$suffixKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+
+            $mediaTypeKey = $this->contentTypeMediaTypeKey($contentTypeBase);
+            $suffixes[$suffixKey]['sourceContentTypeMediaTypeCounts'][$mediaTypeKey] =
+                ($suffixes[$suffixKey]['sourceContentTypeMediaTypeCounts'][$mediaTypeKey] ?? 0) + 1;
+
+            $directory = is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : '';
+            $directoryKey = $directory === '' ? '(invalid-source)' : $directory;
+            $suffixes[$suffixKey]['sourceDirectoryCounts'][$directoryKey] =
+                ($suffixes[$suffixKey]['sourceDirectoryCounts'][$directoryKey] ?? 0) + 1;
+
+            $baseName = is_string($source['sourceBaseName'] ?? null) ? $source['sourceBaseName'] : '';
+            $baseNameKey = $baseName === '' ? '(invalid-source)' : $baseName;
+            $suffixes[$suffixKey]['sourceBaseNameCounts'][$baseNameKey] =
+                ($suffixes[$suffixKey]['sourceBaseNameCounts'][$baseNameKey] ?? 0) + 1;
+
+            $extension = is_string($source['sourcePartExtension'] ?? null)
+                ? $source['sourcePartExtension']
+                : null;
+            $extensionKey = $extension ?? '(none)';
+            $suffixes[$suffixKey]['sourcePartExtensionCounts'][$extensionKey] =
+                ($suffixes[$suffixKey]['sourcePartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+            foreach (($source['sourceRoles'] ?? []) as $role) {
+                $role = (string) $role;
+                if ($role === '') {
+                    continue;
+                }
+
+                $suffixes[$suffixKey]['sourceRoleCounts'][$role] =
+                    ($suffixes[$suffixKey]['sourceRoleCounts'][$role] ?? 0) + 1;
+            }
+
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            $relationshipsPart = is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '';
+            $this->appendUniqueString(
+                $suffixes[$suffixKey]['sourceContentTypes'],
+                is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : null,
+            );
+            $this->appendUniqueString($suffixes[$suffixKey]['sourceParts'], $sourcePart);
+            $this->appendUniqueString($suffixes[$suffixKey]['relationshipParts'], $relationshipsPart);
+
+            if (is_int($source['sourceBytes'] ?? null)) {
+                $sourceBytes = (int) $source['sourceBytes'];
+                $suffixes[$suffixKey]['existingSourceByteLength'] += $sourceBytes;
+                $sourceSummary = [
+                    'sourcePart' => $sourcePart,
+                    'relationshipsPart' => $relationshipsPart,
+                    'relationshipSourceKind' => $sourceKind,
+                    'sourceDirectory' => $directory === '' ? null : $directory,
+                    'sourceBaseName' => $baseName === '' ? null : $baseName,
+                    'sourcePartExtension' => $extension,
+                    'sourcePathDepth' => is_int($source['sourcePathDepth'] ?? null) ? (int) $source['sourcePathDepth'] : null,
+                    'sourceBytes' => $sourceBytes,
+                    'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                    'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                    'sourceContentType' => is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : null,
+                    'sourceContentTypeBase' => $contentTypeBase === '' ? null : $contentTypeBase,
+                    'sourceContentTypeSyntaxSuffix' => $contentTypeSuffix,
+                    'sourceContentTypeSource' => $contentTypeSource === '' ? null : $contentTypeSource,
+                    'sourceContentTypeParameterCount' => $sourceContentTypeParameterCount,
+                    'sourceContentTypeParameters' => $sourceContentTypeParameters,
+                    'sourceContentTypeParameterMap' => $sourceContentTypeParameterMap,
+                    'sourceRoles' => array_values(array_map('strval', $source['sourceRoles'] ?? [])),
+                    'relationshipCount' => (int) ($source['relationshipCount'] ?? 0),
+                    'relationshipRecordCount' => (int) ($source['relationshipRecordCount'] ?? 0),
+                ];
+                $largestPart = $suffixes[$suffixKey]['largestExistingSourcePart'];
+                if (
+                    !is_array($largestPart)
+                    || $sourceSummary['sourceBytes'] > (int) ($largestPart['sourceBytes'] ?? 0)
+                    || (
+                        $sourceSummary['sourceBytes'] === (int) ($largestPart['sourceBytes'] ?? 0)
+                        && strcmp($sourceSummary['sourcePart'], (string) ($largestPart['sourcePart'] ?? '')) < 0
+                    )
+                ) {
+                    $suffixes[$suffixKey]['largestExistingSourcePart'] = $sourceSummary;
+                }
+            }
+        }
+
+        ksort($suffixes, SORT_STRING);
+        foreach ($suffixes as $suffixKey => $summary) {
+            ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeMediaTypeCounts'], SORT_STRING);
+            ksort($summary['sourceDirectoryCounts'], SORT_STRING);
+            ksort($summary['sourceBaseNameCounts'], SORT_STRING);
+            ksort($summary['sourcePartExtensionCounts'], SORT_STRING);
+            ksort($summary['sourceRoleCounts'], SORT_STRING);
+            sort($summary['sourceContentTypes'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            $suffixes[$suffixKey] = $summary;
+        }
+
+        return array_values($suffixes);
     }
 
     /**
