@@ -7248,6 +7248,109 @@ XML;
         $t->same(['word/raw/no-type.bin'], $missing['targetParts']);
         $t->same(['rMissingTargetType'], $missing['relationshipIds']);
     },
+    'summarizes docx relationship target content type media type buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
+        $jsonType = 'application/vnd.example.review+json';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="txt" ContentType="text/plain; charset=UTF-8"/>' . "\n" .
+            '  <Default Extension="json" ContentType="' . $jsonType . '"/>' . "\n" .
+            '  <Override PartName="/word/comments.xml" ContentType="' . $commentsType . '; profile=media-target"/>' . "\n" .
+            '  <Override PartName="/customXml/invalid.dat" ContentType="review-media-target"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>' . "\n" .
+            '  <Relationship Id="rJsonMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/review.json"/>' . "\n" .
+            '  <Relationship Id="rTextMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/readme.txt?view=plain#notes"/>' . "\n" .
+            '  <Relationship Id="rMissingImageMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-media.png"/>' . "\n" .
+            '  <Relationship Id="rInvalidMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/invalid.dat"/>' . "\n" .
+            '  <Relationship Id="rMissingContentTypeMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="raw/no-type.bin"/>' . "\n" .
+            '  <Relationship Id="rExternalMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/media" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/comments.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['customXml/review.json'] = str_repeat('J', 4096);
+        $parts['customXml/readme.txt'] = 'relationship target text notes';
+        $parts['customXml/invalid.dat'] = 'invalid content type target';
+        $parts['word/raw/no-type.bin'] = 'missing content type relationship target';
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $mediaTypes = [];
+        foreach ($summary['relationshipTargetContentTypeMediaTypes'] as $mediaType) {
+            $mediaTypes[$mediaType['contentTypeMediaTypeKey']] = $mediaType;
+        }
+
+        $t->same(5, $summary['relationshipTargetContentTypeMediaTypeCount']);
+        $t->same([
+            '(invalid)' => 1,
+            '(missing)' => 1,
+            'application' => 4,
+            'image' => 2,
+            'text' => 1,
+        ], $summary['relationshipTargetContentTypeMediaTypeCounts']);
+        $t->same(['(invalid)', '(missing)', 'application', 'image', 'text'], array_column($summary['relationshipTargetContentTypeMediaTypes'], 'contentTypeMediaTypeKey'));
+
+        $application = $mediaTypes['application'];
+        $t->same('application', $application['contentTypeMediaType']);
+        $t->same(4, $application['relationshipCount']);
+        $t->same(4, $application['existingTargetCount']);
+        $t->same(0, $application['missingTargetCount']);
+        $t->same(1, $application['parameterizedTargetCount']);
+        $t->same(['default' => 1, 'override' => 3], $application['contentTypeSourceCounts']);
+        $t->same([
+            $jsonType => 1,
+            $commentsType => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+        ], $application['contentTypeBaseCounts']);
+        $t->same(['customXml' => 1, 'docProps' => 1, 'word' => 2], $application['targetDirectoryCounts']);
+        $t->same(['/', 'word/document.xml'], $application['sourceParts']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $application['relationshipParts']);
+        $t->same(['customXml/review.json', 'docProps/core.xml', 'word/comments.xml', 'word/document.xml'], $application['targetParts']);
+        $t->same('customXml/review.json', $application['largestExistingTargetPart']['partName']);
+        $t->same(4096, $application['largestExistingTargetPart']['bytes']);
+        $t->same('application', $application['largestExistingTargetPart']['contentTypeMediaType']);
+
+        $image = $mediaTypes['image'];
+        $t->same(2, $image['relationshipCount']);
+        $t->same(1, $image['existingTargetCount']);
+        $t->same(1, $image['missingTargetCount']);
+        $t->same(['default' => 2], $image['contentTypeSourceCounts']);
+        $t->same(['image/png' => 2], $image['contentTypeBaseCounts']);
+        $t->same(['rImage', 'rMissingImageMedia'], $image['relationshipIds']);
+        $t->same(['word/media/missing-media.png', 'word/media/review.png'], $image['targetParts']);
+        $t->same('word/media/review.png', $image['largestExistingTargetPart']['partName']);
+
+        $text = $mediaTypes['text'];
+        $t->same(1, $text['relationshipCount']);
+        $t->same(1, $text['parameterizedTargetCount']);
+        $t->same(['text/plain; charset=UTF-8'], $text['contentTypes']);
+        $t->same(['text/plain' => 1], $text['contentTypeBaseCounts']);
+        $t->same(['customXml/readme.txt'], $text['targetParts']);
+
+        $invalid = $mediaTypes['(invalid)'];
+        $t->same(null, $invalid['contentTypeMediaType']);
+        $t->same(1, $invalid['invalidContentTypeTargetCount']);
+        $t->same(['review-media-target' => 1], $invalid['contentTypeBaseCounts']);
+        $t->same(['customXml/invalid.dat'], $invalid['targetParts']);
+
+        $missing = $mediaTypes['(missing)'];
+        $t->same(null, $missing['contentTypeMediaType']);
+        $t->same(1, $missing['missingContentTypeTargetCount']);
+        $t->same(['(missing)' => 1], $missing['contentTypeBaseCounts']);
+        $t->same(['missing' => 1], $missing['contentTypeSourceCounts']);
+        $t->same([], $missing['contentTypes']);
+        $t->same(['word/raw/no-type.bin'], $missing['targetParts']);
+        $t->same('word/raw/no-type.bin', $missing['largestExistingTargetPart']['partName']);
+
+        $allRelationshipIds = array_merge(...array_column($summary['relationshipTargetContentTypeMediaTypes'], 'relationshipIds'));
+        $t->true(!in_array('rExternalMedia', $allRelationshipIds, true), 'external target should not enter relationship target media type buckets');
+    },
     'summarizes docx relationship target content type parameters for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
