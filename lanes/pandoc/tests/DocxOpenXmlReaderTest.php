@@ -6755,6 +6755,71 @@ XML;
         $t->same(['word/glossary/document.xml'], $directories['word/glossary']['targetParts']);
         $t->same(2, $summary['externalRelationshipCount']);
     },
+    'summarizes docx relationship target directory detail buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $largeImageBytes = str_repeat('D', 60);
+        $customXmlBytes = '<d>directory detail</d>';
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rLargeDirectoryDetail" Type="' . $imageRel . '" Target="media/directory-detail-large.png"/>' . "\n" .
+            '  <Relationship Id="rCustomXmlDirectoryDetail" Type="' . $customXmlRel . '" Target="media/directory-detail.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingDirectoryDetail" Type="' . $imageRel . '" Target="media/directory-detail-missing.png?slot=missing#media"/>' . "\n" .
+            '  <Relationship Id="rExternalDirectoryDetail" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/directory-detail" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/media/directory-detail-large.png'] = $largeImageBytes;
+        $parts['word/media/directory-detail.xml'] = $customXmlBytes;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $directories = [];
+        foreach ($summary['relationshipTargetDirectories'] as $directory) {
+            $directories[$directory['directory']] = $directory;
+        }
+
+        $media = $directories['word/media'];
+        $t->same(4, $media['relationshipCount']);
+        $t->same(3, $media['existingTargetCount']);
+        $t->same(1, $media['missingTargetCount']);
+        $t->same(0, $media['parameterizedTargetCount']);
+        $t->same(strlen('fake png bytes') + strlen($largeImageBytes) + strlen($customXmlBytes), $media['existingTargetByteLength']);
+        $t->same(['default' => 4], $media['contentTypeSourceCounts']);
+        $t->same([
+            'application/xml' => 1,
+            'image/png' => 3,
+        ], $media['contentTypeBaseCounts']);
+        $t->same([
+            $customXmlRel => 1,
+            $imageRel => 3,
+        ], $media['relationshipTypeCounts']);
+        $t->same([
+            'custom-xml-part' => 1,
+            'document-relationship-target' => 3,
+            'missing-relationship-target' => 1,
+        ], $media['roleCounts']);
+        $t->same(['word/document.xml'], $media['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels'], $media['relationshipParts']);
+        $t->same(['rImage', 'rLargeDirectoryDetail', 'rCustomXmlDirectoryDetail', 'rMissingDirectoryDetail'], $media['relationshipIds']);
+        $t->same([$imageRel, $customXmlRel], $media['relationshipTypes']);
+        $t->same(['image/png', 'application/xml'], $media['contentTypes']);
+        $t->same([
+            'word/media/review.png',
+            'word/media/directory-detail-large.png',
+            'word/media/directory-detail.xml',
+            'word/media/directory-detail-missing.png',
+        ], $media['targetParts']);
+        $t->same('word/media/directory-detail-large.png', $media['largestExistingTargetPart']['partName']);
+        $t->same('word/media', $media['largestExistingTargetPart']['directory']);
+        $t->same('directory-detail-large.png', $media['largestExistingTargetPart']['baseName']);
+        $t->same(60, $media['largestExistingTargetPart']['bytes']);
+        $t->same('image/png', $media['largestExistingTargetPart']['contentTypeBase']);
+        $t->same('default', $media['largestExistingTargetPart']['contentTypeSource']);
+        $t->same(['document-relationship-target'], $media['largestExistingTargetPart']['roles']);
+        $t->same(hash('sha256', $largeImageBytes), $media['largestExistingTargetPart']['sha256']);
+        $t->same(2, $summary['externalRelationshipCount']);
+    },
     'summarizes docx relationship target directory base names for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';

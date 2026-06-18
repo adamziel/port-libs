@@ -11038,6 +11038,20 @@ final class DocxOpenXmlReader
                     $targetContentTypeHasParameters = (bool) ($relationship['contentTypeHasParameters'] ?? false)
                         || $targetContentTypeParameterCount > 0
                         || $targetContentTypeParameterMap !== [];
+                    $targetRoles = [];
+                    if ($targetInventory !== null) {
+                        foreach (($targetInventory['roles'] ?? []) as $targetRole) {
+                            if (is_string($targetRole) && $targetRole !== '') {
+                                $targetRoles[$targetRole] = true;
+                            }
+                        }
+                    }
+                    if ($targetRoles === []) {
+                        $fallbackRole = ($relationship['exists'] ?? false) === true
+                            ? 'relationship-target'
+                            : 'missing-relationship-target';
+                        $targetRoles[$fallbackRole] = true;
+                    }
                     $targetExists = ($relationship['exists'] ?? false) === true;
                     if (!isset($relationshipTargetContentTypeSources[$targetContentTypeSource])) {
                         $relationshipTargetContentTypeSources[$targetContentTypeSource] = [
@@ -11184,13 +11198,19 @@ final class DocxOpenXmlReader
                             'existingTargetCount' => 0,
                             'missingTargetCount' => 0,
                             'parameterizedTargetCount' => 0,
+                            'existingTargetByteLength' => 0,
                             'contentTypeSourceCounts' => [],
+                            'contentTypeBaseCounts' => [],
+                            'relationshipTypeCounts' => [],
+                            'roleCounts' => [],
                             'sourceParts' => [],
                             'relationshipParts' => [],
                             'relationshipIds' => [],
                             'relationshipTypes' => [],
                             'contentTypes' => [],
                             'targetParts' => [],
+                            'largestExistingTargetPart' => null,
+                            '_seenExistingTargetParts' => [],
                         ];
                     }
 
@@ -11199,6 +11219,14 @@ final class DocxOpenXmlReader
                         ($relationshipTargetDirectoryCounts[$targetDirectory] ?? 0) + 1;
                     $relationshipTargetDirectories[$targetDirectory]['contentTypeSourceCounts'][$targetContentTypeSource] =
                         ($relationshipTargetDirectories[$targetDirectory]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                    $relationshipTargetDirectories[$targetDirectory]['contentTypeBaseCounts'][$targetContentTypeKey] =
+                        ($relationshipTargetDirectories[$targetDirectory]['contentTypeBaseCounts'][$targetContentTypeKey] ?? 0) + 1;
+                    $relationshipTargetDirectories[$targetDirectory]['relationshipTypeCounts'][$typeKey] =
+                        ($relationshipTargetDirectories[$targetDirectory]['relationshipTypeCounts'][$typeKey] ?? 0) + 1;
+                    foreach (array_keys($targetRoles) as $targetRole) {
+                        $relationshipTargetDirectories[$targetDirectory]['roleCounts'][$targetRole] =
+                            ($relationshipTargetDirectories[$targetDirectory]['roleCounts'][$targetRole] ?? 0) + 1;
+                    }
                     $this->appendUniqueString(
                         $relationshipTargetDirectories[$targetDirectory]['sourceParts'],
                         is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
@@ -11218,6 +11246,36 @@ final class DocxOpenXmlReader
                         ++$relationshipTargetDirectories[$targetDirectory]['existingTargetCount'];
                         $relationshipTargetExistingDirectoryCounts[$targetDirectory] =
                             ($relationshipTargetExistingDirectoryCounts[$targetDirectory] ?? 0) + 1;
+                        if (
+                            is_array($targetInventory)
+                            && !isset($relationshipTargetDirectories[$targetDirectory]['_seenExistingTargetParts'][$targetPart])
+                        ) {
+                            $relationshipTargetDirectories[$targetDirectory]['_seenExistingTargetParts'][$targetPart] = true;
+                            $targetSummary = [
+                                'partName' => is_string($targetInventory['partName'] ?? null) ? $targetInventory['partName'] : $targetPart,
+                                'directory' => $targetDirectory,
+                                'baseName' => $targetBaseName,
+                                'bytes' => (int) ($targetInventory['bytes'] ?? 0),
+                                'crc32' => is_string($targetInventory['crc32'] ?? null) ? $targetInventory['crc32'] : null,
+                                'sha256' => is_string($targetInventory['sha256'] ?? null) ? $targetInventory['sha256'] : null,
+                                'contentType' => is_string($targetInventory['contentType'] ?? null) ? $targetInventory['contentType'] : $targetContentType,
+                                'contentTypeBase' => is_string($targetInventory['contentTypeBase'] ?? null) ? $targetInventory['contentTypeBase'] : $targetContentTypeBase,
+                                'contentTypeSource' => is_string($targetInventory['contentTypeSource'] ?? null) ? $targetInventory['contentTypeSource'] : $targetContentTypeSource,
+                                'roles' => array_keys($targetRoles),
+                            ];
+                            $relationshipTargetDirectories[$targetDirectory]['existingTargetByteLength'] += $targetSummary['bytes'];
+                            $largestTarget = $relationshipTargetDirectories[$targetDirectory]['largestExistingTargetPart'];
+                            if (
+                                !is_array($largestTarget)
+                                || $targetSummary['bytes'] > (int) ($largestTarget['bytes'] ?? 0)
+                                || (
+                                    $targetSummary['bytes'] === (int) ($largestTarget['bytes'] ?? 0)
+                                    && strcmp($targetSummary['partName'], (string) ($largestTarget['partName'] ?? '')) < 0
+                                )
+                            ) {
+                                $relationshipTargetDirectories[$targetDirectory]['largestExistingTargetPart'] = $targetSummary;
+                            }
+                        }
                     } else {
                         ++$relationshipTargetDirectories[$targetDirectory]['missingTargetCount'];
                         $relationshipTargetMissingDirectoryCounts[$targetDirectory] =
@@ -11527,26 +11585,6 @@ final class DocxOpenXmlReader
                                 $relationshipTargetContentTypeParameterValueBuckets[$parameterValueBucketKey]['largestExistingTargetPart'] = $targetPartSummary;
                             }
                         }
-                    }
-
-                    $targetInventory = is_array($partInventory[$targetPart] ?? null)
-                        ? $partInventory[$targetPart]
-                        : null;
-                    $targetRoles = [];
-
-                    if ($targetInventory !== null) {
-                        foreach (($targetInventory['roles'] ?? []) as $targetRole) {
-                            if (is_string($targetRole) && $targetRole !== '') {
-                                $targetRoles[$targetRole] = true;
-                            }
-                        }
-                    }
-
-                    if ($targetRoles === []) {
-                        $fallbackRole = ($relationship['exists'] ?? false) === true
-                            ? 'relationship-target'
-                            : 'missing-relationship-target';
-                        $targetRoles[$fallbackRole] = true;
                     }
 
                     if (!isset($relationshipTargetContentTypeMediaTypes[$targetContentTypeMediaTypeKey])) {
@@ -12135,6 +12173,10 @@ final class DocxOpenXmlReader
         ksort($relationshipTargetDirectories);
         foreach ($relationshipTargetDirectories as &$targetDirectorySummary) {
             ksort($targetDirectorySummary['contentTypeSourceCounts']);
+            ksort($targetDirectorySummary['contentTypeBaseCounts']);
+            ksort($targetDirectorySummary['relationshipTypeCounts']);
+            ksort($targetDirectorySummary['roleCounts']);
+            unset($targetDirectorySummary['_seenExistingTargetParts']);
         }
         unset($targetDirectorySummary);
         ksort($relationshipTargetDirectoryBaseNameCounts);
