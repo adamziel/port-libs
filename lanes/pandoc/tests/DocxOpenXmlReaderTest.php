@@ -6739,6 +6739,14 @@ XML;
         $t->same(['word/_rels/document.xml.rels', 'word/header/_rels/header1.xml.rels'], $directories['word/media']['relationshipParts']);
         $t->same(['rImage', 'rMissingDirectoryImage', 'rHeaderDirectoryImage'], $directories['word/media']['relationshipIds']);
         $t->same(['word/media/review.png', 'word/media/missing-directory.png', 'word/media/header-directory.png'], $directories['word/media']['targetParts']);
+        $t->same(strlen($parts['word/media/review.png']) + strlen($parts['word/media/header-directory.png']), $directories['word/media']['existingTargetByteLength']);
+        $t->same('word/media/header-directory.png', $directories['word/media']['largestExistingTargetPart']['partName']);
+        $t->same('header-directory.png', $directories['word/media']['largestExistingTargetPart']['baseName']);
+        $t->same('word/media', $directories['word/media']['largestExistingTargetPart']['directory']);
+        $t->same('png', $directories['word/media']['largestExistingTargetPart']['partExtension']);
+        $t->same('image/png', $directories['word/media']['largestExistingTargetPart']['contentTypeBase']);
+        $t->same('default', $directories['word/media']['largestExistingTargetPart']['contentTypeSource']);
+        $t->same(hash('sha256', $parts['word/media/header-directory.png']), $directories['word/media']['largestExistingTargetPart']['sha256']);
 
         $t->same(2, $directories['customXml']['relationshipCount']);
         $t->same(['default' => 2], $directories['customXml']['contentTypeSourceCounts']);
@@ -6746,6 +6754,10 @@ XML;
         $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $directories['customXml']['relationshipParts']);
         $t->same(['rRootCustomDirectory', 'rCustomDirectory'], $directories['customXml']['relationshipIds']);
         $t->same(['customXml/root-target.xml', 'customXml/item-directory.xml'], $directories['customXml']['targetParts']);
+        $t->same(strlen($parts['customXml/root-target.xml']) + strlen($parts['customXml/item-directory.xml']), $directories['customXml']['existingTargetByteLength']);
+        $t->same('customXml/item-directory.xml', $directories['customXml']['largestExistingTargetPart']['partName']);
+        $t->same('customXml', $directories['customXml']['largestExistingTargetPart']['topLevelSegment']);
+        $t->same('application/xml', $directories['customXml']['largestExistingTargetPart']['contentTypeBase']);
 
         $t->same(2, $directories['word']['relationshipCount']);
         $t->same(1, $directories['word']['parameterizedTargetCount']);
