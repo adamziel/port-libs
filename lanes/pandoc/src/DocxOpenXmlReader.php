@@ -10348,6 +10348,24 @@ final class DocxOpenXmlReader
                 $duplicatePartDirectoryBaseNames[] = (string) ($directoryBaseNameSummary['directoryBaseName'] ?? '');
             }
         }
+        $partDirectoryDepths = $this->packagePartDirectoryDepthSummary($partInventory);
+        $partDirectoryDepthCounts = [];
+        $parameterizedPartDirectoryDepthCount = 0;
+        $parameterizedPartDirectoryDepthBucketCount = 0;
+        $missingContentTypePartDirectoryDepthCount = 0;
+        foreach ($partDirectoryDepths as $directoryDepthSummary) {
+            $directoryDepth = (int) ($directoryDepthSummary['directoryDepth'] ?? 0);
+            $partDirectoryDepthCounts[(string) $directoryDepth] = (int) ($directoryDepthSummary['partCount'] ?? 0);
+            $parameterizedPartCount = (int) ($directoryDepthSummary['parameterizedPartCount'] ?? 0);
+            if ($parameterizedPartCount > 0) {
+                $parameterizedPartDirectoryDepthBucketCount++;
+                $parameterizedPartDirectoryDepthCount += $parameterizedPartCount;
+            }
+            if ((int) ($directoryDepthSummary['missingContentTypePartCount'] ?? 0) > 0) {
+                $missingContentTypePartDirectoryDepthCount++;
+            }
+        }
+        ksort($partDirectoryDepthCounts, SORT_NUMERIC);
         $partTopLevelSegments = $this->packagePartTopLevelSegmentSummary($partInventory);
         $partPathSegments = $this->packagePartPathSegmentSummary($partInventory);
         $partPathSegmentOccurrenceCount = 0;
@@ -12498,6 +12516,11 @@ final class DocxOpenXmlReader
         return [
             'partCount' => count($partInventory),
             'partDirectoryCount' => count($partDirectories),
+            'partDirectoryDepthCount' => count($partDirectoryDepths),
+            'partDirectoryDepthCounts' => $partDirectoryDepthCounts,
+            'partDirectoryDepthParameterizedBucketCount' => $parameterizedPartDirectoryDepthBucketCount,
+            'partDirectoryDepthParameterizedPartCount' => $parameterizedPartDirectoryDepthCount,
+            'partDirectoryDepthMissingContentTypeBucketCount' => $missingContentTypePartDirectoryDepthCount,
             'partTopLevelSegmentCount' => count($partTopLevelSegments),
             'partPathSegmentCount' => count($partPathSegments),
             'partPathSegmentOccurrenceCount' => $partPathSegmentOccurrenceCount,
@@ -12811,6 +12834,7 @@ final class DocxOpenXmlReader
             'duplicatePartDirectoryBaseNameCount' => count($duplicatePartDirectoryBaseNames),
             'duplicatePartDirectoryBaseNames' => $duplicatePartDirectoryBaseNames,
             'partDirectoryBaseNames' => $partDirectoryBaseNames,
+            'partDirectoryDepths' => $partDirectoryDepths,
             'partTopLevelSegments' => $partTopLevelSegments,
             'partPathSegments' => $partPathSegments,
             'partPathDepths' => $partPathDepths,
@@ -14221,6 +14245,129 @@ final class DocxOpenXmlReader
         }
 
         return array_values($directoryBaseNames);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartDirectoryDepthSummary(array $partInventory): array
+    {
+        $depths = [];
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory($partName);
+            $directoryDepth = is_int($part['directoryDepth'] ?? null)
+                ? (int) $part['directoryDepth']
+                : $this->packagePartDirectoryDepth($directory);
+            $directoryDepthKey = (string) $directoryDepth;
+            if (!isset($depths[$directoryDepthKey])) {
+                $depths[$directoryDepthKey] = [
+                    'directoryDepth' => $directoryDepth,
+                    'directoryCount' => 0,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'directoryCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'directories' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $baseName = is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName($partName);
+            $pathSegmentCount = is_int($part['pathSegmentCount'] ?? null)
+                ? (int) $part['pathSegmentCount']
+                : count($this->packagePartPathSegments($partName));
+            $contentType = is_string($part['contentType'] ?? null) ? $part['contentType'] : '';
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+
+            ++$depths[$directoryDepthKey]['partCount'];
+            $depths[$directoryDepthKey]['byteLength'] += $bytes;
+            $depths[$directoryDepthKey]['directoryCounts'][$directory] =
+                ($depths[$directoryDepthKey]['directoryCounts'][$directory] ?? 0) + 1;
+            $depths[$directoryDepthKey]['partNames'][] = $partName;
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$depths[$directoryDepthKey]['relationshipPartCount'];
+            }
+            if ($contentTypeSource === 'missing') {
+                ++$depths[$directoryDepthKey]['missingContentTypePartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$depths[$directoryDepthKey]['parameterizedPartCount'];
+            }
+            $depths[$directoryDepthKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($depths[$directoryDepthKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $depths[$directoryDepthKey]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($depths[$directoryDepthKey]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                if ($role === '') {
+                    continue;
+                }
+                $depths[$directoryDepthKey]['roleCounts'][$role] =
+                    ($depths[$directoryDepthKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'directoryDepth' => $directoryDepth,
+                'baseName' => $baseName,
+                'pathSegmentCount' => $pathSegmentCount,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => $contentType,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $depths[$directoryDepthKey]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $depths[$directoryDepthKey]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($depths, SORT_NUMERIC);
+        foreach ($depths as $directoryDepthKey => $summary) {
+            ksort($summary['directoryCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $directories = array_keys($summary['directoryCounts']);
+            sort($directories, SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            $summary['directoryCount'] = count($directories);
+            $summary['directories'] = $directories;
+            $depths[$directoryDepthKey] = $summary;
+        }
+
+        return array_values($depths);
     }
 
     /**

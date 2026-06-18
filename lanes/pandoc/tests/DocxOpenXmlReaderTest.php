@@ -1096,6 +1096,102 @@ return [
         $t->same(['missing' => 1], $byDirectory['customXml']['contentTypeSourceCounts']);
         $t->same(['package-part' => 1], $byDirectory['customXml']['roleCounts']);
     },
+    'summarizes docx package part directory depth buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            [
+                '<Default Extension="xml" ContentType="application/xml"/>',
+                '</Types>',
+            ],
+            [
+                '<Default Extension="xml" ContentType="application/xml; profile=directory-depth"/>',
+                '  <Default Extension="bin" ContentType="application/octet-stream; profile=directory-depth"/>' . "\n" .
+                '</Types>',
+            ],
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/data/meta.xml'] = '<meta directory-depth="2"/>';
+        $parts['customXml/data/store/raw'] = str_repeat('R', 113);
+        $parts['word/embeddings/charts/cache/workbook.bin'] = str_repeat('B', 47);
+        $parts['word/charts/_rels/chart1.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $byDepth = [];
+        foreach ($summary['partDirectoryDepths'] as $depth) {
+            $byDepth[$depth['directoryDepth']] = $depth;
+        }
+
+        $t->same(5, $summary['partDirectoryDepthCount']);
+        $t->same([
+            '0' => 1,
+            '1' => 5,
+            '2' => 3,
+            '3' => 2,
+            '4' => 1,
+        ], $summary['partDirectoryDepthCounts']);
+        $t->same(4, $summary['partDirectoryDepthParameterizedBucketCount']);
+        $t->same(5, $summary['partDirectoryDepthParameterizedPartCount']);
+        $t->same(1, $summary['partDirectoryDepthMissingContentTypeBucketCount']);
+        $t->same(4, $summary['maxPartDirectoryDepth']);
+        $t->same(['0', '1', '2', '3', '4'], array_map('strval', array_column($summary['partDirectoryDepths'], 'directoryDepth')));
+
+        $root = $byDepth[0];
+        $t->same(1, $root['directoryCount']);
+        $t->same(1, $root['partCount']);
+        $t->same(1, $root['parameterizedPartCount']);
+        $t->same(['/' => 1], $root['directoryCounts']);
+        $t->same(['[Content_Types].xml'], $root['partNames']);
+        $t->same(['default' => 1], $root['contentTypeSourceCounts']);
+        $t->same(['content-types' => 1], $root['roleCounts']);
+
+        $shallow = $byDepth[1];
+        $t->same(3, $shallow['directoryCount']);
+        $t->same(5, $shallow['partCount']);
+        $t->same(1, $shallow['relationshipPartCount']);
+        $t->same(2, $shallow['parameterizedPartCount']);
+        $t->same(['_rels' => 1, 'docProps' => 1, 'word' => 3], $shallow['directoryCounts']);
+        $t->same(['_rels', 'docProps', 'word'], $shallow['directories']);
+        $t->same(['default' => 3, 'override' => 2], $shallow['contentTypeSourceCounts']);
+        $t->same(['package-relationships' => 1, 'relationship-part' => 1], array_intersect_key($shallow['roleCounts'], ['package-relationships' => true, 'relationship-part' => true]));
+
+        $middle = $byDepth[2];
+        $t->same(3, $middle['directoryCount']);
+        $t->same(3, $middle['partCount']);
+        $t->same(1, $middle['relationshipPartCount']);
+        $t->same(1, $middle['parameterizedPartCount']);
+        $t->same(['customXml/data' => 1, 'word/_rels' => 1, 'word/media' => 1], $middle['directoryCounts']);
+        $t->same(['default' => 3], $middle['contentTypeSourceCounts']);
+        $t->same(['customXml/data/meta.xml', 'word/_rels/document.xml.rels', 'word/media/review.png'], $middle['partNames']);
+
+        $deep = $byDepth[3];
+        $t->same(2, $deep['directoryCount']);
+        $t->same(2, $deep['partCount']);
+        $t->same(1, $deep['relationshipPartCount']);
+        $t->same(1, $deep['missingContentTypePartCount']);
+        $t->same(['customXml/data/store' => 1, 'word/charts/_rels' => 1], $deep['directoryCounts']);
+        $t->same(['default' => 1, 'missing' => 1], $deep['contentTypeSourceCounts']);
+        $t->same(['(missing)' => 1, 'application/vnd.openxmlformats-package.relationships+xml' => 1], $deep['contentTypeBaseCounts']);
+        $t->same(['customXml/data/store/raw', 'word/charts/_rels/chart1.xml.rels'], $deep['partNames']);
+        $t->same('customXml/data/store/raw', $deep['largestPart']['partName']);
+        $t->same(3, $deep['largestPart']['directoryDepth']);
+        $t->same(4, $deep['largestPart']['pathSegmentCount']);
+        $t->same(113, $deep['largestPart']['bytes']);
+        $t->same(hash('sha256', str_repeat('R', 113)), $deep['largestPart']['sha256']);
+        $t->same('missing', $deep['largestPart']['contentTypeSource']);
+
+        $deepest = $byDepth[4];
+        $t->same(1, $deepest['directoryCount']);
+        $t->same(1, $deepest['partCount']);
+        $t->same(1, $deepest['parameterizedPartCount']);
+        $t->same(['word/embeddings/charts/cache'], $deepest['directories']);
+        $t->same(['word/embeddings/charts/cache/workbook.bin'], $deepest['partNames']);
+        $t->same(['default' => 1], $deepest['contentTypeSourceCounts']);
+        $t->same(['application/octet-stream' => 1], $deepest['contentTypeBaseCounts']);
+        $t->same('word/embeddings/charts/cache/workbook.bin', $summary['deepestPartNames'][0]);
+    },
     'summarizes docx package part top-level segments for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/item1.xml'] = '<review>custom payload</review>';
