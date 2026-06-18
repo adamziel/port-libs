@@ -8350,6 +8350,7 @@ XML;
     },
     'summarizes docx relationship target inventory role buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
         $parts['[Content_Types].xml'] = str_replace(
             '</Types>',
             '  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n" .
@@ -8409,6 +8410,8 @@ XML;
         $t->same(1, $header['existingTargetCount']);
         $t->same(0, $header['missingTargetCount']);
         $t->same(['default' => 1], $header['contentTypeSourceCounts']);
+        $t->same(['image/png' => 1], $header['contentTypeBaseCounts']);
+        $t->same([$imageRel => 1], $header['relationshipTypeCounts']);
         $t->same(['word/header1.xml'], $header['sourceParts']);
         $t->same(['word/_rels/header1.xml.rels'], $header['relationshipParts']);
         $t->same(['rHeaderRoleImage'], $header['relationshipIds']);
@@ -8417,15 +8420,22 @@ XML;
         $numbering = $targetRoles['numbering-picture-bullet'];
         $t->same(1, $summary['relationshipTargetRoleCounts']['numbering-picture-bullet']);
         $t->same(1, $summary['relationshipTargetExistingRoleCounts']['numbering-picture-bullet']);
+        $t->same(['image/png' => 1], $numbering['contentTypeBaseCounts']);
+        $t->same([$imageRel => 1], $numbering['relationshipTypeCounts']);
         $t->same(['word/numbering.xml'], $numbering['sourceParts']);
         $t->same(['rNumberingBulletRole'], $numbering['relationshipIds']);
         $t->same(['word/media/bullet-role.png'], $numbering['targetParts']);
 
         $comment = $targetRoles['comment-media'];
+        $noteComment = $targetRoles['note-comment-media'];
         $t->same(1, $summary['relationshipTargetRoleCounts']['note-comment-media']);
         $t->same(1, $summary['relationshipTargetRoleCounts']['comment-media']);
         $t->same(1, $summary['relationshipTargetExistingRoleCounts']['note-comment-media']);
         $t->same(1, $summary['relationshipTargetExistingRoleCounts']['comment-media']);
+        $t->same(['image/png' => 1], $comment['contentTypeBaseCounts']);
+        $t->same([$imageRel => 1], $comment['relationshipTypeCounts']);
+        $t->same(['image/png' => 1], $noteComment['contentTypeBaseCounts']);
+        $t->same([$imageRel => 1], $noteComment['relationshipTypeCounts']);
         $t->same(['word/comments.xml'], $comment['sourceParts']);
         $t->same(['rCommentRoleImage'], $comment['relationshipIds']);
         $t->same(['word/media/comment-role.png'], $comment['targetParts']);
@@ -8438,6 +8448,8 @@ XML;
         $t->same(0, $missing['existingTargetCount']);
         $t->same(1, $missing['missingTargetCount']);
         $t->same(['default' => 1], $missing['contentTypeSourceCounts']);
+        $t->same(['image/png' => 1], $missing['contentTypeBaseCounts']);
+        $t->same([$imageRel => 1], $missing['relationshipTypeCounts']);
         $t->same(['rMissingRoleImage'], $missing['relationshipIds']);
         $t->same(['word/media/missing-role.png'], $missing['targetParts']);
         $t->true(!in_array('rExternalRoleLink', $roleRelationshipIds, true), 'external relationship should not enter target role buckets');

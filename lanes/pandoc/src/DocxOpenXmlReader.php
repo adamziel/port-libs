@@ -11966,6 +11966,8 @@ final class DocxOpenXmlReader
                                 'missingTargetCount' => 0,
                                 'parameterizedTargetCount' => 0,
                                 'contentTypeSourceCounts' => [],
+                                'contentTypeBaseCounts' => [],
+                                'relationshipTypeCounts' => [],
                                 'sourceParts' => [],
                                 'relationshipParts' => [],
                                 'relationshipIds' => [],
@@ -11980,6 +11982,10 @@ final class DocxOpenXmlReader
                         ++$relationshipTargetRoles[$targetRole]['relationshipCount'];
                         $relationshipTargetRoles[$targetRole]['contentTypeSourceCounts'][$targetContentTypeSource] =
                             ($relationshipTargetRoles[$targetRole]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                        $relationshipTargetRoles[$targetRole]['contentTypeBaseCounts'][$targetContentTypeKey] =
+                            ($relationshipTargetRoles[$targetRole]['contentTypeBaseCounts'][$targetContentTypeKey] ?? 0) + 1;
+                        $relationshipTargetRoles[$targetRole]['relationshipTypeCounts'][$typeKey] =
+                            ($relationshipTargetRoles[$targetRole]['relationshipTypeCounts'][$typeKey] ?? 0) + 1;
                         $this->appendUniqueString($relationshipTargetRoles[$targetRole]['sourceParts'], $sourcePart);
                         $this->appendUniqueString($relationshipTargetRoles[$targetRole]['relationshipParts'], $relationshipsPart);
                         $this->appendUniqueString(
@@ -12286,6 +12292,8 @@ final class DocxOpenXmlReader
         ksort($relationshipTargetRoles);
         foreach ($relationshipTargetRoles as &$targetRoleSummary) {
             ksort($targetRoleSummary['contentTypeSourceCounts']);
+            ksort($targetRoleSummary['contentTypeBaseCounts']);
+            ksort($targetRoleSummary['relationshipTypeCounts']);
         }
         unset($targetRoleSummary);
         usort(
