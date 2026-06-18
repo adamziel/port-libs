@@ -7292,6 +7292,7 @@ XML;
             '</Relationships>',
             '  <Relationship Id="rCommentsSegment" Type="' . $commentsRel . '" Target="comments.xml?segment=word#comments"/>' . "\n" .
             '  <Relationship Id="rMissingSegmentImage" Type="' . $imageRel . '" Target="media/missing-segment.png?missing=1#image"/>' . "\n" .
+            '  <Relationship Id="rLargeSegmentImage" Type="' . $imageRel . '" Target="media/large-segment.png"/>' . "\n" .
             '  <Relationship Id="rEmbeddedSegment" Type="' . $packageRel . '" Target="../embeddings/package.bin?payload=1#bin"/>' . "\n" .
             '  <Relationship Id="rExternalSegment" Type="' . $hyperlinkRel . '" Target="https://example.test/segment" TargetMode="External"/>' . "\n" .
             '</Relationships>',
@@ -7299,6 +7300,7 @@ XML;
         );
         $parts['customXml/root-segment.xml'] = '<root-segment/>';
         $parts['word/comments.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/media/large-segment.png'] = str_repeat('large-segment-image-bytes-', 1000);
         $parts['embeddings/package.bin'] = 'embedded package segment bytes';
 
         $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
@@ -7312,27 +7314,43 @@ XML;
             'customXml' => 1,
             'docProps' => 1,
             'embeddings' => 1,
-            'word' => 4,
+            'word' => 5,
         ], $summary['relationshipTargetTopLevelSegmentCounts']);
         $t->same([
             'customXml' => 1,
             'docProps' => 1,
             'embeddings' => 1,
-            'word' => 3,
+            'word' => 4,
         ], $summary['relationshipTargetExistingTopLevelSegmentCounts']);
         $t->same(['word' => 1], $summary['relationshipTargetMissingTopLevelSegmentCounts']);
         $t->same(['customXml', 'docProps', 'embeddings', 'word'], array_column($summary['relationshipTargetTopLevelSegments'], 'topLevelSegment'));
 
         $word = $segments['word'];
-        $t->same(4, $word['relationshipCount']);
-        $t->same(3, $word['existingTargetCount']);
+        $t->same(5, $word['relationshipCount']);
+        $t->same(4, $word['existingTargetCount']);
         $t->same(1, $word['missingTargetCount']);
         $t->same(1, $word['parameterizedTargetCount']);
-        $t->same(['default' => 2, 'override' => 2], $word['contentTypeSourceCounts']);
+        $t->same(['default' => 3, 'override' => 2], $word['contentTypeSourceCounts']);
         $t->same(['/', 'word/document.xml'], $word['sourceParts']);
         $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $word['relationshipParts']);
-        $t->same(['rDoc', 'rImage', 'rCommentsSegment', 'rMissingSegmentImage'], $word['relationshipIds']);
-        $t->same(['word/document.xml', 'word/media/review.png', 'word/comments.xml', 'word/media/missing-segment.png'], $word['targetParts']);
+        $t->same(['rDoc', 'rImage', 'rCommentsSegment', 'rMissingSegmentImage', 'rLargeSegmentImage'], $word['relationshipIds']);
+        $t->same(['word/document.xml', 'word/media/review.png', 'word/comments.xml', 'word/media/missing-segment.png', 'word/media/large-segment.png'], $word['targetParts']);
+        $t->same(
+            strlen($parts['word/document.xml'])
+            + strlen($parts['word/media/review.png'])
+            + strlen($parts['word/comments.xml'])
+            + strlen($parts['word/media/large-segment.png']),
+            $word['existingTargetPartByteLength']
+        );
+        $t->same('word/media/large-segment.png', $word['largestExistingTargetPart']['partName']);
+        $t->same('word/media', $word['largestExistingTargetPart']['directory']);
+        $t->same('word', $word['largestExistingTargetPart']['topLevelSegment']);
+        $t->same('large-segment.png', $word['largestExistingTargetPart']['baseName']);
+        $t->same(3, $word['largestExistingTargetPart']['targetPathDepth']);
+        $t->same('png', $word['largestExistingTargetPart']['partExtension']);
+        $t->same('image/png', $word['largestExistingTargetPart']['contentTypeBase']);
+        $t->same('default', $word['largestExistingTargetPart']['contentTypeSource']);
+        $t->same(hash('sha256', $parts['word/media/large-segment.png']), $word['largestExistingTargetPart']['sha256']);
 
         $customXml = $segments['customXml'];
         $t->same(1, $customXml['relationshipCount']);
@@ -7340,6 +7358,10 @@ XML;
         $t->same(['_rels/.rels'], $customXml['relationshipParts']);
         $t->same(['rRootCustomSegment'], $customXml['relationshipIds']);
         $t->same(['customXml/root-segment.xml'], $customXml['targetParts']);
+        $t->same(strlen($parts['customXml/root-segment.xml']), $customXml['existingTargetPartByteLength']);
+        $t->same('customXml/root-segment.xml', $customXml['largestExistingTargetPart']['partName']);
+        $t->same('customXml', $customXml['largestExistingTargetPart']['topLevelSegment']);
+        $t->same('application/xml', $customXml['largestExistingTargetPart']['contentTypeBase']);
 
         $embeddings = $segments['embeddings'];
         $t->same(1, $embeddings['relationshipCount']);
@@ -7348,6 +7370,10 @@ XML;
         $t->same(['missing' => 1], $embeddings['contentTypeSourceCounts']);
         $t->same(['rEmbeddedSegment'], $embeddings['relationshipIds']);
         $t->same(['embeddings/package.bin'], $embeddings['targetParts']);
+        $t->same(strlen($parts['embeddings/package.bin']), $embeddings['existingTargetPartByteLength']);
+        $t->same('embeddings/package.bin', $embeddings['largestExistingTargetPart']['partName']);
+        $t->same('embeddings', $embeddings['largestExistingTargetPart']['topLevelSegment']);
+        $t->same('missing', $embeddings['largestExistingTargetPart']['contentTypeSource']);
         $t->same(2, $summary['externalRelationshipCount']);
     },
     'summarizes docx relationship target base names for review handoff' => static function (TestRunner $t): void {

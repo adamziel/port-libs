@@ -11166,6 +11166,7 @@ final class DocxOpenXmlReader
                             'existingTargetCount' => 0,
                             'missingTargetCount' => 0,
                             'parameterizedTargetCount' => 0,
+                            'existingTargetPartByteLength' => 0,
                             'contentTypeSourceCounts' => [],
                             'sourceParts' => [],
                             'relationshipParts' => [],
@@ -11173,6 +11174,8 @@ final class DocxOpenXmlReader
                             'relationshipTypes' => [],
                             'contentTypes' => [],
                             'targetParts' => [],
+                            'largestExistingTargetPart' => null,
+                            '_seenExistingTargetParts' => [],
                         ];
                     }
 
@@ -11200,6 +11203,39 @@ final class DocxOpenXmlReader
                         ++$relationshipTargetTopLevelSegments[$targetTopLevelSegment]['existingTargetCount'];
                         $relationshipTargetExistingTopLevelSegmentCounts[$targetTopLevelSegment] =
                             ($relationshipTargetExistingTopLevelSegmentCounts[$targetTopLevelSegment] ?? 0) + 1;
+                        if (
+                            is_array($targetInventory)
+                            && !isset($relationshipTargetTopLevelSegments[$targetTopLevelSegment]['_seenExistingTargetParts'][$targetPart])
+                        ) {
+                            $relationshipTargetTopLevelSegments[$targetTopLevelSegment]['_seenExistingTargetParts'][$targetPart] = true;
+                            $targetPartSummary = [
+                                'partName' => is_string($targetInventory['partName'] ?? null) ? $targetInventory['partName'] : $targetPart,
+                                'directory' => $targetDirectory,
+                                'topLevelSegment' => $targetTopLevelSegment,
+                                'baseName' => $targetBaseName,
+                                'targetPathDepth' => $targetPathDepth,
+                                'partExtension' => is_string($targetInventory['partExtension'] ?? null) ? $targetInventory['partExtension'] : $this->packagePartExtension($targetPart),
+                                'bytes' => (int) ($targetInventory['bytes'] ?? 0),
+                                'crc32' => is_string($targetInventory['crc32'] ?? null) ? $targetInventory['crc32'] : null,
+                                'sha256' => is_string($targetInventory['sha256'] ?? null) ? $targetInventory['sha256'] : null,
+                                'contentType' => is_string($targetInventory['contentType'] ?? null) ? $targetInventory['contentType'] : $targetContentType,
+                                'contentTypeBase' => is_string($targetInventory['contentTypeBase'] ?? null) ? $targetInventory['contentTypeBase'] : $targetContentTypeBase,
+                                'contentTypeSource' => is_string($targetInventory['contentTypeSource'] ?? null) ? $targetInventory['contentTypeSource'] : $targetContentTypeSource,
+                                'roles' => array_values(array_map('strval', $targetInventory['roles'] ?? [])),
+                            ];
+                            $relationshipTargetTopLevelSegments[$targetTopLevelSegment]['existingTargetPartByteLength'] += $targetPartSummary['bytes'];
+                            $largestTargetPart = $relationshipTargetTopLevelSegments[$targetTopLevelSegment]['largestExistingTargetPart'];
+                            if (
+                                !is_array($largestTargetPart)
+                                || $targetPartSummary['bytes'] > (int) ($largestTargetPart['bytes'] ?? 0)
+                                || (
+                                    $targetPartSummary['bytes'] === (int) ($largestTargetPart['bytes'] ?? 0)
+                                    && strcmp($targetPartSummary['partName'], (string) ($largestTargetPart['partName'] ?? '')) < 0
+                                )
+                            ) {
+                                $relationshipTargetTopLevelSegments[$targetTopLevelSegment]['largestExistingTargetPart'] = $targetPartSummary;
+                            }
+                        }
                     } else {
                         ++$relationshipTargetTopLevelSegments[$targetTopLevelSegment]['missingTargetCount'];
                         $relationshipTargetMissingTopLevelSegmentCounts[$targetTopLevelSegment] =
@@ -12186,6 +12222,7 @@ final class DocxOpenXmlReader
         ksort($relationshipTargetTopLevelSegments);
         foreach ($relationshipTargetTopLevelSegments as &$targetTopLevelSegmentSummary) {
             ksort($targetTopLevelSegmentSummary['contentTypeSourceCounts']);
+            unset($targetTopLevelSegmentSummary['_seenExistingTargetParts']);
         }
         unset($targetTopLevelSegmentSummary);
         ksort($relationshipTargetDirectoryCounts);
