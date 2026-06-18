@@ -6218,11 +6218,18 @@ XML;
         $t->same(0, $sharedXml['missingTargetCount']);
         $t->same(1, $sharedXml['parameterizedTargetCount']);
         $t->same(['default' => 1, 'override' => 1], $sharedXml['contentTypeSourceCounts']);
+        $t->same(['application/xml' => 2], $sharedXml['contentTypeBaseCounts']);
+        $t->same(['customXml', 'word/review'], $sharedXml['targetDirectories']);
         $t->same(['/', 'word/document.xml'], $sharedXml['sourceParts']);
         $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $sharedXml['relationshipParts']);
         $t->same(['rRootSharedBase', 'rWordSharedBase'], $sharedXml['relationshipIds']);
         $t->same(['application/xml', 'application/xml; profile=target-base-name'], $sharedXml['contentTypes']);
         $t->same(['customXml/shared.xml', 'word/review/shared.xml'], $sharedXml['targetParts']);
+        $t->same('customXml/shared.xml', $sharedXml['largestExistingTargetPart']['partName']);
+        $t->same('shared.xml', $sharedXml['largestExistingTargetPart']['baseName']);
+        $t->same('application/xml', $sharedXml['largestExistingTargetPart']['contentTypeBase']);
+        $t->same('default', $sharedXml['largestExistingTargetPart']['contentTypeSource']);
+        $t->same(hash('sha256', $parts['customXml/shared.xml']), $sharedXml['largestExistingTargetPart']['sha256']);
 
         $sharedPng = $baseNames['shared.png'];
         $t->same(2, $sharedPng['relationshipCount']);
