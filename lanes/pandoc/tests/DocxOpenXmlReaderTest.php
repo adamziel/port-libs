@@ -7483,6 +7483,116 @@ XML;
         $t->same(['word/raw/missing.bin'], $missing['targetParts']);
         $t->same(2, $summary['externalRelationshipCount']);
     },
+    'summarizes docx relationship target base name stems for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Override PartName="/customXml/shared.xml" ContentType="application/xml; profile=target-stem"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootSharedStemXml" Type="' . $customXmlRel . '" Target="/customXml/shared.xml?root=stem#xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSharedStemPng" Type="' . $imageRel . '" Target="media/shared.png"/>' . "\n" .
+            '  <Relationship Id="rMissingSharedStemRaw" Type="' . $customXmlRel . '" Target="raw/shared?missing=1#raw"/>' . "\n" .
+            '  <Relationship Id="rExternalSharedStem" Type="' . $hyperlinkRel . '" Target="https://example.test/shared.xml" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/header/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderSharedStemBin" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/shared.bin"/>
+</Relationships>
+XML;
+        $parts['customXml/shared.xml'] = '<shared-stem-xml/>';
+        $parts['word/media/shared.png'] = 'shared stem png bytes';
+        $parts['word/media/shared.bin'] = str_repeat('B', 53);
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $stems = [];
+        foreach ($summary['relationshipTargetBaseNameStems'] as $stem) {
+            $stems[$stem['baseNameStem']] = $stem;
+        }
+        $allRelationshipIds = array_merge(...array_column($summary['relationshipTargetBaseNameStems'], 'relationshipIds'));
+
+        $t->same(4, $summary['relationshipTargetBaseNameStemCount']);
+        $t->same([
+            'core' => 1,
+            'document' => 1,
+            'review' => 1,
+            'shared' => 4,
+        ], $summary['relationshipTargetBaseNameStemCounts']);
+        $t->same([
+            'core' => 1,
+            'document' => 1,
+            'review' => 1,
+            'shared' => 3,
+        ], $summary['relationshipTargetExistingBaseNameStemCounts']);
+        $t->same(['shared' => 1], $summary['relationshipTargetMissingBaseNameStemCounts']);
+        $t->same(1, $summary['duplicateRelationshipTargetBaseNameStemCount']);
+        $t->same(['shared'], $summary['duplicateRelationshipTargetBaseNameStems']);
+        $t->true(!in_array('rExternalSharedStem', $allRelationshipIds, true), 'external target stems should stay out of relationship target stem buckets');
+
+        $shared = $stems['shared'];
+        $t->same(4, $shared['relationshipCount']);
+        $t->same(3, $shared['existingTargetCount']);
+        $t->same(1, $shared['missingTargetCount']);
+        $t->same(1, $shared['parameterizedTargetCount']);
+        $t->same(1, $shared['extensionlessTargetCount']);
+        $t->same(4, $shared['extensionVariantCount']);
+        $t->same(
+            strlen($parts['customXml/shared.xml']) + strlen($parts['word/media/shared.png']) + strlen($parts['word/media/shared.bin']),
+            $shared['existingTargetByteLength']
+        );
+        $t->same(['shared' => 1, 'shared.bin' => 1, 'shared.png' => 1, 'shared.xml' => 1], $shared['baseNameCounts']);
+        $t->same(['(none)' => 1, 'bin' => 1, 'png' => 1, 'xml' => 1], $shared['partExtensionCounts']);
+        $t->same(['default' => 2, 'missing' => 1, 'override' => 1], $shared['contentTypeSourceCounts']);
+        $t->same([
+            '(missing)' => 1,
+            'application/octet-stream' => 1,
+            'application/xml' => 1,
+            'image/png' => 1,
+        ], $shared['contentTypeBaseCounts']);
+        $t->same(['customXml' => 1, 'word/media' => 2, 'word/raw' => 1], $shared['targetDirectoryCounts']);
+        $t->same([$customXmlRel => 2, $imageRel => 2], $shared['relationshipTypeCounts']);
+        $t->same([
+            'custom-xml-part' => 1,
+            'document-relationship-target' => 1,
+            'missing-relationship-target' => 1,
+            'relationship-target' => 1,
+            'root-relationship-target' => 1,
+        ], $shared['roleCounts']);
+        $t->same(['/', 'word/document.xml', 'word/header/header1.xml'], $shared['sourceParts']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels', 'word/header/_rels/header1.xml.rels'], $shared['relationshipParts']);
+        $t->same(['rHeaderSharedStemBin', 'rMissingSharedStemRaw', 'rRootSharedStemXml', 'rSharedStemPng'], $shared['relationshipIds']);
+        $t->same([$customXmlRel, $imageRel], $shared['relationshipTypes']);
+        $t->same([
+            'application/octet-stream',
+            'application/xml; profile=target-stem',
+            'image/png',
+        ], $shared['contentTypes']);
+        $t->same(['customXml/shared.xml', 'word/media/shared.bin', 'word/media/shared.png', 'word/raw/shared'], $shared['targetParts']);
+        $t->same(['customXml/shared.xml', 'word/media/shared.bin', 'word/media/shared.png'], $shared['existingTargetParts']);
+        $t->same(['word/raw/shared'], $shared['missingTargetParts']);
+        $t->same('word/media/shared.bin', $shared['largestExistingTargetPart']['partName']);
+        $t->same('shared.bin', $shared['largestExistingTargetPart']['baseName']);
+        $t->same('shared', $shared['largestExistingTargetPart']['baseNameStem']);
+        $t->same('bin', $shared['largestExistingTargetPart']['partExtension']);
+        $t->same(hash('sha256', $parts['word/media/shared.bin']), $shared['largestExistingTargetPart']['sha256']);
+    },
     'summarizes docx relationship target base name directory and type buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';

@@ -10638,6 +10638,10 @@ final class DocxOpenXmlReader
         $relationshipTargetExistingBaseNameCounts = [];
         $relationshipTargetMissingBaseNameCounts = [];
         $relationshipTargetBaseNames = [];
+        $relationshipTargetBaseNameStemCounts = [];
+        $relationshipTargetExistingBaseNameStemCounts = [];
+        $relationshipTargetMissingBaseNameStemCounts = [];
+        $relationshipTargetBaseNameStems = [];
         $relationshipTargetPathDepthCounts = [];
         $relationshipTargetPathDepths = [];
         $relationshipTargetContentTypeCounts = [];
@@ -11005,6 +11009,15 @@ final class DocxOpenXmlReader
                     $targetBaseName = is_array($targetInventory) && is_string($targetInventory['baseName'] ?? null)
                         ? $targetInventory['baseName']
                         : $this->packagePartBaseName($targetPart);
+                    $targetBaseNameStem = is_array($targetInventory) && is_string($targetInventory['baseNameStem'] ?? null)
+                        ? $targetInventory['baseNameStem']
+                        : $this->packagePartBaseNameStem($targetPart);
+                    $targetPartExtension = $this->packagePartExtension($targetPart);
+                    if (is_array($targetInventory) && array_key_exists('partExtension', $targetInventory)) {
+                        $targetPartExtension = is_string($targetInventory['partExtension'])
+                            ? $targetInventory['partExtension']
+                            : null;
+                    }
                     $targetPathDepth = is_array($targetInventory) && is_int($targetInventory['pathSegmentCount'] ?? null)
                         ? (int) $targetInventory['pathSegmentCount']
                         : count($this->packagePartPathSegments($targetPart));
@@ -11954,6 +11967,122 @@ final class DocxOpenXmlReader
                         ++$relationshipTargetBaseNames[$targetBaseName]['parameterizedTargetCount'];
                     }
 
+                    if (!isset($relationshipTargetBaseNameStems[$targetBaseNameStem])) {
+                        $relationshipTargetBaseNameStems[$targetBaseNameStem] = [
+                            'baseNameStem' => $targetBaseNameStem,
+                            'relationshipCount' => 0,
+                            'existingTargetCount' => 0,
+                            'missingTargetCount' => 0,
+                            'parameterizedTargetCount' => 0,
+                            'extensionlessTargetCount' => 0,
+                            'extensionVariantCount' => 0,
+                            'existingTargetByteLength' => 0,
+                            'baseNameCounts' => [],
+                            'partExtensionCounts' => [],
+                            'contentTypeSourceCounts' => [],
+                            'contentTypeBaseCounts' => [],
+                            'targetDirectoryCounts' => [],
+                            'relationshipTypeCounts' => [],
+                            'roleCounts' => [],
+                            'sourceParts' => [],
+                            'relationshipParts' => [],
+                            'relationshipIds' => [],
+                            'relationshipTypes' => [],
+                            'contentTypes' => [],
+                            'targetParts' => [],
+                            'existingTargetParts' => [],
+                            'missingTargetParts' => [],
+                            'largestExistingTargetPart' => null,
+                        ];
+                    }
+
+                    ++$relationshipTargetBaseNameStems[$targetBaseNameStem]['relationshipCount'];
+                    $relationshipTargetBaseNameStemCounts[$targetBaseNameStem] =
+                        ($relationshipTargetBaseNameStemCounts[$targetBaseNameStem] ?? 0) + 1;
+                    $relationshipTargetBaseNameStems[$targetBaseNameStem]['baseNameCounts'][$targetBaseName] =
+                        ($relationshipTargetBaseNameStems[$targetBaseNameStem]['baseNameCounts'][$targetBaseName] ?? 0) + 1;
+                    $targetPartExtensionKey = $targetPartExtension ?? '(none)';
+                    $relationshipTargetBaseNameStems[$targetBaseNameStem]['partExtensionCounts'][$targetPartExtensionKey] =
+                        ($relationshipTargetBaseNameStems[$targetBaseNameStem]['partExtensionCounts'][$targetPartExtensionKey] ?? 0) + 1;
+                    if ($targetPartExtension === null) {
+                        ++$relationshipTargetBaseNameStems[$targetBaseNameStem]['extensionlessTargetCount'];
+                    }
+                    $relationshipTargetBaseNameStems[$targetBaseNameStem]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                        ($relationshipTargetBaseNameStems[$targetBaseNameStem]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                    $relationshipTargetBaseNameStems[$targetBaseNameStem]['contentTypeBaseCounts'][$targetContentTypeKey] =
+                        ($relationshipTargetBaseNameStems[$targetBaseNameStem]['contentTypeBaseCounts'][$targetContentTypeKey] ?? 0) + 1;
+                    $relationshipTargetBaseNameStems[$targetBaseNameStem]['targetDirectoryCounts'][$targetDirectory] =
+                        ($relationshipTargetBaseNameStems[$targetBaseNameStem]['targetDirectoryCounts'][$targetDirectory] ?? 0) + 1;
+                    $relationshipTargetBaseNameStems[$targetBaseNameStem]['relationshipTypeCounts'][$typeKey] =
+                        ($relationshipTargetBaseNameStems[$targetBaseNameStem]['relationshipTypeCounts'][$typeKey] ?? 0) + 1;
+                    $this->appendUniqueString(
+                        $relationshipTargetBaseNameStems[$targetBaseNameStem]['sourceParts'],
+                        is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetBaseNameStems[$targetBaseNameStem]['relationshipParts'],
+                        is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetBaseNameStems[$targetBaseNameStem]['relationshipIds'],
+                        is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                    );
+                    $this->appendUniqueString($relationshipTargetBaseNameStems[$targetBaseNameStem]['relationshipTypes'], $type);
+                    $this->appendUniqueString($relationshipTargetBaseNameStems[$targetBaseNameStem]['contentTypes'], $targetContentType);
+                    $this->appendUniqueString($relationshipTargetBaseNameStems[$targetBaseNameStem]['targetParts'], $targetPart);
+                    foreach (array_keys($targetRoles) as $targetRole) {
+                        $relationshipTargetBaseNameStems[$targetBaseNameStem]['roleCounts'][$targetRole] =
+                            ($relationshipTargetBaseNameStems[$targetBaseNameStem]['roleCounts'][$targetRole] ?? 0) + 1;
+                    }
+                    if (($relationship['exists'] ?? false) === true) {
+                        ++$relationshipTargetBaseNameStems[$targetBaseNameStem]['existingTargetCount'];
+                        $relationshipTargetExistingBaseNameStemCounts[$targetBaseNameStem] =
+                            ($relationshipTargetExistingBaseNameStemCounts[$targetBaseNameStem] ?? 0) + 1;
+                        $this->appendUniqueString(
+                            $relationshipTargetBaseNameStems[$targetBaseNameStem]['existingTargetParts'],
+                            $targetPart,
+                        );
+                        if (is_array($targetInventory)) {
+                            $targetStemSummary = [
+                                'partName' => is_string($targetInventory['partName'] ?? null) ? $targetInventory['partName'] : $targetPart,
+                                'directory' => $targetDirectory,
+                                'baseName' => $targetBaseName,
+                                'baseNameStem' => $targetBaseNameStem,
+                                'partExtension' => $targetPartExtension,
+                                'bytes' => (int) ($targetInventory['bytes'] ?? 0),
+                                'crc32' => is_string($targetInventory['crc32'] ?? null) ? $targetInventory['crc32'] : null,
+                                'sha256' => is_string($targetInventory['sha256'] ?? null) ? $targetInventory['sha256'] : null,
+                                'contentType' => is_string($targetInventory['contentType'] ?? null) ? $targetInventory['contentType'] : $targetContentType,
+                                'contentTypeBase' => is_string($targetInventory['contentTypeBase'] ?? null) ? $targetInventory['contentTypeBase'] : $targetContentTypeBase,
+                                'contentTypeSource' => is_string($targetInventory['contentTypeSource'] ?? null) ? $targetInventory['contentTypeSource'] : $targetContentTypeSource,
+                                'roles' => array_keys($targetRoles),
+                            ];
+                            $relationshipTargetBaseNameStems[$targetBaseNameStem]['existingTargetByteLength'] += $targetStemSummary['bytes'];
+                            $largestTarget = $relationshipTargetBaseNameStems[$targetBaseNameStem]['largestExistingTargetPart'];
+                            if (
+                                !is_array($largestTarget)
+                                || $targetStemSummary['bytes'] > (int) ($largestTarget['bytes'] ?? 0)
+                                || (
+                                    $targetStemSummary['bytes'] === (int) ($largestTarget['bytes'] ?? 0)
+                                    && strcmp($targetStemSummary['partName'], (string) ($largestTarget['partName'] ?? '')) < 0
+                                )
+                            ) {
+                                $relationshipTargetBaseNameStems[$targetBaseNameStem]['largestExistingTargetPart'] = $targetStemSummary;
+                            }
+                        }
+                    } else {
+                        ++$relationshipTargetBaseNameStems[$targetBaseNameStem]['missingTargetCount'];
+                        $relationshipTargetMissingBaseNameStemCounts[$targetBaseNameStem] =
+                            ($relationshipTargetMissingBaseNameStemCounts[$targetBaseNameStem] ?? 0) + 1;
+                        $this->appendUniqueString(
+                            $relationshipTargetBaseNameStems[$targetBaseNameStem]['missingTargetParts'],
+                            $targetPart,
+                        );
+                    }
+                    if ($targetContentTypeHasParameters) {
+                        ++$relationshipTargetBaseNameStems[$targetBaseNameStem]['parameterizedTargetCount'];
+                    }
+
                     if (!isset($relationshipTargetContentTypeSubtypes[$targetContentTypeSubtypeKey])) {
                         $relationshipTargetContentTypeSubtypes[$targetContentTypeSubtypeKey] = [
                             'contentTypeSubtypeKey' => $targetContentTypeSubtypeKey,
@@ -12301,6 +12430,33 @@ final class DocxOpenXmlReader
         $duplicateRelationshipTargetBaseNames = array_values(array_filter(
             array_keys($relationshipTargetBaseNameCounts),
             static fn (string $baseName): bool => ($relationshipTargetBaseNameCounts[$baseName] ?? 0) > 1,
+        ));
+        ksort($relationshipTargetBaseNameStemCounts, SORT_STRING);
+        ksort($relationshipTargetExistingBaseNameStemCounts, SORT_STRING);
+        ksort($relationshipTargetMissingBaseNameStemCounts, SORT_STRING);
+        ksort($relationshipTargetBaseNameStems, SORT_STRING);
+        foreach ($relationshipTargetBaseNameStems as &$targetBaseNameStemSummary) {
+            ksort($targetBaseNameStemSummary['baseNameCounts'], SORT_STRING);
+            ksort($targetBaseNameStemSummary['partExtensionCounts'], SORT_STRING);
+            ksort($targetBaseNameStemSummary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($targetBaseNameStemSummary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($targetBaseNameStemSummary['targetDirectoryCounts'], SORT_STRING);
+            ksort($targetBaseNameStemSummary['relationshipTypeCounts'], SORT_STRING);
+            ksort($targetBaseNameStemSummary['roleCounts'], SORT_STRING);
+            sort($targetBaseNameStemSummary['sourceParts'], SORT_STRING);
+            sort($targetBaseNameStemSummary['relationshipParts'], SORT_STRING);
+            sort($targetBaseNameStemSummary['relationshipIds'], SORT_STRING);
+            sort($targetBaseNameStemSummary['relationshipTypes'], SORT_STRING);
+            sort($targetBaseNameStemSummary['contentTypes'], SORT_STRING);
+            sort($targetBaseNameStemSummary['targetParts'], SORT_STRING);
+            sort($targetBaseNameStemSummary['existingTargetParts'], SORT_STRING);
+            sort($targetBaseNameStemSummary['missingTargetParts'], SORT_STRING);
+            $targetBaseNameStemSummary['extensionVariantCount'] = count($targetBaseNameStemSummary['partExtensionCounts']);
+        }
+        unset($targetBaseNameStemSummary);
+        $duplicateRelationshipTargetBaseNameStems = array_values(array_filter(
+            array_keys($relationshipTargetBaseNameStemCounts),
+            static fn (string $baseNameStem): bool => ($relationshipTargetBaseNameStemCounts[$baseNameStem] ?? 0) > 1,
         ));
         ksort($relationshipTargetPathDepthCounts, SORT_NUMERIC);
         ksort($relationshipTargetPathDepths, SORT_NUMERIC);
@@ -12773,6 +12929,13 @@ final class DocxOpenXmlReader
             'duplicateRelationshipTargetBaseNameCount' => count($duplicateRelationshipTargetBaseNames),
             'duplicateRelationshipTargetBaseNames' => $duplicateRelationshipTargetBaseNames,
             'relationshipTargetBaseNames' => array_values($relationshipTargetBaseNames),
+            'relationshipTargetBaseNameStemCount' => count($relationshipTargetBaseNameStems),
+            'relationshipTargetBaseNameStemCounts' => $relationshipTargetBaseNameStemCounts,
+            'relationshipTargetExistingBaseNameStemCounts' => $relationshipTargetExistingBaseNameStemCounts,
+            'relationshipTargetMissingBaseNameStemCounts' => $relationshipTargetMissingBaseNameStemCounts,
+            'duplicateRelationshipTargetBaseNameStemCount' => count($duplicateRelationshipTargetBaseNameStems),
+            'duplicateRelationshipTargetBaseNameStems' => $duplicateRelationshipTargetBaseNameStems,
+            'relationshipTargetBaseNameStems' => array_values($relationshipTargetBaseNameStems),
             'relationshipTargetPathDepthCount' => count($relationshipTargetPathDepths),
             'relationshipTargetPathDepthCounts' => $relationshipTargetPathDepthCounts,
             'relationshipTargetPathDepths' => array_values($relationshipTargetPathDepths),
