@@ -12872,6 +12872,141 @@ XML;
         $t->same('bullet_list', $bullet->type);
         $t->same('-', $bullet->attr('bulletChar'));
     },
+    'summarizes docx numbering relationship provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $numberingRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
+        $numberingContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+        $reviewNumberingXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="30">
+    <w:lvl w:ilvl="0"><w:start w:val="4"/><w:numFmt w:val="upperLetter"/><w:lvlText w:val="%1."/></w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="40">
+    <w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="-"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="7"><w:abstractNumId w:val="30"/></w:num>
+  <w:num w:numId="8"><w:abstractNumId w:val="40"/></w:num>
+</w:numbering>
+XML;
+        $wrongNumberingXml = '<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/review-numbering.xml" ContentType="' . $numberingContentType . '; profile=review-numbering"/>' . "\n" .
+            '  <Override PartName="/word/missing-numbering.xml" ContentType="' . $numberingContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/bad-numbering.xml" ContentType="application/xml"/>' . "\n",
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rNumberingReview" Type="' . $numberingRel . '" Target="review-numbering.xml?variant=list#numbering"/>' . "\n" .
+            '  <Relationship Id="rMissingNumbering" Type="' . $numberingRel . '" Target="missing-numbering.xml"/>' . "\n" .
+            '  <Relationship Id="rExternalNumbering" Type="' . $numberingRel . '" Target="https://example.test/numbering.xml?remote=1#external" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rWrongNumbering" Type="' . $numberingRel . '" Target="bad-numbering.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/review-numbering.xml'] = $reviewNumberingXml;
+        $parts['word/bad-numbering.xml'] = $wrongNumberingXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $review = $package['numberingRelationship'];
+        $selected = $review['byRelationshipId']['rNumberingReview'];
+        $missing = $review['byRelationshipId']['rMissingNumbering'];
+        $external = $review['byRelationshipId']['rExternalNumbering'];
+        $wrong = $review['byRelationshipId']['rWrongNumbering'];
+        $ordered = $document->children[2];
+        $bullet = $document->children[3];
+
+        $t->same($review, $docx['numberingRelationshipReview']);
+        $t->same('word/review-numbering.xml', $docx['numberingPart']);
+        $t->same('rNumberingReview', $docx['numberingRelationship']['id']);
+        $t->same('word/review-numbering.xml?variant=list#numbering', $docx['numberingRelationship']['resolvedTarget']);
+        $t->same('word/review-numbering.xml', $review['partName']);
+        $t->same(true, $review['relationshipPresent']);
+        $t->same(false, $review['fallbackUsed']);
+        $t->same('rNumberingReview', $review['selectedRelationshipId']);
+        $t->same('word/_rels/document.xml.rels#rNumberingReview', $review['selectedRelationshipKey']);
+        $t->same(4, $review['relationshipCount']);
+        $t->same(3, $review['internalRelationshipCount']);
+        $t->same(1, $review['externalRelationshipCount']);
+        $t->same(1, $review['selectedRelationshipCount']);
+        $t->same(2, $review['existingTargetCount']);
+        $t->same(1, $review['missingTargetCount']);
+        $t->same(0, $review['missingContentTypeCount']);
+        $t->same(1, $review['unexpectedContentTypeCount']);
+        $t->same(3, $review['issueCount']);
+        $t->same(['external-numbering-relationship', 'missing-numbering-part', 'unexpected-numbering-content-type'], $review['issueCodes']);
+        $t->same(['rNumberingReview', 'rMissingNumbering', 'rExternalNumbering', 'rWrongNumbering'], $review['relationshipIds']);
+        $t->same(['word/bad-numbering.xml', 'word/missing-numbering.xml', 'word/review-numbering.xml'], $review['targetParts']);
+        $t->same(['https://example.test/numbering.xml?remote=1#external'], $review['externalTargets']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml; profile=review-numbering',
+            'application/xml',
+        ], $review['contentTypes']);
+        $t->same($numberingContentType . '; profile=review-numbering', $review['contentType']);
+        $t->same($numberingContentType, $review['contentTypeBase']);
+        $t->same(['profile' => 'review-numbering'], $review['contentTypeParameterMap']);
+        $t->same(strlen($reviewNumberingXml), $review['bytes']);
+        $t->same(hash('sha256', $reviewNumberingXml), $review['sha256']);
+        $t->same('numbering-relationship-bytes-blocked', $review['byteExposurePolicy']);
+        $t->same('numbering-relationship-metadata-only', $review['reviewPolicy']);
+
+        $t->same($review['relationshipCount'], $summary['numberingRelationshipCount']);
+        $t->same($review['internalRelationshipCount'], $summary['numberingRelationshipInternalCount']);
+        $t->same($review['externalRelationshipCount'], $summary['numberingRelationshipExternalCount']);
+        $t->same($review['selectedRelationshipCount'], $summary['numberingRelationshipSelectedCount']);
+        $t->same($review['fallbackUsed'], $summary['numberingRelationshipFallbackUsed']);
+        $t->same($review['existingTargetCount'], $summary['numberingRelationshipExistingTargetCount']);
+        $t->same($review['missingTargetCount'], $summary['numberingRelationshipMissingTargetCount']);
+        $t->same($review['unexpectedContentTypeCount'], $summary['numberingRelationshipUnexpectedContentTypeCount']);
+        $t->same($review['issueCount'], $summary['numberingRelationshipIssueCount']);
+        $t->same($review['issueCodes'], $summary['numberingRelationshipIssueCodes']);
+
+        $t->same('word/_rels/document.xml.rels#rNumberingReview', $selected['relationshipKey']);
+        $t->same(0, $selected['index']);
+        $t->same(true, $selected['selected']);
+        $t->same(true, $selected['valid']);
+        $t->same([], $selected['issues']);
+        $t->same($numberingRel, $selected['type']);
+        $t->same('review-numbering.xml?variant=list#numbering', $selected['target']);
+        $t->same('word/review-numbering.xml?variant=list#numbering', $selected['resolvedTarget']);
+        $t->same('word/review-numbering.xml', $selected['targetPart']);
+        $t->same('variant=list', $selected['targetQuery']);
+        $t->same('numbering', $selected['targetFragment']);
+        $t->same('?variant=list#numbering', $selected['targetReferenceSuffix']);
+        $t->same(true, $selected['exists']);
+        $t->same(strlen($reviewNumberingXml), $selected['byteLength']);
+        $t->same(hash('sha256', $reviewNumberingXml), $selected['sha256']);
+        $t->same($numberingContentType, $selected['contentTypeBase']);
+        $t->same(['profile' => 'review-numbering'], $selected['contentTypeParameterMap']);
+
+        $t->same(false, $missing['selected']);
+        $t->same(false, $missing['exists']);
+        $t->same($numberingContentType, $missing['contentTypeBase']);
+        $t->same(['missing-numbering-part'], $missing['issues']);
+        $t->same(false, $external['selected']);
+        $t->same(true, $external['external']);
+        $t->same(null, $external['targetPart']);
+        $t->same('remote=1', $external['targetQuery']);
+        $t->same('external', $external['targetFragment']);
+        $t->same(['external-numbering-relationship'], $external['issues']);
+        $t->same(false, $wrong['selected']);
+        $t->same(true, $wrong['exists']);
+        $t->same('application/xml', $wrong['contentTypeBase']);
+        $t->same(strlen($wrongNumberingXml), $wrong['byteLength']);
+        $t->same(['unexpected-numbering-content-type'], $wrong['issues']);
+        $t->same('ordered_list', $ordered->type);
+        $t->same(4, $ordered->attr('start'));
+        $t->same('upper_alpha', $ordered->attr('style'));
+        $t->same('bullet_list', $bullet->type);
+        $t->same('-', $bullet->attr('bulletChar'));
+    },
     'summarizes docx numbering picture bullet relationships for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
