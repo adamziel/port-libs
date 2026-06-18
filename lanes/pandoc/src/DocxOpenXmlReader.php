@@ -21055,6 +21055,7 @@ final class DocxOpenXmlReader
             'rootLocalName' => $recordDiagnostics['rootLocalName'],
             'xmlParseError' => $recordDiagnostics['xmlParseError'],
             'relationshipCount' => count($relationshipSummaries),
+        ] + $this->relationshipPartTargetSummary($relationshipSummaries) + [
             'relationshipRecordCount' => count($relationshipRecords),
             'relationshipPartIssueCount' => count($relationshipPartIssueCodes),
             'relationshipPartIssueCodes' => $relationshipPartIssueCodes,
@@ -21068,6 +21069,67 @@ final class DocxOpenXmlReader
             'invalidRelationshipRecords' => $invalidRecords,
             'relationships' => $relationshipSummaries,
             'relationshipRecords' => $relationshipRecords,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $relationshipSummaries
+     * @return array<string, mixed>
+     */
+    private function relationshipPartTargetSummary(array $relationshipSummaries): array
+    {
+        $internalRelationshipCount = 0;
+        $externalRelationshipCount = 0;
+        $existingTargetCount = 0;
+        $missingTargetCount = 0;
+        $missingContentTypeTargetCount = 0;
+        $targetParts = [];
+        $existingTargetParts = [];
+        $missingTargetParts = [];
+        $externalTargets = [];
+        $contentTypes = [];
+        $contentTypeBases = [];
+
+        foreach ($relationshipSummaries as $relationship) {
+            if (($relationship['external'] ?? false) === true) {
+                ++$externalRelationshipCount;
+                $this->appendUniqueString($externalTargets, is_string($relationship['target'] ?? null) ? $relationship['target'] : null);
+
+                continue;
+            }
+
+            ++$internalRelationshipCount;
+            $targetPart = is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : null;
+            $this->appendUniqueString($targetParts, $targetPart);
+            $this->appendUniqueString($contentTypes, is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : null);
+            $this->appendUniqueString($contentTypeBases, is_string($relationship['contentTypeBase'] ?? null) ? $relationship['contentTypeBase'] : null);
+
+            if (($relationship['exists'] ?? false) === true) {
+                ++$existingTargetCount;
+                $this->appendUniqueString($existingTargetParts, $targetPart);
+            } else {
+                ++$missingTargetCount;
+                $this->appendUniqueString($missingTargetParts, $targetPart);
+            }
+
+            if (($relationship['contentTypeSource'] ?? '') === 'missing') {
+                ++$missingContentTypeTargetCount;
+            }
+        }
+
+        return [
+            'internalRelationshipCount' => $internalRelationshipCount,
+            'externalRelationshipCount' => $externalRelationshipCount,
+            'existingTargetCount' => $existingTargetCount,
+            'missingTargetCount' => $missingTargetCount,
+            'missingContentTypeTargetCount' => $missingContentTypeTargetCount,
+            'targetPartCount' => count($targetParts),
+            'targetParts' => $targetParts,
+            'existingTargetParts' => $existingTargetParts,
+            'missingTargetParts' => $missingTargetParts,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypes,
+            'contentTypeBases' => $contentTypeBases,
         ];
     }
 
