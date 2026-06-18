@@ -6668,6 +6668,7 @@ XML,
         $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
         $glossaryRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
         $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $officeDocumentRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
         $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
 
         $parts['[Content_Types].xml'] = str_replace(
@@ -6734,12 +6735,14 @@ XML;
         $t->same(2, $directories['word/media']['existingTargetCount']);
         $t->same(1, $directories['word/media']['missingTargetCount']);
         $t->same(['default' => 3], $directories['word/media']['contentTypeSourceCounts']);
+        $t->same([$imageRel => 3], $directories['word/media']['relationshipTypeCounts']);
         $t->same(['word/_rels/document.xml.rels', 'word/header/_rels/header1.xml.rels'], $directories['word/media']['relationshipParts']);
         $t->same(['rImage', 'rMissingDirectoryImage', 'rHeaderDirectoryImage'], $directories['word/media']['relationshipIds']);
         $t->same(['word/media/review.png', 'word/media/missing-directory.png', 'word/media/header-directory.png'], $directories['word/media']['targetParts']);
 
         $t->same(2, $directories['customXml']['relationshipCount']);
         $t->same(['default' => 2], $directories['customXml']['contentTypeSourceCounts']);
+        $t->same([$customXmlRel => 2], $directories['customXml']['relationshipTypeCounts']);
         $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $directories['customXml']['relationshipParts']);
         $t->same(['rRootCustomDirectory', 'rCustomDirectory'], $directories['customXml']['relationshipIds']);
         $t->same(['customXml/root-target.xml', 'customXml/item-directory.xml'], $directories['customXml']['targetParts']);
@@ -6747,6 +6750,7 @@ XML;
         $t->same(2, $directories['word']['relationshipCount']);
         $t->same(1, $directories['word']['parameterizedTargetCount']);
         $t->same(['override' => 2], $directories['word']['contentTypeSourceCounts']);
+        $t->same([$commentsRel => 1, $officeDocumentRel => 1], $directories['word']['relationshipTypeCounts']);
         $t->same(['rDoc', 'rCommentsDirectory'], $directories['word']['relationshipIds']);
         $t->same(['word/document.xml', 'word/comments.xml'], $directories['word']['targetParts']);
 
