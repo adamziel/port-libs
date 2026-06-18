@@ -7512,6 +7512,111 @@ XML;
         $t->same(['word/raw/no-type.bin'], $missing['targetParts']);
         $t->same(['rMissingTargetType'], $missing['relationshipIds']);
     },
+    'summarizes docx relationship target content type source buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $officeDocumentRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $coreRel = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+        $commentsType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
+        $customXml = str_repeat('T', 23000);
+        $rawPayload = 'target source bucket missing content type bytes';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/comments-source-bucket.xml" ContentType="' . $commentsType . '; profile=target-source"/>' . "\n" .
+            '  <Override PartName="/word/missing-declared-source-bucket.xml" ContentType="application/xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsTargetSourceBucket" Type="' . $commentsRel . '" Target="comments-source-bucket.xml"/>' . "\n" .
+            '  <Relationship Id="rCustomTargetSourceBucket" Type="' . $customXmlRel . '" Target="../customXml/source-bucket-target.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingDeclaredTargetSourceBucket" Type="' . $customXmlRel . '" Target="missing-declared-source-bucket.xml"/>' . "\n" .
+            '  <Relationship Id="rUntypedTargetSourceBucket" Type="' . $packageRel . '" Target="raw/no-type-source-bucket.bin"/>' . "\n" .
+            '  <Relationship Id="rExternalTargetSourceBucket" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/target-source-bucket" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/comments-source-bucket.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['customXml/source-bucket-target.xml'] = $customXml;
+        $parts['word/raw/no-type-source-bucket.bin'] = $rawPayload;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $sources = [];
+        foreach ($summary['relationshipTargetContentTypeSources'] as $source) {
+            $sources[$source['targetContentTypeSourceKey']] = $source;
+        }
+
+        $t->same(['default' => 2, 'missing' => 1, 'override' => 4], $summary['relationshipTargetContentTypeSourceCounts']);
+        $t->same(3, $summary['relationshipTargetContentTypeSourceBucketCount']);
+        $t->same(['default' => 2, 'missing' => 1, 'override' => 4], $summary['relationshipTargetContentTypeSourceBucketCounts']);
+        $t->same(['default', 'missing', 'override'], array_column($summary['relationshipTargetContentTypeSources'], 'targetContentTypeSourceKey'));
+
+        $default = $sources['default'];
+        $t->same(2, $default['relationshipCount']);
+        $t->same(2, $default['existingTargetCount']);
+        $t->same(0, $default['missingTargetCount']);
+        $t->same(0, $default['missingContentTypeTargetCount']);
+        $t->same(['customXml' => 1, 'word/media' => 1], $default['targetDirectoryCounts']);
+        $t->same(['application/xml' => 1, 'image/png' => 1], $default['contentTypeBaseCounts']);
+        $t->same([$customXmlRel => 1, $imageRel => 1], $default['relationshipTypeCounts']);
+        $t->same(['word/document.xml'], $default['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels'], $default['relationshipParts']);
+        $t->same(['rCustomTargetSourceBucket', 'rImage'], $default['relationshipIds']);
+        $t->same(['customXml/source-bucket-target.xml', 'word/media/review.png'], $default['targetParts']);
+        $t->same(['application/xml', 'image/png'], $default['contentTypes']);
+        $t->same('customXml/source-bucket-target.xml', $default['largestExistingTargetPart']['partName']);
+        $t->same(23000, $default['largestExistingTargetPart']['bytes']);
+        $t->same(hash('sha256', $customXml), $default['largestExistingTargetPart']['sha256']);
+        $t->same('default', $default['largestExistingTargetPart']['contentTypeSource']);
+
+        $override = $sources['override'];
+        $t->same(4, $override['relationshipCount']);
+        $t->same(3, $override['existingTargetCount']);
+        $t->same(1, $override['missingTargetCount']);
+        $t->same(0, $override['missingContentTypeTargetCount']);
+        $t->same(1, $override['parameterizedTargetCount']);
+        $t->same(['docProps' => 1, 'word' => 3], $override['targetDirectoryCounts']);
+        $t->same([
+            $commentsType => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+            'application/xml' => 1,
+        ], $override['contentTypeBaseCounts']);
+        $t->same([
+            $commentsRel => 1,
+            $customXmlRel => 1,
+            $officeDocumentRel => 1,
+            $coreRel => 1,
+        ], $override['relationshipTypeCounts']);
+        $t->same(['/', 'word/document.xml'], $override['sourceParts']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $override['relationshipParts']);
+        $t->same(['rCommentsTargetSourceBucket', 'rCore', 'rDoc', 'rMissingDeclaredTargetSourceBucket'], $override['relationshipIds']);
+        $t->same(['docProps/core.xml', 'word/comments-source-bucket.xml', 'word/document.xml', 'word/missing-declared-source-bucket.xml'], $override['targetParts']);
+        $t->same('word/document.xml', $override['largestExistingTargetPart']['partName']);
+        $t->same('override', $override['largestExistingTargetPart']['contentTypeSource']);
+
+        $missing = $sources['missing'];
+        $t->same('missing', $missing['targetContentTypeSource']);
+        $t->same(1, $missing['relationshipCount']);
+        $t->same(1, $missing['existingTargetCount']);
+        $t->same(0, $missing['missingTargetCount']);
+        $t->same(1, $missing['missingContentTypeTargetCount']);
+        $t->same(['word/raw' => 1], $missing['targetDirectoryCounts']);
+        $t->same(['(missing)' => 1], $missing['contentTypeBaseCounts']);
+        $t->same([$packageRel => 1], $missing['relationshipTypeCounts']);
+        $t->same(['rUntypedTargetSourceBucket'], $missing['relationshipIds']);
+        $t->same(['word/raw/no-type-source-bucket.bin'], $missing['targetParts']);
+        $t->same([], $missing['contentTypes']);
+        $t->same('word/raw/no-type-source-bucket.bin', $missing['largestExistingTargetPart']['partName']);
+        $t->same(strlen($rawPayload), $missing['largestExistingTargetPart']['bytes']);
+        $t->same('', $missing['largestExistingTargetPart']['contentTypeBase']);
+        $t->same(2, $summary['externalRelationshipCount']);
+    },
     'summarizes docx relationship target content type media type buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
