@@ -11274,6 +11274,8 @@ final class DocxOpenXmlReader
                             'parameterizedTargetCount' => 0,
                             'contentTypeSourceCounts' => [],
                             'contentTypeBaseCounts' => [],
+                            'targetDirectoryCounts' => [],
+                            'relationshipTypeCounts' => [],
                             'roleCounts' => [],
                             'targetDirectories' => [],
                             'sourceParts' => [],
@@ -11293,6 +11295,10 @@ final class DocxOpenXmlReader
                         ($relationshipTargetBaseNames[$targetBaseName]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
                     $relationshipTargetBaseNames[$targetBaseName]['contentTypeBaseCounts'][$targetContentTypeKey] =
                         ($relationshipTargetBaseNames[$targetBaseName]['contentTypeBaseCounts'][$targetContentTypeKey] ?? 0) + 1;
+                    $relationshipTargetBaseNames[$targetBaseName]['targetDirectoryCounts'][$targetDirectory] =
+                        ($relationshipTargetBaseNames[$targetBaseName]['targetDirectoryCounts'][$targetDirectory] ?? 0) + 1;
+                    $relationshipTargetBaseNames[$targetBaseName]['relationshipTypeCounts'][$typeKey] =
+                        ($relationshipTargetBaseNames[$targetBaseName]['relationshipTypeCounts'][$typeKey] ?? 0) + 1;
                     $this->appendUniqueString($relationshipTargetBaseNames[$targetBaseName]['targetDirectories'], $targetDirectory);
                     $this->appendUniqueString(
                         $relationshipTargetBaseNames[$targetBaseName]['sourceParts'],
@@ -11532,6 +11538,8 @@ final class DocxOpenXmlReader
         foreach ($relationshipTargetBaseNames as &$targetBaseNameSummary) {
             ksort($targetBaseNameSummary['contentTypeSourceCounts']);
             ksort($targetBaseNameSummary['contentTypeBaseCounts']);
+            ksort($targetBaseNameSummary['targetDirectoryCounts']);
+            ksort($targetBaseNameSummary['relationshipTypeCounts']);
             ksort($targetBaseNameSummary['roleCounts']);
             sort($targetBaseNameSummary['targetDirectories'], SORT_STRING);
         }

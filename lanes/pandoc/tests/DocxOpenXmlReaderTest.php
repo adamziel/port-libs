@@ -6543,6 +6543,53 @@ XML;
         $t->same(['word/raw/missing.bin'], $missing['targetParts']);
         $t->same(2, $summary['externalRelationshipCount']);
     },
+    'summarizes docx relationship target base name directory and type buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootSharedBase" Type="' . $customXmlRel . '" Target="/customXml/shared-name.xml?root=base#xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSharedCustomBase" Type="' . $customXmlRel . '" Target="../customXml/shared-name.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingSharedBase" Type="' . $customXmlRel . '" Target="../alt/shared-name.xml?missing=1#xml"/>' . "\n" .
+            '  <Relationship Id="rExternalBase" Type="' . $hyperlinkRel . '" Target="https://example.test/shared-name.xml" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/shared-name.xml'] = '<shared/>';
+        $parts['word/header/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/header/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderSharedBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/shared-name.xml"/>
+</Relationships>
+XML;
+        $parts['word/media/shared-name.xml'] = '<shared-media/>';
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $baseNames = [];
+        foreach ($summary['relationshipTargetBaseNames'] as $baseName) {
+            $baseNames[$baseName['baseName']] = $baseName;
+        }
+
+        $shared = $baseNames['shared-name.xml'];
+        $t->same(4, $shared['relationshipCount']);
+        $t->same(3, $shared['existingTargetCount']);
+        $t->same(1, $shared['missingTargetCount']);
+        $t->same(['alt' => 1, 'customXml' => 2, 'word/media' => 1], $shared['targetDirectoryCounts']);
+        $t->same([$customXmlRel => 3, $imageRel => 1], $shared['relationshipTypeCounts']);
+        $t->same(['/', 'word/document.xml', 'word/header/header1.xml'], $shared['sourceParts']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels', 'word/header/_rels/header1.xml.rels'], $shared['relationshipParts']);
+        $t->same(['customXml/shared-name.xml', 'alt/shared-name.xml', 'word/media/shared-name.xml'], $shared['targetParts']);
+        $t->same(2, $summary['externalRelationshipCount']);
+    },
     'summarizes docx relationship target path depth buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
