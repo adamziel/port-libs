@@ -9051,6 +9051,14 @@ XML;
         $t->same(['word/_rels/header1.xml.rels'], $header['relationshipParts']);
         $t->same(['rHeaderRoleImage'], $header['relationshipIds']);
         $t->same(['word/media/header-role.png'], $header['targetParts']);
+        $t->same(strlen($parts['word/media/header-role.png']), $header['existingTargetPartByteLength']);
+        $t->same('word/media/header-role.png', $header['largestExistingTargetPart']['partName']);
+        $t->same('word/media', $header['largestExistingTargetPart']['directory']);
+        $t->same('word', $header['largestExistingTargetPart']['topLevelSegment']);
+        $t->same('png', $header['largestExistingTargetPart']['partExtension']);
+        $t->same('image/png', $header['largestExistingTargetPart']['contentTypeBase']);
+        $t->same('default', $header['largestExistingTargetPart']['contentTypeSource']);
+        $t->same(hash('sha256', $parts['word/media/header-role.png']), $header['largestExistingTargetPart']['sha256']);
 
         $numbering = $targetRoles['numbering-picture-bullet'];
         $t->same(1, $summary['relationshipTargetRoleCounts']['numbering-picture-bullet']);
@@ -9060,6 +9068,9 @@ XML;
         $t->same(['word/numbering.xml'], $numbering['sourceParts']);
         $t->same(['rNumberingBulletRole'], $numbering['relationshipIds']);
         $t->same(['word/media/bullet-role.png'], $numbering['targetParts']);
+        $t->same(strlen($parts['word/media/bullet-role.png']), $numbering['existingTargetPartByteLength']);
+        $t->same('word/media/bullet-role.png', $numbering['largestExistingTargetPart']['partName']);
+        $t->same('bullet-role.png', $numbering['largestExistingTargetPart']['baseName']);
 
         $comment = $targetRoles['comment-media'];
         $noteComment = $targetRoles['note-comment-media'];
@@ -9074,6 +9085,11 @@ XML;
         $t->same(['word/comments.xml'], $comment['sourceParts']);
         $t->same(['rCommentRoleImage'], $comment['relationshipIds']);
         $t->same(['word/media/comment-role.png'], $comment['targetParts']);
+        $t->same(strlen($parts['word/media/comment-role.png']), $comment['existingTargetPartByteLength']);
+        $t->same('word/media/comment-role.png', $comment['largestExistingTargetPart']['partName']);
+        $t->true(in_array('comment-media', $comment['largestExistingTargetPart']['roles'], true), 'comment-media role missing from largest target');
+        $t->same(strlen($parts['word/media/comment-role.png']), $noteComment['existingTargetPartByteLength']);
+        $t->same('word/media/comment-role.png', $noteComment['largestExistingTargetPart']['partName']);
 
         $missing = $targetRoles['missing-relationship-target'];
         $t->same(1, $summary['relationshipTargetRoleCounts']['missing-relationship-target']);
@@ -9087,6 +9103,8 @@ XML;
         $t->same([$imageRel => 1], $missing['relationshipTypeCounts']);
         $t->same(['rMissingRoleImage'], $missing['relationshipIds']);
         $t->same(['word/media/missing-role.png'], $missing['targetParts']);
+        $t->same(0, $missing['existingTargetPartByteLength']);
+        $t->same(null, $missing['largestExistingTargetPart']);
         $t->true(!in_array('rExternalRoleLink', $roleRelationshipIds, true), 'external relationship should not enter target role buckets');
     },
     'summarizes docx relationship target path shape for package review' => static function (TestRunner $t): void {
