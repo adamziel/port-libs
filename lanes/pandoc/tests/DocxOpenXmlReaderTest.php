@@ -6947,6 +6947,110 @@ XML;
         $t->same(1, $summary['externalRelationshipCount']);
         $t->true(!in_array('rLink', array_merge(...array_column($summary['relationshipTargetPathDepths'], 'relationshipIds')), true), 'external targets should not enter path depth buckets');
     },
+    'summarizes docx relationship target extension buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $officeDocumentRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+        $coreRel = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=target-extension"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootExtension" Type="' . $customXmlRel . '" Target="/root-extension.xml?root=1#extension"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsExtension" Type="' . $commentsRel . '" Target="comments.xml?review=extension#comments"/>' . "\n" .
+            '  <Relationship Id="rMissingExtensionImage" Type="' . $imageRel . '" Target="media/missing-extension.png"/>' . "\n" .
+            '  <Relationship Id="rDeepExtensionBin" Type="' . $customXmlRel . '" Target="media/deep/target-extension.bin"/>' . "\n" .
+            '  <Relationship Id="rNoTypeExtension" Type="' . $customXmlRel . '" Target="raw/no-extension-target"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['root-extension.xml'] = '<rootExtension/>';
+        $parts['word/comments.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/media/deep/target-extension.bin'] = 'deep target binary bytes for extension buckets';
+        $parts['word/raw/no-extension-target'] = 'missing content type extension target bytes';
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $extensions = [];
+        foreach ($summary['relationshipTargetPartExtensions'] as $extension) {
+            $extensions[$extension['targetPartExtensionKey']] = $extension;
+        }
+
+        $t->same(4, $summary['relationshipTargetPartExtensionCount']);
+        $t->same(['(none)' => 1, 'bin' => 1, 'png' => 2, 'xml' => 4], $summary['relationshipTargetPartExtensionCounts']);
+        $t->same(['(none)', 'bin', 'png', 'xml'], array_column($summary['relationshipTargetPartExtensions'], 'targetPartExtensionKey'));
+
+        $xml = $extensions['xml'];
+        $t->same('xml', $xml['targetPartExtension']);
+        $t->same(4, $xml['relationshipCount']);
+        $t->same(4, $xml['existingTargetCount']);
+        $t->same(0, $xml['missingTargetCount']);
+        $t->same(1, $xml['parameterizedTargetCount']);
+        $t->same(['/' => 1, 'docProps' => 1, 'word' => 2], $xml['targetDirectoryCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+            'application/xml' => 1,
+        ], $xml['contentTypeBaseCounts']);
+        $t->same(['default' => 1, 'override' => 3], $xml['contentTypeSourceCounts']);
+        $t->same([
+            $commentsRel => 1,
+            $customXmlRel => 1,
+            $officeDocumentRel => 1,
+            $coreRel => 1,
+        ], $xml['relationshipTypeCounts']);
+        $t->same(['/', 'word/document.xml'], $xml['sourceParts']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $xml['relationshipParts']);
+        $t->same(['rCommentsExtension', 'rCore', 'rDoc', 'rRootExtension'], $xml['relationshipIds']);
+        $t->same(['docProps/core.xml', 'root-extension.xml', 'word/comments.xml', 'word/document.xml'], $xml['targetParts']);
+        $t->same('word/document.xml', $xml['largestExistingTargetPart']['partName']);
+        $t->same('xml', $xml['largestExistingTargetPart']['partExtension']);
+        $t->same('override', $xml['largestExistingTargetPart']['contentTypeSource']);
+
+        $png = $extensions['png'];
+        $t->same(2, $png['relationshipCount']);
+        $t->same(1, $png['existingTargetCount']);
+        $t->same(1, $png['missingTargetCount']);
+        $t->same(['image/png' => 2], $png['contentTypeBaseCounts']);
+        $t->same(['default' => 2], $png['contentTypeSourceCounts']);
+        $t->same([$imageRel => 2], $png['relationshipTypeCounts']);
+        $t->same(['rImage', 'rMissingExtensionImage'], $png['relationshipIds']);
+        $t->same(['word/media/missing-extension.png', 'word/media/review.png'], $png['targetParts']);
+        $t->same(strlen($parts['word/media/review.png']), $png['existingTargetPartByteLength']);
+        $t->same('word/media/review.png', $png['largestExistingTargetPart']['partName']);
+        $t->same(hash('sha256', $parts['word/media/review.png']), $png['largestExistingTargetPart']['sha256']);
+
+        $bin = $extensions['bin'];
+        $t->same(1, $bin['relationshipCount']);
+        $t->same(['application/octet-stream' => 1], $bin['contentTypeBaseCounts']);
+        $t->same(['word/media/deep' => 1], $bin['targetDirectoryCounts']);
+        $t->same('word/media/deep/target-extension.bin', $bin['largestExistingTargetPart']['partName']);
+        $t->same(strlen($parts['word/media/deep/target-extension.bin']), $bin['existingTargetPartByteLength']);
+
+        $none = $extensions['(none)'];
+        $t->same(null, $none['targetPartExtension']);
+        $t->same(1, $none['relationshipCount']);
+        $t->same(1, $none['missingContentTypeTargetCount']);
+        $t->same(['(missing)' => 1], $none['contentTypeBaseCounts']);
+        $t->same(['missing' => 1], $none['contentTypeSourceCounts']);
+        $t->same(['rNoTypeExtension'], $none['relationshipIds']);
+        $t->same('word/raw/no-extension-target', $none['largestExistingTargetPart']['partName']);
+
+        $targetExtensionRelationshipIds = array_merge(...array_column($summary['relationshipTargetPartExtensions'], 'relationshipIds'));
+        $t->true(!in_array('rLink', $targetExtensionRelationshipIds, true), 'external targets should not enter extension buckets');
+    },
     'summarizes docx relationship type package matrix rollups for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';

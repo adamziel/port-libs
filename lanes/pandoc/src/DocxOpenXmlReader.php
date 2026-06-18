@@ -15874,6 +15874,15 @@ final class DocxOpenXmlReader
                     ? $targetInventory['partExtension']
                     : $this->packagePartExtension($targetPart);
                 $extensionKey = $extension ?? '(none)';
+                $targetDirectory = $targetInventory !== null && is_string($targetInventory['directory'] ?? null)
+                    ? $targetInventory['directory']
+                    : $this->packagePartDirectory($targetPart);
+                $targetPathDepth = $targetInventory !== null && is_int($targetInventory['pathSegmentCount'] ?? null)
+                    ? (int) $targetInventory['pathSegmentCount']
+                    : count($this->packagePartPathSegments($targetPart));
+                $contentType = is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : '';
+                $relationshipType = is_string($relationship['type'] ?? null) ? $relationship['type'] : '';
+                $relationshipTypeKey = $relationshipType === '' ? '(missing-type)' : $relationshipType;
                 if (!isset($extensions[$extensionKey])) {
                     $extensions[$extensionKey] = [
                         'targetPartExtensionKey' => $extensionKey,
@@ -15881,10 +15890,14 @@ final class DocxOpenXmlReader
                         'relationshipCount' => 0,
                         'existingTargetCount' => 0,
                         'missingTargetCount' => 0,
+                        'missingContentTypeTargetCount' => 0,
                         'parameterizedTargetCount' => 0,
                         'existingTargetByteLength' => 0,
+                        'existingTargetPartByteLength' => 0,
+                        'targetDirectoryCounts' => [],
                         'contentTypeBaseCounts' => [],
                         'contentTypeSourceCounts' => [],
+                        'relationshipTypeCounts' => [],
                         'relationshipSourceKindCounts' => [],
                         'targetRoleCounts' => [],
                         'sourceParts' => [],
@@ -15892,6 +15905,7 @@ final class DocxOpenXmlReader
                         'relationshipIds' => [],
                         'relationshipTypes' => [],
                         'targetParts' => [],
+                        'contentTypes' => [],
                         'existingTargetParts' => [],
                         'missingTargetParts' => [],
                         'largestExistingTargetPart' => null,
@@ -15924,6 +15938,14 @@ final class DocxOpenXmlReader
                 $contentTypeSourceKey = $contentTypeSource === '' ? 'missing' : $contentTypeSource;
                 $extensions[$extensionKey]['contentTypeSourceCounts'][$contentTypeSourceKey] =
                     ($extensions[$extensionKey]['contentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+                if ($contentTypeSourceKey === 'missing') {
+                    ++$extensions[$extensionKey]['missingContentTypeTargetCount'];
+                }
+
+                $extensions[$extensionKey]['targetDirectoryCounts'][$targetDirectory] =
+                    ($extensions[$extensionKey]['targetDirectoryCounts'][$targetDirectory] ?? 0) + 1;
+                $extensions[$extensionKey]['relationshipTypeCounts'][$relationshipTypeKey] =
+                    ($extensions[$extensionKey]['relationshipTypeCounts'][$relationshipTypeKey] ?? 0) + 1;
 
                 $sourceKind = is_string($relationship['relationshipSourceKind'] ?? null)
                     ? $relationship['relationshipSourceKind']
@@ -15961,9 +15983,10 @@ final class DocxOpenXmlReader
                 );
                 $this->appendUniqueString(
                     $extensions[$extensionKey]['relationshipTypes'],
-                    is_string($relationship['type'] ?? null) ? $relationship['type'] : null,
+                    $relationshipType,
                 );
                 $this->appendUniqueString($extensions[$extensionKey]['targetParts'], $targetPart);
+                $this->appendUniqueString($extensions[$extensionKey]['contentTypes'], $contentType);
 
                 if ($targetInventory === null) {
                     continue;
@@ -15973,10 +15996,11 @@ final class DocxOpenXmlReader
                     'partName' => $targetPart,
                     'directory' => is_string($targetInventory['directory'] ?? null)
                         ? $targetInventory['directory']
-                        : $this->packagePartDirectory($targetPart),
+                        : $targetDirectory,
                     'topLevelSegment' => is_string($targetInventory['topLevelSegment'] ?? null)
                         ? $targetInventory['topLevelSegment']
                         : $this->packagePartTopLevelSegment($targetPart),
+                    'targetPathDepth' => $targetPathDepth,
                     'partExtension' => $extension,
                     'bytes' => (int) ($targetInventory['bytes'] ?? 0),
                     'crc32' => is_string($targetInventory['crc32'] ?? null) ? $targetInventory['crc32'] : null,
@@ -15987,6 +16011,7 @@ final class DocxOpenXmlReader
                     'roles' => array_values(array_map('strval', $targetInventory['roles'] ?? [])),
                 ];
                 $extensions[$extensionKey]['existingTargetByteLength'] += $targetSummary['bytes'];
+                $extensions[$extensionKey]['existingTargetPartByteLength'] += $targetSummary['bytes'];
                 $largestPart = $extensions[$extensionKey]['largestExistingTargetPart'];
                 if (
                     !is_array($largestPart)
@@ -16003,8 +16028,10 @@ final class DocxOpenXmlReader
 
         ksort($extensions, SORT_STRING);
         foreach ($extensions as $extensionKey => $summary) {
+            ksort($summary['targetDirectoryCounts'], SORT_STRING);
             ksort($summary['contentTypeBaseCounts'], SORT_STRING);
             ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['relationshipTypeCounts'], SORT_STRING);
             ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
             ksort($summary['targetRoleCounts'], SORT_STRING);
             sort($summary['sourceParts'], SORT_STRING);
@@ -16012,6 +16039,7 @@ final class DocxOpenXmlReader
             sort($summary['relationshipIds'], SORT_STRING);
             sort($summary['relationshipTypes'], SORT_STRING);
             sort($summary['targetParts'], SORT_STRING);
+            sort($summary['contentTypes'], SORT_STRING);
             sort($summary['existingTargetParts'], SORT_STRING);
             sort($summary['missingTargetParts'], SORT_STRING);
             $extensions[$extensionKey] = $summary;
