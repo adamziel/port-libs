@@ -8844,6 +8844,7 @@ XML;
         $t->same(1, $profile['missingTargetCount']);
         $t->same(['target-default' => 2, 'target-override' => 2], $profile['valueCounts']);
         $t->same(['default' => 2, 'override' => 2], $profile['contentTypeSourceCounts']);
+        $t->same(['customXml' => 1, 'word' => 1, 'word/missing' => 1, 'word/review' => 1], $profile['targetDirectoryCounts']);
         $t->same([$commentsType, 'application/xml'], $profile['contentTypeBases']);
         $t->same([$commentsParamType, $defaultXmlType, $reviewXmlType], $profile['contentTypes']);
         $t->same(['word/document.xml'], $profile['sourceParts']);
@@ -8858,11 +8859,13 @@ XML;
         $t->same(1, $charset['missingTargetCount']);
         $t->same(['UTF-8' => 3], $charset['valueCounts']);
         $t->same(['default' => 2, 'override' => 1], $charset['contentTypeSourceCounts']);
+        $t->same(['customXml' => 1, 'word' => 1, 'word/missing' => 1], $charset['targetDirectoryCounts']);
         $t->same(['rCommentsTargetParam', 'rCustomDefaultTargetParam', 'rMissingDefaultTargetParam'], $charset['relationshipIds']);
 
         $flavor = $parameters['flavor'];
         $t->same(1, $flavor['targetCount']);
         $t->same(['review' => 1], $flavor['valueCounts']);
+        $t->same(['word/review' => 1], $flavor['targetDirectoryCounts']);
         $t->same(['rReviewTargetParam'], $flavor['relationshipIds']);
         $t->same(['word/review/target-param.xml'], $flavor['targetParts']);
 

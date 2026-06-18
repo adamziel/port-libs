@@ -11543,6 +11543,7 @@ final class DocxOpenXmlReader
                                 'missingTargetCount' => 0,
                                 'valueCounts' => [],
                                 'contentTypeSourceCounts' => [],
+                                'targetDirectoryCounts' => [],
                                 'contentTypeBases' => [],
                                 'contentTypes' => [],
                                 'sourceParts' => [],
@@ -11558,6 +11559,8 @@ final class DocxOpenXmlReader
                             ($relationshipTargetContentTypeParameters[$parameterName]['valueCounts'][$parameterValueKey] ?? 0) + 1;
                         $relationshipTargetContentTypeParameters[$parameterName]['contentTypeSourceCounts'][$targetContentTypeSource] =
                             ($relationshipTargetContentTypeParameters[$parameterName]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                        $relationshipTargetContentTypeParameters[$parameterName]['targetDirectoryCounts'][$targetDirectory] =
+                            ($relationshipTargetContentTypeParameters[$parameterName]['targetDirectoryCounts'][$targetDirectory] ?? 0) + 1;
                         $this->appendUniqueString(
                             $relationshipTargetContentTypeParameters[$parameterName]['contentTypeBases'],
                             $targetContentTypeBase,
@@ -12538,6 +12541,7 @@ final class DocxOpenXmlReader
         ksort($relationshipTargetContentTypeParameters);
         foreach ($relationshipTargetContentTypeParameters as &$targetContentTypeParameter) {
             ksort($targetContentTypeParameter['contentTypeSourceCounts'], SORT_STRING);
+            ksort($targetContentTypeParameter['targetDirectoryCounts'], SORT_STRING);
             ksort($targetContentTypeParameter['valueCounts'], SORT_STRING);
             sort($targetContentTypeParameter['contentTypeBases'], SORT_STRING);
             sort($targetContentTypeParameter['contentTypes'], SORT_STRING);
