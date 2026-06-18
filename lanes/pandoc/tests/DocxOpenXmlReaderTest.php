@@ -8007,6 +8007,112 @@ XML;
         $t->same(1, $missingProfile['missingTargetCount']);
         $t->same(null, $missingProfile['largestExistingTargetPart']);
     },
+    'summarizes docx relationship target content type parameter values for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $customXml = '<target-param-value/>';
+        $commentsXml = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            [
+                '<Default Extension="xml" ContentType="application/xml"/>',
+                '</Types>',
+            ],
+            [
+                '<Default Extension="xml" ContentType="application/xml; profile=target-default"/>',
+                '  <Override PartName="/word/comments-param-value.xml" ContentType="' . $commentsType . '; charset=UTF-16; profile=review"/>' . "\n" .
+                '  <Override PartName="/word/missing-param-value.xml" ContentType="application/xml; profile=declared-missing"/>' . "\n" .
+                '</Types>',
+            ],
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsTargetParamValue" Type="' . $commentsRel . '" Target="comments-param-value.xml"/>' . "\n" .
+            '  <Relationship Id="rCustomTargetParamValue" Type="' . $customXmlRel . '" Target="../customXml/target-param-value.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingTargetParamValue" Type="' . $customXmlRel . '" Target="missing-param-value.xml"/>' . "\n" .
+            '  <Relationship Id="rExternalTargetParamValue" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/target-param-value.xml" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/comments-param-value.xml'] = $commentsXml;
+        $parts['customXml/target-param-value.xml'] = $customXml;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $parameterValueBuckets = [];
+        foreach ($summary['relationshipTargetContentTypeParameterValues'] as $bucket) {
+            $parameterValueBuckets[$bucket['targetContentTypeParameterValueKey']] = $bucket;
+        }
+
+        $t->same(4, $summary['relationshipTargetContentTypeParameterValueBucketCount']);
+        $t->same([
+            'charset=UTF-16' => 1,
+            'profile=declared-missing' => 1,
+            'profile=review' => 1,
+            'profile=target-default' => 1,
+        ], $summary['relationshipTargetContentTypeParameterValueBucketCounts']);
+        $t->same([
+            'charset=UTF-16',
+            'profile=declared-missing',
+            'profile=review',
+            'profile=target-default',
+        ], array_keys($parameterValueBuckets));
+
+        $charset = $parameterValueBuckets['charset=UTF-16'];
+        $t->same(1, $charset['relationshipCount']);
+        $t->same(1, $charset['existingTargetCount']);
+        $t->same(0, $charset['missingTargetCount']);
+        $t->same([$commentsType => 1], $charset['targetContentTypeBaseCounts']);
+        $t->same(['override' => 1], $charset['targetContentTypeSourceCounts']);
+        $t->same([$commentsRel => 1], $charset['relationshipTypeCounts']);
+        $t->same(['word' => 1], $charset['targetDirectoryCounts']);
+        $t->same(['comments-param-value.xml' => 1], $charset['targetBaseNameCounts']);
+        $t->same(['comments' => 1, 'document-relationship-target' => 1], $charset['targetRoleCounts']);
+        $t->same(['word/comments-param-value.xml'], $charset['targetParts']);
+        $t->same(['rCommentsTargetParamValue'], $charset['relationshipIds']);
+        $t->same(strlen($commentsXml), $charset['existingTargetPartByteLength']);
+        $t->same('word/comments-param-value.xml', $charset['largestExistingTargetPart']['targetPart']);
+        $t->same(['charset' => 'UTF-16', 'profile' => 'review'], $charset['largestExistingTargetPart']['targetContentTypeParameterMap']);
+
+        $review = $parameterValueBuckets['profile=review'];
+        $t->same([$commentsType . '; charset=UTF-16; profile=review'], $review['targetContentTypes']);
+        $t->same(hash('sha256', $commentsXml), $review['largestExistingTargetPart']['targetSha256']);
+
+        $default = $parameterValueBuckets['profile=target-default'];
+        $t->same(1, $default['relationshipCount']);
+        $t->same(1, $default['existingTargetCount']);
+        $t->same(0, $default['missingTargetCount']);
+        $t->same(['application/xml' => 1], $default['targetContentTypeBaseCounts']);
+        $t->same(['default' => 1], $default['targetContentTypeSourceCounts']);
+        $t->same([$customXmlRel => 1], $default['relationshipTypeCounts']);
+        $t->same(['customXml' => 1], $default['targetDirectoryCounts']);
+        $t->same(['target-param-value.xml' => 1], $default['targetBaseNameCounts']);
+        $t->same(['xml' => 1], $default['targetPartExtensionCounts']);
+        $t->same(['2' => 1], $default['targetPathDepthCounts']);
+        $t->same(['custom-xml-part' => 1, 'document-relationship-target' => 1], $default['targetRoleCounts']);
+        $t->same(['word/document.xml'], $default['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels'], $default['relationshipParts']);
+        $t->same(['rCustomTargetParamValue'], $default['relationshipIds']);
+        $t->same(['customXml/target-param-value.xml'], $default['targetParts']);
+        $t->same(strlen($customXml), $default['existingTargetPartByteLength']);
+        $t->same('customXml/target-param-value.xml', $default['largestExistingTargetPart']['targetPart']);
+        $t->same(['profile' => 'target-default'], $default['largestExistingTargetPart']['targetContentTypeParameterMap']);
+
+        $declaredMissing = $parameterValueBuckets['profile=declared-missing'];
+        $t->same(1, $declaredMissing['relationshipCount']);
+        $t->same(0, $declaredMissing['existingTargetCount']);
+        $t->same(1, $declaredMissing['missingTargetCount']);
+        $t->same(0, $declaredMissing['missingContentTypeTargetCount']);
+        $t->same(['override' => 1], $declaredMissing['targetContentTypeSourceCounts']);
+        $t->same(['missing-relationship-target' => 1], $declaredMissing['targetRoleCounts']);
+        $t->same(['word/missing-param-value.xml'], $declaredMissing['targetParts']);
+        $t->same(['rMissingTargetParamValue'], $declaredMissing['relationshipIds']);
+        $t->same(0, $declaredMissing['existingTargetPartByteLength']);
+        $t->same(null, $declaredMissing['largestExistingTargetPart']);
+        $t->true(!in_array('rExternalTargetParamValue', array_merge(...array_column($summary['relationshipTargetContentTypeParameterValues'], 'relationshipIds')), true), 'external target should not enter parameter value buckets');
+    },
     'summarizes docx relationship target content type subtype buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
