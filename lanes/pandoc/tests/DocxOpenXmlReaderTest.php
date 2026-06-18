@@ -6755,6 +6755,114 @@ XML;
         $t->same(['word/glossary/document.xml'], $directories['word/glossary']['targetParts']);
         $t->same(2, $summary['externalRelationshipCount']);
     },
+    'summarizes docx relationship target directory base names for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $headerType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
+        $footerType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="ico" ContentType="image/x-icon"/>' . "\n" .
+            '  <Override PartName="/word/header/header1.xml" ContentType="' . $headerType . '"/>' . "\n" .
+            '  <Override PartName="/word/footer/footer1.xml" ContentType="' . $footerType . '"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rMainIconDirectoryBase" Type="' . $imageRel . '" Target="media/icons/main.ico"/>' . "\n" .
+            '  <Relationship Id="rMissingIconDirectoryBase" Type="' . $imageRel . '" Target="theme/icons/missing.ico"/>' . "\n" .
+            '  <Relationship Id="rExternalDirectoryBase" Type="' . $hyperlinkRel . '" Target="https://example.test/directory-base" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/header/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderMediaDirectoryBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header.png"/>
+</Relationships>
+XML;
+        $parts['word/footer/footer1.xml'] = '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/footer/_rels/footer1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFooterMediaDirectoryBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/footer.png"/>
+</Relationships>
+XML;
+        $parts['word/media/icons/main.ico'] = 'main icon bytes';
+        $parts['word/header/media/header.png'] = 'header media bytes';
+        $parts['word/footer/media/footer.png'] = str_repeat('F', 41);
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $directoryBaseNames = [];
+        foreach ($summary['relationshipTargetDirectoryBaseNames'] as $directoryBaseName) {
+            $directoryBaseNames[$directoryBaseName['directoryBaseName']] = $directoryBaseName;
+        }
+
+        $t->same(4, $summary['relationshipTargetDirectoryBaseNameCount']);
+        $t->same([
+            'docProps' => 1,
+            'icons' => 2,
+            'media' => 3,
+            'word' => 1,
+        ], $summary['relationshipTargetDirectoryBaseNameCounts']);
+        $t->same([
+            'docProps' => 1,
+            'icons' => 1,
+            'media' => 3,
+            'word' => 1,
+        ], $summary['relationshipTargetExistingDirectoryBaseNameCounts']);
+        $t->same(['icons' => 1], $summary['relationshipTargetMissingDirectoryBaseNameCounts']);
+        $t->same(2, $summary['duplicateRelationshipTargetDirectoryBaseNameCount']);
+        $t->same(['icons', 'media'], $summary['duplicateRelationshipTargetDirectoryBaseNames']);
+        $t->same(['docProps', 'icons', 'media', 'word'], array_column($summary['relationshipTargetDirectoryBaseNames'], 'directoryBaseName'));
+
+        $media = $directoryBaseNames['media'];
+        $t->same(3, $media['directoryCount']);
+        $t->same(3, $media['relationshipCount']);
+        $t->same(3, $media['existingTargetCount']);
+        $t->same(0, $media['missingTargetCount']);
+        $t->same(['default' => 3], $media['contentTypeSourceCounts']);
+        $t->same(['image/png' => 3], $media['contentTypeBaseCounts']);
+        $t->same([
+            'document-relationship-target' => 1,
+            'header-footer-media' => 2,
+            'relationship-target' => 2,
+        ], $media['roleCounts']);
+        $t->same(['word/footer/media', 'word/header/media', 'word/media'], $media['targetDirectories']);
+        $t->same(['word/document.xml', 'word/footer/footer1.xml', 'word/header/header1.xml'], $media['sourceParts']);
+        $t->same([
+            'word/_rels/document.xml.rels',
+            'word/footer/_rels/footer1.xml.rels',
+            'word/header/_rels/header1.xml.rels',
+        ], $media['relationshipParts']);
+        $t->same(['rFooterMediaDirectoryBase', 'rHeaderMediaDirectoryBase', 'rImage'], $media['relationshipIds']);
+        $t->same(['word/footer/media/footer.png', 'word/header/media/header.png', 'word/media/review.png'], $media['targetParts']);
+        $t->same('word/footer/media/footer.png', $media['largestExistingTargetPart']['partName']);
+        $t->same('media', $media['largestExistingTargetPart']['directoryBaseName']);
+        $t->same(hash('sha256', $parts['word/footer/media/footer.png']), $media['largestExistingTargetPart']['sha256']);
+
+        $icons = $directoryBaseNames['icons'];
+        $t->same(2, $icons['directoryCount']);
+        $t->same(2, $icons['relationshipCount']);
+        $t->same(1, $icons['existingTargetCount']);
+        $t->same(1, $icons['missingTargetCount']);
+        $t->same(['default' => 2], $icons['contentTypeSourceCounts']);
+        $t->same(['image/x-icon' => 2], $icons['contentTypeBaseCounts']);
+        $t->same([
+            'document-relationship-target' => 1,
+            'missing-relationship-target' => 1,
+        ], $icons['roleCounts']);
+        $t->same(['word/media/icons', 'word/theme/icons'], $icons['targetDirectories']);
+        $t->same(['rMainIconDirectoryBase', 'rMissingIconDirectoryBase'], $icons['relationshipIds']);
+        $t->same(['word/media/icons/main.ico', 'word/theme/icons/missing.ico'], $icons['targetParts']);
+        $t->same('word/media/icons/main.ico', $icons['largestExistingTargetPart']['partName']);
+        $t->same('icons', $icons['largestExistingTargetPart']['directoryBaseName']);
+        $t->same(2, $summary['externalRelationshipCount']);
+    },
     'summarizes docx relationship target top-level segments for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
