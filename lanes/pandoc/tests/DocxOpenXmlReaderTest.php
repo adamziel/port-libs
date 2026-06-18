@@ -1293,6 +1293,77 @@ return [
         $t->same(['image/png' => 1], $media['contentTypeBaseCounts']);
         $t->same('word/media/review.png', $media['largestPart']['partName']);
     },
+    'summarizes docx package part directory base names for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/charts/_rels/chart1.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>
+XML;
+        $parts['word/review/data.xml'] = str_repeat('W', 37);
+        $parts['customXml/review/data.xml'] = '<review/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byBaseName = [];
+        foreach ($summary['partDirectoryBaseNames'] as $bucket) {
+            $byBaseName[$bucket['directoryBaseName']] = $bucket;
+        }
+
+        $t->same(6, $summary['partDirectoryBaseNameCount']);
+        $t->same([
+            '/' => 1,
+            '_rels' => 3,
+            'docProps' => 1,
+            'media' => 1,
+            'review' => 2,
+            'word' => 3,
+        ], $summary['partDirectoryBaseNameCounts']);
+        $t->same(2, $summary['duplicatePartDirectoryBaseNameCount']);
+        $t->same(['_rels', 'review'], $summary['duplicatePartDirectoryBaseNames']);
+        $t->same('/', $inventory['[Content_Types].xml']['directoryBaseName']);
+        $t->same('_rels', $inventory['word/charts/_rels/chart1.xml.rels']['directoryBaseName']);
+        $t->same('review', $inventory['customXml/review/data.xml']['directoryBaseName']);
+
+        $rels = $byBaseName['_rels'];
+        $t->same(3, $rels['directoryCount']);
+        $t->same(3, $rels['partCount']);
+        $t->same(3, $rels['relationshipPartCount']);
+        $t->same(0, $rels['missingContentTypePartCount']);
+        $t->same([1 => 1, 2 => 1, 3 => 1], $rels['directoryDepthCounts']);
+        $t->same(['_rels', 'word/_rels', 'word/charts/_rels'], $rels['directories']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels', 'word/charts/_rels/chart1.xml.rels'], $rels['partNames']);
+        $t->same(['_rels' => 1, 'word' => 2], $rels['topLevelSegmentCounts']);
+        $t->same(['default' => 3], $rels['contentTypeSourceCounts']);
+        $t->same(['application/vnd.openxmlformats-package.relationships+xml' => 3], $rels['contentTypeBaseCounts']);
+        $t->same([
+            'office-document-relationships' => 1,
+            'package-relationships' => 1,
+            'relationship-part' => 3,
+        ], $rels['roleCounts']);
+
+        $review = $byBaseName['review'];
+        $t->same(2, $review['directoryCount']);
+        $t->same(2, $review['partCount']);
+        $t->same(strlen($parts['word/review/data.xml']) + strlen($parts['customXml/review/data.xml']), $review['byteLength']);
+        $t->same([2 => 2], $review['directoryDepthCounts']);
+        $t->same(['customXml/review', 'word/review'], $review['directories']);
+        $t->same(['customXml/review/data.xml', 'word/review/data.xml'], $review['partNames']);
+        $t->same(['customXml' => 1, 'word' => 1], $review['topLevelSegmentCounts']);
+        $t->same(['application/xml' => 2], $review['contentTypeBaseCounts']);
+        $t->same(['default' => 2], $review['contentTypeSourceCounts']);
+        $t->same(['package-part' => 2], $review['roleCounts']);
+        $t->same('word/review/data.xml', $review['largestPart']['partName']);
+        $t->same('review', $review['largestPart']['directoryBaseName']);
+        $t->same(2, $review['largestPart']['directoryDepth']);
+        $t->same('word', $review['largestPart']['topLevelSegment']);
+        $t->same('data.xml', $review['largestPart']['baseName']);
+        $t->same(37, $review['largestPart']['bytes']);
+        $t->same(hash('sha256', $parts['word/review/data.xml']), $review['largestPart']['sha256']);
+        $t->same('application/xml', $review['largestPart']['contentTypeBase']);
+        $t->same('default', $review['largestPart']['contentTypeSource']);
+        $t->same(['package-part'], $review['largestPart']['roles']);
+    },
     'summarizes docx package part path depths for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
