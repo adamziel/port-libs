@@ -12413,6 +12413,14 @@ final class DocxOpenXmlReader
         }
         ksort($relationshipSourceDirectoryDepthCounts, SORT_STRING);
         $relationshipSourceContentTypes = $this->relationshipSourceContentTypeSummary($relationshipSources);
+        $relationshipSourceContentTypeMediaTypes = $this->relationshipSourceContentTypeMediaTypeSummary($relationshipSources);
+        $relationshipSourceContentTypeMediaTypeCounts = [];
+        foreach ($relationshipSourceContentTypeMediaTypes as $sourceContentTypeMediaTypeSummary) {
+            $mediaTypeKey = (string) ($sourceContentTypeMediaTypeSummary['sourceContentTypeMediaTypeKey'] ?? '');
+            $relationshipSourceContentTypeMediaTypeCounts[$mediaTypeKey] =
+                (int) ($sourceContentTypeMediaTypeSummary['sourceCount'] ?? 0);
+        }
+        ksort($relationshipSourceContentTypeMediaTypeCounts, SORT_STRING);
         $relationshipSourceContentTypeParameterValues = $this->relationshipSourceContentTypeParameterValueSummary($relationshipSources);
         $relationshipSourceContentTypeParameterValueBucketCounts = [];
         foreach ($relationshipSourceContentTypeParameterValues as $parameterValueSummary) {
@@ -12674,6 +12682,9 @@ final class DocxOpenXmlReader
             'relationshipSourceDirectoryDepths' => $relationshipSourceDirectoryDepths,
             'relationshipSourceContentTypeBucketCount' => count($relationshipSourceContentTypes),
             'relationshipSourceContentTypes' => $relationshipSourceContentTypes,
+            'relationshipSourceContentTypeMediaTypeBucketCount' => count($relationshipSourceContentTypeMediaTypes),
+            'relationshipSourceContentTypeMediaTypeBucketCounts' => $relationshipSourceContentTypeMediaTypeCounts,
+            'relationshipSourceContentTypeMediaTypes' => $relationshipSourceContentTypeMediaTypes,
             'relationshipSourceContentTypeSourceBucketCount' => count($relationshipSourceContentTypeSources),
             'relationshipSourceContentTypeSourceBucketCounts' => $relationshipSourceContentTypeSourceBucketCounts,
             'relationshipSourceContentTypeSources' => $relationshipSourceContentTypeSources,
@@ -16332,6 +16343,187 @@ final class DocxOpenXmlReader
         }
 
         return array_values($contentTypes);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipSourceContentTypeMediaTypeSummary(array $relationshipSources): array
+    {
+        $mediaTypes = [];
+        foreach ($relationshipSources as $source) {
+            $contentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                ? $source['sourceContentTypeBase']
+                : '';
+            $mediaTypeKey = $this->contentTypeMediaTypeKey($contentTypeBase);
+            $mediaType = $mediaTypeKey[0] === '(' ? null : $mediaTypeKey;
+            if (!isset($mediaTypes[$mediaTypeKey])) {
+                $mediaTypes[$mediaTypeKey] = [
+                    'sourceContentTypeMediaTypeKey' => $mediaTypeKey,
+                    'sourceContentTypeMediaType' => $mediaType,
+                    'sourceCount' => 0,
+                    'existingSourceCount' => 0,
+                    'nonExistingSourceCount' => 0,
+                    'missingContentTypeSourceCount' => 0,
+                    'invalidContentTypeSourceCount' => 0,
+                    'parameterizedSourceCount' => 0,
+                    'relationshipCount' => 0,
+                    'relationshipRecordCount' => 0,
+                    'existingSourceByteLength' => 0,
+                    'relationshipSourceKindCounts' => [],
+                    'sourceContentTypeBaseCounts' => [],
+                    'sourceContentTypeSourceCounts' => [],
+                    'sourceDirectoryCounts' => [],
+                    'sourceBaseNameCounts' => [],
+                    'sourcePartExtensionCounts' => [],
+                    'sourceRoleCounts' => [],
+                    'sourceContentTypes' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'largestExistingSourcePart' => null,
+                ];
+            }
+
+            ++$mediaTypes[$mediaTypeKey]['sourceCount'];
+            $sourceExists = ($source['sourceExists'] ?? false) === true;
+            if ($sourceExists) {
+                ++$mediaTypes[$mediaTypeKey]['existingSourceCount'];
+            } else {
+                ++$mediaTypes[$mediaTypeKey]['nonExistingSourceCount'];
+            }
+            if ($contentTypeBase === '') {
+                ++$mediaTypes[$mediaTypeKey]['missingContentTypeSourceCount'];
+            } elseif ($mediaType === null) {
+                ++$mediaTypes[$mediaTypeKey]['invalidContentTypeSourceCount'];
+            }
+            $sourceContentTypeParameterCount = is_int($source['sourceContentTypeParameterCount'] ?? null)
+                ? (int) $source['sourceContentTypeParameterCount']
+                : 0;
+            $sourceContentTypeParameters = is_array($source['sourceContentTypeParameters'] ?? null)
+                ? $source['sourceContentTypeParameters']
+                : [];
+            $sourceContentTypeParameterMap = is_array($source['sourceContentTypeParameterMap'] ?? null)
+                ? $source['sourceContentTypeParameterMap']
+                : [];
+            $sourceContentTypeHasParameters = ($source['sourceContentTypeHasParameters'] ?? false) === true
+                || $sourceContentTypeParameterCount > 0
+                || $sourceContentTypeParameters !== []
+                || $sourceContentTypeParameterMap !== [];
+            if ($sourceContentTypeHasParameters) {
+                ++$mediaTypes[$mediaTypeKey]['parameterizedSourceCount'];
+            }
+            $mediaTypes[$mediaTypeKey]['relationshipCount'] += (int) ($source['relationshipCount'] ?? 0);
+            $mediaTypes[$mediaTypeKey]['relationshipRecordCount'] += (int) ($source['relationshipRecordCount'] ?? 0);
+
+            $sourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                ? $source['relationshipSourceKind']
+                : 'invalid-source';
+            $mediaTypes[$mediaTypeKey]['relationshipSourceKindCounts'][$sourceKind] =
+                ($mediaTypes[$mediaTypeKey]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $mediaTypes[$mediaTypeKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($mediaTypes[$mediaTypeKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $contentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                ? $source['sourceContentTypeSource']
+                : '';
+            $contentTypeSourceKey = $contentTypeSource === '' ? '(missing)' : $contentTypeSource;
+            $mediaTypes[$mediaTypeKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] =
+                ($mediaTypes[$mediaTypeKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+
+            $directory = is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : '';
+            $directoryKey = $directory === '' ? '(invalid-source)' : $directory;
+            $mediaTypes[$mediaTypeKey]['sourceDirectoryCounts'][$directoryKey] =
+                ($mediaTypes[$mediaTypeKey]['sourceDirectoryCounts'][$directoryKey] ?? 0) + 1;
+
+            $baseName = is_string($source['sourceBaseName'] ?? null) ? $source['sourceBaseName'] : '';
+            $baseNameKey = $baseName === '' ? '(invalid-source)' : $baseName;
+            $mediaTypes[$mediaTypeKey]['sourceBaseNameCounts'][$baseNameKey] =
+                ($mediaTypes[$mediaTypeKey]['sourceBaseNameCounts'][$baseNameKey] ?? 0) + 1;
+
+            $extension = is_string($source['sourcePartExtension'] ?? null)
+                ? $source['sourcePartExtension']
+                : null;
+            $extensionKey = $extension ?? '(none)';
+            $mediaTypes[$mediaTypeKey]['sourcePartExtensionCounts'][$extensionKey] =
+                ($mediaTypes[$mediaTypeKey]['sourcePartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+            foreach (($source['sourceRoles'] ?? []) as $role) {
+                $role = (string) $role;
+                if ($role === '') {
+                    continue;
+                }
+
+                $mediaTypes[$mediaTypeKey]['sourceRoleCounts'][$role] =
+                    ($mediaTypes[$mediaTypeKey]['sourceRoleCounts'][$role] ?? 0) + 1;
+            }
+
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            $relationshipsPart = is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '';
+            $this->appendUniqueString(
+                $mediaTypes[$mediaTypeKey]['sourceContentTypes'],
+                is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : null,
+            );
+            $this->appendUniqueString($mediaTypes[$mediaTypeKey]['sourceParts'], $sourcePart);
+            $this->appendUniqueString($mediaTypes[$mediaTypeKey]['relationshipParts'], $relationshipsPart);
+
+            if (is_int($source['sourceBytes'] ?? null)) {
+                $sourceBytes = (int) $source['sourceBytes'];
+                $mediaTypes[$mediaTypeKey]['existingSourceByteLength'] += $sourceBytes;
+                $sourceSummary = [
+                    'sourcePart' => $sourcePart,
+                    'relationshipsPart' => $relationshipsPart,
+                    'relationshipSourceKind' => $sourceKind,
+                    'sourceDirectory' => $directory === '' ? null : $directory,
+                    'sourceBaseName' => $baseName === '' ? null : $baseName,
+                    'sourcePartExtension' => $extension,
+                    'sourcePathDepth' => is_int($source['sourcePathDepth'] ?? null) ? (int) $source['sourcePathDepth'] : null,
+                    'sourceBytes' => $sourceBytes,
+                    'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                    'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                    'sourceContentType' => is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : null,
+                    'sourceContentTypeBase' => $contentTypeBase === '' ? null : $contentTypeBase,
+                    'sourceContentTypeMediaType' => $mediaType,
+                    'sourceContentTypeSource' => $contentTypeSource === '' ? null : $contentTypeSource,
+                    'sourceContentTypeParameterCount' => $sourceContentTypeParameterCount,
+                    'sourceContentTypeParameters' => $sourceContentTypeParameters,
+                    'sourceContentTypeParameterMap' => $sourceContentTypeParameterMap,
+                    'sourceRoles' => array_values(array_map('strval', $source['sourceRoles'] ?? [])),
+                    'relationshipCount' => (int) ($source['relationshipCount'] ?? 0),
+                    'relationshipRecordCount' => (int) ($source['relationshipRecordCount'] ?? 0),
+                ];
+                $largestPart = $mediaTypes[$mediaTypeKey]['largestExistingSourcePart'];
+                if (
+                    !is_array($largestPart)
+                    || $sourceSummary['sourceBytes'] > (int) ($largestPart['sourceBytes'] ?? 0)
+                    || (
+                        $sourceSummary['sourceBytes'] === (int) ($largestPart['sourceBytes'] ?? 0)
+                        && strcmp($sourceSummary['sourcePart'], (string) ($largestPart['sourcePart'] ?? '')) < 0
+                    )
+                ) {
+                    $mediaTypes[$mediaTypeKey]['largestExistingSourcePart'] = $sourceSummary;
+                }
+            }
+        }
+
+        ksort($mediaTypes, SORT_STRING);
+        foreach ($mediaTypes as $mediaTypeKey => $summary) {
+            ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['sourceDirectoryCounts'], SORT_STRING);
+            ksort($summary['sourceBaseNameCounts'], SORT_STRING);
+            ksort($summary['sourcePartExtensionCounts'], SORT_STRING);
+            ksort($summary['sourceRoleCounts'], SORT_STRING);
+            sort($summary['sourceContentTypes'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            $mediaTypes[$mediaTypeKey] = $summary;
+        }
+
+        return array_values($mediaTypes);
     }
 
     /**

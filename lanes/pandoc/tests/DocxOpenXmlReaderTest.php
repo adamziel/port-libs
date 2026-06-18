@@ -4362,6 +4362,130 @@ XML;
         $t->same(['rels' => 1], $relationships['sourcePartExtensionCounts']);
         $t->same(['word/_rels/document.xml.rels'], $relationships['sourceParts']);
     },
+    'summarizes docx relationship source content type media type buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="badsrc" ContentType="not-a-media-type; profile=invalid-source"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $customSourceXml = '<customSourceMedia>' . str_repeat('custom', 80) . '</customSourceMedia>';
+        $invalidSource = 'invalid source media payload';
+        $parts['customXml/source-media.xml'] = $customSourceXml;
+        $parts['word/source.badsrc'] = $invalidSource;
+        $parts['word/media/custom-source-media.png'] = 'custom source media target';
+        $parts['word/media/invalid-source-media.png'] = 'invalid source media target';
+        $parts['word/media/missing-source-media.png'] = 'missing source media target';
+        $parts['customXml/_rels/source-media.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCustomSourceMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/custom-source-media.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source.badsrc.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rInvalidSourceMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/invalid-source-media.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-source-media.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingSourceMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-source-media.png"/>
+</Relationships>
+XML;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $byMediaType = [];
+        foreach ($summary['relationshipSourceContentTypeMediaTypes'] as $mediaTypeSummary) {
+            $byMediaType[$mediaTypeSummary['sourceContentTypeMediaTypeKey']] = $mediaTypeSummary;
+        }
+
+        $t->same(5, $summary['relationshipSourceCount']);
+        $t->same(3, $summary['relationshipSourceContentTypeMediaTypeBucketCount']);
+        $t->same(['(invalid)' => 1, '(missing)' => 2, 'application' => 2], $summary['relationshipSourceContentTypeMediaTypeBucketCounts']);
+        $t->same(['(invalid)', '(missing)', 'application'], array_column($summary['relationshipSourceContentTypeMediaTypes'], 'sourceContentTypeMediaTypeKey'));
+
+        $application = $byMediaType['application'];
+        $t->same('application', $application['sourceContentTypeMediaType']);
+        $t->same(2, $application['sourceCount']);
+        $t->same(2, $application['existingSourceCount']);
+        $t->same(0, $application['nonExistingSourceCount']);
+        $t->same(0, $application['missingContentTypeSourceCount']);
+        $t->same(0, $application['invalidContentTypeSourceCount']);
+        $t->same(0, $application['parameterizedSourceCount']);
+        $t->same(3, $application['relationshipCount']);
+        $t->same(3, $application['relationshipRecordCount']);
+        $t->same(strlen($parts['word/document.xml']) + strlen($customSourceXml), $application['existingSourceByteLength']);
+        $t->same(['package-part' => 2], $application['relationshipSourceKindCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/xml' => 1,
+        ], $application['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 1, 'override' => 1], $application['sourceContentTypeSourceCounts']);
+        $t->same(['customXml' => 1, 'word' => 1], $application['sourceDirectoryCounts']);
+        $t->same(['document.xml' => 1, 'source-media.xml' => 1], $application['sourceBaseNameCounts']);
+        $t->same(['xml' => 2], $application['sourcePartExtensionCounts']);
+        $t->same(['office-document' => 1, 'package-part' => 1, 'root-relationship-target' => 1], $application['sourceRoleCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'application/xml',
+        ], $application['sourceContentTypes']);
+        $t->same(['customXml/source-media.xml', 'word/document.xml'], $application['sourceParts']);
+        $t->same(['customXml/_rels/source-media.xml.rels', 'word/_rels/document.xml.rels'], $application['relationshipParts']);
+        $t->same('word/document.xml', $application['largestExistingSourcePart']['sourcePart']);
+        $t->same('application', $application['largestExistingSourcePart']['sourceContentTypeMediaType']);
+        $t->same('override', $application['largestExistingSourcePart']['sourceContentTypeSource']);
+        $t->same(hash('sha256', $parts['word/document.xml']), $application['largestExistingSourcePart']['sourceSha256']);
+
+        $invalid = $byMediaType['(invalid)'];
+        $t->same(null, $invalid['sourceContentTypeMediaType']);
+        $t->same(1, $invalid['sourceCount']);
+        $t->same(1, $invalid['existingSourceCount']);
+        $t->same(0, $invalid['nonExistingSourceCount']);
+        $t->same(0, $invalid['missingContentTypeSourceCount']);
+        $t->same(1, $invalid['invalidContentTypeSourceCount']);
+        $t->same(1, $invalid['parameterizedSourceCount']);
+        $t->same(1, $invalid['relationshipCount']);
+        $t->same(strlen($invalidSource), $invalid['existingSourceByteLength']);
+        $t->same(['package-part' => 1], $invalid['relationshipSourceKindCounts']);
+        $t->same(['not-a-media-type' => 1], $invalid['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 1], $invalid['sourceContentTypeSourceCounts']);
+        $t->same(['word' => 1], $invalid['sourceDirectoryCounts']);
+        $t->same(['source.badsrc' => 1], $invalid['sourceBaseNameCounts']);
+        $t->same(['badsrc' => 1], $invalid['sourcePartExtensionCounts']);
+        $t->same(['package-part' => 1], $invalid['sourceRoleCounts']);
+        $t->same(['not-a-media-type; profile=invalid-source'], $invalid['sourceContentTypes']);
+        $t->same(['word/source.badsrc'], $invalid['sourceParts']);
+        $t->same(['word/_rels/source.badsrc.rels'], $invalid['relationshipParts']);
+        $t->same('word/source.badsrc', $invalid['largestExistingSourcePart']['sourcePart']);
+        $t->same(null, $invalid['largestExistingSourcePart']['sourceContentTypeMediaType']);
+        $t->same(['profile' => 'invalid-source'], $invalid['largestExistingSourcePart']['sourceContentTypeParameterMap']);
+
+        $missing = $byMediaType['(missing)'];
+        $t->same(null, $missing['sourceContentTypeMediaType']);
+        $t->same(2, $missing['sourceCount']);
+        $t->same(1, $missing['existingSourceCount']);
+        $t->same(1, $missing['nonExistingSourceCount']);
+        $t->same(2, $missing['missingContentTypeSourceCount']);
+        $t->same(0, $missing['invalidContentTypeSourceCount']);
+        $t->same(0, $missing['parameterizedSourceCount']);
+        $t->same(3, $missing['relationshipCount']);
+        $t->same(3, $missing['relationshipRecordCount']);
+        $t->same(0, $missing['existingSourceByteLength']);
+        $t->same(['missing-source' => 1, 'package-root' => 1], $missing['relationshipSourceKindCounts']);
+        $t->same(['(missing)' => 2], $missing['sourceContentTypeBaseCounts']);
+        $t->same(['(missing)' => 2], $missing['sourceContentTypeSourceCounts']);
+        $t->same(['/' => 1, 'word' => 1], $missing['sourceDirectoryCounts']);
+        $t->same(['/' => 1, 'missing-source-media' => 1], $missing['sourceBaseNameCounts']);
+        $t->same(['(none)' => 2], $missing['sourcePartExtensionCounts']);
+        $t->same(['package-root' => 1], $missing['sourceRoleCounts']);
+        $t->same([], $missing['sourceContentTypes']);
+        $t->same(['/', 'word/missing-source-media'], $missing['sourceParts']);
+        $t->same(['_rels/.rels', 'word/_rels/missing-source-media.rels'], $missing['relationshipParts']);
+        $t->same(null, $missing['largestExistingSourcePart']);
+    },
     'summarizes docx relationship source filename buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['root-source.xml'] = '<rootSource/>';
