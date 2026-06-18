@@ -466,6 +466,141 @@ return [
         $t->same(8, $entriesByName['word/document.xml']['compressionMethod']);
         $t->same(true, $entriesByName['word/document.xml']['isSupported']);
     },
+    'summarizes docx loaded package part zip compression buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/zip-compression-review.xml'] = '<zip-compression-review/>';
+        $storedNames = [
+            '[Content_Types].xml' => true,
+            'word/media/review.png' => true,
+            'word/styles.xml' => true,
+        ];
+        $zipParts = [
+            ['name' => 'word/media/', 'data' => '', 'compressionMethod' => 0],
+        ];
+        $expectedByMethod = [
+            0 => [
+                'partNames' => [],
+                'compressedByteLength' => 0,
+                'uncompressedByteLength' => 0,
+                'largestCompressedPart' => null,
+            ],
+            8 => [
+                'partNames' => [],
+                'compressedByteLength' => 0,
+                'uncompressedByteLength' => 0,
+                'largestCompressedPart' => null,
+            ],
+        ];
+        foreach ($parts as $name => $data) {
+            $method = isset($storedNames[$name]) ? 0 : 8;
+            $compressed = $method === 8 ? gzdeflate($data) : $data;
+            $t->true(is_string($compressed), "fixture {$name} should compress");
+            $compressedLength = strlen($compressed);
+            $zipParts[] = [
+                'name' => $name,
+                'data' => $data,
+                'compressionMethod' => $method,
+            ];
+            $expectedByMethod[$method]['partNames'][] = $name;
+            $expectedByMethod[$method]['compressedByteLength'] += $compressedLength;
+            $expectedByMethod[$method]['uncompressedByteLength'] += strlen($data);
+            $largestPart = $expectedByMethod[$method]['largestCompressedPart'];
+            if (
+                !is_array($largestPart)
+                || $compressedLength > $largestPart['compressedByteLength']
+                || ($compressedLength === $largestPart['compressedByteLength'] && strcmp($name, $largestPart['partName']) < 0)
+            ) {
+                $expectedByMethod[$method]['largestCompressedPart'] = [
+                    'partName' => $name,
+                    'compressedByteLength' => $compressedLength,
+                    'bytes' => strlen($data),
+                    'crc32' => sprintf('%08x', crc32($data)),
+                    'sha256' => hash('sha256', $data),
+                ];
+            }
+        }
+        foreach ($expectedByMethod as &$expectedMethod) {
+            sort($expectedMethod['partNames'], SORT_STRING);
+        }
+        unset($expectedMethod);
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(ZipPackage::fromParts($zipParts));
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $buckets = [];
+        foreach ($summary['partZipCompressionMethods'] as $bucket) {
+            $buckets[(int) $bucket['compressionMethod']] = $bucket;
+        }
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(count($parts), $summary['partCount']);
+        $t->same(count($parts) + 1, $summary['zipEntryCount']);
+        $t->same(1, $summary['zipDirectoryEntryCount']);
+        $t->same(count($parts), $summary['zipLoadedPartCount']);
+        $t->same(2, $summary['partZipCompressionMethodCount']);
+        $t->same([0 => 3, 8 => count($parts) - 3], $summary['partZipCompressionMethodCounts']);
+        $t->same(
+            $expectedByMethod[0]['compressedByteLength'] + $expectedByMethod[8]['compressedByteLength'],
+            $summary['partZipCompressedByteLength']
+        );
+        $t->same(
+            $expectedByMethod[0]['uncompressedByteLength'] + $expectedByMethod[8]['uncompressedByteLength'],
+            $summary['partZipUncompressedByteLength']
+        );
+        $t->same(0, $summary['partZipUnsupportedCompressionPartCount']);
+        $t->same(0, $summary['partZipDataDescriptorPartCount']);
+        $t->same(2, count($summary['partZipCompressionMethods']));
+        $t->true(!isset($package['parts']['word/media/']), 'directory entries should stay out of loaded package part compression buckets');
+
+        $stored = $buckets[0];
+        $t->same(0, $stored['compressionMethod']);
+        $t->same('stored', $stored['compressionMethodName']);
+        $t->same(3, $stored['partCount']);
+        $t->same($expectedByMethod[0]['compressedByteLength'], $stored['compressedByteLength']);
+        $t->same($expectedByMethod[0]['uncompressedByteLength'], $stored['uncompressedByteLength']);
+        $t->same(3, $stored['supportedPartCount']);
+        $t->same(0, $stored['unsupportedPartCount']);
+        $t->same(0, $stored['dataDescriptorPartCount']);
+        $t->same($expectedByMethod[0]['partNames'], $stored['partNames']);
+        $t->same(3, $stored['contentTypeSourceCounts']['default']);
+        $t->same(2, $stored['contentTypeBaseCounts']['application/xml']);
+        $t->same(1, $stored['contentTypeBaseCounts']['image/png']);
+        $t->same(1, $stored['roleCounts']['content-types']);
+        $t->same(1, $stored['roleCounts']['document-relationship-target']);
+        $t->same(1, $stored['roleCounts']['package-part']);
+        $t->same($expectedByMethod[0]['largestCompressedPart']['partName'], $stored['largestCompressedPart']['partName']);
+        $t->same($expectedByMethod[0]['largestCompressedPart']['compressedByteLength'], $stored['largestCompressedPart']['compressedByteLength']);
+        $t->same($expectedByMethod[0]['largestCompressedPart']['bytes'], $stored['largestCompressedPart']['bytes']);
+        $t->same($expectedByMethod[0]['largestCompressedPart']['crc32'], $stored['largestCompressedPart']['crc32']);
+        $t->same($expectedByMethod[0]['largestCompressedPart']['sha256'], $stored['largestCompressedPart']['sha256']);
+        $t->same(true, $stored['largestCompressedPart']['compressionSupported']);
+
+        $deflated = $buckets[8];
+        $t->same(8, $deflated['compressionMethod']);
+        $t->same('deflated', $deflated['compressionMethodName']);
+        $t->same(count($parts) - 3, $deflated['partCount']);
+        $t->same($expectedByMethod[8]['compressedByteLength'], $deflated['compressedByteLength']);
+        $t->same($expectedByMethod[8]['uncompressedByteLength'], $deflated['uncompressedByteLength']);
+        $t->same(count($parts) - 3, $deflated['supportedPartCount']);
+        $t->same(0, $deflated['unsupportedPartCount']);
+        $t->same(0, $deflated['dataDescriptorPartCount']);
+        $t->same($expectedByMethod[8]['partNames'], $deflated['partNames']);
+        $t->same(4, $deflated['contentTypeSourceCounts']['default']);
+        $t->same(2, $deflated['contentTypeSourceCounts']['override']);
+        $t->same(2, $deflated['contentTypeBaseCounts']['application/xml']);
+        $t->same(2, $deflated['contentTypeBaseCounts']['application/vnd.openxmlformats-package.relationships+xml']);
+        $t->same(1, $deflated['contentTypeBaseCounts']['application/vnd.openxmlformats-package.core-properties+xml']);
+        $t->same(1, $deflated['contentTypeBaseCounts']['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml']);
+        $t->same(1, $deflated['roleCounts']['office-document']);
+        $t->same(1, $deflated['roleCounts']['package-relationships']);
+        $t->same(1, $deflated['roleCounts']['office-document-relationships']);
+        $t->same($expectedByMethod[8]['largestCompressedPart']['partName'], $deflated['largestCompressedPart']['partName']);
+        $t->same($expectedByMethod[8]['largestCompressedPart']['compressedByteLength'], $deflated['largestCompressedPart']['compressedByteLength']);
+        $t->same($expectedByMethod[8]['largestCompressedPart']['bytes'], $deflated['largestCompressedPart']['bytes']);
+        $t->same($expectedByMethod[8]['largestCompressedPart']['crc32'], $deflated['largestCompressedPart']['crc32']);
+        $t->same($expectedByMethod[8]['largestCompressedPart']['sha256'], $deflated['largestCompressedPart']['sha256']);
+        $t->same(true, $deflated['largestCompressedPart']['compressionSupported']);
+    },
     'preserves docx zip data descriptor provenance across package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $zipParts = docx_openxml_reader_zip_parts($parts);

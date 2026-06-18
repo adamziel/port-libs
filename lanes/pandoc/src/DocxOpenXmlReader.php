@@ -10448,6 +10448,21 @@ final class DocxOpenXmlReader
             }
         }
         sort($duplicatePartDigestPartNames, SORT_STRING);
+        $partZipCompressionMethods = $this->packagePartZipCompressionSummary($partInventory);
+        $partZipCompressionMethodCounts = [];
+        $partZipCompressedByteLength = 0;
+        $partZipUncompressedByteLength = 0;
+        $partZipDataDescriptorPartCount = 0;
+        $partZipUnsupportedCompressionPartCount = 0;
+        foreach ($partZipCompressionMethods as $compressionSummary) {
+            $compressionMethodKey = (string) ($compressionSummary['compressionMethodKey'] ?? '');
+            $partZipCompressionMethodCounts[$compressionMethodKey] = (int) ($compressionSummary['partCount'] ?? 0);
+            $partZipCompressedByteLength += (int) ($compressionSummary['compressedByteLength'] ?? 0);
+            $partZipUncompressedByteLength += (int) ($compressionSummary['uncompressedByteLength'] ?? 0);
+            $partZipDataDescriptorPartCount += (int) ($compressionSummary['dataDescriptorPartCount'] ?? 0);
+            $partZipUnsupportedCompressionPartCount += (int) ($compressionSummary['unsupportedPartCount'] ?? 0);
+        }
+        ksort($partZipCompressionMethodCounts, SORT_STRING);
         $zeroByteParts = $this->zeroBytePackagePartSummary($partInventory);
         $zeroByteRelationshipPartCount = 0;
         $zeroByteMissingContentTypePartCount = 0;
@@ -11728,6 +11743,12 @@ final class DocxOpenXmlReader
             'duplicatePartDigestByteLength' => $duplicatePartDigestByteLength,
             'duplicatePartDigestSha256Values' => $duplicatePartDigestSha256Values,
             'duplicatePartDigestPartNames' => $duplicatePartDigestPartNames,
+            'partZipCompressionMethodCount' => count($partZipCompressionMethods),
+            'partZipCompressionMethodCounts' => $partZipCompressionMethodCounts,
+            'partZipCompressedByteLength' => $partZipCompressedByteLength,
+            'partZipUncompressedByteLength' => $partZipUncompressedByteLength,
+            'partZipDataDescriptorPartCount' => $partZipDataDescriptorPartCount,
+            'partZipUnsupportedCompressionPartCount' => $partZipUnsupportedCompressionPartCount,
             'zeroBytePartCount' => count($zeroByteParts),
             'zeroBytePartNames' => array_values(array_map(
                 static fn (array $part): string => (string) $part['partName'],
@@ -11940,6 +11961,7 @@ final class DocxOpenXmlReader
             'largestPart' => $largestPart,
             'largestParts' => $largestParts,
             'duplicatePartDigests' => $duplicatePartDigests,
+            'partZipCompressionMethods' => $partZipCompressionMethods,
             'zeroByteParts' => $zeroByteParts,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
@@ -12117,6 +12139,130 @@ final class DocxOpenXmlReader
         }
 
         return $duplicates;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartZipCompressionSummary(array $partInventory): array
+    {
+        $methods = [];
+        foreach ($partInventory as $partName => $part) {
+            if (($part['zipEntryPresent'] ?? false) !== true) {
+                continue;
+            }
+
+            $compressionMethod = is_int($part['compressionMethod'] ?? null)
+                ? (int) $part['compressionMethod']
+                : null;
+            $compressionMethodKey = $compressionMethod === null ? '(missing)' : (string) $compressionMethod;
+            $compressionMethodName = is_string($part['compressionMethodName'] ?? null)
+                ? $part['compressionMethodName']
+                : ($compressionMethod === null ? 'missing' : self::zipCompressionMethodName($compressionMethod));
+            if (!isset($methods[$compressionMethodKey])) {
+                $methods[$compressionMethodKey] = [
+                    'compressionMethodKey' => $compressionMethodKey,
+                    'compressionMethod' => $compressionMethod,
+                    'compressionMethodName' => $compressionMethodName,
+                    'partCount' => 0,
+                    'compressedByteLength' => 0,
+                    'uncompressedByteLength' => 0,
+                    'supportedPartCount' => 0,
+                    'unsupportedPartCount' => 0,
+                    'dataDescriptorPartCount' => 0,
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'largestCompressedPart' => null,
+                ];
+            }
+
+            $partName = (string) ($part['partName'] ?? $partName);
+            $compressedBytes = is_int($part['compressedByteLength'] ?? null)
+                ? (int) $part['compressedByteLength']
+                : 0;
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null)
+                ? $part['contentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+
+            ++$methods[$compressionMethodKey]['partCount'];
+            $methods[$compressionMethodKey]['compressedByteLength'] += $compressedBytes;
+            $methods[$compressionMethodKey]['uncompressedByteLength'] += $bytes;
+            $methods[$compressionMethodKey]['partNames'][] = $partName;
+            $methods[$compressionMethodKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($methods[$compressionMethodKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $methods[$compressionMethodKey]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($methods[$compressionMethodKey]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            if (($part['compressionSupported'] ?? null) === false) {
+                ++$methods[$compressionMethodKey]['unsupportedPartCount'];
+            } else {
+                ++$methods[$compressionMethodKey]['supportedPartCount'];
+            }
+            if (($part['usesDataDescriptor'] ?? false) === true) {
+                ++$methods[$compressionMethodKey]['dataDescriptorPartCount'];
+            }
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                if ($role === '') {
+                    continue;
+                }
+                $methods[$compressionMethodKey]['roleCounts'][$role] =
+                    ($methods[$compressionMethodKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory($partName),
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName($partName),
+                'bytes' => $bytes,
+                'compressedByteLength' => $compressedBytes,
+                'compressionMethod' => $compressionMethod,
+                'compressionMethodName' => $compressionMethodName,
+                'compressionSupported' => ($part['compressionSupported'] ?? null) === false ? false : true,
+                'usesDataDescriptor' => (bool) ($part['usesDataDescriptor'] ?? false),
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'zipCrc32' => is_string($part['zipCrc32'] ?? null) ? $part['zipCrc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $methods[$compressionMethodKey]['largestCompressedPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['compressedByteLength'] > (int) ($largestPart['compressedByteLength'] ?? 0)
+                || (
+                    $partSummary['compressedByteLength'] === (int) ($largestPart['compressedByteLength'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $methods[$compressionMethodKey]['largestCompressedPart'] = $partSummary;
+            }
+        }
+
+        ksort($methods, SORT_STRING);
+        foreach ($methods as $methodKey => $summary) {
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $methods[$methodKey] = $summary;
+        }
+
+        return array_values($methods);
     }
 
     /**
