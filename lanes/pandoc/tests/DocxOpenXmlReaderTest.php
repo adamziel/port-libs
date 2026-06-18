@@ -7794,6 +7794,137 @@ XML;
         $t->same(1, $missingProfile['missingTargetCount']);
         $t->same(null, $missingProfile['largestExistingTargetPart']);
     },
+    'summarizes docx relationship target content type subtype buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
+        $missingJsonType = 'application/vnd.example.missing+json';
+        $parts['[Content_Types].xml'] = str_replace(
+            [
+                '</Types>',
+            ],
+            [
+                '  <Default Extension="txt" ContentType="text/plain; charset=UTF-8"/>' . "\n" .
+                '  <Override PartName="/word/comments-subtype.xml" ContentType="' . $commentsType . '; profile=review"/>' . "\n" .
+                '  <Override PartName="/word/media/vector-subtype.svg" ContentType="image/svg+xml; profile=vector"/>' . "\n" .
+                '  <Override PartName="/word/missing-subtype.json" ContentType="' . $missingJsonType . '; profile=declared-missing"/>' . "\n" .
+                '  <Override PartName="/word/raw/invalid-subtype.dat" ContentType="review-subtype"/>' . "\n" .
+                '</Types>',
+            ],
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsSubtype" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments-subtype.xml"/>' . "\n" .
+            '  <Relationship Id="rSvgSubtype" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/vector-subtype.svg"/>' . "\n" .
+            '  <Relationship Id="rTextSubtype" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/readme-subtype.txt"/>' . "\n" .
+            '  <Relationship Id="rMissingSubtype" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="missing-subtype.json"/>' . "\n" .
+            '  <Relationship Id="rInvalidSubtype" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="raw/invalid-subtype.dat"/>' . "\n" .
+            '  <Relationship Id="rNoTypeSubtype" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="raw/no-type-subtype.payload"/>' . "\n" .
+            '  <Relationship Id="rExternalSubtype" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/subtype.svg" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/comments-subtype.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/media/vector-subtype.svg'] = '<svg xmlns="http://www.w3.org/2000/svg"><title>Subtype</title></svg>';
+        $parts['customXml/readme-subtype.txt'] = 'relationship target subtype text';
+        $parts['word/raw/invalid-subtype.dat'] = 'invalid relationship target subtype bytes';
+        $parts['word/raw/no-type-subtype.payload'] = 'missing content type relationship target bytes';
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $bySubtype = [];
+        foreach ($summary['relationshipTargetContentTypeSubtypes'] as $subtype) {
+            $bySubtype[$subtype['contentTypeSubtypeKey']] = $subtype;
+        }
+
+        $t->same(9, $summary['relationshipTargetContentTypeSubtypeCount']);
+        $t->same([
+            '(invalid)' => 1,
+            '(missing)' => 1,
+            'plain' => 1,
+            'png' => 1,
+            'svg+xml' => 1,
+            'vnd.example.missing+json' => 1,
+            'vnd.openxmlformats-officedocument.wordprocessingml.comments+xml' => 1,
+            'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'vnd.openxmlformats-package.core-properties+xml' => 1,
+        ], $summary['relationshipTargetContentTypeSubtypeCounts']);
+        $t->same([
+            '(invalid)',
+            '(missing)',
+            'plain',
+            'png',
+            'svg+xml',
+            'vnd.example.missing+json',
+            'vnd.openxmlformats-officedocument.wordprocessingml.comments+xml',
+            'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'vnd.openxmlformats-package.core-properties+xml',
+        ], array_column($summary['relationshipTargetContentTypeSubtypes'], 'contentTypeSubtypeKey'));
+
+        $comments = $bySubtype['vnd.openxmlformats-officedocument.wordprocessingml.comments+xml'];
+        $t->same('vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $comments['contentTypeSubtype']);
+        $t->same(1, $comments['relationshipCount']);
+        $t->same(1, $comments['existingTargetCount']);
+        $t->same(0, $comments['missingTargetCount']);
+        $t->same(1, $comments['parameterizedTargetCount']);
+        $t->same(['application' => 1], $comments['mediaTypeCounts']);
+        $t->same([$commentsType => 1], $comments['contentTypeBaseCounts']);
+        $t->same(['override' => 1], $comments['contentTypeSourceCounts']);
+        $t->same([$commentsType . '; profile=review'], $comments['contentTypes']);
+        $t->same(['word' => 1], $comments['targetDirectoryCounts']);
+        $t->same(['rCommentsSubtype'], $comments['relationshipIds']);
+        $t->same(['word/comments-subtype.xml'], $comments['targetParts']);
+        $t->same('word/comments-subtype.xml', $comments['largestExistingTargetPart']['partName']);
+        $t->same('vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $comments['largestExistingTargetPart']['contentTypeSubtype']);
+
+        $svg = $bySubtype['svg+xml'];
+        $t->same(1, $svg['relationshipCount']);
+        $t->same(1, $svg['existingTargetCount']);
+        $t->same(1, $svg['parameterizedTargetCount']);
+        $t->same(['image' => 1], $svg['mediaTypeCounts']);
+        $t->same(['image/svg+xml' => 1], $svg['contentTypeBaseCounts']);
+        $t->same(['override' => 1], $svg['contentTypeSourceCounts']);
+        $t->same(['word/media' => 1], $svg['targetDirectoryCounts']);
+        $t->same(['document-relationship-target' => 1], $svg['roleCounts']);
+        $t->same('word/media/vector-subtype.svg', $svg['largestExistingTargetPart']['partName']);
+        $t->same('svg+xml', $svg['largestExistingTargetPart']['contentTypeSubtype']);
+
+        $text = $bySubtype['plain'];
+        $t->same(1, $text['relationshipCount']);
+        $t->same(1, $text['existingTargetCount']);
+        $t->same(1, $text['parameterizedTargetCount']);
+        $t->same(['text/plain; charset=UTF-8'], $text['contentTypes']);
+        $t->same(['default' => 1], $text['contentTypeSourceCounts']);
+        $t->same(['customXml/readme-subtype.txt'], $text['targetParts']);
+
+        $missingDeclared = $bySubtype['vnd.example.missing+json'];
+        $t->same(1, $missingDeclared['relationshipCount']);
+        $t->same(0, $missingDeclared['existingTargetCount']);
+        $t->same(1, $missingDeclared['missingTargetCount']);
+        $t->same(1, $missingDeclared['parameterizedTargetCount']);
+        $t->same([$missingJsonType => 1], $missingDeclared['contentTypeBaseCounts']);
+        $t->same(['override' => 1], $missingDeclared['contentTypeSourceCounts']);
+        $t->same(['missing-relationship-target' => 1], $missingDeclared['roleCounts']);
+        $t->same(0, $missingDeclared['existingTargetPartByteLength']);
+        $t->same(null, $missingDeclared['largestExistingTargetPart']);
+        $t->same(['word/missing-subtype.json'], $missingDeclared['targetParts']);
+
+        $invalid = $bySubtype['(invalid)'];
+        $t->same(null, $invalid['contentTypeSubtype']);
+        $t->same(1, $invalid['invalidContentTypeTargetCount']);
+        $t->same(0, $invalid['missingContentTypeTargetCount']);
+        $t->same(['review-subtype' => 1], $invalid['contentTypeBaseCounts']);
+        $t->same(['review-subtype'], $invalid['contentTypes']);
+        $t->same(['word/raw/invalid-subtype.dat'], $invalid['targetParts']);
+
+        $missing = $bySubtype['(missing)'];
+        $t->same(null, $missing['contentTypeSubtype']);
+        $t->same(1, $missing['missingContentTypeTargetCount']);
+        $t->same(0, $missing['invalidContentTypeTargetCount']);
+        $t->same(['(missing)' => 1], $missing['contentTypeBaseCounts']);
+        $t->same(['missing' => 1], $missing['contentTypeSourceCounts']);
+        $t->same([], $missing['contentTypes']);
+        $t->same(['word/raw/no-type-subtype.payload'], $missing['targetParts']);
+    },
     'summarizes docx relationship target inventory role buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
