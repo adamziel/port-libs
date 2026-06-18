@@ -2387,7 +2387,7 @@ XML;
         $parts['[Content_Types].xml'] = str_replace(
             '</Types>',
             '  <Override PartName="/word/override-source.xml" ContentType="application/xml; profile=exact-review"/>' . "\n" .
-            '  <Override PartName="/word/missing-preview.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/word/missing-preview.xml" ContentType="application/xml; profile=missing-preview"/>' . "\n" .
             '  <Override PartName="/word/_rels/missing-preview.xml.rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' . "\n" .
             '  <Override PartName="/word/not-relationships.xml" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' . "\n" .
             '  <Override PartName="/[Content_Types].xml" ContentType="application/xml"/>' . "\n" .
@@ -2404,6 +2404,10 @@ XML;
         $declarations = [];
         foreach ($contentTypesPart['overrideDeclarations'] as $declaration) {
             $declarations[$declaration['partName']] = $declaration;
+        }
+        $missingOverrides = [];
+        foreach ($contentTypesPart['missingOverrides'] as $declaration) {
+            $missingOverrides[$declaration['partName']] = $declaration;
         }
 
         $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
@@ -2431,14 +2435,25 @@ XML;
         $t->same(4, $summary['contentTypeInvalidOverrideDeclarationCount']);
         $t->same($contentTypesPart['unusedOverridePartNames'], $summary['contentTypeUnusedOverridePartNames']);
         $t->same($contentTypesPart['overrideDeclarationIssueCounts'], $summary['contentTypeOverrideDeclarationIssueCounts']);
+        $t->same(2, $contentTypesPart['missingOverrideCount']);
+        $t->same($contentTypesPart['unusedOverridePartNames'], $contentTypesPart['missingOverrideParts']);
+        $t->same($contentTypesPart['missingOverrideCount'], $summary['contentTypeMissingOverrideCount']);
+        $t->same($contentTypesPart['missingOverrideParts'], $summary['contentTypeMissingOverrideParts']);
+        $t->same($contentTypesPart['missingOverrides'], $summary['contentTypeMissingOverrides']);
 
         $t->same('exact', $declarations['word/override-source.xml']['matchKind']);
         $t->same(true, $declarations['word/override-source.xml']['exists']);
         $t->same('application/xml', $declarations['word/override-source.xml']['contentTypeBase']);
+        $t->same(['profile' => 'exact-review'], $declarations['word/override-source.xml']['contentTypeParameterMap']);
         $t->same([], $declarations['word/override-source.xml']['issues']);
 
         $t->same('missing', $declarations['word/missing-preview.xml']['matchKind']);
         $t->same(false, $declarations['word/missing-preview.xml']['exists']);
+        $t->same('application/xml; profile=missing-preview', $missingOverrides['word/missing-preview.xml']['contentType']);
+        $t->same('application/xml', $missingOverrides['word/missing-preview.xml']['contentTypeBase']);
+        $t->same(true, $missingOverrides['word/missing-preview.xml']['contentTypeHasParameters']);
+        $t->same(1, $missingOverrides['word/missing-preview.xml']['contentTypeParameterCount']);
+        $t->same(['profile' => 'missing-preview'], $missingOverrides['word/missing-preview.xml']['contentTypeParameterMap']);
         $t->same(['override-target-missing-part'], $declarations['word/missing-preview.xml']['issues']);
 
         $t->same(true, $declarations['word/_rels/missing-preview.xml.rels']['relationshipPart']);

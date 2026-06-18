@@ -11903,6 +11903,9 @@ final class DocxOpenXmlReader
             'contentTypeUnusedOverrideDeclarationCount' => (int) ($contentTypesPart['unusedOverrideDeclarationCount'] ?? 0),
             'contentTypeInvalidOverrideDeclarationCount' => (int) ($contentTypesPart['invalidOverrideDeclarationCount'] ?? 0),
             'contentTypeUnusedOverridePartNames' => $contentTypesPart['unusedOverridePartNames'] ?? [],
+            'contentTypeMissingOverrideCount' => (int) ($contentTypesPart['missingOverrideCount'] ?? 0),
+            'contentTypeMissingOverrideParts' => $contentTypesPart['missingOverrideParts'] ?? [],
+            'contentTypeMissingOverrides' => $contentTypesPart['missingOverrides'] ?? [],
             'contentTypeOverrideDeclarationIssueCounts' => $contentTypesPart['overrideDeclarationIssueCounts'] ?? [],
             'contentTypeOverrideDeclarationIssues' => $contentTypesPart['overrideDeclarationIssues'] ?? [],
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
@@ -17363,6 +17366,14 @@ final class DocxOpenXmlReader
         $parameterizedContentTypes = $this->parameterizedContentTypeDeclarations($defaults, $overrides);
         $defaultDeclarationSummary = $this->contentTypeDefaultDeclarationSummary($parts, $contentTypes);
         $overrideDeclarationSummary = $this->contentTypeOverrideDeclarationSummary($parts, $overrides);
+        $missingOverrides = array_values(array_filter(
+            $overrideDeclarationSummary['declarations'],
+            static fn (array $declaration): bool => ($declaration['exists'] ?? true) === false,
+        ));
+        usort(
+            $missingOverrides,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
+        );
         $invalidContentTypeRecords = $this->invalidContentTypeRecordSnapshots($preflight);
         $invalidContentTypeRecordIssueBuckets = $this->contentTypeRecordIssueBuckets($invalidContentTypeRecords);
 
@@ -17395,6 +17406,9 @@ final class DocxOpenXmlReader
             'overrideDeclarationIssueCounts' => $overrideDeclarationSummary['issueCounts'],
             'overrideDeclarationIssues' => $overrideDeclarationSummary['issues'],
             'overrideDeclarations' => $overrideDeclarationSummary['declarations'],
+            'missingOverrideCount' => count($missingOverrides),
+            'missingOverrideParts' => array_column($missingOverrides, 'partName'),
+            'missingOverrides' => $missingOverrides,
             'parameterizedContentTypeCount' => count($parameterizedContentTypes),
             'parameterizedContentTypes' => $parameterizedContentTypes,
             'preflight' => $preflight,
@@ -17679,6 +17693,10 @@ final class DocxOpenXmlReader
                 'partName' => $partName,
                 'contentType' => is_string($override['contentType'] ?? null) ? $override['contentType'] : '',
                 'contentTypeBase' => $contentTypeBase,
+                'contentTypeHasParameters' => (bool) ($override['contentTypeHasParameters'] ?? false),
+                'contentTypeParameterCount' => (int) ($override['contentTypeParameterCount'] ?? 0),
+                'contentTypeParameters' => is_array($override['contentTypeParameters'] ?? null) ? $override['contentTypeParameters'] : [],
+                'contentTypeParameterMap' => is_array($override['contentTypeParameterMap'] ?? null) ? $override['contentTypeParameterMap'] : [],
                 'exists' => $exists,
                 'matchKind' => $exists ? 'exact' : 'missing',
                 'relationshipPart' => $relationshipPart,
