@@ -11890,11 +11890,19 @@ final class DocxOpenXmlReader
         ksort($relationshipSourcePartExtensionCounts, SORT_STRING);
         $relationshipTargetPartExtensions = $this->relationshipTargetPartExtensionSummary($relationshipParts, $partInventory);
         $relationshipTargetPartExtensionCounts = [];
+        $relationshipTargetExistingPartExtensionCounts = [];
+        $relationshipTargetMissingPartExtensionCounts = [];
         $relationshipTargetPartExtensionExistingByteBucketCount = 0;
         $relationshipTargetPartExtensionNonExistingBucketCount = 0;
         foreach ($relationshipTargetPartExtensions as $targetPartExtensionSummary) {
             $extensionKey = (string) ($targetPartExtensionSummary['targetPartExtensionKey'] ?? '');
             $relationshipTargetPartExtensionCounts[$extensionKey] = (int) ($targetPartExtensionSummary['relationshipCount'] ?? 0);
+            if ((int) ($targetPartExtensionSummary['existingTargetCount'] ?? 0) > 0) {
+                $relationshipTargetExistingPartExtensionCounts[$extensionKey] = (int) $targetPartExtensionSummary['existingTargetCount'];
+            }
+            if ((int) ($targetPartExtensionSummary['missingTargetCount'] ?? 0) > 0) {
+                $relationshipTargetMissingPartExtensionCounts[$extensionKey] = (int) $targetPartExtensionSummary['missingTargetCount'];
+            }
             if ((int) ($targetPartExtensionSummary['existingTargetByteLength'] ?? 0) > 0) {
                 ++$relationshipTargetPartExtensionExistingByteBucketCount;
             }
@@ -11903,6 +11911,8 @@ final class DocxOpenXmlReader
             }
         }
         ksort($relationshipTargetPartExtensionCounts, SORT_STRING);
+        ksort($relationshipTargetExistingPartExtensionCounts, SORT_STRING);
+        ksort($relationshipTargetMissingPartExtensionCounts, SORT_STRING);
         $relationshipSourceRoles = $this->relationshipSourceRoleSummary($relationshipSources);
         $relationshipSourceRoleBucketCounts = [];
         foreach ($relationshipSourceRoles as $sourceRoleSummary) {
@@ -12128,6 +12138,9 @@ final class DocxOpenXmlReader
             'relationshipTargetRoles' => array_values($relationshipTargetRoles),
             'relationshipTargetPartExtensionCount' => count($relationshipTargetPartExtensions),
             'relationshipTargetPartExtensionCounts' => $relationshipTargetPartExtensionCounts,
+            'relationshipTargetExistingPartExtensionCounts' => $relationshipTargetExistingPartExtensionCounts,
+            'relationshipTargetMissingPartExtensionCounts' => $relationshipTargetMissingPartExtensionCounts,
+            'relationshipTargetPartWithoutExtensionCount' => (int) ($relationshipTargetPartExtensionCounts['(none)'] ?? 0),
             'relationshipTargetPartExtensionExistingByteBucketCount' => $relationshipTargetPartExtensionExistingByteBucketCount,
             'relationshipTargetPartExtensionNonExistingBucketCount' => $relationshipTargetPartExtensionNonExistingBucketCount,
             'relationshipTargetPartExtensions' => $relationshipTargetPartExtensions,
@@ -16013,6 +16026,8 @@ final class DocxOpenXmlReader
                     $extensions[$extensionKey] = [
                         'targetPartExtensionKey' => $extensionKey,
                         'targetPartExtension' => $extension,
+                        'partExtensionKey' => $extensionKey,
+                        'partExtension' => $extension,
                         'relationshipCount' => 0,
                         'existingTargetCount' => 0,
                         'missingTargetCount' => 0,

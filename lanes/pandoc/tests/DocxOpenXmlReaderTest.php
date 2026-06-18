@@ -6406,6 +6406,91 @@ XML,
         $t->same('word/embeddings/review-package', $package['existingTargetPartDigests'][1]['partName']);
         $t->same(null, $package['existingTargetPartDigests'][1]['partExtension']);
     },
+    'summarizes docx relationship target part extension rollups for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $audioRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $extensionlessBytes = 'extensionless package extension bucket bytes';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="gif" ContentType="image/gif"/>' . "\n" .
+            '  <Default Extension="mp3" ContentType="audio/mpeg"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/review-package" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rGifExtension" Type="' . $imageRel . '" Target="media/review-extension.gif"/>' . "\n" .
+            '  <Relationship Id="rMissingGifExtension" Type="' . $imageRel . '" Target="media/missing-extension.gif"/>' . "\n" .
+            '  <Relationship Id="rNarrationExtension" Type="' . $audioRel . '" Target="media/narration.mp3"/>' . "\n" .
+            '  <Relationship Id="rEmbeddedExtensionless" Type="' . $packageRel . '" Target="embeddings/review-package?raw=1#payload"/>' . "\n" .
+            '  <Relationship Id="rMissingExtensionless" Type="' . $packageRel . '" Target="raw/no-extension?raw=1#payload"/>' . "\n" .
+            '  <Relationship Id="rExternalExtension" Type="' . $hyperlinkRel . '" Target="https://example.test/target.extension" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/media/review-extension.gif'] = 'gif extension bucket bytes';
+        $parts['word/media/narration.mp3'] = 'narration extension bucket bytes';
+        $parts['word/embeddings/review-package'] = $extensionlessBytes;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $extensions = [];
+        foreach ($summary['relationshipTargetPartExtensions'] as $extension) {
+            $extensions[$extension['partExtensionKey']] = $extension;
+        }
+
+        $t->same(5, $summary['relationshipTargetPartExtensionCount']);
+        $t->same(['(none)' => 2, 'gif' => 2, 'mp3' => 1, 'png' => 1, 'xml' => 2], $summary['relationshipTargetPartExtensionCounts']);
+        $t->same(['(none)' => 1, 'gif' => 1, 'mp3' => 1, 'png' => 1, 'xml' => 2], $summary['relationshipTargetExistingPartExtensionCounts']);
+        $t->same(['(none)' => 1, 'gif' => 1], $summary['relationshipTargetMissingPartExtensionCounts']);
+        $t->same(2, $summary['relationshipTargetPartWithoutExtensionCount']);
+        $t->same(['(none)', 'gif', 'mp3', 'png', 'xml'], array_column($summary['relationshipTargetPartExtensions'], 'partExtensionKey'));
+
+        $extensionless = $extensions['(none)'];
+        $t->same(null, $extensionless['partExtension']);
+        $t->same(2, $extensionless['relationshipCount']);
+        $t->same(1, $extensionless['existingTargetCount']);
+        $t->same(1, $extensionless['missingTargetCount']);
+        $t->same(1, $extensionless['missingContentTypeTargetCount']);
+        $t->same(['missing' => 1, 'override' => 1], $extensionless['contentTypeSourceCounts']);
+        $t->same(['(missing)' => 1, 'application/vnd.openxmlformats-officedocument.oleobject' => 1], $extensionless['contentTypeBaseCounts']);
+        $t->same(['word/embeddings' => 1, 'word/raw' => 1], $extensionless['targetDirectoryCounts']);
+        $t->same([$packageRel => 2], $extensionless['relationshipTypeCounts']);
+        $t->same(['rEmbeddedExtensionless', 'rMissingExtensionless'], $extensionless['relationshipIds']);
+        $t->same(['word/embeddings/review-package', 'word/raw/no-extension'], $extensionless['targetParts']);
+        $t->same(strlen($extensionlessBytes), $extensionless['existingTargetPartByteLength']);
+        $t->same('word/embeddings/review-package', $extensionless['largestExistingTargetPart']['partName']);
+        $t->same(null, $extensionless['largestExistingTargetPart']['partExtension']);
+        $t->same('override', $extensionless['largestExistingTargetPart']['contentTypeSource']);
+
+        $gif = $extensions['gif'];
+        $t->same('gif', $gif['partExtension']);
+        $t->same(2, $gif['relationshipCount']);
+        $t->same(1, $gif['existingTargetCount']);
+        $t->same(1, $gif['missingTargetCount']);
+        $t->same(['default' => 2], $gif['contentTypeSourceCounts']);
+        $t->same(['image/gif' => 2], $gif['contentTypeBaseCounts']);
+        $t->same([$imageRel => 2], $gif['relationshipTypeCounts']);
+        $t->same(['rGifExtension', 'rMissingGifExtension'], $gif['relationshipIds']);
+        $t->same(['word/media/missing-extension.gif', 'word/media/review-extension.gif'], $gif['targetParts']);
+
+        $mp3 = $extensions['mp3'];
+        $t->same(1, $mp3['relationshipCount']);
+        $t->same(['audio/mpeg' => 1], $mp3['contentTypeBaseCounts']);
+        $t->same('word/media/narration.mp3', $mp3['largestExistingTargetPart']['partName']);
+
+        $xml = $extensions['xml'];
+        $t->same(2, $xml['relationshipCount']);
+        $t->same(['override' => 2], $xml['contentTypeSourceCounts']);
+        $t->same(['rCore', 'rDoc'], $xml['relationshipIds']);
+
+        $relationshipIds = array_merge(...array_column($summary['relationshipTargetPartExtensions'], 'relationshipIds'));
+        $t->true(!in_array('rExternalExtension', $relationshipIds, true), 'external relationship should not enter package target extension buckets');
+    },
     'summarizes docx relationship target extension digest buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
