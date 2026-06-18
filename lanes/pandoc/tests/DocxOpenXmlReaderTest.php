@@ -6165,6 +6165,106 @@ XML,
         $t->same('word/embeddings/review-package', $package['existingTargetPartDigests'][1]['partName']);
         $t->same(null, $package['existingTargetPartDigests'][1]['partExtension']);
     },
+    'summarizes docx relationship target extension digest buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $extensionlessType = 'application/vnd.openxmlformats-officedocument.oleObject';
+        $largePng = str_repeat('P', 90);
+        $extensionlessBytes = str_repeat('N', 45);
+        $customXmlBytes = '<targetExtension>' . str_repeat('X', 20000) . '</targetExtension>';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/no-extension" ContentType="' . $extensionlessType . '; profile=target-extension"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSmallPngTarget" Type="' . $imageRel . '" Target="media/small-target.png"/>' . "\n" .
+            '  <Relationship Id="rLargePngTarget" Type="' . $imageRel . '" Target="media/large-target.png?variant=large#image"/>' . "\n" .
+            '  <Relationship Id="rBinExistingTarget" Type="' . $packageRel . '" Target="embeddings/review.bin"/>' . "\n" .
+            '  <Relationship Id="rBinMissingTarget" Type="' . $packageRel . '" Target="embeddings/missing.bin"/>' . "\n" .
+            '  <Relationship Id="rExtensionlessTarget" Type="' . $packageRel . '" Target="embeddings/no-extension?payload=1#raw"/>' . "\n" .
+            '  <Relationship Id="rCustomXmlTargetExtension" Type="' . $customXmlRel . '" Target="../customXml/target-extension.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/media/small-target.png'] = 'small target png bytes';
+        $parts['word/media/large-target.png'] = $largePng;
+        $parts['word/embeddings/review.bin'] = 'target extension binary bytes';
+        $parts['word/embeddings/no-extension'] = $extensionlessBytes;
+        $parts['customXml/target-extension.xml'] = $customXmlBytes;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $byExtension = [];
+        foreach ($summary['relationshipTargetPartExtensions'] as $extensionSummary) {
+            $byExtension[$extensionSummary['targetPartExtensionKey']] = $extensionSummary;
+        }
+
+        $t->same(4, $summary['relationshipTargetPartExtensionCount']);
+        $t->same(['(none)' => 1, 'bin' => 2, 'png' => 3, 'xml' => 3], $summary['relationshipTargetPartExtensionCounts']);
+        $t->same(4, $summary['relationshipTargetPartExtensionExistingByteBucketCount']);
+        $t->same(1, $summary['relationshipTargetPartExtensionNonExistingBucketCount']);
+
+        $png = $byExtension['png'];
+        $t->same(3, $png['relationshipCount']);
+        $t->same(3, $png['existingTargetCount']);
+        $t->same(0, $png['missingTargetCount']);
+        $t->same(strlen('fake png bytes') + strlen('small target png bytes') + strlen($largePng), $png['existingTargetByteLength']);
+        $t->same(['image/png' => 3], $png['contentTypeBaseCounts']);
+        $t->same(['default' => 3], $png['contentTypeSourceCounts']);
+        $t->same(['package-part' => 3], $png['relationshipSourceKindCounts']);
+        $t->same(['document-relationship-target' => 3], $png['targetRoleCounts']);
+        $t->same(['rImage', 'rLargePngTarget', 'rSmallPngTarget'], $png['relationshipIds']);
+        $t->same(['word/media/large-target.png', 'word/media/review.png', 'word/media/small-target.png'], $png['targetParts']);
+        $t->same('word/media/large-target.png', $png['largestExistingTargetPart']['partName']);
+        $t->same(90, $png['largestExistingTargetPart']['bytes']);
+        $t->same('png', $png['largestExistingTargetPart']['partExtension']);
+        $t->same(hash('sha256', $largePng), $png['largestExistingTargetPart']['sha256']);
+
+        $bin = $byExtension['bin'];
+        $t->same(2, $bin['relationshipCount']);
+        $t->same(1, $bin['existingTargetCount']);
+        $t->same(1, $bin['missingTargetCount']);
+        $t->same(strlen('target extension binary bytes'), $bin['existingTargetByteLength']);
+        $t->same(['application/octet-stream' => 2], $bin['contentTypeBaseCounts']);
+        $t->same(['default' => 2], $bin['contentTypeSourceCounts']);
+        $t->same(['document-relationship-target' => 1, 'embedded-package' => 1, 'missing-relationship-target' => 1], $bin['targetRoleCounts']);
+        $t->same(['word/embeddings/missing.bin'], $bin['missingTargetParts']);
+        $t->same('word/embeddings/review.bin', $bin['largestExistingTargetPart']['partName']);
+        $t->same('bin', $bin['largestExistingTargetPart']['partExtension']);
+
+        $none = $byExtension['(none)'];
+        $t->same(1, $none['relationshipCount']);
+        $t->same(1, $none['existingTargetCount']);
+        $t->same(0, $none['missingTargetCount']);
+        $t->same(1, $none['parameterizedTargetCount']);
+        $t->same([strtolower($extensionlessType) => 1], $none['contentTypeBaseCounts']);
+        $t->same(['override' => 1], $none['contentTypeSourceCounts']);
+        $t->same(['rExtensionlessTarget'], $none['relationshipIds']);
+        $t->same(['word/embeddings/no-extension'], $none['targetParts']);
+        $t->same(null, $none['targetPartExtension']);
+        $t->same(null, $none['largestExistingTargetPart']['partExtension']);
+        $t->same('word/embeddings/no-extension', $none['largestExistingTargetPart']['partName']);
+        $t->same(hash('sha256', $extensionlessBytes), $none['largestExistingTargetPart']['sha256']);
+
+        $xml = $byExtension['xml'];
+        $t->same(3, $xml['relationshipCount']);
+        $t->same(3, $xml['existingTargetCount']);
+        $t->same(0, $xml['missingTargetCount']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+            'application/xml' => 1,
+        ], $xml['contentTypeBaseCounts']);
+        $t->same(['default' => 1, 'override' => 2], $xml['contentTypeSourceCounts']);
+        $t->same(['customXml/target-extension.xml', 'docProps/core.xml', 'word/document.xml'], $xml['targetParts']);
+        $t->same('customXml/target-extension.xml', $xml['largestExistingTargetPart']['partName']);
+        $t->same(hash('sha256', $customXmlBytes), $xml['largestExistingTargetPart']['sha256']);
+    },
     'summarizes docx relationship target directories for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
