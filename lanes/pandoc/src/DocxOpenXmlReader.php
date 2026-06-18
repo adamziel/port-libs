@@ -11468,6 +11468,7 @@ final class DocxOpenXmlReader
                             'missingTargetCount' => 0,
                             'parameterizedTargetCount' => 0,
                             'contentTypeSourceCounts' => [],
+                            'relationshipTypeCounts' => [],
                             'targetParts' => [],
                             'relationshipIds' => [],
                             'contentTypeParameterCount' => 0,
@@ -11484,6 +11485,8 @@ final class DocxOpenXmlReader
                         ($relationshipTargetContentTypeSourceCounts[$targetContentTypeSource] ?? 0) + 1;
                     $relationshipTargetContentTypes[$targetContentTypeKey]['contentTypeSourceCounts'][$targetContentTypeSource] =
                         ($relationshipTargetContentTypes[$targetContentTypeKey]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                    $relationshipTargetContentTypes[$targetContentTypeKey]['relationshipTypeCounts'][$typeKey] =
+                        ($relationshipTargetContentTypes[$targetContentTypeKey]['relationshipTypeCounts'][$typeKey] ?? 0) + 1;
                     $this->appendUniqueString($relationshipTargetContentTypes[$targetContentTypeKey]['contentTypes'], $targetContentType);
                     $this->appendUniqueString($relationshipTargetContentTypes[$targetContentTypeKey]['targetParts'], $targetPart);
                     $this->appendUniqueString(
@@ -12567,6 +12570,7 @@ final class DocxOpenXmlReader
         ksort($relationshipTargetContentTypes);
         foreach ($relationshipTargetContentTypes as &$targetContentTypeSummary) {
             ksort($targetContentTypeSummary['contentTypeSourceCounts']);
+            ksort($targetContentTypeSummary['relationshipTypeCounts']);
             ksort($targetContentTypeSummary['contentTypeParameterNameCounts']);
             ksort($targetContentTypeSummary['contentTypeParameterValueCounts']);
             foreach ($targetContentTypeSummary['contentTypeParameterValueCounts'] as &$targetBucketParameterValueCounts) {
