@@ -4220,6 +4220,10 @@ XML;
         foreach ($summary['relationshipSources'] as $source) {
             $sourcesByPart[$source['relationshipsPart']] = $source;
         }
+        $parameterValueBuckets = [];
+        foreach ($summary['relationshipSourceContentTypeParameterValues'] as $bucket) {
+            $parameterValueBuckets[$bucket['sourceContentTypeParameterValueKey']] = $bucket;
+        }
 
         $t->same(7, $summary['relationshipSourceCount']);
         $t->same(4, $summary['relationshipSourceParameterizedContentTypeCount']);
@@ -4231,6 +4235,46 @@ XML;
             'xml-source' => 2,
         ], $summary['relationshipSourceContentTypeParameterValueCounts']['profile']);
         $t->same(['default' => 3, 'override' => 1], $summary['relationshipSourceContentTypeParameterSourceCounts']);
+        $t->same(4, $summary['relationshipSourceContentTypeParameterValueBucketCount']);
+        $t->same([
+            'charset=UTF-8' => 3,
+            'profile=header-source' => 1,
+            'profile=rels-source' => 1,
+            'profile=xml-source' => 2,
+        ], $summary['relationshipSourceContentTypeParameterValueBucketCounts']);
+        $t->same([
+            'charset=UTF-8',
+            'profile=header-source',
+            'profile=rels-source',
+            'profile=xml-source',
+        ], array_keys($parameterValueBuckets));
+
+        $charsetBucket = $parameterValueBuckets['charset=UTF-8'];
+        $t->same(3, $charsetBucket['sourceCount']);
+        $t->same(3, $charsetBucket['relationshipCount']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml' => 1,
+            'application/xml' => 2,
+        ], $charsetBucket['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 2, 'override' => 1], $charsetBucket['sourceContentTypeSourceCounts']);
+        $t->same(['root-param.xml', 'word/header/header-param.xml', 'word/source-param.xml'], $charsetBucket['sourceParts']);
+        $t->same('word/header/header-param.xml', $charsetBucket['largestExistingSourcePart']['sourcePart']);
+        $t->same(['profile' => 'header-source', 'charset' => 'UTF-8'], $charsetBucket['largestExistingSourcePart']['sourceContentTypeParameterMap']);
+
+        $xmlProfileBucket = $parameterValueBuckets['profile=xml-source'];
+        $t->same(2, $xmlProfileBucket['sourceCount']);
+        $t->same(strlen($parts['root-param.xml']) + strlen($parts['word/source-param.xml']), $xmlProfileBucket['existingSourceByteLength']);
+        $t->same('root-param.xml', $xmlProfileBucket['largestExistingSourcePart']['sourcePart']);
+
+        $relsProfileBucket = $parameterValueBuckets['profile=rels-source'];
+        $t->same(['relationship-part' => 1], $relsProfileBucket['relationshipSourceKindCounts']);
+        $t->same(['office-document-relationships' => 1, 'relationship-part' => 1], $relsProfileBucket['sourceRoleCounts']);
+        $t->same(hash('sha256', $parts['word/_rels/document.xml.rels']), $relsProfileBucket['largestExistingSourcePart']['sourceSha256']);
+
+        $headerProfileBucket = $parameterValueBuckets['profile=header-source'];
+        $t->same(['override' => 1], $headerProfileBucket['sourceContentTypeSourceCounts']);
+        $t->same([$headerContentType], $headerProfileBucket['sourceContentTypes']);
+        $t->same(['profile' => 'header-source', 'charset' => 'UTF-8'], $headerProfileBucket['largestExistingSourcePart']['sourceContentTypeParameterMap']);
 
         $rootSource = $sourcesByPart['_rels/root-param.xml.rels'];
         $t->same('root-param.xml', $rootSource['sourcePart']);
