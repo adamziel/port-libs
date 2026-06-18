@@ -6820,6 +6820,110 @@ XML;
         $t->same(hash('sha256', $largeImageBytes), $media['largestExistingTargetPart']['sha256']);
         $t->same(2, $summary['externalRelationshipCount']);
     },
+    'summarizes docx relationship target directory depth buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $glossaryRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=directory-depth"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootDirectoryDepth" Type="' . $customXmlRel . '" Target="/root-depth.xml?root=1#depth"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsDirectoryDepth" Type="' . $commentsRel . '" Target="comments.xml?depth=word#comments"/>' . "\n" .
+            '  <Relationship Id="rGlossaryDirectoryDepth" Type="' . $glossaryRel . '" Target="glossary/depth.xml"/>' . "\n" .
+            '  <Relationship Id="rDeepDirectoryDepth" Type="' . $imageRel . '" Target="media/deep/target-depth.png"/>' . "\n" .
+            '  <Relationship Id="rMissingDeepDirectoryDepth" Type="' . $imageRel . '" Target="media/deep/missing/target-depth.png?missing=1#target"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['root-depth.xml'] = '<rootDepth/>';
+        $parts['word/comments.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/glossary/depth.xml'] = '<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/media/deep/target-depth.png'] = 'deep target directory depth image bytes';
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $depths = [];
+        foreach ($summary['relationshipTargetDirectoryDepths'] as $depth) {
+            $depths[$depth['targetDirectoryDepthKey']] = $depth;
+        }
+
+        $t->same(5, $summary['relationshipTargetDirectoryDepthCount']);
+        $t->same([
+            '0' => 1,
+            '1' => 3,
+            '2' => 2,
+            '3' => 1,
+            '4' => 1,
+        ], $summary['relationshipTargetDirectoryDepthCounts']);
+        $t->same(4, $summary['maxRelationshipTargetDirectoryDepth']);
+        $t->same(['word/media/deep/missing'], $summary['deepestRelationshipTargetDirectories']);
+        $t->same(['0', '1', '2', '3', '4'], array_column($summary['relationshipTargetDirectoryDepths'], 'targetDirectoryDepthKey'));
+
+        $root = $depths['0'];
+        $t->same(1, $root['targetDirectoryCount']);
+        $t->same(1, $root['relationshipCount']);
+        $t->same(1, $root['existingTargetCount']);
+        $t->same(['/' => 1], $root['targetDirectoryCounts']);
+        $t->same(['default' => 1], $root['contentTypeSourceCounts']);
+        $t->same(['rRootDirectoryDepth'], $root['relationshipIds']);
+        $t->same(['root-depth.xml'], $root['targetParts']);
+
+        $shallow = $depths['1'];
+        $t->same(2, $shallow['targetDirectoryCount']);
+        $t->same(3, $shallow['relationshipCount']);
+        $t->same(3, $shallow['existingTargetCount']);
+        $t->same(0, $shallow['missingTargetCount']);
+        $t->same(1, $shallow['parameterizedTargetCount']);
+        $t->same(['docProps' => 1, 'word' => 2], $shallow['targetDirectoryCounts']);
+        $t->same(['override' => 3], $shallow['contentTypeSourceCounts']);
+        $t->same(['/', 'word/document.xml'], $shallow['sourceParts']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $shallow['relationshipParts']);
+        $t->same(['rCommentsDirectoryDepth', 'rCore', 'rDoc'], $shallow['relationshipIds']);
+        $t->same([
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument',
+            'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties',
+        ], $shallow['relationshipTypes']);
+        $t->same(['docProps/core.xml', 'word/comments.xml', 'word/document.xml'], $shallow['targetParts']);
+
+        $middle = $depths['2'];
+        $t->same(2, $middle['targetDirectoryCount']);
+        $t->same(2, $middle['relationshipCount']);
+        $t->same(['word/glossary' => 1, 'word/media' => 1], $middle['targetDirectoryCounts']);
+        $t->same(['default' => 2], $middle['contentTypeSourceCounts']);
+        $t->same(['rGlossaryDirectoryDepth', 'rImage'], $middle['relationshipIds']);
+        $t->same(['word/glossary/depth.xml', 'word/media/review.png'], $middle['targetParts']);
+
+        $deep = $depths['3'];
+        $t->same(1, $deep['targetDirectoryCount']);
+        $t->same(1, $deep['relationshipCount']);
+        $t->same(1, $deep['existingTargetCount']);
+        $t->same(['word/media/deep'], $deep['targetDirectories']);
+        $t->same(['rDeepDirectoryDepth'], $deep['relationshipIds']);
+        $t->same(['word/media/deep/target-depth.png'], $deep['targetParts']);
+
+        $missing = $depths['4'];
+        $t->same(1, $missing['targetDirectoryCount']);
+        $t->same(1, $missing['relationshipCount']);
+        $t->same(0, $missing['existingTargetCount']);
+        $t->same(1, $missing['missingTargetCount']);
+        $t->same(['word/media/deep/missing' => 1], $missing['targetDirectoryCounts']);
+        $t->same(['rMissingDeepDirectoryDepth'], $missing['relationshipIds']);
+        $t->same(['word/media/deep/missing/target-depth.png'], $missing['targetParts']);
+        $t->same(1, $summary['externalRelationshipCount']);
+    },
     'summarizes docx relationship target directory base names for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';

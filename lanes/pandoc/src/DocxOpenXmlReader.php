@@ -12179,6 +12179,26 @@ final class DocxOpenXmlReader
             unset($targetDirectorySummary['_seenExistingTargetParts']);
         }
         unset($targetDirectorySummary);
+        $relationshipTargetDirectoryDepths = $this->relationshipTargetDirectoryDepthSummary($relationshipTargetDirectories);
+        $relationshipTargetDirectoryDepthCounts = [];
+        $maxRelationshipTargetDirectoryDepth = 0;
+        $deepestRelationshipTargetDirectories = [];
+        foreach ($relationshipTargetDirectoryDepths as $targetDirectoryDepthSummary) {
+            $depthKey = (string) ($targetDirectoryDepthSummary['targetDirectoryDepthKey'] ?? '');
+            $depth = is_int($targetDirectoryDepthSummary['targetDirectoryDepth'] ?? null)
+                ? (int) $targetDirectoryDepthSummary['targetDirectoryDepth']
+                : 0;
+            $relationshipTargetDirectoryDepthCounts[$depthKey] =
+                (int) ($targetDirectoryDepthSummary['relationshipCount'] ?? 0);
+            if ($depth >= $maxRelationshipTargetDirectoryDepth) {
+                $maxRelationshipTargetDirectoryDepth = $depth;
+                $deepestRelationshipTargetDirectories = array_values(array_map(
+                    'strval',
+                    $targetDirectoryDepthSummary['targetDirectories'] ?? [],
+                ));
+            }
+        }
+        ksort($relationshipTargetDirectoryDepthCounts, SORT_NUMERIC);
         ksort($relationshipTargetDirectoryBaseNameCounts);
         ksort($relationshipTargetExistingDirectoryBaseNameCounts);
         ksort($relationshipTargetMissingDirectoryBaseNameCounts);
@@ -12656,6 +12676,11 @@ final class DocxOpenXmlReader
             'relationshipTargetExistingDirectoryCounts' => $relationshipTargetExistingDirectoryCounts,
             'relationshipTargetMissingDirectoryCounts' => $relationshipTargetMissingDirectoryCounts,
             'relationshipTargetDirectories' => array_values($relationshipTargetDirectories),
+            'relationshipTargetDirectoryDepthCount' => count($relationshipTargetDirectoryDepths),
+            'relationshipTargetDirectoryDepthCounts' => $relationshipTargetDirectoryDepthCounts,
+            'maxRelationshipTargetDirectoryDepth' => $maxRelationshipTargetDirectoryDepth,
+            'deepestRelationshipTargetDirectories' => $deepestRelationshipTargetDirectories,
+            'relationshipTargetDirectoryDepths' => $relationshipTargetDirectoryDepths,
             'relationshipTargetDirectoryBaseNameCount' => count($relationshipTargetDirectoryBaseNames),
             'relationshipTargetDirectoryBaseNameCounts' => $relationshipTargetDirectoryBaseNameCounts,
             'relationshipTargetExistingDirectoryBaseNameCounts' => $relationshipTargetExistingDirectoryBaseNameCounts,
@@ -14348,6 +14373,82 @@ final class DocxOpenXmlReader
             sort($summary['sourceDirectories'], SORT_STRING);
             sort($summary['sourceParts'], SORT_STRING);
             sort($summary['relationshipParts'], SORT_STRING);
+            $depths[$depthKey] = $summary;
+        }
+
+        return array_values($depths);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $relationshipTargetDirectories
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipTargetDirectoryDepthSummary(array $relationshipTargetDirectories): array
+    {
+        $depths = [];
+        foreach ($relationshipTargetDirectories as $directorySummary) {
+            $directory = is_string($directorySummary['directory'] ?? null)
+                ? $directorySummary['directory']
+                : '';
+            $depth = $this->packagePartDirectoryDepth($directory);
+            $depthKey = (string) $depth;
+            if (!isset($depths[$depthKey])) {
+                $depths[$depthKey] = [
+                    'targetDirectoryDepthKey' => $depthKey,
+                    'targetDirectoryDepth' => $depth,
+                    'targetDirectoryCount' => 0,
+                    'relationshipCount' => 0,
+                    'existingTargetCount' => 0,
+                    'missingTargetCount' => 0,
+                    'parameterizedTargetCount' => 0,
+                    'targetDirectoryCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'targetDirectories' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'relationshipIds' => [],
+                    'relationshipTypes' => [],
+                    'contentTypes' => [],
+                    'targetParts' => [],
+                ];
+            }
+
+            $relationshipCount = (int) ($directorySummary['relationshipCount'] ?? 0);
+            ++$depths[$depthKey]['targetDirectoryCount'];
+            $depths[$depthKey]['relationshipCount'] += $relationshipCount;
+            $depths[$depthKey]['existingTargetCount'] += (int) ($directorySummary['existingTargetCount'] ?? 0);
+            $depths[$depthKey]['missingTargetCount'] += (int) ($directorySummary['missingTargetCount'] ?? 0);
+            $depths[$depthKey]['parameterizedTargetCount'] += (int) ($directorySummary['parameterizedTargetCount'] ?? 0);
+            $depths[$depthKey]['targetDirectoryCounts'][$directory] =
+                ($depths[$depthKey]['targetDirectoryCounts'][$directory] ?? 0) + $relationshipCount;
+            $this->appendUniqueString($depths[$depthKey]['targetDirectories'], $directory);
+
+            foreach (($directorySummary['contentTypeSourceCounts'] ?? []) as $source => $count) {
+                if (!is_string($source)) {
+                    continue;
+                }
+                $depths[$depthKey]['contentTypeSourceCounts'][$source] =
+                    ($depths[$depthKey]['contentTypeSourceCounts'][$source] ?? 0) + (int) $count;
+            }
+
+            foreach (['sourceParts', 'relationshipParts', 'relationshipIds', 'relationshipTypes', 'contentTypes', 'targetParts'] as $listKey) {
+                foreach (($directorySummary[$listKey] ?? []) as $value) {
+                    $this->appendUniqueString($depths[$depthKey][$listKey], is_string($value) ? $value : null);
+                }
+            }
+        }
+
+        ksort($depths, SORT_NUMERIC);
+        foreach ($depths as $depthKey => $summary) {
+            ksort($summary['targetDirectoryCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            sort($summary['targetDirectories'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            sort($summary['relationshipIds'], SORT_STRING);
+            sort($summary['relationshipTypes'], SORT_STRING);
+            sort($summary['contentTypes'], SORT_STRING);
+            sort($summary['targetParts'], SORT_STRING);
             $depths[$depthKey] = $summary;
         }
 
