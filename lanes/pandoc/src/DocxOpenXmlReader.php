@@ -10463,12 +10463,14 @@ final class DocxOpenXmlReader
         $roleByteLengths = [];
         $contentTypeSourceCounts = [];
         $contentTypeSourceByteLengths = [];
+        $contentTypeBaseCounts = [];
         $contentTypeParameterPartCount = 0;
         $contentTypeParameterByteLength = 0;
         $contentTypeParameterNameCounts = [];
         $contentTypeParameterSourceCounts = [];
         $contentTypeParameterValueCounts = [];
         $contentTypeParameters = [];
+        $partsWithContentTypeParameters = [];
         $packageByteLength = 0;
         $relationshipPartCount = 0;
         $relationshipPartByteLength = 0;
@@ -10479,6 +10481,10 @@ final class DocxOpenXmlReader
             $source = (string) ($part['contentTypeSource'] ?? 'missing');
             $contentTypeSourceCounts[$source] = ($contentTypeSourceCounts[$source] ?? 0) + 1;
             $contentTypeSourceByteLengths[$source] = ($contentTypeSourceByteLengths[$source] ?? 0) + $bytes;
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            if ($contentTypeBase !== '') {
+                $contentTypeBaseCounts[$contentTypeBase] = ($contentTypeBaseCounts[$contentTypeBase] ?? 0) + 1;
+            }
             $parameterMap = is_array($part['contentTypeParameterMap'] ?? null)
                 ? $part['contentTypeParameterMap']
                 : [];
@@ -10487,6 +10493,21 @@ final class DocxOpenXmlReader
                 $contentTypeParameterByteLength += $bytes;
                 $contentTypeParameterSourceCounts[$source] =
                     ($contentTypeParameterSourceCounts[$source] ?? 0) + 1;
+                $partsWithContentTypeParameters[] = [
+                    'partName' => (string) ($part['partName'] ?? ''),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => $contentTypeBase,
+                    'contentTypeParameterCount' => (int) ($part['contentTypeParameterCount'] ?? count($parameterMap)),
+                    'contentTypeParameters' => is_array($part['contentTypeParameters'] ?? null)
+                        ? $part['contentTypeParameters']
+                        : [],
+                    'contentTypeParameterMap' => $parameterMap,
+                    'contentTypeSource' => $source,
+                    'defaultExtension' => is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+                    'overridePartName' => is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+                    'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+                    'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                ];
             }
             foreach ($parameterMap as $parameterName => $parameterValue) {
                 if (!is_string($parameterName) || $parameterName === '') {
@@ -10547,6 +10568,7 @@ final class DocxOpenXmlReader
         ksort($roleByteLengths);
         ksort($contentTypeSourceCounts);
         ksort($contentTypeSourceByteLengths);
+        ksort($contentTypeBaseCounts);
         ksort($contentTypeParameterNameCounts);
         ksort($contentTypeParameterSourceCounts);
         ksort($contentTypeParameterValueCounts);
@@ -13377,6 +13399,8 @@ final class DocxOpenXmlReader
             'contentTypeOverrideDeclarationIssues' => $contentTypesPart['overrideDeclarationIssues'] ?? [],
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'contentTypeSourceByteLengths' => $contentTypeSourceByteLengths,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'parameterizedPartCount' => $contentTypeParameterPartCount,
             'contentTypeParameterNameCount' => count($contentTypeParameters),
             'contentTypeParameterPartCount' => $contentTypeParameterPartCount,
             'contentTypeParameterByteLength' => $contentTypeParameterByteLength,
@@ -13384,6 +13408,7 @@ final class DocxOpenXmlReader
             'contentTypeParameterSourceCounts' => $contentTypeParameterSourceCounts,
             'contentTypeParameterValueCounts' => $contentTypeParameterValueCounts,
             'contentTypeParameters' => array_values($contentTypeParameters),
+            'partsWithContentTypeParameters' => $partsWithContentTypeParameters,
             'roleCounts' => $roleCounts,
             'roleByteLengths' => $roleByteLengths,
             'relationshipTypeCounts' => $relationshipTypeCounts,

@@ -2534,6 +2534,36 @@ XML;
         $t->same(['default' => 4, 'override' => 1], $summary['contentTypeParameterSourceCounts']);
         $t->same(['UTF-8' => 3, 'utf-8' => 1], $summary['contentTypeParameterValueCounts']['charset']);
         $t->same(['main-doc' => 1, 'media-default' => 1, 'package-default' => 3], $summary['contentTypeParameterValueCounts']['profile']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 2,
+            'application/xml' => 3,
+            'image/png' => 1,
+        ], $summary['contentTypeBaseCounts']);
+        $t->same(5, $summary['parameterizedPartCount']);
+        $t->same($parameterizedPartNames, array_column($summary['partsWithContentTypeParameters'], 'partName'));
+        $t->same(
+            ['default', 'default', 'default', 'override', 'default'],
+            array_column($summary['partsWithContentTypeParameters'], 'contentTypeSource')
+        );
+        $t->same(
+            [
+                'application/xml',
+                'application/xml',
+                'application/xml',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+                'image/png',
+            ],
+            array_column($summary['partsWithContentTypeParameters'], 'contentTypeBase')
+        );
+        $t->same(['charset' => 'UTF-8', 'profile' => 'package-default'], $summary['partsWithContentTypeParameters'][0]['contentTypeParameterMap']);
+        $t->same('xml', $summary['partsWithContentTypeParameters'][1]['defaultExtension']);
+        $t->same(['package-part'], $summary['partsWithContentTypeParameters'][2]['roles']);
+        $t->same('word/document.xml', $summary['partsWithContentTypeParameters'][3]['overridePartName']);
+        $t->same(['charset' => 'utf-8', 'profile' => 'main-doc'], $summary['partsWithContentTypeParameters'][3]['contentTypeParameterMap']);
+        $t->same('png', $summary['partsWithContentTypeParameters'][4]['defaultExtension']);
+        $t->same(false, $summary['partsWithContentTypeParameters'][4]['isRelationshipPart']);
 
         $charset = $parameterBuckets['charset'];
         $t->same(4, $charset['partCount']);
