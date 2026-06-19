@@ -2739,6 +2739,34 @@ return [
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'Noise'));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'XY'));
     },
+    'recovers compact ToUnicode CMap rows around malformed tuples before WordPress text extraction' => static function (TestRunner $t): void {
+        $content = 'BT /Fcid 12 Tf 72 720 Td <4143515262> Tj ET';
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "1 begincodespacerange\n"
+            . "<41> <62>\n"
+            . "endcodespacerange\n"
+            . "3 beginbfchar\n"
+            . "<41> <0053> <42> << /Bad true >> <43> <0046>\n"
+            . "endbfchar\n"
+            . "3 beginbfrange\n"
+            . "<51> <52> <0051> <60> << /Bad true >> <62> <62> <005A>\n"
+            . "endbfrange\n"
+            . "endcmap\n"
+            . "CMapName currentdict /CompactMalformedRowsCMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CompactMalformedRowsSubset /Encoding /Identity-H /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same('SFQRZ', $extractor->extractPlainText($pdf));
+        $t->same(['SFQRZ'], $extractor->extractTextRuns($pdf));
+    },
     'decodes escaped PDF resource names before ToUnicode WordPress text lookup' => static function (TestRunner $t): void {
         $content = 'BT /F#31 12 Tf 72 720 Td <4142> Tj ET';
         $cmap = "/CIDInit /ProcSet findresource begin\n"

@@ -40443,23 +40443,10 @@ final class PdfTextExtractor
                 break;
             }
 
-            if (!$this->cMapBfCharTokensAreWellFormedRows($tokens)) {
-                $hasMalformedRows = true;
-                $rowsSeen += $this->cMapMalformedRowSlotCount($tokens, 2);
-                continue;
-            }
-
-            for ($index = 0, $count = count($tokens); $index + 1 < $count; $index += 2) {
-                if ($rowLimit !== null && $rowsSeen >= $rowLimit) {
-                    break 2;
-                }
-                $rows[] = [
-                    'source' => $tokens[$index]['value'],
-                    'target' => $tokens[$index + 1]['value'],
-                    'targetKind' => $tokens[$index + 1]['type'],
-                ];
-                $rowsSeen++;
-            }
+            array_push(
+                $rows,
+                ...$this->cMapBfCharRowsFromTokenStream($tokens, $rowLimit, $rowsSeen, $hasMalformedRows)
+            );
         }
 
         return [
@@ -40467,6 +40454,59 @@ final class PdfTextExtractor
             'hasMalformedRows' => $hasMalformedRows,
             'rowSlots' => $rowsSeen,
         ];
+    }
+
+    /**
+     * @param list<array{type: 'hex'|'literal'|'array'|'other', value: string}> $tokens
+     * @return list<array{source: string, target: string, targetKind: 'hex'|'literal'}>
+     */
+    private function cMapBfCharRowsFromTokenStream(
+        array $tokens,
+        ?int $rowLimit,
+        int &$rowsSeen,
+        bool &$hasMalformedRows
+    ): array {
+        $rows = [];
+        for ($index = 0, $count = count($tokens); $index < $count;) {
+            if ($rowLimit !== null && $rowsSeen >= $rowLimit) {
+                break;
+            }
+
+            if (
+                $index + 1 < $count
+                && ($tokens[$index]['type'] ?? null) === 'hex'
+                && in_array($tokens[$index + 1]['type'] ?? null, ['hex', 'literal'], true)
+            ) {
+                if ($index + 2 < $count && ($tokens[$index + 2]['type'] ?? null) !== 'hex') {
+                    $hasMalformedRows = true;
+                    $rowsSeen++;
+                    $index += 2;
+                    continue;
+                }
+                $rows[] = [
+                    'source' => $tokens[$index]['value'],
+                    'target' => $tokens[$index + 1]['value'],
+                    'targetKind' => $tokens[$index + 1]['type'],
+                ];
+                $rowsSeen++;
+                $index += 2;
+                continue;
+            }
+
+            $remaining = array_slice($tokens, $index);
+            $slotCount = $this->cMapMalformedRowSlotCount($remaining, 2);
+            if ($slotCount <= 0) {
+                $hasMalformedRows = true;
+                $index++;
+                continue;
+            }
+
+            $hasMalformedRows = true;
+            $rowsSeen++;
+            $index += (($tokens[$index]['type'] ?? null) === 'hex' && $index + 1 < $count) ? 2 : 1;
+        }
+
+        return $rows;
     }
 
     /**
@@ -40581,19 +40621,10 @@ final class PdfTextExtractor
                 break;
             }
 
-            if (!$this->cMapBfRangeTokensAreWellFormedRows($tokens)) {
-                $hasMalformedRows = true;
-                $rowsSeen += $this->cMapMalformedRowSlotCount($tokens, 3);
-                continue;
-            }
-
-            foreach ($this->cMapBfRangeRowsFromTokens($tokens) as $row) {
-                if ($rowLimit !== null && $rowsSeen >= $rowLimit) {
-                    break 2;
-                }
-                $rows[] = $row;
-                $rowsSeen++;
-            }
+            array_push(
+                $rows,
+                ...$this->cMapBfRangeRowsFromTokenStream($tokens, $rowLimit, $rowsSeen, $hasMalformedRows)
+            );
         }
 
         return [
@@ -40666,6 +40697,63 @@ final class PdfTextExtractor
             }
 
             $index++;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array{type: 'hex'|'literal'|'array'|'other', value: string}> $tokens
+     * @return list<array{start: string, end: string, target?: string, targets?: list<string>, targetKind?: string, targetKinds?: list<string>}>
+     */
+    private function cMapBfRangeRowsFromTokenStream(
+        array $tokens,
+        ?int $rowLimit,
+        int &$rowsSeen,
+        bool &$hasMalformedRows
+    ): array {
+        $rows = [];
+        for ($index = 0, $count = count($tokens); $index < $count;) {
+            if ($rowLimit !== null && $rowsSeen >= $rowLimit) {
+                break;
+            }
+
+            if (
+                $index + 2 < $count
+                && ($tokens[$index]['type'] ?? null) === 'hex'
+                && ($tokens[$index + 1]['type'] ?? null) === 'hex'
+                && in_array($tokens[$index + 2]['type'] ?? null, ['hex', 'literal', 'array'], true)
+            ) {
+                if ($index + 3 < $count && ($tokens[$index + 3]['type'] ?? null) !== 'hex') {
+                    $hasMalformedRows = true;
+                    $rowsSeen++;
+                    $index += 3;
+                    continue;
+                }
+                $rangeRows = $this->cMapBfRangeRowsFromTokens(array_slice($tokens, $index, 3));
+                if ($rangeRows !== []) {
+                    $rows[] = $rangeRows[0];
+                    $rowsSeen++;
+                    $index += 3;
+                    continue;
+                }
+            }
+
+            $remaining = array_slice($tokens, $index);
+            $slotCount = $this->cMapMalformedRowSlotCount($remaining, 3);
+            if ($slotCount <= 0) {
+                $hasMalformedRows = true;
+                $index++;
+                continue;
+            }
+
+            $hasMalformedRows = true;
+            $rowsSeen++;
+            if (($tokens[$index]['type'] ?? null) !== 'hex') {
+                $index++;
+                continue;
+            }
+            $index += (($tokens[$index + 1]['type'] ?? null) === 'hex') ? min(3, count($remaining)) : min(2, count($remaining));
         }
 
         return $rows;
