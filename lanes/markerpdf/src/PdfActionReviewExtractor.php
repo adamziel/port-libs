@@ -537,6 +537,23 @@ final class PdfActionReviewExtractor
             );
         }
 
+        if ($type === 'GoToE') {
+            if (
+                isset($malformedValueKeys['F'])
+                || isset($malformedValueKeys['D'])
+                || isset($malformedValueKeys['T'])
+                || isset($malformedValueKeys['NewWindow'])
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['F'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['D'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['T'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['NewWindow'] ?? null))
+            ) {
+                return $this->malformedActionDictionaryReview('GoToE');
+            }
+
+            return $this->embeddedGoToActionReview($action);
+        }
+
         if ($type === 'Launch') {
             if (
                 isset($malformedValueKeys['F'])
@@ -624,6 +641,115 @@ final class PdfActionReviewExtractor
             }
 
             return $this->formActionReview($action, $type);
+        }
+
+        if ($type === 'Thread') {
+            if (
+                isset($malformedValueKeys['D'])
+                || isset($malformedValueKeys['B'])
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['D'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['B'] ?? null))
+            ) {
+                return $this->malformedActionDictionaryReview('Thread');
+            }
+
+            return $this->threadActionReview($action);
+        }
+
+        if ($type === 'Movie') {
+            if (
+                isset($malformedValueKeys['Annotation'])
+                || isset($malformedValueKeys['T'])
+                || isset($malformedValueKeys['Operation'])
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['Annotation'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['T'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['Operation'] ?? null))
+            ) {
+                return $this->malformedActionDictionaryReview('Movie');
+            }
+
+            return $this->movieActionReview($action);
+        }
+
+        if ($type === 'Sound') {
+            if (
+                isset($malformedValueKeys['Sound'])
+                || isset($malformedValueKeys['Volume'])
+                || isset($malformedValueKeys['Synchronous'])
+                || isset($malformedValueKeys['Repeat'])
+                || isset($malformedValueKeys['Mix'])
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['Sound'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['Volume'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['Synchronous'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['Repeat'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['Mix'] ?? null))
+            ) {
+                return $this->malformedActionDictionaryReview('Sound');
+            }
+
+            return $this->soundActionReview($action);
+        }
+
+        if ($type === 'Rendition') {
+            if (
+                isset($malformedValueKeys['OP'])
+                || isset($malformedValueKeys['AN'])
+                || isset($malformedValueKeys['R'])
+                || isset($malformedValueKeys['JS'])
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['OP'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['AN'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['R'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['JS'] ?? null))
+            ) {
+                return $this->malformedActionDictionaryReview('Rendition');
+            }
+
+            return $this->renditionActionReview($action);
+        }
+
+        if ($type === 'RichMediaExecute') {
+            if (
+                isset($malformedValueKeys['TA'])
+                || isset($malformedValueKeys['AN'])
+                || isset($malformedValueKeys['TI'])
+                || isset($malformedValueKeys['C'])
+                || isset($malformedValueKeys['CMD'])
+                || isset($malformedValueKeys['A'])
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['TA'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['AN'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['TI'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['C'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['CMD'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['A'] ?? null))
+            ) {
+                return $this->malformedActionDictionaryReview('RichMediaExecute');
+            }
+
+            return $this->richMediaExecuteActionReview($action);
+        }
+
+        if ($type === 'SetOCGState') {
+            if (
+                isset($malformedValueKeys['State'])
+                || isset($malformedValueKeys['PreserveRB'])
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['State'] ?? null))
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['PreserveRB'] ?? null))
+            ) {
+                return $this->malformedActionDictionaryReview('SetOCGState');
+            }
+
+            return $this->setOcgStateActionReview($action);
+        }
+
+        if ($type === 'Trans') {
+            if (
+                isset($malformedValueKeys['Trans'])
+                || $this->objectValueHasTrailingOperand($this->resolveValue($action['Trans'] ?? null))
+            ) {
+                return $this->malformedActionDictionaryReview('Trans');
+            }
+
+            return $this->transitionActionReview($action);
         }
 
         if ($type === null) {
@@ -747,6 +873,304 @@ final class PdfActionReviewExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function embeddedGoToActionReview(array $action): array
+    {
+        $target = $this->remoteDestinationValue($action['D'] ?? null) ?? [
+            'destination' => null,
+            'page' => null,
+            'view_mode' => null,
+            'view_position' => [],
+            'view_parameters' => [],
+        ];
+        $file = $this->fileSpecValue($action['F'] ?? null);
+
+        return $this->reviewAction(
+            'GoToE',
+            'embedded-document-review',
+            $target['page'],
+            $target['destination'],
+            $target['view_mode'],
+            $target['view_position'],
+            $target['view_parameters'],
+            null,
+            $file,
+            null,
+            null,
+            $this->boolValue($action['NewWindow'] ?? null)
+        ) + [
+            'target' => $this->embeddedTargetReview($action['T'] ?? null),
+            'executes_embedded_document' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function threadActionReview(array $action): array
+    {
+        $destination = $this->stringOrNameValue($this->resolveValue($action['D'] ?? null));
+        $beadReference = $this->referenceObject($action['B'] ?? null);
+
+        return $this->reviewAction('Thread', 'article-thread-review', null, $destination, null, [], [], null, null, null, null)
+            + [
+                'thread_bead_object' => $beadReference['object'] ?? null,
+                'thread_bead_generation' => $beadReference['generation'] ?? null,
+                'enters_article_thread_mode_on_import' => false,
+            ];
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function movieActionReview(array $action): array
+    {
+        $annotationReference = $this->referenceObject($action['Annotation'] ?? null);
+
+        $row = $this->reviewAction('Movie', 'movie-action-review', null, null, null, [], [], null, null, null, null);
+        $row['target_annotation_object'] = $annotationReference['object'] ?? null;
+        $row['target_annotation_generation'] = $annotationReference['generation'] ?? null;
+        $row['title'] = $this->stringOrNameValue($this->resolveValue($action['T'] ?? null));
+        $row['operation'] = $this->stringOrNameValue($this->resolveValue($action['Operation'] ?? null));
+        $row['executes_media'] = false;
+
+        return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function soundActionReview(array $action): array
+    {
+        $soundReference = $this->referenceObject($action['Sound'] ?? null);
+
+        return $this->reviewAction('Sound', 'sound-action-review', null, null, null, [], [], null, null, null, null)
+            + [
+                'sound_object' => $soundReference['object'] ?? null,
+                'sound_generation' => $soundReference['generation'] ?? null,
+                'volume' => $this->numericOrNullValue($this->resolveValue($action['Volume'] ?? null)),
+                'synchronous' => $this->boolValue($action['Synchronous'] ?? null),
+                'repeat' => $this->boolValue($action['Repeat'] ?? null),
+                'mix' => $this->boolValue($action['Mix'] ?? null),
+                'executes_media' => false,
+            ];
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function renditionActionReview(array $action): array
+    {
+        $operation = $this->intValue($action['OP'] ?? null);
+        $annotationReference = $this->referenceObject($action['AN'] ?? null);
+        $script = $this->stringOrNameValue($this->resolveValue($action['JS'] ?? null));
+
+        $row = $this->reviewAction('Rendition', 'media-rendition-review', null, null, null, [], [], null, null, null, null)
+            + [
+                'operation_code' => $operation,
+                'operation_label' => $operation === null ? null : $this->renditionOperationLabel($operation),
+                'target_annotation_object' => $annotationReference['object'] ?? null,
+                'target_annotation_generation' => $annotationReference['generation'] ?? null,
+                'file_names' => $this->fileNamesFromNestedValue($action['R'] ?? null),
+                'executes_media' => false,
+            ];
+
+        if ($script !== null) {
+            $row['script_preview'] = $script;
+            $row['script_sha256'] = hash('sha256', $script);
+            $row['executes_javascript'] = false;
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function richMediaExecuteActionReview(array $action): array
+    {
+        $commandDictionary = $this->resolveDictionary($action['CMD'] ?? null);
+        $command = $this->stringOrNameValue($this->resolveValue($action['C'] ?? null));
+        if ($command === null && $commandDictionary !== null) {
+            $command = $this->stringOrNameValue($this->resolveValue($commandDictionary['C'] ?? null));
+        }
+
+        $targetAnnotation = $this->referenceObject($action['TA'] ?? null)
+            ?? $this->referenceObject($action['AN'] ?? null);
+        $targetInstance = $this->referenceObject($action['TI'] ?? null);
+
+        return $this->reviewAction('RichMediaExecute', 'rich-media-execute-review', null, null, null, [], [], null, null, null, null)
+            + [
+                'target_annotation_object' => $targetAnnotation['object'] ?? null,
+                'target_annotation_generation' => $targetAnnotation['generation'] ?? null,
+                'target_instance_object' => $targetInstance['object'] ?? null,
+                'target_instance_generation' => $targetInstance['generation'] ?? null,
+                'command' => $command,
+                'argument_count' => count($this->resolveArray($action['A'] ?? null) ?? []),
+                'executes_media' => false,
+            ];
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function setOcgStateActionReview(array $action): array
+    {
+        $state = $this->resolveArray($action['State'] ?? null) ?? [];
+        $operations = [];
+        $targetObjects = [];
+        foreach ($state as $item) {
+            $operation = $this->nameValue($this->resolveValue($item));
+            if ($operation !== null) {
+                $operations[] = $operation;
+                continue;
+            }
+
+            $reference = $this->referenceObject($item);
+            if ($reference !== null) {
+                $targetObjects[] = $reference['object'];
+            }
+        }
+
+        return $this->reviewAction('SetOCGState', 'optional-content-state-review', null, null, null, [], [], null, null, null, null)
+            + [
+                'operations' => $operations,
+                'target_optional_content_objects' => array_values(array_unique($targetObjects)),
+                'preserve_radio_button_state' => $this->boolValue($action['PreserveRB'] ?? null),
+                'changes_optional_content_on_import' => false,
+            ];
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @return array<string, mixed>
+     */
+    private function transitionActionReview(array $action): array
+    {
+        $transition = $this->resolveDictionary($action['Trans'] ?? null) ?? $action;
+        $style = $this->stringOrNameValue($this->resolveValue($transition['S'] ?? null));
+
+        return $this->reviewAction('Trans', 'page-transition-review', null, null, null, [], [], null, null, null, null)
+            + [
+                'transition_style' => $style,
+                'duration' => $this->numericOrNullValue($this->resolveValue($transition['D'] ?? null)),
+                'dimension' => $this->stringOrNameValue($this->resolveValue($transition['Dm'] ?? null)),
+                'motion' => $this->stringOrNameValue($this->resolveValue($transition['M'] ?? null)),
+                'direction' => $this->numericOrNullValue($this->resolveValue($transition['Di'] ?? null)),
+                'scale' => $this->numericOrNullValue($this->resolveValue($transition['SS'] ?? null)),
+                'rectangular' => $this->boolValue($transition['B'] ?? null),
+                'applies_page_transition_on_import' => false,
+            ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function embeddedTargetReview(mixed $value): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $targetReference = $this->referenceObject($value);
+        $target = $this->resolveDictionary($value);
+        if ($target === null) {
+            return $targetReference === null ? null : ['target_object' => $targetReference['object']];
+        }
+
+        $relation = $this->stringOrNameValue($this->resolveValue($target['R'] ?? null));
+        $nested = $this->embeddedTargetReview($target['T'] ?? null);
+        $review = [
+            'target_object' => $targetReference['object'] ?? null,
+            'relation' => $relation,
+            'relation_label' => $this->embeddedTargetRelationLabel($relation),
+            'name' => $this->stringOrNameValue($this->resolveValue($target['N'] ?? null)),
+            'page' => $this->intValue($target['P'] ?? null),
+        ];
+        $annotationReference = $this->referenceObject($target['A'] ?? null);
+        if ($annotationReference !== null) {
+            $review['annotation_object'] = $annotationReference['object'];
+            $review['annotation_generation'] = $annotationReference['generation'];
+        }
+        if ($nested !== null) {
+            $review['nested_target'] = $nested;
+        }
+
+        return array_filter($review, static fn (mixed $item): bool => $item !== null && $item !== []);
+    }
+
+    private function embeddedTargetRelationLabel(?string $relation): ?string
+    {
+        return match ($relation) {
+            'C' => 'child',
+            'P' => 'parent',
+            'R' => 'root',
+            default => $relation,
+        };
+    }
+
+    private function renditionOperationLabel(int $operation): string
+    {
+        return match ($operation) {
+            0 => 'play',
+            1 => 'stop',
+            2 => 'pause',
+            3 => 'resume',
+            4 => 'play_or_resume',
+            default => 'unknown',
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fileNamesFromNestedValue(mixed $value, int $depth = 0, array $seen = []): array
+    {
+        if ($value === null || $depth > 8) {
+            return [];
+        }
+
+        $reference = $this->referenceObject($value);
+        if ($reference !== null) {
+            $key = $reference['object'] . ':' . $reference['generation'];
+            if (isset($seen[$key])) {
+                return [];
+            }
+            $seen[$key] = true;
+        }
+
+        $resolved = $this->resolveValue($value);
+        $names = [];
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict !== null) {
+            $file = $this->fileSpecValue($resolved);
+            if ($file !== null) {
+                $names[] = $file;
+            }
+            foreach (['C', 'D', 'R', 'F', 'UF'] as $key) {
+                if (array_key_exists($key, $dict)) {
+                    array_push($names, ...$this->fileNamesFromNestedValue($dict[$key], $depth + 1, $seen));
+                }
+            }
+            return array_values(array_unique(array_filter($names, static fn (string $name): bool => $name !== '')));
+        }
+
+        foreach ($this->arrayItems($resolved) ?? [] as $item) {
+            array_push($names, ...$this->fileNamesFromNestedValue($item, $depth + 1, $seen));
+        }
+
+        return array_values(array_unique(array_filter($names, static fn (string $name): bool => $name !== '')));
     }
 
     /**
