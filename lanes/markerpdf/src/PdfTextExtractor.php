@@ -3318,29 +3318,10 @@ final class PdfTextExtractor
      */
     private function structureTreeMcidOrderByPage(array $objects): array
     {
-        $rootDictionary = $this->structureTreeRootDictionaryBody($objects);
-        if ($rootDictionary === null) {
-            return [];
-        }
-
-        $k = $this->pdfValueAfterName($rootDictionary, 'K');
-        if ($k === null) {
-            return [];
-        }
-
         $order = [];
-        $this->collectStructureMcidOrder($k, $objects, null, $order);
-        $parentTreeOrder = $this->structureParentTreeMcidOrderByPage($objects, $rootDictionary);
-        foreach ($parentTreeOrder as $pageObjectNumber => $mcids) {
-            $order[$pageObjectNumber] ??= [];
-            $knownMcids = array_fill_keys($order[$pageObjectNumber], true);
-            foreach ($mcids as $mcid) {
-                if (isset($knownMcids[$mcid])) {
-                    continue;
-                }
-
-                $order[$pageObjectNumber][] = $mcid;
-                $knownMcids[$mcid] = true;
+        foreach ($this->structureTreeMcidEntriesByPage($objects) as $pageObjectNumber => $entries) {
+            foreach ($entries as $entry) {
+                $order[$pageObjectNumber][] = $entry['mcid'];
             }
         }
 
@@ -3372,6 +3353,8 @@ final class PdfTextExtractor
         }
 
         $roleMap = $this->structureRoleMap($rootDictionary, $objects);
+        $parentTreeEntries = $this->structureParentTreeMcidEntriesByPage($objects, $rootDictionary, $roleMap);
+        $parentTreeMap = $this->structureParentTreeStructElementMap($parentTreeEntries);
         $entries = [];
         $this->collectStructureMcidEntries(
             $k,
@@ -3380,9 +3363,9 @@ final class PdfTextExtractor
             null,
             null,
             $roleMap,
+            $parentTreeMap,
             $entries
         );
-        $parentTreeEntries = $this->structureParentTreeMcidEntriesByPage($objects, $rootDictionary, $roleMap);
         foreach ($parentTreeEntries as $pageObjectNumber => $pageEntries) {
             $entries[$pageObjectNumber] ??= [];
             $knownMcids = [];
@@ -3429,7 +3412,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array<int, list<array{mcid: int, rawRole: string|null, role: string|null}>>
+     * @return array<int, list<array{mcid: int, rawRole: string|null, role: string|null, structObject: int|null}>>
      * @param array<int, string> $objects
      * @param array<string, string> $roleMap
      */
@@ -3458,6 +3441,7 @@ final class PdfTextExtractor
             }
 
             foreach ($this->pdfArrayItems($parentArraysByStructParents[$structParents]) as $mcid => $parentValue) {
+                $structObject = $this->objectReferenceFromPdfValue($parentValue);
                 $dictionary = $this->pdfDictionaryFromValue($parentValue, $objects);
                 if ($dictionary === null) {
                     continue;
@@ -3472,11 +3456,49 @@ final class PdfTextExtractor
                     'mcid' => $mcid,
                     'rawRole' => $rawRole,
                     'role' => $this->resolveStructureRole($rawRole, $roleMap),
+                    'structObject' => $structObject,
                 ];
             }
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, list<array{mcid: int, rawRole: string|null, role: string|null, structObject: int|null}>> $parentTreeEntries
+     * @return array<int, array{pageObjectNumber: int, mcid: int, rawRole: string|null, role: string|null}>
+     */
+    private function structureParentTreeStructElementMap(array $parentTreeEntries): array
+    {
+        $map = [];
+        foreach ($parentTreeEntries as $pageObjectNumber => $entries) {
+            foreach ($entries as $entry) {
+                $structObject = $entry['structObject'];
+                if ($structObject === null) {
+                    continue;
+                }
+
+                $map[$structObject] = [
+                    'pageObjectNumber' => $pageObjectNumber,
+                    'mcid' => $entry['mcid'],
+                    'rawRole' => $entry['rawRole'],
+                    'role' => $entry['role'],
+                ];
+            }
+        }
+
+        return $map;
+    }
+
+    private function objectReferenceFromPdfValue(string $value): ?int
+    {
+        $offset = 0;
+        $reference = $this->readPdfIndirectReferenceToken($value, $offset);
+        if ($reference === null) {
+            return null;
+        }
+
+        return $reference['objectNumber'];
     }
 
     /**
@@ -3663,6 +3685,7 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<string, string> $roleMap
      * @param array<int, list<array{mcid: int, rawRole: string|null, role: string|null}>> $entries
+     * @param array<int, array{pageObjectNumber: int, mcid: int, rawRole: string|null, role: string|null}> $parentTreeMap
      * @param array<int, true> $seenObjects
      */
     private function collectStructureMcidEntries(
@@ -3672,6 +3695,7 @@ final class PdfTextExtractor
         ?string $inheritedRawRole,
         ?string $inheritedRole,
         array $roleMap,
+        array $parentTreeMap,
         array &$entries,
         array $seenObjects = []
     ): void {
@@ -3696,6 +3720,8 @@ final class PdfTextExtractor
                     $inheritedRawRole,
                     $inheritedRole,
                     $roleMap,
+                    $parentTreeMap[$objectNumber] ?? null,
+                    $parentTreeMap,
                     $entries,
                     $seenObjects
                 );
@@ -3717,6 +3743,7 @@ final class PdfTextExtractor
                     $inheritedRawRole,
                     $inheritedRole,
                     $roleMap,
+                    $parentTreeMap,
                     $entries,
                     $seenObjects
                 );
@@ -3734,6 +3761,8 @@ final class PdfTextExtractor
                     $inheritedRawRole,
                     $inheritedRole,
                     $roleMap,
+                    null,
+                    $parentTreeMap,
                     $entries,
                     $seenObjects
                 );
@@ -3757,6 +3786,8 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<string, string> $roleMap
      * @param array<int, list<array{mcid: int, rawRole: string|null, role: string|null}>> $entries
+     * @param array{pageObjectNumber: int, mcid: int, rawRole: string|null, role: string|null}|null $parentTreeEntry
+     * @param array<int, array{pageObjectNumber: int, mcid: int, rawRole: string|null, role: string|null}> $parentTreeMap
      * @param array<int, true> $seenObjects
      */
     private function collectStructureDictionaryMcidEntries(
@@ -3766,12 +3797,20 @@ final class PdfTextExtractor
         ?string $inheritedRawRole,
         ?string $inheritedRole,
         array $roleMap,
+        ?array $parentTreeEntry,
+        array $parentTreeMap,
         array &$entries,
         array $seenObjects
     ): void {
-        $rawRole = $this->pdfNameValueAfterName($dictionary, 'S') ?? $inheritedRawRole;
-        $role = $rawRole === null ? $inheritedRole : $this->resolveStructureRole($rawRole, $roleMap);
-        $pageObjectNumber = $this->objectReferenceValueAfterName($dictionary, 'Pg') ?? $inheritedPageObjectNumber;
+        $rawRole = $this->pdfNameValueAfterName($dictionary, 'S')
+            ?? $inheritedRawRole
+            ?? ($parentTreeEntry['rawRole'] ?? null);
+        $role = $rawRole === null
+            ? ($inheritedRole ?? ($parentTreeEntry['role'] ?? null))
+            : $this->resolveStructureRole($rawRole, $roleMap);
+        $pageObjectNumber = $this->objectReferenceValueAfterName($dictionary, 'Pg')
+            ?? $inheritedPageObjectNumber
+            ?? ($parentTreeEntry['pageObjectNumber'] ?? null);
         $mcid = $this->pdfIntegerValueAfterName($dictionary, 'MCID');
         if ($pageObjectNumber !== null && $mcid !== null && $mcid >= 0) {
             $entries[$pageObjectNumber][] = [
@@ -3790,6 +3829,7 @@ final class PdfTextExtractor
                 $rawRole,
                 $role,
                 $roleMap,
+                $parentTreeMap,
                 $entries,
                 $seenObjects
             );
