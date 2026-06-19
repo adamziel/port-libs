@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-20 00:49:32 UTC",
-    "sourceCommit": "4784c0b4bd4034f98dec2266a321fea37d2d5bb1",
-    "sourceCommitShort": "4784c0b4bd40",
-    "sourceBranch": "temp-plib-wisp-9s2",
-    "dashboardCommit": "4784c0b4bd4034f98dec2266a321fea37d2d5bb1",
-    "dashboardCommitShort": "4784c0b4bd40",
+    "generated": "2026-06-20 00:54:08 UTC",
+    "sourceCommit": "0a3fe41f99773cc5ce142f242ee49b72e26325bc",
+    "sourceCommitShort": "0a3fe41f9977",
+    "sourceBranch": "temp-plib-wisp-g8d",
+    "dashboardCommit": "8a70022b2c2d7c5ecc1465a711a2f0b3134a2a2f",
+    "dashboardCommitShort": "8a70022b2c2d",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -81,7 +81,7 @@
             "library": "markerPDF",
             "priority": "Active",
             "queue": "Active",
-            "state": "PHP green, upstream gap",
+            "state": "Near complete",
             "progressPercent": "100.0",
             "completion": "100.0%",
             "suite": "cloned-static-inventory-plus-native-runner-verifier-evidence",
@@ -91,12 +91,12 @@
             "coverage": "764 / 78 (979.5%)",
             "mapPercent": "979.5%",
             "unmapped": "0",
-            "php": "3,648 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; predefined CMap CID fallback diagnosti...",
-            "audit": "2026-06-20 UTC predefined CMap CID fallback diagnostics slice rebased...",
+            "php": "3,650 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; Type0/Type3 broader font behavior patc...",
+            "audit": "2026-06-20 UTC Type0/Type3 broader font behavior slice rebased after...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
             "nextTarget": "After this patch is accepted, continue native no-GPU markerPD...",
-            "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",
+            "remainingGate": "No local blocker",
             "commit": "pending markerp..."
         },
         {

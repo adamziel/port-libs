@@ -24108,7 +24108,7 @@ final class PdfTextExtractor
         $cidEncodingMap = $this->fontCidEncodingMap($body, $objects, $namedCMapBodies);
         $cMapWordSpacing = $cidEncodingMap !== null
             && ($cidEncodingMap['cidMap'] !== [] || ($cidEncodingMap['cidRanges'] ?? []) !== []);
-        $widthMetrics = $this->fontWidthMetrics($body, $objects);
+        $widthMetrics = $this->fontWidthMetrics($body, $objects, $cidEncodingMap);
         $descriptorInfo = $this->fontDescriptorInfo($body, $objects);
         $type3CharProcMap = $this->type3CharProcUnicodeMap($body, $objects, $cidEncodingMap);
         $cmap = null;
@@ -25456,8 +25456,9 @@ final class PdfTextExtractor
     /**
      * @return array{widths: array<int, float>, defaultWidth: float|null, cidSet: array<int, true>|null, verticalDisplacements: array<int, float>, defaultVerticalDisplacement: float|null}
      * @param array<int, string> $objects
+     * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>, writingMode?: int}|null $cidEncodingMap
      */
-    private function fontWidthMetrics(string $fontBody, array $objects): array
+    private function fontWidthMetrics(string $fontBody, array $objects, ?array $cidEncodingMap = null): array
     {
         $widths = [];
         $defaultWidth = null;
@@ -25468,7 +25469,7 @@ final class PdfTextExtractor
         $defaultVerticalDisplacement = null;
         $hasVerticalWidthArray = false;
 
-        foreach ($this->type3CharProcWidths($fontBody, $objects) as $code => $width) {
+        foreach ($this->type3CharProcWidths($fontBody, $objects, $cidEncodingMap) as $code => $width) {
             $metric = $this->finiteHorizontalFontAdvanceMetric($width);
             if ($metric !== null) {
                 $widths[$code] = $metric;
@@ -25565,8 +25566,9 @@ final class PdfTextExtractor
     /**
      * @return array<int, float>
      * @param array<int, string> $objects
+     * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>, writingMode?: int}|null $cidEncodingMap
      */
-    private function type3CharProcWidths(string $fontBody, array $objects): array
+    private function type3CharProcWidths(string $fontBody, array $objects, ?array $cidEncodingMap = null): array
     {
         if (!$this->isType3FontBody($fontBody)) {
             return [];
@@ -25598,6 +25600,26 @@ final class PdfTextExtractor
             $widthVector = $this->type3CharProcDeclaredWidthVector($objectBody, $objects);
             if ($widthVector !== null) {
                 $widths[$code] = $this->type3FontMatrixWidthVectorAdvance($widthVector, $fontMatrix);
+            }
+        }
+
+        if ($cidEncodingMap !== null) {
+            foreach ($charProcObjectReferences as $glyphName => $reference) {
+                $unicode = $this->glyphNameToUnicode($glyphName);
+                $cid = $unicode === '' ? null : $this->singleUnicodeCodepoint($unicode);
+                if ($cid === null || $cid < 0 || $cid > 0xffff) {
+                    continue;
+                }
+
+                $objectBody = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+                if ($objectBody === null) {
+                    continue;
+                }
+
+                $widthVector = $this->type3CharProcDeclaredWidthVector($objectBody, $objects);
+                if ($widthVector !== null) {
+                    $widths[$cid] = $this->type3FontMatrixWidthVectorAdvance($widthVector, $fontMatrix);
+                }
             }
         }
 
@@ -27252,7 +27274,30 @@ final class PdfTextExtractor
     {
         $descendantFonts = $this->pdfArrayValueAfterNameResolvingObjects($fontBody, 'DescendantFonts', $objects);
         if ($descendantFonts === null) {
-            return [];
+            $value = $this->topLevelPdfLastValueAfterName($fontBody, 'DescendantFonts');
+            if ($value === null || $this->topLevelLastValueAfterNameHasTrailingTopLevelOperand($fontBody, 'DescendantFonts')) {
+                return [];
+            }
+
+            $reference = $this->pdfIndirectReferenceValue($value);
+            if ($reference !== null) {
+                $body = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+                if ($body === null || $this->objectBodyIsStreamObject($body)) {
+                    return [];
+                }
+
+                $dictionary = $this->singleDictionaryObjectBody($body);
+                return $dictionary === null ? [] : [$dictionary];
+            }
+
+            $value = trim($value);
+            if (!str_starts_with($value, '<<')) {
+                return [];
+            }
+
+            $dictionaryOffset = 0;
+            $dictionary = $this->readPdfDictionaryAt($value, $dictionaryOffset);
+            return $dictionary === null ? [] : [$dictionary];
         }
 
         $bodies = [];
