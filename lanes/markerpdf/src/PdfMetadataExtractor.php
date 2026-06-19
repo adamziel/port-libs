@@ -4156,6 +4156,7 @@ final class PdfMetadataExtractor
 
         $rootBody = $root['body'];
         $roleMap = $this->structureRoleMapFromValue($this->dictionaryTopLevelRawValue($rootBody, 'RoleMap'), $objects);
+        $classMap = $this->structureClassMapFromValue($this->dictionaryTopLevelRawValue($rootBody, 'ClassMap'), $objects);
         $namespaces = $this->structureNamespacesFromValue($this->dictionaryTopLevelRawValue($rootBody, 'Namespaces'), $objects);
         $pageObjectNumbers = $this->orderedDestinationPageObjectNumbers($catalog, $objects);
         $pageIndexes = [];
@@ -4173,7 +4174,10 @@ final class PdfMetadataExtractor
             $objects,
             null,
             $rootLanguage,
+            [],
+            [],
             $roleMap,
+            $classMap,
             $pageIndexes,
             $elements
         );
@@ -4183,12 +4187,13 @@ final class PdfMetadataExtractor
             $objects,
             $rootLanguage,
             $roleMap,
+            $classMap,
             $pageIndexes,
             $elements
         );
         $elements = $this->structureElementsWithTableHeaderGraphs($elements);
 
-        if ($elements === [] && $roleMap === [] && $namespaces === [] && $rootLanguage === null) {
+        if ($elements === [] && $roleMap === [] && $classMap === [] && $namespaces === [] && $rootLanguage === null) {
             return [];
         }
 
@@ -4220,6 +4225,9 @@ final class PdfMetadataExtractor
         if ($roleMap !== []) {
             $metadata['role_map'] = $roleMap;
         }
+        if ($classMap !== []) {
+            $metadata['class_map'] = $classMap;
+        }
         if ($namespaces !== []) {
             $metadata['namespaces'] = $namespaces;
         }
@@ -4244,7 +4252,10 @@ final class PdfMetadataExtractor
         array $objects,
         ?int $inheritedPageObject,
         ?string $inheritedLanguage,
+        array $inheritedClasses,
+        array $inheritedAttributes,
         array $roleMap,
+        array $classMap,
         array $pageIndexes,
         array &$elements,
         array $seenObjects = [],
@@ -4273,7 +4284,10 @@ final class PdfMetadataExtractor
                     $objects,
                     $inheritedPageObject,
                     $inheritedLanguage,
+                    $inheritedClasses,
+                    $inheritedAttributes,
                     $roleMap,
+                    $classMap,
                     $pageIndexes,
                     $elements,
                     $seenObjects,
@@ -4290,7 +4304,10 @@ final class PdfMetadataExtractor
                     $objects,
                     $inheritedPageObject,
                     $inheritedLanguage,
+                    $inheritedClasses,
+                    $inheritedAttributes,
                     $roleMap,
+                    $classMap,
                     $pageIndexes,
                     $elements,
                     $seenObjects,
@@ -4309,7 +4326,10 @@ final class PdfMetadataExtractor
                     $objects,
                     $inheritedPageObject,
                     $inheritedLanguage,
+                    $inheritedClasses,
+                    $inheritedAttributes,
                     $roleMap,
+                    $classMap,
                     $pageIndexes,
                     $elements,
                     $seenObjects,
@@ -4335,6 +4355,7 @@ final class PdfMetadataExtractor
         array $objects,
         ?string $rootLanguage,
         array $roleMap,
+        array $classMap,
         array $pageIndexes,
         array &$elements
     ): void {
@@ -4385,7 +4406,10 @@ final class PdfMetadataExtractor
                     $objects,
                     $pageObject,
                     $rootLanguage,
+                    [],
+                    [],
                     $roleMap,
+                    $classMap,
                     $pageIndexes,
                     $elements,
                     $object === null ? [] : [$object => true],
@@ -4466,7 +4490,10 @@ final class PdfMetadataExtractor
         array $objects,
         ?int $inheritedPageObject,
         ?string $inheritedLanguage,
+        array $inheritedClasses,
+        array $inheritedAttributes,
         array $roleMap,
+        array $classMap,
         array $pageIndexes,
         array &$elements,
         array $seenObjects,
@@ -4492,6 +4519,20 @@ final class PdfMetadataExtractor
         $namespaceRoleMap = is_array($namespace['role_map'] ?? null) ? $namespace['role_map'] : [];
         $effectiveRoleMap = $namespaceRoleMap + $roleMap;
         $role = $rawRole === null ? null : $this->resolveStructureRole($rawRole, $effectiveRoleMap);
+        $directClasses = $this->structureClassNames($this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($dictionary, 'C'), $objects));
+        $classes = $this->uniqueStrings(array_merge($inheritedClasses, $directClasses));
+        $classAttributes = $this->structureClassMapAttributes($classes, $classMap, $inheritedClasses);
+        $directAttributes = $this->structureAttributesFromValue(
+            $this->dictionaryTopLevelRawValue($dictionary, 'A'),
+            $objects,
+            false,
+            'structure_element_attribute'
+        );
+        $attributes = $this->uniqueStructureAttributes(array_merge(
+            $inheritedAttributes,
+            $classAttributes,
+            $directAttributes
+        ));
 
         $row = [
             'source' => 'struct_elem',
@@ -4528,9 +4569,17 @@ final class PdfMetadataExtractor
             }
         }
 
-        $classes = $this->structureClassNames($this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($dictionary, 'C'), $objects));
         if ($classes !== []) {
             $row['classes'] = $classes;
+        }
+        if ($inheritedClasses !== []) {
+            $row['inherited_classes'] = $inheritedClasses;
+            $row['classes_inherited'] = true;
+        }
+        if ($attributes !== []) {
+            $row['attribute_count'] = count($attributes);
+            $row['attributes'] = $attributes;
+            $row['attributes_inherited'] = $this->structureAttributesContainInherited($attributes);
         }
 
         $revision = $this->dictionaryIntegerValue($dictionary, 'R', $objects);
@@ -4550,6 +4599,19 @@ final class PdfMetadataExtractor
 
         foreach ($this->structureTableHeaderMetadata($dictionary, $objects) as $key => $value) {
             $row[$key] = $value;
+        }
+
+        $references = $this->structureElementReferencesFromValue(
+            $this->dictionaryTopLevelRawValue($dictionary, 'Ref'),
+            $objects,
+            $roleMap,
+            $classMap,
+            $pageIndexes,
+            $seenObjects
+        );
+        if ($references !== []) {
+            $row['reference_count'] = count($references);
+            $row['references'] = $references;
         }
 
         $markedContent = $this->structureMarkedContentFromKidValue(
@@ -4580,7 +4642,10 @@ final class PdfMetadataExtractor
             $objects,
             $pageObject,
             $language,
+            $classes,
+            $this->structureAttributesForInheritance($attributes),
             $roleMap,
+            $classMap,
             $pageIndexes,
             $elements,
             $seenObjects,
@@ -5101,6 +5166,381 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function structureClassMapFromValue(?string $value, array $objects): array
+    {
+        $classMap = $this->resolveDictionaryFromValue($value, $objects);
+        if ($classMap === null) {
+            return [];
+        }
+
+        $mapped = [];
+        foreach ($this->dictionaryTopLevelEntries($classMap['body']) as $className => $attributeValue) {
+            $attributes = $this->structureAttributesFromValue(
+                $attributeValue,
+                $objects,
+                false,
+                'structure_class_map_attribute',
+                $className
+            );
+            if ($attributes !== []) {
+                $mapped[$className] = $attributes;
+            }
+        }
+
+        return $mapped;
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, list<array<string, mixed>>> $classMap
+     * @param list<string> $inheritedClasses
+     * @return list<array<string, mixed>>
+     */
+    private function structureClassMapAttributes(array $classes, array $classMap, array $inheritedClasses): array
+    {
+        $attributes = [];
+        $inherited = array_fill_keys($inheritedClasses, true);
+        foreach ($classes as $className) {
+            foreach ($classMap[$className] ?? [] as $attribute) {
+                if (isset($inherited[$className])) {
+                    $attribute['inherited'] = true;
+                }
+                $attributes[] = $attribute;
+            }
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function structureAttributesFromValue(
+        ?string $attributeValue,
+        array $objects,
+        bool $inherited,
+        string $source,
+        ?string $className = null
+    ): array {
+        $attributes = [];
+        foreach ($this->dictionariesFromValue($attributeValue, $objects) as $attribute) {
+            $body = $attribute['body'];
+            $row = [
+                'source' => $source,
+                'review_only' => true,
+                'visible_text_source' => false,
+            ];
+            if ($attribute['object'] !== null) {
+                $row['attribute_object'] = $attribute['object'];
+            }
+            if ($className !== null && $className !== '') {
+                $row['class'] = $className;
+            }
+            if ($inherited) {
+                $row['inherited'] = true;
+            }
+
+            $owner = $this->dictionaryNameValue($body, 'O', $objects)
+                ?? $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($body, 'O'), $objects);
+            if ($owner !== null) {
+                $row['owner'] = $owner;
+            }
+
+            $values = [];
+            foreach ($this->dictionaryTopLevelEntries($body) as $key => $rawValue) {
+                if ($key === 'O' || $key === 'P') {
+                    continue;
+                }
+
+                $value = $this->reviewValueFromRaw($rawValue, $objects);
+                if ($value !== null && $value !== '') {
+                    $values[$key] = $value;
+                }
+            }
+            if ($values !== []) {
+                $row['values'] = $values;
+                $row['value_keys'] = array_keys($values);
+            }
+
+            $properties = $this->structureUserPropertyRowsFromAttribute($body, $objects);
+            if ($properties !== []) {
+                $row['property_count'] = count($properties);
+                $row['properties'] = $properties;
+            }
+
+            $attributes[] = $row;
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function structureUserPropertyRowsFromAttribute(string $attribute, array $objects): array
+    {
+        if ($this->dictionaryNameValue($attribute, 'O', $objects) !== 'UserProperties') {
+            return [];
+        }
+
+        $properties = [];
+        foreach ($this->dictionariesFromValue($this->dictionaryTopLevelRawValue($attribute, 'P'), $objects) as $propertyDictionary) {
+            $name = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($propertyDictionary['body'], 'N'), $objects);
+            if ($name === null) {
+                continue;
+            }
+
+            $property = [
+                'name' => $name,
+                'hidden' => $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($propertyDictionary['body'], 'H'), $objects) === true,
+            ];
+            $value = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($propertyDictionary['body'], 'V'), $objects);
+            if ($value !== null && $value !== '') {
+                $property['value'] = $value;
+            }
+            $formattedValue = $this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($propertyDictionary['body'], 'F'), $objects);
+            if ($formattedValue !== null && $formattedValue !== '') {
+                $property['formatted_value'] = $formattedValue;
+            }
+
+            $properties[] = $property;
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $attributes
+     * @return list<array<string, mixed>>
+     */
+    private function uniqueStructureAttributes(array $attributes): array
+    {
+        $unique = [];
+        $seen = [];
+        foreach ($attributes as $attribute) {
+            $key = implode("\0", [
+                (string) ($attribute['source'] ?? ''),
+                (string) ($attribute['attribute_object'] ?? ''),
+                (string) ($attribute['class'] ?? ''),
+                (string) ($attribute['owner'] ?? ''),
+                json_encode($attribute['values'] ?? null, JSON_UNESCAPED_SLASHES) ?: 'null',
+                json_encode($attribute['properties'] ?? null, JSON_UNESCAPED_SLASHES) ?: 'null',
+            ]);
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $unique[] = $attribute;
+        }
+
+        return $unique;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $attributes
+     */
+    private function structureAttributesContainInherited(array $attributes): bool
+    {
+        foreach ($attributes as $attribute) {
+            if (($attribute['inherited'] ?? false) === true) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $attributes
+     * @return list<array<string, mixed>>
+     */
+    private function structureAttributesForInheritance(array $attributes): array
+    {
+        return array_map(
+            static function (array $attribute): array {
+                $attribute['inherited'] = true;
+                return $attribute;
+            },
+            $attributes
+        );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, string> $roleMap
+     * @param array<string, list<array<string, mixed>>> $classMap
+     * @param array<int, int> $pageIndexes
+     * @param array<int, true> $seenObjects
+     * @return list<array<string, mixed>>
+     */
+    private function structureElementReferencesFromValue(
+        ?string $value,
+        array $objects,
+        array $roleMap,
+        array $classMap,
+        array $pageIndexes,
+        array $seenObjects,
+        int $depth = 0
+    ): array {
+        if ($value === null || $depth > 8) {
+            return [];
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return [];
+        }
+
+        if (str_starts_with($resolved, '[')) {
+            $references = [];
+            foreach ($this->arrayItemsFromValue($resolved, $objects) as $item) {
+                foreach ($this->structureElementReferencesFromValue($item, $objects, $roleMap, $classMap, $pageIndexes, $seenObjects, $depth + 1) as $reference) {
+                    $references[] = $reference;
+                }
+            }
+
+            return $this->uniqueStructureReferences($references);
+        }
+
+        $referenceObject = $this->objectNumberFromReference($value);
+        if ($referenceObject !== null) {
+            if (isset($seenObjects[$referenceObject])) {
+                return [];
+            }
+            $seenObjects[$referenceObject] = true;
+        }
+
+        $struct = $this->resolveDictionaryFromValue($value, $objects);
+        if ($struct === null) {
+            return [];
+        }
+
+        $review = $this->structureReferenceReviewFromDictionary(
+            $struct['body'],
+            $struct['object'],
+            $objects,
+            $roleMap,
+            $classMap,
+            $pageIndexes
+        );
+
+        return $review === null ? [] : [$review];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, string> $roleMap
+     * @param array<string, list<array<string, mixed>>> $classMap
+     * @param array<int, int> $pageIndexes
+     * @return array<string, mixed>|null
+     */
+    private function structureReferenceReviewFromDictionary(
+        string $dictionary,
+        ?int $objectNumber,
+        array $objects,
+        array $roleMap,
+        array $classMap,
+        array $pageIndexes
+    ): ?array {
+        $type = $this->dictionaryNameValue($dictionary, 'Type', $objects);
+        $rawRole = $this->dictionaryNameValue($dictionary, 'S', $objects);
+        if ($type !== null && $type !== 'StructElem') {
+            return null;
+        }
+        if ($type !== 'StructElem' && $rawRole === null) {
+            return null;
+        }
+
+        $row = [
+            'source' => 'structure_element_reference',
+            'review_only' => true,
+            'visible_text_source' => false,
+        ];
+        if ($objectNumber !== null) {
+            $row['object'] = $objectNumber;
+        }
+        if ($rawRole !== null) {
+            $row['raw_role'] = $rawRole;
+            $role = $this->resolveStructureRole($rawRole, $roleMap);
+            $row['role'] = $role;
+            $row['role_mapped'] = $role !== $rawRole;
+        }
+
+        $pageObject = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Pg') ?? '');
+        if ($pageObject !== null) {
+            $this->applyPageReviewMetadata($row, $pageObject, $pageIndexes);
+        }
+
+        foreach ([
+            'title' => 'T',
+            'id' => 'ID',
+            'alternate_text' => 'Alt',
+            'actual_text' => 'ActualText',
+            'expansion_text' => 'E',
+            'language' => 'Lang',
+        ] as $metadataKey => $pdfKey) {
+            $reviewValue = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($dictionary, $pdfKey), $objects);
+            if ($reviewValue !== null) {
+                $row[$metadataKey] = $reviewValue;
+            }
+        }
+
+        $classes = $this->structureClassNames($this->reviewValueFromRaw($this->dictionaryTopLevelRawValue($dictionary, 'C'), $objects));
+        if ($classes !== []) {
+            $row['classes'] = $classes;
+        }
+
+        $attributes = $this->uniqueStructureAttributes(array_merge(
+            $this->structureClassMapAttributes($classes, $classMap, []),
+            $this->structureAttributesFromValue(
+                $this->dictionaryTopLevelRawValue($dictionary, 'A'),
+                $objects,
+                false,
+                'structure_element_reference_attribute'
+            )
+        ));
+        if ($attributes !== []) {
+            $row['attribute_count'] = count($attributes);
+            $row['attributes'] = $attributes;
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     * @return list<array<string, mixed>>
+     */
+    private function uniqueStructureReferences(array $references): array
+    {
+        $unique = [];
+        $seen = [];
+        foreach ($references as $reference) {
+            $key = implode("\0", [
+                (string) ($reference['object'] ?? ''),
+                (string) ($reference['raw_role'] ?? ''),
+                (string) ($reference['title'] ?? ''),
+                (string) ($reference['alternate_text'] ?? ''),
+                (string) ($reference['actual_text'] ?? ''),
+            ]);
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $unique[] = $reference;
+        }
+
+        return $unique;
+    }
+
+    /**
+     * @param array<int, string> $objects
      * @return list<array<string, mixed>>
      */
     private function structureNamespacesFromValue(?string $value, array $objects): array
@@ -5340,6 +5780,36 @@ final class PdfMetadataExtractor
         }
 
         return $this->uniqueStrings($classes);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{body: string, object: int|null}>
+     */
+    private function dictionariesFromValue(?string $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return [];
+        }
+
+        if (str_starts_with($resolved, '[')) {
+            $dictionaries = [];
+            foreach ($this->arrayItemsFromValue($resolved, $objects) as $item) {
+                foreach ($this->dictionariesFromValue($item, $objects) as $dictionary) {
+                    $dictionaries[] = $dictionary;
+                }
+            }
+
+            return $dictionaries;
+        }
+
+        $dictionary = $this->resolveDictionaryFromValue($value, $objects);
+        return $dictionary === null ? [] : [$dictionary];
     }
 
     /**
@@ -5758,7 +6228,7 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{root_language: string|null, role_map: array<string, string>}
+     * @return array{root_language: string|null, role_map: array<string, string>, class_map: array<string, list<array<string, mixed>>>}
      */
     private function documentOutlineStructureElementContext(string $catalog, array $objects): array
     {
@@ -5768,6 +6238,7 @@ final class PdfMetadataExtractor
             return [
                 'root_language' => $catalogLanguage,
                 'role_map' => [],
+                'class_map' => [],
             ];
         }
 
@@ -5778,6 +6249,10 @@ final class PdfMetadataExtractor
             'root_language' => $rootLanguage,
             'role_map' => $this->structureRoleMapFromValue(
                 $this->dictionaryTopLevelRawValue($root['body'], 'RoleMap'),
+                $objects
+            ),
+            'class_map' => $this->structureClassMapFromValue(
+                $this->dictionaryTopLevelRawValue($root['body'], 'ClassMap'),
                 $objects
             ),
         ];
@@ -6664,7 +7139,7 @@ final class PdfMetadataExtractor
      * @param array<int, int> $pageIndexes
      * @param list<string> $pageLabels
      * @param array<string, string> $destinationsByName
-     * @param array{root_language: string|null, role_map: array<string, string>} $structureContext
+     * @param array{root_language: string|null, role_map: array<string, string>, class_map: array<string, list<array<string, mixed>>>} $structureContext
      * @param array<int, true> $seen
      * @return list<array<string, mixed>>
      */
@@ -8163,7 +8638,10 @@ final class PdfMetadataExtractor
             $objects,
             null,
             $structureContext['root_language'],
+            [],
+            [],
             $structureContext['role_map'],
+            $structureContext['class_map'],
             $pageIndexes,
             $elements
         );
@@ -8195,8 +8673,15 @@ final class PdfMetadataExtractor
             'actual_text',
             'expansion_text',
             'classes',
+            'inherited_classes',
+            'classes_inherited',
+            'attribute_count',
+            'attributes',
+            'attributes_inherited',
             'revision',
             'namespace',
+            'reference_count',
+            'references',
             'marked_content',
             'mcids',
             'associated_file_count',
