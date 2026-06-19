@@ -4186,6 +4186,7 @@ final class PdfMetadataExtractor
             $pageIndexes,
             $elements
         );
+        $elements = $this->structureElementsWithTableHeaderGraphs($elements);
 
         if ($elements === [] && $roleMap === [] && $namespaces === [] && $rootLanguage === null) {
             return [];
@@ -4547,6 +4548,10 @@ final class PdfMetadataExtractor
             $row['associated_files'] = $associatedFiles;
         }
 
+        foreach ($this->structureTableHeaderMetadata($dictionary, $objects) as $key => $value) {
+            $row[$key] = $value;
+        }
+
         $markedContent = $this->structureMarkedContentFromKidValue(
             $this->dictionaryTopLevelRawValue($dictionary, 'K'),
             $objects,
@@ -4581,6 +4586,428 @@ final class PdfMetadataExtractor
             $seenObjects,
             $depth + 1
         );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function structureTableHeaderMetadata(string $dictionary, array $objects): array
+    {
+        $scopes = [];
+        $scopeSources = [];
+        $headers = [];
+        $headerSources = [];
+
+        $directScope = $this->dictionaryNameValue($dictionary, 'Scope', $objects);
+        if ($directScope !== null && $directScope !== '') {
+            $scopes[] = $directScope;
+            $scopeSources[] = 'struct_elem_direct_scope';
+        }
+
+        $directHeaders = $this->structureTableHeaderIdsFromRaw(
+            $this->dictionaryTopLevelRawValue($dictionary, 'Headers'),
+            $objects
+        );
+        if ($directHeaders !== []) {
+            $headers = array_merge($headers, $directHeaders);
+            $headerSources[] = 'struct_elem_direct_headers';
+        }
+
+        foreach ($this->structureTableAttributeDictionaries($this->dictionaryTopLevelRawValue($dictionary, 'A'), $objects) as $attribute) {
+            $scope = $this->dictionaryNameValue($attribute['body'], 'Scope', $objects);
+            if ($scope !== null && $scope !== '') {
+                $scopes[] = $scope;
+                $scopeSources[] = $attribute['source'] . '_scope';
+            }
+
+            $attributeHeaders = $this->structureTableHeaderIdsFromRaw(
+                $this->dictionaryTopLevelRawValue($attribute['body'], 'Headers'),
+                $objects
+            );
+            if ($attributeHeaders !== []) {
+                $headers = array_merge($headers, $attributeHeaders);
+                $headerSources[] = $attribute['source'] . '_headers';
+            }
+        }
+
+        $scopes = $this->uniqueStrings($scopes);
+        $headers = $this->uniqueStrings($headers);
+        if ($scopes === [] && $headers === []) {
+            return [];
+        }
+
+        $metadata = [
+            'table_cell_structure' => true,
+            'table_cell_review_only' => true,
+        ];
+
+        if ($scopes !== []) {
+            $metadata['table_cell_raw_scope'] = $scopes[0];
+            $metadata['table_cell_scope'] = $this->normalizedStructureTableScope($scopes[0]);
+            $metadata['table_cell_scope_source'] = $scopeSources[0] ?? 'struct_elem_scope';
+            $normalizedScopes = $this->uniqueStrings(array_map(
+                fn (string $scope): string => $this->normalizedStructureTableScope($scope),
+                $scopes
+            ));
+            if (count($normalizedScopes) > 1) {
+                $metadata['table_cell_scope_candidates'] = $normalizedScopes;
+            }
+            if (count($scopeSources) > 1) {
+                $metadata['table_cell_scope_sources'] = $this->uniqueStrings($scopeSources);
+            }
+        }
+
+        if ($headers !== []) {
+            $metadata['table_cell_header_ids'] = $headers;
+            $metadata['table_cell_header_id_count'] = count($headers);
+            $metadata['table_cell_headers_source'] = $headerSources[0] ?? 'struct_elem_headers';
+            if (count($headerSources) > 1) {
+                $metadata['table_cell_header_sources'] = $this->uniqueStrings($headerSources);
+            }
+        }
+
+        return $metadata;
+    }
+
+    private function normalizedStructureTableScope(string $scope): string
+    {
+        return match (strtolower($scope)) {
+            'column' => 'column',
+            'row' => 'row',
+            'both' => 'both',
+            default => $scope,
+        };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{body: string, source: string}>
+     */
+    private function structureTableAttributeDictionaries(?string $attributeValue, array $objects): array
+    {
+        if ($attributeValue === null) {
+            return [];
+        }
+
+        $resolved = trim($this->resolvePdfValue($attributeValue, $objects) ?? $attributeValue);
+        $items = str_starts_with($resolved, '[')
+            ? $this->arrayItemsFromValue($attributeValue, $objects)
+            : [$attributeValue];
+
+        $attributes = [];
+        foreach ($items as $index => $item) {
+            $attribute = $this->resolveDictionaryFromValue($item, $objects);
+            if ($attribute === null) {
+                continue;
+            }
+
+            $owner = $this->dictionaryNameValue($attribute['body'], 'O', $objects);
+            $hasTableHeaderFields = $this->dictionaryTopLevelRawValue($attribute['body'], 'Scope') !== null
+                || $this->dictionaryTopLevelRawValue($attribute['body'], 'Headers') !== null;
+            if ($owner !== 'Table' && !$hasTableHeaderFields) {
+                continue;
+            }
+
+            $attributes[] = [
+                'body' => $attribute['body'],
+                'source' => $owner === 'Table'
+                    ? 'struct_elem_table_attribute_' . $index
+                    : 'struct_elem_attribute_' . $index,
+            ];
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function structureTableHeaderIdsFromRaw(?string $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($this->reviewListFromRaw($value, $objects) as $item) {
+            if (!is_string($item)) {
+                continue;
+            }
+
+            $id = trim($item);
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return $this->uniqueStrings($ids);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @return list<array<string, mixed>>
+     */
+    private function structureElementsWithTableHeaderGraphs(array $elements): array
+    {
+        $indexesById = [];
+        foreach ($elements as $index => $element) {
+            $id = $this->structureElementStableId($element);
+            if ($id !== null) {
+                $indexesById[$id][] = $index;
+            }
+        }
+
+        if ($indexesById === []) {
+            return $elements;
+        }
+
+        $duplicateIds = [];
+        $uniqueIndexesById = [];
+        foreach ($indexesById as $id => $indexes) {
+            if (count($indexes) === 1) {
+                $uniqueIndexesById[$id] = $indexes[0];
+                continue;
+            }
+
+            $duplicateIds[$id] = $id;
+        }
+
+        foreach ($elements as $index => $element) {
+            $directHeaderIds = $this->structureElementHeaderIds($element);
+            if ($directHeaderIds === []) {
+                continue;
+            }
+
+            $resolvedIds = [];
+            $groupedIds = [];
+            $missingIds = [];
+            $duplicateReferenceIds = [];
+            $cycleIds = [];
+            $headerNodes = [];
+
+            foreach ($directHeaderIds as $headerId) {
+                $this->collectStructureTableHeaderGraph(
+                    $headerId,
+                    true,
+                    $elements,
+                    $uniqueIndexesById,
+                    $duplicateIds,
+                    $resolvedIds,
+                    $groupedIds,
+                    $missingIds,
+                    $duplicateReferenceIds,
+                    $cycleIds,
+                    $headerNodes
+                );
+            }
+
+            $resolvedHeaderIds = array_values($resolvedIds);
+            $groupedHeaderIds = array_values($groupedIds);
+            $graph = [
+                'source' => 'structure_table_header_graph',
+                'direct_header_ids' => $directHeaderIds,
+                'resolved_header_ids' => $resolvedHeaderIds,
+                'grouped_header_ids' => $groupedHeaderIds,
+                'header_nodes' => $headerNodes,
+                'direct_header_count' => count($directHeaderIds),
+                'resolved_header_count' => count($resolvedHeaderIds),
+                'review_only' => true,
+                'stable_headers_markup' => true,
+            ];
+
+            if ($missingIds !== []) {
+                $graph['missing_header_ids'] = array_values($missingIds);
+            }
+            if ($duplicateReferenceIds !== []) {
+                $graph['duplicate_header_ids'] = array_values($duplicateReferenceIds);
+            }
+            if ($cycleIds !== []) {
+                $graph['cycle_header_ids'] = array_values($cycleIds);
+            }
+
+            $elements[$index]['table_cell_resolved_header_ids'] = $resolvedHeaderIds;
+            $elements[$index]['table_cell_grouped_header_ids'] = $groupedHeaderIds;
+            $elements[$index]['table_cell_header_graph'] = $graph;
+            $elements[$index]['table_cell_multiple_headers'] = count($directHeaderIds) > 1;
+            $elements[$index]['table_cell_compound_header_graph'] = count($directHeaderIds) > 1 || $groupedHeaderIds !== [];
+            $headerTitles = $this->structureTableHeaderNodeTitles($headerNodes);
+            if ($headerTitles !== []) {
+                $elements[$index]['table_cell_header_titles'] = $headerTitles;
+            }
+            if ($missingIds !== []) {
+                $elements[$index]['table_cell_missing_header_ids'] = array_values($missingIds);
+            }
+            if ($duplicateReferenceIds !== []) {
+                $elements[$index]['table_cell_duplicate_header_ids'] = array_values($duplicateReferenceIds);
+            }
+            if ($cycleIds !== []) {
+                $elements[$index]['table_cell_cycle_header_ids'] = array_values($cycleIds);
+            }
+        }
+
+        return $elements;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @param array<string, int> $uniqueIndexesById
+     * @param array<string, string> $duplicateIds
+     * @param array<string, string> $resolvedIds
+     * @param array<string, string> $groupedIds
+     * @param array<string, string> $missingIds
+     * @param array<string, string> $duplicateReferenceIds
+     * @param array<string, string> $cycleIds
+     * @param list<array<string, mixed>> $headerNodes
+     * @param array<string, true> $stack
+     */
+    private function collectStructureTableHeaderGraph(
+        string $headerId,
+        bool $direct,
+        array $elements,
+        array $uniqueIndexesById,
+        array $duplicateIds,
+        array &$resolvedIds,
+        array &$groupedIds,
+        array &$missingIds,
+        array &$duplicateReferenceIds,
+        array &$cycleIds,
+        array &$headerNodes,
+        array $stack = []
+    ): void {
+        if (isset($stack[$headerId])) {
+            $cycleIds[$headerId] = $headerId;
+            return;
+        }
+
+        if (isset($duplicateIds[$headerId])) {
+            $duplicateReferenceIds[$headerId] = $headerId;
+            return;
+        }
+
+        if (!isset($uniqueIndexesById[$headerId])) {
+            $missingIds[$headerId] = $headerId;
+            return;
+        }
+
+        $elementIndex = $uniqueIndexesById[$headerId];
+        $element = $elements[$elementIndex] ?? null;
+        if (!is_array($element)) {
+            $missingIds[$headerId] = $headerId;
+            return;
+        }
+
+        if (!isset($resolvedIds[$headerId])) {
+            $resolvedIds[$headerId] = $headerId;
+            $headerNodes[] = $this->structureTableHeaderNodeSummary($headerId, $elementIndex, $element);
+        }
+        if (!$direct) {
+            $groupedIds[$headerId] = $headerId;
+        }
+
+        $nextStack = $stack;
+        $nextStack[$headerId] = true;
+        foreach ($this->structureElementHeaderIds($element) as $nestedHeaderId) {
+            $this->collectStructureTableHeaderGraph(
+                $nestedHeaderId,
+                false,
+                $elements,
+                $uniqueIndexesById,
+                $duplicateIds,
+                $resolvedIds,
+                $groupedIds,
+                $missingIds,
+                $duplicateReferenceIds,
+                $cycleIds,
+                $headerNodes,
+                $nextStack
+            );
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @return list<string>
+     */
+    private function structureElementHeaderIds(array $element): array
+    {
+        $headers = $element['table_cell_header_ids'] ?? null;
+        if (!is_array($headers)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($headers as $header) {
+            if (is_scalar($header)) {
+                $id = trim((string) $header);
+                if ($id !== '') {
+                    $ids[] = $id;
+                }
+            }
+        }
+
+        return $this->uniqueStrings($ids);
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     */
+    private function structureElementStableId(array $element): ?string
+    {
+        $id = $element['id'] ?? null;
+        if (!is_string($id)) {
+            return null;
+        }
+
+        $id = trim($id);
+        return $id === '' ? null : $id;
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @return array<string, mixed>
+     */
+    private function structureTableHeaderNodeSummary(string $headerId, int $elementIndex, array $element): array
+    {
+        $node = [
+            'header_id' => $headerId,
+            'structure_element_index' => $elementIndex,
+        ];
+
+        foreach ([
+            'object' => 'struct_object',
+            'raw_role' => 'raw_role',
+            'role' => 'role',
+            'role_mapped' => 'role_mapped',
+            'title' => 'title',
+            'table_cell_scope' => 'scope',
+            'table_cell_raw_scope' => 'raw_scope',
+            'table_cell_header_ids' => 'direct_header_ids',
+        ] as $sourceKey => $targetKey) {
+            if (array_key_exists($sourceKey, $element)) {
+                $node[$targetKey] = $element[$sourceKey];
+            }
+        }
+
+        return $node;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $headerNodes
+     * @return list<string>
+     */
+    private function structureTableHeaderNodeTitles(array $headerNodes): array
+    {
+        $titles = [];
+        foreach ($headerNodes as $node) {
+            $title = $node['title'] ?? null;
+            if (is_string($title) && trim($title) !== '') {
+                $titles[] = trim($title);
+            }
+        }
+
+        return $this->uniqueStrings($titles);
     }
 
     /**

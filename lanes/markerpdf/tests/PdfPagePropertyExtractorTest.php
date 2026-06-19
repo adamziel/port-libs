@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfPagePropertyExtractor;
+use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
 $pagePropertyPdf = static function (): string {
@@ -453,6 +454,66 @@ return [
         $t->same(false, str_contains($plainText, 'Article alternate review text'));
         $t->same(false, str_contains($plainText, 'Article actual review text'));
         $t->same(false, str_contains($plainText, 'thread-9'));
+    },
+    'resolves compound tagged table header graphs from Scope and Headers attributes' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf '
+            . '/Table << /MCID 0 >> BDC 72 720 Td (Tagged table visible) Tj EMC '
+            . '/TH << /MCID 1 >> BDC 72 690 Td (Asset group visible) Tj EMC '
+            . '/TH << /MCID 2 >> BDC 180 690 Td (Images visible) Tj EMC '
+            . '/TH << /MCID 3 >> BDC 288 690 Td (Status visible) Tj EMC '
+            . '/TD << /MCID 4 >> BDC 288 660 Td (Ready visible) Tj EMC ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 20 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /StructTreeRoot /RoleMap << /Tbl /Table /TH /TH /TD /TD >> /K 30 0 R >>\nendobj\n"
+            . "30 0 obj\n<< /Type /StructElem /S /Tbl /Pg 3 0 R /T (Tagged table root) /K [31 0 R 32 0 R 33 0 R 34 0 R] >>\nendobj\n"
+            . "31 0 obj\n<< /Type /StructElem /S /TH /Pg 3 0 R /ID (h-group) /T (Asset group header) /A << /O /Table /Scope /Column >> /K 1 >>\nendobj\n"
+            . "32 0 obj\n<< /Type /StructElem /S /TH /Pg 3 0 R /ID (h-images) /T (Images header) /A << /O /Table /Scope /Column /Headers [(h-group)] >> /K 2 >>\nendobj\n"
+            . "33 0 obj\n<< /Type /StructElem /S /TH /Pg 3 0 R /ID (h-status) /T (Status header) /Scope /Column /K 3 >>\nendobj\n"
+            . "34 0 obj\n<< /Type /StructElem /S /TD /Pg 3 0 R /ID (cell-ready) /T (Ready data cell) /A << /O /Table /Headers [(h-images) (h-status)] >> /K 4 >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $elementsById = [];
+        foreach (($metadata['structure_tree']['elements'] ?? []) as $element) {
+            if (is_array($element) && is_string($element['id'] ?? null)) {
+                $elementsById[$element['id']] = $element;
+            }
+        }
+
+        $t->same('column', $elementsById['h-group']['table_cell_scope']);
+        $t->same('struct_elem_table_attribute_0_scope', $elementsById['h-group']['table_cell_scope_source']);
+        $t->same(['h-group'], $elementsById['h-images']['table_cell_header_ids']);
+        $t->same(['h-group'], $elementsById['h-images']['table_cell_resolved_header_ids']);
+        $t->same('struct_elem_direct_scope', $elementsById['h-status']['table_cell_scope_source']);
+        $t->same(['h-images', 'h-status'], $elementsById['cell-ready']['table_cell_header_ids']);
+        $t->same(['h-images', 'h-group', 'h-status'], $elementsById['cell-ready']['table_cell_resolved_header_ids']);
+        $t->same(['h-group'], $elementsById['cell-ready']['table_cell_grouped_header_ids']);
+        $t->same(['Images header', 'Asset group header', 'Status header'], $elementsById['cell-ready']['table_cell_header_titles']);
+        $t->same(true, $elementsById['cell-ready']['table_cell_multiple_headers']);
+        $t->same(true, $elementsById['cell-ready']['table_cell_compound_header_graph']);
+        $t->same(true, $elementsById['cell-ready']['table_cell_header_graph']['stable_headers_markup']);
+        $t->same([32, 31, 33], array_column($elementsById['cell-ready']['table_cell_header_graph']['header_nodes'], 'struct_object'));
+
+        $pages = (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdf);
+        $rowsByMcid = [];
+        foreach (($pages[0]['structure_marked_content'] ?? []) as $row) {
+            if (is_array($row) && is_int($row['mcid'] ?? null)) {
+                $rowsByMcid[$row['mcid']] = $row;
+            }
+        }
+
+        $t->same(['h-images', 'h-group', 'h-status'], $rowsByMcid[4]['table_cell_resolved_header_ids']);
+        $t->same(['h-group'], $rowsByMcid[4]['table_cell_grouped_header_ids']);
+        $t->same('structure_table_header_graph', $rowsByMcid[4]['table_cell_header_graph']['source']);
+        $t->same(['h-images', 'h-status'], $rowsByMcid[4]['table_cell_header_graph']['direct_header_ids']);
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $t->contains('Ready visible', $plainText);
+        $t->same(false, str_contains($plainText, 'Ready data cell'));
+        $t->same(false, str_contains($plainText, 'Asset group header'));
     },
     'merges page StructParents ParentTree rows with inherited Resources transition and labels for review' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf '
