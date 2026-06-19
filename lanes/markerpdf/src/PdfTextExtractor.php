@@ -1408,6 +1408,521 @@ final class PdfTextExtractor
     }
 
     /**
+     * Review predefined Type0/Type3 CMap choices and CID fallback policy before WordPress import.
+     *
+     * The native fallback may use a predefined CMap for CID segmentation and
+     * widths while still refusing to treat that predefined CID map as a
+     * Unicode map. This exposes the selected CMap and suppression decisions
+     * without including decoded text or ToUnicode payloads in the review.
+     *
+     * @return array{
+     *     source: string,
+     *     review_only: true,
+     *     encrypted: bool,
+     *     font_count: int,
+     *     predefined_cmap_count: int,
+     *     supported_predefined_cmap_count: int,
+     *     unsupported_predefined_cmap_count: int,
+     *     unsupported_semantic_case_count: int,
+     *     cid_fallback_count: int,
+     *     suppressed_cid_range_count: int,
+     *     entries: list<array<string, mixed>>,
+     *     executes_python_or_models: false,
+     *     executes_external_pdf_tools: false
+     * }
+     */
+    public function extractPredefinedCMapCidFallbackReview(string $pdfBytes): array
+    {
+        $review = [
+            'source' => 'pdf_predefined_cmap_cid_fallback_review',
+            'review_only' => true,
+            'encrypted' => $this->hasEncryptedTrailer($pdfBytes),
+            'font_count' => 0,
+            'predefined_cmap_count' => 0,
+            'supported_predefined_cmap_count' => 0,
+            'unsupported_predefined_cmap_count' => 0,
+            'unsupported_semantic_case_count' => 0,
+            'cid_fallback_count' => 0,
+            'suppressed_cid_range_count' => 0,
+            'entries' => [],
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+
+        if ($review['encrypted']) {
+            return $review;
+        }
+
+        $objects = $this->pdfObjects($pdfBytes);
+        if ($objects === []) {
+            return $review;
+        }
+
+        $namedCMapBodies = $this->namedCMapBodies($objects);
+        foreach ($objects as $fontObjectNumber => $fontBody) {
+            if (!$this->bodyMayContainFontDictionary($fontBody)) {
+                continue;
+            }
+
+            $fontSubtype = $this->pdfNameValueAfterNameResolvingObjects($fontBody, 'Subtype', $objects);
+            if ($fontSubtype !== 'Type0' && $fontSubtype !== 'Type3') {
+                continue;
+            }
+
+            $encoding = $this->fontPredefinedCMapEncodingReview($fontBody, $objects);
+            if (($encoding['predefined_cmap_status'] ?? null) === 'not_predefined') {
+                continue;
+            }
+
+            $entry = $this->predefinedCMapCidFallbackReviewEntry(
+                $fontObjectNumber,
+                $fontSubtype,
+                $fontBody,
+                $objects,
+                $namedCMapBodies,
+                $encoding
+            );
+            $review['entries'][] = $entry;
+            $review['font_count']++;
+            $review['predefined_cmap_count']++;
+
+            if ($entry['predefined_cmap_status'] === 'supported') {
+                $review['supported_predefined_cmap_count']++;
+            } elseif ($entry['predefined_cmap_status'] === 'unsupported') {
+                $review['unsupported_predefined_cmap_count']++;
+            }
+            if ($entry['unsupported_semantic_case']) {
+                $review['unsupported_semantic_case_count']++;
+            }
+            if ($entry['cid_fallback_available']) {
+                $review['cid_fallback_count']++;
+            }
+
+            $review['suppressed_cid_range_count'] += count($entry['suppressed_cid_ranges']);
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{
+     *     encoding_name: string|null,
+     *     encoding_source: string,
+     *     encoding_reference: array{object_number: int, generation: int}|null,
+     *     selected_predefined_cmap: string|null,
+     *     predefined_cmap_status: string,
+     *     predefined_cmap_family: string|null,
+     *     unsupported_semantic_case: bool,
+     *     candidate_cmap_names: list<string>
+     * }
+     */
+    private function fontPredefinedCMapEncodingReview(string $fontBody, array $objects): array
+    {
+        $empty = [
+            'encoding_name' => null,
+            'encoding_source' => 'missing',
+            'encoding_reference' => null,
+            'selected_predefined_cmap' => null,
+            'predefined_cmap_status' => 'not_predefined',
+            'predefined_cmap_family' => null,
+            'unsupported_semantic_case' => false,
+            'candidate_cmap_names' => [],
+        ];
+
+        $encodingValue = $this->topLevelPdfValueAfterName($fontBody, 'Encoding');
+        if ($encodingValue === null) {
+            return $empty;
+        }
+
+        if ($this->topLevelLastValueAfterNameHasTrailingTopLevelOperand($fontBody, 'Encoding')) {
+            $empty['encoding_source'] = 'malformed';
+            return $empty;
+        }
+
+        $referenceOffset = 0;
+        $reference = $this->readPdfIndirectReferenceToken($encodingValue, $referenceOffset);
+        if ($reference !== null) {
+            $encodingObject = $this->objectBodyForExactReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            $review = [
+                'encoding_name' => null,
+                'encoding_source' => 'indirect',
+                'encoding_reference' => [
+                    'object_number' => $reference['objectNumber'],
+                    'generation' => $reference['generation'],
+                ],
+                'selected_predefined_cmap' => null,
+                'predefined_cmap_status' => 'not_predefined',
+                'predefined_cmap_family' => null,
+                'unsupported_semantic_case' => false,
+                'candidate_cmap_names' => [],
+            ];
+            if ($encodingObject === null) {
+                $review['encoding_source'] = 'unresolved_indirect';
+                return $review;
+            }
+
+            $decoded = $this->decodedCMapBodyForParsing($encodingObject, $objects);
+            if ($decoded !== null) {
+                $names = $this->candidatePredefinedCMapNamesFromCMapProgram($decoded);
+                return $this->withPredefinedCMapSelection($review, $names, 'cmap_stream');
+            }
+
+            $encodingObject = trim($encodingObject);
+            if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $encodingObject, $match) === 1) {
+                $name = $this->decodePdfName($match[1]);
+                return $this->withPredefinedCMapSelection($review, [$name], 'indirect_name');
+            }
+
+            return $review;
+        }
+
+        $encodingName = $this->pdfNameValueAt($encodingValue, 0, []);
+        if ($encodingName === null) {
+            return $empty;
+        }
+
+        $empty['encoding_source'] = 'direct_name';
+        return $this->withPredefinedCMapSelection($empty, [$encodingName], 'direct_name');
+    }
+
+    /**
+     * @param list<string> $names
+     * @return list<string>
+     */
+    private function uniqueReviewSafeCMapNames(array $names): array
+    {
+        $unique = [];
+        foreach ($names as $name) {
+            if ($name === '' || isset($unique[$name])) {
+                continue;
+            }
+
+            $unique[$name] = true;
+        }
+
+        return array_keys($unique);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function candidatePredefinedCMapNamesFromCMapProgram(string $cmap): array
+    {
+        $names = [];
+        $name = $this->cMapName($cmap);
+        if ($name !== null) {
+            $names[] = $name;
+        }
+        array_push($names, ...$this->cMapUseCMapNames($cmap));
+
+        return $this->uniqueReviewSafeCMapNames($names);
+    }
+
+    /**
+     * @param array<string, mixed> $review
+     * @param list<string> $names
+     * @return array<string, mixed>
+     */
+    private function withPredefinedCMapSelection(array $review, array $names, string $source): array
+    {
+        $names = $this->uniqueReviewSafeCMapNames($names);
+        $review['encoding_source'] = $source;
+        $review['encoding_name'] = $this->reviewSafeString($names[0] ?? null);
+        $review['candidate_cmap_names'] = array_values(array_filter(
+            array_map(fn (string $name): ?string => $this->reviewSafeString($name), $names),
+            static fn (?string $name): bool => $name !== null && $name !== ''
+        ));
+
+        $selected = null;
+        foreach ($names as $name) {
+            if ($this->predefinedCidCMap($name) !== null) {
+                $selected = $name;
+                break;
+            }
+        }
+
+        if ($selected === null) {
+            foreach ($names as $name) {
+                if ($this->isKnownUnsupportedPredefinedCMapName($name)) {
+                    $selected = $name;
+                    break;
+                }
+            }
+        }
+
+        if ($selected === null) {
+            return $review;
+        }
+
+        $status = $this->predefinedCidCMap($selected) !== null ? 'supported' : 'unsupported';
+        $review['predefined_cmap_status'] = $status;
+        $review['selected_predefined_cmap'] = $status === 'supported' ? $this->reviewSafeString($selected) : null;
+        $review['predefined_cmap_family'] = $this->predefinedCMapFamily($selected, $status);
+        $review['unsupported_semantic_case'] = $status === 'unsupported';
+
+        return $review;
+    }
+
+    private function predefinedCMapFamily(string $name, string $status): ?string
+    {
+        if ($name === 'Identity-H' || $name === 'Identity-V') {
+            return 'identity';
+        }
+
+        if ($this->isPredefinedUcs2CMapName($name)) {
+            return 'ucs2';
+        }
+
+        return $status === 'unsupported' ? 'known_predefined_unsupported' : null;
+    }
+
+    private function isKnownUnsupportedPredefinedCMapName(string $name): bool
+    {
+        if ($this->predefinedCidCMap($name) !== null) {
+            return false;
+        }
+
+        if (preg_match('/^Uni[A-Za-z0-9-]*-[HV]$/', $name) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^Adobe-(?:Japan1|CNS1|GB1|Korea1)-[A-Za-z0-9-]+-[HV]$/', $name) === 1) {
+            return true;
+        }
+
+        return preg_match(
+            '/^(?:90ms|90msp|90pv|Add|B5pc|CNS|ETen|ETenms|Ext|GB|GBK|HK|KSC)[A-Za-z0-9-]*-[A-Za-z0-9-]*[HV]$/',
+            $name
+        ) === 1;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, string> $namedCMapBodies
+     * @param array<string, mixed> $encoding
+     * @return array<string, mixed>
+     */
+    private function predefinedCMapCidFallbackReviewEntry(
+        int $fontObjectNumber,
+        string $fontSubtype,
+        string $fontBody,
+        array $objects,
+        array $namedCMapBodies,
+        array $encoding
+    ): array {
+        $cidEncodingMap = $this->fontCidEncodingMap($fontBody, $objects, $namedCMapBodies);
+        $toUnicode = $this->fontToUnicodeReview($fontBody, $objects, $namedCMapBodies);
+        $widthMetrics = $this->fontWidthMetrics($fontBody, $objects);
+        $status = (string) ($encoding['predefined_cmap_status'] ?? 'not_predefined');
+        $toUnicodePresent = (bool) $toUnicode['present'];
+        $suppressedCidRanges = $this->suppressedPredefinedCidRanges($status, $toUnicodePresent, $cidEncodingMap);
+
+        return [
+            'font_object_number' => $fontObjectNumber,
+            'font_subtype' => $this->reviewSafeString($fontSubtype),
+            'encoding_name' => $encoding['encoding_name'],
+            'encoding_source' => $encoding['encoding_source'],
+            'encoding_reference' => $encoding['encoding_reference'],
+            'candidate_cmap_names' => $encoding['candidate_cmap_names'],
+            'selected_predefined_cmap' => $encoding['selected_predefined_cmap'],
+            'predefined_cmap_status' => $status,
+            'predefined_cmap_family' => $encoding['predefined_cmap_family'],
+            'fallback_path' => $this->predefinedCMapFallbackPath($status, $toUnicodePresent),
+            'unicode_mapping_policy' => $this->predefinedCMapUnicodeMappingPolicy($status, $toUnicodePresent),
+            'writing_mode' => $this->predefinedCMapReviewWritingMode($fontBody, $objects, $encoding, $cidEncodingMap),
+            'to_unicode_present' => $toUnicodePresent,
+            'to_unicode_reference' => $toUnicode['reference'],
+            'to_unicode_map_count' => $toUnicode['map_count'],
+            'code_space_ranges' => $this->reviewCodeSpaceRanges($cidEncodingMap['codeSpaceRanges'] ?? []),
+            'cid_map_count' => $cidEncodingMap === null ? 0 : count($cidEncodingMap['cidMap']),
+            'cid_range_count' => $cidEncodingMap === null ? 0 : count($cidEncodingMap['cidRanges'] ?? []),
+            'cid_fallback_available' => $status === 'supported' && $cidEncodingMap !== null,
+            'suppressed_cid_ranges' => $suppressedCidRanges,
+            'mojibake_guard' => $this->predefinedCMapMojibakeGuard($status, $toUnicodePresent, $suppressedCidRanges),
+            'unsupported_semantic_case' => (bool) ($encoding['unsupported_semantic_case'] ?? false),
+            'cid_width_count' => count($widthMetrics['widths']),
+            'cid_default_width_present' => $widthMetrics['defaultWidth'] !== null,
+            'cid_set_present' => $widthMetrics['cidSet'] !== null,
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, string> $namedCMapBodies
+     * @return array{present: bool, reference: array{object_number: int, generation: int}|null, map_count: int}
+     */
+    private function fontToUnicodeReview(string $fontBody, array $objects, array $namedCMapBodies): array
+    {
+        $value = $this->topLevelPdfValueAfterName($fontBody, 'ToUnicode');
+        if ($value === null || $this->topLevelLastValueAfterNameHasTrailingTopLevelOperand($fontBody, 'ToUnicode')) {
+            return [
+                'present' => false,
+                'reference' => null,
+                'map_count' => 0,
+            ];
+        }
+
+        $referenceOffset = 0;
+        $reference = $this->readPdfIndirectReferenceToken($value, $referenceOffset);
+        if ($reference === null) {
+            return [
+                'present' => true,
+                'reference' => null,
+                'map_count' => 0,
+            ];
+        }
+
+        $objectBody = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+        $map = $objectBody === null
+            ? null
+            : $this->toUnicodeMapFromObject($objectBody, $objects, $namedCMapBodies);
+
+        return [
+            'present' => true,
+            'reference' => [
+                'object_number' => $reference['objectNumber'],
+                'generation' => $reference['generation'],
+            ],
+            'map_count' => $map === null ? 0 : count($map['map']),
+        ];
+    }
+
+    private function predefinedCMapFallbackPath(string $status, bool $toUnicodePresent): string
+    {
+        if ($status === 'supported') {
+            return $toUnicodePresent
+                ? 'explicit_tounicode_with_predefined_cid_fallback'
+                : 'predefined_cid_codespace_unicode_suppressed';
+        }
+
+        return $toUnicodePresent
+            ? 'explicit_tounicode_without_predefined_cid_fallback'
+            : 'unsupported_predefined_cmap_no_unicode_fallback';
+    }
+
+    private function predefinedCMapUnicodeMappingPolicy(string $status, bool $toUnicodePresent): string
+    {
+        if ($status === 'supported') {
+            return $toUnicodePresent ? 'explicit_tounicode' : 'suppressed_predefined_cid_unicode';
+        }
+
+        return 'unsupported_predefined_cmap_not_used_for_unicode';
+    }
+
+    /**
+     * @param array<string, mixed> $encoding
+     * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>, writingMode?: int}|null $cidEncodingMap
+     * @param array<int, string> $objects
+     */
+    private function predefinedCMapReviewWritingMode(
+        string $fontBody,
+        array $objects,
+        array $encoding,
+        ?array $cidEncodingMap
+    ): ?int {
+        if ($cidEncodingMap !== null && isset($cidEncodingMap['writingMode'])) {
+            return (int) $cidEncodingMap['writingMode'] === 1 ? 1 : 0;
+        }
+
+        $name = is_string($encoding['encoding_name'] ?? null) ? $encoding['encoding_name'] : null;
+        if ($name !== null) {
+            $mode = $this->cMapNameWritingMode($name);
+            if ($mode !== null) {
+                return $mode;
+            }
+        }
+
+        $resolved = $this->pdfNameValueAfterNameResolvingObjects($fontBody, 'Encoding', $objects);
+        return $resolved === null ? null : $this->cMapNameWritingMode($resolved);
+    }
+
+    /**
+     * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>, writingMode?: int}|null $cidEncodingMap
+     * @return list<array{start: int, end: int, width: int, reason: string, unicode_mapping_suppressed: true}>
+     */
+    private function suppressedPredefinedCidRanges(string $status, bool $toUnicodePresent, ?array $cidEncodingMap): array
+    {
+        if ($status !== 'supported' || $toUnicodePresent || $cidEncodingMap === null) {
+            return [];
+        }
+
+        $ranges = [];
+        foreach ($this->reviewCodeSpaceRanges($cidEncodingMap['codeSpaceRanges']) as $range) {
+            $ranges[] = $range + [
+                'reason' => 'predefined_cmap_has_no_embedded_unicode_map',
+                'unicode_mapping_suppressed' => true,
+            ];
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @param list<array{start: int, end: int, width: int}>|mixed $ranges
+     * @return list<array{start: int, end: int, width: int}>
+     */
+    private function reviewCodeSpaceRanges(mixed $ranges): array
+    {
+        if (!is_array($ranges)) {
+            return [];
+        }
+
+        $reviewRanges = [];
+        foreach ($ranges as $range) {
+            if (!is_array($range)) {
+                continue;
+            }
+
+            $start = $range['start'] ?? null;
+            $end = $range['end'] ?? null;
+            $width = $range['width'] ?? null;
+            if (!is_int($start) || !is_int($end) || !is_int($width)) {
+                continue;
+            }
+
+            $reviewRanges[] = [
+                'start' => $start,
+                'end' => $end,
+                'width' => $width,
+            ];
+        }
+
+        return $reviewRanges;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $suppressedCidRanges
+     */
+    private function predefinedCMapMojibakeGuard(string $status, bool $toUnicodePresent, array $suppressedCidRanges): bool
+    {
+        return $suppressedCidRanges !== []
+            || $status === 'unsupported'
+            || ($status === 'supported' && !$toUnicodePresent);
+    }
+
+    private function reviewSafeString(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (!mb_check_encoding($value, 'UTF-8')) {
+            return null;
+        }
+
+        $value = str_replace("\xEF\xBF\xBD", '', $value);
+        $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $value);
+
+        return $value === null ? null : $value;
+    }
+
+    /**
      * @param array<int, string> $objects
      * @return array<int, list<array<string, mixed>>>
      */
