@@ -3904,6 +3904,81 @@ return [
             unlink($path);
         }
     },
+    'ingests supplied Texify model output envelopes with adapter review metadata' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-texify-output-envelope-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% texify output envelope fixture\n%%EOF");
+
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'Model math packet', 'bbox' => [72.0, 54.0, 360.0, 76.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'x plus y', 'bbox' => [110.0, 124.0, 220.0, 142.0]],
+                ['text' => 'F = m a', 'bbox' => [110.0, 178.0, 220.0, 196.0]],
+                ['text' => 'Editors keep failed model output reviewable.', 'bbox' => [72.0, 250.0, 430.0, 266.0]],
+            ]);
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [[
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['label' => 'Title', 'bbox' => [72.0, 54.0, 360.0, 76.0]],
+                            ['label' => 'Formula', 'bbox' => [104.0, 118.0, 230.0, 150.0]],
+                            ['label' => 'Formula', 'bbox' => [104.0, 172.0, 230.0, 204.0]],
+                            ['label' => 'Text', 'bbox' => [72.0, 244.0, 430.0, 272.0]],
+                        ],
+                    ]],
+                    'equation_results' => [
+                        [
+                            'image' => 'eq-crop-0',
+                            'token_count' => 2,
+                            'model_output' => '$$x+y$$',
+                            'score' => 0.98,
+                            'bbox' => [104.0, 118.0, 230.0, 150.0],
+                        ],
+                        [
+                            'image' => 'eq-crop-1',
+                            'token_count' => 3,
+                            'model_output' => 'alpha beta gamma',
+                            'score' => 0.12,
+                            'bbox' => [104.0, 172.0, 230.0, 204.0],
+                        ],
+                    ],
+                ],
+                new MarkerSettings([
+                    'EXTRACT_IMAGES' => false,
+                    'TEXIFY_BATCH_SIZE' => 1,
+                    'TEXIFY_MODEL_MAX' => 5,
+                    'TEXIFY_TOKEN_BUFFER' => 1,
+                ])
+            );
+
+            $review = $result['metadata']['equation_result_boundary_review'];
+
+            $t->contains('$$x+y$$', $result['text']);
+            $t->contains('F = m a', $result['text']);
+            $t->same(['layout', 'equation-recognition'], $result['metadata']['supplied_boundaries']);
+            $t->same(['successful_ocr' => 1, 'unsuccessful_ocr' => 1, 'equations' => 2], $result['metadata']['block_stats']['equations']);
+            $t->same('equation_model_result_adapter_boundary', $review['review_target']);
+            $t->same('equation_results', $review['option_key']);
+            $t->same(2, $review['result_count']);
+            $t->same(2, $review['prediction_count']);
+            $t->same(0, $review['direct_prediction_count']);
+            $t->same(2, $review['supplied_model_output_count']);
+            $t->same(['model_output'], $review['source_fields']);
+            $t->same(1, $review['batch_size']);
+            $t->same([1], $review['dropped_output_indexes']);
+            $t->same(false, $review['executes_python_or_models']);
+            $t->same(false, $review['executes_external_pdf_tools']);
+            $t->same(false, $review['records'][0]['dropped_by_max_token_sentinel']);
+            $t->same(true, $review['records'][1]['dropped_by_max_token_sentinel']);
+            $t->same(0.98, $review['records'][0]['score']);
+        } finally {
+            unlink($path);
+        }
+    },
     'preserves upstream table boundaries before nested equation and image regions' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-structure-boundary-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% structure boundary supplied fixture\n%%EOF");

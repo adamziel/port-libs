@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-19 23:56:50 UTC",
-    "sourceCommit": "40ecdb878b31814eca9f32050583cf4d4cc992f6",
-    "sourceCommitShort": "40ecdb878b31",
+    "generated": "2026-06-20 00:34:03 UTC",
+    "sourceCommit": "81de6fd90ac7256a948e361115ce575eb431d647",
+    "sourceCommitShort": "81de6fd90ac7",
     "sourceBranch": "unknown",
-    "dashboardCommit": "40ecdb878b31814eca9f32050583cf4d4cc992f6",
-    "dashboardCommitShort": "40ecdb878b31",
+    "dashboardCommit": "81de6fd90ac7256a948e361115ce575eb431d647",
+    "dashboardCommitShort": "81de6fd90ac7",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -91,13 +91,13 @@
             "coverage": "764 / 78 (979.5%)",
             "mapPercent": "979.5%",
             "unmapped": "0",
-            "php": "3,625 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; annotation action-reference coverage p...",
-            "audit": "2026-06-19 UTC annotation action-reference slice rebased after native...",
+            "php": "3,643 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; supplied Texify model-output adapter p...",
+            "audit": "2026-06-19 UTC supplied Texify model-output adapter boundary rebased...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
             "nextTarget": "After this patch is accepted, continue native no-GPU markerPD...",
             "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",
-            "commit": "pending markerp..."
+            "commit": "pending plib-tu..."
         },
         {
             "lane": "readability",

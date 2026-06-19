@@ -335,9 +335,13 @@ final class SuppliedDocumentConverter
             $metadata['supplied_boundaries'][] = 'table-formatting';
         }
 
-        $equationPredictions = $this->equationPredictionsOption($options);
+        $equationRecognition = $this->equationRecognitionOption($options, $settings, $batchMultiplier);
+        $equationPredictions = $equationRecognition['predictions'];
         if ($equationPredictions !== []) {
             $metadata['supplied_boundaries'][] = 'equation-recognition';
+        }
+        if ($equationRecognition['review'] !== null) {
+            $metadata['equation_result_boundary_review'] = $equationRecognition['review'];
         }
 
         $imagePayloads = $this->listOption($options, 'image_payloads');
@@ -2743,6 +2747,15 @@ final class SuppliedDocumentConverter
      */
     private function equationPredictionsOption(array $options): array
     {
+        return $this->equationRecognitionOption($options, new MarkerSettings(), 1.0)['predictions'];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array{predictions: list<string>, review: array<string, mixed>|null}
+     */
+    private function equationRecognitionOption(array $options, MarkerSettings $settings, float $batchMultiplier): array
+    {
         $key = null;
         if (array_key_exists('equation_results', $options) && $options['equation_results'] !== null) {
             $key = 'equation_results';
@@ -2751,14 +2764,35 @@ final class SuppliedDocumentConverter
         }
 
         if ($key === null) {
-            return [];
+            return [
+                'predictions' => [],
+                'review' => null,
+            ];
         }
 
         $items = $this->listOption($options, $key);
         $predictions = [];
+        $records = [];
+        $sourceFields = [];
+        $directPredictionCount = 0;
+        $batchImages = [];
+        $batchTokenCounts = [];
+        $batchOutputs = [];
+        $batchPredictionSlots = [];
+
         foreach ($items as $item) {
+            $itemIndex = count($records);
             if (is_scalar($item)) {
-                $predictions[] = (string) $item;
+                $prediction = (string) $item;
+                $predictions[$itemIndex] = $prediction;
+                $records[] = [
+                    'result_index' => $itemIndex,
+                    'source_field' => 'scalar',
+                    'prediction_length' => strlen($prediction),
+                    'supplied_model_output' => false,
+                ];
+                $sourceFields[] = 'scalar';
+                $directPredictionCount++;
                 continue;
             }
 
@@ -2766,22 +2800,174 @@ final class SuppliedDocumentConverter
                 throw new InvalidArgumentException("markerPDF supplied document option {$key} must contain strings or arrays.");
             }
 
-            $value = null;
-            foreach (['latex', 'prediction', 'text'] as $field) {
-                if (array_key_exists($field, $item) && is_scalar($item[$field])) {
-                    $value = (string) $item[$field];
-                    break;
-                }
+            $direct = $this->equationDirectPrediction($item);
+            if ($direct !== null) {
+                $predictions[$itemIndex] = $direct['value'];
+                $records[] = [
+                    ...$this->equationResultRecord($item, $itemIndex),
+                    'source_field' => $direct['field'],
+                    'prediction_length' => strlen($direct['value']),
+                    'supplied_model_output' => false,
+                ];
+                $sourceFields[] = $direct['field'];
+                $directPredictionCount++;
+                continue;
             }
 
-            if ($value === null) {
-                throw new InvalidArgumentException("markerPDF supplied document option {$key} arrays must include latex, prediction, or text.");
+            $modelOutput = $this->equationModelOutput($item);
+            if ($modelOutput !== null) {
+                $tokenCount = $this->equationModelTokenCount($item, $key);
+                $batchIndex = count($batchOutputs);
+                $batchImages[] = $this->equationModelImage($item, $batchIndex);
+                $batchTokenCounts[] = $tokenCount;
+                $batchOutputs[] = $modelOutput['value'];
+                $batchPredictionSlots[$itemIndex] = $batchIndex;
+                $records[] = [
+                    ...$this->equationResultRecord($item, $itemIndex),
+                    'source_field' => $modelOutput['field'],
+                    'token_count' => $tokenCount,
+                    'model_output_length' => strlen($modelOutput['value']),
+                    'supplied_model_output' => true,
+                ];
+                $sourceFields[] = $modelOutput['field'];
+                continue;
             }
 
-            $predictions[] = $value;
+            throw new InvalidArgumentException("markerPDF supplied document option {$key} arrays must include latex, prediction, text, or supplied model output with token_count.");
         }
 
-        return $predictions;
+        $batchPlan = [
+            'predictions' => [],
+            'batches' => [],
+            'dropped_output_indexes' => [],
+            'batch_size' => 0,
+        ];
+        if ($batchOutputs !== []) {
+            $batchPlan = (new EquationReplacer(settings: $settings))->getLatexBatchedFromSuppliedOutputs(
+                $batchImages,
+                $batchTokenCounts,
+                $batchOutputs,
+                $batchMultiplier
+            );
+            foreach ($batchPredictionSlots as $itemIndex => $batchIndex) {
+                $predictions[$itemIndex] = $batchPlan['predictions'][$batchIndex] ?? '';
+                if (isset($records[$itemIndex])) {
+                    $records[$itemIndex]['prediction_length'] = strlen($predictions[$itemIndex]);
+                    $records[$itemIndex]['dropped_by_max_token_sentinel'] = in_array($batchIndex, $batchPlan['dropped_output_indexes'], true);
+                }
+            }
+        }
+
+        ksort($predictions);
+        $predictions = array_values($predictions);
+
+        return [
+            'predictions' => $predictions,
+            'review' => [
+                'review_target' => 'equation_model_result_adapter_boundary',
+                'source' => 'markerpdf_supplied_equation_result_adapter',
+                'upstream_boundary' => 'marker.equations.inference.get_latex_batched supplied outputs',
+                'option_key' => $key,
+                'result_count' => count($items),
+                'prediction_count' => count($predictions),
+                'direct_prediction_count' => $directPredictionCount,
+                'supplied_model_output_count' => count($batchOutputs),
+                'source_fields' => array_values(array_unique($sourceFields)),
+                'batch_size' => $batchPlan['batch_size'],
+                'batches' => $batchPlan['batches'],
+                'dropped_output_indexes' => $batchPlan['dropped_output_indexes'],
+                'records' => $records,
+                'executes_python_or_models' => false,
+                'executes_external_pdf_tools' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array{field: string, value: string}|null
+     */
+    private function equationDirectPrediction(array $item): ?array
+    {
+        foreach (['latex', 'prediction', 'text'] as $field) {
+            if (array_key_exists($field, $item) && is_scalar($item[$field])) {
+                return [
+                    'field' => $field,
+                    'value' => (string) $item[$field],
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array{field: string, value: string}|null
+     */
+    private function equationModelOutput(array $item): ?array
+    {
+        foreach (['model_output', 'output', 'generated_text', 'decoded_text'] as $field) {
+            if (array_key_exists($field, $item) && is_scalar($item[$field])) {
+                return [
+                    'field' => $field,
+                    'value' => (string) $item[$field],
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function equationModelTokenCount(array $item, string $key): int
+    {
+        foreach (['token_count', 'tokens', 'input_token_count', 'source_token_count'] as $field) {
+            if (!array_key_exists($field, $item)) {
+                continue;
+            }
+            $value = $item[$field];
+            if (is_int($value) || is_float($value) || (is_string($value) && is_numeric($value))) {
+                return (int) $value;
+            }
+        }
+
+        throw new InvalidArgumentException("markerPDF supplied document option {$key} model output arrays must include numeric token_count.");
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function equationModelImage(array $item, int $batchIndex): mixed
+    {
+        foreach (['image', 'equation_image', 'rendered_image', 'crop_image'] as $field) {
+            if (array_key_exists($field, $item)) {
+                return $item[$field];
+            }
+        }
+
+        return 'supplied-equation-image-' . $batchIndex;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function equationResultRecord(array $item, int $itemIndex): array
+    {
+        $record = [
+            'result_index' => $itemIndex,
+        ];
+
+        foreach (['page', 'pnum', 'page_number', 'bbox', 'score', 'confidence'] as $field) {
+            if (array_key_exists($field, $item)) {
+                $record[$field] = $item[$field];
+            }
+        }
+
+        return $record;
     }
 
     /**
