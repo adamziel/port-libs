@@ -61,7 +61,9 @@ try {
             'profile_memory' => true,
         ]
     );
-    (new BenchmarkReportVerifier())->verifyMarkerScores($result['report']);
+    $verifier = new BenchmarkReportVerifier();
+    $verifier->verifyMarkerScores($result['report']);
+    $evidence = $verifier->verifyUpstreamCiBenchmarkEvidence($fixture, $result['report']);
 
     echo json_encode([
         'scenario' => 'wordpress-pdf-benchmark-runner',
@@ -74,6 +76,7 @@ try {
         'written_markdown' => array_map('basename', $result['written_markdown']),
         'runtime' => $result['runtime'],
         'report' => $result['report'],
+        'upstream_fixture_evidence' => $evidence,
         'passes_upstream_ci_marker_thresholds' => true,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {

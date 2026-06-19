@@ -58,6 +58,7 @@ return [
         $referenceFolder = $makeTempDir();
         $markdownFolder = $makeTempDir();
         try {
+            $fixture = require __DIR__ . '/../fixtures/upstream-ci-benchmark-short.php';
             $pairsByDocument = $prepareCiFolders($pdfFolder, $referenceFolder);
             $runner = new BenchmarkRunner();
 
@@ -72,9 +73,14 @@ return [
                 array_map(static fn (array $pair): int => $pair['chunkLength'], $pairsByDocument)
             );
 
-            (new BenchmarkReportVerifier())->verifyMarkerScores($result['report']);
+            $verifier = new BenchmarkReportVerifier();
+            $verifier->verifyMarkerScores($result['report']);
+            $evidence = $verifier->verifyUpstreamCiBenchmarkEvidence($fixture, $result['report']);
 
             $t->same(['multicolcnn.pdf', 'switch_trans.pdf'], $result['benchmark_files']);
+            $t->same(2, $evidence['mapped_native_fixture_count']);
+            $t->same('benchmark_data_short.zip', $evidence['archive']['filename']);
+            $t->same(false, $evidence['executes_python_or_models']);
             $t->same(2, count($result['runs']));
             $t->same(3, $result['report']['marker']['files']['multicolcnn.pdf']['pages']);
             $t->same(4, $result['report']['marker']['files']['switch_trans.pdf']['pages']);

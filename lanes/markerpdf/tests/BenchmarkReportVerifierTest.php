@@ -97,4 +97,28 @@ return [
         $t->true($report['marker']['files']['multicolcnn.pdf']['score'] > 0.34);
         $t->true($report['marker']['files']['switch_trans.pdf']['score'] > 0.40);
     },
+    'maps upstream CI benchmark fixture evidence and heavy runtime exclusions' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/upstream-ci-benchmark-short.php';
+        $scorer = new BenchmarkScorer();
+        $report = ['marker' => ['files' => []]];
+        foreach ($fixture['benchmarkPairs'] as $pair) {
+            $report['marker']['files'][$pair['document']] = [
+                'score' => $scorer->scoreText($pair['markerExcerpt'], $pair['referenceExcerpt'], $pair['chunkLength']),
+            ];
+        }
+
+        $evidence = (new BenchmarkReportVerifier())->verifyUpstreamCiBenchmarkEvidence($fixture, $report);
+
+        $t->same('benchmark_data_short.zip', $evidence['archive']['filename']);
+        $t->same('c7511a4f5055e949a7a7c293be5541942433059d7841965f056d7f9b441a41ad', $evidence['archive']['sha256']);
+        $t->same(2, $evidence['mapped_native_fixture_count']);
+        $t->same(2, $evidence['required_document_count']);
+        $t->same(['multicolcnn.pdf', 'switch_trans.pdf'], array_column($evidence['documents'], 'document'));
+        $t->same('benchmark_data/pdfs/multicolcnn.pdf', $evidence['documents'][0]['pdf_path']);
+        $t->same('data/examples/marker/switch_transformers.md', $evidence['documents'][1]['marker_example_path']);
+        $t->true($evidence['passes_upstream_ci_marker_thresholds']);
+        $t->same(false, $evidence['executes_python_or_models']);
+        $t->same(false, $evidence['executes_external_pdf_tools']);
+        $t->true(in_array('Surya/Torch OCR, layout, table, and recognition models', $evidence['heavy_runtime_exclusions'], true));
+    },
 ];
