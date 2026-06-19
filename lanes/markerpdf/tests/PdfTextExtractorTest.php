@@ -3922,6 +3922,63 @@ return [
         $t->true(!str_contains($plainText, "Page one body second\nPage one heading first"));
         $t->true(!str_contains($plainText, "Page two body second\nPage two heading first"));
     },
+    'normalizes irregular tagged table sections without dropping repeated rows' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf '
+            . '/TH << /MCID 0 >> BDC 72 720 Td (Feature) Tj EMC '
+            . '/TH << /MCID 1 >> BDC 180 720 Td (Status) Tj EMC '
+            . '/TD << /MCID 2 >> BDC 72 704 Td (Images) Tj EMC '
+            . '/TD << /MCID 3 >> BDC 180 704 Td (Ready) Tj EMC '
+            . '/TD << /MCID 4 >> BDC 72 688 Td (Charts) Tj EMC '
+            . '/TD << /MCID 5 >> BDC 180 688 Td (Queued) Tj EMC '
+            . '/TD << /MCID 6 >> BDC 72 672 Td (Totals) Tj EMC '
+            . '/TD << /MCID 7 >> BDC 180 672 Td (Done) Tj EMC '
+            . '/Artifact << /MCID 99 >> BDC 72 650 Td (Artifact table footer noise) Tj EMC ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 20 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /StructTreeRoot /RoleMap << /Grid /Table /HeadBand /THead /BodyBand /TBody /FootBand /TFoot /DataRow /TR /HeadingCell /TH /DataCell /TD /Wrap /Div >> /K [21 0 R] >>\nendobj\n"
+            . "21 0 obj\n<< /Type /StructElem /S /Grid /Pg 3 0 R /K [22 0 R 23 0 R 24 0 R 25 0 R] >>\nendobj\n"
+            . "22 0 obj\n<< /Type /StructElem /S /FootBand /K [42 0 R] >>\nendobj\n"
+            . "23 0 obj\n<< /Type /StructElem /S /Wrap /K [26 0 R] >>\nendobj\n"
+            . "24 0 obj\n<< /Type /StructElem /S /BodyBand /K [41 0 R] >>\nendobj\n"
+            . "25 0 obj\n<< /Type /StructElem /S /Wrap /K [27 0 R] >>\nendobj\n"
+            . "26 0 obj\n<< /Type /StructElem /S /BodyBand /K [43 0 R] >>\nendobj\n"
+            . "27 0 obj\n<< /Type /StructElem /S /HeadBand /K [40 0 R] >>\nendobj\n"
+            . "40 0 obj\n<< /Type /StructElem /S /DataRow /K [50 0 R 51 0 R] >>\nendobj\n"
+            . "41 0 obj\n<< /Type /StructElem /S /DataRow /K [52 0 R 53 0 R] >>\nendobj\n"
+            . "42 0 obj\n<< /Type /StructElem /S /DataRow /K [56 0 R 57 0 R] >>\nendobj\n"
+            . "43 0 obj\n<< /Type /StructElem /S /DataRow /K [54 0 R 55 0 R] >>\nendobj\n"
+            . "50 0 obj\n<< /Type /StructElem /S /HeadingCell /K 0 >>\nendobj\n"
+            . "51 0 obj\n<< /Type /StructElem /S /HeadingCell /K 1 >>\nendobj\n"
+            . "52 0 obj\n<< /Type /StructElem /S /DataCell /K 2 >>\nendobj\n"
+            . "53 0 obj\n<< /Type /StructElem /S /DataCell /K 3 >>\nendobj\n"
+            . "54 0 obj\n<< /Type /StructElem /S /DataCell /K 4 >>\nendobj\n"
+            . "55 0 obj\n<< /Type /StructElem /S /DataCell /K 5 >>\nendobj\n"
+            . "56 0 obj\n<< /Type /StructElem /S /DataCell /K 6 >>\nendobj\n"
+            . "57 0 obj\n<< /Type /StructElem /S /DataCell /K 7 >>\nendobj\n"
+            . "%%EOF";
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $tagged = $extractor->extractTaggedContent($pdf);
+        $expected = ['Feature', 'Status', 'Images', 'Ready', 'Charts', 'Queued', 'Totals', 'Done'];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same($expected, array_column($tagged, 'text'));
+        $t->same(['TH', 'TH', 'TD', 'TD', 'TD', 'TD', 'TD', 'TD'], array_column($tagged, 'role'));
+        $t->same(['HeadingCell', 'HeadingCell', 'DataCell', 'DataCell', 'DataCell', 'DataCell', 'DataCell', 'DataCell'], array_column($tagged, 'raw_role'));
+        $t->same(['THead', 'THead', 'TBody', 'TBody', 'TBody', 'TBody', 'TFoot', 'TFoot'], array_column($tagged, 'table_section_role'));
+        $t->same([0, 0, 1, 1, 2, 2, 3, 3], array_column($tagged, 'table_row_index'));
+        $t->same([0, 1, 0, 1, 0, 1, 0, 1], array_column($tagged, 'table_cell_index'));
+        $t->same([true, true, true, true, true, true, true, true], array_column($tagged, 'table_section_order_normalized'));
+        $t->true(!str_contains($plainText, 'Artifact table footer noise'));
+        $t->true(!str_contains($plainText, "Totals\nDone\nImages"));
+        $t->true(!str_contains($plainText, "Charts\nQueued\nImages"));
+    },
     'uses catalog Threads bead order before raw page content order' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Article part one) Tj ET '
             . 'BT /F1 12 Tf 320 720 Td (Article part three) Tj ET '

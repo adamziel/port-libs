@@ -1887,6 +1887,18 @@ final class PdfTextExtractor
                     'content_tags' => array_values($contentTags),
                     'text' => $text,
                 ];
+                foreach ([
+                    'table_section_role',
+                    'table_section_raw_role',
+                    'table_structure_source',
+                    'table_row_index',
+                    'table_cell_index',
+                    'table_section_order_normalized',
+                ] as $tableKey) {
+                    if (array_key_exists($tableKey, $entry)) {
+                        $row[$tableKey] = $entry[$tableKey];
+                    }
+                }
 
                 $metadata = $structureMetadataByPageAndMcid[$pageObjectNumber][$mcid] ?? null;
                 if (is_array($metadata)) {
@@ -3822,6 +3834,22 @@ final class PdfTextExtractor
 
         $k = $this->pdfValueAfterName($dictionary, 'K');
         if ($k !== null) {
+            if ($role === 'Table') {
+                $tableRows = [];
+                $this->collectTaggedTableRows(
+                    $k,
+                    $objects,
+                    $pageObjectNumber,
+                    null,
+                    null,
+                    $roleMap,
+                    $tableRows,
+                    $seenObjects
+                );
+                $this->appendOrderedTaggedTableRows($entries, $tableRows);
+                return;
+            }
+
             $this->collectStructureMcidEntries(
                 $k,
                 $objects,
@@ -3833,6 +3861,408 @@ final class PdfTextExtractor
                 $entries,
                 $seenObjects
             );
+        }
+    }
+
+    private function collectTaggedTableRows(
+        string $value,
+        array $objects,
+        ?int $inheritedPageObjectNumber,
+        ?string $sectionRole,
+        ?string $sectionRawRole,
+        array $roleMap,
+        array &$rows,
+        array $seenObjects = [],
+        int $depth = 0
+    ): void {
+        if ($depth > 40) {
+            return;
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return;
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return;
+            }
+
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            if ($dictionary === null) {
+                return;
+            }
+
+            $seenObjects[$objectNumber] = true;
+            $this->collectTaggedTableRowsFromDictionary(
+                $dictionary,
+                $objects,
+                $inheritedPageObjectNumber,
+                $sectionRole,
+                $sectionRawRole,
+                $roleMap,
+                $rows,
+                $seenObjects,
+                $depth + 1
+            );
+            return;
+        }
+
+        if (str_starts_with($value, '[')) {
+            $arrayBody = $this->pdfArrayAtStart($value);
+            if ($arrayBody === null) {
+                return;
+            }
+
+            foreach ($this->pdfArrayItems($arrayBody) as $item) {
+                $this->collectTaggedTableRows(
+                    $item,
+                    $objects,
+                    $inheritedPageObjectNumber,
+                    $sectionRole,
+                    $sectionRawRole,
+                    $roleMap,
+                    $rows,
+                    $seenObjects,
+                    $depth + 1
+                );
+            }
+            return;
+        }
+
+        if (str_starts_with($value, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($value, 0);
+            if ($dictionary !== null) {
+                $this->collectTaggedTableRowsFromDictionary(
+                    $dictionary,
+                    $objects,
+                    $inheritedPageObjectNumber,
+                    $sectionRole,
+                    $sectionRawRole,
+                    $roleMap,
+                    $rows,
+                    $seenObjects,
+                    $depth + 1
+                );
+            }
+            return;
+        }
+
+        if ($inheritedPageObjectNumber !== null && preg_match('/^[+-]?\d+$/', $value) === 1) {
+            $mcid = (int) $value;
+            if ($mcid >= 0) {
+                $rows[] = $this->taggedTableRowDescriptor([
+                    $this->taggedTableEntry($inheritedPageObjectNumber, $mcid, null, null, $sectionRole, $sectionRawRole, 'direct'),
+                ], $sectionRole, $sectionRawRole);
+            }
+        }
+    }
+
+    private function collectTaggedTableRowsFromDictionary(
+        string $dictionary,
+        array $objects,
+        ?int $inheritedPageObjectNumber,
+        ?string $sectionRole,
+        ?string $sectionRawRole,
+        array $roleMap,
+        array &$rows,
+        array $seenObjects,
+        int $depth
+    ): void {
+        $rawRole = $this->pdfNameValueAfterName($dictionary, 'S');
+        $role = $rawRole === null ? null : $this->resolveStructureRole($rawRole, $roleMap);
+        $pageObjectNumber = $this->objectReferenceValueAfterName($dictionary, 'Pg') ?? $inheritedPageObjectNumber;
+
+        if ($role === 'THead' || $role === 'TBody' || $role === 'TFoot') {
+            $sectionRole = $role;
+            $sectionRawRole = $rawRole;
+        }
+
+        $k = $this->pdfValueAfterName($dictionary, 'K');
+        if ($role === 'TR') {
+            $rowEntries = [];
+            if ($k !== null) {
+                $this->collectTaggedTableRowEntries(
+                    $k,
+                    $objects,
+                    $pageObjectNumber,
+                    $rawRole,
+                    $role,
+                    $sectionRole,
+                    $sectionRawRole,
+                    $roleMap,
+                    $rowEntries,
+                    $seenObjects,
+                    $depth + 1
+                );
+            }
+
+            $mcid = $this->pdfIntegerValueAfterName($dictionary, 'MCID');
+            if ($pageObjectNumber !== null && $mcid !== null && $mcid >= 0) {
+                array_unshift(
+                    $rowEntries,
+                    $this->taggedTableEntry($pageObjectNumber, $mcid, $rawRole, $role, $sectionRole, $sectionRawRole, 'tr')
+                );
+            }
+
+            if ($rowEntries !== []) {
+                $rows[] = $this->taggedTableRowDescriptor($rowEntries, $sectionRole, $sectionRawRole);
+            }
+            return;
+        }
+
+        $mcid = $this->pdfIntegerValueAfterName($dictionary, 'MCID');
+        if ($pageObjectNumber !== null && $mcid !== null && $mcid >= 0) {
+            $rows[] = $this->taggedTableRowDescriptor([
+                $this->taggedTableEntry($pageObjectNumber, $mcid, $rawRole, $role, $sectionRole, $sectionRawRole, 'element'),
+            ], $sectionRole, $sectionRawRole);
+        }
+
+        if ($k === null) {
+            return;
+        }
+
+        $this->collectTaggedTableRows(
+            $k,
+            $objects,
+            $pageObjectNumber,
+            $sectionRole,
+            $sectionRawRole,
+            $roleMap,
+            $rows,
+            $seenObjects,
+            $depth + 1
+        );
+    }
+
+    private function collectTaggedTableRowEntries(
+        string $value,
+        array $objects,
+        ?int $inheritedPageObjectNumber,
+        ?string $inheritedRawRole,
+        ?string $inheritedRole,
+        ?string $sectionRole,
+        ?string $sectionRawRole,
+        array $roleMap,
+        array &$entries,
+        array $seenObjects,
+        int $depth
+    ): void {
+        if ($depth > 50) {
+            return;
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return;
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return;
+            }
+
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            if ($dictionary === null) {
+                return;
+            }
+
+            $seenObjects[$objectNumber] = true;
+            $this->collectTaggedTableRowEntriesFromDictionary(
+                $dictionary,
+                $objects,
+                $inheritedPageObjectNumber,
+                $inheritedRawRole,
+                $inheritedRole,
+                $sectionRole,
+                $sectionRawRole,
+                $roleMap,
+                $entries,
+                $seenObjects,
+                $depth + 1
+            );
+            return;
+        }
+
+        if (str_starts_with($value, '[')) {
+            $arrayBody = $this->pdfArrayAtStart($value);
+            if ($arrayBody === null) {
+                return;
+            }
+
+            foreach ($this->pdfArrayItems($arrayBody) as $item) {
+                $this->collectTaggedTableRowEntries(
+                    $item,
+                    $objects,
+                    $inheritedPageObjectNumber,
+                    $inheritedRawRole,
+                    $inheritedRole,
+                    $sectionRole,
+                    $sectionRawRole,
+                    $roleMap,
+                    $entries,
+                    $seenObjects,
+                    $depth + 1
+                );
+            }
+            return;
+        }
+
+        if (str_starts_with($value, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($value, 0);
+            if ($dictionary !== null) {
+                $this->collectTaggedTableRowEntriesFromDictionary(
+                    $dictionary,
+                    $objects,
+                    $inheritedPageObjectNumber,
+                    $inheritedRawRole,
+                    $inheritedRole,
+                    $sectionRole,
+                    $sectionRawRole,
+                    $roleMap,
+                    $entries,
+                    $seenObjects,
+                    $depth + 1
+                );
+            }
+            return;
+        }
+
+        if ($inheritedPageObjectNumber !== null && preg_match('/^[+-]?\d+$/', $value) === 1) {
+            $mcid = (int) $value;
+            if ($mcid >= 0) {
+                $entries[] = $this->taggedTableEntry(
+                    $inheritedPageObjectNumber,
+                    $mcid,
+                    $inheritedRawRole,
+                    $inheritedRole,
+                    $sectionRole,
+                    $sectionRawRole,
+                    'cell'
+                );
+            }
+        }
+    }
+
+    private function collectTaggedTableRowEntriesFromDictionary(
+        string $dictionary,
+        array $objects,
+        ?int $inheritedPageObjectNumber,
+        ?string $inheritedRawRole,
+        ?string $inheritedRole,
+        ?string $sectionRole,
+        ?string $sectionRawRole,
+        array $roleMap,
+        array &$entries,
+        array $seenObjects,
+        int $depth
+    ): void {
+        $rawRole = $this->pdfNameValueAfterName($dictionary, 'S') ?? $inheritedRawRole;
+        $role = $rawRole === null ? $inheritedRole : $this->resolveStructureRole($rawRole, $roleMap);
+        $pageObjectNumber = $this->objectReferenceValueAfterName($dictionary, 'Pg') ?? $inheritedPageObjectNumber;
+        $mcid = $this->pdfIntegerValueAfterName($dictionary, 'MCID');
+        if ($pageObjectNumber !== null && $mcid !== null && $mcid >= 0) {
+            $entries[] = $this->taggedTableEntry($pageObjectNumber, $mcid, $rawRole, $role, $sectionRole, $sectionRawRole, 'cell');
+        }
+
+        $k = $this->pdfValueAfterName($dictionary, 'K');
+        if ($k !== null) {
+            $this->collectTaggedTableRowEntries(
+                $k,
+                $objects,
+                $pageObjectNumber,
+                $rawRole,
+                $role,
+                $sectionRole,
+                $sectionRawRole,
+                $roleMap,
+                $entries,
+                $seenObjects,
+                $depth + 1
+            );
+        }
+    }
+
+    private function taggedTableRowDescriptor(array $entries, ?string $sectionRole, ?string $sectionRawRole): array
+    {
+        $firstMcid = null;
+        foreach ($entries as $entry) {
+            if (!is_array($entry) || !isset($entry['mcid']) || !is_int($entry['mcid'])) {
+                continue;
+            }
+
+            $firstMcid = $firstMcid === null ? $entry['mcid'] : min($firstMcid, $entry['mcid']);
+        }
+
+        return [
+            'sectionRole' => $sectionRole ?? 'TBody',
+            'sectionRawRole' => $sectionRawRole,
+            'sectionOrder' => $this->taggedTableSectionOrder($sectionRole),
+            'firstMcid' => $firstMcid ?? PHP_INT_MAX,
+            'entries' => $entries,
+        ];
+    }
+
+    private function taggedTableEntry(
+        int $pageObjectNumber,
+        int $mcid,
+        ?string $rawRole,
+        ?string $role,
+        ?string $sectionRole,
+        ?string $sectionRawRole,
+        string $source
+    ): array {
+        return [
+            'pageObjectNumber' => $pageObjectNumber,
+            'mcid' => $mcid,
+            'rawRole' => $rawRole,
+            'role' => $role,
+            'table_section_role' => $sectionRole ?? 'TBody',
+            'table_section_raw_role' => $sectionRawRole,
+            'table_structure_source' => $source,
+        ];
+    }
+
+    private function taggedTableSectionOrder(?string $sectionRole): int
+    {
+        return match ($sectionRole) {
+            'THead' => 0,
+            'TFoot' => 2,
+            default => 1,
+        };
+    }
+
+    private function appendOrderedTaggedTableRows(array &$entries, array $rows): void
+    {
+        usort($rows, static function (array $a, array $b): int {
+            return [$a['sectionOrder'], $a['firstMcid']] <=> [$b['sectionOrder'], $b['firstMcid']];
+        });
+
+        foreach ($rows as $rowIndex => $row) {
+            $rowEntries = $row['entries'] ?? null;
+            if (!is_array($rowEntries)) {
+                continue;
+            }
+
+            foreach (array_values($rowEntries) as $cellIndex => $entry) {
+                if (!is_array($entry) || !isset($entry['pageObjectNumber'], $entry['mcid'])) {
+                    continue;
+                }
+
+                $pageObjectNumber = $entry['pageObjectNumber'];
+                if (!is_int($pageObjectNumber)) {
+                    continue;
+                }
+
+                unset($entry['pageObjectNumber']);
+                $entry['table_row_index'] = $rowIndex;
+                $entry['table_cell_index'] = $cellIndex;
+                $entry['table_section_order_normalized'] = true;
+                $entries[$pageObjectNumber][] = $entry;
+            }
         }
     }
 
