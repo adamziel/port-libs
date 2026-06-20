@@ -547,7 +547,8 @@
             "mappedPdfFontType3CharProcsFallbackBoundaryCurrentBaseBehaviors": 1,
             "mappedPdfLinkAnnotationPageGeometryCurrentBaseBehaviors": 1,
             "mappedPdfFontWidthAdvanceBoundaryCurrentBaseBehaviors": 3,
-            "markerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 3
+            "markerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 3,
+            "mappedPdfPagePartialExtractionDiagnosticsCurrentBaseBehaviors": 2
         },
         "benchmarkDocuments": [
             "multicolcnn.pdf",
@@ -1060,10 +1061,10 @@
         "pdfXrefStreamPrevHybridGenerationRecoveryCurrentBaseBehaviors": 1,
         "mappedPdfXrefStreamPrevHybridGenerationRecoveryCurrentBaseBehaviors": 1
     },
-    "nativeImplementation": "current-base native PHP markerPDF behavior includes qpdf-derived AES-256 revision-6 encrypted permission fixture review, password-handling diagnostics, encrypted crypt-filter content-role preflight, Image XObject CTM placement review, indirect encrypted permission operand review, XMP/current-trailer metadata, inline-image decode boundaries, xref repair, generation-exact named destinations, attachment review, marker-app preview PageLabels /Limits and indirect label-operand enforcement, and optional pdftext dictionary_output(sort=true) row/column block ordering; full upstream Python/model runner parity remains unavailable under the no-GPU scope; runtime batch preflight records output-folder regular-file conflicts before metadata/model/pool planning and convert.py stdout conversion-summary ordering before task tuple construction or pool launch",
+    "nativeImplementation": "current-base native PHP markerPDF behavior includes page-level /Contents partial-extraction diagnostics, qpdf-derived AES-256 revision-6 encrypted permission fixture review, password-handling diagnostics, encrypted crypt-filter content-role preflight, Image XObject CTM placement review, indirect encrypted permission operand review, XMP/current-trailer metadata, inline-image decode boundaries, xref repair, generation-exact named destinations, attachment review, marker-app preview PageLabels /Limits and indirect label-operand enforcement, and optional pdftext dictionary_output(sort=true) row/column block ordering; full upstream Python/model runner parity remains unavailable under the no-GPU scope; runtime batch preflight records output-folder regular-file conflicts before metadata/model/pool planning and convert.py stdout conversion-summary ordering before task tuple construction or pool launch",
     "wordpressScenario": "WordPress PDF imports now cover qpdf-derived AES-256 revision-6 encrypted permission fixtures that stop at encrypted preflight with password-readiness diagnostics, encrypted Standard crypt-filter content-role preflight for StmF/StrF/EFF identity, encrypted, and missing filters before import decisions, Image XObject q/Q/cm and nested Form XObject /Matrix placement bboxes for review-only media handoff, indirect encrypted permission and crypt-filter review, catalog XMP plus current-trailer Info/ID metadata, inline ASCII85/Flate image decode boundaries, classic xref rebuild, xref /Prev repair, generation-exact native named-destination extraction, attachment/FileSpec summaries, marker-app preview PageLabels /Limits and indirect /S /P /St operand boundaries, pdftext dictionary_output span-text normalization and optional sort=true row/column ordering, current incremental /Prev xref content selection, single-document runtime admission review, Type3/font-width boundaries, page-resource inheritance, clipped table grid geometry, malformed BI tokenizer recovery, pdftext keep_chars=false sanitation, indirect xref-stream W/Index/Size helper resolution, and the previously accepted native no-GPU markerPDF paths while keeping model execution, raw payload bytes, action/XFA operands, image payloads, encrypted associated-file text, stale xref data, mismatched-generation destination rows, and parser noise out of visible content.",
     "nextTask": "Continue native no-GPU markerPDF/Pandoc supervision from clean origin/main worktrees, integrating ready handoffs serially only after focused verification and preserving the bounded worker swarm.",
-    "latestRunAddendum": "2026-06-20 UTC qpdf encrypted permission fixture slice maps AES-256 revision-6 no-extract and copy-allowed encrypted PDFs into permission diagnostics, password-handling review metadata, and encrypted converter short-circuit behavior without decryption, qpdf runtime calls, Python/models, or external PDF tools. Post-rebase focused check: php tools/run-tests.php lanes/markerpdf/tests/PdfEncryptedPermissionQpdfFixtureCurrentBaseTest.php => 1 test file / 141 assertions / 0 failures. WordPress smoke: php lanes/markerpdf/examples/wordpress-pdf-qpdf-encrypted-permission-currentbase.php. Adjacent encrypted/security shard: php tools/run-tests.php $(rg --files lanes/markerpdf/tests | rg 'PdfEncryptedPermission|PdfSecurityPreflight|CorePdfConverter') => 88 test files / 8157 assertions / 0 failures.",
+    "latestRunAddendum": "2026-06-20 UTC refinery rebase verification for page-level partial extraction diagnostics: focused gate 1 file / 37 assertions / 0 failures; adjacent text extractor shard 2 files / 681 assertions / 0 failures; Pandoc smoke gate 2 files / 2585 assertions / 0 failures; php -l, JSON, staged whitespace, and conflict-marker checks passed. Worker pre-rebase full markerPDF gate remained 1651 files / 82912 assertions / 0 failures.",
     "wordpressScenarios": 1097,
     "inventory": {
         "mappedInlineImageReviewBehaviors": 1,
@@ -1284,7 +1285,8 @@
         "mappedPdfNamedDestinationExtractorCurrentBaseBehaviors": 3,
         "mappedMarkerAppPreviewPageLabelsCurrentBaseBehaviors": 5,
         "mappedPdfXrefPrevIncrementalContentEvidenceCurrentBaseBehaviors": 1,
-        "mappedMarkerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 3
+        "mappedMarkerRuntimeMainPreflightBoundaryCurrentBaseBehaviors": 3,
+        "mappedPdfPagePartialExtractionDiagnosticsCurrentBaseBehaviors": 2
     },
     "pdfParserNameArrayCommentBoundaryCurrentBase": "PDF comments inside optional-content arrays are skipped before indirect-reference and escaped-name scanning, preventing comment-only hidden layer references from affecting WordPress text extraction.",
     "pdfParserNameArrayCommentBoundaryCurrentBaseBehaviors": 1,
@@ -1710,5 +1712,8 @@
     "mappedPdfInlineImageDecodeBoundaryCurrentBaseBehaviors": 2,
     "pdfAcroFormFieldsGenerationBoundaryCurrentBase": "AcroForm field roots, field Kids, page Widget annotations, Widget Parent links, catalog AcroForm, and page-tree Kids resolve only when object generations match the N G R reference, excluding stale same-object-number field values while preserving exact nonzero-generation widgets for WordPress form review.",
     "pdfAcroFormFieldsGenerationBoundaryCurrentBaseBehaviors": 2,
-    "mappedPdfAcroFormFieldsGenerationBoundaryCurrentBaseBehaviors": 2
+    "mappedPdfAcroFormFieldsGenerationBoundaryCurrentBaseBehaviors": 2,
+    "mappedPdfPagePartialExtractionDiagnosticsCurrentBaseBehaviors": 2,
+    "pdfPagePartialExtractionDiagnosticsCurrentBase": "Page-level /Contents partial-extraction diagnostics report null and empty page content, malformed array operands, and non-stream content references with page/object metadata while preserving text from valid streams and keeping non-stream payload text out of visible output.",
+    "pdfPagePartialExtractionDiagnosticsCurrentBaseBehaviors": 2
 }

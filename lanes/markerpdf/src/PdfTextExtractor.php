@@ -313,6 +313,74 @@ final class PdfTextExtractor
     }
 
     /**
+     * Review-only diagnostics for page /Contents shapes that make page text
+     * extraction partial before stream decoding begins.
+     *
+     * @return array{
+     *     source: string,
+     *     review_only: true,
+     *     encrypted: bool,
+     *     page_count: int,
+     *     partial_page_count: int,
+     *     cause_count: int,
+     *     causes: array<string, int>,
+     *     entries: list<array<string, mixed>>,
+     *     executes_python_or_models: false,
+     *     executes_external_pdf_tools: false
+     * }
+     */
+    public function extractPagePartialExtractionDiagnostics(string $pdfBytes): array
+    {
+        $review = [
+            'source' => 'pdf_page_partial_extraction_diagnostics',
+            'review_only' => true,
+            'encrypted' => $this->hasEncryptedTrailer($pdfBytes),
+            'page_count' => 0,
+            'partial_page_count' => 0,
+            'cause_count' => 0,
+            'causes' => [],
+            'entries' => [],
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+
+        if ($review['encrypted']) {
+            return $review;
+        }
+
+        $objects = $this->pdfObjects($pdfBytes);
+        $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        $pageLabels = $this->pageLabels($objects, count($pageObjectNumbers));
+        $review['page_count'] = count($pageObjectNumbers);
+        $partialPageIndexes = [];
+
+        foreach ($pageObjectNumbers as $pageIndex => $pageObjectNumber) {
+            $pageBody = $objects[$pageObjectNumber] ?? null;
+            if (!is_string($pageBody)) {
+                continue;
+            }
+
+            foreach ($this->pagePartialExtractionDiagnosticEntries(
+                $pageBody,
+                $objects,
+                $pageIndex,
+                $pageLabels[$pageIndex] ?? (string) ($pageIndex + 1),
+                $pageObjectNumber
+            ) as $entry) {
+                $review['entries'][] = $entry;
+                $review['causes'][$entry['cause']] = ($review['causes'][$entry['cause']] ?? 0) + 1;
+                $partialPageIndexes[$pageIndex] = true;
+            }
+        }
+
+        ksort($review['causes']);
+        $review['cause_count'] = count($review['entries']);
+        $review['partial_page_count'] = count($partialPageIndexes);
+
+        return $review;
+    }
+
+    /**
      * Native review boundary for page resource image XObjects.
      *
      * Upstream markerPDF gets page text from pdftext/PDFium text pages, while
@@ -19371,6 +19439,326 @@ final class PdfTextExtractor
     {
         $value = $this->topLevelPdfValueAfterName($pageBody, 'Contents');
         return $value === null ? [] : $this->pageContentObjectNumbersFromValue($value, $objects, []);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     * @param array<int, string> $objects
+     */
+    private function pagePartialExtractionDiagnosticEntries(
+        string $pageBody,
+        array $objects,
+        int $pageIndex,
+        string $pageLabel,
+        int $pageObjectNumber
+    ): array {
+        $baseEntry = [
+            'page_index' => $pageIndex,
+            'page_number' => $pageIndex + 1,
+            'page_label' => $pageLabel,
+            'page_object' => $pageObjectNumber,
+            'review_only' => true,
+            'text_extraction_partial' => true,
+        ];
+
+        $value = $this->topLevelPdfValueAfterName($pageBody, 'Contents');
+        if ($value === null) {
+            return [
+                $this->pagePartialExtractionDiagnosticEntry($baseEntry, 'page_contents_absent', [
+                    'contents_value_type' => 'missing',
+                ]),
+            ];
+        }
+
+        return $this->pageContentsValuePartialExtractionEntries($value, $objects, $baseEntry);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     * @param array<int, string> $objects
+     * @param array<string, mixed> $baseEntry
+     */
+    private function pageContentsValuePartialExtractionEntries(string $value, array $objects, array $baseEntry): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [
+                $this->pagePartialExtractionDiagnosticEntry($baseEntry, 'page_contents_empty_operand', [
+                    'contents_value_type' => 'empty',
+                ]),
+            ];
+        }
+
+        if ($value === 'null') {
+            return [
+                $this->pagePartialExtractionDiagnosticEntry($baseEntry, 'page_contents_null', [
+                    'contents_value_type' => 'null',
+                ]),
+            ];
+        }
+
+        $reference = $this->pdfIndirectReferenceValue($value);
+        $arrayBody = $this->pdfArrayFromValue($value, $objects);
+        if ($arrayBody !== null) {
+            $arrayDetails = [];
+            if ($reference !== null) {
+                $arrayDetails = [
+                    'content_array_object' => $reference['objectNumber'],
+                    'content_array_generation' => $reference['generation'],
+                ];
+            }
+
+            return $this->pageContentsArrayPartialExtractionEntries(
+                $arrayBody,
+                $objects,
+                $baseEntry,
+                [],
+                [],
+                $arrayDetails
+            );
+        }
+
+        if ($reference !== null) {
+            $entry = $this->pageContentsReferencePartialExtractionEntry($baseEntry, $reference, [], $objects);
+            return $entry === null ? [] : [$entry];
+        }
+
+        return [
+            $this->pagePartialExtractionDiagnosticEntry($baseEntry, 'page_contents_malformed_operand', [
+                'contents_value_type' => $this->pdfOperandKind($value),
+            ]),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     * @param array<int, string> $objects
+     * @param array<string, mixed> $baseEntry
+     * @param list<int> $arrayPath
+     * @param array<string, true> $seenArrayObjects
+     * @param array<string, mixed> $arrayDetails
+     */
+    private function pageContentsArrayPartialExtractionEntries(
+        string $arrayBody,
+        array $objects,
+        array $baseEntry,
+        array $arrayPath,
+        array $seenArrayObjects,
+        array $arrayDetails = []
+    ): array {
+        if (trim($arrayBody) === '') {
+            return [
+                $this->pagePartialExtractionDiagnosticEntry(
+                    $baseEntry,
+                    'page_contents_empty_array',
+                    $arrayDetails + ['contents_value_type' => 'array']
+                ),
+            ];
+        }
+
+        $entries = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $arrayIndex => $item) {
+            $item = trim($item);
+            if ($item === '') {
+                continue;
+            }
+
+            $itemContext = $this->pageContentArrayItemContext($arrayPath, $arrayIndex);
+            if (str_starts_with($item, '[')) {
+                $nestedArray = $this->pdfArrayAtStart($item);
+                if ($nestedArray === null) {
+                    $entries[] = $this->pagePartialExtractionDiagnosticEntry(
+                        $baseEntry,
+                        'page_contents_array_malformed_operand',
+                        $arrayDetails + $itemContext + ['content_operand_type' => 'array']
+                    );
+                    continue;
+                }
+
+                foreach ($this->pageContentsArrayPartialExtractionEntries(
+                    $nestedArray,
+                    $objects,
+                    $baseEntry,
+                    $this->pageContentArrayPath($arrayPath, $arrayIndex),
+                    $seenArrayObjects,
+                    $arrayDetails
+                ) as $entry) {
+                    $entries[] = $entry;
+                }
+                continue;
+            }
+
+            $reference = $this->pdfIndirectReferenceValue($item);
+            if ($reference !== null) {
+                $objectBody = $this->objectBodyForExactReference(
+                    $objects,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
+                $arrayObjectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+                $nestedArray = is_string($objectBody) ? $this->pdfArrayAtStart(trim($objectBody)) : null;
+                if ($nestedArray !== null && !isset($seenArrayObjects[$arrayObjectKey])) {
+                    $nextSeenArrayObjects = $seenArrayObjects;
+                    $nextSeenArrayObjects[$arrayObjectKey] = true;
+                    foreach ($this->pageContentsArrayPartialExtractionEntries(
+                        $nestedArray,
+                        $objects,
+                        $baseEntry,
+                        $this->pageContentArrayPath($arrayPath, $arrayIndex),
+                        $nextSeenArrayObjects,
+                        $arrayDetails + [
+                            'content_array_object' => $reference['objectNumber'],
+                            'content_array_generation' => $reference['generation'],
+                        ]
+                    ) as $entry) {
+                        $entries[] = $entry;
+                    }
+                    continue;
+                }
+
+                $entry = $this->pageContentsReferencePartialExtractionEntry(
+                    $baseEntry,
+                    $reference,
+                    $arrayDetails + $itemContext,
+                    $objects
+                );
+                if ($entry !== null) {
+                    $entries[] = $entry;
+                }
+                continue;
+            }
+
+            $entries[] = $this->pagePartialExtractionDiagnosticEntry(
+                $baseEntry,
+                $item === 'null' ? 'page_contents_array_null_operand' : 'page_contents_array_malformed_operand',
+                $arrayDetails + $itemContext + ['content_operand_type' => $this->pdfOperandKind($item)]
+            );
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, mixed> $baseEntry
+     * @param array{objectNumber: int, generation: int} $reference
+     * @param array<string, mixed> $context
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function pageContentsReferencePartialExtractionEntry(
+        array $baseEntry,
+        array $reference,
+        array $context,
+        array $objects
+    ): ?array {
+        $objectBody = $this->objectBodyForExactReference(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
+        if ($objectBody === null || $this->objectBodyIsStreamObject($objectBody)) {
+            return null;
+        }
+
+        $details = $context + [
+            'content_object' => $reference['objectNumber'],
+            'content_generation' => $reference['generation'],
+            'content_value_type' => $this->pdfOperandKind(trim($objectBody)),
+        ];
+        $typeName = $this->pdfObjectTypeName($objectBody);
+        if ($typeName !== null) {
+            $details['content_type'] = $typeName;
+        }
+
+        return $this->pagePartialExtractionDiagnosticEntry(
+            $baseEntry,
+            'page_contents_reference_not_stream',
+            $details
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $baseEntry
+     * @param array<string, mixed> $details
+     * @return array<string, mixed>
+     */
+    private function pagePartialExtractionDiagnosticEntry(array $baseEntry, string $cause, array $details = []): array
+    {
+        return array_merge($baseEntry, [
+            'cause' => $cause,
+            'severity' => 'warning',
+        ], $details);
+    }
+
+    /**
+     * @param list<int> $arrayPath
+     * @return array<string, int|list<int>>
+     */
+    private function pageContentArrayItemContext(array $arrayPath, int $arrayIndex): array
+    {
+        if ($arrayPath === []) {
+            return ['content_array_index' => $arrayIndex];
+        }
+
+        return ['content_array_path' => $this->pageContentArrayPath($arrayPath, $arrayIndex)];
+    }
+
+    /**
+     * @param list<int> $arrayPath
+     * @return list<int>
+     */
+    private function pageContentArrayPath(array $arrayPath, int $arrayIndex): array
+    {
+        $path = $arrayPath;
+        $path[] = $arrayIndex;
+
+        return $path;
+    }
+
+    private function pdfOperandKind(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return 'empty';
+        }
+
+        if ($value === 'null') {
+            return 'null';
+        }
+
+        if ($this->pdfIndirectReferenceValue($value) !== null) {
+            return 'reference';
+        }
+
+        if (str_starts_with($value, '[')) {
+            return 'array';
+        }
+
+        if (str_starts_with($value, '<<')) {
+            return 'dictionary';
+        }
+
+        if (str_starts_with($value, '(')) {
+            return 'literal_string';
+        }
+
+        if (str_starts_with($value, '<')) {
+            return 'hex_string';
+        }
+
+        if (str_starts_with($value, '/')) {
+            return 'name';
+        }
+
+        if ($value === 'true' || $value === 'false') {
+            return 'boolean';
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1) {
+            return 'number';
+        }
+
+        return 'token';
     }
 
     /**
