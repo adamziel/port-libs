@@ -38,6 +38,7 @@ final class PdfSecurityPreflight
         $documentSecurityStoreSignatureReferenceTransformReview = $this->documentSecurityStoreSignatureReferenceTransformReview($documentSecurityStoreSignatureReview);
         $cryptFilterContentReview = $this->cryptFilterContentReview($encrypted, $encryption);
         $permissionPreflight = $this->permissionPreflight($encrypted, $encryption, $cryptFilterContentReview);
+        $passwordHandlingReview = $this->passwordHandlingReview($encrypted, $encryption, $permissionPreflight);
         $publicKeyDssPermissionBoundaryReview = $this->publicKeyDssPermissionBoundaryReview(
             $permissionPreflight,
             $documentSecurityStore,
@@ -94,6 +95,8 @@ final class PdfSecurityPreflight
             'crypt_filter_content_review_count' => ($cryptFilterContentReview['present'] ?? false) === true ? 1 : 0,
             'crypt_filter_content_review' => $cryptFilterContentReview,
             'permission_preflight' => $permissionPreflight,
+            'password_handling_review_count' => ($passwordHandlingReview['present'] ?? false) === true ? 1 : 0,
+            'password_handling_review' => $passwordHandlingReview,
             'standard_permission_operation_review_count' => (int) ($permissionPreflight['standard_permission_operation_review_count'] ?? 0),
             'standard_permission_operation_review' => is_array($permissionPreflight['standard_permission_operation_review'] ?? null)
                 ? $permissionPreflight['standard_permission_operation_review']
@@ -168,6 +171,113 @@ final class PdfSecurityPreflight
             'executes_javascript' => false,
             'executes_pdf_actions' => false,
             'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $encryption
+     * @param array<string, mixed> $permissionPreflight
+     * @return array<string, mixed>
+     */
+    private function passwordHandlingReview(bool $encrypted, ?array $encryption, array $permissionPreflight): array
+    {
+        if (!$encrypted || $encryption === null) {
+            return [
+                'source' => 'pdf_password_handling_review',
+                'present' => false,
+                'encrypted_document' => false,
+                'requires_password_for_content_extraction' => false,
+                'password_prompt_policy' => 'password_not_required',
+                'password_validation_boundary' => 'native_text_extraction_allowed',
+                'password_supplied' => false,
+                'password_validation_performed' => false,
+                'permissions_authenticated' => false,
+                'decryption_performed' => false,
+                'native_text_extraction_allowed_now' => true,
+                'raw_password_material_exposed' => false,
+                'raw_key_material_exposed' => false,
+                'executes_decryption' => false,
+                'executes_permission_enforcement' => false,
+                'executes_external_pdf_tools' => false,
+            ];
+        }
+
+        $handler = is_string($encryption['filter'] ?? null) ? $encryption['filter'] : null;
+        $standardHandler = $handler === 'Standard';
+        $authenticationReady = array_key_exists('standard_authentication_ready_for_password_attempt', $permissionPreflight)
+            ? $permissionPreflight['standard_authentication_ready_for_password_attempt']
+            : null;
+        $requiresPassword = (bool) ($permissionPreflight['requires_password_for_content_extraction'] ?? true);
+        $readyForExternalValidation = $standardHandler && $authenticationReady === true;
+        if (!$requiresPassword) {
+            $passwordPromptPolicy = 'password_not_required';
+            $passwordValidationBoundary = 'native_text_extraction_allowed';
+        } elseif ($readyForExternalValidation) {
+            $passwordPromptPolicy = 'password_required_ready_for_external_validation';
+            $passwordValidationBoundary = 'blocked_until_caller_supplies_password_and_decryption_layer';
+        } elseif ($authenticationReady === false) {
+            $passwordPromptPolicy = 'password_required_authentication_material_incomplete';
+            $passwordValidationBoundary = 'blocked_until_authentication_material_is_recoverable';
+        } else {
+            $passwordPromptPolicy = $standardHandler
+                ? 'password_required_authentication_material_unknown'
+                : 'password_required_unsupported_security_handler';
+            $passwordValidationBoundary = $standardHandler
+                ? 'blocked_until_authentication_material_is_recoverable'
+                : 'blocked_until_supported_password_handler_exists';
+        }
+
+        return [
+            'source' => 'pdf_password_handling_review',
+            'present' => true,
+            'encrypted_document' => true,
+            'handler' => $handler,
+            'standard_handler' => $standardHandler,
+            'revision_label' => is_string($encryption['revision_label'] ?? null) ? $encryption['revision_label'] : null,
+            'algorithm' => is_string($encryption['algorithm'] ?? null) ? $encryption['algorithm'] : null,
+            'key_length_bits' => is_int($encryption['key_length_bits'] ?? null) ? $encryption['key_length_bits'] : null,
+            'requires_password_for_content_extraction' => $requiresPassword,
+            'standard_authentication_material_policy' => is_string($permissionPreflight['standard_authentication_material_policy'] ?? null)
+                ? $permissionPreflight['standard_authentication_material_policy']
+                : null,
+            'standard_authentication_material_ready_for_password_attempt' => $authenticationReady,
+            'standard_authentication_required_entry_count' => (int) ($permissionPreflight['standard_authentication_required_entry_count'] ?? 0),
+            'standard_authentication_present_required_entries' => $this->stringListValue($permissionPreflight, 'standard_authentication_present_required_entries'),
+            'standard_authentication_missing_required_entries' => $this->stringListValue($permissionPreflight, 'standard_authentication_missing_required_entries'),
+            'standard_authentication_permission_digest_status' => is_string($permissionPreflight['standard_authentication_permission_digest_status'] ?? null)
+                ? $permissionPreflight['standard_authentication_permission_digest_status']
+                : null,
+            'permission_policy' => is_string($permissionPreflight['policy'] ?? null) ? $permissionPreflight['policy'] : null,
+            'content_extraction_boundary' => is_string($permissionPreflight['content_extraction_boundary'] ?? null)
+                ? $permissionPreflight['content_extraction_boundary']
+                : null,
+            'copy_or_extract_allowed_after_authentication' => array_key_exists('copy_or_extract_allowed', $permissionPreflight)
+                ? $permissionPreflight['copy_or_extract_allowed']
+                : null,
+            'accessibility_extract_allowed_after_authentication' => array_key_exists('accessibility_extract_allowed', $permissionPreflight)
+                ? $permissionPreflight['accessibility_extract_allowed']
+                : null,
+            'permission_authentication_status' => is_string($permissionPreflight['permission_authentication_status'] ?? null)
+                ? $permissionPreflight['permission_authentication_status']
+                : null,
+            'permission_bits_authenticated' => (bool) ($permissionPreflight['permission_bits_authenticated'] ?? false),
+            'authenticated_permission_bits_reliable' => (bool) ($permissionPreflight['authenticated_permission_bits_reliable'] ?? false),
+            'password_prompt_policy' => $passwordPromptPolicy,
+            'password_validation_boundary' => $passwordValidationBoundary,
+            'password_supplied' => false,
+            'password_validation_performed' => false,
+            'permissions_authenticated' => false,
+            'permissions_enforced' => false,
+            'decryption_performed' => false,
+            'native_text_extraction_allowed_now' => false,
+            'review_only' => true,
+            'raw_password_material_exposed' => false,
+            'raw_key_material_exposed' => false,
+            'raw_owner_user_keys_exposed' => false,
+            'raw_file_encryption_keys_exposed' => false,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
             'executes_external_pdf_tools' => false,
         ];
     }
