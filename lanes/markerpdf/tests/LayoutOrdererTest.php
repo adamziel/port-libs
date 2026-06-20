@@ -306,6 +306,136 @@ return [
             array_column($sorted[0]['blocks'], 'text')
         );
     },
+    'reconstructs reading order from layout regions when supplied order is absent' => static function (TestRunner $t): void {
+        $orderer = new LayoutOrderer();
+        $pages = [
+            [
+                'bbox' => [0.0, 0.0, 600.0, 800.0],
+                'layout' => [
+                    'image_bbox' => [0.0, 0.0, 600.0, 800.0],
+                    'bboxes' => [
+                        ['label' => 'Page-header', 'bbox' => [60.0, 20.0, 540.0, 46.0]],
+                        ['label' => 'Title', 'bbox' => [60.0, 70.0, 540.0, 112.0]],
+                        ['label' => 'Text', 'bbox' => [60.0, 140.0, 270.0, 190.0]],
+                        ['label' => 'Formula', 'bbox' => [80.0, 210.0, 260.0, 246.0]],
+                        ['label' => 'Text', 'bbox' => [60.0, 270.0, 270.0, 330.0]],
+                        ['label' => 'Text', 'bbox' => [330.0, 140.0, 560.0, 190.0]],
+                        ['label' => 'Picture', 'bbox' => [330.0, 210.0, 560.0, 300.0]],
+                        ['label' => 'Caption', 'bbox' => [330.0, 308.0, 560.0, 335.0]],
+                        ['label' => 'Text', 'bbox' => [330.0, 360.0, 560.0, 410.0]],
+                        ['label' => 'Page-footer', 'bbox' => [60.0, 760.0, 540.0, 786.0]],
+                    ],
+                ],
+                'blocks' => [
+                    ['type' => 'Text', 'text' => 'Right column opening', 'bbox' => [340.0, 150.0, 550.0, 170.0]],
+                    ['type' => 'Caption', 'text' => 'Figure 1 caption', 'bbox' => [340.0, 312.0, 520.0, 330.0]],
+                    ['type' => 'Text', 'text' => 'Left introduction', 'bbox' => [70.0, 150.0, 250.0, 170.0]],
+                    ['type' => 'Page-footer', 'text' => 'Page 12', 'bbox' => [70.0, 764.0, 530.0, 782.0]],
+                    ['type' => 'Formula', 'text' => 'E = mc^2', 'bbox' => [90.0, 215.0, 250.0, 240.0]],
+                    ['type' => 'Title', 'text' => 'Layout Order Study', 'bbox' => [70.0, 78.0, 520.0, 104.0]],
+                    ['type' => 'Text', 'text' => 'Right follow-up', 'bbox' => [340.0, 365.0, 550.0, 390.0]],
+                    ['type' => 'Picture', 'text' => '[figure]', 'bbox' => [340.0, 220.0, 550.0, 292.0]],
+                    ['type' => 'Page-header', 'text' => 'MarkerPDF Import', 'bbox' => [70.0, 24.0, 530.0, 42.0]],
+                    ['type' => 'Text', 'text' => 'Left continuation', 'bbox' => [70.0, 278.0, 250.0, 302.0]],
+                ],
+            ],
+        ];
+
+        $sorted = $orderer->sortBlocksInReadingOrder($pages);
+        $blocks = $sorted[0]['blocks'];
+        $byText = array_column($blocks, null, 'text');
+
+        $t->same([
+            'MarkerPDF Import',
+            'Layout Order Study',
+            'Left introduction',
+            'E = mc^2',
+            'Left continuation',
+            'Right column opening',
+            '[figure]',
+            'Figure 1 caption',
+            'Right follow-up',
+            'Page 12',
+        ], array_column($blocks, 'text'));
+
+        $diagnostics = $sorted[0]['layout_reading_order_diagnostics'] ?? [];
+        $t->same('marker_layout_reading_order_reconstruction', $diagnostics['review_target'] ?? null);
+        $t->same('layout_boxes_fallback', $diagnostics['source'] ?? null);
+        $t->same(10, $diagnostics['layout_box_count'] ?? null);
+        $t->same(10, $diagnostics['matched_block_count'] ?? null);
+        $t->same(0, $diagnostics['unmatched_block_count'] ?? null);
+        $t->same(2, $diagnostics['max_column_count'] ?? null);
+        $t->same('layout', $byText['Left introduction']['reading_order_source'] ?? null);
+        $t->same(3, $byText['Left introduction']['order_position'] ?? null);
+        $t->same('Text', $byText['Left introduction']['layout_label'] ?? null);
+        $t->same(0, $byText['Left introduction']['layout_reading_order']['column'] ?? null);
+        $t->same(1, $byText['Right column opening']['layout_reading_order']['column'] ?? null);
+        $t->same('Caption', $byText['Figure 1 caption']['layout_label'] ?? null);
+    },
+    'does not replace an explicit empty order artifact with layout fallback' => static function (TestRunner $t): void {
+        $orderer = new LayoutOrderer();
+        $pages = [
+            [
+                'bbox' => [0.0, 0.0, 600.0, 800.0],
+                'layout' => [
+                    'image_bbox' => [0.0, 0.0, 600.0, 800.0],
+                    'bboxes' => [
+                        ['label' => 'Text', 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['label' => 'Text', 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+                'order' => [
+                    'image_bbox' => [0.0, 0.0, 600.0, 800.0],
+                    'bboxes' => [],
+                ],
+                'blocks' => [
+                    ['type' => 'Text', 'text' => 'Right source block remains first.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                    ['type' => 'Text', 'text' => 'Left source block remains second.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                ],
+            ],
+        ];
+
+        $sorted = $orderer->sortBlocksInReadingOrder($pages);
+
+        $t->same(
+            ['Right source block remains first.', 'Left source block remains second.'],
+            array_column($sorted[0]['blocks'], 'text')
+        );
+        $t->true(!isset($sorted[0]['layout_reading_order_diagnostics']));
+    },
+    'rotates layout fallback boxes before matching blocks without supplied order' => static function (TestRunner $t): void {
+        $orderer = new LayoutOrderer();
+        $pages = [
+            [
+                'bbox' => [0.0, 0.0, 800.0, 600.0],
+                'rotation' => 90,
+                'layout' => [
+                    'image_bbox' => [0.0, 0.0, 600.0, 800.0],
+                    'bboxes' => [
+                        ['label' => 'Page-header', 'bbox' => [20.0, 60.0, 50.0, 740.0]],
+                        ['label' => 'Text', 'bbox' => [310.0, 500.0, 500.0, 740.0]],
+                        ['label' => 'Text', 'bbox' => [310.0, 60.0, 500.0, 360.0]],
+                        ['label' => 'Page-footer', 'bbox' => [560.0, 60.0, 590.0, 740.0]],
+                    ],
+                ],
+                'blocks' => [
+                    ['type' => 'Page-footer', 'text' => 'Rotated layout footer', 'bbox' => [70.0, 564.0, 730.0, 586.0]],
+                    ['type' => 'Text', 'text' => 'Right layout column', 'bbox' => [450.0, 320.0, 720.0, 338.0]],
+                    ['type' => 'Page-header', 'text' => 'Rotated layout header', 'bbox' => [70.0, 24.0, 730.0, 44.0]],
+                    ['type' => 'Text', 'text' => 'Left layout column', 'bbox' => [72.0, 320.0, 280.0, 338.0]],
+                ],
+            ],
+        ];
+
+        $sorted = $orderer->sortBlocksInReadingOrder($pages);
+
+        $t->same(
+            ['Rotated layout header', 'Left layout column', 'Right layout column', 'Rotated layout footer'],
+            array_column($sorted[0]['blocks'], 'text')
+        );
+        $t->same('layout_boxes_fallback', $sorted[0]['layout_reading_order_diagnostics']['source'] ?? null);
+        $t->same(4, $sorted[0]['layout_reading_order_diagnostics']['matched_block_count'] ?? null);
+    },
     'drives a WordPress ordering-model preflight before Gutenberg paragraph merge' => static function (TestRunner $t): void {
         $orderer = new LayoutOrderer();
         $processor = new MarkdownPostProcessor();

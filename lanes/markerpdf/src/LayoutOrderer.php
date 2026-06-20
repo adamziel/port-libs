@@ -1126,6 +1126,12 @@ final class LayoutOrderer
         foreach ($pages as $pageIndex => $page) {
             $blocks = array_values($page['blocks'] ?? []);
             $orderBoxes = $this->orderBoxes($page);
+            $layoutOrder = null;
+            if ($orderBoxes === [] && !$this->hasOrderArtifact($page)) {
+                $layoutOrder = $this->layoutOrderBoxes($page);
+                $orderBoxes = $layoutOrder['boxes'];
+            }
+            $usingLayoutOrder = $layoutOrder !== null && $orderBoxes !== [];
             $blockPositions = [];
             $maxPosition = 0;
 
@@ -1133,23 +1139,44 @@ final class LayoutOrderer
                 $blockBbox = $this->blockBboxForOrdering($page, $block);
                 foreach ($orderBoxes as $orderBox) {
                     $position = (int) ($orderBox['position'] ?? 0);
-                    $orderBbox = $this->rescaleOrderBbox($page, $this->bbox($orderBox));
+                    $orderBbox = $usingLayoutOrder
+                        ? $this->bbox($orderBox)
+                        : $this->rescaleOrderBbox($page, $this->bbox($orderBox));
                     $intersection = $this->intersectionPct($blockBbox, $orderBbox);
-
-                    if (!isset($blockPositions[$blockIndex]) || $intersection > $blockPositions[$blockIndex][0]) {
-                        $blockPositions[$blockIndex] = [$intersection, $position];
-                    }
                     $maxPosition = max($maxPosition, $position);
+
+                    if ($usingLayoutOrder && $intersection <= 0.0) {
+                        continue;
+                    }
+
+                    if (!isset($blockPositions[$blockIndex]) || $intersection > $blockPositions[$blockIndex]['intersection']) {
+                        $blockPositions[$blockIndex] = [
+                            'intersection' => $intersection,
+                            'position' => $position,
+                            'bbox' => $orderBbox,
+                            'box' => $orderBox,
+                        ];
+                    }
                 }
             }
 
             $blockGroups = [];
+            $matchedBlockCount = 0;
+            $unmatchedBlockCount = 0;
             foreach ($blocks as $blockIndex => $block) {
                 if (isset($blockPositions[$blockIndex])) {
-                    $position = $blockPositions[$blockIndex][1];
+                    $position = (int) $blockPositions[$blockIndex]['position'];
+                    if ($usingLayoutOrder) {
+                        $matchedBlockCount++;
+                        $block = $this->withLayoutReadingOrderDiagnostic($block, $blockPositions[$blockIndex]);
+                    }
                 } else {
                     $maxPosition++;
                     $position = $maxPosition;
+                    if ($usingLayoutOrder) {
+                        $unmatchedBlockCount++;
+                        $block = $this->withUnmatchedLayoutReadingOrderDiagnostic($block, $position);
+                    }
                 }
                 $blockGroups[$position][] = $block;
             }
@@ -1161,6 +1188,14 @@ final class LayoutOrderer
             }
 
             $pages[$pageIndex]['blocks'] = $this->pinHeadersAndFooters($newBlocks);
+            if ($usingLayoutOrder && $layoutOrder !== null) {
+                $pages[$pageIndex]['layout_reading_order_diagnostics'] = $this->layoutReadingOrderPageDiagnostics(
+                    $layoutOrder,
+                    count($blocks),
+                    $matchedBlockCount,
+                    $unmatchedBlockCount
+                );
+            }
         }
 
         return $pages;
@@ -1300,6 +1335,459 @@ final class LayoutOrderer
         }
 
         return [];
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     */
+    private function hasOrderArtifact(array $page): bool
+    {
+        $order = $page['order'] ?? null;
+        if (is_array($order) && (array_key_exists('bboxes', $order) || array_key_exists('image_bbox', $order))) {
+            return true;
+        }
+
+        return array_key_exists('order_bboxes', $page);
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @return array{boxes: list<array<string, mixed>>, diagnostics: array<string, mixed>}
+     */
+    private function layoutOrderBoxes(array $page): array
+    {
+        $layoutBoxes = $this->layoutBoxesForReadingOrder($page);
+        if ($layoutBoxes === []) {
+            return [
+                'boxes' => [],
+                'diagnostics' => [
+                    'layout_box_count' => 0,
+                    'full_width_box_count' => 0,
+                    'max_column_count' => 0,
+                ],
+            ];
+        }
+
+        $pageBbox = $this->pageBboxForLayoutOrdering($page, $layoutBoxes);
+        $ordered = $this->sortLayoutBoxesForReadingOrder($layoutBoxes, $pageBbox);
+        $boxes = [];
+        $fullWidthBoxCount = 0;
+        $maxColumnCount = 0;
+
+        foreach ($ordered as $index => $box) {
+            $columnCount = (int) ($box['column_count'] ?? 1);
+            $maxColumnCount = max($maxColumnCount, $columnCount);
+            if (($box['full_width'] ?? false) === true) {
+                $fullWidthBoxCount++;
+            }
+
+            $boxes[] = [
+                'position' => $index + 1,
+                'bbox' => $box['bbox'],
+                'label' => $box['label'],
+                'layout_index' => $box['layout_index'],
+                'section' => $box['section'] ?? 0,
+                'column' => $box['column'] ?? 0,
+                'column_count' => $columnCount,
+                'full_width' => ($box['full_width'] ?? false) === true,
+            ];
+        }
+
+        return [
+            'boxes' => $boxes,
+            'diagnostics' => [
+                'layout_box_count' => count($boxes),
+                'full_width_box_count' => $fullWidthBoxCount,
+                'max_column_count' => $maxColumnCount,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @return list<array<string, mixed>>
+     */
+    private function layoutBoxesForReadingOrder(array $page): array
+    {
+        $layout = $page['layout'] ?? [];
+        if (is_array($layout) && isset($layout['bboxes']) && is_array($layout['bboxes'])) {
+            $boxes = $layout['bboxes'];
+        } elseif (isset($page['layout_boxes']) && is_array($page['layout_boxes'])) {
+            $boxes = $page['layout_boxes'];
+        } else {
+            $boxes = [];
+        }
+
+        $layoutBoxes = [];
+        foreach ($boxes as $index => $box) {
+            if (!is_array($box)) {
+                continue;
+            }
+
+            $bbox = $this->bboxValue($box);
+            if ($bbox === null || $this->rectWidth($bbox) <= 0.0 || $this->rectHeight($bbox) <= 0.0) {
+                continue;
+            }
+
+            $layoutBoxes[] = [
+                'layout_index' => $this->integerValue($index) ?? count($layoutBoxes),
+                'label' => $this->layoutBoxLabel($box),
+                'bbox' => $this->rescaleLayoutBbox($page, $bbox),
+            ];
+        }
+
+        return $layoutBoxes;
+    }
+
+    /**
+     * @param array<string, mixed> $box
+     */
+    private function layoutBoxLabel(array $box): string
+    {
+        foreach (['label', 'block_type', 'type', 'category', 'name'] as $key) {
+            if (isset($box[$key]) && is_scalar($box[$key])) {
+                return (string) $box[$key];
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $layoutBoxes
+     * @return list<float>
+     */
+    private function pageBboxForLayoutOrdering(array $page, array $layoutBoxes): array
+    {
+        $pageBbox = $this->bboxValue($page['bbox'] ?? null);
+        if ($pageBbox !== null && $this->rectWidth($pageBbox) > 0.0 && $this->rectHeight($pageBbox) > 0.0) {
+            return $pageBbox;
+        }
+
+        $boxes = array_values(array_filter(
+            array_map(static fn (array $box): array => $box['bbox'], $layoutBoxes),
+            fn (array $bbox): bool => $this->rectWidth($bbox) > 0.0 && $this->rectHeight($bbox) > 0.0
+        ));
+
+        if ($boxes === []) {
+            return [0.0, 0.0, 0.0, 0.0];
+        }
+
+        return [
+            min(array_column($boxes, 0)),
+            min(array_column($boxes, 1)),
+            max(array_column($boxes, 2)),
+            max(array_column($boxes, 3)),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $layoutBoxes
+     * @param list<float> $pageBbox
+     * @return list<array<string, mixed>>
+     */
+    private function sortLayoutBoxesForReadingOrder(array $layoutBoxes, array $pageBbox): array
+    {
+        $sorted = $this->sortLayoutBoxesTopLeft($layoutBoxes);
+        $ordered = [];
+        $pending = [];
+        $section = 0;
+
+        foreach ($sorted as $box) {
+            if ($this->layoutBoxSpansReadingWidth($box['bbox'], $pageBbox)) {
+                if ($pending !== []) {
+                    array_push($ordered, ...$this->sortLayoutSectionBoxes($pending, $pageBbox, $section));
+                    $pending = [];
+                    $section++;
+                }
+
+                $box['section'] = $section;
+                $box['column'] = 0;
+                $box['column_count'] = 1;
+                $box['full_width'] = true;
+                $ordered[] = $box;
+                $section++;
+                continue;
+            }
+
+            $pending[] = $box;
+        }
+
+        if ($pending !== []) {
+            array_push($ordered, ...$this->sortLayoutSectionBoxes($pending, $pageBbox, $section));
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $boxes
+     * @param list<float> $pageBbox
+     * @return list<array<string, mixed>>
+     */
+    private function sortLayoutSectionBoxes(array $boxes, array $pageBbox, int $section): array
+    {
+        $columns = $this->layoutColumnGroups($boxes, $pageBbox);
+        $columnCount = count($columns);
+        $ordered = [];
+
+        foreach ($columns as $columnIndex => $columnBoxes) {
+            foreach ($this->sortLayoutBoxesTopLeft($columnBoxes) as $box) {
+                $box['section'] = $section;
+                $box['column'] = $columnIndex;
+                $box['column_count'] = $columnCount;
+                $box['full_width'] = false;
+                $ordered[] = $box;
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $boxes
+     * @param list<float> $pageBbox
+     * @return list<list<array<string, mixed>>>
+     */
+    private function layoutColumnGroups(array $boxes, array $pageBbox): array
+    {
+        if (count($boxes) < 2) {
+            return [$boxes];
+        }
+
+        $pageWidth = $this->rectWidth($pageBbox);
+        if ($pageWidth <= 0.0) {
+            return [$this->sortLayoutBoxesTopLeft($boxes)];
+        }
+
+        $entries = [];
+        foreach ($boxes as $index => $box) {
+            $bbox = $box['bbox'];
+            $entries[] = [
+                'index' => $index,
+                'center' => ($bbox[0] + $bbox[2]) / 2.0,
+                'box' => $box,
+            ];
+        }
+
+        usort(
+            $entries,
+            static fn (array $left, array $right): int => ($left['center'] <=> $right['center']) ?: ($left['index'] <=> $right['index'])
+        );
+
+        $threshold = max(36.0, $pageWidth * 0.18);
+        $groups = [];
+        $current = [];
+        $previousCenter = null;
+        foreach ($entries as $entry) {
+            if ($previousCenter !== null && $entry['center'] - $previousCenter > $threshold) {
+                $groups[] = $current;
+                $current = [];
+            }
+
+            $current[] = $entry['box'];
+            $previousCenter = $entry['center'];
+        }
+        if ($current !== []) {
+            $groups[] = $current;
+        }
+
+        if (count($groups) < 2 || $this->layoutColumnSpread($groups) < $pageWidth * 0.25) {
+            return [$this->sortLayoutBoxesTopLeft($boxes)];
+        }
+
+        usort(
+            $groups,
+            fn (array $left, array $right): int => $this->layoutColumnLeft($left) <=> $this->layoutColumnLeft($right)
+        );
+
+        return $groups;
+    }
+
+    /**
+     * @param list<list<array<string, mixed>>> $groups
+     */
+    private function layoutColumnSpread(array $groups): float
+    {
+        $centers = [];
+        foreach ($groups as $group) {
+            $centers[] = $this->layoutColumnCenter($group);
+        }
+
+        return max($centers) - min($centers);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $boxes
+     */
+    private function layoutColumnLeft(array $boxes): float
+    {
+        return min(array_map(static fn (array $box): float => (float) $box['bbox'][0], $boxes));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $boxes
+     */
+    private function layoutColumnCenter(array $boxes): float
+    {
+        $left = min(array_map(static fn (array $box): float => (float) $box['bbox'][0], $boxes));
+        $right = max(array_map(static fn (array $box): float => (float) $box['bbox'][2], $boxes));
+
+        return ($left + $right) / 2.0;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $boxes
+     * @return list<array<string, mixed>>
+     */
+    private function sortLayoutBoxesTopLeft(array $boxes): array
+    {
+        usort(
+            $boxes,
+            static function (array $left, array $right): int {
+                $leftBbox = $left['bbox'];
+                $rightBbox = $right['bbox'];
+
+                return ($leftBbox[1] <=> $rightBbox[1])
+                    ?: ($leftBbox[0] <=> $rightBbox[0])
+                    ?: (($left['layout_index'] ?? 0) <=> ($right['layout_index'] ?? 0));
+            }
+        );
+
+        return $boxes;
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param list<float> $pageBbox
+     */
+    private function layoutBoxSpansReadingWidth(array $bbox, array $pageBbox): bool
+    {
+        $pageWidth = $this->rectWidth($pageBbox);
+        if ($pageWidth <= 0.0) {
+            return false;
+        }
+
+        $width = $this->rectWidth($bbox);
+        $pageCenter = ($pageBbox[0] + $pageBbox[2]) / 2.0;
+
+        return $width >= $pageWidth * 0.58
+            || ($width >= $pageWidth * 0.48 && $bbox[0] <= $pageCenter && $bbox[2] >= $pageCenter);
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @param list<float> $bbox
+     * @return list<float>
+     */
+    private function rescaleLayoutBbox(array $page, array $bbox): array
+    {
+        $layout = $page['layout'] ?? [];
+        $imageBbox = is_array($layout) ? $this->bboxValue($layout['image_bbox'] ?? null) : null;
+        $imageBbox ??= $this->bboxValue($page['layout_image_bbox'] ?? null);
+        $pageBbox = $this->bboxValue($page['bbox'] ?? null);
+
+        if ($imageBbox !== null && $pageBbox !== null) {
+            $rotation = $this->normalizedRotation((int) round((float) ($page['rotation'] ?? 0)));
+            $bbox = $this->expandNormalizedOrderBbox($bbox, $imageBbox);
+            if ($this->shouldRotateUnrotatedOrderImage($imageBbox, $pageBbox, $rotation)) {
+                $bbox = $this->rotateUnrotatedImageBbox($bbox, $imageBbox, $rotation);
+                $imageBbox = [
+                    0.0,
+                    0.0,
+                    $this->rectHeight($imageBbox),
+                    $this->rectWidth($imageBbox),
+                ];
+            }
+
+            return $this->rescaleBbox($imageBbox, $pageBbox, $bbox);
+        }
+
+        return $bbox;
+    }
+
+    /**
+     * @param array<string, mixed> $block
+     * @param array{intersection: float, position: int, bbox: list<float>, box: array<string, mixed>} $match
+     * @return array<string, mixed>
+     */
+    private function withLayoutReadingOrderDiagnostic(array $block, array $match): array
+    {
+        $box = $match['box'];
+        $label = (string) ($box['label'] ?? '');
+        $position = (int) $match['position'];
+
+        $block['order_position'] = $position;
+        $block['reading_order_source'] = 'layout';
+        if ($label !== '') {
+            $block['layout_label'] = $label;
+        }
+        $block['layout_reading_order'] = $this->compactReadingOrderDiagnostic([
+            'source' => 'layout_boxes_fallback',
+            'position' => $position,
+            'layout_index' => $box['layout_index'] ?? null,
+            'layout_label' => $label,
+            'section' => $box['section'] ?? null,
+            'column' => $box['column'] ?? null,
+            'column_count' => $box['column_count'] ?? null,
+            'full_width' => ($box['full_width'] ?? false) === true,
+            'intersection_pct' => round((float) $match['intersection'], 4),
+            'order_bbox' => $match['bbox'],
+            'review_only' => true,
+            'visible_text_source' => false,
+        ]);
+
+        return $block;
+    }
+
+    /**
+     * @param array<string, mixed> $block
+     * @return array<string, mixed>
+     */
+    private function withUnmatchedLayoutReadingOrderDiagnostic(array $block, int $position): array
+    {
+        $block['order_position'] = $position;
+        $block['reading_order_source'] = 'source_order_after_layout';
+        $block['layout_reading_order'] = [
+            'source' => 'source_order_after_layout_fallback',
+            'position' => $position,
+            'review_only' => true,
+            'visible_text_source' => false,
+        ];
+
+        return $block;
+    }
+
+    /**
+     * @param array{boxes: list<array<string, mixed>>, diagnostics: array<string, mixed>} $layoutOrder
+     * @return array<string, mixed>
+     */
+    private function layoutReadingOrderPageDiagnostics(array $layoutOrder, int $blockCount, int $matchedBlockCount, int $unmatchedBlockCount): array
+    {
+        return [
+            'review_target' => 'marker_layout_reading_order_reconstruction',
+            'source' => 'layout_boxes_fallback',
+            'block_count' => $blockCount,
+            'layout_box_count' => (int) ($layoutOrder['diagnostics']['layout_box_count'] ?? count($layoutOrder['boxes'])),
+            'matched_block_count' => $matchedBlockCount,
+            'unmatched_block_count' => $unmatchedBlockCount,
+            'full_width_box_count' => (int) ($layoutOrder['diagnostics']['full_width_box_count'] ?? 0),
+            'max_column_count' => (int) ($layoutOrder['diagnostics']['max_column_count'] ?? 0),
+            'review_only' => true,
+            'visible_text_source' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function compactReadingOrderDiagnostic(array $row): array
+    {
+        return array_filter(
+            $row,
+            static fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []
+        );
     }
 
     /**
