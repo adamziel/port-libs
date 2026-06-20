@@ -4149,7 +4149,9 @@ return [
             $t->same('', $result['text']);
             $t->same([], $result['images']);
             $t->same(true, $result['metadata']['empty_text_blocks']);
-            $t->same([], $result['metadata']['supplied_boundaries']);
+            $t->same(['image-only-ocr-handoff'], $result['metadata']['supplied_boundaries']);
+            $t->same(['no-extracted-text-blocks', 'rendered-page-images-missing'], $result['metadata']['ocr_required_reasons']);
+            $t->same(1, $result['metadata']['image_only_pdf_handoff']['missing_rendered_page_image_count']);
             $t->same([
                 'ocr_pages' => 0,
                 'ocr_failed' => 0,
@@ -4157,6 +4159,75 @@ return [
                 'ocr_engine' => 'none',
             ], $result['metadata']['ocr_stats']);
             $t->same([0], $result['metadata']['page_range']);
+        } finally {
+            unlink($path);
+        }
+    },
+    'reports OCR-required image-only PDF handoff without emitting garbage text' => static function (TestRunner $t): void {
+        $path = sys_get_temp_dir() . '/markerpdf-image-only-handoff-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% image-only supplied dictionary fixture\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [[
+                    'page' => 3,
+                    'bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'rotation' => 0,
+                    'blocks' => [],
+                ]],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'lowres_images' => [[
+                        'page' => 3,
+                        'path' => 'cache/page-4.png',
+                        'width' => 1224,
+                        'height' => 1584,
+                        'dpi' => 192,
+                        'image' => 'SCANNED IMAGE PIXELS SHOULD STAY OUT',
+                        'raw_payload' => 'SCANNED IMAGE PIXELS SHOULD STAY OUT',
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $handoff = $result['metadata']['image_only_pdf_handoff'];
+            $page = $handoff['pages'][0];
+            $image = $page['rendered_image'];
+            $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+            $t->same('', $result['text']);
+            $t->same([], $result['images']);
+            $t->same(true, $result['metadata']['empty_text_blocks']);
+            $t->same(true, $result['metadata']['ocr_required']);
+            $t->same(['image-only-ocr-handoff'], $result['metadata']['supplied_boundaries']);
+            $t->same(['no-extracted-text-blocks', 'rendered-page-images-available'], $result['metadata']['ocr_required_reasons']);
+            $t->same('markerpdf.image_only_pdf_ocr_handoff.v1', $handoff['schema']);
+            $t->same('ocr-required', $handoff['status']);
+            $t->same(true, $handoff['ocr_required']);
+            $t->same(1, $handoff['rendered_page_image_count']);
+            $t->same(0, $handoff['missing_rendered_page_image_count']);
+            $t->same(false, $handoff['diagnostics']['visible_text_emitted']);
+            $t->same(true, $handoff['diagnostics']['garbage_text_suppressed']);
+            $t->same(true, $handoff['diagnostics']['requires_external_ocr_adapter']);
+            $t->same(false, $handoff['executes_ocr_runtime']);
+            $t->same(false, $handoff['executes_python_or_models']);
+            $t->same('return empty text until an adapter supplies recognized OCR pages', $handoff['adapter_hooks']['markdown_policy']);
+            $t->same(0, $page['selected_page_index']);
+            $t->same(0, $page['source_page_index']);
+            $t->same(3, $page['pdftext_page']);
+            $t->same([0.0, 0.0, 612.0, 792.0], $page['bbox']);
+            $t->same(0, $page['text_block_count']);
+            $t->same(0, $page['text_line_count']);
+            $t->same(['no-extracted-text-blocks', 'rendered-page-image-available'], $page['ocr_required_reasons']);
+            $t->same(true, $image['present']);
+            $t->same('cache/page-4.png', $image['path']);
+            $t->same(1224, $image['width']);
+            $t->same(1584, $image['height']);
+            $t->same(192, $image['dpi']);
+            $t->same(false, $image['pixel_payload_exposed']);
+            $t->same(false, array_key_exists('image', $image));
+            $t->true(!str_contains($encoded, 'SCANNED IMAGE PIXELS SHOULD STAY OUT'));
         } finally {
             unlink($path);
         }

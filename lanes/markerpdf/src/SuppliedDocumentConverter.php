@@ -146,16 +146,6 @@ final class SuppliedDocumentConverter
             'supplied_boundaries' => [],
         ];
 
-        if (!$this->hasBlocks($pages)) {
-            $metadata['empty_text_blocks'] = true;
-
-            return [
-                'text' => '',
-                'images' => [],
-                'metadata' => $metadata,
-            ];
-        }
-
         $selectedPageCount = count($pages);
         $pageRange = $extracted['page_range'];
         $selectedPageNumbers = $this->artifactSelector->pageNumbersFromPages($pages);
@@ -166,6 +156,28 @@ final class SuppliedDocumentConverter
             $selectedPageCount,
             $selectedPageNumbers
         );
+
+        if (!$this->hasBlocks($pages)) {
+            $metadata['empty_text_blocks'] = true;
+            $metadata['ocr_required'] = $selectedPageCount > 0;
+            $metadata['image_only_pdf_handoff'] = $this->imageOnlyOcrHandoff(
+                $pages,
+                $context,
+                $pageRange,
+                $lowresImages,
+                $sourcePageCount,
+                $settings
+            );
+            $metadata['ocr_required_reasons'] = $metadata['image_only_pdf_handoff']['ocr_required_reasons'];
+            $metadata['supplied_boundaries'][] = 'image-only-ocr-handoff';
+
+            return [
+                'text' => '',
+                'images' => [],
+                'metadata' => $metadata,
+            ];
+        }
+
         $layoutResults = $this->selectSelectedPageArtifacts(
             $this->pageArtifactOption($options, 'layout_results'),
             $sourcePageCount,
@@ -1663,6 +1675,325 @@ final class SuppliedDocumentConverter
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $pages
+     * @param array<string, mixed> $context
+     * @param list<int> $pageRange
+     * @param list<mixed> $lowresImages
+     * @return array<string, mixed>
+     */
+    private function imageOnlyOcrHandoff(
+        array $pages,
+        array $context,
+        array $pageRange,
+        array $lowresImages,
+        int $sourcePageCount,
+        MarkerSettings $settings
+    ): array {
+        $pageRows = [];
+        $presentImageCount = 0;
+        $missingImageCount = 0;
+        $ocrAllPages = ($context['ocr_all_pages'] ?? false) === true;
+        $lowresImagePlan = isset($context['lowres_image_plan']) && is_array($context['lowres_image_plan'])
+            ? array_values($context['lowres_image_plan'])
+            : [];
+        $pageLabels = isset($context['page_labels']) && is_array($context['page_labels'])
+            ? array_values($context['page_labels'])
+            : [];
+
+        foreach (array_values($pages) as $index => $page) {
+            $image = $lowresImages[$index] ?? null;
+            $imageSummary = $this->imageOnlyPageImageSummary($image);
+            if (($imageSummary['present'] ?? false) === true) {
+                $presentImageCount++;
+            } else {
+                $missingImageCount++;
+            }
+
+            $pageReasons = ['no-extracted-text-blocks'];
+            $pageReasons[] = ($imageSummary['present'] ?? false) === true
+                ? 'rendered-page-image-available'
+                : 'rendered-page-image-missing';
+            if ($ocrAllPages) {
+                $pageReasons[] = 'ocr-all-pages-requested';
+            }
+
+            $sourcePageIndex = $pageRange[$index] ?? $index;
+            $row = [
+                'selected_page_index' => $index,
+                'source_page_index' => $sourcePageIndex,
+                'page_number' => $sourcePageIndex + 1,
+                'pdftext_page' => $this->imageOnlyInteger($page['pnum'] ?? $page['page'] ?? null),
+                'page_label' => isset($pageLabels[$index]) && is_string($pageLabels[$index]) ? $pageLabels[$index] : null,
+                'bbox' => $this->imageOnlyBbox($page['bbox'] ?? null),
+                'rotation' => $this->imageOnlyInteger($page['rotation'] ?? null),
+                'text_block_count' => $this->imageOnlyBlockCount($page),
+                'text_line_count' => $this->imageOnlyLineCount($page),
+                'detected_text_line_count' => $this->imageOnlyDetectedLineCount($page),
+                'ocr_required' => true,
+                'ocr_required_reasons' => $pageReasons,
+                'rendered_image' => $imageSummary,
+            ];
+            if (isset($lowresImagePlan[$index]) && is_array($lowresImagePlan[$index])) {
+                $row['render_plan'] = [
+                    'doc_page_index' => $this->imageOnlyInteger($lowresImagePlan[$index]['doc_page_index'] ?? null),
+                    'dpi' => $this->imageOnlyNumeric($lowresImagePlan[$index]['dpi'] ?? null),
+                ];
+            }
+
+            $pageRows[] = $row;
+        }
+
+        $reasons = [];
+        if ($pageRows === []) {
+            $reasons[] = 'no-selected-pages';
+        } else {
+            $reasons[] = 'no-extracted-text-blocks';
+            $reasons[] = $presentImageCount > 0
+                ? 'rendered-page-images-available'
+                : 'rendered-page-images-missing';
+            if ($missingImageCount > 0 && $presentImageCount > 0) {
+                $reasons[] = 'some-rendered-page-images-missing';
+            }
+            if ($ocrAllPages) {
+                $reasons[] = 'ocr-all-pages-requested';
+            }
+        }
+
+        return [
+            'schema' => 'markerpdf.image_only_pdf_ocr_handoff.v1',
+            'source' => 'sddai/markerPDF marker.convert::convert_single_pdf native image-only boundary',
+            'status' => $pageRows === [] ? 'no-selected-pages' : 'ocr-required',
+            'ocr_required' => $pageRows !== [],
+            'ocr_required_reasons' => $reasons,
+            'source_page_count' => $sourcePageCount,
+            'selected_page_count' => count($pageRows),
+            'selected_page_range' => $pageRange,
+            'rendered_page_image_count' => $presentImageCount,
+            'missing_rendered_page_image_count' => $missingImageCount,
+            'pages' => $pageRows,
+            'adapter_hooks' => [
+                'pdftext_boundary' => 'supplied pdftext pages with no extracted text blocks',
+                'image_boundary' => 'lowres_images selected by source page before OCR runtime',
+                'ocr_detection_input' => 'pages[].rendered_image',
+                'ocr_recognition_input' => 'pages[].rendered_image',
+                'markdown_policy' => 'return empty text until an adapter supplies recognized OCR pages',
+            ],
+            'diagnostics' => [
+                'visible_text_emitted' => false,
+                'garbage_text_suppressed' => true,
+                'requires_external_ocr_adapter' => $pageRows !== [],
+                'ocr_engine_requested' => (string) ($settings->get('OCR_ENGINE') ?? 'surya'),
+                'default_language' => (string) ($settings->get('DEFAULT_LANG') ?? 'English'),
+                'no_native_ocr_runtime' => true,
+            ],
+            'review_only' => true,
+            'executes_python_or_models' => false,
+            'executes_ocr_runtime' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function imageOnlyPageImageSummary(mixed $image): array
+    {
+        if ($image === null || PdfPageArtifactSelector::isMissingPageArtifact($image)) {
+            return [
+                'present' => false,
+                'missing' => true,
+                'pixel_payload_exposed' => false,
+            ];
+        }
+
+        if (!is_array($image)) {
+            $summary = [
+                'present' => true,
+                'artifact_type' => get_debug_type($image),
+                'pixel_payload_exposed' => false,
+            ];
+            if (is_scalar($image)) {
+                $summary['payload_bytes'] = strlen((string) $image);
+                $summary['payload_sha256'] = hash('sha256', (string) $image);
+                $reference = $this->imageOnlyReferenceValue($image);
+                if ($reference !== null) {
+                    $summary['reference'] = $reference;
+                }
+            }
+
+            return $summary;
+        }
+
+        $summary = [
+            'present' => true,
+            'artifact_type' => 'array',
+            'artifact_keys' => array_values(array_map(static fn (int|string $key): string => (string) $key, array_keys($image))),
+            'pixel_payload_exposed' => false,
+        ];
+
+        foreach (['width', 'height', 'dpi', 'page', 'page_index', 'doc_page_index', 'selected_page_index'] as $key) {
+            if (array_key_exists($key, $image)) {
+                $numeric = $this->imageOnlyNumeric($image[$key]);
+                if ($numeric !== null) {
+                    $summary[$key] = $numeric;
+                }
+            }
+        }
+
+        foreach (['bbox', 'image_bbox', 'page_bbox', 'rendered_image_bbox'] as $key) {
+            if (array_key_exists($key, $image)) {
+                $bbox = $this->imageOnlyBbox($image[$key]);
+                if ($bbox !== null) {
+                    $summary[$key] = $bbox;
+                }
+            }
+        }
+
+        foreach (['path', 'filename', 'uri', 'url', 'id', 'image_id', 'cache_key', 'image'] as $key) {
+            if (!array_key_exists($key, $image)) {
+                continue;
+            }
+
+            $reference = $this->imageOnlyReferenceValue($image[$key]);
+            if ($reference !== null) {
+                $summary[$key] = $reference;
+                continue;
+            }
+
+            if (is_scalar($image[$key])) {
+                $summary[$key . '_bytes'] = strlen((string) $image[$key]);
+                $summary[$key . '_sha256'] = hash('sha256', (string) $image[$key]);
+            }
+        }
+
+        return $summary;
+    }
+
+    private function imageOnlyReferenceValue(mixed $value): string|int|float|bool|null
+    {
+        if (is_int($value) || is_float($value) || is_bool($value)) {
+            return $value;
+        }
+        if (!is_string($value) || $value === '' || strlen($value) > 180) {
+            return null;
+        }
+        if (preg_match('/[[:cntrl:]]|\s/', $value) === 1) {
+            return null;
+        }
+        if (str_starts_with(strtolower($value), 'data:')) {
+            return null;
+        }
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $value) === 1) {
+            return $value;
+        }
+        if (preg_match('/^[A-Za-z0-9._~\/:@%#?=&,+-]+$/', $value) !== 1) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private function imageOnlyInteger(mixed $value): ?int
+    {
+        if (is_int($value) || is_float($value)) {
+            return (int) $value;
+        }
+        if (is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        return null;
+    }
+
+    private function imageOnlyNumeric(mixed $value): int|float|null
+    {
+        if (is_int($value) || is_float($value)) {
+            return $value;
+        }
+        if (is_string($value) && is_numeric($value)) {
+            return str_contains($value, '.') ? (float) $value : (int) $value;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function imageOnlyBbox(mixed $value): ?array
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+        if (isset($value['bbox'])) {
+            return $this->imageOnlyBbox($value['bbox']);
+        }
+
+        $values = array_values($value);
+        if (count($values) !== 4) {
+            return null;
+        }
+
+        $bbox = [];
+        foreach ($values as $item) {
+            $number = $this->imageOnlyNumeric($item);
+            if ($number === null) {
+                return null;
+            }
+            $bbox[] = (float) $number;
+        }
+
+        return $bbox;
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     */
+    private function imageOnlyBlockCount(array $page): int
+    {
+        $blocks = $page['blocks'] ?? [];
+
+        return is_array($blocks) ? count(array_filter($blocks, 'is_array')) : 0;
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     */
+    private function imageOnlyLineCount(array $page): int
+    {
+        $count = 0;
+        $blocks = $page['blocks'] ?? [];
+        if (!is_array($blocks)) {
+            return 0;
+        }
+
+        foreach ($blocks as $block) {
+            if (!is_array($block) || !isset($block['lines']) || !is_array($block['lines'])) {
+                continue;
+            }
+            $count += count(array_filter($block['lines'], 'is_array'));
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     */
+    private function imageOnlyDetectedLineCount(array $page): int
+    {
+        $textLines = $page['text_lines'] ?? $page['textLines'] ?? null;
+        if (!is_array($textLines)) {
+            return 0;
+        }
+
+        $boxes = $textLines['bboxes'] ?? $textLines['boxes'] ?? null;
+
+        return is_array($boxes) ? count($boxes) : 0;
     }
 
     /**
