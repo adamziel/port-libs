@@ -245,6 +245,8 @@
             "mappedPdfXmpMetadataExtractionBehaviors": 1,
             "pdfCidFontWidthMetricBehaviors": 1,
             "mappedPdfCidFontWidthMetricBehaviors": 1,
+            "pdfTrueTypeEmbeddedGlyphOrderWidthBehaviors": 2,
+            "mappedPdfTrueTypeEmbeddedGlyphOrderWidthBehaviors": 2,
             "pdfCidFontCidSetGlyphWidthBehaviors": 1,
             "mappedPdfCidFontCidSetGlyphWidthBehaviors": 1,
             "pdfInlineImagePayloadBoundaryBehaviors": 1,

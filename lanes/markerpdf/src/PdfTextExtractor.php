@@ -4427,7 +4427,10 @@ final class PdfTextExtractor
                     null,
                     $roleMap,
                     $tableRows,
-                    $seenObjects
+                    $seenObjects,
+                    0,
+                    $rawRole,
+                    $role
                 );
                 $this->appendOrderedTaggedTableRows($entries, $tableRows);
                 return;
@@ -4456,7 +4459,9 @@ final class PdfTextExtractor
         array $roleMap,
         array &$rows,
         array $seenObjects = [],
-        int $depth = 0
+        int $depth = 0,
+        ?string $inheritedRawRole = null,
+        ?string $inheritedRole = null
     ): void {
         if ($depth > 40) {
             return;
@@ -4488,7 +4493,9 @@ final class PdfTextExtractor
                 $roleMap,
                 $rows,
                 $seenObjects,
-                $depth + 1
+                $depth + 1,
+                $inheritedRawRole,
+                $inheritedRole
             );
             return;
         }
@@ -4509,7 +4516,9 @@ final class PdfTextExtractor
                     $roleMap,
                     $rows,
                     $seenObjects,
-                    $depth + 1
+                    $depth + 1,
+                    $inheritedRawRole,
+                    $inheritedRole
                 );
             }
             return;
@@ -4527,7 +4536,9 @@ final class PdfTextExtractor
                     $roleMap,
                     $rows,
                     $seenObjects,
-                    $depth + 1
+                    $depth + 1,
+                    $inheritedRawRole,
+                    $inheritedRole
                 );
             }
             return;
@@ -4537,7 +4548,15 @@ final class PdfTextExtractor
             $mcid = (int) $value;
             if ($mcid >= 0) {
                 $rows[] = $this->taggedTableRowDescriptor([
-                    $this->taggedTableEntry($inheritedPageObjectNumber, $mcid, null, null, $sectionRole, $sectionRawRole, 'direct'),
+                    $this->taggedTableEntry(
+                        $inheritedPageObjectNumber,
+                        $mcid,
+                        $inheritedRawRole,
+                        $inheritedRole,
+                        $sectionRole,
+                        $sectionRawRole,
+                        'direct'
+                    ),
                 ], $sectionRole, $sectionRawRole);
             }
         }
@@ -4552,10 +4571,12 @@ final class PdfTextExtractor
         array $roleMap,
         array &$rows,
         array $seenObjects,
-        int $depth
+        int $depth,
+        ?string $inheritedRawRole = null,
+        ?string $inheritedRole = null
     ): void {
-        $rawRole = $this->pdfNameValueAfterName($dictionary, 'S');
-        $role = $rawRole === null ? null : $this->resolveStructureRole($rawRole, $roleMap);
+        $rawRole = $this->pdfNameValueAfterName($dictionary, 'S') ?? $inheritedRawRole;
+        $role = $rawRole === null ? $inheritedRole : $this->resolveStructureRole($rawRole, $roleMap);
         $pageObjectNumber = $this->objectReferenceValueAfterName($dictionary, 'Pg') ?? $inheritedPageObjectNumber;
 
         if ($role === 'THead' || $role === 'TBody' || $role === 'TFoot') {
@@ -4616,7 +4637,9 @@ final class PdfTextExtractor
             $roleMap,
             $rows,
             $seenObjects,
-            $depth + 1
+            $depth + 1,
+            $rawRole,
+            $role
         );
     }
 
@@ -25933,6 +25956,12 @@ final class PdfTextExtractor
             if ($bodyCidSet !== null) {
                 $cidSet = $cidSet === null ? $bodyCidSet : ($cidSet + $bodyCidSet);
             }
+
+            foreach ($this->trueTypeEmbeddedFontWidthMetrics($body, $objects) as $cid => $width) {
+                if (!array_key_exists($cid, $widths)) {
+                    $widths[$cid] = $width;
+                }
+            }
         }
 
         if (($hasCidFontBody || $hasWidthArray || $cidSet !== null) && $defaultWidth === null) {
@@ -28119,6 +28148,466 @@ final class PdfTextExtractor
         }
 
         return $widths;
+    }
+
+    /**
+     * @return array<int, float>
+     * @param array<int, string> $objects
+     */
+    private function trueTypeEmbeddedFontWidthMetrics(string $fontBody, array $objects): array
+    {
+        $descriptor = $this->fontDescriptorBody($fontBody, $objects);
+        if ($descriptor === null) {
+            return [];
+        }
+
+        $fontFileReference = $this->objectReferenceAfterName($descriptor, 'FontFile2');
+        if ($fontFileReference === null) {
+            return [];
+        }
+
+        $fontFileBody = $this->objectBodyForExactReference(
+            $objects,
+            $fontFileReference['objectNumber'],
+            $fontFileReference['generation']
+        );
+        if ($fontFileBody === null) {
+            return [];
+        }
+
+        $fontBytes = $this->decodeStreamObject($fontFileBody, $objects, true);
+        if ($fontBytes === null || $fontBytes === '') {
+            return [];
+        }
+
+        $glyphWidths = $this->trueTypeGlyphAdvanceWidths($fontBytes);
+        if ($glyphWidths === []) {
+            return [];
+        }
+
+        if ($this->isCidFontBody($fontBody)) {
+            return $this->trueTypeCidFontWidthMetrics($fontBody, $objects, $glyphWidths);
+        }
+
+        if ($this->isSimpleFontBody($fontBody)) {
+            return $this->trueTypeSimpleFontWidthMetrics($fontBody, $objects, $fontBytes, $glyphWidths);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<int, float> $glyphWidths
+     * @return array<int, float>
+     */
+    private function trueTypeCidFontWidthMetrics(string $fontBody, array $objects, array $glyphWidths): array
+    {
+        $cidToGid = $this->cidToGidMap($fontBody, $objects);
+        $widths = [];
+
+        if ($cidToGid === null) {
+            foreach ($glyphWidths as $gid => $width) {
+                if ($gid >= 0 && $gid <= 0xffff) {
+                    $widths[$gid] = $width;
+                }
+            }
+
+            return $widths;
+        }
+
+        foreach ($cidToGid as $cid => $gid) {
+            if ($cid < 0 || $cid > 0xffff || !array_key_exists($gid, $glyphWidths)) {
+                continue;
+            }
+
+            $widths[$cid] = $glyphWidths[$gid];
+        }
+
+        return $widths;
+    }
+
+    /**
+     * @param array<int, float> $glyphWidths
+     * @return array<int, float>
+     */
+    private function trueTypeSimpleFontWidthMetrics(
+        string $fontBody,
+        array $objects,
+        string $fontBytes,
+        array $glyphWidths
+    ): array {
+        $glyphIdByName = $this->trueTypePostGlyphIdsByName($fontBytes);
+        if ($glyphIdByName === []) {
+            return [];
+        }
+
+        $widths = [];
+        foreach ($this->type3EncodingGlyphNamesByCode($fontBody, $objects) as $code => $glyphName) {
+            $gid = $glyphIdByName[$glyphName] ?? null;
+            if (!is_int($gid) || !array_key_exists($gid, $glyphWidths)) {
+                continue;
+            }
+
+            $widths[$code] = $glyphWidths[$gid];
+        }
+
+        return $widths;
+    }
+
+    /**
+     * A missing `/CIDToGIDMap` means Identity. A returned map is a sparse
+     * explicit stream map from CID to glyph index.
+     *
+     * @return array<int, int>|null
+     * @param array<int, string> $objects
+     */
+    private function cidToGidMap(string $fontBody, array $objects): ?array
+    {
+        $value = $this->topLevelPdfLastValueAfterName($fontBody, 'CIDToGIDMap');
+        if ($value === null) {
+            return null;
+        }
+
+        $name = $this->pdfNameValueAt($value, 0, $objects);
+        if ($name === 'Identity') {
+            return null;
+        }
+
+        $offset = 0;
+        $reference = $this->readPdfIndirectReferenceToken($value, $offset);
+        if ($reference === null) {
+            return [];
+        }
+
+        $objectBody = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+        if ($objectBody === null) {
+            return [];
+        }
+
+        $bytes = $this->decodeStreamObject($objectBody, $objects, true);
+        if ($bytes === null || strlen($bytes) < 2) {
+            return [];
+        }
+
+        $map = [];
+        $count = intdiv(strlen($bytes), 2);
+        for ($cid = 0; $cid < $count && $cid <= 0xffff; $cid++) {
+            $gid = $this->trueTypeUInt16($bytes, $cid * 2);
+            if ($gid !== null) {
+                $map[$cid] = $gid;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * @return array<int, float>
+     */
+    private function trueTypeGlyphAdvanceWidths(string $fontBytes): array
+    {
+        $tables = $this->trueTypeTableDirectory($fontBytes);
+        foreach (['head', 'hhea', 'hmtx', 'maxp'] as $requiredTable) {
+            if (!isset($tables[$requiredTable])) {
+                return [];
+            }
+        }
+
+        $head = $tables['head'];
+        $hhea = $tables['hhea'];
+        $hmtx = $tables['hmtx'];
+        $maxp = $tables['maxp'];
+
+        $unitsPerEm = $this->trueTypeUInt16($fontBytes, $head['offset'] + 18);
+        $numHMetrics = $this->trueTypeUInt16($fontBytes, $hhea['offset'] + 34);
+        $numGlyphs = $this->trueTypeUInt16($fontBytes, $maxp['offset'] + 4);
+        if ($unitsPerEm === null || $unitsPerEm <= 0 || $numHMetrics === null || $numHMetrics <= 0 || $numGlyphs === null || $numGlyphs <= 0) {
+            return [];
+        }
+
+        $hmtxOffset = $hmtx['offset'];
+        $hmtxEnd = $hmtx['offset'] + $hmtx['length'];
+        $widths = [];
+        $lastAdvance = null;
+        $metricCount = min($numGlyphs, $numHMetrics);
+        for ($gid = 0; $gid < $metricCount; $gid++) {
+            $advanceOffset = $hmtxOffset + ($gid * 4);
+            if ($advanceOffset + 4 > $hmtxEnd) {
+                return $widths;
+            }
+
+            $advance = $this->trueTypeUInt16($fontBytes, $advanceOffset);
+            if ($advance === null) {
+                return $widths;
+            }
+
+            $lastAdvance = $advance;
+            $metric = $this->finiteHorizontalFontAdvanceMetric(($advance * 1000.0) / $unitsPerEm);
+            if ($metric !== null) {
+                $widths[$gid] = $metric;
+            }
+        }
+
+        if ($lastAdvance === null) {
+            return $widths;
+        }
+
+        $fallbackMetric = $this->finiteHorizontalFontAdvanceMetric(($lastAdvance * 1000.0) / $unitsPerEm);
+        if ($fallbackMetric === null) {
+            return $widths;
+        }
+
+        for ($gid = $numHMetrics; $gid < $numGlyphs; $gid++) {
+            $lsbOffset = $hmtxOffset + ($numHMetrics * 4) + (($gid - $numHMetrics) * 2);
+            if ($lsbOffset + 2 > $hmtxEnd) {
+                break;
+            }
+
+            $widths[$gid] = $fallbackMetric;
+        }
+
+        return $widths;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function trueTypePostGlyphIdsByName(string $fontBytes): array
+    {
+        $tables = $this->trueTypeTableDirectory($fontBytes);
+        $post = $tables['post'] ?? null;
+        if ($post === null || $post['length'] < 34) {
+            return [];
+        }
+
+        $offset = $post['offset'];
+        if (substr($fontBytes, $offset, 4) !== "\x00\x02\x00\x00") {
+            return [];
+        }
+
+        $numGlyphs = $this->trueTypeUInt16($fontBytes, $offset + 32);
+        if ($numGlyphs === null || $numGlyphs <= 0) {
+            return [];
+        }
+
+        $indexOffset = $offset + 34;
+        $indexEnd = $indexOffset + ($numGlyphs * 2);
+        if ($indexEnd > $offset + $post['length'] || $indexEnd > strlen($fontBytes)) {
+            return [];
+        }
+
+        $nameIndexes = [];
+        $maxCustomIndex = -1;
+        for ($gid = 0; $gid < $numGlyphs; $gid++) {
+            $nameIndex = $this->trueTypeUInt16($fontBytes, $indexOffset + ($gid * 2));
+            if ($nameIndex === null) {
+                return [];
+            }
+
+            $nameIndexes[$gid] = $nameIndex;
+            if ($nameIndex >= 258) {
+                $maxCustomIndex = max($maxCustomIndex, $nameIndex - 258);
+            }
+        }
+
+        $customNames = [];
+        $cursor = $indexEnd;
+        for ($index = 0; $index <= $maxCustomIndex; $index++) {
+            if ($cursor >= strlen($fontBytes) || $cursor >= $offset + $post['length']) {
+                return [];
+            }
+
+            $length = ord($fontBytes[$cursor]);
+            $cursor++;
+            if ($cursor + $length > strlen($fontBytes) || $cursor + $length > $offset + $post['length']) {
+                return [];
+            }
+
+            $customNames[$index] = substr($fontBytes, $cursor, $length);
+            $cursor += $length;
+        }
+
+        $glyphIdsByName = [];
+        foreach ($nameIndexes as $gid => $nameIndex) {
+            if ($nameIndex < 258) {
+                $name = $this->trueTypeMacintoshGlyphName($nameIndex);
+            } else {
+                $name = $customNames[$nameIndex - 258] ?? null;
+            }
+
+            if (is_string($name) && $name !== '' && !isset($glyphIdsByName[$name])) {
+                $glyphIdsByName[$name] = $gid;
+            }
+        }
+
+        return $glyphIdsByName;
+    }
+
+    private function trueTypeMacintoshGlyphName(int $nameIndex): ?string
+    {
+        return match ($nameIndex) {
+            0 => '.notdef',
+            1 => '.null',
+            2 => 'nonmarkingreturn',
+            3 => 'space',
+            4 => 'exclam',
+            5 => 'quotedbl',
+            6 => 'numbersign',
+            7 => 'dollar',
+            8 => 'percent',
+            9 => 'ampersand',
+            10 => 'quotesingle',
+            11 => 'parenleft',
+            12 => 'parenright',
+            13 => 'asterisk',
+            14 => 'plus',
+            15 => 'comma',
+            16 => 'hyphen',
+            17 => 'period',
+            18 => 'slash',
+            19 => 'zero',
+            20 => 'one',
+            21 => 'two',
+            22 => 'three',
+            23 => 'four',
+            24 => 'five',
+            25 => 'six',
+            26 => 'seven',
+            27 => 'eight',
+            28 => 'nine',
+            29 => 'colon',
+            30 => 'semicolon',
+            31 => 'less',
+            32 => 'equal',
+            33 => 'greater',
+            34 => 'question',
+            35 => 'at',
+            36 => 'A',
+            37 => 'B',
+            38 => 'C',
+            39 => 'D',
+            40 => 'E',
+            41 => 'F',
+            42 => 'G',
+            43 => 'H',
+            44 => 'I',
+            45 => 'J',
+            46 => 'K',
+            47 => 'L',
+            48 => 'M',
+            49 => 'N',
+            50 => 'O',
+            51 => 'P',
+            52 => 'Q',
+            53 => 'R',
+            54 => 'S',
+            55 => 'T',
+            56 => 'U',
+            57 => 'V',
+            58 => 'W',
+            59 => 'X',
+            60 => 'Y',
+            61 => 'Z',
+            62 => 'bracketleft',
+            63 => 'backslash',
+            64 => 'bracketright',
+            65 => 'asciicircum',
+            66 => 'underscore',
+            67 => 'grave',
+            68 => 'a',
+            69 => 'b',
+            70 => 'c',
+            71 => 'd',
+            72 => 'e',
+            73 => 'f',
+            74 => 'g',
+            75 => 'h',
+            76 => 'i',
+            77 => 'j',
+            78 => 'k',
+            79 => 'l',
+            80 => 'm',
+            81 => 'n',
+            82 => 'o',
+            83 => 'p',
+            84 => 'q',
+            85 => 'r',
+            86 => 's',
+            87 => 't',
+            88 => 'u',
+            89 => 'v',
+            90 => 'w',
+            91 => 'x',
+            92 => 'y',
+            93 => 'z',
+            94 => 'braceleft',
+            95 => 'bar',
+            96 => 'braceright',
+            97 => 'asciitilde',
+            default => null,
+        };
+    }
+
+    /**
+     * @return array<string, array{offset: int, length: int}>
+     */
+    private function trueTypeTableDirectory(string $fontBytes): array
+    {
+        if (strlen($fontBytes) < 12) {
+            return [];
+        }
+
+        $numTables = $this->trueTypeUInt16($fontBytes, 4);
+        if ($numTables === null || $numTables <= 0 || $numTables > 256) {
+            return [];
+        }
+
+        $directoryLength = 12 + ($numTables * 16);
+        if ($directoryLength > strlen($fontBytes)) {
+            return [];
+        }
+
+        $tables = [];
+        for ($index = 0; $index < $numTables; $index++) {
+            $recordOffset = 12 + ($index * 16);
+            $tag = substr($fontBytes, $recordOffset, 4);
+            if (preg_match('/^[A-Za-z0-9 ]{4}$/', $tag) !== 1) {
+                continue;
+            }
+
+            $offset = $this->trueTypeUInt32($fontBytes, $recordOffset + 8);
+            $length = $this->trueTypeUInt32($fontBytes, $recordOffset + 12);
+            if ($offset === null || $length === null || $length < 0 || $offset < 0 || $offset + $length > strlen($fontBytes)) {
+                continue;
+            }
+
+            $tables[$tag] = [
+                'offset' => $offset,
+                'length' => $length,
+            ];
+        }
+
+        return $tables;
+    }
+
+    private function trueTypeUInt16(string $bytes, int $offset): ?int
+    {
+        if ($offset < 0 || $offset + 2 > strlen($bytes)) {
+            return null;
+        }
+
+        $value = unpack('nvalue', substr($bytes, $offset, 2));
+        return is_array($value) ? (int) $value['value'] : null;
+    }
+
+    private function trueTypeUInt32(string $bytes, int $offset): ?int
+    {
+        if ($offset < 0 || $offset + 4 > strlen($bytes)) {
+            return null;
+        }
+
+        $value = unpack('Nvalue', substr($bytes, $offset, 4));
+        return is_array($value) ? (int) $value['value'] : null;
     }
 
     /**
