@@ -66,6 +66,7 @@ final class SuppliedDocumentConverter
      *     table_dpi?: int|float,
      *     table_intersection_threshold?: int|float,
      *     page_review_metadata?: list<array<string, mixed>>,
+     *     tagged_tables?: list<array<string, mixed>>,
      *     table_detector_cells?: list<list<array<string, mixed>>>,
      *     table_ocr_text_lines?: list<list<string|array{text?: string}>>,
      *     table_detect_boxes?: bool,
@@ -224,6 +225,15 @@ final class SuppliedDocumentConverter
             $pages = $this->withPageReviewMetadata($pages, $pageReviewMetadata);
             $metadata['page_review_metadata_count'] = count($pageReviewMetadata);
             $metadata['supplied_boundaries'][] = 'page-review-metadata';
+        }
+
+        $taggedTables = $this->taggedTablesOption($options);
+        if ($taggedTables !== []) {
+            $taggedTableInsertion = $this->insertTaggedTableBlocks($pages, $taggedTables);
+            $pages = $taggedTableInsertion['pages'];
+            $metadata['tagged_tables'] = $taggedTableInsertion['metadata'];
+            $metadata['block_stats']['table'] += $taggedTableInsertion['inserted_tables'];
+            $metadata['supplied_boundaries'][] = 'tagged-table-structure';
         }
 
         if (isset($options['_table_result_envelope_review']) && is_array($options['_table_result_envelope_review'])) {
@@ -2482,6 +2492,291 @@ final class SuppliedDocumentConverter
         }
 
         return substr($filename, 0, $extensionOffset);
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return list<array<string, mixed>>
+     */
+    private function taggedTablesOption(array $options): array
+    {
+        $tables = $this->listOption($options, 'tagged_tables');
+        $out = [];
+        foreach ($tables as $index => $table) {
+            if (!is_array($table)) {
+                throw new InvalidArgumentException('markerPDF supplied document option tagged_tables entries must be arrays.');
+            }
+
+            $html = $table['html'] ?? null;
+            if (!is_string($html) || trim($html) === '') {
+                throw new InvalidArgumentException('markerPDF supplied document option tagged_tables[' . $index . '] must include non-empty html.');
+            }
+            if (($table['unambiguous'] ?? true) !== true) {
+                continue;
+            }
+
+            $out[] = $table;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $pages
+     * @param list<array<string, mixed>> $taggedTables
+     * @return array{pages: list<array<string, mixed>>, inserted_tables: int, metadata: array<string, mixed>}
+     */
+    private function insertTaggedTableBlocks(array $pages, array $taggedTables): array
+    {
+        $insertedTables = 0;
+        $reviews = [];
+        foreach ($taggedTables as $tableIndex => $taggedTable) {
+            $pageIndex = $this->taggedTablePageIndex($taggedTable, $pages);
+            if ($pageIndex === null) {
+                $reviews[] = $this->taggedTableInsertionReview($taggedTable, $tableIndex, null, false, [], null);
+                continue;
+            }
+
+            $page = $pages[$pageIndex];
+            $blocks = array_values(array_filter(
+                $page['blocks'] ?? [],
+                static fn (mixed $block): bool => is_array($block)
+            ));
+            $replaceTexts = $this->taggedTableReplaceTexts($taggedTable);
+            $newBlocks = [];
+            $removedTexts = [];
+            $insertPoint = count($blocks);
+            foreach ($blocks as $blockIndex => $block) {
+                $text = $this->blockPlainText($block);
+                if ($text !== '' && in_array($text, $replaceTexts, true)) {
+                    if ($removedTexts === []) {
+                        $insertPoint = count($newBlocks);
+                    }
+                    $removedTexts[] = $text;
+                    continue;
+                }
+
+                $newBlocks[] = $block;
+            }
+
+            $bbox = $this->taggedTableBlockBbox($taggedTable, $page);
+            $pnum = (int) ($page['pnum'] ?? $pageIndex);
+            $tableBlock = $this->taggedTableBlock($bbox, (string) $taggedTable['html'], $pnum, $tableIndex);
+            array_splice($newBlocks, min($insertPoint, count($newBlocks)), 0, [$tableBlock]);
+            $page['blocks'] = $newBlocks;
+            $pages[$pageIndex] = $page;
+            $insertedTables++;
+            $reviews[] = $this->taggedTableInsertionReview(
+                $taggedTable,
+                $tableIndex,
+                $pageIndex,
+                true,
+                $removedTexts,
+                min($insertPoint, count($newBlocks) - 1)
+            );
+        }
+
+        return [
+            'pages' => array_values($pages),
+            'inserted_tables' => $insertedTables,
+            'metadata' => [
+                'source' => 'tagged_table_structure_insertion',
+                'review_only' => true,
+                'visible_text_source' => false,
+                'table_count' => count($taggedTables),
+                'inserted_tables' => $insertedTables,
+                'tables' => $reviews,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $taggedTable
+     * @param list<array<string, mixed>> $pages
+     */
+    private function taggedTablePageIndex(array $taggedTable, array $pages): ?int
+    {
+        foreach (['page', 'page_index'] as $key) {
+            $pageIndex = $taggedTable[$key] ?? null;
+            if (is_int($pageIndex) && isset($pages[$pageIndex])) {
+                return $pageIndex;
+            }
+        }
+
+        $pageNumber = $taggedTable['page_number'] ?? null;
+        if (is_int($pageNumber) && $pageNumber > 0 && isset($pages[$pageNumber - 1])) {
+            return $pageNumber - 1;
+        }
+
+        $pnum = $taggedTable['pnum'] ?? null;
+        if (is_int($pnum)) {
+            foreach ($pages as $pageIndex => $page) {
+                if ((int) ($page['pnum'] ?? $pageIndex) === $pnum) {
+                    return $pageIndex;
+                }
+            }
+        }
+
+        return $pages === [] ? null : 0;
+    }
+
+    /**
+     * @param array<string, mixed> $taggedTable
+     * @return list<string>
+     */
+    private function taggedTableReplaceTexts(array $taggedTable): array
+    {
+        $texts = [];
+        $replaceTexts = $taggedTable['replace_texts'] ?? [];
+        if (!is_array($replaceTexts)) {
+            return [];
+        }
+
+        foreach ($replaceTexts as $text) {
+            if (!is_scalar($text)) {
+                continue;
+            }
+
+            $text = trim((string) $text);
+            if ($text !== '' && !in_array($text, $texts, true)) {
+                $texts[] = $text;
+            }
+        }
+
+        return $texts;
+    }
+
+    /**
+     * @param array<string, mixed> $taggedTable
+     * @param array<string, mixed> $page
+     * @return list<float>
+     */
+    private function taggedTableBlockBbox(array $taggedTable, array $page): array
+    {
+        $bbox = $this->numericBbox($taggedTable['bbox'] ?? null);
+        if ($bbox !== null) {
+            return $bbox;
+        }
+
+        $pageBbox = $this->numericBbox($page['bbox'] ?? null) ?? [0.0, 0.0, 612.0, 792.0];
+        return [$pageBbox[0], $pageBbox[1], $pageBbox[2], min($pageBbox[3], $pageBbox[1] + 24.0)];
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function numericBbox(mixed $value): ?array
+    {
+        if (!is_array($value) || count($value) !== 4) {
+            return null;
+        }
+
+        $bbox = [];
+        foreach (array_values($value) as $part) {
+            if (!is_int($part) && !is_float($part) && !(is_string($part) && is_numeric($part))) {
+                return null;
+            }
+            $bbox[] = (float) $part;
+        }
+
+        return $bbox;
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @return array<string, mixed>
+     */
+    private function taggedTableBlock(array $bbox, string $html, int $pnum, int $tableIndex): array
+    {
+        return [
+            'bbox' => $bbox,
+            'type' => 'Table',
+            'block_type' => 'Table',
+            'pnum' => $pnum,
+            'lines' => [[
+                'bbox' => $bbox,
+                'spans' => [[
+                    'bbox' => $bbox,
+                    'span_id' => 'tagged_' . $tableIndex . '_table',
+                    'font' => 'TaggedTable',
+                    'font_size' => 0,
+                    'font_weight' => 0,
+                    'block_type' => 'Table',
+                    'text' => $html,
+                ]],
+            ]],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $block
+     */
+    private function blockPlainText(array $block): string
+    {
+        $parts = [];
+        foreach (($block['lines'] ?? []) as $line) {
+            if (!is_array($line)) {
+                continue;
+            }
+            if (isset($line['text']) && is_string($line['text'])) {
+                $parts[] = trim($line['text']);
+                continue;
+            }
+
+            $lineText = '';
+            foreach (($line['spans'] ?? []) as $span) {
+                if (is_array($span)) {
+                    $lineText .= (string) ($span['text'] ?? '');
+                }
+            }
+            if (trim($lineText) !== '') {
+                $parts[] = trim($lineText);
+            }
+        }
+
+        return trim(implode(' ', $parts));
+    }
+
+    /**
+     * @param array<string, mixed> $taggedTable
+     * @param list<string> $removedTexts
+     * @return array<string, mixed>
+     */
+    private function taggedTableInsertionReview(
+        array $taggedTable,
+        int $tableIndex,
+        ?int $pageIndex,
+        bool $inserted,
+        array $removedTexts,
+        ?int $insertPoint
+    ): array {
+        $html = (string) ($taggedTable['html'] ?? '');
+        $review = [
+            'source' => 'tagged_table_structure_insertion',
+            'review_only' => true,
+            'visible_text_source' => false,
+            'table_index' => $tableIndex,
+            'inserted' => $inserted,
+            'page_index' => $pageIndex,
+            'insert_point' => $insertPoint,
+            'html_length' => strlen($html),
+            'html_sha256' => hash('sha256', $html),
+            'removed_text_count' => count($removedTexts),
+        ];
+
+        foreach (['struct_object', 'page', 'page_number', 'page_object'] as $key) {
+            if (array_key_exists($key, $taggedTable)) {
+                $review[$key] = $taggedTable[$key];
+            }
+        }
+        if ($removedTexts !== []) {
+            $review['removed_texts'] = $removedTexts;
+        }
+        if (isset($taggedTable['metadata']) && is_array($taggedTable['metadata'])) {
+            $review['structure'] = $taggedTable['metadata'];
+        }
+
+        return array_filter($review, static fn (mixed $value): bool => $value !== null && $value !== []);
     }
 
     /**

@@ -4179,6 +4179,7 @@ final class PdfMetadataExtractor
             $roleMap,
             $classMap,
             $pageIndexes,
+            null,
             $elements
         );
         $this->collectParentTreeStructureReviewElements(
@@ -4232,6 +4233,11 @@ final class PdfMetadataExtractor
             $metadata['namespaces'] = $namespaces;
         }
 
+        $taggedTables = $this->taggedTableStructureMetadata($elements);
+        if ($taggedTables !== []) {
+            $metadata['tagged_tables'] = $taggedTables;
+        }
+
         $languages = $this->uniqueStrings($languages);
         if ($languages !== []) {
             $metadata['languages'] = $languages;
@@ -4257,6 +4263,7 @@ final class PdfMetadataExtractor
         array $roleMap,
         array $classMap,
         array $pageIndexes,
+        ?int $parentObject,
         array &$elements,
         array $seenObjects = [],
         int $depth = 0
@@ -4289,6 +4296,7 @@ final class PdfMetadataExtractor
                     $roleMap,
                     $classMap,
                     $pageIndexes,
+                    $parentObject,
                     $elements,
                     $seenObjects,
                     $depth + 1
@@ -4309,6 +4317,7 @@ final class PdfMetadataExtractor
                     $roleMap,
                     $classMap,
                     $pageIndexes,
+                    $parentObject,
                     $elements,
                     $seenObjects,
                     $depth + 1
@@ -4331,6 +4340,7 @@ final class PdfMetadataExtractor
                     $roleMap,
                     $classMap,
                     $pageIndexes,
+                    $parentObject,
                     $elements,
                     $seenObjects,
                     $depth + 1
@@ -4411,6 +4421,7 @@ final class PdfMetadataExtractor
                     $roleMap,
                     $classMap,
                     $pageIndexes,
+                    null,
                     $elements,
                     $object === null ? [] : [$object => true],
                     0
@@ -4495,6 +4506,7 @@ final class PdfMetadataExtractor
         array $roleMap,
         array $classMap,
         array $pageIndexes,
+        ?int $parentObject,
         array &$elements,
         array $seenObjects,
         int $depth
@@ -4541,6 +4553,10 @@ final class PdfMetadataExtractor
         if ($objectNumber !== null) {
             $row['object'] = $objectNumber;
         }
+        if ($parentObject !== null) {
+            $row['parent_object'] = $parentObject;
+        }
+        $row['depth'] = $depth;
         if ($rawRole !== null) {
             $row['raw_role'] = $rawRole;
         }
@@ -4601,6 +4617,8 @@ final class PdfMetadataExtractor
             $row[$key] = $value;
         }
 
+        $kidValue = $this->dictionaryTopLevelRawValue($dictionary, 'K');
+
         $references = $this->structureElementReferencesFromValue(
             $this->dictionaryTopLevelRawValue($dictionary, 'Ref'),
             $objects,
@@ -4614,8 +4632,13 @@ final class PdfMetadataExtractor
             $row['references'] = $references;
         }
 
+        $childObjects = $this->structureChildObjectsFromKidValue($kidValue, $objects);
+        if ($childObjects !== []) {
+            $row['child_structure_objects'] = $childObjects;
+        }
+
         $markedContent = $this->structureMarkedContentFromKidValue(
-            $this->dictionaryTopLevelRawValue($dictionary, 'K'),
+            $kidValue,
             $objects,
             $pageObject
         );
@@ -4635,10 +4658,33 @@ final class PdfMetadataExtractor
             ));
         }
 
+        $descendantMarkedContent = $this->structureDescendantMarkedContentFromKidValue(
+            $kidValue,
+            $objects,
+            $pageObject
+        );
+        if ($descendantMarkedContent !== []) {
+            foreach ($descendantMarkedContent as &$entry) {
+                $entryPageObject = $entry['page_object'] ?? null;
+                if (is_int($entryPageObject)) {
+                    $this->applyPageReviewMetadata($entry, $entryPageObject, $pageIndexes);
+                }
+            }
+            unset($entry);
+
+            if ($descendantMarkedContent != $markedContent) {
+                $row['descendant_marked_content'] = $descendantMarkedContent;
+                $row['descendant_mcids'] = $this->uniqueIntegers(array_map(
+                    static fn (array $entry): int => (int) $entry['mcid'],
+                    $descendantMarkedContent
+                ));
+            }
+        }
+
         $elements[] = $row;
 
         $this->collectStructureReviewElements(
-            $this->dictionaryTopLevelRawValue($dictionary, 'K'),
+            $kidValue,
             $objects,
             $pageObject,
             $language,
@@ -4647,6 +4693,7 @@ final class PdfMetadataExtractor
             $roleMap,
             $classMap,
             $pageIndexes,
+            $objectNumber ?? $parentObject,
             $elements,
             $seenObjects,
             $depth + 1
@@ -5744,6 +5791,551 @@ final class PdfMetadataExtractor
         }
 
         return $deduped;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @return array<string, mixed>
+     */
+    private function taggedTableStructureMetadata(array $elements): array
+    {
+        $elementsByObject = [];
+        $childrenByParent = [];
+        foreach ($elements as $elementIndex => $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $object = $element['object'] ?? null;
+            if (!is_int($object)) {
+                continue;
+            }
+
+            $element['structure_element_index'] = $elementIndex;
+            $elementsByObject[$object] = $element;
+            $parent = $element['parent_object'] ?? null;
+            if (is_int($parent)) {
+                $childrenByParent[$parent][] = $object;
+            }
+        }
+
+        if ($elementsByObject === []) {
+            return [];
+        }
+
+        $tableObjects = [];
+        foreach ($elementsByObject as $object => $element) {
+            if (($element['role'] ?? null) === 'Table') {
+                $tableObjects[] = $object;
+            }
+        }
+
+        if ($tableObjects === []) {
+            return [];
+        }
+
+        $tables = [];
+        $nestedTables = [];
+        $topLevelTableObjects = [];
+        $unambiguousTableObjects = [];
+        $nestedTableObjects = [];
+        foreach ($tableObjects as $tableObject) {
+            $summary = $this->taggedTableSummary($tableObject, $elementsByObject, $childrenByParent);
+            $tables[] = $summary;
+            if (($summary['unambiguous'] ?? false) === true) {
+                $unambiguousTableObjects[] = $tableObject;
+            }
+
+            $parentCellObject = $summary['parent_cell_object'] ?? null;
+            if (is_int($parentCellObject)) {
+                $nestedTableObjects[] = $tableObject;
+                $nestedTables[] = $this->taggedTableNestedLink($summary, $elementsByObject[$parentCellObject] ?? []);
+                continue;
+            }
+
+            $topLevelTableObjects[] = $tableObject;
+        }
+
+        $metadata = [
+            'source' => 'catalog_struct_tree_root_tagged_tables',
+            'review_only' => true,
+            'visible_text_source' => false,
+            'table_count' => count($tables),
+            'nested_table_count' => count($nestedTables),
+            'top_level_table_objects' => $topLevelTableObjects,
+            'unambiguous_table_objects' => $unambiguousTableObjects,
+            'tables' => $tables,
+        ];
+
+        if ($nestedTables !== []) {
+            $metadata['nested_table_objects'] = $nestedTableObjects;
+            $metadata['nested_tables'] = $nestedTables;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $elementsByObject
+     * @param array<int, list<int>> $childrenByParent
+     * @return array<string, mixed>
+     */
+    private function taggedTableSummary(int $tableObject, array $elementsByObject, array $childrenByParent): array
+    {
+        $element = $elementsByObject[$tableObject] ?? [];
+        $rowObjects = $this->taggedTableRowObjects($tableObject, $elementsByObject, $childrenByParent);
+        $rowSummaries = [];
+        $columnCounts = [];
+        $cellObjects = [];
+        $headerCellCount = 0;
+        $diagnostics = [];
+
+        foreach ($rowObjects as $rowObject) {
+            $cells = $this->taggedTableCellObjects($rowObject, $elementsByObject, $childrenByParent);
+            if ($cells === []) {
+                $diagnostics[] = [
+                    'code' => 'tagged-table-row-without-cells',
+                    'row_object' => $rowObject,
+                ];
+            }
+
+            $headerCells = 0;
+            foreach ($cells as $cellObject) {
+                $cellObjects[] = $cellObject;
+                if (($elementsByObject[$cellObject]['role'] ?? null) === 'TH') {
+                    $headerCells++;
+                    $headerCellCount++;
+                }
+            }
+
+            $columnCounts[] = count($cells);
+            $rowSummaries[] = [
+                'row_object' => $rowObject,
+                'cell_objects' => $cells,
+                'cell_count' => count($cells),
+                'header_cell_count' => $headerCells,
+            ];
+        }
+
+        if ($rowObjects === []) {
+            $diagnostics[] = ['code' => 'tagged-table-without-rows'];
+        }
+
+        $nonEmptyColumnCounts = array_values(array_filter($columnCounts, static fn (int $count): bool => $count > 0));
+        $uniqueColumnCounts = $this->uniqueIntegers($nonEmptyColumnCounts);
+        if (count($uniqueColumnCounts) > 1) {
+            $diagnostics[] = [
+                'code' => 'tagged-table-ragged-row-cell-count',
+                'column_counts' => $uniqueColumnCounts,
+            ];
+        }
+
+        $nestedObjects = $this->taggedTableNestedTableObjects($cellObjects, $elementsByObject, $childrenByParent);
+        $parentObject = $element['parent_object'] ?? null;
+        $parentRole = is_int($parentObject) ? ($elementsByObject[$parentObject]['role'] ?? null) : null;
+        $isNested = is_int($parentObject) && in_array($parentRole, ['TH', 'TD'], true);
+        $descendantMcids = $this->taggedTableIntegerList($element['descendant_mcids'] ?? $element['mcids'] ?? []);
+        $directMcids = $this->taggedTableIntegerList($element['mcids'] ?? []);
+
+        $summary = [
+            'source' => 'tagged_table_structure',
+            'review_only' => true,
+            'visible_text_source' => false,
+            'struct_object' => $tableObject,
+            'row_count' => count($rowObjects),
+            'column_count' => $nonEmptyColumnCounts === [] ? 0 : max($nonEmptyColumnCounts),
+            'cell_count' => count($cellObjects),
+            'header_cell_count' => $headerCellCount,
+            'nested_table_count' => count($nestedObjects),
+            'has_nested_tables' => $nestedObjects !== [],
+            'child_row_objects' => $rowObjects,
+            'cell_objects' => $cellObjects,
+            'rows' => $rowSummaries,
+            'unambiguous' => $diagnostics === [] && $rowObjects !== [] && $cellObjects !== [],
+        ];
+
+        foreach (['raw_role', 'role', 'role_mapped', 'title', 'id', 'page_object', 'page', 'page_number'] as $key) {
+            if (array_key_exists($key, $element)) {
+                $summary[$key] = $element[$key];
+            }
+        }
+
+        if (is_int($parentObject)) {
+            $summary['parent_object'] = $parentObject;
+            if (is_string($parentRole)) {
+                $summary['parent_role'] = $parentRole;
+            }
+        }
+        if ($isNested) {
+            $summary['parent_cell_object'] = $parentObject;
+        }
+        if ($directMcids !== []) {
+            $summary['direct_mcids'] = $directMcids;
+        }
+        if ($descendantMcids !== []) {
+            $summary['descendant_mcids'] = $descendantMcids;
+        }
+        if ($nestedObjects !== []) {
+            $summary['nested_table_objects'] = $nestedObjects;
+        }
+        if ($diagnostics !== []) {
+            $summary['diagnostics'] = $diagnostics;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $tableSummary
+     * @param array<string, mixed> $parentCell
+     * @return array<string, mixed>
+     */
+    private function taggedTableNestedLink(array $tableSummary, array $parentCell): array
+    {
+        $link = [
+            'source' => 'tagged_table_nested_cell_child',
+            'review_only' => true,
+            'visible_text_source' => false,
+            'nested_table_object' => $tableSummary['struct_object'],
+            'parent_cell_object' => $tableSummary['parent_cell_object'],
+            'unambiguous' => $tableSummary['unambiguous'] ?? false,
+        ];
+
+        foreach (['page_object', 'page', 'page_number'] as $key) {
+            if (array_key_exists($key, $tableSummary)) {
+                $link[$key] = $tableSummary[$key];
+            }
+        }
+
+        $parentMcids = $this->taggedTableIntegerList($parentCell['descendant_mcids'] ?? $parentCell['mcids'] ?? []);
+        if ($parentMcids !== []) {
+            $link['parent_cell_descendant_mcids'] = $parentMcids;
+        }
+
+        $nestedMcids = $this->taggedTableIntegerList($tableSummary['descendant_mcids'] ?? $tableSummary['direct_mcids'] ?? []);
+        if ($nestedMcids !== []) {
+            $link['nested_table_mcids'] = $nestedMcids;
+        }
+
+        return $link;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $elementsByObject
+     * @param array<int, list<int>> $childrenByParent
+     * @return list<int>
+     */
+    private function taggedTableRowObjects(int $tableObject, array $elementsByObject, array $childrenByParent, int $depth = 0): array
+    {
+        if ($depth > 8) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($childrenByParent[$tableObject] ?? [] as $childObject) {
+            $role = $elementsByObject[$childObject]['role'] ?? null;
+            if ($role === 'TR') {
+                $rows[] = $childObject;
+                continue;
+            }
+
+            if (in_array($role, ['THead', 'TBody', 'TFoot'], true)) {
+                foreach ($this->taggedTableRowObjects($childObject, $elementsByObject, $childrenByParent, $depth + 1) as $rowObject) {
+                    $rows[] = $rowObject;
+                }
+            }
+        }
+
+        return $this->uniqueIntegers($rows);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $elementsByObject
+     * @param array<int, list<int>> $childrenByParent
+     * @return list<int>
+     */
+    private function taggedTableCellObjects(int $rowObject, array $elementsByObject, array $childrenByParent): array
+    {
+        $cells = [];
+        foreach ($childrenByParent[$rowObject] ?? [] as $childObject) {
+            $role = $elementsByObject[$childObject]['role'] ?? null;
+            if (in_array($role, ['TH', 'TD'], true)) {
+                $cells[] = $childObject;
+            }
+        }
+
+        return $cells;
+    }
+
+    /**
+     * @param list<int> $cellObjects
+     * @param array<int, array<string, mixed>> $elementsByObject
+     * @param array<int, list<int>> $childrenByParent
+     * @return list<int>
+     */
+    private function taggedTableNestedTableObjects(array $cellObjects, array $elementsByObject, array $childrenByParent): array
+    {
+        $tables = [];
+        foreach ($cellObjects as $cellObject) {
+            foreach ($this->taggedTableDescendantTableObjects($cellObject, $elementsByObject, $childrenByParent) as $tableObject) {
+                $tables[] = $tableObject;
+            }
+        }
+
+        return $this->uniqueIntegers($tables);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $elementsByObject
+     * @param array<int, list<int>> $childrenByParent
+     * @param array<int, true> $seen
+     * @return list<int>
+     */
+    private function taggedTableDescendantTableObjects(
+        int $object,
+        array $elementsByObject,
+        array $childrenByParent,
+        array $seen = []
+    ): array {
+        if (isset($seen[$object])) {
+            return [];
+        }
+
+        $seen[$object] = true;
+        $tables = [];
+        foreach ($childrenByParent[$object] ?? [] as $childObject) {
+            $role = $elementsByObject[$childObject]['role'] ?? null;
+            if ($role === 'Table') {
+                $tables[] = $childObject;
+            }
+
+            foreach ($this->taggedTableDescendantTableObjects($childObject, $elementsByObject, $childrenByParent, $seen) as $tableObject) {
+                $tables[] = $tableObject;
+            }
+        }
+
+        return $this->uniqueIntegers($tables);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function taggedTableIntegerList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $integers = [];
+        foreach ($value as $item) {
+            if (is_int($item)) {
+                $integers[] = $item;
+            }
+        }
+
+        return $this->uniqueIntegers($integers);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function structureChildObjectsFromKidValue(
+        ?string $value,
+        array $objects,
+        array $seenObjects = [],
+        int $depth = 0
+    ): array {
+        if ($value === null || $depth > 12) {
+            return [];
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return [];
+        }
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        if ($objectNumber !== null) {
+            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return [];
+            }
+
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            if ($dictionary !== null && $this->isStructureElementDictionary($dictionary, $objects)) {
+                return [$objectNumber];
+            }
+
+            return [];
+        }
+
+        if (str_starts_with($resolved, '[')) {
+            $objectsOut = [];
+            foreach ($this->arrayItemsFromValue($resolved, $objects) as $item) {
+                foreach ($this->structureChildObjectsFromKidValue($item, $objects, $seenObjects, $depth + 1) as $childObject) {
+                    $objectsOut[] = $childObject;
+                }
+            }
+
+            return $this->uniqueIntegers($objectsOut);
+        }
+
+        if (str_starts_with($resolved, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($resolved, 0);
+            if ($dictionary !== null && $this->isStructureElementDictionary($dictionary, $objects)) {
+                return $this->structureChildObjectsFromKidValue(
+                    $this->dictionaryTopLevelRawValue($dictionary, 'K'),
+                    $objects,
+                    $seenObjects,
+                    $depth + 1
+                );
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function structureDescendantMarkedContentFromKidValue(
+        ?string $value,
+        array $objects,
+        ?int $inheritedPageObject,
+        array $seenObjects = [],
+        int $depth = 0
+    ): array {
+        if ($value === null || $depth > 18) {
+            return [];
+        }
+
+        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        if ($resolved === '') {
+            return [];
+        }
+
+        $objectNumber = $this->objectNumberFromReference($value);
+        if ($objectNumber !== null) {
+            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+                return [];
+            }
+
+            $seenObjects[$objectNumber] = true;
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            if ($dictionary === null) {
+                return [];
+            }
+
+            if ($this->isStructureElementDictionary($dictionary, $objects)) {
+                return $this->structureDescendantMarkedContentFromStructDictionary(
+                    $dictionary,
+                    $objects,
+                    $inheritedPageObject,
+                    $seenObjects,
+                    $depth + 1
+                );
+            }
+
+            return $this->structureMarkedContentFromDictionary($dictionary, $objects, $inheritedPageObject);
+        }
+
+        if (preg_match('/^[+-]?\d+$/', $resolved) === 1) {
+            $mcid = (int) $resolved;
+            return $mcid >= 0 ? [[
+                'mcid' => $mcid,
+                'page_object' => $inheritedPageObject,
+            ]] : [];
+        }
+
+        if (str_starts_with($resolved, '[')) {
+            $entries = [];
+            foreach ($this->arrayItemsFromValue($resolved, $objects) as $item) {
+                foreach ($this->structureDescendantMarkedContentFromKidValue($item, $objects, $inheritedPageObject, $seenObjects, $depth + 1) as $entry) {
+                    $entries[] = $entry;
+                }
+            }
+
+            return $this->dedupeMarkedContentEntries($entries);
+        }
+
+        if (str_starts_with($resolved, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($resolved, 0);
+            if ($dictionary === null) {
+                return [];
+            }
+
+            if ($this->isStructureElementDictionary($dictionary, $objects)) {
+                return $this->structureDescendantMarkedContentFromStructDictionary(
+                    $dictionary,
+                    $objects,
+                    $inheritedPageObject,
+                    $seenObjects,
+                    $depth + 1
+                );
+            }
+
+            return $this->structureMarkedContentFromDictionary($dictionary, $objects, $inheritedPageObject);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     * @return list<array<string, mixed>>
+     */
+    private function structureDescendantMarkedContentFromStructDictionary(
+        string $dictionary,
+        array $objects,
+        ?int $inheritedPageObject,
+        array $seenObjects,
+        int $depth
+    ): array {
+        if ($depth > 18) {
+            return [];
+        }
+
+        $pageObject = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Pg') ?? '')
+            ?? $inheritedPageObject;
+        $entries = [];
+        $mcid = $this->dictionaryIntegerValue($dictionary, 'MCID', $objects);
+        if ($mcid !== null && $mcid >= 0) {
+            $entries[] = [
+                'mcid' => $mcid,
+                'page_object' => $pageObject,
+            ];
+        }
+
+        foreach ($this->structureDescendantMarkedContentFromKidValue(
+            $this->dictionaryTopLevelRawValue($dictionary, 'K'),
+            $objects,
+            $pageObject,
+            $seenObjects,
+            $depth + 1
+        ) as $entry) {
+            $entries[] = $entry;
+        }
+
+        return $this->dedupeMarkedContentEntries($entries);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function isStructureElementDictionary(string $dictionary, array $objects): bool
+    {
+        $type = $this->dictionaryNameValue($dictionary, 'Type', $objects);
+        $rawRole = $this->dictionaryNameValue($dictionary, 'S', $objects);
+        if ($type === 'StructElem') {
+            return true;
+        }
+        if ($type !== null || $rawRole === null) {
+            return false;
+        }
+
+        return !$this->isActionLikeStructureRoleDictionary($dictionary, $rawRole);
     }
 
     /**
@@ -8643,6 +9235,7 @@ final class PdfMetadataExtractor
             $structureContext['role_map'],
             $structureContext['class_map'],
             $pageIndexes,
+            null,
             $elements
         );
         if ($elements === []) {

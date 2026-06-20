@@ -55,6 +55,7 @@ final class PdfPagePropertyExtractor
         $pageBoundaryByObject = $this->pageBoundaryMetadataByPageObject($pdfBytes, $catalog, $objects);
         $articleBeadsByObject = $this->articleThreadBeadsByPageObject($pdfBytes);
         $structureMarkedContentByObject = $this->structureMarkedContentByPageObject($pdfBytes);
+        $structureTaggedTablesByObject = $this->structureTaggedTablesByPageObject($pdfBytes);
         $textMarkupAnnotationsByObject = $this->textMarkupAnnotationsByPageObject($pdfBytes);
         $annotationStructureRowsByObject = $this->annotationStructureRowsByPageObject($pdfBytes);
 
@@ -81,6 +82,7 @@ final class PdfPagePropertyExtractor
                 $structureMarkedContent,
                 $associatedFiles
             );
+            $structureTaggedTables = $structureTaggedTablesByObject[$pageObjectNumber] ?? [];
             $articleBeads = $this->articleBeadsWithStructureContext($articleBeads, $structureMarkedContent);
             $textMarkupAnnotations = $textMarkupAnnotationsByObject[$pageObjectNumber] ?? [];
             $annotationStructureRows = $this->annotationStructureRowsWithPageContext(
@@ -95,6 +97,7 @@ final class PdfPagePropertyExtractor
                 && $userProperties === []
                 && $articleBeads === []
                 && $structureMarkedContent === []
+                && $structureTaggedTables === []
                 && $textMarkupAnnotations === []
                 && $annotationStructureRows === []
                 && $structParents === null
@@ -152,6 +155,15 @@ final class PdfPagePropertyExtractor
 
             if ($structureMarkedContent !== []) {
                 $page['structure_marked_content'] = $structureMarkedContent;
+            }
+
+            if ($structureTaggedTables !== []) {
+                $page['structure_tagged_tables'] = $structureTaggedTables;
+                $page['structure_tagged_table_count'] = count($structureTaggedTables);
+                $page['structure_nested_tagged_table_count'] = count(array_filter(
+                    $structureTaggedTables,
+                    static fn (array $row): bool => isset($row['parent_cell_object'])
+                ));
             }
 
             if ($textMarkupAnnotations !== []) {
@@ -662,6 +674,77 @@ final class PdfPagePropertyExtractor
     private function compactReviewRow(array $row): array
     {
         return array_filter($row, static fn (mixed $value): bool => $value !== null && $value !== []);
+    }
+
+    /**
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function structureTaggedTablesByPageObject(string $pdfBytes): array
+    {
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
+        $structureTree = $metadata['structure_tree'] ?? [];
+        if (!is_array($structureTree)) {
+            return [];
+        }
+
+        $taggedTables = $structureTree['tagged_tables'] ?? [];
+        $tables = is_array($taggedTables) ? ($taggedTables['tables'] ?? []) : [];
+        if (!is_array($tables)) {
+            return [];
+        }
+
+        $rowsByPage = [];
+        foreach ($tables as $table) {
+            if (!is_array($table)) {
+                continue;
+            }
+
+            $pageObject = $table['page_object'] ?? null;
+            if (!is_int($pageObject)) {
+                continue;
+            }
+
+            $row = [
+                'source' => 'catalog_struct_tree_tagged_table',
+                'review_only' => true,
+                'visible_text_source' => false,
+            ];
+
+            foreach ([
+                'struct_object',
+                'raw_role',
+                'role',
+                'role_mapped',
+                'page',
+                'page_number',
+                'page_object',
+                'parent_object',
+                'parent_role',
+                'parent_cell_object',
+                'row_count',
+                'column_count',
+                'cell_count',
+                'header_cell_count',
+                'nested_table_count',
+                'has_nested_tables',
+                'child_row_objects',
+                'cell_objects',
+                'rows',
+                'nested_table_objects',
+                'direct_mcids',
+                'descendant_mcids',
+                'unambiguous',
+                'diagnostics',
+            ] as $key) {
+                if (array_key_exists($key, $table)) {
+                    $row[$key] = $table[$key];
+                }
+            }
+
+            $rowsByPage[$pageObject][] = $this->compactReviewRow($row);
+        }
+
+        return $rowsByPage;
     }
 
     /**
