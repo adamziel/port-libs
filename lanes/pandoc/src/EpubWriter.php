@@ -242,10 +242,8 @@ final class EpubWriter
     private function navXhtml(AstNode $document, array $metadata): string
     {
         $entries = $this->navEntries($document, $metadata['title']);
-        $items = [];
-        foreach ($entries as $entry) {
-            $items[] = '        <li><a href="' . $this->esc($entry['href']) . '">' . $this->esc($entry['label']) . '</a></li>';
-        }
+        $entryIndex = 0;
+        $list = $this->renderNavList($entries, $entryIndex, 0, 4);
 
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<!DOCTYPE html>' . "\n"
@@ -256,16 +254,14 @@ final class EpubWriter
             . '<body>' . "\n"
             . '  <nav epub:type="toc" id="toc">' . "\n"
             . '    <h1>Contents</h1>' . "\n"
-            . '    <ol>' . "\n"
-            . implode("\n", $items) . "\n"
-            . '    </ol>' . "\n"
+            . $list . "\n"
             . '  </nav>' . "\n"
             . '</body>' . "\n"
             . '</html>' . "\n";
     }
 
     /**
-     * @return list<array{label:string, href:string}>
+     * @return list<array{label:string, href:string, level:int}>
      */
     private function navEntries(AstNode $document, string $title): array
     {
@@ -282,10 +278,37 @@ final class EpubWriter
             $entries[] = [
                 'label' => $label,
                 'href' => 'text/chapter.xhtml' . ($id === '' ? '' : '#' . $id),
+                'level' => max(1, min(6, (int) $child->attr('level', 1))),
             ];
         }
 
-        return $entries === [] ? [['label' => $title, 'href' => 'text/chapter.xhtml']] : $entries;
+        return $entries === [] ? [['label' => $title, 'href' => 'text/chapter.xhtml', 'level' => 1]] : $entries;
+    }
+
+    /**
+     * @param list<array{label:string, href:string, level:int}> $entries
+     */
+    private function renderNavList(array $entries, int &$index, int $parentLevel, int $indent): string
+    {
+        $lines = [str_repeat(' ', $indent) . '<ol>'];
+        $count = count($entries);
+        while ($index < $count) {
+            $entry = $entries[$index];
+            if ($entry['level'] <= $parentLevel) {
+                break;
+            }
+
+            $index++;
+            $lines[] = str_repeat(' ', $indent + 2)
+                . '<li><a href="' . $this->esc($entry['href']) . '">' . $this->esc($entry['label']) . '</a>';
+            if ($index < $count && $entries[$index]['level'] > $entry['level']) {
+                $lines[] = $this->renderNavList($entries, $index, $entry['level'], $indent + 4);
+            }
+            $lines[] = str_repeat(' ', $indent + 2) . '</li>';
+        }
+        $lines[] = str_repeat(' ', $indent) . '</ol>';
+
+        return implode("\n", $lines);
     }
 
     private function stylesheet(): string

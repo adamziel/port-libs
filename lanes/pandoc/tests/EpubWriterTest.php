@@ -166,4 +166,32 @@ return [
         $t->true(in_array('EPUB/text/media/images/cover.png', $roundTripMeta['epubImageResources'], true));
         $t->true(in_array('EPUB/text/media/images/cover.png', $roundTripMeta['epubReferencedResources'], true));
     },
+    'writes nested epub nav entries from heading levels' => static function (TestRunner $t) use ($text): void {
+        $document = new AstNode('document', [
+            'meta' => ['title' => 'Nested Nav EPUB', 'author' => 'Port Libs', 'lang' => 'en'],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'intro'], [$text('Introduction')]),
+            new AstNode('paragraph', [], [$text('Intro body.')]),
+            new AstNode('heading', ['level' => 2, 'id' => 'install'], [$text('Install')]),
+            new AstNode('heading', ['level' => 3, 'id' => 'details'], [$text('Details')]),
+            new AstNode('heading', ['level' => 1, 'id' => 'appendix'], [$text('Appendix')]),
+        ]);
+
+        $bytes = (new EpubWriter(['modified' => '2026-06-21T08:33:00Z']))->write($document);
+        $zip = ZipPackage::fromString($bytes);
+        $epub = EpubPackage::fromString($bytes);
+        $navigation = $epub->navigation();
+        $navXml = $zip->read('EPUB/nav.xhtml');
+
+        $t->contains('<li><a href="text/chapter.xhtml#intro">Introduction</a>', $navXml);
+        $t->contains('<li><a href="text/chapter.xhtml#install">Install</a>', $navXml);
+        $t->contains('<li><a href="text/chapter.xhtml#details">Details</a>', $navXml);
+        $t->same(['Introduction', 'Install', 'Details', 'Appendix'], array_column($navigation['entries'], 'label'));
+        $t->same([1, 2, 3, 1], array_column($navigation['entries'], 'depth'));
+
+        $roundTrip = PandocConverter::read($bytes, 'epub');
+        $tocEntries = $roundTrip->attr('meta')['epubTocEntries'];
+        $t->same(['Introduction', 'Install', 'Details', 'Appendix'], array_column($tocEntries, 'text'));
+        $t->same([1, 2, 3, 1], array_column($tocEntries, 'level'));
+    },
 ];
