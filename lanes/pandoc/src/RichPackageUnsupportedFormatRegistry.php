@@ -185,12 +185,12 @@ final class RichPackageUnsupportedFormatRegistry
             'directions' => [
                 'input' => [
                     'upstream' => true,
-                    'state' => 'unsupported-rich-package-input',
-                    'code' => 'pandoc.rich-package.input.unsupported-format',
-                    'countsAsDirectSupport' => false,
-                    'component' => null,
+                    'state' => 'bounded-native-rich-package-input',
+                    'code' => 'pandoc.rich-package.input.bounded-native',
+                    'countsAsDirectSupport' => true,
+                    'component' => 'XlsxReader',
                     'gates' => ['shared-zip-package-core', 'opc-xml-relationships-core', 'xlsx-openxml-core'],
-                    'diagnostics' => ['reader-component-missing', 'external-office-conversion-disallowed'],
+                    'diagnostics' => [],
                 ],
             ],
         ],
@@ -286,9 +286,9 @@ final class RichPackageUnsupportedFormatRegistry
         ],
         'xlsx' => [
             'format' => 'xlsx',
-            'component' => null,
+            'component' => 'XlsxReader',
             'gates' => ['shared-zip-package-core', 'opc-xml-relationships-core', 'xlsx-openxml-core'],
-            'diagnostics' => ['reader-component-missing', 'external-office-conversion-disallowed'],
+            'diagnostics' => [],
         ],
         'zip' => [
             'format' => 'zip',

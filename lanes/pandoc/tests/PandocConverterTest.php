@@ -96,6 +96,7 @@ return [
         $t->true(PandocConverter::canRead('xml'));
         $t->true(PandocConverter::canRead('jats'));
         $t->true(PandocConverter::canRead('bits'));
+        $t->true(PandocConverter::canRead('xlsx'));
         $t->true(PandocConverter::canWrite('blocks'));
         $t->true(PandocConverter::canWrite('native'));
         $t->true(PandocConverter::canWrite('opml'));

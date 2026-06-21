@@ -28,11 +28,11 @@ return [
         $t->same(11, $report['denominators']['upstreamRichPackageOutputs']);
         $t->same(9, $report['denominators']['sourceAliasExtensions']);
         $t->same(9, $report['denominators']['richPackageExtensions']);
-        $t->same(['supported' => 4, 'unsupported' => 2, 'total' => 6], $report['directSupport']['input']);
+        $t->same(['supported' => 5, 'unsupported' => 1, 'total' => 6], $report['directSupport']['input']);
         $t->same(['supported' => 0, 'unsupported' => 11, 'total' => 11], $report['directSupport']['output']);
-        $t->same(2, count($report['unsupportedDiagnostics']['input']));
+        $t->same(1, count($report['unsupportedDiagnostics']['input']));
         $t->same(11, count($report['unsupportedDiagnostics']['output']));
-        $t->same(9, count($report['extensionDiagnostics']));
+        $t->same(8, count($report['extensionDiagnostics']));
     },
 
     'keeps bounded native rich package readers distinct from unsupported writers' => static function (TestRunner $t): void {
@@ -41,6 +41,7 @@ return [
         $odtInput = RichPackageUnsupportedFormatRegistry::formatStatus('odt', 'input');
         $epubInput = RichPackageUnsupportedFormatRegistry::formatStatus('epub', 'input');
         $ipynbInput = RichPackageUnsupportedFormatRegistry::formatStatus('ipynb', 'input');
+        $xlsxInput = RichPackageUnsupportedFormatRegistry::formatStatus('xlsx', 'input');
 
         $t->same('bounded-native-rich-package-input', $docxInput['state']);
         $t->same('pandoc.rich-package.input.bounded-native', $docxInput['code']);
@@ -63,6 +64,12 @@ return [
         $t->same('IpynbReader', $ipynbInput['component']);
         $t->same(['ipynb-reader-core'], $ipynbInput['gates']);
         $t->same(true, $ipynbInput['countsAsDirectSupport']);
+        $t->same('bounded-native-rich-package-input', $xlsxInput['state']);
+        $t->same('pandoc.rich-package.input.bounded-native', $xlsxInput['code']);
+        $t->same(true, $xlsxInput['countsAsDirectSupport']);
+        $t->same('XlsxReader', $xlsxInput['component']);
+        $t->same(['shared-zip-package-core', 'opc-xml-relationships-core', 'xlsx-openxml-core'], $xlsxInput['gates']);
+        $t->same([], $xlsxInput['diagnostics']);
     },
 
     'reports unsupported package inputs and outputs without external conversion claims' => static function (TestRunner $t): void {
@@ -90,9 +97,10 @@ return [
         $t->contains('reader-component-missing', implode(',', $pptxInput['diagnostics']));
         $t->contains('external-office-conversion-disallowed', implode(',', $pptxInput['diagnostics']));
 
-        $t->same('unsupported-rich-package-input', $xlsxInput['state']);
+        $t->same('bounded-native-rich-package-input', $xlsxInput['state']);
         $t->same(['shared-zip-package-core', 'opc-xml-relationships-core', 'xlsx-openxml-core'], $xlsxInput['gates']);
-        $t->same(['pptx', 'xlsx'], $unsupportedInputFormats);
+        $t->same([], $xlsxInput['diagnostics']);
+        $t->same(['pptx'], $unsupportedInputFormats);
 
         $t->same('unsupported-rich-package-output', $ipynbOutput['state']);
         $t->same(['ipynb-notebook-writer-core'], $ipynbOutput['gates']);
@@ -148,10 +156,12 @@ return [
 
         $t->same('unsupported-rich-package-source-alias', $odsAlias['state']);
         $t->same(['shared-zip-package-core', 'odf-spreadsheet-reader-core'], $odsAlias['gates']);
+        $t->same('direct-rich-package-input', RichPackageUnsupportedFormatRegistry::sourceAliasStatus('xlsx')['state']);
+        $t->same('XlsxReader', RichPackageUnsupportedFormatRegistry::sourceAliasStatus('xlsx')['component']);
         $t->same('unsupported-rich-package-source-alias', $zipAlias['state']);
         $t->same(['shared-zip-package-core'], $zipAlias['gates']);
         $t->contains('container-preflight-only', implode(',', $zipAlias['diagnostics']));
-        $t->same(['doc', 'ods', 'odp', 'pptx', 'xlsx', 'zip'], $diagnosticExtensions);
+        $t->same(['doc', 'ods', 'odp', 'pptx', 'zip'], $diagnosticExtensions);
     },
 
     'reports rich package extension diagnostics without converter claims' => static function (TestRunner $t): void {
@@ -172,6 +182,7 @@ return [
         $pdf = RichPackageUnsupportedFormatRegistry::extensionStatus('pdf');
         $fodt = RichPackageUnsupportedFormatRegistry::extensionStatus('.fodt');
         $pptx = RichPackageUnsupportedFormatRegistry::extensionStatus('pptx');
+        $xlsx = RichPackageUnsupportedFormatRegistry::extensionStatus('xlsx');
         $diagnosticExtensions = array_column(
             RichPackageUnsupportedFormatRegistry::extensionDiagnostics(),
             'extension'
@@ -208,6 +219,11 @@ return [
         $t->same(['input', 'output'], $pptx['unsupportedDirections']);
         $t->same(['pptx'], $pptx['unsupportedInputFormats']);
         $t->same(['pptx'], $pptx['unsupportedOutputFormats']);
+        $t->same(['xlsx'], $xlsx['inputFormats']);
+        $t->same(['xlsx'], $xlsx['directInputFormats']);
+        $t->same([], $xlsx['unsupportedInputFormats']);
+        $t->same([], $xlsx['unsupportedOutputFormats']);
+        $t->same([], $xlsx['unsupportedDirections']);
         $t->same([
             '.docx',
             '.epub',
@@ -217,7 +233,6 @@ return [
             '.odt',
             '.pdf',
             '.pptx',
-            '.xlsx',
         ], $diagnosticExtensions);
     },
 ];

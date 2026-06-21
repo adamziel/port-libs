@@ -26,6 +26,7 @@ use PortLibs\Pandoc\PdfReader;
 use PortLibs\Pandoc\PlainWriter;
 use PortLibs\Pandoc\RtfReader;
 use PortLibs\Pandoc\XmlReader;
+use PortLibs\Pandoc\XlsxReader;
 
 return [
     'tracks the current upstream pandoc input format denominator' => static function (TestRunner $t): void {
@@ -166,7 +167,9 @@ return [
         $t->same(OpmlReader::class, $support['opml']['implementation']);
         $t->same('partial', $support['rtf']['status']);
         $t->same(RtfReader::class, $support['rtf']['implementation']);
-        $t->same(22, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same('partial', $support['xlsx']['status']);
+        $t->same(XlsxReader::class, $support['xlsx']['implementation']);
+        $t->same(21, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();

@@ -1386,10 +1386,7 @@ return [
         $t->same('bounded-native-rich-package-input', $inputStatus['state']);
         $t->same('IpynbReader', $inputStatus['component']);
         $t->same(true, $inputStatus['countsAsDirectSupport']);
-        $t->same([
-            'pptx',
-            'xlsx',
-        ], $unsupportedRichInputs);
+        $t->same(['pptx'], $unsupportedRichInputs);
 
         $t->same('unsupported', $outputSupport['ipynb']['status']);
         $t->same('', $outputSupport['ipynb']['implementation']);

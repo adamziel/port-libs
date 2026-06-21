@@ -315,6 +315,11 @@ final class PandocFormatRegistry
             'implementation' => XmlReader::class,
             'notes' => 'Bounded XML-family reader safely parses XML, records namespace/root provenance, and maps title/paragraph/list/link/table structures into the shared AST. Full Pandoc XML reader parity remains open.',
         ],
+        'xlsx' => [
+            'status' => 'partial',
+            'implementation' => XlsxReader::class,
+            'notes' => 'Bounded XLSX OpenXML package reader maps workbook sheets, shared strings, direct font bold/italic style indexes, dense sheet grids, first-row table headers, numeric cells, empty cells, and trailing empty-row trimming into the shared AST with pinned upstream xlsx-reader/basic fixture parity.',
+        ],
     ];
 
     /**
