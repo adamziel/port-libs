@@ -183,6 +183,7 @@ final class PandocConverter
             EpubReader::class => new EpubReader($options),
             HtmlReader::class => new HtmlReader($options),
             IpynbReader::class => new IpynbReader(),
+            JiraReader::class => new JiraReader(),
             LegacyDocReader::class => new LegacyDocReader(),
             MarkdownReader::class => new MarkdownReader(self::markdownReaderOptions($format, $options)),
             JsonReader::class => new JsonReader(),

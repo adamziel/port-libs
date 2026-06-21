@@ -1,0 +1,758 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Pandoc;
+
+final class JiraReader
+{
+    /** @var list<string> */
+    private array $lines = [];
+
+    private int $index = 0;
+
+    public function read(string $text): AstNode
+    {
+        $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+        $this->lines = explode("\n", $normalized);
+        $this->index = 0;
+
+        return new AstNode('document', [
+            'sourceFormat' => 'jira',
+            'jira' => [
+                'reader' => self::class,
+                'readerScope' => 'pinned-pandoc-jira-reader-unit-semantics',
+                'sourceBytes' => strlen($text),
+                'upstreamEvidence' => [
+                    'source' => 'Pandoc 912bfa5e Text.Pandoc.Readers.Jira and test/Tests/Readers/Jira.hs',
+                    'readerUnitGroups' => [
+                        'para',
+                        'header',
+                        'list',
+                        'block quote',
+                        'table',
+                        'panel',
+                        'inlines',
+                    ],
+                    'fixtureStatus' => 'jira-reader.jira/native remains a larger partial-parity fixture',
+                ],
+            ],
+        ], $this->parseBlocks());
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseBlocks(?string $terminator = null): array
+    {
+        $blocks = [];
+        $count = count($this->lines);
+        while ($this->index < $count) {
+            $line = rtrim($this->lines[$this->index], "\n");
+            $trimmed = trim($line);
+            if ($terminator !== null && $trimmed === $terminator) {
+                $this->index++;
+                break;
+            }
+            if ($trimmed === '') {
+                $this->index++;
+                continue;
+            }
+
+            if ($this->isCodeStart($trimmed)) {
+                $blocks[] = $this->parseCodeBlock($trimmed);
+                continue;
+            }
+            if ($trimmed === '{quote}') {
+                $this->index++;
+                $blocks[] = new AstNode('blockquote', [], $this->parseBlocks('{quote}'));
+                continue;
+            }
+            if ($this->isPanelStart($trimmed)) {
+                $blocks[] = $this->parsePanel($trimmed);
+                continue;
+            }
+            if ($this->isColorBlockStart($trimmed)) {
+                $blocks[] = $this->parseColorBlock($trimmed);
+                continue;
+            }
+            if (preg_match('/^bq\\.\\s*(.*)$/u', $trimmed, $match) === 1) {
+                $this->index++;
+                $blocks[] = new AstNode('blockquote', [], [$this->paragraphFromText($match[1])]);
+                continue;
+            }
+            if (preg_match('/^h([1-6])\\.\\s*(.*)$/u', $trimmed, $match) === 1) {
+                $this->index++;
+                $blocks[] = new AstNode('heading', ['level' => (int) $match[1]], $this->parseInlines($match[2]));
+                continue;
+            }
+            if ($trimmed === '----') {
+                $this->index++;
+                $blocks[] = new AstNode('horizontal_rule');
+                continue;
+            }
+            if (str_starts_with($trimmed, '|')) {
+                $blocks[] = $this->parseTable();
+                continue;
+            }
+            if ($this->isListLine($trimmed)) {
+                $blocks[] = $this->parseListBlock();
+                continue;
+            }
+
+            $blocks[] = $this->parseParagraph();
+        }
+
+        return $blocks;
+    }
+
+    private function parseParagraph(): AstNode
+    {
+        $parts = [];
+        $count = count($this->lines);
+        while ($this->index < $count) {
+            $line = rtrim($this->lines[$this->index], "\n");
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                break;
+            }
+            if ($parts !== [] && $this->isBlockStart($trimmed)) {
+                break;
+            }
+            $parts[] = $trimmed;
+            $this->index++;
+        }
+
+        return $this->paragraphFromText(implode("\n", $parts));
+    }
+
+    private function isBlockStart(string $trimmed): bool
+    {
+        return $this->isCodeStart($trimmed)
+            || $trimmed === '{quote}'
+            || $this->isPanelStart($trimmed)
+            || $this->isColorBlockStart($trimmed)
+            || preg_match('/^bq\\.\\s*/u', $trimmed) === 1
+            || preg_match('/^h[1-6]\\.\\s*/u', $trimmed) === 1
+            || $trimmed === '----'
+            || str_starts_with($trimmed, '|')
+            || $this->isListLine($trimmed);
+    }
+
+    private function isCodeStart(string $trimmed): bool
+    {
+        return preg_match('/^\\{code(?::[^}]*)?\\}$/u', $trimmed) === 1
+            || preg_match('/^\\{noformat(?:[:}].*)?\\}$/u', $trimmed) === 1;
+    }
+
+    private function parseCodeBlock(string $trimmed): AstNode
+    {
+        $language = '';
+        $end = '{code}';
+        if (preg_match('/^\\{code:([^}]*)\\}$/u', $trimmed, $match) === 1) {
+            $language = trim($match[1]);
+        } elseif (str_starts_with($trimmed, '{noformat')) {
+            $end = '{noformat}';
+        }
+        $this->index++;
+
+        $body = [];
+        while ($this->index < count($this->lines)) {
+            $line = rtrim($this->lines[$this->index], "\n");
+            if (trim($line) === $end) {
+                $this->index++;
+                break;
+            }
+            $body[] = $line;
+            $this->index++;
+        }
+
+        return new AstNode('code_block', [
+            'text' => implode("\n", $body),
+            'classes' => $language === '' ? [] : [$language],
+        ]);
+    }
+
+    private function isPanelStart(string $trimmed): bool
+    {
+        return preg_match('/^\\{panel(?:[:}].*)?\\}$/u', $trimmed) === 1;
+    }
+
+    private function parsePanel(string $trimmed): AstNode
+    {
+        $params = $this->parametersInside($trimmed, 'panel');
+        $this->index++;
+        $children = $this->parseBlocks('{panel}');
+        $attributes = $params;
+        $panelChildren = $children;
+        if (isset($attributes['title'])) {
+            $title = $attributes['title'];
+            unset($attributes['title']);
+            array_unshift($panelChildren, new AstNode('div', ['classes' => ['panelheader']], [
+                new AstNode('plain', [], [new AstNode('strong', [], $this->textInlines($title))]),
+            ]));
+        }
+
+        return new AstNode('div', [
+            'classes' => ['panel'],
+            'attributes' => $attributes,
+        ], $panelChildren);
+    }
+
+    private function isColorBlockStart(string $trimmed): bool
+    {
+        return preg_match('/^\\{color:([^}]*)\\}$/u', $trimmed) === 1;
+    }
+
+    private function parseColorBlock(string $trimmed): AstNode
+    {
+        preg_match('/^\\{color:([^}]*)\\}$/u', $trimmed, $match);
+        $color = trim($match[1] ?? '');
+        $this->index++;
+
+        return new AstNode('div', [
+            'attributes' => ['color' => $color],
+        ], $this->parseBlocks('{color}'));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function parametersInside(string $trimmed, string $name): array
+    {
+        if (preg_match('/^\\{' . preg_quote($name, '/') . ':([^}]*)\\}$/u', $trimmed, $match) !== 1) {
+            return [];
+        }
+
+        $params = [];
+        foreach (explode('|', $match[1]) as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                continue;
+            }
+            [$key, $value] = array_pad(explode('=', $part, 2), 2, '');
+            $params[trim($key)] = trim($value);
+        }
+
+        return $params;
+    }
+
+    private function isListLine(string $trimmed): bool
+    {
+        return preg_match('/^(?:[*#]+|-)(?:\\s+|$)/u', $trimmed) === 1;
+    }
+
+    private function parseListBlock(): AstNode
+    {
+        $entries = [];
+        while ($this->index < count($this->lines)) {
+            $line = trim($this->lines[$this->index]);
+            if (preg_match('/^([*#]+|-)\\s*(.*)$/u', $line, $match) !== 1) {
+                break;
+            }
+            $marker = $match[1] === '-' ? '*' : $match[1];
+            $text = rtrim($match[2]);
+            $this->index++;
+            while ($this->index < count($this->lines)) {
+                $continuation = trim($this->lines[$this->index]);
+                if ($continuation === '' || $this->isBlockStart($continuation)) {
+                    break;
+                }
+                $text .= "\n" . $continuation;
+                $this->index++;
+            }
+            $entries[] = ['marker' => $marker, 'text' => $text];
+        }
+
+        $cursor = 0;
+        $firstMarker = $entries[0]['marker'] ?? '*';
+
+        return $this->buildListAt($entries, $cursor, 1, $firstMarker[0] ?? '*');
+    }
+
+    /**
+     * @param list<array{marker:string, text:string}> $entries
+     */
+    private function buildListAt(array $entries, int &$cursor, int $level, string $style): AstNode
+    {
+        $items = [];
+        while ($cursor < count($entries)) {
+            $entry = $entries[$cursor];
+            $marker = $entry['marker'];
+            $depth = strlen($marker);
+            if ($depth < $level) {
+                break;
+            }
+            if ($depth > $level) {
+                if ($items === []) {
+                    $cursor++;
+                    continue;
+                }
+                $nestedStyle = $marker[$level] ?? $marker[$depth - 1];
+                $last = array_pop($items);
+                $items[] = new AstNode('list_item', [], array_merge(
+                    $last->children,
+                    [$this->buildListAt($entries, $cursor, $level + 1, $nestedStyle)]
+                ));
+                continue;
+            }
+            if (($marker[$level - 1] ?? '*') !== $style) {
+                break;
+            }
+
+            $items[] = new AstNode('list_item', [], [$this->paragraphFromText($entry['text'])]);
+            $cursor++;
+        }
+
+        return new AstNode($style === '#' ? 'ordered_list' : 'bullet_list', [
+            'start' => 1,
+            'style' => 'default',
+            'delimiter' => 'default',
+        ], $items);
+    }
+
+    private function parseTable(): AstNode
+    {
+        $rows = [];
+        while ($this->index < count($this->lines)) {
+            $line = trim($this->lines[$this->index]);
+            if (!str_starts_with($line, '|')) {
+                break;
+            }
+            $rows[] = $this->parseTableRow($line);
+            $this->index++;
+        }
+
+        $header = [];
+        if ($rows !== [] && $this->rowIsAllHeader($rows[0])) {
+            $header = array_shift($rows);
+        }
+        $columnCount = max(count($header), ...array_map('count', $rows ?: [[]]));
+
+        return new AstNode('table', [
+            'caption' => '',
+            'alignments' => array_fill(0, $columnCount, 'default'),
+        ], [
+            new AstNode('table_head', [], $header === [] ? [] : [$this->tableRow($header, true)]),
+            new AstNode('table_body', [], array_map(fn (array $row): AstNode => $this->tableRow($row, false), $rows)),
+        ]);
+    }
+
+    /**
+     * @return list<array{header:bool, text:string}>
+     */
+    private function parseTableRow(string $line): array
+    {
+        $cells = [];
+        $offset = 0;
+        $length = strlen($line);
+        while ($offset < $length && $line[$offset] === '|') {
+            $header = substr($line, $offset, 2) === '||';
+            $offset += $header ? 2 : 1;
+            $nextDouble = strpos($line, '||', $offset);
+            $nextSingle = strpos($line, '|', $offset);
+            if ($nextSingle === false) {
+                $next = $length;
+            } elseif ($nextDouble !== false && $nextDouble === $nextSingle) {
+                $next = $nextDouble;
+            } else {
+                $next = $nextSingle;
+            }
+            $text = trim(substr($line, $offset, $next - $offset));
+            if ($text !== '' || $next < $length) {
+                $cells[] = ['header' => $header, 'text' => $text];
+            }
+            $offset = $next;
+            if ($offset >= $length) {
+                break;
+            }
+        }
+
+        return array_values(array_filter(
+            $cells,
+            static fn (array $cell): bool => $cell['text'] !== ''
+        ));
+    }
+
+    /**
+     * @param list<array{header:bool, text:string}> $row
+     */
+    private function rowIsAllHeader(array $row): bool
+    {
+        return $row !== [] && count(array_filter($row, static fn (array $cell): bool => !$cell['header'])) === 0;
+    }
+
+    /**
+     * @param list<array{header:bool, text:string}> $row
+     */
+    private function tableRow(array $row, bool $header): AstNode
+    {
+        return new AstNode('table_row', ['header' => $header], array_map(
+            fn (array $cell): AstNode => new AstNode('table_cell', ['header' => $header, 'text' => $cell['text']], [
+                $this->paragraphFromText($cell['text']),
+            ]),
+            $row
+        ));
+    }
+
+    private function paragraphFromText(string $text): AstNode
+    {
+        $parts = explode("\n", $text);
+        $children = [];
+        foreach ($parts as $index => $part) {
+            if ($index > 0) {
+                $children[] = new AstNode('linebreak');
+            }
+            array_push($children, ...$this->parseInlines($part));
+        }
+
+        return new AstNode('paragraph', ['text' => str_replace("\n", ' ', $text)], $children);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseInlines(string $text): array
+    {
+        $nodes = [];
+        $buffer = '';
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $tail = substr($text, $offset);
+
+            if (str_starts_with($tail, '{anchor:') && preg_match('/^\\{anchor:([^}]*)\\}/u', $tail, $match) === 1) {
+                $this->flushText($nodes, $buffer);
+                $nodes[] = new AstNode('span', ['id' => $match[1]], []);
+                $offset += strlen($match[0]) - 1;
+                continue;
+            }
+
+            if (str_starts_with($tail, '{color:') && preg_match('/^\\{color:([^}]*)\\}/u', $tail, $match) === 1) {
+                $end = strpos($text, '{color}', $offset + strlen($match[0]));
+                if ($end !== false) {
+                    $this->flushText($nodes, $buffer);
+                    $innerStart = $offset + strlen($match[0]);
+                    $nodes[] = new AstNode('span', [
+                        'attributes' => ['color' => $match[1]],
+                    ], $this->parseInlines(substr($text, $innerStart, $end - $innerStart)));
+                    $offset = $end + strlen('{color}') - 1;
+                    continue;
+                }
+            }
+
+            if (str_starts_with($tail, '{{')) {
+                $end = strpos($text, '}}', $offset + 2);
+                if ($end !== false) {
+                    $this->flushText($nodes, $buffer);
+                    $inner = $this->decodeEntities(substr($text, $offset + 2, $end - $offset - 2));
+                    $nodes[] = new AstNode('code', ['text' => $this->stringifyInlines($this->parseInlines($inner))]);
+                    $offset = $end + 1;
+                    continue;
+                }
+            }
+
+            if ($text[$offset] === '[') {
+                $end = strpos($text, ']', $offset + 1);
+                if ($end !== false) {
+                    $link = $this->parseLink(substr($text, $offset + 1, $end - $offset - 1));
+                    if ($link instanceof AstNode) {
+                        $this->flushText($nodes, $buffer);
+                        $nodes[] = $link;
+                        $offset = $end;
+                        continue;
+                    }
+                }
+            }
+
+            if ($text[$offset] === '!') {
+                $end = strpos($text, '!', $offset + 1);
+                if ($end !== false) {
+                    $image = $this->parseImage(substr($text, $offset + 1, $end - $offset - 1));
+                    if ($image instanceof AstNode) {
+                        $this->flushText($nodes, $buffer);
+                        $nodes[] = $image;
+                        $offset = $end;
+                        continue;
+                    }
+                }
+            }
+
+            if (str_starts_with($tail, '??')) {
+                $end = strpos($text, '??', $offset + 2);
+                if ($end !== false) {
+                    $this->flushText($nodes, $buffer);
+                    $nodes[] = new AstNode('text', ['text' => "\u{2014}"]);
+                    $nodes[] = new AstNode('text', ['text' => ' ']);
+                    $nodes[] = new AstNode('emph', [], $this->parseInlines(substr($text, $offset + 2, $end - $offset - 2)));
+                    $offset = $end + 1;
+                    continue;
+                }
+            }
+
+            $braceStyle = $this->parseBraceStyle($text, $offset);
+            if ($braceStyle instanceof AstNode) {
+                $this->flushText($nodes, $buffer);
+                $nodes[] = $braceStyle;
+                $offset = (int) $braceStyle->attr('_endOffset');
+                $nodes[count($nodes) - 1] = new AstNode($braceStyle->type, $this->withoutPrivateAttrs($braceStyle->attrs), $braceStyle->children);
+                continue;
+            }
+
+            $styled = $this->parseDelimitedStyle($text, $offset);
+            if ($styled instanceof AstNode) {
+                $this->flushText($nodes, $buffer);
+                $nodes[] = $styled;
+                $offset = (int) $styled->attr('_endOffset');
+                $nodes[count($nodes) - 1] = new AstNode($styled->type, $this->withoutPrivateAttrs($styled->attrs), $styled->children);
+                continue;
+            }
+
+            if ($text[$offset] === '&' && preg_match('/^&([A-Za-z][A-Za-z0-9]+|#[0-9]+|#x[0-9A-Fa-f]+);/u', $tail, $match) === 1) {
+                $buffer .= $this->decodeEntities($match[0]);
+                $offset += strlen($match[0]) - 1;
+                continue;
+            }
+
+            $buffer .= $text[$offset];
+        }
+        $this->flushText($nodes, $buffer);
+
+        return $nodes;
+    }
+
+    private function parseBraceStyle(string $text, int $offset): ?AstNode
+    {
+        foreach ([
+            '{^}' => 'superscript',
+            '{~}' => 'subscript',
+        ] as $marker => $type) {
+            if (!str_starts_with(substr($text, $offset), $marker)) {
+                continue;
+            }
+            $end = strpos($text, $marker, $offset + strlen($marker));
+            if ($end === false) {
+                continue;
+            }
+
+            return new AstNode($type, ['_endOffset' => $end + strlen($marker) - 1], $this->parseInlines(substr($text, $offset + strlen($marker), $end - $offset - strlen($marker))));
+        }
+
+        return null;
+    }
+
+    private function parseDelimitedStyle(string $text, int $offset): ?AstNode
+    {
+        $map = [
+            '*' => 'strong',
+            '_' => 'emph',
+            '-' => 'strikeout',
+            '+' => 'underline',
+            '~' => 'subscript',
+            '^' => 'superscript',
+        ];
+        $marker = $text[$offset] ?? '';
+        if (!isset($map[$marker]) || !$this->canOpenDelimited($text, $offset)) {
+            return null;
+        }
+
+        $search = $offset + 1;
+        while (($end = strpos($text, $marker, $search)) !== false) {
+            if ($end > $offset + 1 && !$this->isEscaped($text, $end)) {
+                return new AstNode($map[$marker], ['_endOffset' => $end], $this->parseInlines(substr($text, $offset + 1, $end - $offset - 1)));
+            }
+            $search = $end + 1;
+        }
+
+        return null;
+    }
+
+    private function canOpenDelimited(string $text, int $offset): bool
+    {
+        $previous = $offset === 0 ? '' : $text[$offset - 1];
+        $next = $text[$offset + 1] ?? '';
+        if ($next === '' || ctype_space($next)) {
+            return false;
+        }
+        if ($previous !== '' && (ctype_alnum($previous) || $previous === '.')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function isEscaped(string $text, int $offset): bool
+    {
+        $slashes = 0;
+        for ($cursor = $offset - 1; $cursor >= 0 && $text[$cursor] === '\\'; $cursor--) {
+            $slashes++;
+        }
+
+        return $slashes % 2 === 1;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, mixed>
+     */
+    private function withoutPrivateAttrs(array $attrs): array
+    {
+        unset($attrs['_endOffset']);
+
+        return $attrs;
+    }
+
+    private function parseLink(string $content): ?AstNode
+    {
+        if ($content === '') {
+            return null;
+        }
+        if (str_starts_with($content, '^')) {
+            $target = substr($content, 1);
+
+            return $this->link($target, $target, ['attachment']);
+        }
+        if (preg_match('/^(.+)\\^([^|]+)$/u', $content, $match) === 1) {
+            return $this->link($match[2], $match[1], ['attachment']);
+        }
+
+        $parts = explode('|', $content);
+        if (count($parts) >= 3 && in_array($parts[2], ['smart-link', 'smart-card'], true)) {
+            return $this->link($parts[1], $parts[0], [$parts[2]]);
+        }
+        if (count($parts) >= 2) {
+            $target = $parts[1];
+            $label = $parts[0];
+            if (str_starts_with($target, '~')) {
+                return $this->link($target, $label, ['user-account']);
+            }
+            if (str_starts_with($target, 'mailto:')) {
+                return $this->link($target, $label);
+            }
+
+            return $this->link($target, $label);
+        }
+
+        if (str_starts_with($content, '~')) {
+            return $this->link($content, $content, ['user-account']);
+        }
+        if (str_starts_with($content, 'mailto:')) {
+            return $this->link($content, substr($content, strlen('mailto:')));
+        }
+        if (preg_match('/^[a-z][a-z0-9+.-]*:\\/\\//i', $content) === 1) {
+            return $this->link($content, $content);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function link(string $target, string $label, array $classes = []): AstNode
+    {
+        return new AstNode('link', [
+            'url' => $target,
+            'classes' => $classes,
+        ], $this->parseInlines($label));
+    }
+
+    private function parseImage(string $content): ?AstNode
+    {
+        if ($content === '') {
+            return null;
+        }
+
+        $parts = array_map('trim', explode('|', $content));
+        $url = array_shift($parts);
+        if ($url === null || $url === '') {
+            return null;
+        }
+
+        $classes = [];
+        $attributes = [];
+        $title = '';
+        foreach ($parts as $part) {
+            if ($part === 'thumbnail') {
+                $classes[] = 'thumbnail';
+                continue;
+            }
+            foreach (explode(',', $part) as $param) {
+                $param = trim($param);
+                if ($param === '') {
+                    continue;
+                }
+                [$key, $value] = array_pad(explode('=', $param, 2), 2, '');
+                $key = trim($key);
+                $value = trim($value);
+                if ($key === 'title') {
+                    $title = $value;
+                } elseif ($key !== '') {
+                    $attributes[$key] = $value;
+                }
+            }
+        }
+
+        return new AstNode('image', [
+            'url' => $url,
+            'src' => $url,
+            'title' => $title,
+            'classes' => $classes,
+            'attributes' => $attributes,
+        ]);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function stringifyInlines(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            $text .= match ($node->type) {
+                'text' => (string) $node->attr('text', ''),
+                'linebreak', 'softbreak' => ' ',
+                'code' => (string) $node->attr('text', ''),
+                'image' => (string) $node->attr('alt', ''),
+                default => $this->stringifyInlines($node->children),
+            };
+        }
+
+        return $text;
+    }
+
+    private function decodeEntities(string $text): string
+    {
+        $text = str_replace('&bsol;', '\\', $text);
+        $decoded = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return $decoded === '' && $text !== '' ? $text : $decoded;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function flushText(array &$nodes, string &$buffer): void
+    {
+        if ($buffer === '') {
+            return;
+        }
+        $decoded = $this->decodeEntities($buffer);
+        $last = $nodes[count($nodes) - 1] ?? null;
+        if ($last instanceof AstNode && $last->type === 'text') {
+            $attrs = $last->attrs;
+            $attrs['text'] = (string) ($attrs['text'] ?? '') . $decoded;
+            $nodes[count($nodes) - 1] = new AstNode('text', $attrs);
+        } else {
+            $nodes[] = new AstNode('text', ['text' => $decoded]);
+        }
+        $buffer = '';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function textInlines(string $text): array
+    {
+        return $text === '' ? [] : [new AstNode('text', ['text' => $text])];
+    }
+}

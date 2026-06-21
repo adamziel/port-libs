@@ -1,15 +1,16 @@
 # Pandoc Supported Format Gap Audit - 2026-06-21
 
-Scope: current `port-libs` Pandoc lane support registry after the bounded XLSX and PPTX reader slices, plus adjacent local PDF and legacy DOC inputs. This is an evidence audit, not a completion claim for the whole Pandoc port.
+Scope: current `port-libs` Pandoc lane support registry after the bounded XLSX, PPTX, and Jira reader slices, plus adjacent local PDF and legacy DOC inputs. This is an evidence audit, not a completion claim for the whole Pandoc port.
 
 ## Registry Snapshot
 
-- Upstream input formats tracked: 51 total, 31 with partial native PHP readers, 20 unsupported.
+- Upstream input formats tracked: 51 total, 32 with partial native PHP readers, 19 unsupported.
 - Upstream output formats tracked: 75 total, 15 with partial native PHP writers, 60 unsupported.
 - Project-local inputs outside upstream Pandoc input tokens: `pdf`, `doc`.
 - Rich package inputs: 6 of 6 have direct bounded native support (`docx`, `epub`, `ipynb`, `odt`, `pptx`, `xlsx`).
 - XLSX result: `PortLibs\Pandoc\XlsxReader` covers the pinned upstream `test/xlsx-reader/basic.xlsx` to `test/xlsx-reader/basic.native` reader fixture surface from Pandoc commit `912bfa5e`.
 - PPTX result: `PortLibs\Pandoc\PptxReader` covers the pinned upstream `test/pptx-reader/basic.pptx` to `test/pptx-reader/basic.native` reader fixture surface from Pandoc commit `912bfa5e`. PPTX output remains unsupported.
+- Jira result: `PortLibs\Pandoc\JiraReader` covers the pinned upstream `Tests.Readers.Jira` unit semantics for paragraphs, headings, lists, block quotes, tables, panels, inline styles, links, images, and entities. The larger `test/jira-reader.jira` to `test/jira-reader.native` fixture is parsed but not exact, so Jira remains partial.
 
 ## Gap Register
 
@@ -20,7 +21,7 @@ Scope: current `port-libs` Pandoc lane support registry after the bounded XLSX a
 | JSON / native AST | Constructor completeness and malformed/native escape edge cases remain. | Pandoc JSON/native reader and writer constructors. | Keep closing constructor families until native round-trip exactness is complete. |
 | Typst | Unsupported input surface, 17 upstream tests open. | Pandoc Typst reader. | Queue after bounded rich-package readers unless a user-facing Typst import need appears first. |
 | PPTX / XLSX | PPTX and XLSX pinned reader fixtures are covered. PPTX writer corpus is larger and still unsupported. | Pandoc PPTX reader/writer modules; shared OOXML helpers already used by DOCX/XLSX. | Keep PPTX writer in the output backlog; do not count reader completion as writer parity. |
-| Wiki / roff / text markup | Unsupported: `asciidoc`, `creole`, `djot`, `dokuwiki`, `haddock`, `jira`, `mediawiki`, `man`, `mdoc`, `muse`, `org`, `pod`, `rst`, `t2t`, `textile`, `tikiwiki`, `twiki`, `vimwiki`. | Pandoc reader modules per format. | Batch by syntax family; start with the smallest fixture denominator when capacity returns to text formats. |
+| Wiki / roff / text markup | Unsupported: `asciidoc`, `creole`, `djot`, `dokuwiki`, `fb2`, `haddock`, `mediawiki`, `man`, `mdoc`, `muse`, `org`, `pod`, `rst`, `t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`. Jira moved to partial unit semantics, with fixture parity still open. | Pandoc reader modules per format. | Batch by syntax family; start with FB2 or another small golden-fixture denominator if the objective is a complete next format. |
 | OPML | Reader and writer pinned fixtures are exact, but registry remains partial for option and malformed input edges. | Pandoc OPML reader/writer fixtures and native writer tests. | Preserve exact fixture gate; add only edge cases that match upstream behavior. |
 | HTML / XML / JATS / BITS | HTML5 tree construction and XML/JATS semantic depth are still partial. | Pandoc HTML/XML/JATS readers and writer tests. | Continue DOM fixture clusters and table/list/link edge parity. |
 | DOCX / OpenXML | Reader is broad but not complete for full style/layout/media/object edge parity. | Pandoc DOCX reader and OOXML helpers. | Reuse shared OPC helpers and close fixture clusters by document part. |
@@ -36,7 +37,7 @@ Scope: current `port-libs` Pandoc lane support registry after the bounded XLSX a
 
 ## Porting Plan
 
-1. Finish bounded upstream fixture denominators first. XLSX and PPTX reader fixtures are now covered; the next small-denominator input should be chosen from Typst or one of the text-markup readers, while PPTX writer remains an output-format project.
+1. Finish bounded upstream fixture denominators first. XLSX and PPTX reader fixtures are now covered; Jira reader unit semantics are covered but fixture parity remains open. The next small-denominator input should be chosen from FB2 or one of the text-markup readers, while PPTX writer remains an output-format project.
 2. Keep each format registry entry partial until repo passing tests cover the upstream denominator and the implementation surface is not just fixture-shaped.
 3. For high-surface text formats, port from Pandoc module clusters by syntax feature and fixture group, then add native/HTML/Markdown writer checks where the shared AST can prove constructor exactness.
 4. For rich packages, reuse `ZipPackage`, `OpcRelationships`, `OpcPackagePath`, `XmlHtmlDom`, and existing DOCX/ODT/EPUB/XLSX package review patterns rather than adding separate ad hoc XML loaders.
@@ -46,7 +47,9 @@ Scope: current `port-libs` Pandoc lane support registry after the bounded XLSX a
 
 - XLSX focused gate: `4` files, `367` assertions, `0` failures.
 - PPTX focused gate: `5` files, `932` assertions, `0` failures.
-- Broad reader/writer smoke including PPTX/XLSX: `25` files, `18,446` assertions, `0` failures.
+- Jira focused gate: `3` files, `279` assertions, `0` failures.
+- Jira larger fixture smoke: parsed without crashing, `blocks=51`, `native_bytes=14556`, `expected_bytes=20887`, `same=no`.
+- Broad reader/writer smoke including Jira/PPTX/XLSX: `26` files, `18,516` assertions, `0` failures.
 - PDF/markerPDF guard: `2` files, `3,051` assertions, `0` failures.
 - Local problematic-PDF transient smoke: `reconstruction=geometry tables=10 geometry=10 cells=114 rects=896 gray_attrs=34 collapsed_guard=clear spaced_guard=hit`.
 - Hardcode guard: repository, Playground assets, and demo worktree scan for the local PDF path and pasted visible sample terms returned `0` hits.

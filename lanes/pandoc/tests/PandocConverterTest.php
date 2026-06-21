@@ -89,6 +89,7 @@ return [
         $t->true(PandocConverter::canRead('docx'));
         $t->true(PandocConverter::canRead('epub'));
         $t->true(PandocConverter::canRead('ipynb'));
+        $t->true(PandocConverter::canRead('jira'));
         $t->true(PandocConverter::canRead('odt'));
         $t->true(PandocConverter::canRead('opml'));
         $t->true(PandocConverter::canRead('pptx'));

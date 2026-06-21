@@ -255,6 +255,11 @@ final class PandocFormatRegistry
             'implementation' => JsonReader::class,
             'notes' => 'Reads the current Pandoc JSON AST encoding for the constructors covered by the shared PHP AST; complete constructor coverage remains open.',
         ],
+        'jira' => [
+            'status' => 'partial',
+            'implementation' => JiraReader::class,
+            'notes' => 'Bounded Jira wiki reader maps the pinned upstream Tests.Readers.Jira unit semantics for paragraphs, headings, lists, block quotes, tables, panels, core inline styles, links, images, and entities into the shared AST. Full jira-reader fixture parity remains open.',
+        ],
         'latex' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
