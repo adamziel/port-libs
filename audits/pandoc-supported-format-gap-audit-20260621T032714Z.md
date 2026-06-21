@@ -1,14 +1,15 @@
 # Pandoc Supported Format Gap Audit - 2026-06-21
 
-Scope: current `port-libs` Pandoc lane support registry after the bounded XLSX reader slice, plus adjacent local PDF and legacy DOC inputs. This is an evidence audit, not a completion claim for the whole Pandoc port.
+Scope: current `port-libs` Pandoc lane support registry after the bounded XLSX and PPTX reader slices, plus adjacent local PDF and legacy DOC inputs. This is an evidence audit, not a completion claim for the whole Pandoc port.
 
 ## Registry Snapshot
 
-- Upstream input formats tracked: 51 total, 30 with partial native PHP readers, 21 unsupported.
+- Upstream input formats tracked: 51 total, 31 with partial native PHP readers, 20 unsupported.
 - Upstream output formats tracked: 75 total, 15 with partial native PHP writers, 60 unsupported.
 - Project-local inputs outside upstream Pandoc input tokens: `pdf`, `doc`.
-- Rich package inputs: 5 of 6 have direct bounded native support (`docx`, `epub`, `ipynb`, `odt`, `xlsx`); `pptx` remains the unsupported rich-package input.
-- XLSX result: `PortLibs\Pandoc\XlsxReader` now covers the pinned upstream `test/xlsx-reader/basic.xlsx` to `test/xlsx-reader/basic.native` reader fixture surface from Pandoc commit `912bfa5e`.
+- Rich package inputs: 6 of 6 have direct bounded native support (`docx`, `epub`, `ipynb`, `odt`, `pptx`, `xlsx`).
+- XLSX result: `PortLibs\Pandoc\XlsxReader` covers the pinned upstream `test/xlsx-reader/basic.xlsx` to `test/xlsx-reader/basic.native` reader fixture surface from Pandoc commit `912bfa5e`.
+- PPTX result: `PortLibs\Pandoc\PptxReader` covers the pinned upstream `test/pptx-reader/basic.pptx` to `test/pptx-reader/basic.native` reader fixture surface from Pandoc commit `912bfa5e`. PPTX output remains unsupported.
 
 ## Gap Register
 
@@ -18,7 +19,7 @@ Scope: current `port-libs` Pandoc lane support registry after the bounded XLSX r
 | Markdown / CommonMark / GFM | Local coverage exceeds the upstream row, but extension matrix, variant flags, and exact constructor edges remain the risk. | Pandoc Markdown/CommonMark readers and extension option tests. | Continue option-cluster parity tests instead of more broad smoke. |
 | JSON / native AST | Constructor completeness and malformed/native escape edge cases remain. | Pandoc JSON/native reader and writer constructors. | Keep closing constructor families until native round-trip exactness is complete. |
 | Typst | Unsupported input surface, 17 upstream tests open. | Pandoc Typst reader. | Queue after bounded rich-package readers unless a user-facing Typst import need appears first. |
-| PPTX / XLSX | XLSX pinned reader fixture is covered. PPTX reader fixture remains open; PPTX writer corpus is larger and still unsupported. | Pandoc PPTX reader/writer modules; shared OOXML helpers already used by DOCX/XLSX. | Pick PPTX reader as the next bounded OOXML target after this commit. |
+| PPTX / XLSX | PPTX and XLSX pinned reader fixtures are covered. PPTX writer corpus is larger and still unsupported. | Pandoc PPTX reader/writer modules; shared OOXML helpers already used by DOCX/XLSX. | Keep PPTX writer in the output backlog; do not count reader completion as writer parity. |
 | Wiki / roff / text markup | Unsupported: `asciidoc`, `creole`, `djot`, `dokuwiki`, `haddock`, `jira`, `mediawiki`, `man`, `mdoc`, `muse`, `org`, `pod`, `rst`, `t2t`, `textile`, `tikiwiki`, `twiki`, `vimwiki`. | Pandoc reader modules per format. | Batch by syntax family; start with the smallest fixture denominator when capacity returns to text formats. |
 | OPML | Reader and writer pinned fixtures are exact, but registry remains partial for option and malformed input edges. | Pandoc OPML reader/writer fixtures and native writer tests. | Preserve exact fixture gate; add only edge cases that match upstream behavior. |
 | HTML / XML / JATS / BITS | HTML5 tree construction and XML/JATS semantic depth are still partial. | Pandoc HTML/XML/JATS readers and writer tests. | Continue DOM fixture clusters and table/list/link edge parity. |
@@ -35,7 +36,7 @@ Scope: current `port-libs` Pandoc lane support registry after the bounded XLSX r
 
 ## Porting Plan
 
-1. Finish bounded upstream fixture denominators first. XLSX is now covered; PPTX reader is the next OOXML package target because it has the remaining single reader fixture in the `PPTX / XLSX` row and can reuse the shared ZIP/OPC/XML helpers.
+1. Finish bounded upstream fixture denominators first. XLSX and PPTX reader fixtures are now covered; the next small-denominator input should be chosen from Typst or one of the text-markup readers, while PPTX writer remains an output-format project.
 2. Keep each format registry entry partial until repo passing tests cover the upstream denominator and the implementation surface is not just fixture-shaped.
 3. For high-surface text formats, port from Pandoc module clusters by syntax feature and fixture group, then add native/HTML/Markdown writer checks where the shared AST can prove constructor exactness.
 4. For rich packages, reuse `ZipPackage`, `OpcRelationships`, `OpcPackagePath`, `XmlHtmlDom`, and existing DOCX/ODT/EPUB/XLSX package review patterns rather than adding separate ad hoc XML loaders.
@@ -44,7 +45,8 @@ Scope: current `port-libs` Pandoc lane support registry after the bounded XLSX r
 ## Verification Evidence
 
 - XLSX focused gate: `4` files, `367` assertions, `0` failures.
-- Broad reader/writer smoke including XLSX: `24` files, `18,391` assertions, `0` failures.
+- PPTX focused gate: `5` files, `932` assertions, `0` failures.
+- Broad reader/writer smoke including PPTX/XLSX: `25` files, `18,446` assertions, `0` failures.
 - PDF/markerPDF guard: `2` files, `3,051` assertions, `0` failures.
-- Local problematic-PDF transient smoke: geometry reconstruction, `10` detected tables, `34` emitted background styles, collapsed-word guard negative.
+- Local problematic-PDF transient smoke: `reconstruction=geometry tables=10 geometry=10 cells=114 rects=896 gray_attrs=34 collapsed_guard=clear spaced_guard=hit`.
 - Hardcode guard: repository, Playground assets, and demo worktree scan for the local PDF path and pasted visible sample terms returned `0` hits.

@@ -190,6 +190,7 @@ final class PandocConverter
             OdtReader::class => new OdtReader(),
             OpmlReader::class => new OpmlReader($options),
             PdfReader::class => new PdfReader($options),
+            PptxReader::class => new PptxReader(),
             RtfReader::class => new RtfReader(),
             XmlReader::class => new XmlReader($format, $options),
             XlsxReader::class => new XlsxReader(),

@@ -91,6 +91,7 @@ return [
         $t->true(PandocConverter::canRead('ipynb'));
         $t->true(PandocConverter::canRead('odt'));
         $t->true(PandocConverter::canRead('opml'));
+        $t->true(PandocConverter::canRead('pptx'));
         $t->true(PandocConverter::canRead('rtf'));
         $t->true(PandocConverter::canRead('pdf'));
         $t->true(PandocConverter::canRead('xml'));

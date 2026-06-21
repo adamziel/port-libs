@@ -300,6 +300,11 @@ final class PandocFormatRegistry
             'implementation' => OpmlReader::class,
             'notes' => 'Bounded OPML reader maps document title, owner, modified date, nested outlines, link outlines, and Markdown notes into the shared AST, with canonical native semantic parity for the pinned upstream opml-reader fixture. Full option and edge-case parity remains open.',
         ],
+        'pptx' => [
+            'status' => 'partial',
+            'implementation' => PptxReader::class,
+            'notes' => 'Bounded PPTX OpenXML package reader maps presentation slide order, title placeholders, text boxes, Wingdings/explicit bullet groups, simple tables, image references, and SmartArt hierarchy into the shared AST with pinned upstream pptx-reader/basic fixture parity. PPTX writing remains unsupported.',
+        ],
         'ris' => [
             'status' => 'partial',
             'implementation' => BibliographyReader::class,
