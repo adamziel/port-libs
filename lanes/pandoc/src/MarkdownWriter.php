@@ -154,6 +154,12 @@ final class MarkdownWriter
     private function renderPlainOrParagraphBlock(AstNode $node, int $indent): array
     {
         $contents = $this->renderBlockInlines($node->children, true);
+        if ($this->opmlNoteMarkdownEnabled() && $this->writerWrapText() === 'auto') {
+            return $this->prefixLines(
+                $this->wrapOpmlMarkdownLines($contents, max(1, $this->writerColumns() - $indent)),
+                $indent
+            );
+        }
 
         return [str_repeat(' ', $indent) . $contents];
     }
@@ -5257,7 +5263,16 @@ final class MarkdownWriter
             $blockBeforeFencedDiv = $this->blockChildBeforeFencedDiv($item->children, $childIndex);
 
             if ($inlineChildren !== [] || !$hasFirstLine) {
-                $lines[] = rtrim($prefix . $this->renderBlockInlines($inlineChildren));
+                if ($this->opmlNoteMarkdownEnabled() && $this->writerWrapText() === 'auto') {
+                    $this->appendOpmlWrappedMarkdownLines(
+                        $lines,
+                        $prefix,
+                        str_repeat(' ', $continuationIndent),
+                        $this->renderBlockInlines($inlineChildren)
+                    );
+                } else {
+                    $lines[] = rtrim($prefix . $this->renderBlockInlines($inlineChildren));
+                }
                 $inlineChildren = [];
                 $hasFirstLine = true;
             }
@@ -5268,7 +5283,17 @@ final class MarkdownWriter
 
             if ($child->type === 'paragraph' || ($child->type === 'plain' && $this->opmlNoteMarkdownEnabled()) || $blockBeforeFencedDiv) {
                 if (count($lines) === 1 && rtrim($lines[0]) === rtrim($prefix)) {
-                    $lines[0] = rtrim($prefix . $this->renderBlockInlines($child->children, true));
+                    if ($this->opmlNoteMarkdownEnabled() && $this->writerWrapText() === 'auto') {
+                        array_pop($lines);
+                        $this->appendOpmlWrappedMarkdownLines(
+                            $lines,
+                            $prefix,
+                            str_repeat(' ', $continuationIndent),
+                            $this->renderBlockInlines($child->children, true)
+                        );
+                    } else {
+                        $lines[0] = rtrim($prefix . $this->renderBlockInlines($child->children, true));
+                    }
                     if ($blockBeforeFencedDiv && end($lines) !== '') {
                         $lines[] = '';
                     }
@@ -5278,13 +5303,34 @@ final class MarkdownWriter
                 if ($lines !== [] && end($lines) !== '') {
                     $lines[] = '';
                 }
-                foreach (explode("\n", $this->renderBlockInlines($child->children, true)) as $line) {
-                    $lines[] = str_repeat(' ', $continuationIndent) . $line;
+                if ($this->opmlNoteMarkdownEnabled() && $this->writerWrapText() === 'auto') {
+                    $this->appendOpmlWrappedMarkdownLines(
+                        $lines,
+                        str_repeat(' ', $continuationIndent),
+                        str_repeat(' ', $continuationIndent),
+                        $this->renderBlockInlines($child->children, true)
+                    );
+                } else {
+                    foreach (explode("\n", $this->renderBlockInlines($child->children, true)) as $line) {
+                        $lines[] = str_repeat(' ', $continuationIndent) . $line;
+                    }
                 }
                 if ($blockBeforeFencedDiv && end($lines) !== '') {
                     $lines[] = '';
                 }
                 continue;
+            }
+
+            $previous = $item->children[$childIndex - 1] ?? null;
+            if (
+                $this->opmlNoteMarkdownEnabled()
+                && $this->isListBlock($child)
+                && $previous instanceof AstNode
+                && $previous->type === 'paragraph'
+                && $lines !== []
+                && end($lines) !== ''
+            ) {
+                $lines[] = '';
             }
 
             $blockIndent = $child->type === 'div' || ($this->opmlNoteMarkdownEnabled() && $this->isListBlock($child))
@@ -5296,7 +5342,16 @@ final class MarkdownWriter
         }
 
         if ($inlineChildren !== [] || !$hasFirstLine) {
-            $lines[] = rtrim($prefix . $this->renderBlockInlines($inlineChildren));
+            if ($this->opmlNoteMarkdownEnabled() && $this->writerWrapText() === 'auto') {
+                $this->appendOpmlWrappedMarkdownLines(
+                    $lines,
+                    $prefix,
+                    str_repeat(' ', $continuationIndent),
+                    $this->renderBlockInlines($inlineChildren)
+                );
+            } else {
+                $lines[] = rtrim($prefix . $this->renderBlockInlines($inlineChildren));
+            }
         }
 
         return $lines;
@@ -5688,7 +5743,11 @@ final class MarkdownWriter
         $body = $this->renderBlockCollection($node->children);
         $attrs = $this->linkAttrTuple($node);
         if ($this->fencedDivsEnabled()) {
-            $fence = str_repeat(':', 3 + $this->computeDivNestingLevel($node->children));
+            $divNestingLevel = $this->computeDivNestingLevel($node->children);
+            if ($this->opmlNoteMarkdownEnabled() && $this->directDivChildCount($node->children) > 1) {
+                $divNestingLevel++;
+            }
+            $fence = str_repeat(':', 3 + $divNestingLevel);
             $attrText = $this->renderAttributesTuple($attrs);
             if ($attrText === '' && $this->opmlNoteMarkdownEnabled()) {
                 $attrText = '{}';
@@ -5763,7 +5822,7 @@ final class MarkdownWriter
     {
         return match ($node->type) {
             'text' => $this->escapeText((string) $node->attr('text', ''), $following, $escapeInitialPlainMarker),
-            'softbreak' => $this->renderSoftBreak(),
+            'softbreak' => $this->renderSoftBreak($following),
             'linebreak' => $this->renderLineBreak(),
             'code' => $this->renderCode($node),
             'emph' => $this->renderEmph($node),
@@ -5941,9 +6000,99 @@ final class MarkdownWriter
         return "  \n";
     }
 
-    private function renderSoftBreak(): string
+    /**
+     * @param list<AstNode> $following
+     */
+    private function renderSoftBreak(array $following = []): string
     {
+        $next = $following[0] ?? null;
+        if (
+            $this->opmlNoteMarkdownEnabled()
+            && $next instanceof AstNode
+            && $next->type === 'math'
+            && (bool) $next->attr('display', false)
+        ) {
+            return "\n";
+        }
+
         return $this->writerWrapText() === 'preserve' ? "\n" : ' ';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function wrapOpmlMarkdownLines(string $text, int $columns): array
+    {
+        $lines = preg_split('/\R/u', $text);
+        if ($lines === false) {
+            return [$text];
+        }
+
+        $wrapped = [];
+        foreach ($lines as $line) {
+            if ($line === '' || $this->markdownDisplayWidth($line) <= $columns) {
+                $wrapped[] = $line;
+                continue;
+            }
+
+            array_push($wrapped, ...$this->wrapOpmlMarkdownLine($line, $columns));
+        }
+
+        return $wrapped;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function wrapOpmlMarkdownLine(string $line, int $columns): array
+    {
+        $tokens = preg_split('/\s+/u', trim($line), -1, PREG_SPLIT_NO_EMPTY);
+        if ($tokens === false || $tokens === []) {
+            return [$line];
+        }
+
+        $lines = [];
+        $current = '';
+        foreach ($tokens as $token) {
+            if ($current === '') {
+                $current = $token;
+                continue;
+            }
+
+            $candidate = $current . ' ' . $token;
+            if ($this->markdownDisplayWidth($candidate) > $columns) {
+                $lines[] = $current;
+                $current = $token;
+                continue;
+            }
+
+            $current = $candidate;
+        }
+
+        if ($current !== '') {
+            $lines[] = $current;
+        }
+
+        return $lines === [] ? [$line] : $lines;
+    }
+
+    private function appendOpmlWrappedMarkdownLines(array &$lines, string $firstPrefix, string $continuationPrefix, string $text): void
+    {
+        $sourceLines = preg_split('/\R/u', $text);
+        if ($sourceLines === false) {
+            $sourceLines = [$text];
+        }
+
+        $isFirstOutputLine = true;
+        foreach ($sourceLines as $sourceLine) {
+            $prefix = $isFirstOutputLine ? $firstPrefix : $continuationPrefix;
+            $width = max(1, $this->writerColumns() - $this->markdownDisplayWidth($prefix));
+            $wrapped = $sourceLine === '' ? [''] : $this->wrapOpmlMarkdownLines($sourceLine, $width);
+            foreach ($wrapped as $line) {
+                $lines[] = rtrim(($isFirstOutputLine ? $firstPrefix : $continuationPrefix) . $line);
+                $isFirstOutputLine = false;
+            }
+        }
     }
 
     private function renderEmph(AstNode $node): string
@@ -7480,6 +7629,10 @@ final class MarkdownWriter
             return $this->renderPlainNoteDefinition($number, $node);
         }
 
+        if ($this->opmlNoteMarkdownEnabled() && $this->writerWrapText() === 'auto') {
+            return $this->renderOpmlNoteDefinition($number, $node);
+        }
+
         $body = $this->renderBlockCollection($node->children);
         if ($body === '') {
             return '[^' . $number . ']:';
@@ -7493,6 +7646,39 @@ final class MarkdownWriter
         }
 
         return $rendered;
+    }
+
+    private function renderOpmlNoteDefinition(int $number, AstNode $node): string
+    {
+        if ($node->children === []) {
+            return '[^' . $number . ']:';
+        }
+
+        $blocks = [];
+        foreach ($node->children as $index => $child) {
+            if ($index > 0) {
+                $blocks[] = '';
+            }
+
+            if (in_array($child->type, ['paragraph', 'plain'], true)) {
+                $lines = [];
+                $this->appendOpmlWrappedMarkdownLines(
+                    $lines,
+                    $index === 0 ? '[^' . $number . ']: ' : '    ',
+                    '    ',
+                    $this->renderBlockInlines($child->children, true)
+                );
+                array_push($blocks, ...$lines);
+                continue;
+            }
+
+            if ($index === 0) {
+                $blocks[] = '[^' . $number . ']:';
+            }
+            array_push($blocks, ...$this->renderBlock($child, 4));
+        }
+
+        return implode("\n", $blocks);
     }
 
     private function renderPlainNoteDefinition(int $number, AstNode $node): string
@@ -8726,5 +8912,20 @@ final class MarkdownWriter
         }
 
         return $level;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function directDivChildCount(array $nodes): int
+    {
+        $count = 0;
+        foreach ($nodes as $node) {
+            if ($node->type === 'div') {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 }

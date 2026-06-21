@@ -136,4 +136,65 @@ return [
         $t->contains('[Empty]().', $opml);
         $t->contains('[URL and title](/url/ &quot;title with &quot;quotes&quot; in it&quot;).', $opml);
     },
+    'wraps opml note markdown like pandoc writer fixture edges' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
+        $plain = static fn (string $value): AstNode => new AstNode('plain', [], [$text($value)]);
+        $long = 'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau';
+        $document = new AstNode('document', [], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Root'], [$text('Root')]),
+            $paragraph([$text($long)]),
+            new AstNode('bullet_list', [], [
+                new AstNode('list_item', [], [
+                    $paragraph([$text($long)]),
+                    $paragraph([$text('nested intro')]),
+                    new AstNode('bullet_list', [], [
+                        new AstNode('list_item', [], [$plain('nested item')]),
+                    ]),
+                ]),
+            ]),
+            $paragraph([
+                $text('display'),
+                new AstNode('softbreak'),
+                new AstNode('math', ['display' => true, 'text' => 'x = y + z']),
+            ]),
+            $paragraph([
+                $text('before note'),
+                new AstNode('note', [], [
+                    $paragraph([$text($long)]),
+                ]),
+            ]),
+            new AstNode('div', [], [
+                new AstNode('div', [], [$paragraph([$text('left')])]),
+                new AstNode('div', [], [$paragraph([$text('right')])]),
+            ]),
+        ]);
+
+        $opml = (new OpmlWriter(['columns' => 40]))->write($document);
+
+        $expectedNote = 'alpha beta gamma delta epsilon zeta eta&#10;'
+            . 'theta iota kappa lambda mu nu xi omicron&#10;'
+            . 'pi rho sigma tau&#10;&#10;'
+            . '- alpha beta gamma delta epsilon zeta&#10;'
+            . '  eta theta iota kappa lambda mu nu xi&#10;'
+            . '  omicron pi rho sigma tau&#10;&#10;'
+            . '  nested intro&#10;&#10;'
+            . '  - nested item&#10;&#10;'
+            . 'display&#10;'
+            . '$$x = y + z$$&#10;&#10;'
+            . 'before note[^1]&#10;&#10;'
+            . '::::: {}&#10;'
+            . '::: {}&#10;'
+            . 'left&#10;'
+            . ':::&#10;&#10;'
+            . '::: {}&#10;'
+            . 'right&#10;'
+            . ':::&#10;'
+            . ':::::&#10;&#10;'
+            . '[^1]: alpha beta gamma delta epsilon&#10;'
+            . '    zeta eta theta iota kappa lambda&#10;'
+            . '    mu nu xi omicron pi rho sigma tau';
+
+        $t->contains('<outline text="Root" _note="' . $expectedNote . '">', $opml);
+    },
 ];
