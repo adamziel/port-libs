@@ -1,0 +1,43 @@
+# Pandoc DocBook Reader Audit - 2026-06-21T01:06:48Z
+
+## Registry Snapshot
+
+- Upstream Pandoc input formats tracked: 51.
+- Native PHP upstream input readers registered as partial: 28.
+- Upstream input formats still unsupported: 23.
+- Project-local non-upstream inputs remain `pdf` and `doc`.
+- `docbook` now dispatches to `PortLibs\Pandoc\DocBookReader` instead of the Markdown reader.
+
+Unsupported upstream inputs after this slice remain:
+
+`asciidoc`, `creole`, `djot`, `dokuwiki`, `fb2`, `haddock`, `jira`, `mediawiki`, `man`, `mdoc`, `muse`, `opml`, `org`, `pod`, `pptx`, `rst`, `t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`.
+
+## New DocBook Coverage
+
+- Safe XML loading through `XmlHtmlDom::loadXmlDocument`.
+- Root validation for DocBook structural roots, plus compatibility parsing for standalone `informaltable` and `table` fragments used by existing command fixtures.
+- Document metadata handoff from existing DocBook structure, review, and bibliography packets.
+- AST mapping for document title, subtitle, abstract, sections, nested headings, paragraphs, inline emphasis/code/links/xrefs, itemized and ordered lists, procedures, variable lists, block quotes, admonitions, literal/code blocks, figures/media objects, CALS tables, and bibliography entries.
+- CALS table preservation for `colspec` widths, `namest`/`nameend` column spans, `morerows` row spans, header/body/footer sections, and cell alignments.
+
+## Remaining DocBook Gaps
+
+- Full Pandoc DocBook reader parity remains open.
+- DocBook namespace/version edge cases beyond the bounded structural roots still need upstream fixture mapping.
+- Full bibliography/citation semantics are not complete; current bibliography entries are represented as definition lists with structural diagnostics preserved in metadata.
+- Full media object resolution, resource packaging, callouts, index terms, equations, glossary/set/refentry-specific semantics, and exact Pandoc block/inline constructor parity remain open.
+- Dedicated `docbook4`/`docbook5` input aliases are not upstream input tokens in the current registry; output aliases remain unchanged.
+
+## Format Plan Update
+
+1. XML/JATS/BITS direct reader: complete as a bounded partial reader.
+2. DocBook direct reader: complete as a bounded partial reader in this slice.
+3. Next highest-reuse format remains HTML: split `html` input from `MarkdownReader` into a dedicated HTML DOM reader while preserving current raw HTML/native-div/table/link/list behavior.
+4. Continue PDF work in parallel when prioritized: multi-page table continuation, stricter grid inference, background propagation, and tagged-vs-geometry reconciliation.
+
+## Verification
+
+- `php -l lanes/pandoc/src/DocBookReader.php`: passed.
+- `php tools/run-tests.php lanes/pandoc/tests/DocBookReaderTest.php lanes/pandoc/tests/PandocConverterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php`: 3 files, 226 assertions, 0 failures.
+- `php tools/run-tests.php lanes/pandoc/tests/DocBookReaderTest.php lanes/pandoc/tests/XmlHtmlDomTest.php lanes/pandoc/tests/MarkdownReaderTest.php lanes/pandoc/tests/PandocConverterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php`: 5 files, 10,931 assertions, 0 failures.
+- Broad smoke with DocBook/XML/Markdown/package/PDF readers: 21 files, 18,050 assertions, 0 failures.

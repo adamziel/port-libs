@@ -178,6 +178,7 @@ final class PandocConverter
     {
         return match ($implementation) {
             BibliographyReader::class => new BibliographyReader($format, $options),
+            DocBookReader::class => new DocBookReader(array_replace($options, ['format' => $format])),
             DocxReader::class => new DocxReader(),
             EpubReader::class => new EpubReader($options),
             IpynbReader::class => new IpynbReader(),

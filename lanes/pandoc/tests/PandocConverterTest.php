@@ -70,6 +70,7 @@ return [
         $t->true(PandocConverter::canRead('ris'));
         $t->true(PandocConverter::canRead('tsv'));
         $t->true(PandocConverter::canRead('doc'));
+        $t->true(PandocConverter::canRead('docbook'));
         $t->true(PandocConverter::canRead('docx'));
         $t->true(PandocConverter::canRead('epub'));
         $t->true(PandocConverter::canRead('ipynb'));

@@ -212,8 +212,8 @@ final class PandocFormatRegistry
         ],
         'docbook' => [
             'status' => 'partial',
-            'implementation' => MarkdownReader::class,
-            'notes' => 'Bounded DocBook table command fixtures are mapped; full DocBook XML reader is not implemented.',
+            'implementation' => DocBookReader::class,
+            'notes' => 'Bounded DocBook XML reader maps document metadata, sections, paragraphs, lists, links, CALS tables, media references, admonitions, code blocks, variable lists, and bibliography entries into the shared AST while preserving DocBook review packets. Full DocBook reader parity remains open.',
         ],
         'docx' => [
             'status' => 'partial',

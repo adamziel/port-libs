@@ -2,7 +2,7 @@
 
 Updated: 2026-06-21 UTC
 
-Current registry audit: 51 upstream input formats tracked; 28 have partial native PHP readers; 23 remain unsupported. Project-local inputs `pdf` and `doc` are tracked separately from upstream Pandoc inputs. The latest XML-family slice registers bounded `xml`, `jats`, and `bits` readers through `PortLibs\Pandoc\XmlReader`; full Pandoc parity remains open.
+Current registry audit: 51 upstream input formats tracked; 28 have partial native PHP readers; 23 remain unsupported. Project-local inputs `pdf` and `doc` are tracked separately from upstream Pandoc inputs. The latest XML-family work registers bounded `xml`, `jats`, and `bits` readers through `PortLibs\Pandoc\XmlReader` and moves `docbook` onto direct `PortLibs\Pandoc\DocBookReader` dispatch; full Pandoc parity remains open.
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 
@@ -22,7 +22,7 @@ ODF/ODT is marked ship-ready: 89 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | CSV / TSV | 2 | 4 |
 | CSL / BibTeX / BibLaTeX / csljson / RIS / EndNote XML | 80 | 227 |
 | LaTeX / TeX / math | 21 | 36 |
-| DocBook | 16 | 17 |
+| DocBook | 19 | 17 |
 | RTF | 4 | 27 |
 | Shared ZIP / OPC package | 110 | 578 |
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
