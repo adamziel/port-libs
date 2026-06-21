@@ -71,4 +71,69 @@ return [
 
         $t->same("<outline text=\"Root\">\n</outline>", $opml);
     },
+    'serializes markdown notes with pandoc opml writer-compatible markers' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Root'], [
+                new AstNode('text', ['text' => 'Root']),
+            ]),
+            new AstNode('horizontal_rule'),
+            new AstNode('bullet_list', [], [
+                new AstNode('list_item', [], [
+                    new AstNode('plain', [], [
+                        new AstNode('text', ['text' => 'tight bullet']),
+                    ]),
+                ]),
+                new AstNode('list_item', [], [
+                    new AstNode('plain', [], [
+                        new AstNode('raw_tex_inline', ['tex' => '\\cite[22-23]{smith.1899}']),
+                    ]),
+                ]),
+            ]),
+            new AstNode('ordered_list', [], [
+                new AstNode('list_item', [], [
+                    new AstNode('plain', [], [
+                        new AstNode('text', ['text' => 'tight ordered']),
+                    ]),
+                ]),
+            ]),
+            new AstNode('definition_list', [], [
+                new AstNode('definition_item', [], [
+                    new AstNode('plain', [], [
+                        new AstNode('text', ['text' => 'apple']),
+                    ]),
+                    new AstNode('definition', [], [
+                        new AstNode('plain', [], [
+                            new AstNode('text', ['text' => 'red fruit']),
+                        ]),
+                    ]),
+                ]),
+            ]),
+            new AstNode('div', [], [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => 'inside div']),
+                ]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('link', ['url' => '', 'title' => ''], [
+                    new AstNode('text', ['text' => 'Empty']),
+                ]),
+                new AstNode('text', ['text' => '. ']),
+                new AstNode('link', ['url' => '/url/', 'title' => 'title with "quotes" in it'], [
+                    new AstNode('text', ['text' => 'URL and title']),
+                ]),
+                new AstNode('text', ['text' => '.']),
+            ]),
+        ]);
+
+        $opml = (new OpmlWriter(['columns' => 80]))->write($document);
+
+        $t->contains(str_repeat('-', 80), $opml);
+        $t->contains('- tight bullet', $opml);
+        $t->contains('- `\\cite[22-23]{smith.1899}`{=tex}', $opml);
+        $t->contains('1.  tight ordered', $opml);
+        $t->contains('apple&#10;: red fruit', $opml);
+        $t->contains('::: {}&#10;inside div&#10;:::', $opml);
+        $t->contains('[Empty]().', $opml);
+        $t->contains('[URL and title](/url/ &quot;title with &quot;quotes&quot; in it&quot;).', $opml);
+    },
 ];

@@ -42,7 +42,7 @@ final class OpmlWriter
             '</opml>',
         ]);
 
-        return $this->maybePreferAscii($xml);
+        return $this->maybePreferAscii($xml . "\n");
     }
 
     /**
@@ -168,7 +168,11 @@ final class OpmlWriter
      */
     private function markdownOptions(): array
     {
-        $options = [];
+        $options = [
+            'opmlNoteMarkdown' => true,
+            'rawAttribute' => true,
+            'rawTex' => true,
+        ];
         foreach (['columns', 'wrap'] as $key) {
             if (array_key_exists($key, $this->options)) {
                 $options[$key] = $this->options[$key];

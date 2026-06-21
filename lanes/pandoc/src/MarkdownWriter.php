@@ -38,7 +38,7 @@ final class MarkdownWriter
     private array $plainTemplatePartialStack = [];
 
     /**
-     * @param array{variant?: string, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, linkAttributes?: bool, headerAttributes?: bool, fencedCodeBlocks?: bool, backtickCodeBlocks?: bool, fencedCodeAttributes?: bool, definitionLists?: bool, lineBlocks?: bool, bracketedSpans?: bool, nativeSpans?: bool, fencedDivs?: bool, nativeDivs?: bool, implicitFigures?: bool, markdownInHtmlBlocks?: bool, markdownAttribute?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, simpleTables?: bool, pipeTables?: bool, multilineTables?: bool, gridTables?: bool, tableCaptions?: bool, columns?: int, tabStop?: int, wrap?: string, strikeout?: bool, superscript?: bool, subscript?: bool, preferAscii?: bool, smart?: bool, escapedLineBreaks?: bool, hardLineBreaks?: bool, wikilinksTitleAfterPipe?: bool, wikilinksTitleBeforePipe?: bool, gutenberg?: bool, template?: bool|string, templatePath?: string, standalone?: bool, tableOfContents?: bool, toc?: bool, tocDepth?: int, numberSections?: bool, variables?: array<string, mixed>, partials?: array<string, string>, headerIncludes?: mixed, includeBefore?: mixed, includeAfter?: mixed} $options
+     * @param array{variant?: string, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, linkAttributes?: bool, headerAttributes?: bool, fencedCodeBlocks?: bool, backtickCodeBlocks?: bool, fencedCodeAttributes?: bool, definitionLists?: bool, lineBlocks?: bool, bracketedSpans?: bool, nativeSpans?: bool, fencedDivs?: bool, nativeDivs?: bool, implicitFigures?: bool, markdownInHtmlBlocks?: bool, markdownAttribute?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, simpleTables?: bool, pipeTables?: bool, multilineTables?: bool, gridTables?: bool, tableCaptions?: bool, columns?: int, tabStop?: int, wrap?: string, strikeout?: bool, superscript?: bool, subscript?: bool, preferAscii?: bool, smart?: bool, escapedLineBreaks?: bool, hardLineBreaks?: bool, wikilinksTitleAfterPipe?: bool, wikilinksTitleBeforePipe?: bool, gutenberg?: bool, template?: bool|string, templatePath?: string, standalone?: bool, tableOfContents?: bool, toc?: bool, tocDepth?: int, numberSections?: bool, variables?: array<string, mixed>, partials?: array<string, string>, headerIncludes?: mixed, includeBefore?: mixed, includeAfter?: mixed, opmlNoteMarkdown?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -4976,14 +4976,22 @@ final class MarkdownWriter
         $lines = [];
         $start = (int) $node->attr('start', 1);
         $index = 0;
+        $items = array_values(array_filter(
+            $node->children,
+            static fn (AstNode $item): bool => $item->type === 'list_item'
+        ));
 
-        foreach ($node->children as $item) {
-            if ($item->type !== 'list_item') {
-                continue;
-            }
-
+        foreach ($items as $itemIndex => $item) {
             $marker = $ordered ? $this->orderedListMarker($node, $start + $index) : '- ';
             array_push($lines, ...$this->renderListItem($item, $marker, $indent));
+            if (
+                $this->opmlNoteMarkdownEnabled()
+                && $itemIndex < count($items) - 1
+                && !$this->listItemIsTight($item)
+                && end($lines) !== ''
+            ) {
+                $lines[] = '';
+            }
             $index++;
         }
 
@@ -5045,6 +5053,17 @@ final class MarkdownWriter
         return $roman;
     }
 
+    private function listItemIsTight(AstNode $item): bool
+    {
+        foreach ($item->children as $child) {
+            if ($child->type === 'paragraph') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /**
      * @return list<string>
      */
@@ -5064,7 +5083,9 @@ final class MarkdownWriter
     private function renderNativeDefinitionList(AstNode $node): array
     {
         $lines = [];
-        $leadingChars = $this->isPlainTextVariant() ? 2 : $this->definitionListLeadingChars();
+        $leadingChars = $this->isPlainTextVariant() || $this->opmlNoteMarkdownEnabled()
+            ? 2
+            : $this->definitionListLeadingChars();
         $marker = $this->isPlainTextVariant()
             ? str_repeat(' ', $leadingChars)
             : ':' . str_repeat(' ', max(1, $leadingChars - 1));
@@ -5245,7 +5266,7 @@ final class MarkdownWriter
                 $lines[] = '';
             }
 
-            if ($child->type === 'paragraph' || $blockBeforeFencedDiv) {
+            if ($child->type === 'paragraph' || ($child->type === 'plain' && $this->opmlNoteMarkdownEnabled()) || $blockBeforeFencedDiv) {
                 if (count($lines) === 1 && rtrim($lines[0]) === rtrim($prefix)) {
                     $lines[0] = rtrim($prefix . $this->renderBlockInlines($child->children, true));
                     if ($blockBeforeFencedDiv && end($lines) !== '') {
@@ -5266,7 +5287,9 @@ final class MarkdownWriter
                 continue;
             }
 
-            $blockIndent = $child->type === 'div' ? $continuationIndent : $indent + 2;
+            $blockIndent = $child->type === 'div' || ($this->opmlNoteMarkdownEnabled() && $this->isListBlock($child))
+                ? $continuationIndent
+                : $indent + 2;
             foreach ($this->renderBlock($child, $blockIndent) as $nestedLine) {
                 $lines[] = $nestedLine;
             }
@@ -5483,7 +5506,7 @@ final class MarkdownWriter
         $lines = [];
         $prefix = str_repeat(' ', $indent + 4);
         foreach (explode("\n", (string) $node->attr('text', '')) as $line) {
-            $lines[] = $prefix . $line;
+            $lines[] = $this->opmlNoteMarkdownEnabled() && $line === '' ? '' : $prefix . $line;
         }
 
         return $lines;
@@ -5637,7 +5660,7 @@ final class MarkdownWriter
      */
     private function renderHorizontalRule(int $indent): array
     {
-        $marker = $this->isPlainTextVariant()
+        $marker = $this->isPlainTextVariant() || $this->opmlNoteMarkdownEnabled()
             ? str_repeat('-', $this->writerColumns())
             : '* * *';
 
@@ -5667,6 +5690,9 @@ final class MarkdownWriter
         if ($this->fencedDivsEnabled()) {
             $fence = str_repeat(':', 3 + $this->computeDivNestingLevel($node->children));
             $attrText = $this->renderAttributesTuple($attrs);
+            if ($attrText === '' && $this->opmlNoteMarkdownEnabled()) {
+                $attrText = '{}';
+            }
             $lines = [$fence . ($attrText === '' ? '' : ' ' . $attrText)];
             if ($body !== '') {
                 array_push($lines, ...explode("\n", $body));
@@ -5754,7 +5780,7 @@ final class MarkdownWriter
             'image' => $this->renderImage($node, $following),
             'citation' => $this->renderCitation($node),
             'math' => $this->renderMath($node),
-            'raw_tex' => $this->renderRawInline($node),
+            'raw_tex', 'raw_tex_inline' => $this->renderRawInline($node),
             'raw_inline', 'raw_markdown', 'raw_html_inline' => $this->renderRawInline($node),
             'note' => $this->renderNoteReference($node),
             default => $this->renderInlines($node->children),
@@ -6412,7 +6438,7 @@ final class MarkdownWriter
     {
         $format = (string) $node->attr('format', '');
 
-        if ($node->type === 'raw_tex') {
+        if ($node->type === 'raw_tex' || $node->type === 'raw_tex_inline') {
             return [$format === '' ? 'tex' : $format, (string) $node->attr('text', $node->attr('tex', ''))];
         }
 
@@ -7856,6 +7882,10 @@ final class MarkdownWriter
     private function renderLinkDestination(string $url): string
     {
         $url = str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $url);
+        if ($url === '' && $this->opmlNoteMarkdownEnabled()) {
+            return '';
+        }
+
         if (!$this->linkDestinationNeedsAngles($url)) {
             return $url;
         }
@@ -7974,6 +8004,11 @@ final class MarkdownWriter
         }
 
         return !$this->isCommonMarkVariant();
+    }
+
+    private function opmlNoteMarkdownEnabled(): bool
+    {
+        return (bool) ($this->options['opmlNoteMarkdown'] ?? false);
     }
 
     private function simpleTablesEnabled(): bool
@@ -8609,6 +8644,10 @@ final class MarkdownWriter
 
     private function escapeLinkTitle(string $title): string
     {
+        if ($this->opmlNoteMarkdownEnabled()) {
+            return str_replace('\\', '\\\\', $title);
+        }
+
         return str_replace(['\\', '"'], ['\\\\', '\\"'], $title);
     }
 
