@@ -225,6 +225,11 @@ final class PandocFormatRegistry
             'implementation' => EpubReader::class,
             'notes' => 'Bounded EPUB package reader resolves the OPF rootfile, extracts metadata, follows XHTML spine items, rewrites package-relative href/src resources, records image/resource references, parses EPUB3 nav and NCX table-of-contents resources into metadata, and maps spine content through the shared HTML-capable reader path. Full EPUB parity remains open.',
         ],
+        'fb2' => [
+            'status' => 'partial',
+            'implementation' => Fb2Reader::class,
+            'notes' => 'Bounded FB2 reader maps FictionBook XML sections, titles, epigraphs, poems, metadata, notes, and inline formatting into the shared AST for the pinned upstream FB2 reader golden fixtures.',
+        ],
         'endnotexml' => [
             'status' => 'partial',
             'implementation' => BibliographyReader::class,

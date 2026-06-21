@@ -8,6 +8,7 @@ use PortLibs\Pandoc\DelimitedTextReader;
 use PortLibs\Pandoc\DocBookReader;
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\EpubReader;
+use PortLibs\Pandoc\Fb2Reader;
 use PortLibs\Pandoc\HtmlReader;
 use PortLibs\Pandoc\IpynbReader;
 use PortLibs\Pandoc\JiraReader;
@@ -165,6 +166,8 @@ return [
         $t->same(DocxReader::class, $support['docx']['implementation']);
         $t->same('partial', $support['epub']['status']);
         $t->same(EpubReader::class, $support['epub']['implementation']);
+        $t->same('partial', $support['fb2']['status']);
+        $t->same(Fb2Reader::class, $support['fb2']['implementation']);
         $t->same('partial', $support['odt']['status']);
         $t->same(OdtReader::class, $support['odt']['implementation']);
         $t->same('partial', $support['opml']['status']);
@@ -175,7 +178,7 @@ return [
         $t->same(RtfReader::class, $support['rtf']['implementation']);
         $t->same('partial', $support['xlsx']['status']);
         $t->same(XlsxReader::class, $support['xlsx']['implementation']);
-        $t->same(19, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(18, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();

@@ -181,6 +181,7 @@ final class PandocConverter
             DocBookReader::class => new DocBookReader(array_replace($options, ['format' => $format])),
             DocxReader::class => new DocxReader(),
             EpubReader::class => new EpubReader($options),
+            Fb2Reader::class => new Fb2Reader(),
             HtmlReader::class => new HtmlReader($options),
             IpynbReader::class => new IpynbReader(),
             JiraReader::class => new JiraReader(),
