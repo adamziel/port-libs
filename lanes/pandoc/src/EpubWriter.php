@@ -9,10 +9,11 @@ final class EpubWriter
     private const PACKAGE_PATH = 'EPUB/package.opf';
     private const NAV_PATH = 'EPUB/nav.xhtml';
     private const CHAPTER_PATH = 'EPUB/text/chapter.xhtml';
+    private const TITLE_PAGE_PATH = 'EPUB/text/title_page.xhtml';
     private const STYLESHEET_PATH = 'EPUB/styles/stylesheet.css';
 
     /**
-     * @param array{modified?: string, date?: string, title?: string, author?: string, lang?: string, identifier?: string, writerSplitLevel?: int|string|bool, splitLevel?: int|string|bool, epubSplitLevel?: int|string|bool, epubChapterLevel?: int|string|bool, mediaResources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resourceMap?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, media?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, coverImage?: string, epubCoverImage?: string, epubCoverImagePath?: string} $options
+     * @param array{modified?: string, date?: string, title?: string, author?: string, lang?: string, identifier?: string, writerEpubTitlePage?: bool|string|int, epubTitlePage?: bool|string|int, titlePage?: bool|string|int, writerSplitLevel?: int|string|bool, splitLevel?: int|string|bool, epubSplitLevel?: int|string|bool, epubChapterLevel?: int|string|bool, mediaResources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resourceMap?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, media?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, coverImage?: string, epubCoverImage?: string, epubCoverImagePath?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -28,13 +29,17 @@ final class EpubWriter
         $document = $media['document'];
         $metadata = $this->metadata($document);
         $chapterSet = $this->chapters($document, $metadata);
+        $titlePage = $this->titlePage($metadata);
 
         $parts = [
             ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'compressionMethod' => 0],
             ['name' => 'META-INF/container.xml', 'data' => $this->containerXml()],
-            ['name' => self::PACKAGE_PATH, 'data' => $this->packageOpf($metadata, $chapterSet['chapters'], $media['entries'])],
-            ['name' => self::NAV_PATH, 'data' => $this->navXhtml($document, $metadata, $chapterSet['headingHrefs'], $chapterSet['defaultHref'])],
+            ['name' => self::PACKAGE_PATH, 'data' => $this->packageOpf($metadata, $titlePage, $chapterSet['chapters'], $media['entries'])],
+            ['name' => self::NAV_PATH, 'data' => $this->navXhtml($document, $metadata, $titlePage, $chapterSet['headingHrefs'], $chapterSet['defaultHref'])],
         ];
+        if ($titlePage !== null) {
+            $parts[] = ['name' => $titlePage['packagePath'], 'data' => $titlePage['contents']];
+        }
         foreach ($chapterSet['chapters'] as $chapter) {
             $parts[] = ['name' => $chapter['packagePath'], 'data' => $chapter['contents']];
         }
@@ -47,21 +52,22 @@ final class EpubWriter
     }
 
     /**
-     * @return array{title:string, author:string, lang:string, identifier:string, modified:string}
+     * @return array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string}
      */
     private function metadata(AstNode $document): array
     {
         $meta = $document->attr('meta', []);
         $meta = is_array($meta) ? $meta : [];
 
-        $title = $this->optionString('title')
+        $explicitTitle = $this->optionString('title')
             ?? $this->metaString($meta, ['title'])
-            ?? $this->metaInlinesText($meta, 'titleInlines')
+            ?? $this->metaInlinesText($meta, 'titleInlines');
+        $title = $explicitTitle
             ?? $this->firstHeadingText($document)
             ?? 'Untitled';
-        $author = $this->optionString('author')
-            ?? $this->metaString($meta, ['author', 'creator'])
-            ?? 'Port Libs';
+        $explicitAuthor = $this->optionString('author')
+            ?? $this->metaString($meta, ['author', 'creator']);
+        $author = $explicitAuthor ?? 'Port Libs';
         $lang = $this->optionString('lang')
             ?? $this->metaString($meta, ['lang', 'language'])
             ?? 'en';
@@ -74,7 +80,9 @@ final class EpubWriter
 
         return [
             'title' => $title,
+            'titleExplicit' => $explicitTitle !== null,
             'author' => $author,
+            'authorExplicit' => $explicitAuthor !== null,
             'lang' => $lang,
             'identifier' => $identifier,
             'modified' => $this->epubTimestamp($modified),
@@ -170,7 +178,7 @@ final class EpubWriter
     }
 
     /**
-     * @param array{title:string, author:string, lang:string, identifier:string, modified:string} $metadata
+     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
      */
     private function chapterXhtml(AstNode $document, array $metadata): string
     {
@@ -193,7 +201,7 @@ final class EpubWriter
     }
 
     /**
-     * @param array{title:string, author:string, lang:string, identifier:string, modified:string} $metadata
+     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
      * @return array{
      *     chapters:list<array{id:string, href:string, packagePath:string, contents:string}>,
      *     headingHrefs:array<int, string>,
@@ -358,6 +366,82 @@ final class EpubWriter
         return $changed ? new AstNode($node->type, $attrs, $children) : $node;
     }
 
+    /**
+     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
+     * @return array{id:string, href:string, packagePath:string, contents:string, linear:bool}|null
+     */
+    private function titlePage(array $metadata): ?array
+    {
+        if (!$this->epubTitlePageEnabled()) {
+            return null;
+        }
+
+        return [
+            'id' => 'title_page_xhtml',
+            'href' => 'text/' . basename(self::TITLE_PAGE_PATH),
+            'packagePath' => self::TITLE_PAGE_PATH,
+            'contents' => $this->titlePageXhtml($metadata),
+            'linear' => $metadata['titleExplicit'],
+        ];
+    }
+
+    private function epubTitlePageEnabled(): bool
+    {
+        foreach (['writerEpubTitlePage', 'epubTitlePage', 'titlePage'] as $key) {
+            if (array_key_exists($key, $this->options)) {
+                return $this->optionBool($this->options[$key], true);
+            }
+        }
+
+        return true;
+    }
+
+    private function optionBool(mixed $value, bool $default): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (int) $value !== 0;
+        }
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['0', 'false', 'no', 'off', 'none'], true)) {
+                return false;
+            }
+        }
+
+        return $default;
+    }
+
+    /**
+     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
+     */
+    private function titlePageXhtml(array $metadata): string
+    {
+        $author = $metadata['authorExplicit']
+            ? '    <p class="author">' . $this->esc($metadata['author']) . '</p>' . "\n"
+            : '';
+
+        return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+            . '<!DOCTYPE html>' . "\n"
+            . '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="' . $this->esc($metadata['lang']) . '" lang="' . $this->esc($metadata['lang']) . '">' . "\n"
+            . '<head>' . "\n"
+            . '  <title>' . $this->esc($metadata['title']) . '</title>' . "\n"
+            . '  <link rel="stylesheet" type="text/css" href="../styles/stylesheet.css" />' . "\n"
+            . '</head>' . "\n"
+            . '<body epub:type="frontmatter">' . "\n"
+            . '  <section id="titlepage" epub:type="titlepage" role="doc-titlepage">' . "\n"
+            . '    <h1 class="title">' . $this->esc($metadata['title']) . '</h1>' . "\n"
+            . $author
+            . '  </section>' . "\n"
+            . '</body>' . "\n"
+            . '</html>' . "\n";
+    }
+
     private function containerXml(): string
     {
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
@@ -369,12 +453,20 @@ final class EpubWriter
     }
 
     /**
-     * @param array{title:string, author:string, lang:string, identifier:string, modified:string} $metadata
+     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
+     * @param array{id:string, href:string, packagePath:string, contents:string, linear:bool}|null $titlePage
      * @param list<array{id:string, href:string, packagePath:string, contents:string}> $chapters
      * @param list<array{id:string, href:string, packagePath:string, mediaType:string, contents:string, properties:list<string>}> $mediaEntries
      */
-    private function packageOpf(array $metadata, array $chapters, array $mediaEntries): string
+    private function packageOpf(array $metadata, ?array $titlePage, array $chapters, array $mediaEntries): string
     {
+        $titlePageItem = '';
+        $titlePageSpineItem = '';
+        if ($titlePage !== null) {
+            $titlePageItem = '    <item id="' . $this->esc($titlePage['id']) . '" href="' . $this->esc($titlePage['href']) . '" media-type="application/xhtml+xml"/>' . "\n";
+            $titlePageSpineItem = '    <itemref idref="' . $this->esc($titlePage['id']) . '" linear="' . ($titlePage['linear'] ? 'yes' : 'no') . '"/>' . "\n";
+        }
+
         $chapterItems = '';
         $spineItems = '';
         foreach ($chapters as $chapter) {
@@ -402,25 +494,29 @@ final class EpubWriter
             . '  </metadata>' . "\n"
             . '  <manifest>' . "\n"
             . '    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>' . "\n"
+            . $titlePageItem
             . $chapterItems
             . '    <item id="stylesheet" href="styles/stylesheet.css" media-type="text/css"/>' . "\n"
             . $mediaItems
             . '  </manifest>' . "\n"
             . '  <spine>' . "\n"
+            . $titlePageSpineItem
             . $spineItems
             . '  </spine>' . "\n"
             . '</package>' . "\n";
     }
 
     /**
-     * @param array{title:string, author:string, lang:string, identifier:string, modified:string} $metadata
+     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
+     * @param array{id:string, href:string, packagePath:string, contents:string, linear:bool}|null $titlePage
      * @param array<int, string> $headingHrefs
      */
-    private function navXhtml(AstNode $document, array $metadata, array $headingHrefs, string $defaultHref): string
+    private function navXhtml(AstNode $document, array $metadata, ?array $titlePage, array $headingHrefs, string $defaultHref): string
     {
         $entries = $this->navEntries($document, $metadata['title'], $headingHrefs, $defaultHref);
         $entryIndex = 0;
         $list = $this->renderNavList($entries, $entryIndex, 0, 4);
+        $landmarks = $this->renderLandmarksNav($titlePage);
 
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<!DOCTYPE html>' . "\n"
@@ -433,6 +529,7 @@ final class EpubWriter
             . '    <h1>Contents</h1>' . "\n"
             . $list . "\n"
             . '  </nav>' . "\n"
+            . $landmarks
             . '</body>' . "\n"
             . '</html>' . "\n";
     }
@@ -462,6 +559,25 @@ final class EpubWriter
         }
 
         return $entries === [] ? [['label' => $title, 'href' => $defaultHref, 'level' => 1]] : $entries;
+    }
+
+    /**
+     * @param array{id:string, href:string, packagePath:string, contents:string, linear:bool}|null $titlePage
+     */
+    private function renderLandmarksNav(?array $titlePage): string
+    {
+        $items = [];
+        if ($titlePage !== null) {
+            $items[] = '      <li><a href="' . $this->esc($titlePage['href']) . '" epub:type="titlepage">Title Page</a></li>';
+        }
+        $items[] = '      <li><a href="#toc" epub:type="toc">Table of Contents</a></li>';
+
+        return '  <nav epub:type="landmarks" id="landmarks" hidden="hidden">' . "\n"
+            . '    <h2>Landmarks</h2>' . "\n"
+            . '    <ol>' . "\n"
+            . implode("\n", $items) . "\n"
+            . '    </ol>' . "\n"
+            . '  </nav>' . "\n";
     }
 
     /**

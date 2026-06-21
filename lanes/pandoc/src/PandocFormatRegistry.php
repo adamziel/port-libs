@@ -373,12 +373,12 @@ final class PandocFormatRegistry
         'epub' => [
             'status' => 'partial',
             'implementation' => EpubWriter::class,
-            'notes' => 'Bounded EPUB output emits an EPUB3 OCF ZIP package with stored mimetype, container.xml, OPF metadata/manifest/spine, nav.xhtml, stylesheet, media resources, cover-image manifest properties, and writerSplitLevel XHTML spine splitting rendered through the shared HTML writer. EPUB2 output and full media/template parity remain open.',
+            'notes' => 'Bounded EPUB output emits an EPUB3 OCF ZIP package with stored mimetype, container.xml, OPF metadata/manifest/spine, nav.xhtml, stylesheet, default title page with landmarks, media resources, cover-image manifest properties, and writerSplitLevel XHTML spine splitting rendered through the shared HTML writer. EPUB2 output and full media/template parity remain open.',
         ],
         'epub3' => [
             'status' => 'partial',
             'implementation' => EpubWriter::class,
-            'notes' => 'Bounded EPUB3 output emits an OCF ZIP package with stored mimetype, container.xml, OPF metadata/manifest/spine, nav.xhtml, stylesheet, media resources, cover-image manifest properties, and writerSplitLevel XHTML spine splitting rendered through the shared HTML writer. Full Pandoc EPUB3 writer options, EPUB2, title-page/template, and advanced media parity remain open.',
+            'notes' => 'Bounded EPUB3 output emits an OCF ZIP package with stored mimetype, container.xml, OPF metadata/manifest/spine, nav.xhtml, stylesheet, default title page with landmarks, media resources, cover-image manifest properties, and writerSplitLevel XHTML spine splitting rendered through the shared HTML writer. Full Pandoc EPUB3 writer options, EPUB2, template customization, and advanced media parity remain open.',
         ],
         'gfm' => [
             'status' => 'partial',

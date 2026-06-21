@@ -54,6 +54,7 @@ return [
             'META-INF/container.xml',
             'EPUB/package.opf',
             'EPUB/nav.xhtml',
+            'EPUB/text/title_page.xhtml',
             'EPUB/text/chapter.xhtml',
             'EPUB/styles/stylesheet.css',
         ], $zip->names());
@@ -63,7 +64,7 @@ return [
         $validation = $epub->validationReport();
 
         $t->same('/EPUB/package.opf', $epub->opfPartName());
-        $t->same(['/EPUB/text/chapter.xhtml'], $assetSummary['readingOrderParts']);
+        $t->same(['/EPUB/text/title_page.xhtml', '/EPUB/text/chapter.xhtml'], $assetSummary['readingOrderParts']);
         $t->same('/EPUB/nav.xhtml', $assetSummary['navigationPart']);
         $t->same(['/EPUB/styles/stylesheet.css'], $assetSummary['stylesheetParts']);
         $t->same(true, $validation['epub3']);
@@ -77,6 +78,16 @@ return [
         $t->same('/EPUB/nav.xhtml', $navigation['partName']);
         $t->same('EPUB Writer Demo', $navigation['entries'][0]['label']);
         $t->same('text/chapter.xhtml#start', $navigation['entries'][0]['href']);
+        $t->same(['title_page_xhtml', 'chapter'], array_column($epub->spine(), 'idref'));
+        $t->same([true, true], array_column($epub->spine(), 'linear'));
+        $t->same(['toc', 'landmarks'], array_column($epub->navigationSections(), 'type'));
+        $t->same(['Title Page', 'Table of Contents'], array_column($epub->navigationSections()[1]['entries'], 'label'));
+        $t->contains('<item id="title_page_xhtml" href="text/title_page.xhtml" media-type="application/xhtml+xml"/>', $zip->read('EPUB/package.opf'));
+        $t->contains('<itemref idref="title_page_xhtml" linear="yes"/>', $zip->read('EPUB/package.opf'));
+        $t->contains('<a href="text/title_page.xhtml" epub:type="titlepage">Title Page</a>', $zip->read('EPUB/nav.xhtml'));
+        $t->contains('<section id="titlepage" epub:type="titlepage" role="doc-titlepage">', $zip->read('EPUB/text/title_page.xhtml'));
+        $t->contains('<h1 class="title">EPUB Writer Demo</h1>', $zip->read('EPUB/text/title_page.xhtml'));
+        $t->contains('<p class="author">Port Libs</p>', $zip->read('EPUB/text/title_page.xhtml'));
         $t->contains('<strong>EPUB3</strong>', $zip->read('EPUB/text/chapter.xhtml'));
         $t->contains('<table>', $zip->read('EPUB/text/chapter.xhtml'));
     },
@@ -88,7 +99,10 @@ return [
             $paragraph([$text('Round trip body.')]),
         ]);
 
-        $bytes = PandocConverter::write($document, 'epub', ['modified' => '2026-06-21T08:31:00Z']);
+        $bytes = PandocConverter::write($document, 'epub', [
+            'modified' => '2026-06-21T08:31:00Z',
+            'writerEpubTitlePage' => false,
+        ]);
         $roundTrip = PandocConverter::read($bytes, 'epub');
         $meta = $roundTrip->attr('meta');
 
@@ -224,15 +238,19 @@ return [
             'META-INF/container.xml',
             'EPUB/package.opf',
             'EPUB/nav.xhtml',
+            'EPUB/text/title_page.xhtml',
             'EPUB/text/ch1.xhtml',
             'EPUB/text/ch2.xhtml',
             'EPUB/styles/stylesheet.css',
         ], $zip->names());
-        $t->same(['/EPUB/text/ch1.xhtml', '/EPUB/text/ch2.xhtml'], $assetSummary['readingOrderParts']);
+        $t->same(['/EPUB/text/title_page.xhtml', '/EPUB/text/ch1.xhtml', '/EPUB/text/ch2.xhtml'], $assetSummary['readingOrderParts']);
+        $t->contains('<item id="title_page_xhtml" href="text/title_page.xhtml" media-type="application/xhtml+xml"/>', $opf);
         $t->contains('<item id="chapter1" href="text/ch1.xhtml" media-type="application/xhtml+xml"/>', $opf);
         $t->contains('<item id="chapter2" href="text/ch2.xhtml" media-type="application/xhtml+xml"/>', $opf);
+        $t->contains('<itemref idref="title_page_xhtml" linear="yes"/>', $opf);
         $t->contains('<itemref idref="chapter1"/>', $opf);
         $t->contains('<itemref idref="chapter2"/>', $opf);
+        $t->contains('<a href="text/title_page.xhtml" epub:type="titlepage">Title Page</a>', $navXml);
         $t->contains('<li><a href="text/ch1.xhtml#intro">Intro</a>', $navXml);
         $t->contains('<li><a href="text/ch1.xhtml#setup">Setup</a>', $navXml);
         $t->contains('<li><a href="text/ch2.xhtml#appendix">Appendix</a>', $navXml);
@@ -246,7 +264,7 @@ return [
 
         $roundTrip = PandocConverter::read($bytes, 'epub');
         $roundTripMeta = $roundTrip->attr('meta');
-        $t->same(['EPUB/text/ch1.xhtml', 'EPUB/text/ch2.xhtml'], $roundTripMeta['epubReadableResources']);
+        $t->same(['EPUB/text/title_page.xhtml', 'EPUB/text/ch1.xhtml', 'EPUB/text/ch2.xhtml'], $roundTripMeta['epubReadableResources']);
         $t->same(['Intro', 'Setup', 'Appendix', 'Details'], array_column($roundTripMeta['epubTocEntries'], 'text'));
     },
     'allows epub chapter splitting to be disabled for a single spine document' => static function (TestRunner $t) use ($text): void {
@@ -257,14 +275,40 @@ return [
             new AstNode('heading', ['level' => 1, 'id' => 'two'], [$text('Two')]),
         ]);
 
-        $bytes = (new EpubWriter(['modified' => '2026-06-21T08:35:00Z', 'writerSplitLevel' => 0]))->write($document);
+        $bytes = (new EpubWriter([
+            'modified' => '2026-06-21T08:35:00Z',
+            'writerSplitLevel' => 0,
+            'writerEpubTitlePage' => false,
+        ]))->write($document);
         $zip = ZipPackage::fromString($bytes);
         $epub = EpubPackage::fromString($bytes);
         $navXml = $zip->read('EPUB/nav.xhtml');
 
         $t->same(['/EPUB/text/chapter.xhtml'], $epub->assetSummary()['readingOrderParts']);
         $t->true(in_array('EPUB/text/chapter.xhtml', $zip->names(), true));
+        $t->true(!in_array('EPUB/text/title_page.xhtml', $zip->names(), true), 'Disabled EPUB title page should not be packaged');
         $t->contains('<li><a href="text/chapter.xhtml#one">One</a>', $navXml);
         $t->contains('<li><a href="text/chapter.xhtml#two">Two</a>', $navXml);
+    },
+    'marks inferred epub title pages non-linear without fallback author text' => static function (TestRunner $t) use ($text): void {
+        $document = new AstNode('document', [
+            'meta' => ['lang' => 'en'],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'start'], [$text('Inferred Title')]),
+            new AstNode('paragraph', [], [$text('Body.')]),
+        ]);
+
+        $bytes = (new EpubWriter(['modified' => '2026-06-21T08:36:00Z']))->write($document);
+        $zip = ZipPackage::fromString($bytes);
+        $epub = EpubPackage::fromString($bytes);
+        $opf = $zip->read('EPUB/package.opf');
+        $titlePage = $zip->read('EPUB/text/title_page.xhtml');
+
+        $t->same('Inferred Title', $epub->metadata()['title']);
+        $t->same(['title_page_xhtml', 'chapter'], array_column($epub->spine(), 'idref'));
+        $t->same([false, true], array_column($epub->spine(), 'linear'));
+        $t->contains('<itemref idref="title_page_xhtml" linear="no"/>', $opf);
+        $t->contains('<h1 class="title">Inferred Title</h1>', $titlePage);
+        $t->true(!str_contains($titlePage, '<p class="author">Port Libs</p>'), 'Fallback author should stay package metadata only');
     },
 ];
