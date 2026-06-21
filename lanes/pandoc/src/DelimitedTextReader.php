@@ -12,7 +12,7 @@ final class DelimitedTextReader
     private const CONTROL_CHARACTER_SAMPLE_RADIUS = 4;
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool} $options
      */
     public function readCsv(string $text, array $options = []): AstNode
     {
@@ -20,7 +20,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool} $options
      */
     public function readTsv(string $text, array $options = []): AstNode
     {
@@ -28,7 +28,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool} $options
      */
     public function readAuto(string $text, array $options = []): AstNode
     {
@@ -36,7 +36,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool} $options
      */
     public function read(string $text, string $format = 'csv', array $options = []): AstNode
     {
@@ -44,8 +44,8 @@ final class DelimitedTextReader
         $sourceText = $this->inputTextAfterSupportedPrefix($text, $inputPrefix);
         $formatResolution = $this->formatResolution($format, $sourceText, $options);
         $format = $formatResolution['format'];
-        $delimiter = $formatResolution['delimiter'];
-        $dialect = $this->dialectProfile($format);
+        $dialect = $this->dialectProfile($format, $options);
+        $delimiter = $dialect['delimiter'];
         $formatInference = $formatResolution['formatInference'];
         $inputPrefix['formatContext'] = $this->formatContext($formatResolution, $options);
         $hasHeader = $this->headerOption($options);
@@ -56,7 +56,7 @@ final class DelimitedTextReader
         $blankRows = $parse['blankRows'];
         $controlCharacters = $this->controlCharacterSummary($sourceText, $dialect, $options);
         if ($rows === []) {
-            $sourceAnalysis = $this->sourceAnalysis($sourceText, $delimiter, []);
+            $sourceAnalysis = $this->sourceAnalysis($sourceText, $dialect, []);
             return new AstNode('document', [
                 'sourceFormat' => $format,
                 'delimitedText' => $this->reviewPacket($format, $dialect, [], [], [], $blankRows, $hasHeader, $formatInference, $inputPrefix, $sourceAnalysis, $parse['diagnostics'], $parse['metrics'], $controlCharacters),
@@ -65,7 +65,7 @@ final class DelimitedTextReader
 
         $widths = array_map('count', $rows);
         $columnCount = max($widths);
-        $sourceAnalysis = $this->sourceAnalysis($sourceText, $delimiter, $widths);
+        $sourceAnalysis = $this->sourceAnalysis($sourceText, $dialect, $widths);
         $sourceHeader = $hasHeader ? array_shift($rows) : null;
         $tableRows = [];
         foreach ($rows as $row) {
@@ -289,37 +289,128 @@ final class DelimitedTextReader
     }
 
     /**
-     * @return array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null}
+     * @param array{delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool} $options
+     * @return array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null, keepSpace:bool}
      */
-    private function dialectProfile(string $format): array
+    private function dialectProfile(string $format, array $options = []): array
     {
-        return match ($format) {
+        $profile = match ($format) {
             'csv' => [
                 'delimiter' => ',',
                 'delimiterName' => 'comma',
                 'quote' => '"',
                 'escape' => null,
+                'keepSpace' => false,
             ],
             'tsv' => [
                 'delimiter' => "\t",
                 'delimiterName' => 'tab',
                 'quote' => null,
                 'escape' => null,
+                'keepSpace' => false,
             ],
             default => throw new \InvalidArgumentException("Unsupported delimited text format: {$format}; supported formats: csv, tsv, auto"),
         };
+
+        if (array_key_exists('delimiter', $options)) {
+            if (!is_string($options['delimiter'])) {
+                throw new \InvalidArgumentException('Delimited text delimiter option must be a string');
+            }
+
+            $profile['delimiter'] = $this->delimiterOptionValue($options['delimiter']);
+            $profile['delimiterName'] = $this->delimiterName($profile['delimiter']);
+        }
+
+        if (array_key_exists('quote', $options)) {
+            $profile['quote'] = $this->optionalSingleCharacterOption($options['quote'], 'quote');
+        }
+
+        if (array_key_exists('escape', $options)) {
+            $profile['escape'] = $this->optionalSingleCharacterOption($options['escape'], 'escape');
+        }
+
+        if (array_key_exists('keepSpace', $options)) {
+            if (!is_bool($options['keepSpace'])) {
+                throw new \InvalidArgumentException('Delimited text keepSpace option must be a boolean');
+            }
+            $profile['keepSpace'] = $options['keepSpace'];
+        }
+
+        return $profile;
     }
 
     /**
-     * @return array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null}
+     * @return array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null, keepSpace:bool}
      */
     private function dialectProfileForDelimiter(string $delimiter): array
     {
         return $delimiter === "\t" ? $this->dialectProfile('tsv') : $this->dialectProfile('csv');
     }
 
+    private function delimiterOptionValue(string $delimiter): string
+    {
+        $normalized = strtolower(trim($delimiter));
+        $value = match ($normalized) {
+            'comma' => ',',
+            'tab', '\t' => "\t",
+            'space' => ' ',
+            'semicolon', 'semi' => ';',
+            'pipe', 'bar' => '|',
+            default => $delimiter,
+        };
+
+        if ($value === '') {
+            throw new \InvalidArgumentException('Delimited text delimiter option must not be empty');
+        }
+        if ($this->length($value) !== 1) {
+            throw new \InvalidArgumentException('Delimited text delimiter option must be a single character or known delimiter name');
+        }
+
+        return $value;
+    }
+
+    private function delimiterName(string $delimiter): string
+    {
+        return match ($delimiter) {
+            ',' => 'comma',
+            "\t" => 'tab',
+            ' ' => 'space',
+            ';' => 'semicolon',
+            '|' => 'pipe',
+            default => $delimiter,
+        };
+    }
+
+    private function optionalSingleCharacterOption(mixed $value, string $name): ?string
+    {
+        if ($value === null || $value === false || $value === '') {
+            return null;
+        }
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException("Delimited text {$name} option must be a string, null, or false");
+        }
+        if ($this->length($value) !== 1) {
+            throw new \InvalidArgumentException("Delimited text {$name} option must be a single character");
+        }
+
+        return $value;
+    }
+
+    private function length(string $text): int
+    {
+        if (function_exists('mb_strlen')) {
+            return mb_strlen($text, 'UTF-8');
+        }
+
+        if (preg_match_all('/./us', $text, $matches) === 1) {
+            return count($matches[0]);
+        }
+
+        return strlen($text);
+    }
+
     /**
-     * @param array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null} $dialect
+     * @param array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null, keepSpace:bool} $dialect
      * @return array{
      *     rows:list<list<string>>,
      *     sourceRowIndexes:list<int>,
@@ -342,6 +433,8 @@ final class DelimitedTextReader
     {
         $delimiter = $dialect['delimiter'];
         $quote = $dialect['quote'];
+        $escape = $dialect['escape'];
+        $keepSpace = $dialect['keepSpace'];
         $length = strlen($text);
         $rows = [];
         $sourceRowIndexes = [];
@@ -441,7 +534,16 @@ final class DelimitedTextReader
                     continue;
                 }
 
-                if ($quote !== null && $char === '\\' && $next === $quote) {
+                if ($escape !== null && $char === $escape && $next !== '' && !$this->isLineBreak($next)) {
+                    $field .= $next;
+                    if ($quote !== null && $next === $quote) {
+                        $metrics['escapedQuoteSequenceCount']++;
+                    }
+                    $offset++;
+                    continue;
+                }
+
+                if ($escape === null && $quote !== null && $char === '\\' && $next === $quote) {
                     $field .= '\\' . $quote;
                     $metrics['escapedQuoteSequenceCount']++;
                     $diagnostics[] = $this->diagnostic(
@@ -476,6 +578,7 @@ final class DelimitedTextReader
             if ($afterClosingQuote) {
                 if ($char === $delimiter) {
                     $finishField();
+                    $this->skipPostDelimiterWhitespace($text, $offset, $delimiter, $keepSpace);
                     continue;
                 }
 
@@ -509,6 +612,7 @@ final class DelimitedTextReader
 
             if ($char === $delimiter) {
                 $finishField();
+                $this->skipPostDelimiterWhitespace($text, $offset, $delimiter, $keepSpace);
                 continue;
             }
 
@@ -593,6 +697,25 @@ final class DelimitedTextReader
         ];
     }
 
+    private function skipPostDelimiterWhitespace(string $text, int &$offset, string $delimiter, bool $keepSpace): void
+    {
+        if ($keepSpace) {
+            return;
+        }
+
+        $length = strlen($text);
+        $index = $offset + 1;
+        while ($index < $length && $this->isPostDelimiterWhitespace($text[$index], $delimiter)) {
+            $index++;
+        }
+        $offset = $index - 1;
+    }
+
+    private function isPostDelimiterWhitespace(string $char, string $delimiter): bool
+    {
+        return $delimiter === "\t" ? $char === ' ' : ($char === ' ' || $char === "\t");
+    }
+
     /**
      * @param list<string> $row
      */
@@ -605,14 +728,41 @@ final class DelimitedTextReader
                 'header' => $header,
                 'text' => $text,
                 'sourceColumn' => $column,
-            ], $text === '' ? [] : [new AstNode('plain', [], [new AstNode('text', ['text' => $text])])]);
+            ], $text === '' ? [] : [new AstNode('plain', [], $this->cellInlines($text))]);
         }
 
         return new AstNode('table_row', ['header' => $header], $cells);
     }
 
     /**
-     * @param array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null} $dialect
+     * @return list<AstNode>
+     */
+    private function cellInlines(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        $parts = preg_split('/\R/u', $text);
+        if ($parts === false || count($parts) <= 1) {
+            return [new AstNode('text', ['text' => $text])];
+        }
+
+        $inlines = [];
+        foreach ($parts as $index => $part) {
+            if ($index > 0) {
+                $inlines[] = new AstNode('linebreak');
+            }
+            if ($part !== '') {
+                $inlines[] = new AstNode('text', ['text' => $part]);
+            }
+        }
+
+        return $inlines;
+    }
+
+    /**
+     * @param array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null, keepSpace:bool} $dialect
      * @param list<list<string>> $rows
      * @param list<int> $widths
      * @param list<int> $sourceRowIndexes
@@ -686,6 +836,7 @@ final class DelimitedTextReader
                 'delimiterName' => $dialect['delimiterName'],
                 'quote' => $dialect['quote'],
                 'escape' => $dialect['escape'],
+                'keepSpace' => $dialect['keepSpace'],
                 'quoteMode' => $dialect['quote'] === null ? 'literal' : 'quoted-fields',
                 'escapeMode' => $dialect['escape'] === null ? 'none' : 'escape-character',
             ],
@@ -734,17 +885,20 @@ final class DelimitedTextReader
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
             'upstreamEvidence' => [
-                'denominator' => 2,
+                'denominator' => 4,
                 'fixtures' => [
+                    'test/command/csv.md',
                     'test/command/01.csv',
                     'test/command/3533-rst-csv-tables.csv',
+                    'test/command/3533-rst-csv-tables.md',
                 ],
-                'source' => 'lanes/pandoc/src/UpstreamRunnerDependencyAudit.php static extra-source inventory',
+                'source' => 'Pandoc 912bfa5e src/Text/Pandoc/CSV.hs and src/Text/Pandoc/Readers/CSV.hs',
             ],
         ];
     }
 
     /**
+     * @param array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null, keepSpace:bool} $dialect
      * @param list<int> $widths
      * @return array{
      *     finalRecordTerminated:bool,
@@ -757,8 +911,12 @@ final class DelimitedTextReader
      *     partialFinalRecordFieldCount:int|null
      * }
      */
-    private function sourceAnalysis(string $text, string $delimiter, array $widths): array
+    private function sourceAnalysis(string $text, array $dialect, array $widths): array
     {
+        $delimiter = $dialect['delimiter'];
+        $quote = $dialect['quote'];
+        $escape = $dialect['escape'];
+        $keepSpace = $dialect['keepSpace'];
         $length = strlen($text);
         $recordIndex = 0;
         $recordHasContent = false;
@@ -775,8 +933,13 @@ final class DelimitedTextReader
             $next = $offset + 1 < $length ? $text[$offset + 1] : null;
 
             if ($inQuotes) {
-                if ($char === '"') {
-                    if ($next === '"') {
+                if ($escape !== null && $char === $escape && $next !== null && !$this->isLineBreak($next)) {
+                    $offset++;
+                    continue;
+                }
+
+                if ($quote !== null && $char === $quote) {
+                    if ($escape === null && $next === $quote) {
                         $offset++;
                         continue;
                     }
@@ -822,10 +985,11 @@ final class DelimitedTextReader
                     $trailingDelimiterRows[$recordIndex] = true;
                 }
                 $atFieldStart = true;
+                $this->skipPostDelimiterWhitespace($text, $offset, $delimiter, $keepSpace);
                 continue;
             }
 
-            if ($char === '"' && $atFieldStart) {
+            if ($quote !== null && $char === $quote && $atFieldStart) {
                 $inQuotes = true;
                 $currentQuotedFieldHasNewline = false;
                 continue;

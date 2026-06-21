@@ -203,12 +203,12 @@ final class PandocFormatRegistry
         'csv' => [
             'status' => 'partial',
             'implementation' => DelimitedTextReader::class,
-            'notes' => 'Delimited text reader maps CSV rows into the shared table AST with quote, multiline field, row repair, control-character, and provenance diagnostics. Full Pandoc CSV option parity remains open.',
+            'notes' => 'Delimited text reader maps CSV rows into the shared table AST with Pandoc-compatible delimiter, quote, escape, keep-space, multiline-cell, row repair, control-character, and provenance diagnostics. The pinned direct CSV reader and shared CSV parser option fixtures are covered; RST csv-table integration is tracked with the RST reader gap.',
         ],
         'tsv' => [
             'status' => 'partial',
             'implementation' => DelimitedTextReader::class,
-            'notes' => 'Delimited text reader maps TSV rows into the shared table AST with trailing empty field, ragged row, repair, control-character, and provenance diagnostics. Full Pandoc TSV option parity remains open.',
+            'notes' => 'Delimited text reader maps TSV rows into the shared table AST with Pandoc-compatible tab delimiter, literal quote handling, post-delimiter space skipping, trailing empty field, ragged row, repair, control-character, and provenance diagnostics.',
         ],
         'docbook' => [
             'status' => 'partial',

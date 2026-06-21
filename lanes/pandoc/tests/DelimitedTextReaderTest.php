@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\DelimitedTextReader;
+use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PandocJsonWriter;
@@ -48,8 +49,13 @@ return [
         $t->same(1, $packet['multilineFieldCount'] ?? null);
         $t->same(0, $packet['partialRecordCount'] ?? null);
         $t->same(1, $packet['diagnosticCount'] ?? null);
-        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(['test/command/01.csv', 'test/command/3533-rst-csv-tables.csv'], $packet['upstreamEvidence']['fixtures'] ?? null);
+        $t->same(4, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same([
+            'test/command/csv.md',
+            'test/command/01.csv',
+            'test/command/3533-rst-csv-tables.csv',
+            'test/command/3533-rst-csv-tables.md',
+        ], $packet['upstreamEvidence']['fixtures'] ?? null);
         $t->same('Legacy, "quoted" title', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same("Two\nline title", $table->children[1]->children[1]->children[1]->attr('text'));
         $t->same(3, $geometry['columnCount'] ?? null);
@@ -59,6 +65,109 @@ return [
         $t->contains('<th>source_id</th><th>title</th><th>published</th>', $wordpress);
         $t->contains('<td>Legacy, &quot;quoted&quot; title</td>', $wordpress);
         $t->same('Table', $json['blocks'][0]['t'] ?? null);
+    },
+    'matches pinned upstream csv command reader semantics' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readCsv(implode("\n", [
+            'Fruit,Price,Quantity',
+            'Apple,25 cents,33',
+            '"""Navel"" Orange","35 cents",22',
+            ',,45',
+            '',
+        ]));
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(4, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(['Fruit', 'Price', 'Quantity'], $table->attr('columnNames'));
+        $t->same('Apple', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('25 cents', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('"Navel" Orange', $table->children[1]->children[1]->children[0]->attr('text'));
+        $t->same('35 cents', $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('', $table->children[1]->children[2]->children[0]->attr('text'));
+        $t->same([], $table->children[1]->children[2]->children[0]->children);
+        $t->same('', $table->children[1]->children[2]->children[1]->attr('text'));
+        $t->same([], $table->children[1]->children[2]->children[1]->children);
+        $t->same('45', $table->children[1]->children[2]->children[2]->attr('text'));
+        $t->contains('Plain [ Str "\"Navel\"" , Space , Str "Orange" ]', $native);
+        $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) []', $native);
+    },
+    'matches pinned upstream csv parser option fixtures' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $commaDocument = $reader->readCsv(
+            "\"Albatross\", 2.99, \"On a stick!\"\n"
+            . "\"Crunchy Frog\", 1.49, \"If we took the bones out, it wouldn't be\n"
+            . "crunchy, now would it?\"\n",
+            ['header' => false]
+        );
+        $spaceDocument = $reader->readCsv(implode("\n", [
+            "'' 'a' 'b'",
+            "'cat''s' 3 4",
+            "'dog''s' 2 3",
+            '',
+        ]), [
+            'delimiter' => 'space',
+            'quote' => "'",
+        ]);
+        $escapeDocument = $reader->readCsv("\"1\",\"\\\"\"\n", [
+            'escape' => '\\',
+            'header' => false,
+        ]);
+        $keepSpaceDocument = $reader->readCsv("\"A\",  B\n", [
+            'header' => false,
+            'keepSpace' => true,
+        ]);
+        $semicolonDocument = $reader->readCsv("\"Column1\";\"Column2\"\n\"Data1\";\"- data1\n\n- data2\"", [
+            'delimiter' => 'semicolon',
+        ]);
+
+        $commaTable = $commaDocument->children[0];
+        $commaPacket = $commaTable->attr('delimitedText');
+        $multilineCell = $commaTable->children[1]->children[1]->children[2];
+        $multilineInlines = $multilineCell->children[0]->children;
+        $spaceTable = $spaceDocument->children[0];
+        $spacePacket = $spaceTable->attr('delimitedText');
+        $escapeTable = $escapeDocument->children[0];
+        $escapePacket = $escapeTable->attr('delimitedText');
+        $keepSpaceTable = $keepSpaceDocument->children[0];
+        $keepSpacePacket = $keepSpaceTable->attr('delimitedText');
+        $semicolonTable = $semicolonDocument->children[0];
+        $semicolonCell = $semicolonTable->children[1]->children[0]->children[1];
+
+        $t->same(false, $commaPacket['headerRow'] ?? null);
+        $t->same('2.99', $commaTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('On a stick!', $commaTable->children[1]->children[0]->children[2]->attr('text'));
+        $t->same('Crunchy Frog', $commaTable->children[1]->children[1]->children[0]->attr('text'));
+        $t->same("If we took the bones out, it wouldn't be\ncrunchy, now would it?", $multilineCell->attr('text'));
+        $t->same(['text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $multilineInlines));
+        $t->same("If we took the bones out, it wouldn't be", $multilineInlines[0]->attr('text'));
+        $t->same('crunchy, now would it?', $multilineInlines[2]->attr('text'));
+        $t->same([1], $commaPacket['multilineQuotedRows'] ?? null);
+        $t->same(1, $commaPacket['multilineFieldCount'] ?? null);
+
+        $t->same(' ', $spacePacket['delimiter'] ?? null);
+        $t->same('space', $spacePacket['delimiterName'] ?? null);
+        $t->same("'", $spacePacket['quote'] ?? null);
+        $t->same('', $spaceTable->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('a', $spaceTable->children[0]->children[0]->children[1]->attr('text'));
+        $t->same('b', $spaceTable->children[0]->children[0]->children[2]->attr('text'));
+        $t->same("cat's", $spaceTable->children[1]->children[0]->children[0]->attr('text'));
+        $t->same("dog's", $spaceTable->children[1]->children[1]->children[0]->attr('text'));
+
+        $t->same('\\', $escapePacket['escape'] ?? null);
+        $t->same('escape-character', $escapePacket['dialect']['escapeMode'] ?? null);
+        $t->same('"', $escapeTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same(1, $escapePacket['escapedQuoteSequenceCount'] ?? null);
+        $t->same(0, $escapePacket['doubledQuoteEscapeCount'] ?? null);
+
+        $t->same(true, $keepSpacePacket['dialect']['keepSpace'] ?? null);
+        $t->same('  B', $keepSpaceTable->children[1]->children[0]->children[1]->attr('text'));
+
+        $t->same(';', $semicolonTable->attr('delimitedText')['delimiter'] ?? null);
+        $t->same(['Column1', 'Column2'], $semicolonTable->attr('columnNames'));
+        $t->same('Data1', $semicolonTable->children[1]->children[0]->children[0]->attr('text'));
+        $t->same("- data1\n\n- data2", $semicolonCell->attr('text'));
+        $t->same(['text', 'linebreak', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $semicolonCell->children[0]->children));
     },
     'maps tsv input into a native table ast and pads ragged rows' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readTsv(implode("\n", [
