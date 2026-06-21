@@ -57,6 +57,120 @@ XML;
         $t->contains('# [Reference](https://example.test/ref)', $markdown);
         $t->contains('## Child item', $markdown);
     },
+    'maps the upstream opml reader fixture structure' => static function (TestRunner $t): void {
+        $opml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>States</title>
+    <dateModified>Thu, 14 Jul 2005 23:41:05 GMT</dateModified>
+    <ownerName>Dave Winer</ownerName>
+  </head>
+  <body>
+    <outline text="United States">
+      <outline text="Far West">
+        <outline text="Alaska"/>
+        <outline text="California"/>
+        <outline text="Hawaii"/>
+          <outline text="&lt;strong&gt;Nevada&lt;/strong&gt;" _note="I lived here *once*.&#10;&#10;Loved it.">
+          <outline text="Reno" created="Tue, 12 Jul 2005 23:56:35 GMT" type="link" url="http://www.reno.gov"/>
+          <outline text="Las Vegas" created="Tue, 12 Jul 2005 23:56:37 GMT"/>
+          <outline text="Ely" created="Tue, 12 Jul 2005 23:56:39 GMT"/>
+          <outline text="Gerlach" created="Tue, 12 Jul 2005 23:56:47 GMT"/>
+          </outline>
+        <outline text="Oregon"/>
+        <outline text="Washington"/>
+        </outline>
+      <outline text="Great Plains">
+        <outline text="Kansas"/>
+        <outline text="Nebraska"/>
+        <outline text="North Dakota"/>
+        <outline text="Oklahoma"/>
+        <outline text="South Dakota"/>
+        </outline>
+      <outline text="Mid-Atlantic">
+        <outline text="Delaware"/>
+        <outline text="Maryland"/>
+        <outline text="New Jersey"/>
+        <outline text="New York"/>
+        <outline text="Pennsylvania"/>
+        </outline>
+      <outline text="Midwest">
+        <outline text="Illinois"/>
+        <outline text="Indiana"/>
+        <outline text="Iowa"/>
+        <outline text="Kentucky"/>
+        <outline text="Michigan"/>
+        <outline text="Minnesota"/>
+        <outline text="Missouri"/>
+        <outline text="Ohio"/>
+        <outline text="West Virginia"/>
+        <outline text="Wisconsin"/>
+        </outline>
+      <outline text="Mountains">
+        <outline text="Colorado"/>
+        <outline text="Idaho"/>
+        <outline text="Montana"/>
+        <outline text="Utah"/>
+        <outline text="Wyoming"/>
+        </outline>
+      <outline text="New England">
+        <outline text="Connecticut"/>
+        <outline text="Maine"/>
+        <outline text="Massachusetts"/>
+        <outline text="New Hampshire"/>
+        <outline text="Rhode Island"/>
+        <outline text="Vermont"/>
+        </outline>
+      <outline text="South">
+        <outline text="Alabama"/>
+        <outline text="Arkansas"/>
+        <outline text="Florida"/>
+        <outline text="Georgia"/>
+        <outline text="Louisiana"/>
+        <outline text="Mississippi"/>
+        <outline text="North Carolina"/>
+        <outline text="South Carolina"/>
+        <outline text="Tennessee"/>
+        <outline text="Virginia"/>
+      </outline>
+      <outline text="Southwest">
+        <outline text="Arizona"/>
+        <outline text="New Mexico"/>
+        <outline text="Texas"/>
+      </outline>
+    </outline>
+  </body>
+</opml>
+XML;
+
+        $document = PandocConverter::read($opml, 'opml');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+        $typeCounts = [];
+        foreach ($document->children as $child) {
+            $typeCounts[$child->type] = ($typeCounts[$child->type] ?? 0) + 1;
+        }
+
+        $t->same('States', $meta['title']);
+        $t->same(['Dave Winer'], $meta['authors']);
+        $t->same('Thu, 14 Jul 2005 23:41:05 GMT', $meta['date']);
+        $t->same(63, $meta['opmlOutlineCount']);
+        $t->same(1, $meta['opmlLinkOutlineCount']);
+        $t->same(1, $meta['opmlNoteCount']);
+        $t->same(63, $typeCounts['heading']);
+        $t->same(2, $typeCounts['paragraph']);
+        $t->same('United States', $document->children[0]->attr('text'));
+        $t->same('Nevada', $document->children[5]->attr('text'));
+        $t->same('strong', $document->children[5]->children[0]->type);
+        $t->same('I lived here once.', $document->children[6]->attr('text'));
+        $t->same('Loved it.', $document->children[7]->attr('text'));
+        $t->same('Reno', $document->children[8]->attr('text'));
+        $t->same('link', $document->children[8]->children[0]->type);
+        $t->same('http://www.reno.gov', $document->children[8]->children[0]->attr('url'));
+        $t->contains('<h3><strong>Nevada</strong></h3>', $blocks);
+        $t->contains('<h4><a href="http://www.reno.gov">Reno</a></h4>', $blocks);
+    },
     'rejects malformed opml instead of falling back to markdown text' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             (new OpmlReader())->read('<opml><body><outline text="Unclosed"></body></opml>');
