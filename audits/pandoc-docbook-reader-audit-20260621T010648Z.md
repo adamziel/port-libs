@@ -23,13 +23,14 @@ Unsupported upstream inputs after this slice remain:
 - Follow-up parity slice accepts DocBook `set` roots consistently across the reader and review helpers, maps nested `set`/`book`/section heading levels, preserves inline `anchor`, `indexterm`, and `co` markers as AST spans, and attaches `programlistingco` `areaspec` entries to code-block metadata.
 - Follow-up parity slice maps single-key DocBook `citation` text and `biblioref` targets into native citation AST nodes while preserving freeform citation text as DocBook-marked spans.
 - Follow-up parity slice maps semicolon-separated grouped DocBook citations with prefix, suffix, and suppress-author forms into structured citation payloads.
+- Follow-up parity slice resolves supplied DocBook media resources through `MediaBag`, maps extracted image URLs with provenance metadata, preserves selected `imagedata` dimensions/format attributes, and records missing media without exposing raw bytes in document metadata.
 
 ## Remaining DocBook Gaps
 
 - Full Pandoc DocBook reader parity remains open.
 - DocBook namespace/version edge cases beyond the bounded structural roots still need upstream fixture mapping.
 - Full bibliography/citation semantics are not complete; full locator taxonomy, author-in-text forms, nested markup in affixes, and CSL bibliography output remain open, while current bibliography entries are represented as definition lists with structural diagnostics preserved in metadata.
-- Full media object resolution, resource packaging, generated callout numbering/link resolution, full glossary/set/refentry option semantics, and exact Pandoc block/inline constructor parity remain open.
+- Full media object semantics remain open for alternate object selection, non-image objects, package/entity catalogs, generated callout numbering/link resolution, full glossary/set/refentry option semantics, and exact Pandoc block/inline constructor parity.
 - Dedicated `docbook4`/`docbook5` input aliases are not upstream input tokens in the current registry; output aliases remain unchanged.
 
 ## Format Plan Update
@@ -52,4 +53,8 @@ Unsupported upstream inputs after this slice remain:
 - Latest focused DocBook reader test: 1 file, 107 assertions, 0 failures.
 - Latest focused DocBook/XML/Markdown/registry suite: 5 files, 10,997 assertions, 0 failures.
 - Latest broad smoke with DocBook/XML/Markdown/package/PDF readers: 21 files, 18,116 assertions, 0 failures.
+- Media-resource focused DocBook reader test: 1 file, 132 assertions, 0 failures.
+- Media-resource focused DocBook/XML/Markdown/registry suite: 5 files, 11,022 assertions, 0 failures.
+- Media-resource PDF/markerPDF guard suite: 2 files, 3,051 assertions, 0 failures.
+- Media-resource broad smoke with DocBook/XML/Markdown/package/PDF readers: 21 files, 18,141 assertions, 0 failures.
 - Local PDF hardcode guard: no source or test hits for problematic-document text, and the local problematic PDF still reports `tables=10 geometry=10 rects=896 mode=geometry`.

@@ -206,10 +206,10 @@ final class DocBookReader
             }
         }
 
-        return new AstNode('document', [
+        return $this->withMediaResources(new AstNode('document', [
             'sourceFormat' => $format,
             'meta' => $meta,
-        ], $blocks);
+        ], $blocks));
     }
 
     private function readTableFragment(\DOMDocument $dom, \DOMElement $root, string $bytes): AstNode
@@ -1052,11 +1052,38 @@ final class DocBookReader
         $attrs['url'] = $url;
         $attrs['alt'] = $alt;
         $attrs['title'] = '';
-        $attrs['attributes'] = array_replace($attrs['attributes'] ?? [], [
+        $attrs['attributes'] = array_replace($attrs['attributes'] ?? [], $this->imageDataAttributes($imageData), [
             'data-docbook-media-source' => $this->name($element),
         ]);
 
         return new AstNode('image', $attrs, $this->textInlines($alt));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function imageDataAttributes(\DOMElement $imageData): array
+    {
+        $attrs = [];
+        foreach (['format', 'width', 'depth', 'contentwidth', 'contentdepth', 'align', 'valign', 'scale', 'scalefit'] as $name) {
+            $value = XmlHtmlDom::attribute($imageData, $name);
+            if ($value === null || trim($value) === '') {
+                continue;
+            }
+
+            $attrs['data-docbook-imagedata-' . strtolower($name)] = trim($value);
+        }
+
+        $width = XmlHtmlDom::attribute($imageData, 'contentwidth') ?? XmlHtmlDom::attribute($imageData, 'width');
+        if ($width !== null && trim($width) !== '') {
+            $attrs['width'] = trim($width);
+        }
+        $height = XmlHtmlDom::attribute($imageData, 'contentdepth') ?? XmlHtmlDom::attribute($imageData, 'depth');
+        if ($height !== null && trim($height) !== '') {
+            $attrs['height'] = trim($height);
+        }
+
+        return $attrs;
     }
 
     private function mediaAltText(\DOMElement $element): string
@@ -1955,6 +1982,128 @@ final class DocBookReader
             'namespaceSummary' => XmlHtmlDom::summarizeXmlNamespaceScopes($dom),
             'payloadExposurePolicy' => 'docbook-dom-text-and-structural-metadata-only',
         ], $extra);
+    }
+
+    private function withMediaResources(AstNode $document): AstNode
+    {
+        $resources = $this->mediaResourcesOption();
+        $extractionDestination = $this->mediaExtractionDestination();
+        if ($resources === null && $extractionDestination === null) {
+            return $document;
+        }
+
+        $bag = new MediaBag();
+        $fillDiagnostics = [];
+        if ($resources !== null) {
+            $filled = $bag->fillDocument($document, $resources);
+            $document = $filled['document'];
+            $fillDiagnostics = $filled['diagnostics'];
+        }
+
+        $extractionDiagnostics = [];
+        $extractionEntries = [];
+        if ($extractionDestination !== null) {
+            $extracted = $bag->extractMedia($document, $extractionDestination);
+            $document = $extracted['document'];
+            $extractionDiagnostics = $extracted['diagnostics'];
+            $extractionEntries = $this->mediaExtractionEntriesWithoutPayload($extracted['entries']);
+        }
+
+        $meta = $document->attr('meta', []);
+        if (!is_array($meta)) {
+            $meta = [];
+        }
+
+        $diagnostics = array_values(array_merge($fillDiagnostics, $extractionDiagnostics));
+        $meta['docbookMediaResourcePolicy'] = 'media-bag-option-resolved';
+        $meta['docbookMediaResourceDiagnostics'] = $diagnostics;
+        $meta['docbookMediaResourceDirectory'] = $bag->directory();
+        $meta['docbookMediaResourceCount'] = count($meta['docbookMediaResourceDirectory']);
+        $meta['docbookMediaResourceLoadedCount'] = $this->countDiagnosticsWithPrefix($diagnostics, 'media-resource-loaded:')
+            + $this->countDiagnosticsWithPrefix($diagnostics, 'media-resource-link-loaded:');
+        $meta['docbookMediaResourceMissingCount'] = $this->countDiagnosticsWithPrefix($diagnostics, 'media-resource-missing:');
+        $meta['docbookMediaResourceMappedCount'] = $this->countDiagnosticsWithPrefix($diagnostics, 'media-resource-mapped:')
+            + $this->countDiagnosticsWithPrefix($diagnostics, 'media-resource-link-mapped:');
+        if ($extractionDestination !== null) {
+            $meta['docbookMediaExtractionDestination'] = $extractionDestination;
+            $meta['docbookMediaExtractionDirectory'] = $extractionEntries;
+            $meta['docbookMediaExtractionCount'] = count($extractionEntries);
+        }
+
+        return new AstNode($document->type, array_replace($document->attrs, ['meta' => $meta]), $document->children);
+    }
+
+    /**
+     * @return array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>|null
+     */
+    private function mediaResourcesOption(): ?array
+    {
+        $resources = $this->options['mediaResources'] ?? null;
+        if (!is_array($resources)) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($resources as $source => $resource) {
+            if (!is_string($source) || $source === '') {
+                continue;
+            }
+            if (is_string($resource)) {
+                $normalized[$source] = $resource;
+                continue;
+            }
+            if (!is_array($resource)) {
+                continue;
+            }
+
+            $entry = [];
+            foreach (['contents', 'data', 'mimeType'] as $key) {
+                if (array_key_exists($key, $resource) && (is_string($resource[$key]) || $resource[$key] === null)) {
+                    $entry[$key] = $resource[$key];
+                }
+            }
+            $normalized[$source] = $entry;
+        }
+
+        return $normalized;
+    }
+
+    private function mediaExtractionDestination(): ?string
+    {
+        $destination = $this->options['extractMediaTo'] ?? $this->options['mediaExtractionPath'] ?? null;
+        if (!is_string($destination) || trim($destination) === '') {
+            return null;
+        }
+
+        return trim($destination);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private function mediaExtractionEntriesWithoutPayload(array $entries): array
+    {
+        return array_map(static function (array $entry): array {
+            unset($entry['contents']);
+
+            return $entry;
+        }, $entries);
+    }
+
+    /**
+     * @param list<string> $diagnostics
+     */
+    private function countDiagnosticsWithPrefix(array $diagnostics, string $prefix): int
+    {
+        $count = 0;
+        foreach ($diagnostics as $diagnostic) {
+            if (str_starts_with($diagnostic, $prefix)) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     /**

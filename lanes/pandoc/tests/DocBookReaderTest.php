@@ -85,6 +85,70 @@ XML;
         $t->contains('Field             Status', $markdown);
         $t->contains('Parser            Ready', $markdown);
     },
+    'resolves docbook media resources through media bag extraction' => static function (TestRunner $t): void {
+        $svgBytes = "<svg><text>hero diagram</text></svg>\n";
+        $docbook = <<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" version="5.2">
+  <title>Media Resource Demo</title>
+  <section>
+    <title>Body</title>
+    <figure xml:id="fig-hero">
+      <title>Hero figure</title>
+      <mediaobject>
+        <imageobject><imagedata fileref="assets/hero.svg?rev=1#view" format="SVG" contentwidth="320px" depth="240px"/></imageobject>
+        <textobject><phrase>Hero diagram</phrase></textobject>
+      </mediaobject>
+    </figure>
+    <para>Inline <inlinemediaobject><imageobject><imagedata fileref="assets/missing.png"/></imageobject><textobject><phrase>Missing icon</phrase></textobject></inlinemediaobject> done.</para>
+  </section>
+</article>
+XML;
+
+        $document = PandocConverter::read($docbook, 'docbook', [
+            'mediaResources' => [
+                'assets/hero.svg' => [
+                    'contents' => $svgBytes,
+                    'mimeType' => 'image/svg+xml',
+                ],
+            ],
+            'extractMediaTo' => 'docbook-media',
+        ]);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+        $missingPlaceholder = $document->children[3]->children[1];
+        $mediaPath = sha1($svgBytes) . '.svg';
+        $mappedPath = 'docbook-media/' . $mediaPath;
+
+        $t->same([
+            'media-resource-loaded:assets/hero.svg?rev=1#view',
+            'media-resource-missing:assets/missing.png',
+            'media-resource-mapped:assets/hero.svg?rev=1#view',
+        ], $meta['docbookMediaResourceDiagnostics']);
+        $t->same('media-bag-option-resolved', $meta['docbookMediaResourcePolicy']);
+        $t->same(1, $meta['docbookMediaResourceCount']);
+        $t->same(1, $meta['docbookMediaResourceLoadedCount']);
+        $t->same(1, $meta['docbookMediaResourceMissingCount']);
+        $t->same(1, $meta['docbookMediaResourceMappedCount']);
+        $t->same($mediaPath, $meta['docbookMediaResourceDirectory'][0]['path']);
+        $t->same('image/svg+xml', $meta['docbookMediaResourceDirectory'][0]['mimeType']);
+        $t->same(strlen($svgBytes), $meta['docbookMediaResourceDirectory'][0]['byteLength']);
+        $t->same('docbook-media', $meta['docbookMediaExtractionDestination']);
+        $t->same(1, $meta['docbookMediaExtractionCount']);
+        $t->same($mappedPath, $meta['docbookMediaExtractionDirectory'][0]['path']);
+        $t->same($mediaPath, $meta['docbookMediaExtractionDirectory'][0]['mediaPath']);
+        $t->true(!array_key_exists('contents', $meta['docbookMediaExtractionDirectory'][0]), 'DocBook media extraction metadata must not expose raw bytes');
+        $t->contains('<img src="' . $mappedPath . '" alt="Hero diagram"', $blocks);
+        $t->contains('data-docbook-imagedata-format="SVG"', $blocks);
+        $t->contains('data-docbook-imagedata-contentwidth="320px"', $blocks);
+        $t->contains('data-docbook-imagedata-depth="240px"', $blocks);
+        $t->contains('data-pandoc-width="320px"', $blocks);
+        $t->contains('data-pandoc-height="240px"', $blocks);
+        $t->contains('data-pandoc-media-source="assets/hero.svg?rev=1#view"', $blocks);
+        $t->contains('data-pandoc-media-target="' . $mappedPath . '"', $blocks);
+        $t->same('span', $missingPlaceholder->type);
+        $t->same('assets/missing.png', $missingPlaceholder->attr('attributes')['original-image-src']);
+        $t->contains('Missing icon', $blocks);
+    },
     'maps docbook citations and bibliorefs into citation ast nodes' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
 <article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.2">
