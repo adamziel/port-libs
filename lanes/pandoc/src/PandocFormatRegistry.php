@@ -405,6 +405,11 @@ final class PandocFormatRegistry
             'implementation' => NativeWriter::class,
             'notes' => 'NativeWriter can render the current AST subset and round-trip many fixtures; complete constructor parity remains open.',
         ],
+        'opml' => [
+            'status' => 'partial',
+            'implementation' => OpmlWriter::class,
+            'notes' => 'Bounded OPML writer maps section headings to nested outline elements, heading inlines to escaped HTML text attributes, body content to Markdown _note attributes, and document metadata to the default OPML header. Full writer fixture/template parity remains open.',
+        ],
         'plain' => [
             'status' => 'partial',
             'implementation' => PlainWriter::class,

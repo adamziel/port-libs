@@ -20,6 +20,7 @@ use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\OdtReader;
 use PortLibs\Pandoc\OpmlReader;
+use PortLibs\Pandoc\OpmlWriter;
 use PortLibs\Pandoc\PandocFormatRegistry;
 use PortLibs\Pandoc\PdfReader;
 use PortLibs\Pandoc\PlainWriter;
@@ -181,12 +182,14 @@ return [
         $t->same(LatexWriter::class, $support['latex']['implementation']);
         $t->same('partial', $support['native']['status']);
         $t->same(NativeWriter::class, $support['native']['implementation']);
+        $t->same('partial', $support['opml']['status']);
+        $t->same(OpmlWriter::class, $support['opml']['implementation']);
         $t->same('partial', $support['plain']['status']);
         $t->same(PlainWriter::class, $support['plain']['implementation']);
         $t->same('unsupported', $support['docx']['status']);
         $t->same('unsupported', $support['epub']['status']);
         $t->same('unsupported', $support['odt']['status']);
         $t->same('unsupported', $support['pdf']['status']);
-        $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
+        $t->same(60, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
 ];

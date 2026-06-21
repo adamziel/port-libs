@@ -98,7 +98,16 @@ return [
         $t->true(PandocConverter::canRead('bits'));
         $t->true(PandocConverter::canWrite('blocks'));
         $t->true(PandocConverter::canWrite('native'));
+        $t->true(PandocConverter::canWrite('opml'));
         $t->true(!PandocConverter::canWrite('pdf'));
+    },
+    'converts markdown sections to opml through the registered writer path' => static function (TestRunner $t): void {
+        $opml = PandocConverter::convert("# Root\n\nIntro **note**.\n\n## Child\n", 'markdown', 'opml', [
+            'writerOptions' => ['standalone' => false],
+        ]);
+
+        $t->contains('<outline text="Root" _note="Intro **note**.">', $opml);
+        $t->contains('  <outline text="Child">', $opml);
     },
     'fails explicitly for unsupported registry formats' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {

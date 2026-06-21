@@ -207,6 +207,7 @@ final class PandocConverter
             LatexWriter::class => new LatexWriter($options),
             MarkdownWriter::class => new MarkdownWriter(self::markdownWriterOptions($format, $options)),
             NativeWriter::class => new NativeWriter($options),
+            OpmlWriter::class => new OpmlWriter($options),
             PlainWriter::class => new PlainWriter($options),
             default => throw new \InvalidArgumentException("Unsupported Pandoc writer implementation '{$implementation}'."),
         };
