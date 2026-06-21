@@ -77,7 +77,7 @@ XML;
         $t->contains('<a href="#table-1">a table link</a>', $blocks);
         $t->contains('<ul><li>First item</li><li>Second item</li></ul>', $blocks);
         $t->contains('<dl><dt>Plugin</dt><dd>Stable release.</dd></dl>', $blocks);
-        $t->contains('<img src="images/architecture.png" alt="Architecture diagram" data-docbook-media-source="figure"/>', $blocks);
+        $t->contains('<img src="images/architecture.png" alt="Architecture diagram" data-docbook-media-source="figure" data-docbook-media-selected-object="imageobject"/>', $blocks);
         $t->contains('<colgroup><col style="width:25%"/><col style="width:75%"/></colgroup>', $blocks);
         $t->contains('<td style="text-align:left">Parser</td><td style="text-align:center">Ready</td>', $blocks);
         $t->contains('<dl><dt>ref-a</dt><dd>DocBook Source. Smith. 2026</dd></dl>', $blocks);
@@ -148,6 +148,76 @@ XML;
         $t->same('span', $missingPlaceholder->type);
         $t->same('assets/missing.png', $missingPlaceholder->attr('attributes')['original-image-src']);
         $t->contains('Missing icon', $blocks);
+    },
+    'preserves docbook media alternatives and non image fallbacks' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" version="5.2">
+  <title>Media Alternatives</title>
+  <section>
+    <title>Body</title>
+    <mediaobject xml:id="text-media"><textobject><phrase>Transcript fallback text</phrase></textobject></mediaobject>
+    <mediaobject><videoobject><videodata fileref="media/demo.mp4"/></videoobject></mediaobject>
+    <para>Inline <inlinemediaobject><audioobject><audiodata fileref="media/beep.mp3"/></audioobject><textobject><phrase>Audio beep</phrase></textobject></inlinemediaobject> done.</para>
+    <mediaobject>
+      <imageobject role="print"><imagedata fileref="images/print.png"/></imageobject>
+      <imageobject role="screen"><imagedata fileref="images/screen.png"/></imageobject>
+      <textobject><phrase>Alternate diagram</phrase></textobject>
+    </mediaobject>
+  </section>
+</article>
+XML;
+
+        $document = PandocConverter::read($docbook, 'docbook');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $textFallback = $document->children[2];
+        $videoFallback = $document->children[3];
+        $inlineParagraph = $document->children[4];
+        $imageFigure = $document->children[5];
+
+        $t->same('div', $textFallback->type);
+        $t->same('docbook-media-fallback', $textFallback->attr('classes')[0]);
+        $t->same('paragraph', $textFallback->children[0]->type);
+        $t->same('span', $textFallback->children[0]->children[0]->type);
+        $t->same('Transcript fallback text', $textFallback->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('div', $videoFallback->type);
+        $t->same('link', $videoFallback->children[0]->children[0]->type);
+        $t->same('media/demo.mp4', $videoFallback->children[0]->children[0]->attr('url'));
+        $t->same('span', $inlineParagraph->children[1]->type);
+        $t->same('Audio beep', $inlineParagraph->children[1]->children[0]->attr('text'));
+        $t->same('figure', $imageFigure->type);
+        $t->same('images/print.png', $imageFigure->children[0]->attr('url'));
+        $t->same('imageobject', $imageFigure->children[0]->attr('attributes')['data-docbook-media-selected-object']);
+        $t->contains('Transcript fallback text', $blocks);
+        $t->contains('<a href="media/demo.mp4"', $blocks);
+        $t->contains('data-docbook-media-fallback="videodata"', $blocks);
+        $t->contains('Audio beep', $blocks);
+        $t->contains('<img src="images/print.png" alt="Alternate diagram"', $blocks);
+        $t->contains('data-docbook-media-selected-object="imageobject"', $blocks);
+        $t->true(!str_contains($blocks, 'images/screen.png'));
+    },
+    'uses docbook xreflabel attributes for xref targets' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" version="5.2">
+  <title>Xref Label Demo</title>
+  <section>
+    <title>Body</title>
+    <para>See <xref linkend="api-contract"/> for details.</para>
+    <section xml:id="api-contract" xreflabel="API contract">
+      <title>Internal Section Title</title>
+      <para>Contract body.</para>
+    </section>
+  </section>
+</article>
+XML;
+
+        $document = PandocConverter::read($docbook, 'docbook');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $paragraph = $document->children[2];
+
+        $t->same('API contract', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same('API contract', $paragraph->children[1]->attr('attributes')['data-docbook-xref-target-label']);
+        $t->contains('<a href="#api-contract" data-docbook-xref-target="api-contract" data-docbook-xref-target-label="API contract" data-docbook-xref-target-element="section">API contract</a>', $blocks);
+        $t->true(!str_contains($blocks, '>Internal Section Title</a>'));
     },
     'resolves docbook xref labels from target titles and endterms' => static function (TestRunner $t): void {
         $docbook = <<<'XML'

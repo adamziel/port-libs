@@ -1036,9 +1036,10 @@ final class DocBookReader
 
     private function figureFromElement(\DOMElement $element): ?AstNode
     {
-        $image = $this->imageFromElement($element);
+        $image = $this->mediaImageFromElement($element);
+        $fallback = !$image instanceof AstNode ? $this->mediaFallbackFromElement($element) : null;
         $caption = $this->firstChildText($element, ['title', 'caption']);
-        if (!$image instanceof AstNode && $caption === '') {
+        if (!$image instanceof AstNode && !$fallback instanceof AstNode && $caption === '') {
             return null;
         }
 
@@ -1047,18 +1048,35 @@ final class DocBookReader
             $attrs['caption'] = $caption;
         }
 
-        return new AstNode('figure', $attrs, $image instanceof AstNode ? [$image] : []);
+        if ($image instanceof AstNode || !$fallback instanceof AstNode) {
+            return new AstNode('figure', $attrs, $image instanceof AstNode ? [$image] : []);
+        }
+
+        $attrs['classes'] = array_values(array_unique(array_merge($attrs['classes'] ?? [], [
+            'docbook-media-fallback',
+            'docbook-' . $this->name($element),
+        ])));
+        if ($caption !== '') {
+            $attrs['attributes'] = array_replace($attrs['attributes'] ?? [], [
+                'data-docbook-caption' => $caption,
+            ]);
+        }
+
+        $text = $this->plainInlineText([$fallback]);
+
+        return new AstNode('div', $attrs, [
+            new AstNode('paragraph', ['text' => $text], [$fallback]),
+        ]);
     }
 
-    private function imageFromElement(\DOMElement $element): ?AstNode
+    private function mediaImageFromElement(\DOMElement $element): ?AstNode
     {
-        $imageData = $this->name($element) === 'imagedata'
-            ? $element
-            : XmlHtmlDom::firstDescendantElement($element, 'imagedata');
-        if (!$imageData instanceof \DOMElement) {
+        $selected = $this->selectedImageData($element);
+        if ($selected === null) {
             return null;
         }
 
+        [$imageData, $imageObject] = $selected;
         $url = trim((string) (
             XmlHtmlDom::attribute($imageData, 'fileref')
             ?? XmlHtmlDom::attribute($imageData, 'entityref')
@@ -1077,9 +1095,118 @@ final class DocBookReader
         $attrs['title'] = '';
         $attrs['attributes'] = array_replace($attrs['attributes'] ?? [], $this->imageDataAttributes($imageData), [
             'data-docbook-media-source' => $this->name($element),
+            'data-docbook-media-selected-object' => $this->name($imageObject),
         ]);
 
         return new AstNode('image', $attrs, $this->textInlines($alt));
+    }
+
+    /**
+     * @return array{0:\DOMElement,1:\DOMElement}|null
+     */
+    private function selectedImageData(\DOMElement $element): ?array
+    {
+        if ($this->name($element) === 'imagedata') {
+            return [$element, $element];
+        }
+
+        if ($this->name($element) === 'imageobject') {
+            $imageData = XmlHtmlDom::firstDescendantElement($element, 'imagedata');
+
+            return $imageData instanceof \DOMElement ? [$imageData, $element] : null;
+        }
+
+        foreach (XmlHtmlDom::childElements($element, 'imageobject') as $imageObject) {
+            $imageData = XmlHtmlDom::firstDescendantElement($imageObject, 'imagedata');
+            if ($imageData instanceof \DOMElement) {
+                return [$imageData, $imageObject];
+            }
+        }
+
+        $imageData = XmlHtmlDom::firstDescendantElement($element, 'imagedata');
+        if ($imageData instanceof \DOMElement) {
+            $parent = $imageData->parentNode;
+
+            return [$imageData, $parent instanceof \DOMElement ? $parent : $imageData];
+        }
+
+        return null;
+    }
+
+    private function mediaFallbackFromElement(\DOMElement $element): ?AstNode
+    {
+        $fallback = $this->mediaFallbackText($element);
+        if ($fallback !== '') {
+            return new AstNode('span', [
+                'classes' => ['docbook-media-fallback', 'docbook-textobject'],
+                'attributes' => [
+                    'data-docbook-media-source' => $this->name($element),
+                    'data-docbook-media-fallback' => 'textobject',
+                ],
+            ], $this->textInlines($fallback));
+        }
+
+        foreach ([
+            'videodata' => 'videoobject',
+            'audiodata' => 'audioobject',
+            'objectdata' => 'object',
+        ] as $dataName => $objectName) {
+            $data = XmlHtmlDom::firstDescendantElement($element, $dataName);
+            if (!$data instanceof \DOMElement) {
+                continue;
+            }
+
+            $source = $this->mediaDataReference($data);
+            if ($source === '') {
+                continue;
+            }
+
+            $label = $this->mediaAltText($element);
+            if ($label === '') {
+                $label = $source;
+            }
+
+            return new AstNode('link', [
+                'url' => $source,
+                'title' => '',
+                'classes' => ['docbook-media-fallback', 'docbook-' . $objectName],
+                'attributes' => [
+                    'data-docbook-media-source' => $this->name($element),
+                    'data-docbook-media-selected-object' => $objectName,
+                    'data-docbook-media-fallback' => $dataName,
+                ],
+            ], $this->textInlines($label));
+        }
+
+        return null;
+    }
+
+    private function mediaFallbackText(\DOMElement $element): string
+    {
+        foreach (['textobject', 'alt', 'caption'] as $name) {
+            $child = XmlHtmlDom::firstDescendantElement($element, $name);
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $text = $this->cleanText(XmlHtmlDom::normalizedText($child));
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return '';
+    }
+
+    private function mediaDataReference(\DOMElement $data): string
+    {
+        return trim((string) (
+            XmlHtmlDom::attribute($data, 'fileref')
+            ?? XmlHtmlDom::attribute($data, 'entityref')
+            ?? XmlHtmlDom::attribute($data, 'href')
+            ?? XmlHtmlDom::attribute($data, 'href', self::XLINK_NAMESPACE)
+            ?? ''
+        ));
     }
 
     /**
@@ -1388,9 +1515,14 @@ final class DocBookReader
                 continue;
             }
             if (in_array($name, ['inlinemediaobject', 'mediaobject', 'imagedata'], true)) {
-                $image = $this->imageFromElement($child);
+                $image = $this->mediaImageFromElement($child);
                 if ($image instanceof AstNode) {
                     $nodes[] = $image;
+                    continue;
+                }
+                $fallback = $this->mediaFallbackFromElement($child);
+                if ($fallback instanceof AstNode) {
+                    $nodes[] = $fallback;
                 }
                 continue;
             }
@@ -1974,6 +2106,11 @@ final class DocBookReader
 
     private function xrefTargetLabel(\DOMElement $element): string
     {
+        $xreflabel = $this->cleanText(XmlHtmlDom::attribute($element, 'xreflabel') ?? '');
+        if ($xreflabel !== '') {
+            return $xreflabel;
+        }
+
         $elementLabel = $this->firstChildText($element, ['label']);
         $title = $this->firstChildText($element, ['title', 'caption', 'refname', 'phrase']);
         if ($title === '' && $this->name($element) === 'refentry') {

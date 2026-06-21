@@ -26,13 +26,14 @@ Unsupported upstream inputs after this slice remain:
 - Follow-up parity slice resolves supplied DocBook media resources through `MediaBag`, maps extracted image URLs with provenance metadata, preserves selected `imagedata` dimensions/format attributes, and records missing media without exposing raw bytes in document metadata.
 - Follow-up parity slice generates DocBook callout labels for `co` and `area` markers, carries those labels into `programlistingco` area metadata, and annotates linked `calloutlist` entries with their resolved labels.
 - Follow-up parity slice resolves empty DocBook `xref`/`link` labels from target titles, labels, and `endterm` text while preserving target provenance in WordPress-safe `data-docbook-xref-*` attributes.
+- Follow-up parity slice honors DocBook `xreflabel` for cross-reference labels, records the selected `imageobject` alternative, preserves `textobject`/`alt`/`caption` media fallbacks, and degrades audio/video/object data references to provenance-marked links instead of dropping them.
 
 ## Remaining DocBook Gaps
 
 - Full Pandoc DocBook reader parity remains open.
 - DocBook namespace/version edge cases beyond the bounded structural roots still need upstream fixture mapping.
 - Full bibliography/citation semantics are not complete; full locator taxonomy, author-in-text forms, nested markup in affixes, and CSL bibliography output remain open, while current bibliography entries are represented as definition lists with structural diagnostics preserved in metadata.
-- Full media object semantics remain open for alternate object selection, non-image objects, package/entity catalogs, full DocBook cross-reference style/numbering semantics, full glossary/set/refentry option semantics, and exact Pandoc block/inline constructor parity.
+- Full media object semantics remain open for package/entity catalogs, richer object selection policies beyond first image/text fallback, embedded object metadata, full DocBook cross-reference style/numbering semantics, full glossary/set/refentry option semantics, and exact Pandoc block/inline constructor parity.
 - Dedicated `docbook4`/`docbook5` input aliases are not upstream input tokens in the current registry; output aliases remain unchanged.
 
 ## Format Plan Update
@@ -65,4 +66,8 @@ Unsupported upstream inputs after this slice remain:
 - Xref-title focused DocBook reader test: 1 file, 160 assertions, 0 failures.
 - Xref-title focused DocBook/XML/Markdown/registry suite: 5 files, 11,050 assertions, 0 failures.
 - Xref-title broad smoke with DocBook/XML/Markdown/package/PDF readers: 21 files, 18,169 assertions, 0 failures.
+- Media-alternative/xreflabel focused DocBook reader test: 1 file, 184 assertions, 0 failures.
+- Media-alternative/xreflabel focused DocBook/XML/Markdown/registry suite: 5 files, 11,074 assertions, 0 failures.
+- Media-alternative/xreflabel PDF/markerPDF guard suite: 2 files, 3,051 assertions, 0 failures.
+- Media-alternative/xreflabel broad smoke with DocBook/XML/Markdown/package/PDF readers: 21 files, 18,193 assertions, 0 failures.
 - Local PDF hardcode guard: no source or test hits for problematic-document text, and the local problematic PDF still reports `tables=10 geometry=10 rects=896 mode=geometry`.
