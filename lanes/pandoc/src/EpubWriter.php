@@ -14,7 +14,7 @@ final class EpubWriter
     private const STYLESHEET_PATH = 'EPUB/styles/stylesheet.css';
 
     /**
-     * @param array{modified?: string, date?: string, title?: string, author?: string, lang?: string, identifier?: string, writerEpubTitlePage?: bool|string|int, epubTitlePage?: bool|string|int, titlePage?: bool|string|int, writerSplitLevel?: int|string|bool, splitLevel?: int|string|bool, epubSplitLevel?: int|string|bool, epubChapterLevel?: int|string|bool, mediaResources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resourceMap?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, media?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, coverImage?: string, epubCoverImage?: string, epubCoverImagePath?: string} $options
+     * @param array{modified?: string, date?: string, title?: string, author?: string, lang?: string, identifier?: string, pageProgressionDirection?: string, epubPageDirection?: string, pageDirection?: string, writerEpubTitlePage?: bool|string|int, epubTitlePage?: bool|string|int, titlePage?: bool|string|int, writerSplitLevel?: int|string|bool, splitLevel?: int|string|bool, epubSplitLevel?: int|string|bool, epubChapterLevel?: int|string|bool, mediaResources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resourceMap?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, media?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, coverImage?: string, epubCoverImage?: string, epubCoverImagePath?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -54,40 +54,97 @@ final class EpubWriter
     }
 
     /**
-     * @return array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string}
+     * @return array<string, mixed>
      */
     private function metadata(AstNode $document): array
     {
         $meta = $document->attr('meta', []);
         $meta = is_array($meta) ? $meta : [];
 
-        $explicitTitle = $this->optionString('title')
-            ?? $this->metaString($meta, ['title'])
-            ?? $this->metaInlinesText($meta, 'titleInlines');
+        $titleRecords = [];
+        $optionTitle = $this->optionString('title');
+        if ($optionTitle !== null) {
+            $titleRecords = [['text' => $optionTitle]];
+        } else {
+            $titleRecords = $this->metaRecordList($meta, 'title', ['file-as', 'type']);
+        }
+        $titleInlines = $this->metaInlinesText($meta, 'titleInlines');
+        $explicitTitle = $this->firstRecordText($titleRecords) ?? $titleInlines;
         $title = $explicitTitle
             ?? $this->firstHeadingText($document)
             ?? 'Untitled';
-        $explicitAuthor = $this->optionString('author')
-            ?? $this->metaString($meta, ['author', 'creator']);
+        if ($titleRecords === []) {
+            $titleRecords = [['text' => $title]];
+        }
+
+        $creatorRecords = [];
+        $optionAuthor = $this->optionString('author');
+        if ($optionAuthor !== null) {
+            $creatorRecords = [['text' => $optionAuthor]];
+        } else {
+            $creatorRecords = $this->metaRecordList($meta, 'creator', ['file-as', 'role']);
+            if ($creatorRecords === []) {
+                $creatorRecords = $this->metaRecordList($meta, 'author', ['file-as', 'role']);
+            }
+        }
+        $explicitAuthor = $this->firstRecordText($creatorRecords);
         $author = $explicitAuthor ?? 'Port Libs';
+        if ($creatorRecords === []) {
+            $creatorRecords = [['text' => $author]];
+        }
+
         $lang = $this->optionString('lang')
             ?? $this->metaString($meta, ['lang', 'language'])
             ?? 'en';
         $modified = $this->optionString('modified')
             ?? $this->metaString($meta, ['modified', 'date'])
             ?? gmdate('Y-m-d\TH:i:s\Z');
-        $identifier = $this->optionString('identifier')
-            ?? $this->metaString($meta, ['identifier', 'id'])
+        $identifierRecords = [];
+        $optionIdentifier = $this->optionString('identifier');
+        if ($optionIdentifier !== null) {
+            $identifierRecords = [['text' => $optionIdentifier]];
+        } else {
+            $identifierRecords = $this->metaRecordList($meta, 'identifier', ['scheme', 'type']);
+            if ($identifierRecords === []) {
+                $identifierRecords = $this->metaRecordList($meta, 'id', ['scheme', 'type']);
+            }
+        }
+        $identifier = $this->firstRecordText($identifierRecords)
             ?? $this->documentIdentifier($document, $title, $author, $lang);
+        if ($identifierRecords === []) {
+            $identifierRecords = [['text' => $identifier]];
+        }
 
         return [
             'title' => $title,
+            'titleRecords' => $this->withRecordText($titleRecords, $title),
             'titleExplicit' => $explicitTitle !== null,
             'author' => $author,
+            'creatorRecords' => $this->withRecordText($creatorRecords, $author),
             'authorExplicit' => $explicitAuthor !== null,
             'lang' => $lang,
             'identifier' => $identifier,
+            'identifierRecords' => $this->withRecordText($identifierRecords, $identifier),
             'modified' => $this->epubTimestamp($modified),
+            'date' => $this->optionString('date') ?? $this->metaString($meta, ['date']),
+            'contributorRecords' => $this->metaRecordList($meta, 'contributor', ['file-as', 'role']),
+            'subjectRecords' => $this->metaRecordList($meta, 'subject', ['authority', 'term']),
+            'description' => $this->metaString($meta, ['description']),
+            'type' => $this->metaString($meta, ['type']),
+            'format' => $this->metaString($meta, ['format']),
+            'publisher' => $this->metaString($meta, ['publisher']),
+            'source' => $this->metaString($meta, ['source']),
+            'relation' => $this->metaString($meta, ['relation']),
+            'coverage' => $this->metaString($meta, ['coverage']),
+            'rights' => $this->metaString($meta, ['rights']),
+            'belongsToCollection' => $this->metaString($meta, ['belongs-to-collection', 'belongsToCollection']),
+            'groupPosition' => $this->metaString($meta, ['group-position', 'groupPosition']),
+            'pageProgressionDirection' => $this->pageProgressionDirection($meta),
+            'accessModes' => $this->metaStringList($meta, ['accessModes', 'accessMode']) ?: ['textual'],
+            'accessModeSufficient' => $this->metaStringList($meta, ['accessModeSufficient']) ?: ['textual'],
+            'accessibilityFeatures' => $this->metaStringList($meta, ['accessibilityFeatures']) ?: ['alternativeText', 'readingOrder', 'structuralNavigation', 'tableOfContents'],
+            'accessibilityHazards' => $this->metaStringList($meta, ['accessibilityHazards']) ?: ['none'],
+            'accessibilitySummary' => $this->metaString($meta, ['accessibilitySummary']),
         ];
     }
 
@@ -101,16 +158,252 @@ final class EpubWriter
             if (!array_key_exists($key, $meta)) {
                 continue;
             }
-            $value = $meta[$key];
-            if (is_string($value) && trim($value) !== '') {
-                return trim($value);
+            $text = $this->stringFromMetaValue($meta[$key]);
+            if ($text !== null) {
+                return $text;
             }
-            if (is_array($value)) {
-                foreach ($value as $item) {
-                    if (is_string($item) && trim($item) !== '') {
-                        return trim($item);
-                    }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @param list<string> $keys
+     * @return list<string>
+     */
+    private function metaStringList(array $meta, array $keys): array
+    {
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $meta)) {
+                continue;
+            }
+
+            $values = $this->stringListFromMetaValue($meta[$key]);
+            if ($values !== []) {
+                return $values;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringListFromMetaValue(mixed $value): array
+    {
+        if (is_array($value) && array_is_list($value)) {
+            $values = [];
+            foreach ($value as $item) {
+                $text = $this->stringFromMetaValue($item);
+                if ($text !== null) {
+                    $values[] = $text;
                 }
+            }
+
+            return $values;
+        }
+
+        $text = $this->stringFromMetaValue($value);
+
+        return $text === null ? [] : [$text];
+    }
+
+    private function stringFromMetaValue(mixed $value): ?string
+    {
+        if (is_string($value) || is_int($value) || is_float($value)) {
+            $text = trim((string) $value);
+
+            return $text === '' ? null : $text;
+        }
+        if ($value instanceof AstNode) {
+            $text = $this->plainBlockText($value);
+
+            return $text === '' ? null : $text;
+        }
+        if (!is_array($value)) {
+            return null;
+        }
+        if (array_is_list($value)) {
+            $allAstNodes = $value !== [] && array_reduce(
+                $value,
+                static fn (bool $carry, mixed $item): bool => $carry && $item instanceof AstNode,
+                true
+            );
+            if ($allAstNodes) {
+                $text = trim($this->plainInlineText($value));
+
+                return $text === '' ? null : $text;
+            }
+
+            foreach ($value as $item) {
+                $text = $this->stringFromMetaValue($item);
+                if ($text !== null) {
+                    return $text;
+                }
+            }
+
+            return null;
+        }
+
+        foreach (['text', 'value', 'content', 'title', 'name'] as $key) {
+            $text = $this->stringFromMetaValue($value[$key] ?? null);
+            if ($text !== null) {
+                return $text;
+            }
+        }
+
+        foreach ($value as $item) {
+            $text = $this->stringFromMetaValue($item);
+            if ($text !== null) {
+                return $text;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @param list<string> $fields
+     * @return list<array<string, string>>
+     */
+    private function metaRecordList(array $meta, string $key, array $fields = []): array
+    {
+        if (!array_key_exists($key, $meta)) {
+            return [];
+        }
+
+        return $this->recordsFromMetaValue($meta[$key], $fields);
+    }
+
+    /**
+     * @param list<string> $fields
+     * @return list<array<string, string>>
+     */
+    private function recordsFromMetaValue(mixed $value, array $fields): array
+    {
+        if (is_array($value) && array_is_list($value)) {
+            $records = [];
+            foreach ($value as $item) {
+                $record = $this->recordFromMetaValue($item, $fields);
+                if ($record !== null) {
+                    $records[] = $record;
+                }
+            }
+
+            return $records;
+        }
+
+        $record = $this->recordFromMetaValue($value, $fields);
+
+        return $record === null ? [] : [$record];
+    }
+
+    /**
+     * @param list<string> $fields
+     * @return array<string, string>|null
+     */
+    private function recordFromMetaValue(mixed $value, array $fields): ?array
+    {
+        $text = $this->stringFromMetaValue($value);
+        if ($text === null) {
+            return null;
+        }
+
+        $record = ['text' => $text];
+        if (!is_array($value) || array_is_list($value)) {
+            return $record;
+        }
+
+        foreach ($fields as $field) {
+            $fieldValue = $this->recordFieldValue($value, $field);
+            if ($fieldValue !== null) {
+                $record[$field] = $fieldValue;
+            }
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $map
+     */
+    private function recordFieldValue(array $map, string $field): ?string
+    {
+        $camel = preg_replace_callback(
+            '/-([a-z])/',
+            static fn (array $match): string => strtoupper($match[1]),
+            $field
+        ) ?? $field;
+        $snake = str_replace('-', '_', $field);
+
+        foreach (array_unique([$field, $camel, $snake]) as $key) {
+            if (!array_key_exists($key, $map)) {
+                continue;
+            }
+
+            return $this->stringFromMetaValue($map[$key]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, string>> $records
+     */
+    private function firstRecordText(array $records): ?string
+    {
+        foreach ($records as $record) {
+            if (($record['text'] ?? '') !== '') {
+                return $record['text'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, string>> $records
+     * @return list<array<string, string>>
+     */
+    private function withRecordText(array $records, string $text): array
+    {
+        if ($records === []) {
+            return [['text' => $text]];
+        }
+
+        $records[0]['text'] = $text;
+
+        return $records;
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function pageProgressionDirection(array $meta): ?string
+    {
+        $value = $this->optionStringFromKeys(['pageProgressionDirection', 'epubPageDirection', 'pageDirection'])
+            ?? $this->metaString($meta, ['page-progression-direction', 'pageProgressionDirection']);
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = strtolower($value);
+
+        return in_array($normalized, ['ltr', 'rtl', 'default'], true) ? $normalized : null;
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    private function optionStringFromKeys(array $keys): ?string
+    {
+        foreach ($keys as $key) {
+            $value = $this->optionString($key);
+            if ($value !== null) {
+                return $value;
             }
         }
 
@@ -180,7 +473,7 @@ final class EpubWriter
     }
 
     /**
-     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
+     * @param array<string, mixed> $metadata
      */
     private function chapterXhtml(AstNode $document, array $metadata): string
     {
@@ -203,7 +496,7 @@ final class EpubWriter
     }
 
     /**
-     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
+     * @param array<string, mixed> $metadata
      * @return array{
      *     chapters:list<array{id:string, href:string, packagePath:string, contents:string}>,
      *     headingHrefs:array<int, string>,
@@ -369,7 +662,7 @@ final class EpubWriter
     }
 
     /**
-     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
+     * @param array<string, mixed> $metadata
      * @return array{id:string, href:string, packagePath:string, contents:string, linear:bool}|null
      */
     private function titlePage(array $metadata): ?array
@@ -420,7 +713,7 @@ final class EpubWriter
     }
 
     /**
-     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
+     * @param array<string, mixed> $metadata
      */
     private function titlePageXhtml(array $metadata): string
     {
@@ -444,6 +737,166 @@ final class EpubWriter
             . '</html>' . "\n";
     }
 
+    /**
+     * @param array<string, mixed> $metadata
+     * @return list<string>
+     */
+    private function metadataOpfNodes(array $metadata): array
+    {
+        $nodes = [];
+        $identifierRecords = is_array($metadata['identifierRecords'] ?? null) ? array_values($metadata['identifierRecords']) : [];
+        foreach ($identifierRecords as $index => $record) {
+            if (!is_array($record) || !is_string($record['text'] ?? null) || $record['text'] === '') {
+                continue;
+            }
+
+            $nodes[] = $this->dcNode('identifier', $record['text'], [
+                'id' => $index === 0 ? 'bookid' : 'epub-identifier-' . ($index + 1),
+            ]);
+        }
+
+        $titleRecords = is_array($metadata['titleRecords'] ?? null) ? array_values($metadata['titleRecords']) : [];
+        foreach ($titleRecords as $index => $record) {
+            if (!is_array($record) || !is_string($record['text'] ?? null) || $record['text'] === '') {
+                continue;
+            }
+
+            $id = 'epub-title-' . ($index + 1);
+            $nodes[] = $this->dcNode('title', $record['text'], ['id' => $id]);
+            if (is_string($record['file-as'] ?? null) && $record['file-as'] !== '') {
+                $nodes[] = $this->opfMetaNode($record['file-as'], ['refines' => '#' . $id, 'property' => 'file-as']);
+            }
+            if (is_string($record['type'] ?? null) && $record['type'] !== '') {
+                $nodes[] = $this->opfMetaNode($record['type'], ['refines' => '#' . $id, 'property' => 'title-type']);
+            }
+        }
+
+        if (is_string($metadata['date'] ?? null) && $metadata['date'] !== '') {
+            $nodes[] = $this->dcNode('date', $metadata['date'], ['id' => 'epub-date']);
+        }
+
+        $creatorRecords = is_array($metadata['creatorRecords'] ?? null) ? array_values($metadata['creatorRecords']) : [];
+        foreach ($creatorRecords as $index => $record) {
+            if (!is_array($record) || !is_string($record['text'] ?? null) || $record['text'] === '') {
+                continue;
+            }
+
+            $id = 'epub-creator-' . ($index + 1);
+            $nodes[] = $this->dcNode('creator', $record['text'], ['id' => $id]);
+            if (is_string($record['file-as'] ?? null) && $record['file-as'] !== '') {
+                $nodes[] = $this->opfMetaNode($record['file-as'], ['refines' => '#' . $id, 'property' => 'file-as']);
+            }
+            if (is_string($record['role'] ?? null) && $record['role'] !== '') {
+                $nodes[] = $this->opfMetaNode($record['role'], ['refines' => '#' . $id, 'property' => 'role', 'scheme' => 'marc:relators']);
+            }
+        }
+
+        $contributorRecords = is_array($metadata['contributorRecords'] ?? null) ? array_values($metadata['contributorRecords']) : [];
+        foreach ($contributorRecords as $index => $record) {
+            if (!is_array($record) || !is_string($record['text'] ?? null) || $record['text'] === '') {
+                continue;
+            }
+
+            $id = 'epub-contributor-' . ($index + 1);
+            $nodes[] = $this->dcNode('contributor', $record['text'], ['id' => $id]);
+            if (is_string($record['file-as'] ?? null) && $record['file-as'] !== '') {
+                $nodes[] = $this->opfMetaNode($record['file-as'], ['refines' => '#' . $id, 'property' => 'file-as']);
+            }
+            if (is_string($record['role'] ?? null) && $record['role'] !== '') {
+                $nodes[] = $this->opfMetaNode($record['role'], ['refines' => '#' . $id, 'property' => 'role', 'scheme' => 'marc:relators']);
+            }
+        }
+
+        $nodes[] = $this->dcNode('language', (string) $metadata['lang']);
+
+        $subjectRecords = is_array($metadata['subjectRecords'] ?? null) ? array_values($metadata['subjectRecords']) : [];
+        foreach ($subjectRecords as $index => $record) {
+            if (!is_array($record) || !is_string($record['text'] ?? null) || $record['text'] === '') {
+                continue;
+            }
+
+            $id = 'subject-' . ($index + 1);
+            $nodes[] = $this->dcNode('subject', $record['text'], ['id' => $id]);
+            if (is_string($record['authority'] ?? null) && $record['authority'] !== '') {
+                $nodes[] = $this->opfMetaNode($record['authority'], ['refines' => '#' . $id, 'property' => 'authority']);
+            }
+            if (is_string($record['term'] ?? null) && $record['term'] !== '') {
+                $nodes[] = $this->opfMetaNode($record['term'], ['refines' => '#' . $id, 'property' => 'term']);
+            }
+        }
+
+        foreach (['description', 'type', 'format', 'publisher', 'source', 'relation', 'coverage', 'rights'] as $name) {
+            if (is_string($metadata[$name] ?? null) && $metadata[$name] !== '') {
+                $nodes[] = $this->dcNode($name, $metadata[$name]);
+            }
+        }
+
+        $nodes[] = $this->opfMetaNode((string) $metadata['modified'], ['property' => 'dcterms:modified']);
+
+        if (is_string($metadata['belongsToCollection'] ?? null) && $metadata['belongsToCollection'] !== '') {
+            $collectionId = 'epub-collection-1';
+            $nodes[] = $this->opfMetaNode($metadata['belongsToCollection'], ['property' => 'belongs-to-collection', 'id' => $collectionId]);
+            $nodes[] = $this->opfMetaNode('series', ['refines' => '#' . $collectionId, 'property' => 'collection-type']);
+            if (is_string($metadata['groupPosition'] ?? null) && $metadata['groupPosition'] !== '') {
+                $nodes[] = $this->opfMetaNode($metadata['groupPosition'], ['refines' => '#' . $collectionId, 'property' => 'group-position']);
+            }
+        }
+
+        foreach ([
+            'schema:accessMode' => $metadata['accessModes'] ?? [],
+            'schema:accessModeSufficient' => $metadata['accessModeSufficient'] ?? [],
+            'schema:accessibilityFeature' => $metadata['accessibilityFeatures'] ?? [],
+            'schema:accessibilityHazard' => $metadata['accessibilityHazards'] ?? [],
+        ] as $property => $values) {
+            if (!is_array($values)) {
+                continue;
+            }
+            foreach ($values as $value) {
+                if (is_string($value) && $value !== '') {
+                    $nodes[] = $this->opfMetaNode($value, ['property' => $property]);
+                }
+            }
+        }
+
+        if (is_string($metadata['accessibilitySummary'] ?? null) && $metadata['accessibilitySummary'] !== '') {
+            $nodes[] = $this->opfMetaNode($metadata['accessibilitySummary'], ['property' => 'schema:accessibilitySummary']);
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function dcNode(string $name, string $text, array $attrs = []): string
+    {
+        return '    <dc:' . $name . $this->xmlAttributes($attrs) . '>' . $this->esc($text) . '</dc:' . $name . '>' . "\n";
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function opfMetaNode(string $text, array $attrs = []): string
+    {
+        return '    <meta' . $this->xmlAttributes($attrs) . '>' . $this->esc($text) . '</meta>' . "\n";
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function xmlAttributes(array $attrs): string
+    {
+        $parts = [];
+        foreach ($attrs as $name => $value) {
+            if ($value === '') {
+                continue;
+            }
+            $parts[] = $name . '="' . $this->esc($value) . '"';
+        }
+
+        return $parts === [] ? '' : ' ' . implode(' ', $parts);
+    }
+
     private function containerXml(): string
     {
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
@@ -455,13 +908,14 @@ final class EpubWriter
     }
 
     /**
-     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
+     * @param array<string, mixed> $metadata
      * @param array{id:string, href:string, packagePath:string, contents:string, linear:bool}|null $titlePage
      * @param list<array{id:string, href:string, packagePath:string, contents:string}> $chapters
      * @param list<array{id:string, href:string, packagePath:string, mediaType:string, contents:string, properties:list<string>}> $mediaEntries
      */
     private function packageOpf(array $metadata, ?array $titlePage, array $chapters, array $mediaEntries): string
     {
+        $metadataNodes = implode('', $this->metadataOpfNodes($metadata));
         $titlePageItem = '';
         $titlePageSpineItem = '';
         if ($titlePage !== null) {
@@ -484,15 +938,15 @@ final class EpubWriter
             }
             $mediaItems .= '/>' . "\n";
         }
+        $spineAttrs = ['toc' => 'ncx'];
+        if (is_string($metadata['pageProgressionDirection'] ?? null) && $metadata['pageProgressionDirection'] !== '') {
+            $spineAttrs['page-progression-direction'] = $metadata['pageProgressionDirection'];
+        }
 
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="' . $this->esc($metadata['lang']) . '">' . "\n"
-            . '  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">' . "\n"
-            . '    <dc:identifier id="bookid">' . $this->esc($metadata['identifier']) . '</dc:identifier>' . "\n"
-            . '    <dc:title>' . $this->esc($metadata['title']) . '</dc:title>' . "\n"
-            . '    <dc:creator>' . $this->esc($metadata['author']) . '</dc:creator>' . "\n"
-            . '    <dc:language>' . $this->esc($metadata['lang']) . '</dc:language>' . "\n"
-            . '    <meta property="dcterms:modified">' . $this->esc($metadata['modified']) . '</meta>' . "\n"
+            . '  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">' . "\n"
+            . $metadataNodes
             . '  </metadata>' . "\n"
             . '  <manifest>' . "\n"
             . '    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>' . "\n"
@@ -502,7 +956,7 @@ final class EpubWriter
             . '    <item id="stylesheet" href="styles/stylesheet.css" media-type="text/css"/>' . "\n"
             . $mediaItems
             . '  </manifest>' . "\n"
-            . '  <spine toc="ncx">' . "\n"
+            . '  <spine' . $this->xmlAttributes($spineAttrs) . '>' . "\n"
             . $titlePageSpineItem
             . $spineItems
             . '  </spine>' . "\n"
@@ -510,7 +964,7 @@ final class EpubWriter
     }
 
     /**
-     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
+     * @param array<string, mixed> $metadata
      * @param array{id:string, href:string, packagePath:string, contents:string, linear:bool}|null $titlePage
      * @param array<int, string> $headingHrefs
      */
@@ -565,7 +1019,7 @@ final class EpubWriter
     }
 
     /**
-     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
+     * @param array<string, mixed> $metadata
      * @param array{id:string, href:string, packagePath:string, contents:string, linear:bool}|null $titlePage
      * @param array<int, string> $headingHrefs
      */

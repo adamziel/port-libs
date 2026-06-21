@@ -103,6 +103,113 @@ return [
         $t->contains('<strong>EPUB3</strong>', $zip->read('EPUB/text/chapter.xhtml'));
         $t->contains('<table>', $zip->read('EPUB/text/chapter.xhtml'));
     },
+    'writes epub3 opf metadata fields and page progression direction' => static function (TestRunner $t) use ($text, $paragraph): void {
+        $document = new AstNode('document', [
+            'meta' => [
+                'identifier' => ['text' => 'urn:isbn:9780000000002', 'scheme' => 'ISBN-13'],
+                'title' => ['text' => 'Metadata EPUB', 'file-as' => 'EPUB, Metadata', 'type' => 'main'],
+                'creator' => [
+                    ['text' => 'Primary Author', 'role' => 'aut', 'file-as' => 'Author, Primary'],
+                ],
+                'contributor' => [
+                    ['text' => 'Editor Name', 'role' => 'edt', 'file-as' => 'Name, Editor'],
+                    'Reviewer Name',
+                ],
+                'subject' => [
+                    ['text' => 'WordPress', 'authority' => 'local', 'term' => 'wp'],
+                    'Migration',
+                ],
+                'lang' => 'pl',
+                'date' => '2026-06-20',
+                'description' => 'Detailed summary',
+                'type' => 'Text',
+                'format' => 'application/epub+zip',
+                'publisher' => 'Open Source Press',
+                'source' => 'source-id',
+                'relation' => 'related-id',
+                'coverage' => 'Global',
+                'rights' => 'CC-BY',
+                'belongs-to-collection' => 'Port Libs Series',
+                'group-position' => '2',
+                'page-progression-direction' => 'rtl',
+                'accessModes' => ['textual', 'visual'],
+                'accessModeSufficient' => ['textual,visual'],
+                'accessibilityFeatures' => ['tableOfContents'],
+                'accessibilityHazards' => ['none'],
+                'accessibilitySummary' => 'Readable with generated navigation.',
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'meta'], [$text('Metadata EPUB')]),
+            $paragraph([$text('Metadata body.')]),
+        ]);
+
+        $bytes = (new EpubWriter([
+            'modified' => '2026-06-21T08:37:00Z',
+            'writerEpubTitlePage' => false,
+        ]))->write($document);
+        $zip = ZipPackage::fromString($bytes);
+        $epub = EpubPackage::fromString($bytes);
+        $opf = $zip->read('EPUB/package.opf');
+        $metadata = $epub->metadata();
+        $spineMetadata = $epub->spineMetadata();
+
+        $t->contains('<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">', $opf);
+        $t->contains('<dc:identifier id="bookid">urn:isbn:9780000000002</dc:identifier>', $opf);
+        $t->contains('<dc:title id="epub-title-1">Metadata EPUB</dc:title>', $opf);
+        $t->contains('<meta refines="#epub-title-1" property="file-as">EPUB, Metadata</meta>', $opf);
+        $t->contains('<meta refines="#epub-title-1" property="title-type">main</meta>', $opf);
+        $t->contains('<dc:date id="epub-date">2026-06-20</dc:date>', $opf);
+        $t->contains('<dc:creator id="epub-creator-1">Primary Author</dc:creator>', $opf);
+        $t->contains('<meta refines="#epub-creator-1" property="file-as">Author, Primary</meta>', $opf);
+        $t->contains('<meta refines="#epub-creator-1" property="role" scheme="marc:relators">aut</meta>', $opf);
+        $t->contains('<dc:contributor id="epub-contributor-1">Editor Name</dc:contributor>', $opf);
+        $t->contains('<meta refines="#epub-contributor-1" property="file-as">Name, Editor</meta>', $opf);
+        $t->contains('<meta refines="#epub-contributor-1" property="role" scheme="marc:relators">edt</meta>', $opf);
+        $t->contains('<dc:subject id="subject-1">WordPress</dc:subject>', $opf);
+        $t->contains('<meta refines="#subject-1" property="authority">local</meta>', $opf);
+        $t->contains('<meta refines="#subject-1" property="term">wp</meta>', $opf);
+        $t->contains('<dc:description>Detailed summary</dc:description>', $opf);
+        $t->contains('<dc:type>Text</dc:type>', $opf);
+        $t->contains('<dc:format>application/epub+zip</dc:format>', $opf);
+        $t->contains('<dc:publisher>Open Source Press</dc:publisher>', $opf);
+        $t->contains('<dc:source>source-id</dc:source>', $opf);
+        $t->contains('<dc:relation>related-id</dc:relation>', $opf);
+        $t->contains('<dc:coverage>Global</dc:coverage>', $opf);
+        $t->contains('<dc:rights>CC-BY</dc:rights>', $opf);
+        $t->contains('<meta property="belongs-to-collection" id="epub-collection-1">Port Libs Series</meta>', $opf);
+        $t->contains('<meta refines="#epub-collection-1" property="collection-type">series</meta>', $opf);
+        $t->contains('<meta refines="#epub-collection-1" property="group-position">2</meta>', $opf);
+        $t->contains('<meta property="schema:accessMode">textual</meta>', $opf);
+        $t->contains('<meta property="schema:accessMode">visual</meta>', $opf);
+        $t->contains('<meta property="schema:accessModeSufficient">textual,visual</meta>', $opf);
+        $t->contains('<meta property="schema:accessibilityFeature">tableOfContents</meta>', $opf);
+        $t->contains('<meta property="schema:accessibilityHazard">none</meta>', $opf);
+        $t->contains('<meta property="schema:accessibilitySummary">Readable with generated navigation.</meta>', $opf);
+        $t->contains('<spine toc="ncx" page-progression-direction="rtl">', $opf);
+
+        $t->same('Metadata EPUB', $metadata['title']);
+        $t->same('Metadata EPUB', $metadata['mainTitle']['text']);
+        $t->same('EPUB, Metadata', $metadata['titleDetails'][0]['fileAs']);
+        $t->same('main', $metadata['titleDetails'][0]['titleType']);
+        $t->same('Primary Author', $metadata['creators'][0]);
+        $t->same('Author, Primary', $metadata['creatorDetails'][0]['fileAs']);
+        $t->same('aut', $metadata['creatorDetails'][0]['primaryRole']);
+        $t->same(['Editor Name', 'Reviewer Name'], $metadata['contributors']);
+        $t->same('Name, Editor', $metadata['contributorDetails'][0]['fileAs']);
+        $t->same('edt', $metadata['contributorDetails'][0]['primaryRole']);
+        $t->same(['WordPress', 'Migration'], $metadata['subjects']);
+        $t->same('local', $metadata['subjectDetails'][0]['authority']);
+        $t->same('wp', $metadata['subjectDetails'][0]['term']);
+        $t->same('Detailed summary', $metadata['description']);
+        $t->same('Open Source Press', $metadata['publisher']);
+        $t->same(['CC-BY'], $metadata['rights']);
+        $t->same('Port Libs Series', $metadata['metaProperties']['belongs-to-collection'][0]['text']);
+        $t->same(['textual', 'visual'], $metadata['properties']['schema:accessMode']);
+        $t->same(['textual,visual'], $metadata['properties']['schema:accessModeSufficient']);
+        $t->same(['tableOfContents'], $metadata['properties']['schema:accessibilityFeature']);
+        $t->same('rtl', $spineMetadata['pageProgressionDirection']);
+        $t->same('right-to-left', $spineMetadata['readingProgression']);
+    },
     'writes epub through the registered converter alias and reads it back' => static function (TestRunner $t) use ($text, $paragraph): void {
         $document = new AstNode('document', [
             'meta' => ['title' => 'Converter EPUB', 'author' => 'Port Libs', 'lang' => 'en'],
