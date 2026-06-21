@@ -4820,8 +4820,8 @@ return [
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
             . '1 0 0 1 72 720 Tm (Product) Tj 1 0 0 1 250 720 Tm (Qty) Tj 1 0 0 1 320 720 Tm (Size) Tj '
-            . '1 0 0 1 72 704 Tm (Kartoteka) Tj 1 0 0 1 250 704 Tm (30) Tj 1 0 0 1 320 704 Tm (260x362x320mm) Tj '
-            . '1 0 0 1 72 688 Tm (skladana Durable Carry) Tj '
+            . '1 0 0 1 72 704 Tm (Widget Alpha) Tj 1 0 0 1 250 704 Tm (30) Tj 1 0 0 1 320 704 Tm (40x60x80mm) Tj '
+            . '1 0 0 1 72 688 Tm (stackable storage case) Tj '
             . '1 0 0 1 72 672 Tm (Organizer) Tj 1 0 0 1 250 672 Tm (12) Tj 1 0 0 1 320 672 Tm (120x200mm) Tj '
             . 'ET'
         );
@@ -4836,7 +4836,7 @@ return [
         $t->same('geometry', $meta['pdfTableReconstruction']);
         $t->contains('<!-- wp:table -->', $blocks);
         $t->contains('<th>Product</th><th>Qty</th><th>Size</th>', $blocks);
-        $t->contains('<td>Kartoteka skladana Durable Carry</td><td>30</td><td>260x362x320mm</td>', $blocks);
+        $t->contains('<td>Widget Alpha stackable storage case</td><td>30</td><td>40x60x80mm</td>', $blocks);
         $t->contains('<td>Organizer</td><td>12</td><td>120x200mm</td>', $blocks);
     },
     'preserves positioned pdf tables embedded between surrounding text' => static function (TestRunner $t) use ($pdfWithContent): void {
@@ -4844,8 +4844,8 @@ return [
             'BT /F1 12 Tf '
             . '1 0 0 1 72 752 Tm (Invoice summary for client K1041792) Tj '
             . '1 0 0 1 72 720 Tm (Product) Tj 1 0 0 1 250 720 Tm (Qty) Tj 1 0 0 1 320 720 Tm (Size) Tj '
-            . '1 0 0 1 72 704 Tm (Kartoteka) Tj 1 0 0 1 250 704 Tm (30) Tj 1 0 0 1 320 704 Tm (260x362x320mm) Tj '
-            . '1 0 0 1 72 688 Tm (skladana Durable Carry) Tj '
+            . '1 0 0 1 72 704 Tm (Widget Alpha) Tj 1 0 0 1 250 704 Tm (30) Tj 1 0 0 1 320 704 Tm (40x60x80mm) Tj '
+            . '1 0 0 1 72 688 Tm (stackable storage case) Tj '
             . '1 0 0 1 72 672 Tm (Organizer) Tj 1 0 0 1 250 672 Tm (12) Tj 1 0 0 1 320 672 Tm (120x200mm) Tj '
             . '1 0 0 1 72 640 Tm (Payment due in 30 days) Tj '
             . 'ET'
@@ -4866,7 +4866,7 @@ return [
         $t->contains('Invoice summary for client K1041792', $blocks);
         $t->contains('<!-- wp:table -->', $blocks);
         $t->contains('<th>Product</th><th>Qty</th><th>Size</th>', $blocks);
-        $t->contains('<td>Kartoteka skladana Durable Carry</td><td>30</td><td>260x362x320mm</td>', $blocks);
+        $t->contains('<td>Widget Alpha stackable storage case</td><td>30</td><td>40x60x80mm</td>', $blocks);
         $t->contains('Payment due in 30 days', $blocks);
     },
     'splits positioned pdf tables at section breaks instead of one sparse table' => static function (TestRunner $t) use ($pdfWithContent): void {
