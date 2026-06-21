@@ -41,6 +41,7 @@ Unsupported upstream inputs after this slice remain:
 - The upstream OPML reader fixture is covered structurally. Full byte-for-byte native golden parity and upstream `writer.opml` fixture parity remain open.
 - The reader does not yet claim exact Pandoc behavior for every HTML inline edge, malformed outline recovery edge, nonstandard attribute extension, or command-line option interaction.
 - The writer does not yet claim exact Pandoc behavior for every template, wrapping, metadata, ASCII-entity, or full old-suite writer fixture edge.
+- Direct `testsuite.native` to `writer.opml` comparison with `columns => 80` still differs only in Markdown serialized inside `_note` attributes and final newline. Known gap buckets: horizontal rules render as `* * *` instead of 80 hyphens, paragraph softbreak wrapping is collapsed in some notes, tight list items can render marker-only first lines, definition-list markers use wider spacing, fenced Div attributes can be elided, some link titles are escaped differently, and NativeReader/MarkdownWriter raw-TeX list items can round-trip as empty bullets.
 - Package/container handling is not relevant to OPML in this slice.
 
 ## Verification
@@ -57,5 +58,6 @@ Unsupported upstream inputs after this slice remain:
 - `php tools/run-tests.php lanes/pandoc/tests/DocBookReaderTest.php lanes/pandoc/tests/XmlReaderTest.php lanes/pandoc/tests/XmlHtmlDomTest.php lanes/pandoc/tests/BibliographyReaderTest.php lanes/pandoc/tests/DelimitedTextReaderTest.php lanes/pandoc/tests/IpynbReaderTest.php lanes/pandoc/tests/RtfReaderTest.php lanes/pandoc/tests/PlainWriterTest.php lanes/pandoc/tests/LegacyDocReaderTest.php lanes/pandoc/tests/PandocConverterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/markerpdf/tests/PdfTextExtractorTest.php lanes/pandoc/tests/DocxReaderTest.php lanes/pandoc/tests/EpubPackageMetadataReaderTest.php lanes/pandoc/tests/EpubReaderTest.php lanes/pandoc/tests/JsonReaderWriterTest.php lanes/pandoc/tests/MarkdownReaderTest.php lanes/pandoc/tests/NativeReaderEscapeTest.php lanes/pandoc/tests/OdtReaderTest.php lanes/pandoc/tests/OpmlReaderTest.php lanes/pandoc/tests/OpmlWriterTest.php lanes/pandoc/tests/PdfReaderTest.php`: 23 files, 18,275 assertions, 0 failures.
 - `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php lanes/pandoc/tests/PdfReaderTest.php`: 2 files, 3,051 assertions, 0 failures.
 - Direct OPML writer ASCII-entity smoke: `<outline text="Za&#380;&#243;&#322;&#263;">`.
+- Direct upstream writer fixture comparison: structure and metadata align, but byte-for-byte output is not yet equal because of the `_note` Markdown buckets listed above.
 - Local problematic PDF smoke: `tables=10 geometry=10 rects=896 mode=geometry`.
 - Exact-string guard for the local problematic PDF path/content terms across current code, tests, status, and audits before this audit: 0 hits.
