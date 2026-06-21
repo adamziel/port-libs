@@ -53,6 +53,7 @@ return [
             'mimetype',
             'META-INF/container.xml',
             'EPUB/package.opf',
+            'EPUB/toc.ncx',
             'EPUB/nav.xhtml',
             'EPUB/text/title_page.xhtml',
             'EPUB/text/chapter.xhtml',
@@ -62,12 +63,18 @@ return [
         $epub = EpubPackage::fromString($bytes);
         $assetSummary = $epub->assetSummary();
         $validation = $epub->validationReport();
+        $opf = $zip->read('EPUB/package.opf');
+        $ncx = $zip->read('EPUB/toc.ncx');
 
         $t->same('/EPUB/package.opf', $epub->opfPartName());
         $t->same(['/EPUB/text/title_page.xhtml', '/EPUB/text/chapter.xhtml'], $assetSummary['readingOrderParts']);
         $t->same('/EPUB/nav.xhtml', $assetSummary['navigationPart']);
+        $t->same(null, $assetSummary['ncxPart']);
         $t->same(['/EPUB/styles/stylesheet.css'], $assetSummary['stylesheetParts']);
         $t->same(true, $validation['epub3']);
+        $t->same('ncx', $epub->spineMetadata()['tocId']);
+        $t->same('available', $validation['ncx']['bindingStatus']);
+        $t->same(1, $validation['ncx']['manifestNcxItemCount']);
         $t->same('EPUB Writer Demo', $epub->metadata()['title']);
         $t->same('Port Libs', $epub->metadata()['creators'][0]);
         $t->same('en-US', $epub->metadata()['languages'][0]);
@@ -82,9 +89,14 @@ return [
         $t->same([true, true], array_column($epub->spine(), 'linear'));
         $t->same(['toc', 'landmarks'], array_column($epub->navigationSections(), 'type'));
         $t->same(['Title Page', 'Table of Contents'], array_column($epub->navigationSections()[1]['entries'], 'label'));
-        $t->contains('<item id="title_page_xhtml" href="text/title_page.xhtml" media-type="application/xhtml+xml"/>', $zip->read('EPUB/package.opf'));
-        $t->contains('<itemref idref="title_page_xhtml" linear="yes"/>', $zip->read('EPUB/package.opf'));
+        $t->contains('<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>', $opf);
+        $t->contains('<spine toc="ncx">', $opf);
+        $t->contains('<item id="title_page_xhtml" href="text/title_page.xhtml" media-type="application/xhtml+xml"/>', $opf);
+        $t->contains('<itemref idref="title_page_xhtml" linear="yes"/>', $opf);
         $t->contains('<a href="text/title_page.xhtml" epub:type="titlepage">Title Page</a>', $zip->read('EPUB/nav.xhtml'));
+        $t->contains('<meta name="dtb:uid" content="urn:uuid:11111111-2222-3333-4444-555555555555"/>', $ncx);
+        $t->contains('<content src="text/title_page.xhtml"/>', $ncx);
+        $t->contains('<content src="text/chapter.xhtml#start"/>', $ncx);
         $t->contains('<section id="titlepage" epub:type="titlepage" role="doc-titlepage">', $zip->read('EPUB/text/title_page.xhtml'));
         $t->contains('<h1 class="title">EPUB Writer Demo</h1>', $zip->read('EPUB/text/title_page.xhtml'));
         $t->contains('<p class="author">Port Libs</p>', $zip->read('EPUB/text/title_page.xhtml'));
@@ -110,6 +122,7 @@ return [
         $t->same('Port Libs', $meta['author']);
         $t->same('en', $meta['lang']);
         $t->same(['EPUB/text/chapter.xhtml'], $meta['epubReadableResources']);
+        $t->same(['EPUB/toc.ncx', 'EPUB/nav.xhtml'], $meta['epubTocResources']);
         $t->same(1, $meta['epubTocEntryCount']);
         $t->same('heading', $roundTrip->children[0]->type);
         $t->same('Converter EPUB', $roundTrip->children[0]->attr('text'));
@@ -237,6 +250,7 @@ return [
             'mimetype',
             'META-INF/container.xml',
             'EPUB/package.opf',
+            'EPUB/toc.ncx',
             'EPUB/nav.xhtml',
             'EPUB/text/title_page.xhtml',
             'EPUB/text/ch1.xhtml',
@@ -244,6 +258,8 @@ return [
             'EPUB/styles/stylesheet.css',
         ], $zip->names());
         $t->same(['/EPUB/text/title_page.xhtml', '/EPUB/text/ch1.xhtml', '/EPUB/text/ch2.xhtml'], $assetSummary['readingOrderParts']);
+        $t->contains('<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>', $opf);
+        $t->contains('<spine toc="ncx">', $opf);
         $t->contains('<item id="title_page_xhtml" href="text/title_page.xhtml" media-type="application/xhtml+xml"/>', $opf);
         $t->contains('<item id="chapter1" href="text/ch1.xhtml" media-type="application/xhtml+xml"/>', $opf);
         $t->contains('<item id="chapter2" href="text/ch2.xhtml" media-type="application/xhtml+xml"/>', $opf);
@@ -265,6 +281,7 @@ return [
         $roundTrip = PandocConverter::read($bytes, 'epub');
         $roundTripMeta = $roundTrip->attr('meta');
         $t->same(['EPUB/text/title_page.xhtml', 'EPUB/text/ch1.xhtml', 'EPUB/text/ch2.xhtml'], $roundTripMeta['epubReadableResources']);
+        $t->same(['EPUB/toc.ncx', 'EPUB/nav.xhtml'], $roundTripMeta['epubTocResources']);
         $t->same(['Intro', 'Setup', 'Appendix', 'Details'], array_column($roundTripMeta['epubTocEntries'], 'text'));
     },
     'allows epub chapter splitting to be disabled for a single spine document' => static function (TestRunner $t) use ($text): void {

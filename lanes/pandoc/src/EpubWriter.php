@@ -8,6 +8,7 @@ final class EpubWriter
 {
     private const PACKAGE_PATH = 'EPUB/package.opf';
     private const NAV_PATH = 'EPUB/nav.xhtml';
+    private const NCX_PATH = 'EPUB/toc.ncx';
     private const CHAPTER_PATH = 'EPUB/text/chapter.xhtml';
     private const TITLE_PAGE_PATH = 'EPUB/text/title_page.xhtml';
     private const STYLESHEET_PATH = 'EPUB/styles/stylesheet.css';
@@ -35,6 +36,7 @@ final class EpubWriter
             ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'compressionMethod' => 0],
             ['name' => 'META-INF/container.xml', 'data' => $this->containerXml()],
             ['name' => self::PACKAGE_PATH, 'data' => $this->packageOpf($metadata, $titlePage, $chapterSet['chapters'], $media['entries'])],
+            ['name' => self::NCX_PATH, 'data' => $this->tocNcx($document, $metadata, $titlePage, $chapterSet['headingHrefs'], $chapterSet['defaultHref'])],
             ['name' => self::NAV_PATH, 'data' => $this->navXhtml($document, $metadata, $titlePage, $chapterSet['headingHrefs'], $chapterSet['defaultHref'])],
         ];
         if ($titlePage !== null) {
@@ -493,13 +495,14 @@ final class EpubWriter
             . '    <meta property="dcterms:modified">' . $this->esc($metadata['modified']) . '</meta>' . "\n"
             . '  </metadata>' . "\n"
             . '  <manifest>' . "\n"
+            . '    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>' . "\n"
             . '    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>' . "\n"
             . $titlePageItem
             . $chapterItems
             . '    <item id="stylesheet" href="styles/stylesheet.css" media-type="text/css"/>' . "\n"
             . $mediaItems
             . '  </manifest>' . "\n"
-            . '  <spine>' . "\n"
+            . '  <spine toc="ncx">' . "\n"
             . $titlePageSpineItem
             . $spineItems
             . '  </spine>' . "\n"
@@ -559,6 +562,74 @@ final class EpubWriter
         }
 
         return $entries === [] ? [['label' => $title, 'href' => $defaultHref, 'level' => 1]] : $entries;
+    }
+
+    /**
+     * @param array{title:string, titleExplicit:bool, author:string, authorExplicit:bool, lang:string, identifier:string, modified:string} $metadata
+     * @param array{id:string, href:string, packagePath:string, contents:string, linear:bool}|null $titlePage
+     * @param array<int, string> $headingHrefs
+     */
+    private function tocNcx(AstNode $document, array $metadata, ?array $titlePage, array $headingHrefs, string $defaultHref): string
+    {
+        $entries = $this->navEntries($document, $metadata['title'], $headingHrefs, $defaultHref);
+        $entryIndex = 0;
+        $navPointIndex = 1;
+        $navPoints = [];
+        if ($titlePage !== null) {
+            $navPoints[] = '    <navPoint id="navPoint-0">' . "\n"
+                . '      <navLabel><text>' . $this->esc($metadata['title']) . '</text></navLabel>' . "\n"
+                . '      <content src="' . $this->esc($titlePage['href']) . '"/>' . "\n"
+                . '    </navPoint>';
+        }
+        $renderedEntries = $this->renderNcxNavPoints($entries, $entryIndex, 0, $navPointIndex, 4);
+        if ($renderedEntries !== '') {
+            $navPoints[] = $renderedEntries;
+        }
+
+        return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+            . '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">' . "\n"
+            . '  <head>' . "\n"
+            . '    <meta name="dtb:uid" content="' . $this->esc($metadata['identifier']) . '"/>' . "\n"
+            . '    <meta name="dtb:depth" content="1"/>' . "\n"
+            . '    <meta name="dtb:totalPageCount" content="0"/>' . "\n"
+            . '    <meta name="dtb:maxPageNumber" content="0"/>' . "\n"
+            . '  </head>' . "\n"
+            . '  <docTitle><text>' . $this->esc($metadata['title']) . '</text></docTitle>' . "\n"
+            . '  <navMap>' . "\n"
+            . implode("\n", $navPoints) . "\n"
+            . '  </navMap>' . "\n"
+            . '</ncx>' . "\n";
+    }
+
+    /**
+     * @param list<array{label:string, href:string, level:int}> $entries
+     */
+    private function renderNcxNavPoints(array $entries, int &$index, int $parentLevel, int &$navPointIndex, int $indent): string
+    {
+        $lines = [];
+        $count = count($entries);
+        while ($index < $count) {
+            $entry = $entries[$index];
+            if ($entry['level'] <= $parentLevel) {
+                break;
+            }
+
+            $index++;
+            $id = 'navPoint-' . $navPointIndex;
+            $navPointIndex++;
+            $lines[] = str_repeat(' ', $indent) . '<navPoint id="' . $this->esc($id) . '">';
+            $lines[] = str_repeat(' ', $indent + 2) . '<navLabel><text>' . $this->esc($entry['label']) . '</text></navLabel>';
+            $lines[] = str_repeat(' ', $indent + 2) . '<content src="' . $this->esc($entry['href']) . '"/>';
+            if ($index < $count && $entries[$index]['level'] > $entry['level']) {
+                $nested = $this->renderNcxNavPoints($entries, $index, $entry['level'], $navPointIndex, $indent + 2);
+                if ($nested !== '') {
+                    $lines[] = $nested;
+                }
+            }
+            $lines[] = str_repeat(' ', $indent) . '</navPoint>';
+        }
+
+        return implode("\n", $lines);
     }
 
     /**

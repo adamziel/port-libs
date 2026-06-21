@@ -223,7 +223,7 @@ final class PandocFormatRegistry
         'epub' => [
             'status' => 'partial',
             'implementation' => EpubReader::class,
-            'notes' => 'Bounded EPUB package reader resolves the OPF rootfile, extracts metadata, follows XHTML spine items, rewrites package-relative href/src resources, records image/resource references, parses EPUB3 nav and NCX table-of-contents resources into metadata, and maps spine content through the shared HTML-capable reader path. Full EPUB parity remains open.',
+            'notes' => 'Bounded EPUB package reader resolves the OPF rootfile, extracts metadata, follows XHTML spine items, rewrites package-relative href/src resources, records image/resource references, records EPUB3 nav and NCX table-of-contents resources while preferring EPUB3 nav entries over duplicate NCX fallback entries, and maps spine content through the shared HTML-capable reader path. Full EPUB parity remains open.',
         ],
         'fb2' => [
             'status' => 'partial',
@@ -373,12 +373,12 @@ final class PandocFormatRegistry
         'epub' => [
             'status' => 'partial',
             'implementation' => EpubWriter::class,
-            'notes' => 'Bounded EPUB output emits an EPUB3 OCF ZIP package with stored mimetype, container.xml, OPF metadata/manifest/spine, nav.xhtml, stylesheet, default title page with landmarks, media resources, cover-image manifest properties, and writerSplitLevel XHTML spine splitting rendered through the shared HTML writer. EPUB2 output and full media/template parity remain open.',
+            'notes' => 'Bounded EPUB output emits an EPUB3 OCF ZIP package with stored mimetype, container.xml, OPF metadata/manifest/spine, nav.xhtml, toc.ncx, stylesheet, default title page with landmarks, media resources, cover-image manifest properties, and writerSplitLevel XHTML spine splitting rendered through the shared HTML writer. EPUB2 output and full media/template parity remain open.',
         ],
         'epub3' => [
             'status' => 'partial',
             'implementation' => EpubWriter::class,
-            'notes' => 'Bounded EPUB3 output emits an OCF ZIP package with stored mimetype, container.xml, OPF metadata/manifest/spine, nav.xhtml, stylesheet, default title page with landmarks, media resources, cover-image manifest properties, and writerSplitLevel XHTML spine splitting rendered through the shared HTML writer. Full Pandoc EPUB3 writer options, EPUB2, template customization, and advanced media parity remain open.',
+            'notes' => 'Bounded EPUB3 output emits an OCF ZIP package with stored mimetype, container.xml, OPF metadata/manifest/spine, nav.xhtml, toc.ncx, stylesheet, default title page with landmarks, media resources, cover-image manifest properties, and writerSplitLevel XHTML spine splitting rendered through the shared HTML writer. Full Pandoc EPUB3 writer options, EPUB2, template customization, and advanced media parity remain open.',
         ],
         'gfm' => [
             'status' => 'partial',

@@ -280,7 +280,8 @@ final class EpubReader
     private function toc(\ZipArchive $zip, string $base_path, array $manifest, string $spine_toc_id): array
     {
         $resources = [];
-        $entries = [];
+        $nav_entries = [];
+        $ncx_entries = [];
         foreach ($manifest as $id => $item) {
             $href = $this->normalizeZipPath($base_path . '/' . $item['href']);
             $media_type = strtolower($item['media-type']);
@@ -301,12 +302,16 @@ final class EpubReader
             } catch (\InvalidArgumentException) {
                 continue;
             }
-            array_push($entries, ...$parsed);
+            if ($is_ncx) {
+                array_push($ncx_entries, ...$parsed);
+            } else {
+                array_push($nav_entries, ...$parsed);
+            }
         }
 
         return [
             'resources' => array_values(array_unique($resources)),
-            'entries' => $entries,
+            'entries' => $nav_entries !== [] ? $nav_entries : $ncx_entries,
         ];
     }
 
