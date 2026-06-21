@@ -298,7 +298,7 @@ final class PandocFormatRegistry
         'opml' => [
             'status' => 'partial',
             'implementation' => OpmlReader::class,
-            'notes' => 'Bounded OPML reader maps document title, owner, modified date, nested outlines, link outlines, and Markdown notes into the shared AST. Full Pandoc OPML fixture parity remains open.',
+            'notes' => 'Bounded OPML reader maps document title, owner, modified date, nested outlines, link outlines, and Markdown notes into the shared AST, with canonical native semantic parity for the pinned upstream opml-reader fixture. Full option and edge-case parity remains open.',
         ],
         'ris' => [
             'status' => 'partial',
@@ -408,7 +408,7 @@ final class PandocFormatRegistry
         'opml' => [
             'status' => 'partial',
             'implementation' => OpmlWriter::class,
-            'notes' => 'Bounded OPML writer maps section headings to nested outline elements, heading inlines to escaped HTML text attributes, body content to Markdown _note attributes, and document metadata to the default OPML header. Full writer fixture/template parity remains open.',
+            'notes' => 'Bounded OPML writer maps section headings to nested outline elements, heading inlines to escaped HTML text attributes, body content to Markdown _note attributes, and document metadata to the default OPML header, with byte-for-byte parity for the pinned upstream writer fixture. Full template and option parity remains open.',
         ],
         'plain' => [
             'status' => 'partial',
