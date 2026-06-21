@@ -919,14 +919,14 @@ final class EpubWriter
         $titlePageItem = '';
         $titlePageSpineItem = '';
         if ($titlePage !== null) {
-            $titlePageItem = '    <item id="' . $this->esc($titlePage['id']) . '" href="' . $this->esc($titlePage['href']) . '" media-type="application/xhtml+xml"/>' . "\n";
+            $titlePageItem = $this->xhtmlManifestItem($titlePage);
             $titlePageSpineItem = '    <itemref idref="' . $this->esc($titlePage['id']) . '" linear="' . ($titlePage['linear'] ? 'yes' : 'no') . '"/>' . "\n";
         }
 
         $chapterItems = '';
         $spineItems = '';
         foreach ($chapters as $chapter) {
-            $chapterItems .= '    <item id="' . $this->esc($chapter['id']) . '" href="' . $this->esc($chapter['href']) . '" media-type="application/xhtml+xml"/>' . "\n";
+            $chapterItems .= $this->xhtmlManifestItem($chapter);
             $spineItems .= '    <itemref idref="' . $this->esc($chapter['id']) . '"/>' . "\n";
         }
 
@@ -961,6 +961,40 @@ final class EpubWriter
             . $spineItems
             . '  </spine>' . "\n"
             . '</package>' . "\n";
+    }
+
+    /**
+     * @param array{id:string, href:string, contents:string} $entry
+     */
+    private function xhtmlManifestItem(array $entry): string
+    {
+        $properties = $this->xhtmlManifestProperties($entry['contents']);
+        $attrs = [
+            'id' => $entry['id'],
+            'href' => $entry['href'],
+            'media-type' => 'application/xhtml+xml',
+        ];
+        if ($properties !== []) {
+            $attrs['properties'] = implode(' ', $properties);
+        }
+
+        return '    <item' . $this->xmlAttributes($attrs) . '/>' . "\n";
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xhtmlManifestProperties(string $contents): array
+    {
+        $properties = [];
+        if (str_contains($contents, '<math')) {
+            $properties[] = 'mathml';
+        }
+        if (str_contains($contents, '<svg')) {
+            $properties[] = 'svg';
+        }
+
+        return $properties;
     }
 
     /**

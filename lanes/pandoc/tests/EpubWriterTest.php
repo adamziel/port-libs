@@ -210,6 +210,37 @@ return [
         $t->same('rtl', $spineMetadata['pageProgressionDirection']);
         $t->same('right-to-left', $spineMetadata['readingProgression']);
     },
+    'writes epub3 manifest properties for mathml and svg spine xhtml' => static function (TestRunner $t) use ($text, $paragraph): void {
+        $document = new AstNode('document', [
+            'meta' => ['title' => 'Manifest Properties EPUB', 'author' => 'Port Libs', 'lang' => 'en'],
+        ], [
+            new AstNode('heading', ['level' => 1], [$text('Manifest Properties EPUB')]),
+            $paragraph([$text('Features below.')]),
+            new AstNode('raw_html', [
+                'format' => 'epub3',
+                'html' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"></circle></svg><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>',
+            ]),
+        ]);
+
+        $bytes = (new EpubWriter([
+            'modified' => '2026-06-21T08:38:00Z',
+            'writerEpubTitlePage' => false,
+        ]))->write($document);
+        $zip = ZipPackage::fromString($bytes);
+        $epub = EpubPackage::fromString($bytes);
+        $opf = $zip->read('EPUB/package.opf');
+        $chapter = $zip->read('EPUB/text/chapter.xhtml');
+        $resourceProperties = $epub->resourceProperties();
+
+        $t->contains('<item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml svg"/>', $opf);
+        $t->contains('<svg xmlns="http://www.w3.org/2000/svg"', $chapter);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"', $chapter);
+        $t->same(['mathml', 'svg'], $epub->manifestItem('chapter')['properties']);
+        $t->same(1, $resourceProperties['summary']['mathmlCount']);
+        $t->same(1, $resourceProperties['summary']['svgCount']);
+        $t->same('chapter', $resourceProperties['itemsByProperty']['mathml'][0]['id']);
+        $t->same('chapter', $resourceProperties['itemsByProperty']['svg'][0]['id']);
+    },
     'writes epub through the registered converter alias and reads it back' => static function (TestRunner $t) use ($text, $paragraph): void {
         $document = new AstNode('document', [
             'meta' => ['title' => 'Converter EPUB', 'author' => 'Port Libs', 'lang' => 'en'],
