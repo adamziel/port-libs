@@ -33,6 +33,8 @@ final class DocBookReader
     private const TABLE_ROOT_NAMES = ['informaltable', 'table'];
     private const SECTION_NAMES = [
         'appendix',
+        'article',
+        'book',
         'chapter',
         'part',
         'preface',
@@ -47,6 +49,7 @@ final class DocBookReader
         'sect4',
         'sect5',
         'simplesect',
+        'set',
     ];
     private const METADATA_NAMES = [
         'appendixinfo',
@@ -58,6 +61,7 @@ final class DocBookReader
         'prefaceinfo',
         'refentryinfo',
         'referenceinfo',
+        'setinfo',
         'sectioninfo',
         'sect1info',
         'sect2info',
@@ -102,6 +106,7 @@ final class DocBookReader
         'preface',
         'procedure',
         'programlisting',
+        'programlistingco',
         'qandadiv',
         'qandaset',
         'refentry',
@@ -352,6 +357,9 @@ final class DocBookReader
         if (in_array($name, ['equation', 'informalequation'], true)) {
             return $this->equationBlocks($element, true, $headingLevel);
         }
+        if ($name === 'programlistingco') {
+            return $this->programListingCoBlocks($element);
+        }
         if (in_array($name, self::ADMONITION_NAMES, true)) {
             return [$this->admonitionBlock($element, $headingLevel)];
         }
@@ -494,6 +502,63 @@ final class DocBookReader
         }
 
         return new AstNode('code_block', $attrs);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function programListingCoBlocks(\DOMElement $element): array
+    {
+        $programListing = XmlHtmlDom::firstChildElement($element, 'programlisting')
+            ?? XmlHtmlDom::firstDescendantElement($element, 'programlisting');
+        if (!$programListing instanceof \DOMElement) {
+            return $this->containerChildBlocks($element, 2);
+        }
+
+        $code = $this->codeBlockFromElement($programListing);
+        $areas = $this->areaSpecs($element);
+        if ($areas !== []) {
+            $attrs = $code->attrs;
+            $attrs['attributes'] = array_replace($attrs['attributes'] ?? [], [
+                'data-docbook-area-count' => (string) count($areas),
+            ]);
+            $attrs['docbookAreas'] = $areas;
+            $code = new AstNode('code_block', $attrs, $code->children);
+        }
+
+        $blocks = [$code];
+        foreach (XmlHtmlDom::childElements($element, 'calloutlist') as $callouts) {
+            $list = $this->calloutListFromElement($callouts);
+            if ($list instanceof AstNode) {
+                $blocks[] = $list;
+            }
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function areaSpecs(\DOMElement $element): array
+    {
+        $areas = [];
+        foreach (XmlHtmlDom::descendantElements($element, 'area') as $area) {
+            $summary = [];
+            foreach (['id', 'linkends', 'coords', 'units'] as $name) {
+                $value = $name === 'id'
+                    ? $this->elementId($area)
+                    : XmlHtmlDom::attribute($area, $name);
+                if ($value !== null && trim($value) !== '') {
+                    $summary[$name] = trim($value);
+                }
+            }
+            if ($summary !== []) {
+                $areas[] = $summary;
+            }
+        }
+
+        return $areas;
     }
 
     private function listFromElement(\DOMElement $list, bool $ordered): ?AstNode
@@ -1234,6 +1299,21 @@ final class DocBookReader
                 $nodes[] = new AstNode('linebreak');
                 continue;
             }
+            if ($name === 'anchor') {
+                $nodes[] = $this->anchorSpan($child);
+                continue;
+            }
+            if ($name === 'indexterm') {
+                $indexTerm = $this->indexTermSpan($child);
+                if ($indexTerm instanceof AstNode) {
+                    $nodes[] = $indexTerm;
+                }
+                continue;
+            }
+            if ($name === 'co') {
+                $nodes[] = $this->calloutMarkerSpan($child);
+                continue;
+            }
             if (in_array($name, ['link', 'ulink', 'xref', 'biblioref'], true)) {
                 $children = $this->inlineNodes($child);
                 if ($children === []) {
@@ -1278,6 +1358,86 @@ final class DocBookReader
         }
 
         return $this->trimInlineBoundary($this->coalesceTextNodes($nodes));
+    }
+
+    private function anchorSpan(\DOMElement $element): AstNode
+    {
+        $attrs = [
+            'classes' => ['anchor', 'docbook-anchor'],
+            'attributes' => [
+                'data-docbook-anchor' => 'true',
+            ],
+        ];
+        $id = $this->elementId($element);
+        if ($id !== null) {
+            $attrs['id'] = $id;
+            $attrs['attributes']['data-docbook-anchor-id'] = $id;
+        }
+
+        return new AstNode('span', $attrs);
+    }
+
+    private function indexTermSpan(\DOMElement $element): ?AstNode
+    {
+        $entry = $this->indexTermEntry($element);
+        $id = $this->elementId($element);
+        if ($entry === '' && $id === null) {
+            return null;
+        }
+
+        $attrs = [
+            'classes' => ['indexref', 'docbook-indexterm'],
+            'attributes' => [
+                'entry' => $entry,
+                'data-docbook-index-entry' => $entry,
+            ],
+        ];
+        if ($id !== null) {
+            $attrs['id'] = $id;
+            $attrs['attributes']['data-docbook-indexterm-id'] = $id;
+        }
+
+        return new AstNode('span', $attrs);
+    }
+
+    private function indexTermEntry(\DOMElement $element): string
+    {
+        $parts = [];
+        foreach (['primary', 'secondary', 'tertiary', 'see', 'seealso'] as $name) {
+            foreach (XmlHtmlDom::childElements($element, $name) as $child) {
+                $text = XmlHtmlDom::normalizedText($child);
+                if ($text !== '') {
+                    $parts[] = $text;
+                }
+            }
+        }
+
+        return $this->cleanText($parts === [] ? XmlHtmlDom::normalizedText($element) : implode('; ', $parts));
+    }
+
+    private function calloutMarkerSpan(\DOMElement $element): AstNode
+    {
+        $attrs = [
+            'classes' => ['docbook-callout'],
+            'attributes' => [
+                'data-docbook-callout' => 'true',
+            ],
+        ];
+        $id = $this->elementId($element);
+        if ($id !== null) {
+            $attrs['id'] = $id;
+            $attrs['attributes']['data-docbook-callout-id'] = $id;
+        }
+        foreach (['label', 'linkends', 'arearefs'] as $name) {
+            $value = XmlHtmlDom::attribute($element, $name);
+            if ($value !== null && trim($value) !== '') {
+                $attrs['attributes']['data-docbook-callout-' . $name] = trim($value);
+            }
+        }
+
+        $label = $this->cleanText(XmlHtmlDom::attribute($element, 'label') ?? '');
+
+        return new AstNode('span', $attrs, $this->textInlines($label));
     }
 
     private function emphasisIsStrong(\DOMElement $element): bool

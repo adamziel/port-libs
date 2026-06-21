@@ -297,6 +297,7 @@ final class XmlHtmlDom
         'sect3' => true,
         'sect4' => true,
         'sect5' => true,
+        'set' => true,
     ];
 
     /** @var array<string, true> */

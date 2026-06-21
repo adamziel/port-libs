@@ -127,6 +127,58 @@ XML;
         $t->contains('<dl><dt>AST</dt><dd>Abstract syntax tree.</dd></dl>', $blocks);
         $t->contains('<dl><dt>Ready?</dt><dd>Yes.</dd></dl>', $blocks);
     },
+    'preserves docbook sets anchors index terms and callout area specs' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<set xmlns="http://docbook.org/ns/docbook" version="5.2" xml:id="set-root">
+  <title>Documentation Set</title>
+  <book xml:id="book-one">
+    <title>Operator Guide</title>
+    <chapter xml:id="install">
+      <title>Install</title>
+      <para>Target <anchor xml:id="install-anchor"/> and index <indexterm xml:id="idx-install"><primary>Install</primary><secondary>CLI</secondary></indexterm> text plus callout <co xml:id="inline-co" linkends="call-install" label="1"/>.</para>
+      <programlistingco>
+        <areaspec><area xml:id="co-install" linkends="call-install" coords="1" units="line"/></areaspec>
+        <programlisting language="bash">wp import</programlisting>
+        <calloutlist><callout xml:id="call-install" arearefs="co-install"><para>Run the import command.</para></callout></calloutlist>
+      </programlistingco>
+    </chapter>
+  </book>
+</set>
+XML;
+
+        $document = PandocConverter::read($docbook, 'docbook');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $markdown = PandocConverter::write($document, 'markdown');
+        $meta = $document->attr('meta');
+        $code = $document->children[4];
+        $areas = $code->attr('docbookAreas');
+
+        $t->same('set', $meta['rootName']);
+        $t->same('Documentation Set', $meta['title']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('Operator Guide', $document->children[1]->attr('text'));
+        $t->same(2, $document->children[1]->attr('level'));
+        $t->same('Install', $document->children[2]->attr('text'));
+        $t->same(3, $document->children[2]->attr('level'));
+        $t->same('code_block', $code->type);
+        $t->same('1', $code->attr('attributes')['data-docbook-area-count'] ?? null);
+        $t->same([[
+            'id' => 'co-install',
+            'linkends' => 'call-install',
+            'coords' => '1',
+            'units' => 'line',
+        ]], $areas);
+        $t->contains('<h1>Documentation Set</h1>', $blocks);
+        $t->contains('<h2>Operator Guide</h2>', $blocks);
+        $t->contains('<h3>Install</h3>', $blocks);
+        $t->contains('<span id="install-anchor" class="anchor docbook-anchor" data-docbook-anchor="true" data-docbook-anchor-id="install-anchor" data-pandoc-anchor="empty-target"></span>', $blocks);
+        $t->contains('<span class="indexref docbook-indexterm" data-pandoc-index-entry="Install; CLI"></span>', $blocks);
+        $t->contains('<span id="inline-co" class="docbook-callout" data-docbook-callout="true" data-docbook-callout-id="inline-co" data-docbook-callout-label="1" data-docbook-callout-linkends="call-install">1</span>', $blocks);
+        $t->contains('<pre class="wp-block-code" data-docbook-area-count="1"><code class="language-bash">wp import</code></pre>', $blocks);
+        $t->contains('<ol><li data-docbook-arearefs="co-install">Run the import command.</li></ol>', $blocks);
+        $t->contains('[]{#install-anchor .anchor .docbook-anchor data-docbook-anchor="true"', $markdown);
+        $t->contains('[]{#idx-install .indexref .docbook-indexterm entry="Install; CLI"', $markdown);
+    },
     'preserves standalone docbook table fragment spans widths and alignments' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
 <informaltable frame="all" rowsep="1" colsep="1">
