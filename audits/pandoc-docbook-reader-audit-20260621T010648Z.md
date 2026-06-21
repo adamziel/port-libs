@@ -21,12 +21,13 @@ Unsupported upstream inputs after this slice remain:
 - CALS table preservation for `colspec` widths, `namest`/`nameend` column spans, `morerows` row spans, header/body/footer sections, and cell alignments.
 - Follow-up parity slice maps `refentry` names/purpose, `refsect1`-`refsect3`, `simplelist`, `segmentedlist`, `calloutlist`, `glossary`/`glosslist`, `qandaset`, and inline/display equations into existing shared AST nodes.
 - Follow-up parity slice accepts DocBook `set` roots consistently across the reader and review helpers, maps nested `set`/`book`/section heading levels, preserves inline `anchor`, `indexterm`, and `co` markers as AST spans, and attaches `programlistingco` `areaspec` entries to code-block metadata.
+- Follow-up parity slice maps single-key DocBook `citation` text and `biblioref` targets into native citation AST nodes while preserving freeform citation text as DocBook-marked spans.
 
 ## Remaining DocBook Gaps
 
 - Full Pandoc DocBook reader parity remains open.
 - DocBook namespace/version edge cases beyond the bounded structural roots still need upstream fixture mapping.
-- Full bibliography/citation semantics are not complete; current bibliography entries are represented as definition lists with structural diagnostics preserved in metadata.
+- Full bibliography/citation semantics are not complete; grouped citations, affixes, locator parsing, and CSL bibliography output remain open, while current bibliography entries are represented as definition lists with structural diagnostics preserved in metadata.
 - Full media object resolution, resource packaging, generated callout numbering/link resolution, full glossary/set/refentry option semantics, and exact Pandoc block/inline constructor parity remain open.
 - Dedicated `docbook4`/`docbook5` input aliases are not upstream input tokens in the current registry; output aliases remain unchanged.
 
@@ -44,7 +45,7 @@ Unsupported upstream inputs after this slice remain:
 - `php tools/run-tests.php lanes/pandoc/tests/DocBookReaderTest.php lanes/pandoc/tests/XmlHtmlDomTest.php lanes/pandoc/tests/MarkdownReaderTest.php lanes/pandoc/tests/PandocConverterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php`: 5 files, 10,945 assertions, 0 failures.
 - Broad smoke with DocBook/XML/Markdown/package/PDF readers: 21 files, 18,064 assertions, 0 failures.
 - Follow-up focused DocBook reader test: 1 file, 55 assertions, 0 failures.
-- Current focused DocBook reader test: 1 file, 75 assertions, 0 failures.
-- Current focused DocBook/XML/Markdown/registry suite: 5 files, 10,965 assertions, 0 failures.
-- Current broad smoke with DocBook/XML/Markdown/package/PDF readers: 21 files, 18,084 assertions, 0 failures.
+- Current focused DocBook reader test: 1 file, 92 assertions, 0 failures.
+- Current focused DocBook/XML/Markdown/registry suite: 5 files, 10,982 assertions, 0 failures.
+- Current broad smoke with DocBook/XML/Markdown/package/PDF readers: 21 files, 18,101 assertions, 0 failures.
 - Invoice hardcode guard: no source/test/audit/status hits for invoice-specific text, and the local problematic PDF still reports `tables=10 geometry=10 rects=896 mode=geometry`.

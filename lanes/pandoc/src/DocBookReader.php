@@ -1314,6 +1314,20 @@ final class DocBookReader
                 $nodes[] = $this->calloutMarkerSpan($child);
                 continue;
             }
+            if ($name === 'citation') {
+                $citation = $this->citationFromElement($child);
+                if ($citation instanceof AstNode) {
+                    $nodes[] = $citation;
+                }
+                continue;
+            }
+            if ($name === 'biblioref') {
+                $citation = $this->bibliorefCitation($child);
+                if ($citation instanceof AstNode) {
+                    $nodes[] = $citation;
+                    continue;
+                }
+            }
             if (in_array($name, ['link', 'ulink', 'xref', 'biblioref'], true)) {
                 $children = $this->inlineNodes($child);
                 if ($children === []) {
@@ -1358,6 +1372,74 @@ final class DocBookReader
         }
 
         return $this->trimInlineBoundary($this->coalesceTextNodes($nodes));
+    }
+
+    private function citationFromElement(\DOMElement $element): ?AstNode
+    {
+        $text = $this->cleanText(XmlHtmlDom::normalizedText($element));
+        if ($text === '') {
+            return null;
+        }
+
+        $id = $this->citationIdFromText($text);
+        if ($id === null) {
+            $attrs = $this->nodeAttrs($element);
+            $attrs['classes'] = array_values(array_unique(array_merge($attrs['classes'] ?? [], ['docbook-citation-text'])));
+
+            return new AstNode('span', $attrs, $this->textInlines($text));
+        }
+
+        return new AstNode('citation', [
+            'id' => $id,
+            'text' => $text,
+            'sourceFormat' => 'docbook',
+            'sourceElement' => 'citation',
+        ], $this->textInlines($text));
+    }
+
+    private function bibliorefCitation(\DOMElement $element): ?AstNode
+    {
+        $target = XmlHtmlDom::attribute($element, 'linkend')
+            ?? XmlHtmlDom::attribute($element, 'endterm')
+            ?? XmlHtmlDom::attribute($element, 'href', self::XLINK_NAMESPACE)
+            ?? XmlHtmlDom::attribute($element, 'href');
+        if ($target === null || trim($target) === '') {
+            return null;
+        }
+
+        $id = $this->citationIdFromText($target);
+        if ($id === null) {
+            return null;
+        }
+
+        $text = $this->cleanText(XmlHtmlDom::normalizedText($element));
+        if ($text === '') {
+            $text = '[@' . $id . ']';
+        }
+
+        return new AstNode('citation', [
+            'id' => $id,
+            'text' => $text,
+            'sourceFormat' => 'docbook',
+            'sourceElement' => 'biblioref',
+        ], $this->textInlines($text));
+    }
+
+    private function citationIdFromText(string $text): ?string
+    {
+        $text = trim($text);
+        $text = trim($text, "[]() \t\n\r\0\x0B");
+        if (str_starts_with($text, '@')) {
+            $text = substr($text, 1);
+        }
+        if (str_starts_with($text, '#')) {
+            $text = substr($text, 1);
+        }
+        if ($text === '' || str_contains($text, ' ') || str_contains($text, ';') || str_contains($text, '://')) {
+            return null;
+        }
+
+        return preg_match('/^[^\[\]{}()<>#\s;]+$/u', $text) === 1 ? $text : null;
     }
 
     private function anchorSpan(\DOMElement $element): AstNode

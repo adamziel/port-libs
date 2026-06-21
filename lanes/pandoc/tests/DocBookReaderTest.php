@@ -85,6 +85,44 @@ XML;
         $t->contains('Field             Status', $markdown);
         $t->contains('Parser            Ready', $markdown);
     },
+    'maps docbook citations and bibliorefs into citation ast nodes' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.2">
+  <title>Citation Demo</title>
+  <section>
+    <title>Body</title>
+    <para>Bibliography cites <citation>[ref-a]</citation>, keeps <citation role="review">free form source note</citation>, links <biblioref linkend="ref-a">DocBook Source</biblioref>, links by fragment <biblioref xlink:href="#ref-b">Second Source</biblioref>, and keeps external <biblioref xlink:href="https://example.test/ref">external ref</biblioref>.</para>
+  </section>
+  <bibliography>
+    <biblioentry xml:id="ref-a"><title>DocBook Source</title><pubdate>2026</pubdate></biblioentry>
+    <biblioentry xml:id="ref-b"><title>Second Source</title><pubdate>2025</pubdate></biblioentry>
+  </bibliography>
+</article>
+XML;
+
+        $document = PandocConverter::read($docbook, 'docbook');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $markdown = PandocConverter::write($document, 'markdown');
+        $paragraph = $document->children[2];
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'citation', 'text', 'span', 'text', 'citation', 'text', 'citation', 'text', 'link', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same('ref-a', $paragraph->children[1]->attr('id'));
+        $t->same('citation', $paragraph->children[1]->attr('sourceElement'));
+        $t->same('ref-a', $paragraph->children[5]->attr('id'));
+        $t->same('biblioref', $paragraph->children[5]->attr('sourceElement'));
+        $t->same('ref-b', $paragraph->children[7]->attr('id'));
+        $t->same('biblioref', $paragraph->children[7]->attr('sourceElement'));
+        $t->same('https://example.test/ref', $paragraph->children[9]->attr('url'));
+        $t->contains('data-pandoc-citation-id="ref-a"', $blocks);
+        $t->contains('data-pandoc-citation-id="ref-b"', $blocks);
+        $t->contains('<span class="docbook-review docbook-citation-text" data-docbook-role="review">free form source note</span>', $blocks);
+        $t->contains('>DocBook Source</span>', $blocks);
+        $t->contains('>Second Source</span>', $blocks);
+        $t->contains('<a href="https://example.test/ref">external ref</a>', $blocks);
+        $t->same(2, substr_count($markdown, '[@ref-a]'));
+        $t->same(1, substr_count($markdown, '[@ref-b]'));
+    },
     'maps docbook refentry callouts glossary segmented lists qanda and equations' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
 <refentry xmlns="http://docbook.org/ns/docbook" version="5.2" xml:id="cli-ref">
