@@ -61,8 +61,13 @@ return [
     },
     'reports supported and unsupported formats from registry state' => static function (TestRunner $t): void {
         $t->true(PandocConverter::canRead('markdown'));
+        $t->true(PandocConverter::canRead('bibtex'));
+        $t->true(PandocConverter::canRead('biblatex'));
+        $t->true(PandocConverter::canRead('csljson'));
         $t->true(PandocConverter::canRead('json'));
         $t->true(PandocConverter::canRead('csv'));
+        $t->true(PandocConverter::canRead('endnotexml'));
+        $t->true(PandocConverter::canRead('ris'));
         $t->true(PandocConverter::canRead('tsv'));
         $t->true(PandocConverter::canRead('doc'));
         $t->true(PandocConverter::canRead('docx'));

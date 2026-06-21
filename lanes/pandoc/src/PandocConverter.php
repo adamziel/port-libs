@@ -177,6 +177,7 @@ final class PandocConverter
     private static function reader(string $implementation, string $format, array $options): object
     {
         return match ($implementation) {
+            BibliographyReader::class => new BibliographyReader($format, $options),
             DocxReader::class => new DocxReader(),
             EpubReader::class => new EpubReader($options),
             IpynbReader::class => new IpynbReader(),

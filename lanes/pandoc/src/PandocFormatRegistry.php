@@ -170,6 +170,16 @@ final class PandocFormatRegistry
      * @var array<string, array{status:string, implementation:string, notes:string}>
      */
     private const PHP_INPUT_SUPPORT = [
+        'bibtex' => [
+            'status' => 'partial',
+            'implementation' => BibliographyReader::class,
+            'notes' => 'Bibliography reader parses BibTeX entries into CSL item metadata and renders a shared AST bibliography definition list. Full Pandoc BibTeX reader parity remains open.',
+        ],
+        'biblatex' => [
+            'status' => 'partial',
+            'implementation' => BibliographyReader::class,
+            'notes' => 'Bibliography reader parses BibLaTeX-oriented entries, aliases, xdata/crossref metadata, source-file diagnostics, and custom fields into CSL item metadata. Full Pandoc BibLaTeX reader parity remains open.',
+        ],
         'commonmark' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
@@ -179,6 +189,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
             'notes' => 'Uses the shared Markdown reader with raw attribute and extension slices; full extension parity remains open.',
+        ],
+        'csljson' => [
+            'status' => 'partial',
+            'implementation' => BibliographyReader::class,
+            'notes' => 'Bibliography reader validates CSL JSON item lists, normalizes them through the CSL processor, and renders a shared AST bibliography definition list. Full Pandoc CSL JSON parity remains open.',
         ],
         'csv' => [
             'status' => 'partial',
@@ -204,6 +219,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => EpubReader::class,
             'notes' => 'Bounded EPUB package reader resolves the OPF rootfile, extracts metadata, follows XHTML spine items, rewrites package-relative href/src resources, records image/resource references, parses EPUB3 nav and NCX table-of-contents resources into metadata, and maps spine content through the shared HTML-capable reader path. Full EPUB parity remains open.',
+        ],
+        'endnotexml' => [
+            'status' => 'partial',
+            'implementation' => BibliographyReader::class,
+            'notes' => 'Bibliography reader parses bounded EndNote XML records into CSL item metadata with name, title, date, publication, attachment, and unsupported-field diagnostics. Full Pandoc EndNote XML reader parity remains open.',
         ],
         'gfm' => [
             'status' => 'partial',
@@ -264,6 +284,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => OdtReader::class,
             'notes' => 'Bounded ODT package reader parses content.xml, meta.xml, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open.',
+        ],
+        'ris' => [
+            'status' => 'partial',
+            'implementation' => BibliographyReader::class,
+            'notes' => 'Bibliography reader parses bounded RIS records into CSL item metadata with type aliases, field provenance, attachments, user fields, and custom diagnostics. Full Pandoc RIS reader parity remains open.',
         ],
         'rtf' => [
             'status' => 'partial',
