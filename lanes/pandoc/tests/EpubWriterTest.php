@@ -10,6 +10,7 @@ use PortLibs\Pandoc\ZipPackage;
 
 $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
 $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
+$link = static fn (string $url, array $children): AstNode => new AstNode('link', ['url' => $url], $children);
 
 return [
     'writes a valid bounded epub3 package from the shared ast' => static function (TestRunner $t) use ($text, $paragraph): void {
@@ -183,15 +184,87 @@ return [
         $navigation = $epub->navigation();
         $navXml = $zip->read('EPUB/nav.xhtml');
 
-        $t->contains('<li><a href="text/chapter.xhtml#intro">Introduction</a>', $navXml);
-        $t->contains('<li><a href="text/chapter.xhtml#install">Install</a>', $navXml);
-        $t->contains('<li><a href="text/chapter.xhtml#details">Details</a>', $navXml);
+        $t->contains('<li><a href="text/ch1.xhtml#intro">Introduction</a>', $navXml);
+        $t->contains('<li><a href="text/ch1.xhtml#install">Install</a>', $navXml);
+        $t->contains('<li><a href="text/ch1.xhtml#details">Details</a>', $navXml);
+        $t->contains('<li><a href="text/ch2.xhtml#appendix">Appendix</a>', $navXml);
         $t->same(['Introduction', 'Install', 'Details', 'Appendix'], array_column($navigation['entries'], 'label'));
+        $t->same(['text/ch1.xhtml#intro', 'text/ch1.xhtml#install', 'text/ch1.xhtml#details', 'text/ch2.xhtml#appendix'], array_column($navigation['entries'], 'href'));
         $t->same([1, 2, 3, 1], array_column($navigation['entries'], 'depth'));
 
         $roundTrip = PandocConverter::read($bytes, 'epub');
         $tocEntries = $roundTrip->attr('meta')['epubTocEntries'];
         $t->same(['Introduction', 'Install', 'Details', 'Appendix'], array_column($tocEntries, 'text'));
         $t->same([1, 2, 3, 1], array_column($tocEntries, 'level'));
+    },
+    'splits epub spine documents at writer split level and rewrites chapter links' => static function (TestRunner $t) use ($text, $paragraph, $link): void {
+        $document = new AstNode('document', [
+            'meta' => ['title' => 'Split EPUB', 'author' => 'Port Libs', 'lang' => 'en'],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'intro'], [$text('Intro')]),
+            $paragraph([$text('See '), $link('#appendix', [$text('appendix')]), $text('.')]),
+            new AstNode('heading', ['level' => 2, 'id' => 'setup'], [$text('Setup')]),
+            $paragraph([$text('Setup body.')]),
+            new AstNode('heading', ['level' => 1, 'id' => 'appendix'], [$text('Appendix')]),
+            $paragraph([$text('Appendix body.')]),
+            new AstNode('heading', ['level' => 2, 'id' => 'details'], [$text('Details')]),
+        ]);
+
+        $bytes = (new EpubWriter(['modified' => '2026-06-21T08:34:00Z', 'writerSplitLevel' => 1]))->write($document);
+        $zip = ZipPackage::fromString($bytes);
+        $epub = EpubPackage::fromString($bytes);
+        $assetSummary = $epub->assetSummary();
+        $opf = $zip->read('EPUB/package.opf');
+        $navXml = $zip->read('EPUB/nav.xhtml');
+        $chapter1 = $zip->read('EPUB/text/ch1.xhtml');
+        $chapter2 = $zip->read('EPUB/text/ch2.xhtml');
+
+        $t->same([
+            'mimetype',
+            'META-INF/container.xml',
+            'EPUB/package.opf',
+            'EPUB/nav.xhtml',
+            'EPUB/text/ch1.xhtml',
+            'EPUB/text/ch2.xhtml',
+            'EPUB/styles/stylesheet.css',
+        ], $zip->names());
+        $t->same(['/EPUB/text/ch1.xhtml', '/EPUB/text/ch2.xhtml'], $assetSummary['readingOrderParts']);
+        $t->contains('<item id="chapter1" href="text/ch1.xhtml" media-type="application/xhtml+xml"/>', $opf);
+        $t->contains('<item id="chapter2" href="text/ch2.xhtml" media-type="application/xhtml+xml"/>', $opf);
+        $t->contains('<itemref idref="chapter1"/>', $opf);
+        $t->contains('<itemref idref="chapter2"/>', $opf);
+        $t->contains('<li><a href="text/ch1.xhtml#intro">Intro</a>', $navXml);
+        $t->contains('<li><a href="text/ch1.xhtml#setup">Setup</a>', $navXml);
+        $t->contains('<li><a href="text/ch2.xhtml#appendix">Appendix</a>', $navXml);
+        $t->contains('<li><a href="text/ch2.xhtml#details">Details</a>', $navXml);
+        $t->contains('<h1 id="intro">Intro</h1>', $chapter1);
+        $t->contains('<a href="ch2.xhtml#appendix">appendix</a>', $chapter1);
+        $t->contains('<h2 id="setup">Setup</h2>', $chapter1);
+        $t->true(!str_contains($chapter1, 'Appendix body.'), 'First split chapter should not contain second level-1 section body');
+        $t->contains('<h1 id="appendix">Appendix</h1>', $chapter2);
+        $t->contains('<h2 id="details">Details</h2>', $chapter2);
+
+        $roundTrip = PandocConverter::read($bytes, 'epub');
+        $roundTripMeta = $roundTrip->attr('meta');
+        $t->same(['EPUB/text/ch1.xhtml', 'EPUB/text/ch2.xhtml'], $roundTripMeta['epubReadableResources']);
+        $t->same(['Intro', 'Setup', 'Appendix', 'Details'], array_column($roundTripMeta['epubTocEntries'], 'text'));
+    },
+    'allows epub chapter splitting to be disabled for a single spine document' => static function (TestRunner $t) use ($text): void {
+        $document = new AstNode('document', [
+            'meta' => ['title' => 'No Split EPUB', 'author' => 'Port Libs', 'lang' => 'en'],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'one'], [$text('One')]),
+            new AstNode('heading', ['level' => 1, 'id' => 'two'], [$text('Two')]),
+        ]);
+
+        $bytes = (new EpubWriter(['modified' => '2026-06-21T08:35:00Z', 'writerSplitLevel' => 0]))->write($document);
+        $zip = ZipPackage::fromString($bytes);
+        $epub = EpubPackage::fromString($bytes);
+        $navXml = $zip->read('EPUB/nav.xhtml');
+
+        $t->same(['/EPUB/text/chapter.xhtml'], $epub->assetSummary()['readingOrderParts']);
+        $t->true(in_array('EPUB/text/chapter.xhtml', $zip->names(), true));
+        $t->contains('<li><a href="text/chapter.xhtml#one">One</a>', $navXml);
+        $t->contains('<li><a href="text/chapter.xhtml#two">Two</a>', $navXml);
     },
 ];

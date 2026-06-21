@@ -12,7 +12,7 @@ final class EpubWriter
     private const STYLESHEET_PATH = 'EPUB/styles/stylesheet.css';
 
     /**
-     * @param array{modified?: string, date?: string, title?: string, author?: string, lang?: string, identifier?: string, mediaResources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resourceMap?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, media?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, coverImage?: string, epubCoverImage?: string, epubCoverImagePath?: string} $options
+     * @param array{modified?: string, date?: string, title?: string, author?: string, lang?: string, identifier?: string, writerSplitLevel?: int|string|bool, splitLevel?: int|string|bool, epubSplitLevel?: int|string|bool, epubChapterLevel?: int|string|bool, mediaResources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resourceMap?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, media?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, coverImage?: string, epubCoverImage?: string, epubCoverImagePath?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -27,19 +27,21 @@ final class EpubWriter
         $media = $this->withMediaResources($document);
         $document = $media['document'];
         $metadata = $this->metadata($document);
-        $chapter = $this->chapterXhtml($document, $metadata);
+        $chapterSet = $this->chapters($document, $metadata);
 
         $parts = [
             ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'compressionMethod' => 0],
             ['name' => 'META-INF/container.xml', 'data' => $this->containerXml()],
-            ['name' => self::PACKAGE_PATH, 'data' => $this->packageOpf($metadata, $media['entries'])],
-            ['name' => self::NAV_PATH, 'data' => $this->navXhtml($document, $metadata)],
-            ['name' => self::CHAPTER_PATH, 'data' => $chapter],
-            ['name' => self::STYLESHEET_PATH, 'data' => $this->stylesheet()],
+            ['name' => self::PACKAGE_PATH, 'data' => $this->packageOpf($metadata, $chapterSet['chapters'], $media['entries'])],
+            ['name' => self::NAV_PATH, 'data' => $this->navXhtml($document, $metadata, $chapterSet['headingHrefs'], $chapterSet['defaultHref'])],
         ];
+        foreach ($chapterSet['chapters'] as $chapter) {
+            $parts[] = ['name' => $chapter['packagePath'], 'data' => $chapter['contents']];
+        }
         foreach ($media['entries'] as $entry) {
             $parts[] = ['name' => $entry['packagePath'], 'data' => $entry['contents']];
         }
+        $parts[] = ['name' => self::STYLESHEET_PATH, 'data' => $this->stylesheet()];
 
         return ZipPackage::build($parts);
     }
@@ -190,6 +192,172 @@ final class EpubWriter
             . '</html>' . "\n";
     }
 
+    /**
+     * @param array{title:string, author:string, lang:string, identifier:string, modified:string} $metadata
+     * @return array{
+     *     chapters:list<array{id:string, href:string, packagePath:string, contents:string}>,
+     *     headingHrefs:array<int, string>,
+     *     defaultHref:string
+     * }
+     */
+    private function chapters(AstNode $document, array $metadata): array
+    {
+        $chunks = $this->chapterChunks($document);
+        $split = count($chunks) > 1;
+        $chapterSpecs = [];
+        $headingHrefs = [];
+        $idChapterFiles = [];
+
+        foreach ($chunks as $index => $children) {
+            $fileName = $split ? 'ch' . ($index + 1) . '.xhtml' : basename(self::CHAPTER_PATH);
+            $href = 'text/' . $fileName;
+            $chapterSpecs[] = [
+                'id' => $split ? 'chapter' . ($index + 1) : 'chapter',
+                'href' => $href,
+                'packagePath' => 'EPUB/' . $href,
+                'fileName' => $fileName,
+                'children' => $children,
+            ];
+            foreach ($children as $child) {
+                $this->collectHeadingHrefs($child, $href, $headingHrefs);
+                $this->collectNodeIdChapterFiles($child, $fileName, $idChapterFiles);
+            }
+        }
+
+        $chapters = [];
+        foreach ($chapterSpecs as $chapter) {
+            $children = [];
+            foreach ($chapter['children'] as $child) {
+                $children[] = $this->rewriteInternalChapterLinks($child, $chapter['fileName'], $idChapterFiles);
+            }
+            $chapterDocument = new AstNode('document', $document->attrs, $children);
+            $chapters[] = [
+                'id' => $chapter['id'],
+                'href' => $chapter['href'],
+                'packagePath' => $chapter['packagePath'],
+                'contents' => $this->chapterXhtml($chapterDocument, $metadata),
+            ];
+        }
+
+        return [
+            'chapters' => $chapters,
+            'headingHrefs' => $headingHrefs,
+            'defaultHref' => $chapters[0]['href'],
+        ];
+    }
+
+    /**
+     * @return list<list<AstNode>>
+     */
+    private function chapterChunks(AstNode $document): array
+    {
+        $splitLevel = $this->writerSplitLevel();
+        if ($splitLevel < 1) {
+            return [$document->children];
+        }
+
+        $chunks = [];
+        $current = [];
+        foreach ($document->children as $child) {
+            if ($child->type === 'heading' && max(1, min(6, (int) $child->attr('level', 1))) <= $splitLevel) {
+                if ($current !== []) {
+                    $chunks[] = $current;
+                }
+                $current = [$child];
+                continue;
+            }
+            $current[] = $child;
+        }
+        if ($current !== []) {
+            $chunks[] = $current;
+        }
+
+        return $chunks === [] ? [[]] : $chunks;
+    }
+
+    private function writerSplitLevel(): int
+    {
+        foreach (['writerSplitLevel', 'splitLevel', 'epubSplitLevel', 'epubChapterLevel'] as $key) {
+            if (!array_key_exists($key, $this->options)) {
+                continue;
+            }
+
+            $value = $this->options[$key];
+            if ($value === false || $value === null) {
+                return 0;
+            }
+            if ($value === true) {
+                return 1;
+            }
+            if (is_int($value) || is_float($value)) {
+                return max(0, (int) $value);
+            }
+            if (is_string($value) && is_numeric(trim($value))) {
+                return max(0, (int) trim($value));
+            }
+        }
+
+        return 1;
+    }
+
+    /**
+     * @param array<int, string> $headingHrefs
+     */
+    private function collectHeadingHrefs(AstNode $node, string $href, array &$headingHrefs): void
+    {
+        if ($node->type === 'heading') {
+            $headingHrefs[spl_object_id($node)] = $href;
+        }
+        foreach ($node->children as $child) {
+            $this->collectHeadingHrefs($child, $href, $headingHrefs);
+        }
+    }
+
+    /**
+     * @param array<string, string> $idChapterFiles
+     */
+    private function collectNodeIdChapterFiles(AstNode $node, string $fileName, array &$idChapterFiles): void
+    {
+        $id = trim((string) $node->attr('id', ''));
+        if ($id !== '' && !array_key_exists($id, $idChapterFiles)) {
+            $idChapterFiles[$id] = $fileName;
+        }
+        foreach ($node->children as $child) {
+            $this->collectNodeIdChapterFiles($child, $fileName, $idChapterFiles);
+        }
+    }
+
+    /**
+     * @param array<string, string> $idChapterFiles
+     */
+    private function rewriteInternalChapterLinks(AstNode $node, string $currentFileName, array $idChapterFiles): AstNode
+    {
+        $changed = false;
+        $children = [];
+        foreach ($node->children as $child) {
+            $rewritten = $this->rewriteInternalChapterLinks($child, $currentFileName, $idChapterFiles);
+            $children[] = $rewritten;
+            $changed = $changed || $rewritten !== $child;
+        }
+
+        $attrs = $node->attrs;
+        if ($node->type === 'link') {
+            $urlKey = array_key_exists('url', $attrs) || !array_key_exists('href', $attrs) ? 'url' : 'href';
+            $url = (string) ($attrs[$urlKey] ?? '');
+            if (preg_match('/^#(.+)$/', $url, $match) === 1) {
+                $fragment = $match[1];
+                $targetId = rawurldecode($fragment);
+                $targetFileName = $idChapterFiles[$targetId] ?? null;
+                if ($targetFileName !== null && $targetFileName !== $currentFileName) {
+                    $attrs[$urlKey] = $targetFileName . '#' . $fragment;
+                    $changed = true;
+                }
+            }
+        }
+
+        return $changed ? new AstNode($node->type, $attrs, $children) : $node;
+    }
+
     private function containerXml(): string
     {
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
@@ -202,10 +370,18 @@ final class EpubWriter
 
     /**
      * @param array{title:string, author:string, lang:string, identifier:string, modified:string} $metadata
+     * @param list<array{id:string, href:string, packagePath:string, contents:string}> $chapters
      * @param list<array{id:string, href:string, packagePath:string, mediaType:string, contents:string, properties:list<string>}> $mediaEntries
      */
-    private function packageOpf(array $metadata, array $mediaEntries): string
+    private function packageOpf(array $metadata, array $chapters, array $mediaEntries): string
     {
+        $chapterItems = '';
+        $spineItems = '';
+        foreach ($chapters as $chapter) {
+            $chapterItems .= '    <item id="' . $this->esc($chapter['id']) . '" href="' . $this->esc($chapter['href']) . '" media-type="application/xhtml+xml"/>' . "\n";
+            $spineItems .= '    <itemref idref="' . $this->esc($chapter['id']) . '"/>' . "\n";
+        }
+
         $mediaItems = '';
         foreach ($mediaEntries as $entry) {
             $mediaItems .= '    <item id="' . $this->esc($entry['id']) . '" href="' . $this->esc($entry['href']) . '" media-type="' . $this->esc($entry['mediaType']) . '"';
@@ -226,22 +402,23 @@ final class EpubWriter
             . '  </metadata>' . "\n"
             . '  <manifest>' . "\n"
             . '    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>' . "\n"
-            . '    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>' . "\n"
+            . $chapterItems
             . '    <item id="stylesheet" href="styles/stylesheet.css" media-type="text/css"/>' . "\n"
             . $mediaItems
             . '  </manifest>' . "\n"
             . '  <spine>' . "\n"
-            . '    <itemref idref="chapter"/>' . "\n"
+            . $spineItems
             . '  </spine>' . "\n"
             . '</package>' . "\n";
     }
 
     /**
      * @param array{title:string, author:string, lang:string, identifier:string, modified:string} $metadata
+     * @param array<int, string> $headingHrefs
      */
-    private function navXhtml(AstNode $document, array $metadata): string
+    private function navXhtml(AstNode $document, array $metadata, array $headingHrefs, string $defaultHref): string
     {
-        $entries = $this->navEntries($document, $metadata['title']);
+        $entries = $this->navEntries($document, $metadata['title'], $headingHrefs, $defaultHref);
         $entryIndex = 0;
         $list = $this->renderNavList($entries, $entryIndex, 0, 4);
 
@@ -261,9 +438,10 @@ final class EpubWriter
     }
 
     /**
+     * @param array<int, string> $headingHrefs
      * @return list<array{label:string, href:string, level:int}>
      */
-    private function navEntries(AstNode $document, string $title): array
+    private function navEntries(AstNode $document, string $title, array $headingHrefs, string $defaultHref): array
     {
         $entries = [];
         foreach ($document->children as $child) {
@@ -275,14 +453,15 @@ final class EpubWriter
                 continue;
             }
             $id = trim((string) $child->attr('id', ''));
+            $href = $headingHrefs[spl_object_id($child)] ?? $defaultHref;
             $entries[] = [
                 'label' => $label,
-                'href' => 'text/chapter.xhtml' . ($id === '' ? '' : '#' . $id),
+                'href' => $href . ($id === '' ? '' : '#' . $id),
                 'level' => max(1, min(6, (int) $child->attr('level', 1))),
             ];
         }
 
-        return $entries === [] ? [['label' => $title, 'href' => 'text/chapter.xhtml', 'level' => 1]] : $entries;
+        return $entries === [] ? [['label' => $title, 'href' => $defaultHref, 'level' => 1]] : $entries;
     }
 
     /**
