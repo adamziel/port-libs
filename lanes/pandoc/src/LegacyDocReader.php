@@ -213,6 +213,14 @@ final class LegacyDocReader
     private array $activeHiddenTextSuppressions = [];
 
     /**
+     * Read legacy binary Word document bytes into the shared AST.
+     */
+    public function read(string $bytes): AstNode
+    {
+        return $this->readBytes($bytes)['document'];
+    }
+
+    /**
      * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, formFieldDataReferences:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, mailMergeSettings:array<string,mixed>, routeSlip:array<string,mixed>}
      */
     public function readBytes(string $bytes): array

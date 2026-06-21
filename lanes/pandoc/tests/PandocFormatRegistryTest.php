@@ -10,6 +10,7 @@ use PortLibs\Pandoc\IpynbReader;
 use PortLibs\Pandoc\JsonReader;
 use PortLibs\Pandoc\JsonWriter;
 use PortLibs\Pandoc\LatexWriter;
+use PortLibs\Pandoc\LegacyDocReader;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
@@ -112,11 +113,14 @@ return [
     'records project local input support separately from upstream pandoc inputs' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpLocalInputSupport();
 
-        $t->same(['pdf'], PandocFormatRegistry::localInputFormats());
-        $t->same(['pdf'], array_keys($support));
+        $t->same(['pdf', 'doc'], PandocFormatRegistry::localInputFormats());
+        $t->same(['pdf', 'doc'], array_keys($support));
         $t->same('partial', $support['pdf']['status']);
         $t->same(PdfReader::class, $support['pdf']['implementation']);
+        $t->same('partial', $support['doc']['status']);
+        $t->same(LegacyDocReader::class, $support['doc']['implementation']);
         $t->true(!in_array('pdf', PandocFormatRegistry::upstreamInputFormats(), true));
+        $t->true(!in_array('doc', PandocFormatRegistry::upstreamInputFormats(), true));
     },
     'maps current php input support against every upstream input token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpInputSupport();

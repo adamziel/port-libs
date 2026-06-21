@@ -64,6 +64,7 @@ return [
         $t->true(PandocConverter::canRead('json'));
         $t->true(PandocConverter::canRead('csv'));
         $t->true(PandocConverter::canRead('tsv'));
+        $t->true(PandocConverter::canRead('doc'));
         $t->true(PandocConverter::canRead('docx'));
         $t->true(PandocConverter::canRead('epub'));
         $t->true(PandocConverter::canRead('ipynb'));

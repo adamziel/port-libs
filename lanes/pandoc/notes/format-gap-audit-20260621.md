@@ -9,7 +9,7 @@ Upstream reference:
 Current registry state after this slice:
 
 - Upstream inputs: 51 total; 20 partial native PHP inputs; 31 unsupported inputs.
-- Local inputs: 1 partial input, `pdf`.
+- Local inputs: 2 partial inputs, `pdf` and `doc`.
 - Upstream outputs: 75 total; 14 partial native PHP outputs; 61 unsupported outputs.
 - Local output aliases include WordPress block markup through `wordpress` / `blocks`.
 
@@ -18,6 +18,7 @@ This slice moved existing PHP code onto the public converter path:
 - `csv` and `tsv` now use `DelimitedTextReader` through `PandocConverter`.
 - `rtf` now uses `RtfReader` through `PandocConverter`.
 - `ipynb` now uses `IpynbReader` through `PandocConverter`.
+- `doc` now uses `LegacyDocReader` through `PandocConverter` as a project-local input.
 - `plain` now uses `PlainWriter` instead of routing through `MarkdownWriter`.
 - The problematic local PDF sample was verified with geometry table reconstruction and no invoice-specific runtime or test strings.
 
@@ -35,6 +36,7 @@ Supported input gaps:
 - `csv` and `tsv`: delimited text input now maps to table AST with quote, multiline, row-repair, control-character, and provenance diagnostics. Full Pandoc option parity is still open.
 - `rtf`: bounded reader covers paragraphs, escaped characters, unicode fallback, tabs, and core inline styles. Full RTF control-word, destination, table, image, and metadata parity remains open.
 - `pdf` (local): markerPDF bridge covers searchable text, structural provenance, encryption cases, link/annotation metadata, tagged tables, geometry tables, word gaps, and filled rectangle table backgrounds. Missing work includes OCR/image-only extraction, richer page layout semantics, complex spanning tables, multipage table stitching, forms, and higher-fidelity style/layout preservation.
+- `doc` (local): legacy binary Word reader covers Compound File Binary containers, WordDocument text, OLE properties, metadata, fields, lists, notes, comments, sections, bookmarks, and review provenance. Missing work remains in full legacy Word binary layout, embedded object rendering, and complete Word feature parity.
 
 Supported output gaps:
 
@@ -47,29 +49,23 @@ Supported output gaps:
 
 Code-present but not main-registry-exposed:
 
-- `LegacyDocReader`: substantial binary `.doc` CFB reader exists, but `.doc` is not an upstream Pandoc input token. Treat it as a local source alias/input, not as an upstream format.
 - Bibliography/citation classes (`BibtexCslParser`, `BibtexCslProcessor`, `CitationCslProcessor`) exist, but `bibtex`, `biblatex`, and `csljson` are not registered as input/output formats yet.
 - XML/HTML DOM infrastructure exists and is heavily tested, but `xml`, `jats`, and the full DocBook/JATS family are not registered as complete readers/writers.
 
 Porting plan:
 
-1. Add local `.doc` intake.
-   - Register a local input/source alias for `doc` backed by `LegacyDocReader`.
-   - Add `PandocConverter` dispatch and file-extension inference where appropriate.
-   - Keep it separate from upstream input denominators because Pandoc does not list `doc` as an upstream input format.
-
-2. Register bibliography formats where existing processors are strong enough.
+1. Register bibliography formats where existing processors are strong enough.
    - Audit `bibtex`, `biblatex`, and `csljson` tests against Pandoc expectations.
    - Expose input/output only for the directions that can round-trip through the shared AST without external tools.
 
-3. Move XML-family formats next.
+2. Move XML-family formats next.
    - Use `XmlHtmlDom` and existing XML/HTML5/JATS notes to pick bounded first targets: `xml`, then `jats`, then DocBook-specific work.
    - Avoid claiming full XML/JATS/DocBook parity until namespace, entity, table, metadata, and citation branches are covered.
 
-4. Defer package writer formats until reader coverage is stable.
+3. Defer package writer formats until reader coverage is stable.
    - DOCX/ODT/EPUB/PDF outputs need native package/renderer writers, not registry-only changes.
    - PPTX/XLSX inputs require new OpenXML readers and should be treated as larger projects.
 
 Recommended next format:
 
-- Local `.doc` input. It is the fastest remaining file-format intake because substantial `LegacyDocReader` work already exists, but it must be registered as a local input/source alias instead of an upstream Pandoc input token.
+- Bibliography inputs, starting with `bibtex` / `biblatex` if existing processor tests prove enough Pandoc-facing coverage. They are the fastest remaining upstream input formats with substantial PHP code already present.

@@ -6,6 +6,7 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\CompoundFileBinary;
 use PortLibs\Pandoc\LegacyDocReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $u16 = static fn (int $value): string => pack('v', $value);
@@ -3104,6 +3105,20 @@ return [
         $t->contains('Reviewer notes keep hard', $markdown);
         $t->contains("<p>Reviewer notes keep hard<br/>breaks.</p>", $blocks);
     },
+    'reads legacy DOC bytes through the converter local input path' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Converter legacy doc\rSecond paragraph\r"),
+        ]);
+
+        $document = PandocConverter::read($docBytes, 'doc');
+        $blocks = PandocConverter::convert($docBytes, 'doc', 'blocks');
+
+        $t->true(PandocConverter::canRead('doc'));
+        $t->same('doc', $document->attr('sourceFormat'));
+        $t->same('Converter legacy doc', $document->children[0]->children[0]->attr('text'));
+        $t->contains('<p>Converter legacy doc</p>', $blocks);
+        $t->contains('<p>Second paragraph</p>', $blocks);
+    },
     'extracts legacy DOC SummaryInformation dates counts and security metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpwstr, $typedI4, $typedFiletime): void {
         $docBytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Metadata review packet\r"),
@@ -6027,7 +6042,7 @@ return [
         $t->same('Formatted review', $document->children[0]->children[0]->children[0]->children[0]->children[0]->attr('text'));
 
         $t->contains('<p><strong><em><u>Formatted review</u></em></strong> plain import</p>', $blocks);
-        $t->contains('**_[Formatted review]{.underline}_** plain import', $markdown);
+        $t->contains('***[Formatted review]{.underline}*** plain import', $markdown);
         foreach (['sprmCFBold', 'sprmCFItalic', 'sprmCKul', 'sprmCFVanish', 'metadata-only-native-review'] as $metadataText) {
             $t->true(!str_contains($blocks, $metadataText), 'Legacy DOC CHPX formatting metadata should not render into WordPress blocks');
             $t->true(!str_contains($markdown, $metadataText), 'Legacy DOC CHPX formatting metadata should not render into Markdown');
@@ -6430,7 +6445,7 @@ return [
         $t->same('7', $attrs['data-legacy-doc-numbering-field-list-override-start-at']);
         $t->same('7.', $autoNumber->children[0]->attr('text'));
 
-        $t->contains('[7\.]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-autonum data-legacy-doc-field="autonum"', $markdown);
+        $t->contains('[7.]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-autonum data-legacy-doc-field="autonum"', $markdown);
         $t->contains('data-legacy-doc-numbering-field-list-lsid="1001"', $markdown);
         $t->contains('data-legacy-doc-numbering-field-list-override-start-at="7"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonum" data-legacy-doc-field="autonum" data-legacy-doc-field-instruction="AUTONUM \* Arabic" data-legacy-doc-numbering-field-type="auto-number" data-legacy-doc-field-format="Arabic" data-legacy-doc-numbering-field-list-policy="metadata-only-native-review"', $blocks);
@@ -8143,7 +8158,7 @@ return [
         $t->same('true', $toa->attr('attributes')['data-legacy-doc-generated-field-switch-p']);
         $t->same('Case One 2', $toa->children[0]->attr('text'));
 
-        $t->contains('[Introduction&#9;1]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-toc data-legacy-doc-field="toc"', $markdown);
+        $t->contains("[Introduction\t1]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-toc data-legacy-doc-field=\"toc\"", $markdown);
         $t->contains('[Legacy term, 4]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-index data-legacy-doc-field="index"', $markdown);
         $t->contains('[Case One 2]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-toa data-legacy-doc-field="toa"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-generated-field legacy-doc-field-toc" data-legacy-doc-field="toc" data-legacy-doc-field-instruction="TOC \o &quot;1-3&quot; \h \z \u" data-legacy-doc-generated-field-type="table-of-contents" data-legacy-doc-generated-field-switches="o h z u" data-legacy-doc-generated-field-switch-o="1-3" data-legacy-doc-generated-field-switch-h="true" data-legacy-doc-generated-field-switch-z="true" data-legacy-doc-generated-field-switch-u="true">Introduction	1</span>', $blocks);

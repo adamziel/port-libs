@@ -180,6 +180,7 @@ final class PandocConverter
             DocxReader::class => new DocxReader(),
             EpubReader::class => new EpubReader($options),
             IpynbReader::class => new IpynbReader(),
+            LegacyDocReader::class => new LegacyDocReader(),
             MarkdownReader::class => new MarkdownReader(self::markdownReaderOptions($format, $options)),
             JsonReader::class => new JsonReader(),
             NativeReader::class => new NativeReader(),

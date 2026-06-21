@@ -153,6 +153,7 @@ final class PandocFormatRegistry
     /** @var list<string> */
     private const LOCAL_INPUT_FORMATS = [
         'pdf',
+        'doc',
     ];
 
     /** @var array<string, string> */
@@ -282,6 +283,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => PdfReader::class,
             'notes' => 'Project-local markerPDF bridge extracts searchable PDF text lines, records basic PDF structural provenance, and maps simple headings, paragraphs, lists, links, and aligned text-table rows into the shared AST. PDF is not an upstream Pandoc input format.',
+        ],
+        'doc' => [
+            'status' => 'partial',
+            'implementation' => LegacyDocReader::class,
+            'notes' => 'Project-local legacy binary Word reader parses Compound File Binary containers, WordDocument text, OLE properties, metadata, fields, lists, notes, comments, sections, bookmarks, and review provenance into the shared AST. Legacy .doc is not an upstream Pandoc input format token.',
         ],
     ];
 
