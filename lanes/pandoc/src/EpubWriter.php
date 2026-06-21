@@ -14,7 +14,7 @@ final class EpubWriter
     private const STYLESHEET_PATH = 'EPUB/styles/stylesheet.css';
 
     /**
-     * @param array{modified?: string, date?: string, title?: string, author?: string, lang?: string, identifier?: string, pageProgressionDirection?: string, epubPageDirection?: string, pageDirection?: string, writerEpubTitlePage?: bool|string|int, epubTitlePage?: bool|string|int, titlePage?: bool|string|int, writerSplitLevel?: int|string|bool, splitLevel?: int|string|bool, epubSplitLevel?: int|string|bool, epubChapterLevel?: int|string|bool, mediaResources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resourceMap?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, media?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, coverImage?: string, cover-image?: string, epubCoverImage?: string, epub-cover-image?: string, epubCoverImagePath?: string} $options
+     * @param array{modified?: string, date?: string, title?: string, author?: string, lang?: string, identifier?: string, css?: string|list<string>, stylesheet?: string|list<string>, stylesheets?: string|list<string>, epubStylesheets?: string|list<string>, cssResources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, stylesheetResources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, pageProgressionDirection?: string, epubPageDirection?: string, pageDirection?: string, writerEpubTitlePage?: bool|string|int, epubTitlePage?: bool|string|int, titlePage?: bool|string|int, writerSplitLevel?: int|string|bool, splitLevel?: int|string|bool, epubSplitLevel?: int|string|bool, epubChapterLevel?: int|string|bool, mediaResources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resourceMap?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, media?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, coverImage?: string, cover-image?: string, epubCoverImage?: string, epub-cover-image?: string, epubCoverImagePath?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -29,16 +29,17 @@ final class EpubWriter
         $media = $this->withMediaResources($document);
         $document = $media['document'];
         $metadata = $this->metadata($document);
-        $chapterSet = $this->chapters($document, $metadata);
-        $coverPage = $this->coverPage($metadata, $media['entries']);
-        $titlePage = $this->titlePage($metadata);
+        $stylesheets = $this->stylesheets($document);
+        $chapterSet = $this->chapters($document, $metadata, $stylesheets);
+        $coverPage = $this->coverPage($metadata, $media['entries'], $stylesheets);
+        $titlePage = $this->titlePage($metadata, $stylesheets);
 
         $parts = [
             ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'compressionMethod' => 0],
             ['name' => 'META-INF/container.xml', 'data' => $this->containerXml()],
-            ['name' => self::PACKAGE_PATH, 'data' => $this->packageOpf($metadata, $coverPage, $titlePage, $chapterSet['chapters'], $media['entries'])],
+            ['name' => self::PACKAGE_PATH, 'data' => $this->packageOpf($metadata, $coverPage, $titlePage, $chapterSet['chapters'], $media['entries'], $stylesheets)],
             ['name' => self::NCX_PATH, 'data' => $this->tocNcx($document, $metadata, $titlePage, $chapterSet['headingHrefs'], $chapterSet['defaultHref'])],
-            ['name' => self::NAV_PATH, 'data' => $this->navXhtml($document, $metadata, $coverPage, $titlePage, $chapterSet['headingHrefs'], $chapterSet['defaultHref'])],
+            ['name' => self::NAV_PATH, 'data' => $this->navXhtml($document, $metadata, $coverPage, $titlePage, $chapterSet['headingHrefs'], $chapterSet['defaultHref'], $stylesheets)],
         ];
         if ($coverPage !== null) {
             $parts[] = ['name' => $coverPage['packagePath'], 'data' => $coverPage['contents']];
@@ -52,7 +53,9 @@ final class EpubWriter
         foreach ($media['entries'] as $entry) {
             $parts[] = ['name' => $entry['packagePath'], 'data' => $entry['contents']];
         }
-        $parts[] = ['name' => self::STYLESHEET_PATH, 'data' => $this->stylesheet()];
+        foreach ($stylesheets as $stylesheet) {
+            $parts[] = ['name' => $stylesheet['packagePath'], 'data' => $stylesheet['contents']];
+        }
 
         return ZipPackage::build($parts);
     }
@@ -478,20 +481,22 @@ final class EpubWriter
 
     /**
      * @param array<string, mixed> $metadata
+     * @param list<array{id:string, href:string, packagePath:string, contents:string, source:?string}> $stylesheets
      */
-    private function chapterXhtml(AstNode $document, array $metadata): string
+    private function chapterXhtml(AstNode $document, array $metadata, array $stylesheets): string
     {
         $body = trim((new HtmlWriter(['writerWrapText' => 'preserve']))->write($document));
         if ($body === '') {
             $body = '<p></p>';
         }
+        $stylesheetLinks = $this->stylesheetLinks($stylesheets, true);
 
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<!DOCTYPE html>' . "\n"
             . '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="' . $this->esc($metadata['lang']) . '" lang="' . $this->esc($metadata['lang']) . '">' . "\n"
             . '<head>' . "\n"
             . '  <title>' . $this->esc($metadata['title']) . '</title>' . "\n"
-            . '  <link rel="stylesheet" type="text/css" href="../styles/stylesheet.css" />' . "\n"
+            . $stylesheetLinks
             . '</head>' . "\n"
             . '<body>' . "\n"
             . $body . "\n"
@@ -501,13 +506,14 @@ final class EpubWriter
 
     /**
      * @param array<string, mixed> $metadata
+     * @param list<array{id:string, href:string, packagePath:string, contents:string, source:?string}> $stylesheets
      * @return array{
      *     chapters:list<array{id:string, href:string, packagePath:string, contents:string}>,
      *     headingHrefs:array<int, string>,
      *     defaultHref:string
      * }
      */
-    private function chapters(AstNode $document, array $metadata): array
+    private function chapters(AstNode $document, array $metadata, array $stylesheets): array
     {
         $chunks = $this->chapterChunks($document);
         $split = count($chunks) > 1;
@@ -542,7 +548,7 @@ final class EpubWriter
                 'id' => $chapter['id'],
                 'href' => $chapter['href'],
                 'packagePath' => $chapter['packagePath'],
-                'contents' => $this->chapterXhtml($chapterDocument, $metadata),
+                'contents' => $this->chapterXhtml($chapterDocument, $metadata, $stylesheets),
             ];
         }
 
@@ -667,9 +673,10 @@ final class EpubWriter
 
     /**
      * @param array<string, mixed> $metadata
+     * @param list<array{id:string, href:string, packagePath:string, contents:string, source:?string}> $stylesheets
      * @return array{id:string, href:string, packagePath:string, contents:string, linear:bool}|null
      */
-    private function titlePage(array $metadata): ?array
+    private function titlePage(array $metadata, array $stylesheets): ?array
     {
         if (!$this->epubTitlePageEnabled()) {
             return null;
@@ -679,7 +686,7 @@ final class EpubWriter
             'id' => 'title_page_xhtml',
             'href' => 'text/' . basename(self::TITLE_PAGE_PATH),
             'packagePath' => self::TITLE_PAGE_PATH,
-            'contents' => $this->titlePageXhtml($metadata),
+            'contents' => $this->titlePageXhtml($metadata, $stylesheets),
             'linear' => $metadata['titleExplicit'],
         ];
     }
@@ -719,9 +726,10 @@ final class EpubWriter
     /**
      * @param array<string, mixed> $metadata
      * @param list<array{id:string, href:string, packagePath:string, mediaType:string, contents:string, properties:list<string>}> $mediaEntries
+     * @param list<array{id:string, href:string, packagePath:string, contents:string, source:?string}> $stylesheets
      * @return array{id:string, href:string, packagePath:string, contents:string}|null
      */
-    private function coverPage(array $metadata, array $mediaEntries): ?array
+    private function coverPage(array $metadata, array $mediaEntries, array $stylesheets): ?array
     {
         $coverEntry = null;
         foreach ($mediaEntries as $entry) {
@@ -738,24 +746,26 @@ final class EpubWriter
             'id' => 'cover_xhtml',
             'href' => 'text/cover.xhtml',
             'packagePath' => 'EPUB/text/cover.xhtml',
-            'contents' => $this->coverPageXhtml($metadata, $coverEntry),
+            'contents' => $this->coverPageXhtml($metadata, $coverEntry, $stylesheets),
         ];
     }
 
     /**
      * @param array<string, mixed> $metadata
      * @param array{id:string, href:string, packagePath:string, mediaType:string, contents:string, properties:list<string>} $coverEntry
+     * @param list<array{id:string, href:string, packagePath:string, contents:string, source:?string}> $stylesheets
      */
-    private function coverPageXhtml(array $metadata, array $coverEntry): string
+    private function coverPageXhtml(array $metadata, array $coverEntry, array $stylesheets): string
     {
         $src = $this->coverPageImageHref($coverEntry['href']);
+        $stylesheetLinks = $this->stylesheetLinks($stylesheets, true);
 
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<!DOCTYPE html>' . "\n"
             . '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="' . $this->esc($metadata['lang']) . '" lang="' . $this->esc($metadata['lang']) . '">' . "\n"
             . '<head>' . "\n"
             . '  <title>' . $this->esc($metadata['title']) . '</title>' . "\n"
-            . '  <link rel="stylesheet" type="text/css" href="../styles/stylesheet.css" />' . "\n"
+            . $stylesheetLinks
             . '</head>' . "\n"
             . '<body epub:type="cover">' . "\n"
             . '  <section id="cover" epub:type="cover" role="doc-cover">' . "\n"
@@ -772,19 +782,21 @@ final class EpubWriter
 
     /**
      * @param array<string, mixed> $metadata
+     * @param list<array{id:string, href:string, packagePath:string, contents:string, source:?string}> $stylesheets
      */
-    private function titlePageXhtml(array $metadata): string
+    private function titlePageXhtml(array $metadata, array $stylesheets): string
     {
         $author = $metadata['authorExplicit']
             ? '    <p class="author">' . $this->esc($metadata['author']) . '</p>' . "\n"
             : '';
+        $stylesheetLinks = $this->stylesheetLinks($stylesheets, true);
 
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<!DOCTYPE html>' . "\n"
             . '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="' . $this->esc($metadata['lang']) . '" lang="' . $this->esc($metadata['lang']) . '">' . "\n"
             . '<head>' . "\n"
             . '  <title>' . $this->esc($metadata['title']) . '</title>' . "\n"
-            . '  <link rel="stylesheet" type="text/css" href="../styles/stylesheet.css" />' . "\n"
+            . $stylesheetLinks
             . '</head>' . "\n"
             . '<body epub:type="frontmatter">' . "\n"
             . '  <section id="titlepage" epub:type="titlepage" role="doc-titlepage">' . "\n"
@@ -971,8 +983,9 @@ final class EpubWriter
      * @param array{id:string, href:string, packagePath:string, contents:string, linear:bool}|null $titlePage
      * @param list<array{id:string, href:string, packagePath:string, contents:string}> $chapters
      * @param list<array{id:string, href:string, packagePath:string, mediaType:string, contents:string, properties:list<string>}> $mediaEntries
+     * @param list<array{id:string, href:string, packagePath:string, contents:string, source:?string}> $stylesheets
      */
-    private function packageOpf(array $metadata, ?array $coverPage, ?array $titlePage, array $chapters, array $mediaEntries): string
+    private function packageOpf(array $metadata, ?array $coverPage, ?array $titlePage, array $chapters, array $mediaEntries, array $stylesheets): string
     {
         $metadataNodes = implode('', $this->metadataOpfNodes($metadata));
         $coverPageItem = '';
@@ -1003,6 +1016,10 @@ final class EpubWriter
             }
             $mediaItems .= '/>' . "\n";
         }
+        $stylesheetItems = '';
+        foreach ($stylesheets as $stylesheet) {
+            $stylesheetItems .= '    <item id="' . $this->esc($stylesheet['id']) . '" href="' . $this->esc($stylesheet['href']) . '" media-type="text/css"/>' . "\n";
+        }
         $spineAttrs = ['toc' => 'ncx'];
         if (is_string($metadata['pageProgressionDirection'] ?? null) && $metadata['pageProgressionDirection'] !== '') {
             $spineAttrs['page-progression-direction'] = $metadata['pageProgressionDirection'];
@@ -1020,7 +1037,7 @@ final class EpubWriter
             . $coverPageItem
             . $titlePageItem
             . $chapterItems
-            . '    <item id="stylesheet" href="styles/stylesheet.css" media-type="text/css"/>' . "\n"
+            . $stylesheetItems
             . $mediaItems
             . '  </manifest>' . "\n"
             . '  <spine' . $this->xmlAttributes($spineAttrs) . '>' . "\n"
@@ -1089,19 +1106,22 @@ final class EpubWriter
      * @param array{id:string, href:string, packagePath:string, contents:string}|null $coverPage
      * @param array{id:string, href:string, packagePath:string, contents:string, linear:bool}|null $titlePage
      * @param array<int, string> $headingHrefs
+     * @param list<array{id:string, href:string, packagePath:string, contents:string, source:?string}> $stylesheets
      */
-    private function navXhtml(AstNode $document, array $metadata, ?array $coverPage, ?array $titlePage, array $headingHrefs, string $defaultHref): string
+    private function navXhtml(AstNode $document, array $metadata, ?array $coverPage, ?array $titlePage, array $headingHrefs, string $defaultHref, array $stylesheets): string
     {
         $entries = $this->navEntries($document, $metadata['title'], $headingHrefs, $defaultHref);
         $entryIndex = 0;
         $list = $this->renderNavList($entries, $entryIndex, 0, 4);
         $landmarks = $this->renderLandmarksNav($coverPage, $titlePage);
+        $stylesheetLinks = $this->stylesheetLinks($stylesheets, false);
 
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<!DOCTYPE html>' . "\n"
             . '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="' . $this->esc($metadata['lang']) . '" lang="' . $this->esc($metadata['lang']) . '">' . "\n"
             . '<head>' . "\n"
             . '  <title>Contents</title>' . "\n"
+            . $stylesheetLinks
             . '</head>' . "\n"
             . '<body>' . "\n"
             . '  <nav epub:type="toc" id="toc">' . "\n"
@@ -1277,6 +1297,136 @@ pre {
 }
 
 CSS;
+    }
+
+    /**
+     * @return list<array{id:string, href:string, packagePath:string, contents:string, source:?string}>
+     */
+    private function stylesheets(AstNode $document): array
+    {
+        $sources = $this->stylesheetSources($document);
+        if ($sources === []) {
+            return [[
+                'id' => 'stylesheet',
+                'href' => 'styles/stylesheet.css',
+                'packagePath' => self::STYLESHEET_PATH,
+                'contents' => $this->stylesheet(),
+                'source' => null,
+            ]];
+        }
+
+        $resources = $this->stylesheetResourcesOption();
+        $entries = [];
+        foreach ($sources as $index => $source) {
+            $number = $index + 1;
+            $entries[] = [
+                'id' => 'stylesheet' . $number,
+                'href' => 'styles/stylesheet' . $number . '.css',
+                'packagePath' => 'EPUB/styles/stylesheet' . $number . '.css',
+                'contents' => $this->stylesheetContents($source, $resources),
+                'source' => $source,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stylesheetSources(AstNode $document): array
+    {
+        $sources = [];
+        $meta = $document->attr('meta', []);
+        if (is_array($meta)) {
+            $sources = array_merge($sources, $this->metaStringList($meta, ['css', 'stylesheet']));
+        }
+        $sources = array_merge($sources, $this->optionStringList(['css', 'stylesheet', 'stylesheets', 'epubStylesheets']));
+
+        $deduped = [];
+        foreach ($sources as $source) {
+            $source = trim($source);
+            if ($source === '' || in_array($source, $deduped, true)) {
+                continue;
+            }
+            $deduped[] = $source;
+        }
+
+        return $deduped;
+    }
+
+    /**
+     * @param list<string> $keys
+     * @return list<string>
+     */
+    private function optionStringList(array $keys): array
+    {
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $this->options)) {
+                continue;
+            }
+
+            $values = $this->stringListFromMetaValue($this->options[$key]);
+            if ($values !== []) {
+                return $values;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>|null
+     */
+    private function stylesheetResourcesOption(): ?array
+    {
+        foreach (['stylesheetResources', 'cssResources'] as $key) {
+            $value = $this->options[$key] ?? null;
+            if (is_array($value)) {
+                return $value;
+            }
+        }
+
+        return $this->mediaResourcesOption();
+    }
+
+    /**
+     * @param array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>|null $resources
+     */
+    private function stylesheetContents(string $source, ?array $resources): string
+    {
+        $resource = $resources === null ? null : $this->mediaResourceForSource($source, $resources);
+        if ($resource !== null) {
+            return is_array($resource)
+                ? (string) ($resource['contents'] ?? $resource['data'] ?? '')
+                : (string) $resource;
+        }
+
+        if (is_file($source) && is_readable($source)) {
+            $contents = file_get_contents($source);
+
+            return $contents === false ? '' : $contents;
+        }
+
+        if (str_contains($source, "\n") || str_contains($source, '{') || str_contains($source, '}')) {
+            return $source;
+        }
+
+        return '/* unresolved stylesheet resource: ' . str_replace('*/', '* /', $source) . ' */' . "\n";
+    }
+
+    /**
+     * @param list<array{id:string, href:string, packagePath:string, contents:string, source:?string}> $stylesheets
+     */
+    private function stylesheetLinks(array $stylesheets, bool $fromTextDirectory): string
+    {
+        $prefix = $fromTextDirectory ? '../' : '';
+        $links = '';
+        foreach ($stylesheets as $stylesheet) {
+            $links .= '  <link rel="stylesheet" type="text/css" href="' . $this->esc($prefix . $stylesheet['href']) . '" />' . "\n";
+        }
+
+        return $links;
     }
 
     /**

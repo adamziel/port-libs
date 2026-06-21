@@ -241,6 +241,44 @@ return [
         $t->same('chapter', $resourceProperties['itemsByProperty']['mathml'][0]['id']);
         $t->same('chapter', $resourceProperties['itemsByProperty']['svg'][0]['id']);
     },
+    'packages configured epub stylesheets and links every xhtml surface' => static function (TestRunner $t) use ($text, $paragraph): void {
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Styled EPUB',
+                'author' => 'Port Libs',
+                'lang' => 'en',
+                'css' => ['styles/book.css', 'styles/print.css'],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'styled'], [$text('Styled EPUB')]),
+            $paragraph([$text('Styled body.')]),
+        ]);
+
+        $bytes = (new EpubWriter([
+            'modified' => '2026-06-21T08:40:00Z',
+            'writerEpubTitlePage' => false,
+            'cssResources' => [
+                'styles/book.css' => "body { color: #123456; }\n",
+                'styles/print.css' => "h1 { break-before: page; }\n",
+            ],
+        ]))->write($document);
+        $zip = ZipPackage::fromString($bytes);
+        $epub = EpubPackage::fromString($bytes);
+        $opf = $zip->read('EPUB/package.opf');
+        $chapter = $zip->read('EPUB/text/chapter.xhtml');
+        $navXml = $zip->read('EPUB/nav.xhtml');
+
+        $t->true(!in_array('EPUB/styles/stylesheet.css', $zip->names(), true), 'Custom EPUB CSS should replace the default stylesheet package entry');
+        $t->same("body { color: #123456; }\n", $zip->read('EPUB/styles/stylesheet1.css'));
+        $t->same("h1 { break-before: page; }\n", $zip->read('EPUB/styles/stylesheet2.css'));
+        $t->same(['/EPUB/styles/stylesheet1.css', '/EPUB/styles/stylesheet2.css'], $epub->assetSummary()['stylesheetParts']);
+        $t->contains('<item id="stylesheet1" href="styles/stylesheet1.css" media-type="text/css"/>', $opf);
+        $t->contains('<item id="stylesheet2" href="styles/stylesheet2.css" media-type="text/css"/>', $opf);
+        $t->contains('<link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />', $chapter);
+        $t->contains('<link rel="stylesheet" type="text/css" href="../styles/stylesheet2.css" />', $chapter);
+        $t->contains('<link rel="stylesheet" type="text/css" href="styles/stylesheet1.css" />', $navXml);
+        $t->contains('<link rel="stylesheet" type="text/css" href="styles/stylesheet2.css" />', $navXml);
+    },
     'writes epub through the registered converter alias and reads it back' => static function (TestRunner $t) use ($text, $paragraph): void {
         $document = new AstNode('document', [
             'meta' => ['title' => 'Converter EPUB', 'author' => 'Port Libs', 'lang' => 'en'],
