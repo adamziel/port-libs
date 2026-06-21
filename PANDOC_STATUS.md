@@ -22,7 +22,7 @@ ODF/ODT is marked ship-ready: 89 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | CSV / TSV | 2 | 4 |
 | CSL / BibTeX / BibLaTeX / csljson / RIS / EndNote XML | 80 | 227 |
 | LaTeX / TeX / math | 21 | 36 |
-| DocBook | 22 | 17 |
+| DocBook | 23 | 17 |
 | RTF | 4 | 27 |
 | Shared ZIP / OPC package | 110 | 578 |
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |

@@ -22,12 +22,13 @@ Unsupported upstream inputs after this slice remain:
 - Follow-up parity slice maps `refentry` names/purpose, `refsect1`-`refsect3`, `simplelist`, `segmentedlist`, `calloutlist`, `glossary`/`glosslist`, `qandaset`, and inline/display equations into existing shared AST nodes.
 - Follow-up parity slice accepts DocBook `set` roots consistently across the reader and review helpers, maps nested `set`/`book`/section heading levels, preserves inline `anchor`, `indexterm`, and `co` markers as AST spans, and attaches `programlistingco` `areaspec` entries to code-block metadata.
 - Follow-up parity slice maps single-key DocBook `citation` text and `biblioref` targets into native citation AST nodes while preserving freeform citation text as DocBook-marked spans.
+- Follow-up parity slice maps semicolon-separated grouped DocBook citations with prefix, suffix, and suppress-author forms into structured citation payloads.
 
 ## Remaining DocBook Gaps
 
 - Full Pandoc DocBook reader parity remains open.
 - DocBook namespace/version edge cases beyond the bounded structural roots still need upstream fixture mapping.
-- Full bibliography/citation semantics are not complete; grouped citations, affixes, locator parsing, and CSL bibliography output remain open, while current bibliography entries are represented as definition lists with structural diagnostics preserved in metadata.
+- Full bibliography/citation semantics are not complete; full locator taxonomy, author-in-text forms, nested markup in affixes, and CSL bibliography output remain open, while current bibliography entries are represented as definition lists with structural diagnostics preserved in metadata.
 - Full media object resolution, resource packaging, generated callout numbering/link resolution, full glossary/set/refentry option semantics, and exact Pandoc block/inline constructor parity remain open.
 - Dedicated `docbook4`/`docbook5` input aliases are not upstream input tokens in the current registry; output aliases remain unchanged.
 
@@ -48,4 +49,7 @@ Unsupported upstream inputs after this slice remain:
 - Current focused DocBook reader test: 1 file, 92 assertions, 0 failures.
 - Current focused DocBook/XML/Markdown/registry suite: 5 files, 10,982 assertions, 0 failures.
 - Current broad smoke with DocBook/XML/Markdown/package/PDF readers: 21 files, 18,101 assertions, 0 failures.
-- Invoice hardcode guard: no source/test/audit/status hits for invoice-specific text, and the local problematic PDF still reports `tables=10 geometry=10 rects=896 mode=geometry`.
+- Latest focused DocBook reader test: 1 file, 107 assertions, 0 failures.
+- Latest focused DocBook/XML/Markdown/registry suite: 5 files, 10,997 assertions, 0 failures.
+- Latest broad smoke with DocBook/XML/Markdown/package/PDF readers: 21 files, 18,116 assertions, 0 failures.
+- Local PDF hardcode guard: no source or test hits for problematic-document text, and the local problematic PDF still reports `tables=10 geometry=10 rects=896 mode=geometry`.

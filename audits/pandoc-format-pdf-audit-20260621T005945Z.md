@@ -39,7 +39,7 @@ Current PHP PDF path:
 
 - Uses markerPDF text extraction through `PdfReader`.
 - Handles searchable text, font encodings/CMaps, encrypted content streams, object/xref streams, ActualText, marked-content artifacts, link annotations, structural provenance, simple heading/list/link/table mapping, positioned text table reconstruction, and filled-rectangle cell background propagation.
-- The problematic `/home/claude/invoice.pdf` currently reports 10 detected tables, 10 geometry tables, and 896 filled rectangles; the whitespace regression reproducer now verifies spacing generically rather than depending on invoice-specific wording.
+- Local problematic PDF smoke coverage currently reports 10 detected tables, 10 geometry tables, and 896 filled rectangles; the whitespace regression reproducer verifies spacing generically rather than depending on document-specific wording.
 
 Remaining PDF gaps:
 
@@ -63,5 +63,5 @@ Remaining PDF gaps:
 - `php -l lanes/pandoc/src/XmlReader.php`: passed.
 - `php tools/run-tests.php lanes/pandoc/tests/XmlReaderTest.php lanes/pandoc/tests/XmlHtmlDomTest.php lanes/pandoc/tests/PandocConverterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php`: 4 files, 6,441 assertions, 0 failures.
 - `php tools/run-tests.php lanes/pandoc/tests/PdfReaderTest.php lanes/markerpdf/tests/PdfTextExtractorTest.php`: 2 files, 3,051 assertions, 0 failures.
-- Exact-string guard for the local invoice reproducer terms across `lanes/pandoc`, `lanes/markerpdf`, this audit, and `PANDOC_STATUS.md`: 0 hits.
-- Direct local invoice smoke through `PandocConverter::read(..., 'pdf')`: 10 detected tables, 10 geometry tables, 896 filled rectangles, `geometry` reconstruction mode.
+- Exact-string guard for local PDF reproducer terms across `lanes/pandoc`, `lanes/markerpdf`, this audit, and `PANDOC_STATUS.md`: 0 executable-source/test hits.
+- Direct local problematic-PDF smoke through `PandocConverter::read(..., 'pdf')`: 10 detected tables, 10 geometry tables, 896 filled rectangles, `geometry` reconstruction mode.

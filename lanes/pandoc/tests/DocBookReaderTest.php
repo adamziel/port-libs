@@ -123,6 +123,43 @@ XML;
         $t->same(2, substr_count($markdown, '[@ref-a]'));
         $t->same(1, substr_count($markdown, '[@ref-b]'));
     },
+    'maps docbook grouped citations with affixes into citation ast payloads' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" version="5.2">
+  <title>Grouped Citation Demo</title>
+  <section>
+    <title>Body</title>
+    <para>Grouped <citation>[see @ref-a, p. 9; -@ref-b]</citation> done.</para>
+  </section>
+  <bibliography>
+    <biblioentry xml:id="ref-a"><title>DocBook Source</title></biblioentry>
+    <biblioentry xml:id="ref-b"><title>Second Source</title></biblioentry>
+  </bibliography>
+</article>
+XML;
+
+        $document = PandocConverter::read($docbook, 'docbook');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $markdown = PandocConverter::write($document, 'markdown');
+        $paragraph = $document->children[2];
+        $citation = $paragraph->children[1];
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'citation', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same('citation', $citation->attr('sourceElement'));
+        $t->same(2, count($citation->attr('citations')));
+        $t->same('ref-a', $citation->attr('citations')[0]['id']);
+        $t->same('see', $citation->attr('citations')[0]['prefix'][0]->attr('text'));
+        $t->same('p. 9', $citation->attr('citations')[0]['suffix'][0]->attr('text'));
+        $t->same('ref-b', $citation->attr('citations')[1]['id']);
+        $t->same('suppress_author', $citation->attr('citations')[1]['mode']);
+        $t->contains('data-pandoc-citation-count="2"', $blocks);
+        $t->contains('data-pandoc-citation-ids="[&quot;ref-a&quot;,&quot;ref-b&quot;]"', $blocks);
+        $t->contains('&quot;prefix&quot;:&quot;see&quot;', $blocks);
+        $t->contains('&quot;suffix&quot;:&quot;p. 9&quot;', $blocks);
+        $t->contains('&quot;mode&quot;:&quot;suppress_author&quot;', $blocks);
+        $t->contains('[see @ref-a p. 9; -@ref-b]', $markdown);
+    },
     'maps docbook refentry callouts glossary segmented lists qanda and equations' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
 <refentry xmlns="http://docbook.org/ns/docbook" version="5.2" xml:id="cli-ref">

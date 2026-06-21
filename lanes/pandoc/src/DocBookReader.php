@@ -1381,20 +1381,15 @@ final class DocBookReader
             return null;
         }
 
-        $id = $this->citationIdFromText($text);
-        if ($id === null) {
+        $entries = $this->citationEntriesFromText($text);
+        if ($entries === []) {
             $attrs = $this->nodeAttrs($element);
             $attrs['classes'] = array_values(array_unique(array_merge($attrs['classes'] ?? [], ['docbook-citation-text'])));
 
             return new AstNode('span', $attrs, $this->textInlines($text));
         }
 
-        return new AstNode('citation', [
-            'id' => $id,
-            'text' => $text,
-            'sourceFormat' => 'docbook',
-            'sourceElement' => 'citation',
-        ], $this->textInlines($text));
+        return $this->citationNode($text, 'citation', $entries);
     }
 
     private function bibliorefCitation(\DOMElement $element): ?AstNode
@@ -1417,12 +1412,104 @@ final class DocBookReader
             $text = '[@' . $id . ']';
         }
 
-        return new AstNode('citation', [
-            'id' => $id,
+        return $this->citationNode($text, 'biblioref', [$this->citationEntry($id)]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     */
+    private function citationNode(string $text, string $sourceElement, array $entries): AstNode
+    {
+        $attrs = [
             'text' => $text,
             'sourceFormat' => 'docbook',
-            'sourceElement' => 'biblioref',
-        ], $this->textInlines($text));
+            'sourceElement' => $sourceElement,
+            'citations' => $entries,
+        ];
+        if (count($entries) === 1) {
+            $attrs = array_replace($attrs, $entries[0]);
+        }
+
+        return new AstNode('citation', $attrs, $this->textInlines($text));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function citationEntriesFromText(string $text): array
+    {
+        $inner = trim($text);
+        if (
+            strlen($inner) >= 2
+            && (($inner[0] === '[' && substr($inner, -1) === ']')
+                || ($inner[0] === '(' && substr($inner, -1) === ')'))
+        ) {
+            $inner = trim(substr($inner, 1, -1));
+        }
+
+        if (!str_contains($inner, '@') && !str_contains($inner, ';')) {
+            $id = $this->citationIdFromText($inner);
+
+            return $id === null ? [] : [$this->citationEntry($id)];
+        }
+
+        $entries = [];
+        foreach (preg_split('/\s*;\s*/u', $inner) ?: [] as $part) {
+            $entry = $this->citationEntryFromPart($part);
+            if ($entry === null) {
+                return [];
+            }
+            $entries[] = $entry;
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function citationEntryFromPart(string $part): ?array
+    {
+        $part = trim($part);
+        if ($part === '') {
+            return null;
+        }
+
+        if (preg_match('/^(?P<prefix>.*?)(?P<suppress>-?)@(?P<id>[^\s,;\]]+)(?P<suffix>.*)$/u', $part, $matches) !== 1) {
+            $id = $this->citationIdFromText($part);
+
+            return $id === null ? null : $this->citationEntry($id);
+        }
+
+        $id = $this->citationIdFromText((string) $matches['id']);
+        if ($id === null) {
+            return null;
+        }
+
+        $suffix = trim((string) $matches['suffix']);
+        if (str_starts_with($suffix, ',')) {
+            $suffix = trim(substr($suffix, 1));
+        }
+
+        return $this->citationEntry(
+            $id,
+            ((string) $matches['suppress']) === '-' ? 'suppress_author' : 'normal',
+            $this->cleanText((string) $matches['prefix']),
+            $this->cleanText($suffix)
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function citationEntry(string $id, string $mode = 'normal', string $prefix = '', string $suffix = ''): array
+    {
+        return [
+            'id' => $id,
+            'mode' => $mode,
+            'prefix' => $this->textInlines($prefix),
+            'suffix' => $this->textInlines($suffix),
+        ];
     }
 
     private function citationIdFromText(string $text): ?string
