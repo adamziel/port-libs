@@ -19,13 +19,14 @@ Unsupported upstream inputs after this slice remain:
 - Document metadata handoff from existing DocBook structure, review, and bibliography packets.
 - AST mapping for document title, subtitle, abstract, sections, nested headings, paragraphs, inline emphasis/code/links/xrefs, itemized and ordered lists, procedures, variable lists, block quotes, admonitions, literal/code blocks, figures/media objects, CALS tables, and bibliography entries.
 - CALS table preservation for `colspec` widths, `namest`/`nameend` column spans, `morerows` row spans, header/body/footer sections, and cell alignments.
+- Follow-up parity slice maps `refentry` names/purpose, `refsect1`-`refsect3`, `simplelist`, `segmentedlist`, `calloutlist`, `glossary`/`glosslist`, `qandaset`, and inline/display equations into existing shared AST nodes.
 
 ## Remaining DocBook Gaps
 
 - Full Pandoc DocBook reader parity remains open.
 - DocBook namespace/version edge cases beyond the bounded structural roots still need upstream fixture mapping.
 - Full bibliography/citation semantics are not complete; current bibliography entries are represented as definition lists with structural diagnostics preserved in metadata.
-- Full media object resolution, resource packaging, callouts, index terms, equations, glossary/set/refentry-specific semantics, and exact Pandoc block/inline constructor parity remain open.
+- Full media object resolution, resource packaging, index terms, full callout area linking, full glossary/set/refentry option semantics, and exact Pandoc block/inline constructor parity remain open.
 - Dedicated `docbook4`/`docbook5` input aliases are not upstream input tokens in the current registry; output aliases remain unchanged.
 
 ## Format Plan Update
@@ -39,5 +40,6 @@ Unsupported upstream inputs after this slice remain:
 
 - `php -l lanes/pandoc/src/DocBookReader.php`: passed.
 - `php tools/run-tests.php lanes/pandoc/tests/DocBookReaderTest.php lanes/pandoc/tests/PandocConverterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php`: 3 files, 226 assertions, 0 failures.
-- `php tools/run-tests.php lanes/pandoc/tests/DocBookReaderTest.php lanes/pandoc/tests/XmlHtmlDomTest.php lanes/pandoc/tests/MarkdownReaderTest.php lanes/pandoc/tests/PandocConverterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php`: 5 files, 10,931 assertions, 0 failures.
-- Broad smoke with DocBook/XML/Markdown/package/PDF readers: 21 files, 18,050 assertions, 0 failures.
+- `php tools/run-tests.php lanes/pandoc/tests/DocBookReaderTest.php lanes/pandoc/tests/XmlHtmlDomTest.php lanes/pandoc/tests/MarkdownReaderTest.php lanes/pandoc/tests/PandocConverterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php`: 5 files, 10,945 assertions, 0 failures.
+- Broad smoke with DocBook/XML/Markdown/package/PDF readers: 21 files, 18,064 assertions, 0 failures.
+- Follow-up focused DocBook reader test: 1 file, 55 assertions, 0 failures.

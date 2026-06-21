@@ -85,6 +85,48 @@ XML;
         $t->contains('Field             Status', $markdown);
         $t->contains('Parser            Ready', $markdown);
     },
+    'maps docbook refentry callouts glossary segmented lists qanda and equations' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.2" xml:id="cli-ref">
+  <refnamediv>
+    <refname>wp-import</refname>
+    <refpurpose>import content</refpurpose>
+  </refnamediv>
+  <refsect1 xml:id="usage">
+    <title>Usage</title>
+    <para>Inline equation <inlineequation><mathphrase>x^2</mathphrase></inlineequation>.</para>
+    <equation><title>Energy</title><mathphrase>E = mc^2</mathphrase></equation>
+    <simplelist><member>Alpha</member><member>Beta</member></simplelist>
+    <segmentedlist>
+      <segtitle>Name</segtitle><segtitle>Status</segtitle>
+      <seglistitem><seg>Parser</seg><seg>Ready</seg></seglistitem>
+    </segmentedlist>
+    <calloutlist><callout arearefs="co1"><para>Review callout.</para></callout></calloutlist>
+    <glosslist><glossentry><glossterm>AST</glossterm><glossdef><para>Abstract syntax tree.</para></glossdef></glossentry></glosslist>
+    <qandaset><qandaentry><question><para>Ready?</para></question><answer><para>Yes.</para></answer></qandaentry></qandaset>
+  </refsect1>
+</refentry>
+XML;
+
+        $document = PandocConverter::read($docbook, 'docbook');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same('wp-import', $meta['title']);
+        $t->same('refentry', $meta['rootName']);
+        $t->contains('<h1>wp-import</h1>', $blocks);
+        $t->contains('<p>wp-import - import content</p>', $blocks);
+        $t->contains('<h2>Usage</h2>', $blocks);
+        $t->contains('<span class="math inline">\\(x^2\\)</span>', $blocks);
+        $t->contains('<h3>Energy</h3>', $blocks);
+        $t->contains('<span class="math display">\\[E = mc^2\\]</span>', $blocks);
+        $t->contains('<ul><li>Alpha</li><li>Beta</li></ul>', $blocks);
+        $t->contains('<th>Name</th><th>Status</th>', $blocks);
+        $t->contains('<td>Parser</td><td>Ready</td>', $blocks);
+        $t->contains('<ol><li data-docbook-arearefs="co1">Review callout.</li></ol>', $blocks);
+        $t->contains('<dl><dt>AST</dt><dd>Abstract syntax tree.</dd></dl>', $blocks);
+        $t->contains('<dl><dt>Ready?</dt><dd>Yes.</dd></dl>', $blocks);
+    },
     'preserves standalone docbook table fragment spans widths and alignments' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
 <informaltable frame="all" rowsep="1" colsep="1">

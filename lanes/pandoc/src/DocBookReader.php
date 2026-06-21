@@ -18,6 +18,9 @@ final class DocBookReader
         'part',
         'preface',
         'refentry',
+        'refsect1',
+        'refsect2',
+        'refsect3',
         'reference',
         'section',
         'sect1',
@@ -34,6 +37,9 @@ final class DocBookReader
         'part',
         'preface',
         'refentry',
+        'refsect1',
+        'refsect2',
+        'refsect3',
         'section',
         'sect1',
         'sect2',
@@ -73,11 +79,16 @@ final class DocBookReader
         'calloutlist',
         'caution',
         'chapter',
+        'equation',
         'example',
         'figure',
         'formalpara',
+        'glossary',
+        'glossdiv',
+        'glosslist',
         'important',
         'informalexample',
+        'informalequation',
         'informalfigure',
         'informaltable',
         'itemizedlist',
@@ -91,7 +102,13 @@ final class DocBookReader
         'preface',
         'procedure',
         'programlisting',
+        'qandadiv',
+        'qandaset',
         'refentry',
+        'refnamediv',
+        'refsect1',
+        'refsect2',
+        'refsect3',
         'reference',
         'screen',
         'section',
@@ -103,6 +120,8 @@ final class DocBookReader
         'sidebar',
         'simpara',
         'simplesect',
+        'segmentedlist',
+        'simplelist',
         'table',
         'tip',
         'variablelist',
@@ -167,6 +186,9 @@ final class DocBookReader
         ]);
 
         $title = $this->cleanText($structure['title'] ?? '');
+        if ($title === '' && $this->name($root) === 'refentry') {
+            $title = $this->firstDescendantText($root, ['refname']);
+        }
         if ($title !== '') {
             $meta['title'] = $title;
             $meta['titleInlines'] = $this->textInlines($title);
@@ -229,6 +251,9 @@ final class DocBookReader
     {
         $blocks = [];
         $title = $this->cleanText($structure['title'] ?? $this->firstChildText($root, ['title']));
+        if ($title === '' && $this->name($root) === 'refentry') {
+            $title = $this->firstDescendantText($root, ['refname']);
+        }
         if ($title !== '') {
             $blocks[] = $this->heading($title, 1, $this->nodeAttrs($root));
         }
@@ -285,8 +310,18 @@ final class DocBookReader
 
             return $list instanceof AstNode ? [$list] : [];
         }
+        if ($name === 'simplelist') {
+            $list = $this->simpleListFromElement($element);
+
+            return $list instanceof AstNode ? [$list] : [];
+        }
         if ($name === 'orderedlist' || $name === 'procedure') {
             $list = $this->listFromElement($element, true);
+
+            return $list instanceof AstNode ? [$list] : [];
+        }
+        if ($name === 'calloutlist') {
+            $list = $this->calloutListFromElement($element);
 
             return $list instanceof AstNode ? [$list] : [];
         }
@@ -295,10 +330,27 @@ final class DocBookReader
 
             return $list instanceof AstNode ? [$list] : [];
         }
+        if ($name === 'segmentedlist') {
+            $table = $this->segmentedListFromElement($element);
+
+            return $table instanceof AstNode ? [$table] : [];
+        }
+        if (in_array($name, ['glossary', 'glossdiv', 'glosslist'], true)) {
+            return $this->glossaryBlocks($element, $headingLevel);
+        }
+        if (in_array($name, ['qandaset', 'qandadiv'], true)) {
+            return $this->qandaBlocks($element, $headingLevel);
+        }
+        if ($name === 'refnamediv') {
+            return $this->refNameBlocks($element);
+        }
         if ($name === 'blockquote') {
             $blocks = $this->containerChildBlocks($element, $headingLevel);
 
             return $blocks === [] ? [] : [new AstNode('blockquote', $this->nodeAttrs($element), $blocks)];
+        }
+        if (in_array($name, ['equation', 'informalequation'], true)) {
+            return $this->equationBlocks($element, true, $headingLevel);
         }
         if (in_array($name, self::ADMONITION_NAMES, true)) {
             return [$this->admonitionBlock($element, $headingLevel)];
@@ -520,6 +572,246 @@ final class DocBookReader
         }
 
         return $items === [] ? null : new AstNode('definition_list', $this->nodeAttrs($list), $items);
+    }
+
+    private function simpleListFromElement(\DOMElement $list): ?AstNode
+    {
+        $items = [];
+        foreach (XmlHtmlDom::childElements($list, 'member') as $member) {
+            $inlines = $this->inlineNodes($member);
+            $text = $this->plainInlineText($inlines);
+            if ($text === '') {
+                continue;
+            }
+            $items[] = new AstNode('list_item', ['text' => $text], [
+                new AstNode('plain', ['text' => $text], $inlines),
+            ]);
+        }
+
+        return $items === [] ? null : new AstNode('bullet_list', $this->nodeAttrs($list), $items);
+    }
+
+    private function calloutListFromElement(\DOMElement $list): ?AstNode
+    {
+        $items = [];
+        foreach (XmlHtmlDom::childElements($list, 'callout') as $callout) {
+            $blocks = $this->containerChildBlocks($callout, 2);
+            if ($blocks === []) {
+                $text = XmlHtmlDom::normalizedText($callout);
+                if ($text === '') {
+                    continue;
+                }
+                $blocks[] = $this->paragraph($text);
+            }
+            $attrs = array_replace($this->nodeAttrs($callout), [
+                'text' => $this->plainBlockText($blocks),
+            ]);
+            $arearefs = trim((string) XmlHtmlDom::attribute($callout, 'arearefs'));
+            if ($arearefs !== '') {
+                $attrs['attributes'] = array_replace($attrs['attributes'] ?? [], [
+                    'data-docbook-arearefs' => $arearefs,
+                ]);
+            }
+            $items[] = new AstNode('list_item', $attrs, $blocks);
+        }
+
+        return $items === [] ? null : new AstNode('ordered_list', $this->nodeAttrs($list), $items);
+    }
+
+    private function segmentedListFromElement(\DOMElement $list): ?AstNode
+    {
+        $titles = [];
+        foreach (XmlHtmlDom::childElements($list, 'segtitle') as $segtitle) {
+            $text = XmlHtmlDom::normalizedText($segtitle);
+            if ($text !== '') {
+                $titles[] = $text;
+            }
+        }
+        $bodyRows = [];
+        foreach (XmlHtmlDom::childElements($list, 'seglistitem') as $item) {
+            $cells = [];
+            foreach (XmlHtmlDom::childElements($item, 'seg') as $seg) {
+                $inlines = $this->inlineNodes($seg);
+                $text = $this->plainInlineText($inlines);
+                $cells[] = new AstNode('table_cell', ['text' => $text], $inlines);
+            }
+            if ($cells !== []) {
+                $bodyRows[] = new AstNode('table_row', [], $cells);
+            }
+        }
+        if ($titles === [] && $bodyRows === []) {
+            return null;
+        }
+
+        $headCells = [];
+        foreach ($titles as $title) {
+            $headCells[] = new AstNode('table_cell', [
+                'text' => $title,
+                'header' => true,
+            ], $this->textInlines($title));
+        }
+        $columns = max(count($headCells), ...array_map(static fn (AstNode $row): int => count($row->children), $bodyRows ?: [new AstNode('table_row')]));
+
+        return new AstNode('table', array_replace($this->nodeAttrs($list), [
+            'caption' => $this->firstChildText($list, ['title']),
+            'alignments' => array_fill(0, $columns, 'default'),
+        ]), [
+            new AstNode('table_head', [], $headCells === [] ? [] : [new AstNode('table_row', ['header' => true], $headCells)]),
+            new AstNode('table_body', [], $bodyRows),
+        ]);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function glossaryBlocks(\DOMElement $glossary, int $headingLevel): array
+    {
+        $blocks = [];
+        $title = $this->firstChildText($glossary, ['title']);
+        if ($title !== '') {
+            $blocks[] = $this->heading($title, $headingLevel, $this->nodeAttrs($glossary));
+        }
+
+        $entries = [];
+        foreach (XmlHtmlDom::childElements($glossary) as $child) {
+            $name = $this->name($child);
+            if ($name === 'glossdiv') {
+                array_push($blocks, ...$this->glossaryBlocks($child, min(6, $headingLevel + 1)));
+                continue;
+            }
+            if ($name !== 'glossentry') {
+                continue;
+            }
+
+            $term = $this->firstChildText($child, ['glossterm', 'acronym', 'abbrev']);
+            if ($term === '') {
+                continue;
+            }
+            $definitions = [];
+            foreach (XmlHtmlDom::childElements($child, 'glossdef') as $definition) {
+                $definitionBlocks = $this->containerChildBlocks($definition, min(6, $headingLevel + 1));
+                if ($definitionBlocks === []) {
+                    $text = XmlHtmlDom::normalizedText($definition);
+                    if ($text !== '') {
+                        $definitionBlocks[] = $this->paragraph($text);
+                    }
+                }
+                if ($definitionBlocks !== []) {
+                    $definitions[] = new AstNode('definition', [], $definitionBlocks);
+                }
+            }
+            if ($definitions === []) {
+                continue;
+            }
+
+            $entries[] = new AstNode('definition_item', ['term' => $term], array_merge([
+                new AstNode('term', ['text' => $term], $this->textInlines($term)),
+            ], $definitions));
+        }
+
+        if ($entries !== []) {
+            $attrs = $this->nodeAttrs($glossary);
+            $attrs['classes'] = array_values(array_unique(array_merge($attrs['classes'] ?? [], ['docbook-glossary'])));
+            $blocks[] = new AstNode('definition_list', $attrs, $entries);
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function qandaBlocks(\DOMElement $set, int $headingLevel): array
+    {
+        $blocks = [];
+        $title = $this->firstChildText($set, ['title']);
+        if ($title !== '') {
+            $blocks[] = $this->heading($title, $headingLevel, $this->nodeAttrs($set));
+        }
+
+        $items = [];
+        foreach (XmlHtmlDom::childElements($set) as $child) {
+            $name = $this->name($child);
+            if ($name === 'qandadiv') {
+                array_push($blocks, ...$this->qandaBlocks($child, min(6, $headingLevel + 1)));
+                continue;
+            }
+            if ($name !== 'qandaentry') {
+                continue;
+            }
+
+            $question = XmlHtmlDom::firstChildElement($child, 'question');
+            $questionText = $question instanceof \DOMElement ? XmlHtmlDom::normalizedText($question) : '';
+            if ($questionText === '') {
+                continue;
+            }
+            $definitions = [];
+            foreach (XmlHtmlDom::childElements($child, 'answer') as $answer) {
+                $answerBlocks = $this->containerChildBlocks($answer, min(6, $headingLevel + 1));
+                if ($answerBlocks === []) {
+                    $answerText = XmlHtmlDom::normalizedText($answer);
+                    if ($answerText !== '') {
+                        $answerBlocks[] = $this->paragraph($answerText);
+                    }
+                }
+                if ($answerBlocks !== []) {
+                    $definitions[] = new AstNode('definition', [], $answerBlocks);
+                }
+            }
+            if ($definitions === []) {
+                continue;
+            }
+
+            $items[] = new AstNode('definition_item', ['term' => $questionText], array_merge([
+                new AstNode('term', ['text' => $questionText], $this->textInlines($questionText)),
+            ], $definitions));
+        }
+
+        if ($items !== []) {
+            $attrs = $this->nodeAttrs($set);
+            $attrs['classes'] = array_values(array_unique(array_merge($attrs['classes'] ?? [], ['docbook-qanda'])));
+            $blocks[] = new AstNode('definition_list', $attrs, $items);
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function refNameBlocks(\DOMElement $refNameDiv): array
+    {
+        $names = [];
+        foreach (XmlHtmlDom::childElements($refNameDiv, 'refname') as $refname) {
+            $text = XmlHtmlDom::normalizedText($refname);
+            if ($text !== '') {
+                $names[] = $text;
+            }
+        }
+        $purpose = $this->firstChildText($refNameDiv, ['refpurpose']);
+        $text = trim(implode(', ', $names) . ($purpose === '' ? '' : ' - ' . $purpose));
+
+        return $text === '' ? [] : [$this->paragraph($text, $this->nodeAttrs($refNameDiv))];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function equationBlocks(\DOMElement $element, bool $display, int $headingLevel): array
+    {
+        $blocks = [];
+        $title = $this->firstChildText($element, ['title']);
+        if ($title !== '') {
+            $blocks[] = $this->heading($title, $headingLevel, $this->nodeAttrs($element));
+        }
+        $math = $this->mathText($element);
+        if ($math !== '') {
+            $blocks[] = new AstNode('paragraph', ['text' => $math], [
+                new AstNode('math', ['text' => $math, 'display' => $display]),
+            ]);
+        }
+
+        return $blocks;
     }
 
     /**
@@ -958,6 +1250,13 @@ final class DocBookReader
                 }
                 continue;
             }
+            if (in_array($name, ['inlineequation', 'mathphrase'], true)) {
+                $math = $this->mathText($child);
+                if ($math !== '') {
+                    $nodes[] = new AstNode('math', ['text' => $math, 'display' => false]);
+                }
+                continue;
+            }
 
             $children = $this->inlineNodes($child);
             if ($children === []) {
@@ -1187,6 +1486,35 @@ final class DocBookReader
         }
 
         return '';
+    }
+
+    private function firstDescendantText(\DOMElement $element, array $names): string
+    {
+        foreach ($names as $name) {
+            $child = XmlHtmlDom::firstDescendantElement($element, $name);
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $text = XmlHtmlDom::normalizedText($child);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return '';
+    }
+
+    private function mathText(\DOMElement $element): string
+    {
+        $mathPhrase = $this->name($element) === 'mathphrase'
+            ? $element
+            : XmlHtmlDom::firstDescendantElement($element, 'mathphrase');
+        if ($mathPhrase instanceof \DOMElement) {
+            return XmlHtmlDom::normalizedText($mathPhrase);
+        }
+
+        return XmlHtmlDom::normalizedText($element);
     }
 
     private function isDocumentPreambleElement(\DOMElement $element): bool
