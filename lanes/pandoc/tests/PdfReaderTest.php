@@ -4842,7 +4842,7 @@ return [
     'preserves positioned pdf tables embedded between surrounding text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
-            . '1 0 0 1 72 752 Tm (Invoice summary for client K1041792) Tj '
+            . '1 0 0 1 72 752 Tm (Project summary for case CASE-104) Tj '
             . '1 0 0 1 72 720 Tm (Product) Tj 1 0 0 1 250 720 Tm (Qty) Tj 1 0 0 1 320 720 Tm (Size) Tj '
             . '1 0 0 1 72 704 Tm (Widget Alpha) Tj 1 0 0 1 250 704 Tm (30) Tj 1 0 0 1 320 704 Tm (40x60x80mm) Tj '
             . '1 0 0 1 72 688 Tm (stackable storage case) Tj '
@@ -4856,14 +4856,14 @@ return [
         $meta = $document->attr('meta');
 
         $t->same('paragraph', $document->children[0]->type);
-        $t->same('Invoice summary for client K1041792', $document->children[0]->attr('text'));
+        $t->same('Project summary for case CASE-104', $document->children[0]->attr('text'));
         $t->same('table', $document->children[1]->type);
         $t->same('paragraph', $document->children[2]->type);
         $t->same('Payment due in 30 days', $document->children[2]->attr('text'));
         $t->same(1, $meta['pdfDetectedTables']);
         $t->same(1, $meta['pdfGeometryTables']);
         $t->same('geometry', $meta['pdfTableReconstruction']);
-        $t->contains('Invoice summary for client K1041792', $blocks);
+        $t->contains('Project summary for case CASE-104', $blocks);
         $t->contains('<!-- wp:table -->', $blocks);
         $t->contains('<th>Product</th><th>Qty</th><th>Size</th>', $blocks);
         $t->contains('<td>Widget Alpha stackable storage case</td><td>30</td><td>40x60x80mm</td>', $blocks);
@@ -4901,7 +4901,7 @@ return [
         $pdf = $pdfWithContent(
             'BT /F1 10 Tf '
             . '1 0 0 1 72 720 Tm (Details) Tj 1 0 0 1 330 720 Tm (Code) Tj '
-            . '1 0 0 1 72 704 Tm (Client ) Tj 1 0 0 1 101 704 Tm (number: ) Tj 1 0 0 1 145 704 Tm (K1041792) Tj 1 0 0 1 330 704 Tm (USD) Tj '
+            . '1 0 0 1 72 704 Tm (Client ) Tj 1 0 0 1 101 704 Tm (number: ) Tj 1 0 0 1 145 704 Tm (CASE-104) Tj 1 0 0 1 330 704 Tm (USD) Tj '
             . '1 0 0 1 72 688 Tm (Issue ) Tj 1 0 0 1 96 688 Tm (date, ) Tj 1 0 0 1 128 688 Tm (with ) Tj 1 0 0 1 156 688 Tm (reference) Tj 1 0 0 1 330 688 Tm (11.05.2026) Tj '
             . 'ET'
         );
@@ -4912,7 +4912,7 @@ return [
 
         $t->same('table', $document->children[0]->type);
         $t->same('geometry', $meta['pdfTableReconstruction']);
-        $t->contains('<td>Client number: K1041792</td><td>USD</td>', $blocks);
+        $t->contains('<td>Client number: CASE-104</td><td>USD</td>', $blocks);
         $t->contains('<td>Issue date, with reference</td><td>11.05.2026</td>', $blocks);
         $t->true(!str_contains($blocks, 'Clientnumber'));
         $t->true(!str_contains($blocks, 'Issuedate'));

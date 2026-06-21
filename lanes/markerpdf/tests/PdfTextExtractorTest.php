@@ -5013,7 +5013,7 @@ return [
         $content = 'BT /F1 10 Tf '
             . '1 0 0 1 72 720 Tm (Client ) Tj '
             . '1 0 0 1 111 720 Tm (number: ) Tj '
-            . '1 0 0 1 156 720 Tm (K1041792) Tj '
+            . '1 0 0 1 156 720 Tm (CASE-104) Tj '
             . '1 0 0 1 72 704 Tm (Payment ) Tj '
             . '1 0 0 1 112 704 Tm (terms, ) Tj '
             . '1 0 0 1 150 704 Tm (with ) Tj '
@@ -5025,7 +5025,7 @@ return [
         $extractor = new PdfTextExtractor();
         $plainText = $extractor->extractPlainText($pdfWithContent($content));
 
-        $t->same(['Client number: K1041792', 'Payment terms, with reference section. 1 total:'], $extractor->extractTextLines($pdfWithContent($content)));
+        $t->same(['Client number: CASE-104', 'Payment terms, with reference section. 1 total:'], $extractor->extractTextLines($pdfWithContent($content)));
         $t->true(!str_contains($plainText, 'Clientnumber'));
         $t->true(!str_contains($plainText, 'Paymentterms'));
         $t->true(!str_contains($plainText, 'referencesection'));
