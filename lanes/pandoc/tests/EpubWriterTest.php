@@ -302,10 +302,25 @@ return [
         $epub = EpubPackage::fromString($bytes);
         $assetSummary = $epub->assetSummary();
         $chapter = $zip->read('EPUB/text/chapter.xhtml');
+        $coverPage = $zip->read('EPUB/text/cover.xhtml');
+        $opf = $zip->read('EPUB/package.opf');
+        $navXml = $zip->read('EPUB/nav.xhtml');
 
         $t->true(in_array('/EPUB/text/media/images/cover.png', $assetSummary['imageParts'], true));
         $t->same('/EPUB/text/media/images/cover.png', $assetSummary['coverImagePart']);
+        $t->same(['/EPUB/text/cover.xhtml', '/EPUB/text/title_page.xhtml', '/EPUB/text/chapter.xhtml'], $assetSummary['readingOrderParts']);
+        $t->same(['cover_xhtml', 'title_page_xhtml', 'chapter'], array_column($epub->spine(), 'idref'));
         $t->same($coverBytes, $zip->read('EPUB/text/media/images/cover.png'));
+        $t->contains('<item id="cover_xhtml" href="text/cover.xhtml" media-type="application/xhtml+xml"/>', $opf);
+        $t->contains('<itemref idref="cover_xhtml"/>', $opf);
+        $t->contains('<reference type="cover" title="Cover" href="text/cover.xhtml"/>', $opf);
+        $t->contains('<section id="cover" epub:type="cover" role="doc-cover">', $coverPage);
+        $t->contains('<img src="media/images/cover.png" alt="Cover" />', $coverPage);
+        $t->contains('<a href="text/cover.xhtml" epub:type="cover">Cover</a>', $navXml);
+        $t->same(['Title Page', 'Cover', 'Table of Contents'], array_column($epub->navigationSections()[1]['entries'], 'label'));
+        $t->same(['toc', 'cover'], array_column($epub->guideReferences(), 'type'));
+        $t->same('/EPUB/text/cover.xhtml', $epub->guideReferences()[1]['partName']);
+        $t->same('cover_xhtml', $epub->guideReferences()[1]['manifestId']);
         $t->contains('src="media/images/cover.png"', $chapter);
         $t->contains('data-pandoc-media-source="images/cover.png"', $chapter);
 
@@ -331,6 +346,46 @@ return [
         $roundTripMeta = $roundTrip->attr('meta');
         $t->true(in_array('EPUB/text/media/images/cover.png', $roundTripMeta['epubImageResources'], true));
         $t->true(in_array('EPUB/text/media/images/cover.png', $roundTripMeta['epubReferencedResources'], true));
+    },
+    'packages a metadata cover image resource without a body image reference' => static function (TestRunner $t) use ($text, $paragraph): void {
+        $coverBytes = "standalone cover bytes\n";
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Standalone Cover EPUB',
+                'author' => 'Port Libs',
+                'lang' => 'en',
+                'cover-image' => 'images/standalone-cover.png',
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1], [$text('Standalone Cover EPUB')]),
+            $paragraph([$text('Cover is metadata only.')]),
+        ]);
+
+        $bytes = (new EpubWriter([
+            'modified' => '2026-06-21T08:39:00Z',
+            'writerEpubTitlePage' => false,
+            'mediaResources' => [
+                'images/standalone-cover.png' => [
+                    'contents' => $coverBytes,
+                    'mimeType' => 'image/png',
+                ],
+            ],
+        ]))->write($document);
+        $zip = ZipPackage::fromString($bytes);
+        $epub = EpubPackage::fromString($bytes);
+        $opf = $zip->read('EPUB/package.opf');
+        $chapter = $zip->read('EPUB/text/chapter.xhtml');
+        $coverPage = $zip->read('EPUB/text/cover.xhtml');
+
+        $t->same($coverBytes, $zip->read('EPUB/text/media/images/standalone-cover.png'));
+        $t->same('/EPUB/text/media/images/standalone-cover.png', $epub->assetSummary()['coverImagePart']);
+        $t->same(['/EPUB/text/cover.xhtml', '/EPUB/text/chapter.xhtml'], $epub->assetSummary()['readingOrderParts']);
+        $t->same(['cover_xhtml', 'chapter'], array_column($epub->spine(), 'idref'));
+        $t->contains('<item id="cover_xhtml" href="text/cover.xhtml" media-type="application/xhtml+xml"/>', $opf);
+        $t->contains('<item id="media1" href="text/media/images/standalone-cover.png" media-type="image/png" properties="cover-image"/>', $opf);
+        $t->contains('<img src="media/images/standalone-cover.png" alt="Cover" />', $coverPage);
+        $t->true(!str_contains($chapter, '<img'), 'Metadata-only cover image should not be injected into body content');
+        $t->same(['toc', 'cover'], array_column($epub->guideReferences(), 'type'));
     },
     'writes nested epub nav entries from heading levels' => static function (TestRunner $t) use ($text): void {
         $document = new AstNode('document', [
