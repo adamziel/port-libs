@@ -19,12 +19,17 @@ New in this slice:
 - `jats`: registered `PortLibs\Pandoc\XmlReader` for bounded JATS article/book intake.
 - `bits`: registered `PortLibs\Pandoc\XmlReader` for bounded BITS/book intake.
 
+Follow-up after this audit:
+
+- `html`: now dispatches through dedicated `PortLibs\Pandoc\HtmlReader`, preserving the current HTML-capable reader bridge while full HTML5 tree construction remains open.
+- `docbook`: now dispatches through direct `PortLibs\Pandoc\DocBookReader`.
+
 ## Current Missing Work By Supported Format Family
 
 - Markdown/CommonMark/GFM: broad local coverage exists, but the exact Pandoc extension disabling/enabling matrix, every variant edge, and complete upstream command fixture parity remain partial.
-- HTML: still routed through `MarkdownReader`; a dedicated HTML5 tree-construction reader remains missing.
+- HTML: now routes through dedicated `HtmlReader` dispatch with provenance metadata while delegating to the current HTML-capable bridge for existing DOM/raw-HTML/native-div/table/link/list coverage. A full HTML5 tree-construction reader remains missing.
 - XML/JATS/BITS: now has a bounded reader for safe XML, titles, paragraphs, links, lists, JATS/BITS front matter, body sections, and tables. Missing full Pandoc XML/JATS reader parity, complete citation/reference materialization, nested section edge cases, figure/media payload mapping, and DocBook-specific XML semantics.
-- DocBook: still registered through Markdown-oriented slices. A full DocBook XML reader remains missing and should be the next XML-family follow-up.
+- DocBook: now has direct bounded DocBook XML reader dispatch for metadata, sections, paragraphs, lists, links/xrefs, CALS tables, media references, bibliography entries, and review packets. Full Pandoc DocBook reader parity remains open.
 - DOCX/ODT/EPUB/DOC: package/container readers exist but remain partial on full office/layout fidelity, embedded object handling, full style compatibility, and complete upstream fixture parity.
 - Bibliography formats: BibTeX, BibLaTeX, CSL JSON, RIS, and EndNote XML have bounded CSL item readers. Full Pandoc citation processor parity and every source-format edge remain open.
 - JSON/native AST: current constructors are covered for the shared AST subset; complete Pandoc constructor parity remains open.
@@ -53,8 +58,8 @@ Remaining PDF gaps:
 ## Porting Plan
 
 1. Finish the current XML-family reader slice: register `xml`, `jats`, and `bits`, emit shared AST blocks, and keep the registry marked `partial`.
-2. Follow with DocBook XML as the next XML-family format: move `docbook` off `MarkdownReader` only after a bounded DocBook reader maps titles, sections, paragraphs, lists, tables, bibliographies, and metadata using `XmlHtmlDom` review packets.
-3. Split HTML input from `MarkdownReader` into a dedicated HTML DOM reader only after preserving current HTML raw/native-div behavior and table/link/list coverage.
+2. Continue DocBook XML parity after the direct-reader dispatch slice: deepen namespace/version edges, bibliography/citation semantics, richer media-object selection, and exact Pandoc constructor parity.
+3. Continue HTML after the dedicated dispatch slice: move more HTML reader internals behind `HtmlReader`, replace the current bridge with a fuller HTML5 tree-construction path where needed, and preserve existing raw/native-div/table/link/list coverage.
 4. Continue PDF work in markerPDF/Pandoc PDF handoff slices: prioritize multi-page tables, more robust fill/background inference, and tagged-vs-geometry table reconciliation.
 5. After XML/HTML/DocBook, select the next unsupported text-markup family with the highest reuse from existing readers: `rst`/`asciidoc`/wiki-style formats, unless the user re-prioritizes `pptx`, `xlsx`, or `typst`.
 

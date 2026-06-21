@@ -181,6 +181,7 @@ final class PandocConverter
             DocBookReader::class => new DocBookReader(array_replace($options, ['format' => $format])),
             DocxReader::class => new DocxReader(),
             EpubReader::class => new EpubReader($options),
+            HtmlReader::class => new HtmlReader($options),
             IpynbReader::class => new IpynbReader(),
             LegacyDocReader::class => new LegacyDocReader(),
             MarkdownReader::class => new MarkdownReader(self::markdownReaderOptions($format, $options)),

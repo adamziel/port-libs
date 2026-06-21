@@ -237,8 +237,8 @@ final class PandocFormatRegistry
         ],
         'html' => [
             'status' => 'partial',
-            'implementation' => MarkdownReader::class,
-            'notes' => 'HTML reader slices cover many DOM and raw HTML branches; full HTML5 tree construction remains open.',
+            'implementation' => HtmlReader::class,
+            'notes' => 'Dedicated HTML reader dispatch preserves existing DOM/raw-HTML behavior through the current HTML-capable reader bridge while full HTML5 tree construction remains open.',
         ],
         'ipynb' => [
             'status' => 'partial',

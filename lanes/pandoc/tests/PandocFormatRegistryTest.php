@@ -8,6 +8,7 @@ use PortLibs\Pandoc\DelimitedTextReader;
 use PortLibs\Pandoc\DocBookReader;
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\EpubReader;
+use PortLibs\Pandoc\HtmlReader;
 use PortLibs\Pandoc\IpynbReader;
 use PortLibs\Pandoc\JsonReader;
 use PortLibs\Pandoc\JsonWriter;
@@ -142,6 +143,7 @@ return [
         $t->same('partial', $support['native']['status']);
         $t->same(NativeReader::class, $support['native']['implementation']);
         $t->same('partial', $support['html']['status']);
+        $t->same(HtmlReader::class, $support['html']['implementation']);
         $t->same('partial', $support['docbook']['status']);
         $t->same(DocBookReader::class, $support['docbook']['implementation']);
         $t->same('partial', $support['ipynb']['status']);

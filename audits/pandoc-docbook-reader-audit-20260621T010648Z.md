@@ -40,7 +40,7 @@ Unsupported upstream inputs after this slice remain:
 
 1. XML/JATS/BITS direct reader: complete as a bounded partial reader.
 2. DocBook direct reader: complete as a bounded partial reader in this slice.
-3. Next highest-reuse format remains HTML: split `html` input from `MarkdownReader` into a dedicated HTML DOM reader while preserving current raw HTML/native-div/table/link/list behavior.
+3. HTML follow-up has started: `html` input now dispatches through `PortLibs\Pandoc\HtmlReader`, preserving current raw HTML/native-div/table/link/list behavior through the existing bridge while full HTML5 tree construction remains open.
 4. Continue PDF work in parallel when prioritized: multi-page table continuation, stricter grid inference, background propagation, and tagged-vs-geometry reconciliation.
 
 ## Verification

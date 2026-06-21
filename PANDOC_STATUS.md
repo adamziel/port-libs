@@ -2,7 +2,7 @@
 
 Updated: 2026-06-21 UTC
 
-Current registry audit: 51 upstream input formats tracked; 28 have partial native PHP readers; 23 remain unsupported. Project-local inputs `pdf` and `doc` are tracked separately from upstream Pandoc inputs. The latest XML-family work registers bounded `xml`, `jats`, and `bits` readers through `PortLibs\Pandoc\XmlReader` and moves `docbook` onto direct `PortLibs\Pandoc\DocBookReader` dispatch; full Pandoc parity remains open.
+Current registry audit: 51 upstream input formats tracked; 28 have partial native PHP readers; 23 remain unsupported. Project-local inputs `pdf` and `doc` are tracked separately from upstream Pandoc inputs. The latest format-dispatch work keeps bounded `xml`, `jats`, and `bits` readers on `PortLibs\Pandoc\XmlReader`, keeps `docbook` on direct `PortLibs\Pandoc\DocBookReader` dispatch, and moves `html` onto dedicated `PortLibs\Pandoc\HtmlReader` dispatch while preserving the current HTML-capable reader bridge; full Pandoc parity remains open.
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 
@@ -16,7 +16,7 @@ ODF/ODT is marked ship-ready: 89 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
 | Wiki / roff / text markup readers | 0 | 20 |
-| HTML / XML / JATS / BITS DOM | 29 | 54 |
+| HTML / XML / JATS / BITS DOM | 30 | 54 |
 | DOCX / OpenXML | 95 | 256 |
 | EPUB / EPUB3 | 24 | 15 |
 | CSV / TSV | 2 | 4 |
@@ -30,4 +30,4 @@ ODF/ODT is marked ship-ready: 89 local mapped ODF/ODT cases / 20 upstream ODF/OD
 
 Latest package/core-format evidence: bundled ZIP/OPC and ODF/ODT package coverage preserves ODF manifest control-byte path preflight, ZIP package comment layout, ZIP manifest preflight, selected ZIP zero-byte handoff buckets, ODF package comment provenance, ODT encrypted image manifest provenance, ODT ZIP timestamp provenance, ODF package identity preflight, ODT layout-cache sidecar metadata-only review policy, and ODF package inventory role/byte-exposure byte buckets.
 
-Current Pandoc counters: 15,351 PHP passes / 0 failures and 15,007 mapped upstream cases. Package/core-format bundle adds seven mapped non-Markdown cases across ready singleton MRs `plib-wisp-w6d8`, `plib-wisp-8nf3`, `plib-wisp-u2pw`, `plib-wisp-9zk8`, `plib-wisp-71ko`, `plib-wisp-8le7`, and `plib-wisp-st2l`; validation passed with `php -l` for touched PHP files, focused package gate (`4` files, `11,618` assertions, `0` failures), ODF/ODT readiness sentinel (`1` file, `24` assertions, `0` failures), full `lanes/pandoc/tests` (`181` files, `166,256` assertions, `0` failures), `jq empty`, `git diff --check`, and exact conflict-marker scan.
+Current Pandoc counters: 15,351 PHP passes / 0 failures and 15,007 mapped upstream cases before the latest HTML dispatch split. The latest HTML reader-dispatch slice adds `PortLibs\Pandoc\HtmlReader` as the registered `html` input implementation, stamps HTML provenance metadata (`sourceFormat`, `reader`, `readerScope`, delegate, and source hash), and preserves existing DOM/raw-HTML/native-div/table/link/list behavior through the current HTML-capable bridge. Verification: registry/converter gate (`2` files, `195` assertions, `0` failures), HTML-heavy DOM/Markdown sweep (`4` files, `13,708` assertions, `0` failures), broad reader smoke (`21` files, `18,203` assertions, `0` failures), PDF/markerPDF guard (`2` files, `3,051` assertions, `0` failures), and local problematic-PDF smoke `tables=10 geometry=10 rects=896 mode=geometry`.

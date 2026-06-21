@@ -46,6 +46,21 @@ return [
         $t->contains('<h1', $html);
         $t->contains('Alias Demo', $html);
     },
+    'reads html through the dedicated registered reader path' => static function (TestRunner $t): void {
+        $document = PandocConverter::read('<html lang="en"><head><title>HTML Dispatch</title></head><body><main><h1>HTML Dispatch</h1><p>Ready.</p></main></body></html>', 'html');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same('HTML Dispatch', $meta['title']);
+        $t->same('html', $meta['sourceFormat']);
+        $t->same(\PortLibs\Pandoc\HtmlReader::class, $meta['reader']);
+        $t->same(\PortLibs\Pandoc\MarkdownReader::class, $meta['htmlReaderDelegate']);
+        $t->same('bounded-html-reader', $meta['readerScope']);
+        $t->same(true, $meta['htmlNativeDivs']);
+        $t->contains('<h1 id="html-dispatch">HTML Dispatch</h1>', $blocks);
+        $t->contains('<p>Ready.</p>', $blocks);
+    },
     'converts rtf through the registered reader path' => static function (TestRunner $t): void {
         $blocks = PandocConverter::convert('{\\rtf1\\ansi\\pard RTF {\\b bold} import.\\par}', 'rtf', 'blocks');
 
