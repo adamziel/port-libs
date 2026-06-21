@@ -27,14 +27,6 @@ MARKDOWN;
 $document = (new MarkdownReader())->read($markdown);
 $document = new AstNode('document', $document->attrs, [
     ...$document->children,
-    new AstNode('heading', [
-        'level' => 2,
-        'id' => 'review-packet',
-        'classes' => ['wp-import', 'needs-review'],
-        'attributes' => ['data-source' => 'batch-42'],
-    ], [
-        new AstNode('text', ['text' => 'Review Packet']),
-    ]),
     new AstNode('paragraph', [], [
         new AstNode('text', ['text' => 'Reviewer packet links: ']),
         new AstNode('link', [
@@ -63,14 +55,9 @@ $document = new AstNode('document', $document->attrs, [
         new AstNode('text', ['text' => '.']),
     ]),
     new AstNode('paragraph', [], [
-        new AstNode('text', ['text' => 'Reviewer archived packet: ']),
-        new AstNode('link', [
-            'url' => 'https://example.test/import packets/source one(archived).html',
-            'title' => 'Packet review',
-        ], [
-            new AstNode('text', ['text' => 'source packet']),
-        ]),
-        new AstNode('text', ['text' => '.']),
+        new AstNode('text', ['text' => 'Reviewer line break handoff: keep source line']),
+        new AstNode('linebreak'),
+        new AstNode('text', ['text' => 'attached to the editor continuation.']),
     ]),
     new AstNode('paragraph', [], [
         new AstNode('text', ['text' => 'Reviewer media preview: ']),
@@ -87,32 +74,7 @@ $document = new AstNode('document', $document->attrs, [
         new AstNode('text', ['text' => '.']),
     ]),
     new AstNode('paragraph', [], [
-        new AstNode('text', ['text' => 'Reviewer code token: ']),
-        new AstNode('code', [
-            'text' => 'wp `meta` key',
-            'id' => 'enqueue',
-            'classes' => ['php', 'wp-import'],
-            'attributes' => ['data-source' => 'batch-42'],
-        ]),
-        new AstNode('text', ['text' => '.']),
-    ]),
-    new AstNode('paragraph', [], [
-        new AstNode('text', ['text' => 'Reviewer spacing packet:']),
-        new AstNode('space'),
-        new AstNode('text', ['text' => 'soft boundary']),
-        new AstNode('softbreak'),
-        new AstNode('text', ['text' => 'hard boundary follows']),
-        new AstNode('linebreak'),
-        new AstNode('text', ['text' => 'next reviewer line']),
-    ]),
-    new AstNode('code_block', [
-        'text' => "wp post meta get 42 source_url\n```\nkeep literal reviewer fence",
-        'id' => 'review-wp-cli-snippet',
-        'classes' => ['bash', 'wp-cli'],
-        'attributes' => ['data-source' => 'batch-42'],
-    ]),
-    new AstNode('paragraph', [], [
-        new AstNode('text', ['text' => 'Reviewer span marker: ']),
+        new AstNode('text', ['text' => 'Reviewer metadata span: ']),
         new AstNode('span', [
             'id' => 'migration-span',
             'classes' => ['review-span'],
@@ -122,254 +84,133 @@ $document = new AstNode('document', $document->attrs, [
             ],
         ], [
             new AstNode('emph', [], [new AstNode('text', ['text' => 'urgent'])]),
-            new AstNode('text', ['text' => ' source flag ']),
-            new AstNode('link', [
-                'url' => '/wp-admin/post.php?post=42&action=edit',
-            ], [
-                new AstNode('text', ['text' => 'edit']),
-            ]),
+            new AstNode('text', ['text' => ' source flag']),
+        ]),
+        new AstNode('text', ['text' => ' uses ']),
+        new AstNode('code', [
+            'text' => 'wp_enqueue_script',
+            'id' => 'enqueue-call',
+            'classes' => ['php'],
+            'attributes' => ['data-source' => 'batch-42'],
+        ]),
+        new AstNode('text', ['text' => ' and keeps emoji ']),
+        new AstNode('span', [
+            'classes' => ['emoji'],
+            'attributes' => ['data-emoji' => 'smile'],
+        ], [
+            new AstNode('text', ['text' => "\u{1F604}"]),
         ]),
         new AstNode('text', ['text' => '.']),
     ]),
     new AstNode('paragraph', [], [
-        new AstNode('text', ['text' => 'Reviewer inline marks: ']),
+        new AstNode('text', ['text' => 'Reviewer quote/style handoff: ']),
+        new AstNode('quoted', ['kind' => 'double'], [
+            new AstNode('text', ['text' => 'source excerpt']),
+        ]),
+        new AstNode('text', ['text' => ' keeps ']),
+        new AstNode('underline', [], [
+            new AstNode('text', ['text' => 'manual underlines']),
+        ]),
+        new AstNode('text', ['text' => ' and ']),
         new AstNode('small_caps', [], [
             new AstNode('text', ['text' => 'source glossary']),
         ]),
-        new AstNode('text', ['text' => ', ']),
-        new AstNode('underline', [
-            'attributes' => ['data-source' => 'html-reader'],
-        ], [
-            new AstNode('text', ['text' => 'inserted reviewer note']),
+        new AstNode('text', ['text' => '.']),
+    ]),
+    new AstNode('paragraph', [], [
+        new AstNode('text', ['text' => 'Reviewer highlight handoff: ']),
+        new AstNode('span', ['classes' => ['mark']], [
+            new AstNode('text', ['text' => 'verify source caption']),
         ]),
-        new AstNode('text', ['text' => ', ']),
-        new AstNode('strikeout', [], [
-            new AstNode('text', ['text' => 'legacy caption']),
-        ]),
-        new AstNode('text', ['text' => ', revision']),
-        new AstNode('superscript', [], [
-            new AstNode('text', ['text' => 'draft 2']),
-        ]),
-        new AstNode('text', ['text' => ', and H']),
+        new AstNode('text', ['text' => ' while literal ==audit tokens== stay text.']),
+    ]),
+    new AstNode('paragraph', [], [
+        new AstNode('text', ['text' => 'Reviewer math/raw handoff: water H']),
         new AstNode('subscript', [], [
             new AstNode('text', ['text' => '2']),
         ]),
-        new AstNode('text', ['text' => 'O.']),
+        new AstNode('text', ['text' => ' status ']),
+        new AstNode('superscript', [], [
+            new AstNode('emph', [], [
+                new AstNode('text', ['text' => 'draft']),
+            ]),
+        ]),
+        new AstNode('text', ['text' => ' replaces ']),
+        new AstNode('strikeout', [], [
+            new AstNode('text', ['text' => 'legacy TeX screenshot']),
+        ]),
+        new AstNode('text', ['text' => ' with ']),
+        new AstNode('math', ['text' => 'x \in y', 'display' => false]),
+        new AstNode('text', ['text' => '2 review marker and raw ']),
+        new AstNode('raw_tex', ['tex' => '\cite[22-23]{smith.1899}']),
+        new AstNode('text', ['text' => ' plus packet ']),
+        new AstNode('raw_inline', ['format' => 'opml', 'text' => '<outline text="Legacy source"/>']),
+        new AstNode('text', ['text' => ' and raw HTML marker ']),
+        new AstNode('raw_html_inline', ['html' => '<mark data-source="batch-42">legacy HTML source</mark>']),
+        new AstNode('text', ['text' => '.']),
+    ]),
+    new AstNode('div', [
+        'id' => 'review-packet',
+        'classes' => ['wp-import-review'],
+        'attributes' => ['data-source' => 'batch-42'],
+    ], [
+        new AstNode('paragraph', [], [
+            new AstNode('text', ['text' => 'Block-level reviewer packet stays grouped for Pandoc-compatible handoff.']),
+        ]),
+        new AstNode('raw_block', [
+            'format' => 'opml',
+            'text' => '<outline text="Legacy WordPress source" type="review"/>',
+        ]),
+    ]),
+    new AstNode('raw_tex', [
+        'tex' => "\\begin{migrationreview}\nConfirm source citations before publish.\n\\end{migrationreview}",
     ]),
     new AstNode('paragraph', [], [
-        new AstNode('text', ['text' => 'Reviewer quoted source: ']),
-        new AstNode('quoted', ['kind' => 'double'], [
-            new AstNode('text', ['text' => 'source says ']),
-            new AstNode('quoted', ['kind' => 'single'], [
-                new AstNode('code', ['text' => 'wp_insert_post']),
-            ]),
-            new AstNode('text', ['text' => ' before ']),
-            new AstNode('link', [
-                'url' => '/wp-admin/post.php?post=42&action=edit',
-            ], [
-                new AstNode('text', ['text' => 'edit']),
-            ]),
+        new AstNode('text', ['text' => 'Reviewer citation handoff: ']),
+        new AstNode('citation', [
+            'citations' => [
+                [
+                    'id' => 'migration-audit',
+                    'mode' => 'author_in_text',
+                    'suffix' => [new AstNode('text', ['text' => 'p. 12'])],
+                ],
+                [
+                    'id' => 'source-log',
+                    'prefix' => [new AstNode('text', ['text' => 'see'])],
+                    'suffix' => [new AstNode('text', ['text' => 'ch. 4'])],
+                ],
+            ],
+        ]),
+        new AstNode('text', ['text' => ' and suppressed batch ']),
+        new AstNode('citation', [
+            'citations' => [
+                [
+                    'id' => 'legacy key',
+                    'mode' => 'suppress_author',
+                    'suffix' => [new AstNode('text', ['text' => ', appendix'])],
+                ],
+            ],
         ]),
         new AstNode('text', ['text' => '.']),
     ]),
     new AstNode('paragraph', [], [
-        new AstNode('text', ['text' => 'Reviewer formula packet: ']),
-        new AstNode('math', ['text' => 'E = mc^2', 'display' => false]),
-        new AstNode('text', ['text' => ' cites ']),
-        new AstNode('raw_tex', ['tex' => '\cite[22-23]{smith.1899}']),
-        new AstNode('text', ['text' => ' and keeps ']),
-        new AstNode('raw_inline', ['format' => 'markdown', 'text' => '*raw markdown*']),
-        new AstNode('text', ['text' => ' plus ']),
-        new AstNode('raw_inline', ['format' => 'markdown+tex_math_dollars', 'text' => '$raw$']),
-        new AstNode('text', ['text' => '.']),
+        new AstNode('text', ['text' => 'Reviewer emphasis normalization: ']),
+        new AstNode('emph', [], [
+            new AstNode('emph', [], [
+                new AstNode('text', ['text' => 'source flag']),
+            ]),
+        ]),
+        new AstNode('text', ['text' => ' and empty source marks ']),
+        new AstNode('strong', [], []),
+        new AstNode('text', ['text' => 'drop before handoff.']),
     ]),
     new AstNode('paragraph', [], [
         new AstNode('text', ['text' => '# Literal audit tokens: * _ ` | ^ ~ $ <review> &ouml; \\macro']),
     ]),
-    new AstNode('paragraph', [], [
-        new AstNode('text', ['text' => '1. Literal imported audit step']),
-        new AstNode('softbreak'),
-        new AstNode('text', ['text' => '- Literal imported bullet marker']),
-    ]),
-    new AstNode('div', [
-        'id' => 'migration-review-packet',
-        'classes' => ['wp-import', 'needs-review'],
-        'attributes' => ['data-source' => 'batch-42'],
-    ], [
-        new AstNode('paragraph', [], [
-            new AstNode('text', ['text' => 'Reviewer packet wrapper: keep this source group together.']),
-        ]),
-        new AstNode('blockquote', [], [
-            new AstNode('paragraph', [], [
-                new AstNode('text', ['text' => 'Nested reviewer quote remains inside the fenced div.']),
-            ]),
-        ]),
-    ]),
-    new AstNode('paragraph', [], [
-        new AstNode('text', ['text' => 'Reviewer line block stanza:']),
-    ]),
-    new AstNode('line_block', [], [
-        new AstNode('line', ['text' => 'Source address line one'], [
-            new AstNode('text', ['text' => 'Source address line one']),
-        ]),
-        new AstNode('line', ['text' => "\xC2\xA0\xC2\xA0preserve visual indentation"], [
-            new AstNode('text', ['text' => "\xC2\xA0\xC2\xA0preserve visual indentation"]),
-        ]),
-        new AstNode('line', ['text' => '']),
-        new AstNode('line', ['text' => 'Final source stanza line'], [
-            new AstNode('text', ['text' => 'Final source stanza line']),
-        ]),
-    ]),
-    new AstNode('definition_list', [], [
-        new AstNode('definition_item', ['term' => 'Source glossary'], [
-            new AstNode('term', ['text' => 'Source glossary'], [
-                new AstNode('text', ['text' => 'Source glossary']),
-            ]),
-            new AstNode('definition', ['loose' => true], [
-                new AstNode('paragraph', [], [
-                    new AstNode('text', ['text' => 'Preserve reviewer definitions from legacy Pandoc exports.']),
-                ]),
-                new AstNode('ordered_list', ['start' => 1], [
-                    new AstNode('list_item', [], [
-                        new AstNode('text', ['text' => 'Confirm block conversion']),
-                    ]),
-                    new AstNode('list_item', [], [
-                        new AstNode('text', ['text' => 'Attach media IDs']),
-                    ]),
-                ]),
-            ]),
-        ]),
-    ]),
-    new AstNode('bullet_list', [], [
-        new AstNode('list_item', [], [
-            new AstNode('text', ['text' => 'Review imported block structure']),
-            new AstNode('bullet_list', [], [
-                new AstNode('list_item', [], [
-                    new AstNode('text', ['text' => 'Nested source task uses the selected bullet marker']),
-                ]),
-            ]),
-        ]),
-        new AstNode('list_item', ['taskChecked' => true], [
-            new AstNode('text', ['text' => 'Confirm plus-marker reviewer queue']),
-        ]),
-    ]),
-    new AstNode('table', [
-        'caption' => 'Migration review queue',
-        'shortCaption' => 'Review queue',
-        'shortCaptionInlines' => [
-            new AstNode('text', ['text' => 'Review ']),
-            new AstNode('strong', [], [new AstNode('text', ['text' => 'queue'])]),
-        ],
-        'captionInlines' => [
-            new AstNode('text', ['text' => 'Migration ']),
-            new AstNode('strong', [], [new AstNode('text', ['text' => 'review'])]),
-            new AstNode('text', ['text' => ' queue']),
-        ],
-        'alignments' => ['right', 'left', 'center'],
-        'widths' => [0.15, 0.25, 0.35],
-    ], [
-        new AstNode('table_head', [], [
-            new AstNode('table_row', ['header' => true], [
-                new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
-                new AstNode('table_cell', ['text' => 'Status'], [new AstNode('text', ['text' => 'Status'])]),
-                new AstNode('table_cell', ['text' => 'Reviewer note'], [new AstNode('text', ['text' => 'Reviewer note'])]),
-            ]),
-        ]),
-        new AstNode('table_body', [], [
-            new AstNode('table_row', [], [
-                new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
-                new AstNode('table_cell', ['text' => 'ready'], [new AstNode('text', ['text' => 'ready'])]),
-                new AstNode('table_cell', [], [new AstNode('text', ['text' => 'source | audit'])]),
-            ]),
-            new AstNode('table_row', [], [
-                new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
-                new AstNode('table_cell', ['text' => 'needs-review'], [new AstNode('text', ['text' => 'needs-review'])]),
-                new AstNode('table_cell', [], [
-                    new AstNode('text', ['text' => 'soft line one']),
-                    new AstNode('softbreak'),
-                    new AstNode('text', ['text' => 'soft line two']),
-                ]),
-            ]),
-            new AstNode('table_row', [], [
-                new AstNode('table_cell', ['text' => '3'], [new AstNode('text', ['text' => '3'])]),
-                new AstNode('table_cell', ['text' => 'blocked'], [new AstNode('text', ['text' => 'blocked'])]),
-                new AstNode('table_cell', [], [
-                    new AstNode('text', ['text' => 'hard boundary']),
-                    new AstNode('linebreak'),
-                    new AstNode('text', ['text' => 'follow-up required']),
-                ]),
-            ]),
-        ]),
-    ]),
-    new AstNode('table', [
-        'shortCaptionInlines' => [
-            new AstNode('text', ['text' => 'Short-only ']),
-            new AstNode('strong', [], [new AstNode('text', ['text' => 'queue'])]),
-        ],
-        'alignments' => ['left', 'right'],
-    ], [
-        new AstNode('table_head', [], [
-            new AstNode('table_row', ['header' => true], [
-                new AstNode('table_cell', ['text' => 'Source'], [new AstNode('text', ['text' => 'Source'])]),
-                new AstNode('table_cell', ['text' => 'Open'], [new AstNode('text', ['text' => 'Open'])]),
-            ]),
-        ]),
-        new AstNode('table_body', [], [
-            new AstNode('table_row', [], [
-                new AstNode('table_cell', ['text' => 'media'], [new AstNode('text', ['text' => 'media'])]),
-                new AstNode('table_cell', ['text' => '2'], [new AstNode('text', ['text' => '2'])]),
-            ]),
-        ]),
-    ]),
-    new AstNode('ordered_list', ['start' => 3999, 'style' => 'upper_roman'], [
-        new AstNode('list_item', [], [
-            new AstNode('text', ['text' => 'Final Roman reviewer packet before overflow']),
-        ]),
-        new AstNode('list_item', [], [
-            new AstNode('text', ['text' => 'Overflow reviewer packet keeps Pandoc marker semantics']),
-        ]),
-    ]),
-    new AstNode('ordered_list', ['start' => 25, 'style' => 'lower_alpha'], [
-        new AstNode('list_item', [], [
-            new AstNode('text', ['text' => 'Reviewer alpha queue near source appendix end']),
-        ]),
-        new AstNode('list_item', [], [
-            new AstNode('text', ['text' => 'Reviewer alpha queue z marker']),
-        ]),
-        new AstNode('list_item', [], [
-            new AstNode('text', ['text' => 'Reviewer alpha queue aa marker after overflow']),
-        ]),
-    ]),
-    new AstNode('ordered_list', ['start' => 0, 'style' => 'decimal'], [
-        new AstNode('list_item', [], [
-            new AstNode('text', ['text' => 'Zero-indexed import preflight before publish steps']),
-        ]),
-        new AstNode('list_item', [], [
-            new AstNode('text', ['text' => 'First publish step after preflight']),
-        ]),
-    ]),
-    new AstNode('raw_block', [
-        'format' => 'markdown',
-        'text' => '> Raw reviewer block: keep this migration note with the handoff.',
-    ]),
-    new AstNode('raw_block', [
-        'format' => 'markdown_strict',
-        'text' => '> Strict Markdown reviewer block: preserve source-only handoff.',
-    ]),
-    new AstNode('raw_block', [
-        'format' => 'gfm+task_lists',
-        'text' => '- [x] Extension-qualified raw Markdown reviewer task.',
-    ]),
-    new AstNode('raw_block', [
-        'format' => 'html',
-        'text' => '<aside>internal reviewer note omitted from Markdown handoff</aside>',
-    ]),
 ]);
 
 echo (new MarkdownWriter([
-    'bulletListMarker' => 'plus',
     'referenceLinks' => true,
     'referenceLocation' => 'end_of_block',
     'setextHeadings' => true,
-    'softBreak' => 'space',
 ]))->write($document) . "\n";

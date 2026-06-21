@@ -6,52 +6,14 @@ namespace PortLibs\Pandoc;
 
 final class WordPressBlockWriter
 {
-    private const TABLE_CELL_SCOPES = ['col', 'row', 'colgroup', 'rowgroup'];
-
-    private const HTML_WRITER_GLOBAL_ATTRIBUTES = [
-        'autocapitalize',
-        'autocorrect',
-        'class',
-        'dir',
-        'enterkeyhint',
-        'exportparts',
-        'id',
-        'inputmode',
-        'lang',
-        'part',
-        'role',
-        'slot',
-        'spellcheck',
-        'title',
-        'translate',
-        'virtualkeyboardpolicy',
-        'writingsuggestions',
-        'xml:lang',
-    ];
-
-    /** @var list<array{id:string, label:string|null, node:AstNode}> */
+    /** @var list<AstNode> */
     private array $footnotes = [];
 
-    /** @var array<string, bool> */
-    private array $footnoteUsedIds = [];
-
-    private bool $highlightCodeBlocks;
-
-    private string $highlightStyle;
-
-    private bool $preserveTableMissingCells;
-
-    private bool $preserveTableCoveredSlots;
-
     /**
-     * @param array{highlightCodeBlocks?: bool, highlightStyle?: string, preserveTableMissingCells?: bool, preserveTableCoveredSlots?: bool} $options
+     * @param array{includeMetadata?: bool, preserveListAttributes?: bool, preserveEmptyParagraphs?: bool, taskGlyphsAsCheckboxes?: bool, markEmptyTableCells?: bool} $options
      */
-    public function __construct(array $options = [])
+    public function __construct(private readonly array $options = [])
     {
-        $this->highlightCodeBlocks = ($options['highlightCodeBlocks'] ?? false) === true;
-        $this->highlightStyle = (string) ($options['highlightStyle'] ?? 'pygments');
-        $this->preserveTableMissingCells = ($options['preserveTableMissingCells'] ?? false) === true;
-        $this->preserveTableCoveredSlots = ($options['preserveTableCoveredSlots'] ?? false) === true;
     }
 
     public function write(AstNode $document): string
@@ -61,14 +23,21 @@ final class WordPressBlockWriter
         }
 
         $previousFootnotes = $this->footnotes;
-        $previousFootnoteUsedIds = $this->footnoteUsedIds;
         $this->footnotes = [];
-        $this->footnoteUsedIds = [];
         $blocks = [];
         $pendingList = [];
+        if ((bool) ($this->options['includeMetadata'] ?? false)) {
+            $metadataBlock = $this->renderMetadataReviewBlock($document);
+            if ($metadataBlock !== '') {
+                $blocks[] = $metadataBlock;
+            }
+        }
         foreach ($document->children as $node) {
             if ($node->type !== 'list_item') {
                 $this->flushList($pendingList, $blocks);
+            }
+            if ($this->shouldSkipEmptyParagraphLikeBlock($node)) {
+                continue;
             }
             if ($node->type === 'heading') {
                 $level = (int) $node->attr('level', 2);
@@ -79,7 +48,7 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderParagraphBlock($node);
             } elseif ($node->type === 'plain') {
                 $blocks[] = '<!-- wp:paragraph -->'
-                    . "\n" . '<p' . $this->renderParagraphAttrs($node) . '>' . $this->renderInlines($node) . '</p>'
+                    . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
                     . "\n" . '<!-- /wp:paragraph -->';
             } elseif ($node->type === 'bullet_list') {
                 $blocks[] = $this->renderList($node, false);
@@ -89,10 +58,12 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderDefinitionList($node);
             } elseif ($node->type === 'table') {
                 $blocks[] = $this->renderTable($node);
-            } elseif ($this->isRawHtmlBlock($node)) {
+            } elseif ($node->type === 'raw_html') {
                 $blocks[] = $this->renderRawHtmlBlock($node);
-            } elseif ($this->isRawTexBlock($node)) {
+            } elseif ($node->type === 'raw_tex') {
                 $blocks[] = $this->renderRawTexBlock($node);
+            } elseif ($node->type === 'raw_block') {
+                $blocks[] = $this->renderRawFormatBlock($node);
             } elseif ($node->type === 'code_block') {
                 $blocks[] = $this->renderCodeBlock($node);
             } elseif ($node->type === 'figure') {
@@ -104,7 +75,7 @@ final class WordPressBlockWriter
             } elseif ($node->type === 'div') {
                 $blocks[] = $this->renderDivBlock($node);
             } elseif ($node->type === 'horizontal_rule') {
-                $blocks[] = $this->renderHorizontalRule($node);
+                $blocks[] = $this->renderHorizontalRule();
             } elseif ($node->type === 'list_item') {
                 $pendingList[] = '<li>' . $this->renderInlines($node) . '</li>';
             }
@@ -116,9 +87,234 @@ final class WordPressBlockWriter
 
         $output = implode("\n\n", $blocks);
         $this->footnotes = $previousFootnotes;
-        $this->footnoteUsedIds = $previousFootnoteUsedIds;
 
         return $output;
+    }
+
+    private function isEmptyParagraphLikeBlock(AstNode $node): bool
+    {
+        if (!in_array($node->type, ['paragraph', 'plain'], true)) {
+            return false;
+        }
+
+        if ($node->children !== []) {
+            return false;
+        }
+
+        return trim((string) $node->attr('text', '')) === '';
+    }
+
+    private function shouldSkipEmptyParagraphLikeBlock(AstNode $node): bool
+    {
+        return !(bool) ($this->options['preserveEmptyParagraphs'] ?? false)
+            && $this->isEmptyParagraphLikeBlock($node);
+    }
+
+    private function renderMetadataReviewBlock(AstNode $document): string
+    {
+        $meta = $document->attr('meta', []);
+        if (!is_array($meta) || $meta === []) {
+            return '';
+        }
+
+        $entries = [];
+        foreach ($meta as $key => $value) {
+            $key = (string) $key;
+            if (in_array($key, ['titleInlines', 'authorInlines', 'dateInlines', 'authors'], true)) {
+                continue;
+            }
+
+            $entries[] = '<dt data-pandoc-meta-key="' . $this->esc($key) . '">' . $this->esc($key) . '</dt>'
+                . '<dd>' . $this->renderMetadataValue($value) . '</dd>';
+        }
+
+        if ($entries === []) {
+            return '';
+        }
+
+        return '<!-- wp:html -->'
+            . "\n" . '<section class="pandoc-document-metadata" data-pandoc-source="native-meta"><dl>' . implode('', $entries) . '</dl></section>'
+            . "\n" . '<!-- /wp:html -->';
+    }
+
+    private function renderMetadataValue(mixed $value): string
+    {
+        if ($value instanceof AstNode) {
+            return '<span>' . $this->esc($this->metadataNodeText($value)) . '</span>';
+        }
+
+        if (is_array($value) && isset($value['type'])) {
+            $payload = $value['value'] ?? null;
+
+            return match ((string) $value['type']) {
+                'MetaInlines' => '<span>' . $this->esc($this->metadataInlinesText(is_array($payload) ? $payload : [])) . '</span>',
+                'MetaBlocks' => $this->renderMetadataBlocks(is_array($payload) ? $payload : []),
+                'MetaList' => $this->renderMetadataList(is_array($payload) ? $payload : []),
+                'MetaMap' => $this->renderMetadataMap(is_array($payload) ? $payload : []),
+                default => '<span>' . $this->esc((string) $payload) . '</span>',
+            };
+        }
+
+        if (is_array($value)) {
+            if ($this->metadataArrayIsAstNodes($value)) {
+                return '<span>' . $this->esc($this->metadataNodesText($value)) . '</span>';
+            }
+
+            if ($this->metadataArrayIsSequential($value)) {
+                return $this->renderMetadataList($value);
+            }
+
+            return $this->renderMetadataMap($value);
+        }
+
+        if (is_bool($value)) {
+            return '<span>' . ($value ? 'true' : 'false') . '</span>';
+        }
+
+        return '<span>' . $this->esc((string) $value) . '</span>';
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function renderMetadataList(array $items): string
+    {
+        if ($items === []) {
+            return '<span>[]</span>';
+        }
+
+        $html = '<ul>';
+        foreach ($items as $item) {
+            $html .= '<li>' . $this->renderMetadataValue($item) . '</li>';
+        }
+
+        return $html . '</ul>';
+    }
+
+    /**
+     * @param array<string, mixed> $items
+     */
+    private function renderMetadataMap(array $items): string
+    {
+        if ($items === []) {
+            return '<span>{}</span>';
+        }
+
+        $html = '<dl>';
+        foreach ($items as $key => $item) {
+            $html .= '<dt data-pandoc-meta-key="' . $this->esc((string) $key) . '">' . $this->esc((string) $key) . '</dt>'
+                . '<dd>' . $this->renderMetadataValue($item) . '</dd>';
+        }
+
+        return $html . '</dl>';
+    }
+
+    /**
+     * @param list<mixed> $blocks
+     */
+    private function renderMetadataBlocks(array $blocks): string
+    {
+        if ($blocks === []) {
+            return '<span></span>';
+        }
+
+        $html = '';
+        foreach ($blocks as $block) {
+            if (!$block instanceof AstNode) {
+                continue;
+            }
+
+            $text = $this->metadataNodeText($block);
+            $html .= '<p>' . $this->esc($text) . '</p>';
+        }
+
+        return $html === '' ? '<span></span>' : $html;
+    }
+
+    /**
+     * @param list<mixed> $nodes
+     */
+    private function metadataInlinesText(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            if ($node instanceof AstNode) {
+                $text .= $this->metadataInlineText($node);
+            }
+        }
+
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+    }
+
+    private function metadataInlineText(AstNode $node): string
+    {
+        return match ($node->type) {
+            'text', 'code' => (string) $node->attr('text', ''),
+            'softbreak', 'linebreak' => ' ',
+            'math' => (string) $node->attr('text', ''),
+            'raw_html_inline' => (string) $node->attr('html', ''),
+            'raw_tex', 'raw_tex_inline' => (string) $node->attr('tex', $node->attr('text', '')),
+            'raw_inline' => (string) $node->attr('text', ''),
+            'image' => (string) $node->attr('alt', $this->metadataInlinesText($node->children)),
+            default => $this->metadataInlinesText($node->children),
+        };
+    }
+
+    private function metadataNodeText(AstNode $node): string
+    {
+        return match ($node->type) {
+            'paragraph', 'plain', 'term', 'line' => $this->metadataInlinesText($node->children),
+            'code_block' => (string) $node->attr('text', ''),
+            'raw_html' => (string) $node->attr('html', ''),
+            'raw_tex' => (string) $node->attr('tex', ''),
+            'raw_block' => (string) $node->attr('text', ''),
+            'line_block' => implode(' / ', array_map(fn (AstNode $line): string => $this->metadataNodeText($line), $node->children)),
+            default => $this->metadataNodesText($node->children) !== ''
+                ? $this->metadataNodesText($node->children)
+                : (string) $node->attr('text', ''),
+        };
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function metadataNodesText(array $nodes): string
+    {
+        $parts = [];
+        foreach ($nodes as $node) {
+            $text = $this->metadataNodeText($node);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return trim(implode(' ', $parts));
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function metadataArrayIsAstNodes(array $value): bool
+    {
+        if ($value === []) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if (!$item instanceof AstNode) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function metadataArrayIsSequential(array $value): bool
+    {
+        return $value === [] || array_keys($value) === range(0, count($value) - 1);
     }
 
     private function renderParagraphBlock(AstNode $node): string
@@ -132,13 +328,8 @@ final class WordPressBlockWriter
         }
 
         return '<!-- wp:paragraph -->'
-            . "\n" . '<p' . $this->renderParagraphAttrs($node) . '>' . $this->renderInlines($node) . '</p>'
+            . "\n" . '<p' . $this->renderBlockHtmlAttrs($node) . '>' . $this->renderInlines($node) . '</p>'
             . "\n" . '<!-- /wp:paragraph -->';
-    }
-
-    private function renderParagraphAttrs(AstNode $node): string
-    {
-        return $this->renderHtmlWriterAttrs($node, includeIdentity: true);
     }
 
     /**
@@ -167,28 +358,19 @@ final class WordPressBlockWriter
             }
             $tagAttrs = $this->renderOrderedListTagAttrs($node);
             $comment = '<!-- wp:list ' . json_encode($attrs, JSON_THROW_ON_ERROR) . ' -->';
-        } else {
-            $tagAttrs = $this->renderUnorderedListTagAttrs($node);
+        } elseif ($this->listIsTaskList($node)) {
+            $tagAttrs = ' class="task-list"';
         }
         $items = [];
-        $headers = [];
 
         foreach ($node->children as $item) {
             if ($item->type !== 'list_item') {
                 continue;
             }
-            if ($item->attr('listHeader') === true) {
-                $headers[] = $this->renderListHeaderHtml($item);
-                continue;
-            }
             $items[] = $this->renderListItem($item);
         }
 
-        $headerBlock = $headers === []
-            ? ''
-            : '<!-- wp:html -->' . "\n" . implode('', $headers) . "\n" . '<!-- /wp:html -->' . "\n\n";
-
-        return $headerBlock . $comment
+        return $comment
             . "\n" . '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>'
             . "\n" . '<!-- /wp:list -->';
     }
@@ -196,30 +378,15 @@ final class WordPressBlockWriter
     private function renderListHtml(AstNode $node, bool $ordered): string
     {
         $tag = $ordered ? 'ol' : 'ul';
-        $tagAttrs = $ordered ? $this->renderOrderedListTagAttrs($node) : $this->renderUnorderedListTagAttrs($node);
+        $tagAttrs = $ordered ? $this->renderOrderedListTagAttrs($node) : ($this->listIsTaskList($node) ? ' class="task-list"' : '');
         $items = [];
-        $headers = [];
         foreach ($node->children as $item) {
             if ($item->type === 'list_item') {
-                if ($item->attr('listHeader') === true) {
-                    $headers[] = $this->renderListHeaderHtml($item);
-                    continue;
-                }
                 $items[] = $this->renderListItem($item);
             }
         }
 
-        return implode('', $headers) . '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>';
-    }
-
-    private function renderUnorderedListTagAttrs(AstNode $node): string
-    {
-        return $this->renderListTagAttrs($node, false);
-    }
-
-    private function renderListHeaderHtml(AstNode $item): string
-    {
-        return '<div' . $this->renderInlineSpanAttrs($item) . '>' . $this->renderBlocksAsHtml($item->children) . '</div>';
+        return '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>';
     }
 
     private function renderOrderedListTagAttrs(AstNode $node): string
@@ -235,50 +402,20 @@ final class WordPressBlockWriter
             $attrs .= ' type="' . $this->esc($type) . '"';
         }
 
-        return $attrs . $this->renderListTagAttrs($node, true);
-    }
-
-    private function renderListTagAttrs(AstNode $node, bool $ordered): string
-    {
-        $htmlAttributes = $this->inlineHtmlAttributes($node);
-        $attrs = '';
-
-        $id = $htmlAttributes['id'] ?? null;
-        if (is_scalar($id) && (string) $id !== '') {
-            $attrs .= ' id="' . $this->esc((string) $id) . '"';
-        }
-
-        $classes = [];
-        if (!$ordered && $node->attr('taskList') === true) {
-            $classes[] = 'task-list';
-        }
-        $class = $htmlAttributes['class'] ?? null;
-        if (is_scalar($class)) {
-            foreach (preg_split('/\s+/', trim((string) $class), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $className) {
-                $classes[] = $className;
+        if ((bool) ($this->options['preserveListAttributes'] ?? false)) {
+            $style = (string) $node->attr('style', 'default');
+            $styleIsSourceSpecific = !in_array($style, ['', 'default', 'decimal'], true);
+            if ($styleIsSourceSpecific) {
+                $attrs .= ' data-pandoc-list-style="' . $this->esc($style) . '"';
             }
-        }
-        if ($classes !== []) {
-            $attrs .= ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
-        }
 
-        foreach ($htmlAttributes as $name => $value) {
-            $name = strtolower((string) $name);
+            $delimiter = (string) $node->attr('delimiter', 'default');
             if (
-                $name === 'id'
-                || $name === 'class'
-                || !$this->isAllowedHtmlWriterAttr($name)
-                || !is_scalar($value)
+                !in_array($delimiter, ['', 'default'], true)
+                && ($delimiter !== 'period' || $styleIsSourceSpecific)
             ) {
-                continue;
+                $attrs .= ' data-pandoc-list-delimiter="' . $this->esc($delimiter) . '"';
             }
-
-            $value = (string) $value;
-            if ($value === '') {
-                continue;
-            }
-
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
         }
 
         return $attrs;
@@ -286,7 +423,7 @@ final class WordPressBlockWriter
 
     private function renderHeadingAttrs(AstNode $node): string
     {
-        return $this->renderHtmlWriterAttrs($node, includeIdentity: true);
+        return $this->renderBlockHtmlAttrs($node);
     }
 
     private function orderedListHtmlType(string $style): string
@@ -310,8 +447,10 @@ final class WordPressBlockWriter
             }
         }
         $wrapParagraphs = (bool) $item->attr('loose', false) || $paragraphCount > 1;
-        $taskChecked = $item->attr('taskChecked', null);
+        $explicitTaskChecked = $item->attr('taskChecked', null);
+        $taskChecked = is_bool($explicitTaskChecked) ? $explicitTaskChecked : $this->taskGlyphChecked($item);
         $taskPending = is_bool($taskChecked);
+        $stripTaskGlyph = $taskPending && !is_bool($explicitTaskChecked);
         $children = $item->children;
 
         for ($index = 0, $count = count($children); $index < $count; $index++) {
@@ -325,44 +464,92 @@ final class WordPressBlockWriter
                 continue;
             }
             if (!$this->isInlineNode($child) && $child->type !== 'paragraph') {
+                if ($child->type === 'plain') {
+                    $rendered = $stripTaskGlyph
+                        ? $this->renderInlineNodesWithoutLeadingTaskGlyph($child->children)
+                        : $this->renderInlines($child);
+                    if ($taskPending) {
+                        $rendered = $this->renderTaskListLabel($taskChecked, $rendered);
+                        $taskPending = false;
+                        $stripTaskGlyph = false;
+                    }
+                    $html .= $rendered;
+                    continue;
+                }
                 $html .= $this->renderBlocksAsHtml([$child]);
                 continue;
             }
             if ($child->type === 'paragraph') {
-                $rendered = $this->renderInlines($child);
+                $rendered = $stripTaskGlyph
+                    ? $this->renderInlineNodesWithoutLeadingTaskGlyph($child->children)
+                    : $this->renderInlines($child);
                 if ($taskPending) {
                     $rendered = $this->renderTaskListLabel($taskChecked, $rendered);
                     $taskPending = false;
+                    $stripTaskGlyph = false;
                 }
                 $html .= $wrapParagraphs ? '<p>' . $rendered . '</p>' : $rendered;
                 continue;
             }
 
             if ($taskPending) {
-                $inlineHtml = '';
+                $inlineNodes = [];
                 while ($index < $count && $this->isInlineNode($children[$index])) {
-                    $inlineHtml .= $this->renderInlineNode($children[$index]);
+                    $inlineNodes[] = $children[$index];
                     $index++;
                 }
                 $index--;
+                $inlineHtml = $stripTaskGlyph
+                    ? $this->renderInlineNodesWithoutLeadingTaskGlyph($inlineNodes)
+                    : $this->renderInlineNodes($inlineNodes);
                 $html .= $this->renderTaskListLabel($taskChecked, $inlineHtml);
                 $taskPending = false;
+                $stripTaskGlyph = false;
                 continue;
             }
 
             $html .= $this->renderInlineNode($child);
         }
 
-        if ($taskPending) {
-            $html .= $this->renderTaskListLabel($taskChecked, '');
-        }
-
-        return '<li' . $this->renderListItemAttrs($item) . '>' . $html . '</li>';
+        return '<li' . $this->renderBlockHtmlAttrs($item) . '>' . $html . '</li>';
     }
 
-    private function renderListItemAttrs(AstNode $node): string
+    private function renderBlockHtmlAttrs(AstNode $node): string
     {
-        return $this->renderHtmlWriterAttrs($node, true);
+        $htmlAttributes = [];
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if (!$this->isAllowedBlockHtmlAttr($name)) {
+                continue;
+            }
+            $htmlAttributes[$name] = $value;
+        }
+
+        $orderedNames = [];
+        $priority = array_key_exists('id', $htmlAttributes)
+            ? ['id', 'class', 'lang', 'dir', 'role', 'title']
+            : ['lang', 'dir', 'role', 'title'];
+        foreach ($priority as $name) {
+            if (array_key_exists($name, $htmlAttributes)) {
+                $orderedNames[] = $name;
+            }
+        }
+        foreach (array_keys($htmlAttributes) as $name) {
+            if ($name !== 'class' && !in_array($name, $orderedNames, true)) {
+                $orderedNames[] = $name;
+            }
+        }
+        if (!array_key_exists('id', $htmlAttributes) && array_key_exists('class', $htmlAttributes)) {
+            $orderedNames[] = 'class';
+        }
+
+        $attrs = '';
+        foreach ($orderedNames as $name) {
+            $value = $htmlAttributes[$name];
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
     }
 
     private function renderTaskListLabel(bool $checked, string $html): string
@@ -370,6 +557,86 @@ final class WordPressBlockWriter
         $checkbox = '<input type="checkbox"' . ($checked ? ' checked=""' : '') . ' />';
 
         return '<label>' . $checkbox . $html . '</label>';
+    }
+
+    private function listIsTaskList(AstNode $node): bool
+    {
+        if ($node->attr('taskList') === true) {
+            return true;
+        }
+
+        if (!$this->taskGlyphsAsCheckboxesEnabled()) {
+            return false;
+        }
+
+        $hasItems = false;
+        foreach ($node->children as $item) {
+            if ($item->type !== 'list_item') {
+                continue;
+            }
+
+            $hasItems = true;
+            if ($this->taskGlyphChecked($item) === null) {
+                return false;
+            }
+        }
+
+        return $hasItems;
+    }
+
+    private function taskGlyphsAsCheckboxesEnabled(): bool
+    {
+        return (bool) ($this->options['taskGlyphsAsCheckboxes'] ?? false);
+    }
+
+    private function taskGlyphChecked(AstNode $item): ?bool
+    {
+        if (!$this->taskGlyphsAsCheckboxesEnabled()) {
+            return null;
+        }
+
+        foreach ($item->children as $child) {
+            if (in_array($child->type, ['paragraph', 'plain'], true)) {
+                return $this->taskGlyphCheckedFromInlineNodes($child->children);
+            }
+
+            if ($this->isInlineNode($child)) {
+                return $this->taskGlyphCheckedFromInlineNodes([$child]);
+            }
+
+            return null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function taskGlyphCheckedFromInlineNodes(array $nodes): ?bool
+    {
+        foreach ($nodes as $node) {
+            if ($node->type !== 'text') {
+                return null;
+            }
+
+            $text = (string) $node->attr('text', '');
+            if ($text === '') {
+                continue;
+            }
+
+            if (preg_match('/^\x{2610}/u', $text) === 1) {
+                return false;
+            }
+
+            if (preg_match('/^\x{2612}/u', $text) === 1) {
+                return true;
+            }
+
+            return null;
+        }
+
+        return null;
     }
 
     private function renderDefinitionList(AstNode $node): string
@@ -387,7 +654,7 @@ final class WordPressBlockWriter
     private function renderRawHtmlBlock(AstNode $node): string
     {
         return '<!-- wp:html -->'
-            . "\n" . $this->rawHtmlText($node)
+            . "\n" . (string) $node->attr('html', '')
             . "\n" . '<!-- /wp:html -->';
     }
 
@@ -398,9 +665,16 @@ final class WordPressBlockWriter
             . "\n" . '<!-- /wp:code -->';
     }
 
+    private function renderRawFormatBlock(AstNode $node): string
+    {
+        return '<!-- wp:code -->'
+            . "\n" . $this->renderRawFormatBlockHtml($node)
+            . "\n" . '<!-- /wp:code -->';
+    }
+
     private function renderDefinitionListHtml(AstNode $node): string
     {
-        $html = '<dl' . $this->renderDefinitionListAttrs($node) . '>';
+        $html = '<dl>';
         foreach ($node->children as $item) {
             if ($item->type !== 'definition_item') {
                 continue;
@@ -408,16 +682,10 @@ final class WordPressBlockWriter
 
             $children = $item->children;
             $term = array_shift($children);
-            if (!$term instanceof AstNode || !in_array($term->type, ['term', 'definition_term'], true)) {
+            if (!$term instanceof AstNode || $term->type !== 'term') {
                 $term = new AstNode('term', ['text' => (string) $item->attr('term', '')]);
             }
             $html .= '<dt>' . $this->renderInlines($term) . '</dt>';
-
-            $cslDisplayParts = $item->attr('cslDisplayParts', []);
-            if (is_array($cslDisplayParts) && $cslDisplayParts !== []) {
-                $html .= '<dd>' . $this->renderCslDisplayPartsHtml($cslDisplayParts) . '</dd>';
-                continue;
-            }
 
             foreach ($children as $definition) {
                 if ($definition->type !== 'definition') {
@@ -429,128 +697,6 @@ final class WordPressBlockWriter
         $html .= '</dl>';
 
         return $html;
-    }
-
-    private function renderDefinitionListAttrs(AstNode $node): string
-    {
-        $attrs = $this->renderHtmlWriterAttrs($node, true);
-        $htmlAttributes = $this->inlineHtmlAttributes($node);
-        $normalizedClasses = [];
-        if (isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
-            foreach (preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
-                $class = trim((string) $class);
-                if ($class !== '') {
-                    $normalizedClasses[] = $class;
-                }
-            }
-        }
-
-        if (!in_array('pandoc-csl-bibliography', $normalizedClasses, true)) {
-            return $attrs;
-        }
-
-        if ($node->attr('hangingIndent') === true) {
-            $attrs .= ' data-csl-hanging-indent="true"';
-        }
-
-        foreach ([
-            'entrySpacing' => 'data-csl-entry-spacing',
-            'lineSpacing' => 'data-csl-line-spacing',
-            'secondFieldAlign' => 'data-csl-second-field-align',
-        ] as $attr => $htmlAttr) {
-            $value = $node->attr($attr, null);
-            if (!is_scalar($value) || (string) $value === '') {
-                continue;
-            }
-
-            $attrs .= ' ' . $htmlAttr . '="' . $this->esc((string) $value) . '"';
-        }
-
-        return $attrs;
-    }
-
-    /**
-     * @param list<array{display?:mixed, text?:mixed, formatting?:mixed}> $parts
-     */
-    private function renderCslDisplayPartsHtml(array $parts): string
-    {
-        $html = '<div class="csl-entry">';
-        foreach ($parts as $part) {
-            if (!is_array($part)) {
-                continue;
-            }
-
-            $display = strtolower(trim((string) ($part['display'] ?? '')));
-            $class = match ($display) {
-                'left-margin' => 'csl-left-margin',
-                'right-inline' => 'csl-right-inline',
-                'indent' => 'csl-indent',
-                'block' => 'csl-block',
-                default => '',
-            };
-            $text = (string) ($part['text'] ?? '');
-            if ($class === '' || $text === '') {
-                continue;
-            }
-
-            [$formatClasses, $style] = $this->cslFormattingAttrs($part['formatting'] ?? []);
-            $classes = implode(' ', array_merge([$class], $formatClasses));
-            $attrs = ' class="' . $this->esc($classes) . '"';
-            if ($style !== '') {
-                $attrs .= ' style="' . $this->esc($style) . '"';
-            }
-
-            $html .= '<div' . $attrs . '>' . $this->esc($text) . '</div>';
-        }
-
-        return $html . '</div>';
-    }
-
-    /**
-     * @return array{0:list<string>, 1:string}
-     */
-    private function cslFormattingAttrs(mixed $formatting): array
-    {
-        if (!is_array($formatting)) {
-            return [[], ''];
-        }
-
-        $classes = [];
-        $styles = [];
-        $fontStyle = (string) ($formatting['fontStyle'] ?? '');
-        if (in_array($fontStyle, ['italic', 'oblique'], true)) {
-            $classes[] = 'csl-font-style-' . $fontStyle;
-            $styles[] = 'font-style:' . $fontStyle;
-        }
-
-        $fontVariant = (string) ($formatting['fontVariant'] ?? '');
-        if ($fontVariant === 'small-caps') {
-            $classes[] = 'csl-font-variant-small-caps';
-            $styles[] = 'font-variant:small-caps';
-        }
-
-        $fontWeight = (string) ($formatting['fontWeight'] ?? '');
-        if ($fontWeight === 'bold') {
-            $classes[] = 'csl-font-weight-bold';
-            $styles[] = 'font-weight:bold';
-        } elseif ($fontWeight === 'light') {
-            $classes[] = 'csl-font-weight-light';
-            $styles[] = 'font-weight:300';
-        }
-
-        $textDecoration = (string) ($formatting['textDecoration'] ?? '');
-        if ($textDecoration === 'underline') {
-            $classes[] = 'csl-text-decoration-underline';
-            $styles[] = 'text-decoration:underline';
-        }
-
-        $verticalAlign = (string) ($formatting['verticalAlign'] ?? '');
-        if (in_array($verticalAlign, ['sup', 'sub'], true)) {
-            $classes[] = 'csl-vertical-align-' . $verticalAlign;
-            $styles[] = 'vertical-align:' . ($verticalAlign === 'sup' ? 'super' : 'sub');
-        }
-
-        return [$classes, implode(';', $styles)];
     }
 
     private function renderTableHtml(AstNode $node): string
@@ -572,36 +718,47 @@ final class WordPressBlockWriter
             }
         }
 
-        $columnCount = $this->tableColumnCount($node);
-        $accessibilityAttrs = $this->tableAccessibilityAttrs($node);
-        $captionHtml = $this->renderTableCaptionHtml($node);
-        $captionPlacement = $this->tableCaptionPlacement($node);
-        $html = $captionHtml !== '' && $captionPlacement === 'top' ? $captionHtml : '';
-        $html .= '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
+        $caption = (string) $node->attr('caption', '');
+        $captionHtml = $caption !== '' ? $this->renderCaptionInlines($node) : '';
+        $html = '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
         if ($head instanceof AstNode && $head->children !== []) {
             $html .= '<thead' . $this->renderStoredHtmlAttrs($head, true, []) . '>';
-            $html .= $this->renderTableRows($this->tableRowEntries($head, true), $node, $columnCount, 'head', $accessibilityAttrs);
+            foreach ($head->children as $row) {
+                $html .= $this->renderTableRow($row, $node, true);
+            }
             $html .= '</thead>';
         }
 
         if ($bodies === []) {
             $bodies[] = new AstNode('table_body');
         }
-        foreach ($bodies as $bodyIndex => $body) {
-            $section = 'body' . ($bodyIndex === 0 ? '' : (string) $bodyIndex);
+        foreach ($bodies as $body) {
             $html .= '<tbody' . $this->renderStoredHtmlAttrs($body, true, []) . '>';
-            $html .= $this->renderTableRows($this->tableBodyRowEntries($body, $columnCount), $node, $columnCount, $section, $accessibilityAttrs);
+            $bodyHeadRows = $body->attr('headRows', []);
+            if (is_array($bodyHeadRows)) {
+                foreach ($bodyHeadRows as $row) {
+                    if ($row instanceof AstNode) {
+                        $html .= $this->renderTableRow($row, $node, true);
+                    }
+                }
+            }
+            $rowHeadColumns = max(0, (int) $body->attr('rowHeadColumns', 0));
+            foreach ($body->children as $row) {
+                $html .= $this->renderTableRow($row, $node, false, $rowHeadColumns);
+            }
             $html .= '</tbody>';
         }
         if ($foot instanceof AstNode && $foot->children !== []) {
             $html .= '<tfoot' . $this->renderStoredHtmlAttrs($foot, true, []) . '>';
-            $html .= $this->renderTableRows($this->tableRowEntries($foot, false), $node, $columnCount, 'foot', $accessibilityAttrs);
+            foreach ($foot->children as $row) {
+                $html .= $this->renderTableRow($row, $node, false);
+            }
             $html .= '</tfoot>';
         }
         $html .= '</table>';
 
-        if ($captionHtml !== '' && $captionPlacement !== 'top') {
-            $html .= $captionHtml;
+        if ($caption !== '') {
+            $html .= '<figcaption class="wp-element-caption">' . $captionHtml . '</figcaption>';
         }
 
         return $html;
@@ -620,69 +777,13 @@ final class WordPressBlockWriter
 
     private function renderTableElementAttrs(AstNode $node): string
     {
-        return $this->renderStoredTableElementAttrs($node)
-            . $this->renderLegacyTableAlignmentAttrs($node)
-            . $this->renderLegacyTableFrameAttrs($node)
-            . $this->renderLegacyTableSpacingAttrs($node);
-    }
-
-    private function renderStoredTableElementAttrs(AstNode $node): string
-    {
-        $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes)) {
-            $htmlAttributes = [];
-        }
-        $htmlAttributes = $this->mergedStoredHtmlAttributes($node, $htmlAttributes);
-
-        $attrs = '';
-        $id = (string) ($htmlAttributes['id'] ?? $node->attr('id', ''));
-        if ($id !== '') {
-            $attrs .= ' id="' . $this->esc($id) . '"';
-        }
-
-        $class = (string) ($htmlAttributes['class'] ?? '');
-        if ($class === '') {
-            $classes = $node->attr('classes', []);
-            if (is_array($classes) && $classes !== []) {
-                $class = implode(' ', array_map(static fn (mixed $value): string => (string) $value, $classes));
-            }
-        }
-        if ($class !== '') {
-            $attrs .= ' class="' . $this->esc($class) . '"';
-        }
-
-        foreach ($htmlAttributes as $name => $value) {
-            $name = strtolower((string) $name);
-            if (
-                $name === 'id'
-                || $name === 'class'
-                || in_array($name, ['align', 'border', 'cellpadding', 'cellspacing', 'frame', 'rules'], true)
-                || !$this->isAllowedTableHtmlAttr($name)
-            ) {
-                continue;
-            }
-
-            if ($name === 'bgcolor') {
-                $value = $this->legacyTableBackgroundColorValue((string) $value);
-            } elseif ($name === 'style') {
-                $value = $this->legacyTableStyleValue((string) $value);
-            } else {
-                $value = $this->allowedTableHtmlAttrValue($name, $value);
-            }
-            if ($value === null || $value === '') {
-                continue;
-            }
-
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
-        }
-
-        return $attrs;
+        return $this->renderStoredHtmlAttrs($node, true, []);
     }
 
     private function renderCaptionInlines(AstNode $node): string
     {
         $inlines = $node->attr('captionInlines', null);
-        if (!is_array($inlines) || $inlines === []) {
+        if (!is_array($inlines)) {
             return $this->esc((string) $node->attr('caption', ''));
         }
 
@@ -698,130 +799,6 @@ final class WordPressBlockWriter
         return $html;
     }
 
-    private function tableHasCaption(AstNode $node): bool
-    {
-        return (string) $node->attr('caption', '') !== '' || $this->tableCaptionBlocks($node) !== [];
-    }
-
-    private function renderTableCaptionHtml(AstNode $node): string
-    {
-        if (!$this->tableHasCaption($node)) {
-            return '';
-        }
-
-        return '<figcaption' . $this->renderTableCaptionAttrs($node) . '>' . $this->renderTableCaptionContent($node) . '</figcaption>';
-    }
-
-    private function tableCaptionPlacement(AstNode $node): string
-    {
-        $captionSource = $node->attr('captionSource', []);
-        if (!is_array($captionSource)) {
-            return 'bottom';
-        }
-
-        $captionSide = strtolower(trim((string) ($captionSource['captionSide'] ?? '')));
-
-        return $captionSide === 'top' ? 'top' : 'bottom';
-    }
-
-    private function renderTableCaptionContent(AstNode $node): string
-    {
-        $captionBlocks = $this->tableCaptionBlocks($node);
-        if ($captionBlocks !== []) {
-            return $this->renderBlocksAsHtml($captionBlocks);
-        }
-
-        return $this->renderCaptionInlines($node);
-    }
-
-    private function renderTableCaptionAttrs(AstNode $node): string
-    {
-        $captionSource = $node->attr('captionSource', []);
-        $sourceAttributes = is_array($captionSource) && is_array($captionSource['sourceAttributes'] ?? null)
-            ? $captionSource['sourceAttributes']
-            : [];
-        $htmlAttributes = is_array($sourceAttributes['htmlAttributes'] ?? null) ? $sourceAttributes['htmlAttributes'] : [];
-        $attributes = is_array($sourceAttributes['attributes'] ?? null) ? $sourceAttributes['attributes'] : [];
-
-        $merged = [];
-        foreach ($htmlAttributes as $name => $value) {
-            $name = strtolower(trim((string) $name));
-            if ($name === '' || !is_scalar($value)) {
-                continue;
-            }
-
-            $merged[$name] = (string) $value;
-        }
-        foreach ($attributes as $name => $value) {
-            $name = strtolower(trim((string) $name));
-            if ($name === '' || !is_scalar($value) || array_key_exists($name, $merged)) {
-                continue;
-            }
-
-            $merged[$name] = (string) $value;
-        }
-
-        if (isset($sourceAttributes['id']) && is_scalar($sourceAttributes['id'])) {
-            $id = trim((string) $sourceAttributes['id']);
-            if ($id !== '') {
-                $merged['id'] = $id;
-            }
-        }
-
-        $classes = ['wp-element-caption'];
-        if (isset($sourceAttributes['classes']) && is_array($sourceAttributes['classes'])) {
-            foreach ($sourceAttributes['classes'] as $class) {
-                if (!is_scalar($class)) {
-                    continue;
-                }
-
-                $class = trim((string) $class);
-                if ($class !== '') {
-                    $classes[] = $class;
-                }
-            }
-        } elseif (isset($merged['class'])) {
-            foreach (preg_split('/\s+/', trim((string) $merged['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
-                $classes[] = $class;
-            }
-        }
-
-        $attrs = '';
-        if (isset($merged['id']) && trim((string) $merged['id']) !== '') {
-            $attrs .= ' id="' . $this->esc((string) $merged['id']) . '"';
-        }
-        $attrs .= ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
-
-        foreach ($merged as $name => $value) {
-            $name = strtolower((string) $name);
-            if ($name === 'id' || $name === 'class' || !$this->isAllowedTableHtmlAttr($name)) {
-                continue;
-            }
-
-            $value = $this->allowedTableHtmlAttrValue($name, $value);
-            if ($value === null) {
-                continue;
-            }
-
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
-        }
-
-        return $attrs;
-    }
-
-    /**
-     * @return list<AstNode>
-     */
-    private function tableCaptionBlocks(AstNode $node): array
-    {
-        $captionBlocks = $node->attr('captionBlocks', []);
-        if (!is_array($captionBlocks)) {
-            return [];
-        }
-
-        return array_values(array_filter($captionBlocks, static fn (mixed $block): bool => $block instanceof AstNode));
-    }
-
     private function renderTableColgroup(AstNode $node): string
     {
         $widths = $node->attr('widths', null);
@@ -829,439 +806,16 @@ final class WordPressBlockWriter
             return '';
         }
 
-        $specs = TableGeometry::columnSpecs($node, count($widths));
         $cols = [];
-        $hasColumnSources = false;
-        foreach ($specs as $spec) {
-            $width = $spec['width'];
-            if ($width === null) {
+        foreach ($widths as $width) {
+            if (!is_numeric($width) || (float) $width <= 0.0) {
                 return '';
             }
 
-            $hasColumnSources = $hasColumnSources || is_array($spec['source'] ?? null);
-            $cols[] = '<col style="width:' . $this->esc($this->formatTableWidth($width)) . '"/>';
-        }
-
-        if ($hasColumnSources && $this->tableColumnSpecsHaveCompleteSources($specs)) {
-            return $this->renderSourceTableColgroups($specs);
+            $cols[] = '<col style="width:' . $this->esc($this->formatTableWidth((float) $width)) . '"/>';
         }
 
         return '<colgroup>' . implode('', $cols) . '</colgroup>';
-    }
-
-    /**
-     * @param list<array<string, mixed>> $specs
-     */
-    private function tableColumnSpecsHaveCompleteSources(array $specs): bool
-    {
-        foreach ($specs as $spec) {
-            if (!is_array($spec['source'] ?? null)) {
-                return false;
-            }
-        }
-
-        return $specs !== [];
-    }
-
-    /**
-     * @param list<array<string, mixed>> $specs
-     */
-    private function renderSourceTableColgroups(array $specs): string
-    {
-        $html = '';
-        $currentGroupKey = null;
-
-        foreach ($specs as $spec) {
-            $source = is_array($spec['source'] ?? null) ? $spec['source'] : [];
-            $groupKey = $this->tableColumnSourceColgroupKey($source);
-            if ($groupKey !== $currentGroupKey) {
-                if ($currentGroupKey !== null) {
-                    $html .= '</colgroup>';
-                }
-
-                $colgroupAttributes = is_array($source['colgroupAttributes'] ?? null)
-                    ? $source['colgroupAttributes']
-                    : [];
-                $html .= '<colgroup'
-                    . $this->renderSourceColumnDecimalAlignmentAttr($colgroupAttributes)
-                    . $this->renderSourceAttributeSummaryAttrs($colgroupAttributes, true, ['align', 'span', 'style', 'valign', 'width'])
-                    . '>';
-                $currentGroupKey = $groupKey;
-            }
-
-            $colAttributes = is_array($source['colAttributes'] ?? null) ? $source['colAttributes'] : [];
-            $attrs = $this->renderSourceColumnDecimalAlignmentAttr($colAttributes)
-                . $this->renderSourceAttributeSummaryAttrs($colAttributes, false, ['align', 'span', 'style', 'width']);
-            $width = isset($spec['width']) && is_numeric($spec['width']) ? (float) $spec['width'] : 0.0;
-            $styles = ['width:' . $this->formatTableWidth($width)];
-            $backgroundColor = $this->sourceColumnBackgroundColor($source);
-            if ($backgroundColor !== '') {
-                $styles[] = 'background-color:' . $backgroundColor;
-            }
-            array_push($styles, ...$this->sourceColumnBorderStyles($source));
-            $attrs .= ' style="' . $this->esc(implode('; ', $styles)) . '"';
-            $html .= '<col' . $attrs . '/>';
-        }
-
-        return $currentGroupKey === null ? '' : $html . '</colgroup>';
-    }
-
-    /**
-     * @param array<string, mixed> $source
-     */
-    private function sourceColumnBackgroundColor(array $source): string
-    {
-        $colAttributes = is_array($source['colAttributes'] ?? null) ? $source['colAttributes'] : [];
-        $color = $this->sourceAttributeBackgroundColor($colAttributes);
-        if ($color !== '') {
-            return $color;
-        }
-
-        $colgroupAttributes = is_array($source['colgroupAttributes'] ?? null) ? $source['colgroupAttributes'] : [];
-
-        return $this->sourceAttributeBackgroundColor($colgroupAttributes);
-    }
-
-    /**
-     * @param array<string, mixed> $source
-     * @return list<string>
-     */
-    private function sourceColumnBorderStyles(array $source): array
-    {
-        $colAttributes = is_array($source['colAttributes'] ?? null) ? $source['colAttributes'] : [];
-        $styles = $this->sourceAttributeBorderStyles($colAttributes);
-        if ($styles !== []) {
-            return $styles;
-        }
-
-        $colgroupAttributes = is_array($source['colgroupAttributes'] ?? null) ? $source['colgroupAttributes'] : [];
-
-        return $this->sourceAttributeBorderStyles($colgroupAttributes);
-    }
-
-    /**
-     * @param array<string, mixed> $sourceAttributes
-     * @return list<string>
-     */
-    private function sourceAttributeBorderStyles(array $sourceAttributes): array
-    {
-        $attributes = $this->sourceAttributeSummaryMap($sourceAttributes);
-        $style = (string) ($attributes['style'] ?? '');
-        if ($style === '') {
-            return [];
-        }
-
-        $declarations = [];
-        foreach (explode(';', $style) as $declaration) {
-            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
-            $name = strtolower(trim($name));
-            $value = trim($value);
-            if ($name === '' || $value === '') {
-                continue;
-            }
-
-            if ($name === 'border-color') {
-                $color = $this->legacyTableBackgroundColorValue($value);
-                if ($color !== '') {
-                    $declarations[$name] = $name . ':' . $color;
-                }
-                continue;
-            }
-
-            if ($name === 'border-style') {
-                $borderStyle = $this->legacyTableBorderStyleValue($value);
-                if ($borderStyle !== '') {
-                    $declarations[$name] = $name . ':' . $borderStyle;
-                }
-                continue;
-            }
-
-            if ($name === 'border-width') {
-                $width = $this->legacyTableBorderWidthValue($value);
-                if ($width !== '') {
-                    $declarations[$name] = $name . ':' . $width;
-                }
-                continue;
-            }
-
-            if (preg_match('/^border-(top|right|bottom|left)$/', $name) === 1) {
-                $border = $this->legacyTableBorderShorthandValue($value);
-                if ($border !== '') {
-                    $declarations[$name] = $name . ':' . $border;
-                }
-                continue;
-            }
-
-            if (preg_match('/^border-(top|right|bottom|left)-(color|style|width)$/', $name, $match) !== 1) {
-                continue;
-            }
-
-            $normalized = match ($match[2]) {
-                'color' => $this->legacyTableBackgroundColorValue($value),
-                'style' => $this->legacyTableBorderStyleValue($value),
-                'width' => $this->legacyTableBorderSingleWidthValue($value),
-            };
-            if ($normalized !== '') {
-                $declarations[$name] = $name . ':' . $normalized;
-            }
-        }
-
-        return array_values($declarations);
-    }
-
-    /**
-     * @param array<string, mixed> $sourceAttributes
-     */
-    private function sourceAttributeBackgroundColor(array $sourceAttributes): string
-    {
-        $attributes = $this->sourceAttributeSummaryMap($sourceAttributes);
-        $style = (string) ($attributes['style'] ?? '');
-        if ($style !== '') {
-            foreach (explode(';', $style) as $declaration) {
-                [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
-                if (strtolower(trim($name)) !== 'background-color') {
-                    continue;
-                }
-
-                $color = $this->legacyTableBackgroundColorValue($value);
-                if ($color !== '') {
-                    return $color;
-                }
-            }
-        }
-
-        return $this->legacyTableBackgroundColorValue((string) ($attributes['bgcolor'] ?? ''));
-    }
-
-    /**
-     * @param array<string, mixed> $sourceAttributes
-     */
-    private function renderSourceColumnDecimalAlignmentAttr(array $sourceAttributes): string
-    {
-        $attributes = $this->sourceAttributeSummaryMap($sourceAttributes);
-        if (strtolower(trim((string) ($attributes['align'] ?? ''))) !== 'char') {
-            return '';
-        }
-
-        return ' align="char"';
-    }
-
-    /**
-     * @param array<string, mixed> $source
-     */
-    private function tableColumnSourceColgroupKey(array $source): string
-    {
-        if (isset($source['colgroupIndex']) && is_numeric($source['colgroupIndex'])) {
-            return 'index:' . (int) $source['colgroupIndex'];
-        }
-
-        return 'attributes:' . json_encode($source['colgroupAttributes'] ?? [], JSON_UNESCAPED_SLASHES);
-    }
-
-    private function renderLegacyTableFrameAttrs(AstNode $node): string
-    {
-        $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes)) {
-            $htmlAttributes = [];
-        }
-        $attributes = $this->mergedStoredHtmlAttributes($node, $htmlAttributes);
-
-        $attrs = '';
-        if (array_key_exists('border', $attributes)) {
-            $border = $this->legacyTableBorderValue((string) $attributes['border']);
-            if ($border !== '') {
-                $attrs .= ' border="' . $this->esc($border) . '"';
-            }
-        }
-
-        $frame = $this->legacyTableFrameValue((string) ($attributes['frame'] ?? ''));
-        if ($frame !== '') {
-            $attrs .= ' frame="' . $this->esc($frame) . '"';
-        }
-
-        $rules = $this->legacyTableRulesValue((string) ($attributes['rules'] ?? ''));
-        if ($rules !== '') {
-            $attrs .= ' rules="' . $this->esc($rules) . '"';
-        }
-
-        return $attrs;
-    }
-
-    private function renderLegacyTableAlignmentAttrs(AstNode $node): string
-    {
-        $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes)) {
-            $htmlAttributes = [];
-        }
-        $attributes = $this->mergedStoredHtmlAttributes($node, $htmlAttributes);
-
-        $alignment = $this->legacyTableAlignmentValue((string) ($attributes['align'] ?? ''));
-        if ($alignment === '') {
-            return '';
-        }
-
-        return ' align="' . $this->esc($alignment) . '"';
-    }
-
-    private function legacyTableAlignmentValue(string $value): string
-    {
-        $value = strtolower(trim($value));
-
-        return in_array($value, ['left', 'right', 'center'], true) ? $value : '';
-    }
-
-    private function legacyTableBorderValue(string $value): string
-    {
-        $value = trim($value);
-        if ($value === '' || strtolower($value) === 'border') {
-            return '1';
-        }
-
-        return preg_match('/^\d{1,3}$/', $value) === 1 ? $value : '';
-    }
-
-    private function legacyTableFrameValue(string $value): string
-    {
-        $value = strtolower(trim($value));
-        return in_array($value, ['void', 'above', 'below', 'hsides', 'lhs', 'rhs', 'vsides', 'box', 'border'], true)
-            ? $value
-            : '';
-    }
-
-    private function legacyTableRulesValue(string $value): string
-    {
-        $value = strtolower(trim($value));
-        return in_array($value, ['none', 'groups', 'rows', 'cols', 'all'], true) ? $value : '';
-    }
-
-    private function renderLegacyTableSpacingAttrs(AstNode $node): string
-    {
-        $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes)) {
-            $htmlAttributes = [];
-        }
-        $attributes = $this->mergedStoredHtmlAttributes($node, $htmlAttributes);
-
-        $attrs = '';
-        foreach (['cellpadding', 'cellspacing'] as $name) {
-            if (!array_key_exists($name, $attributes)) {
-                continue;
-            }
-
-            $value = $this->legacyTableSpacingValue((string) $attributes[$name]);
-            if ($value !== '') {
-                $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
-            }
-        }
-
-        return $attrs;
-    }
-
-    private function legacyTableSpacingValue(string $value): string
-    {
-        $value = trim($value);
-
-        return preg_match('/^\d{1,3}$/', $value) === 1 ? $value : '';
-    }
-
-    /**
-     * @param array<string, mixed> $sourceAttributes
-     * @param list<string> $skip
-     */
-    private function renderSourceAttributeSummaryAttrs(array $sourceAttributes, bool $includeIdentity, array $skip): string
-    {
-        $attributes = $this->sourceAttributeSummaryMap($sourceAttributes);
-        if ($attributes === []) {
-            return '';
-        }
-
-        $attrs = '';
-        if ($includeIdentity) {
-            $id = trim((string) ($attributes['id'] ?? ''));
-            if ($id !== '') {
-                $attrs .= ' id="' . $this->esc($id) . '"';
-            }
-
-            $class = trim((string) ($attributes['class'] ?? ''));
-            if ($class !== '') {
-                $attrs .= ' class="' . $this->esc($class) . '"';
-            }
-        }
-
-        foreach ($attributes as $name => $value) {
-            $name = strtolower(trim((string) $name));
-            if (
-                $name === ''
-                || $name === 'id'
-                || $name === 'class'
-                || in_array($name, $skip, true)
-                || !$this->isAllowedTableHtmlAttr($name)
-            ) {
-                continue;
-            }
-
-            $value = $this->allowedTableHtmlAttrValue($name, $value);
-            if ($value === null) {
-                continue;
-            }
-
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
-        }
-
-        return $attrs;
-    }
-
-    /**
-     * @param array<string, mixed> $sourceAttributes
-     * @return array<string, string>
-     */
-    private function sourceAttributeSummaryMap(array $sourceAttributes): array
-    {
-        $merged = [];
-        foreach (['htmlAttributes', 'attributes'] as $attributeKey) {
-            $attributes = $sourceAttributes[$attributeKey] ?? [];
-            if (!is_array($attributes)) {
-                continue;
-            }
-
-            foreach ($attributes as $name => $value) {
-                $name = strtolower(trim((string) $name));
-                if ($name === '' || !is_scalar($value) || array_key_exists($name, $merged)) {
-                    continue;
-                }
-
-                $merged[$name] = (string) $value;
-            }
-        }
-
-        if (isset($sourceAttributes['id']) && is_scalar($sourceAttributes['id'])) {
-            $id = trim((string) $sourceAttributes['id']);
-            if ($id !== '') {
-                $merged['id'] = $id;
-            }
-        }
-
-        if (isset($sourceAttributes['classes']) && is_array($sourceAttributes['classes'])) {
-            $classes = [];
-            foreach ($sourceAttributes['classes'] as $class) {
-                if (!is_scalar($class)) {
-                    continue;
-                }
-
-                $class = trim((string) $class);
-                if ($class !== '') {
-                    $classes[] = $class;
-                }
-            }
-
-            if ($classes !== []) {
-                $merged['class'] = implode(' ', array_values(array_unique($classes)));
-            }
-        }
-
-        ksort($merged);
-
-        return $merged;
     }
 
     private function formatTableWidth(float $width): string
@@ -1271,277 +825,22 @@ final class WordPressBlockWriter
         return ($formatted === '' ? '0' : $formatted) . '%';
     }
 
-    private function tableColumnCount(AstNode $table): int
+    private function renderTableRow(AstNode $row, AstNode $table, bool $header, int $rowHeadColumns = 0): string
     {
-        return TableGeometry::columnCount($table);
-    }
-
-    /**
-     * @return array<string, array{id?:string,scope?:string,headers?:list<string>}>
-     */
-    private function tableAccessibilityAttrs(AstNode $table): array
-    {
-        $enabled = $table->attr('accessibilityHeaders', false);
-        $prefix = trim((string) $table->attr('accessibilityIdPrefix', ''));
-        if ($enabled !== true && $prefix === '' && !$this->tableHasAutoHeaderScope($table)) {
-            return [];
-        }
-
-        if ($prefix === '') {
-            $htmlAttributes = $table->attr('htmlAttributes', []);
-            if (is_array($htmlAttributes) && isset($htmlAttributes['id'])) {
-                $prefix = (string) $htmlAttributes['id'];
-            }
-        }
-
-        if ($prefix === '') {
-            $prefix = (string) $table->attr('id', 'pandoc-table');
-        }
-
-        return TableGeometry::accessibilityAttributes($table, $prefix);
-    }
-
-    private function tableHasAutoHeaderScope(AstNode $table): bool
-    {
-        foreach ($table->children as $section) {
-            if (!in_array($section->type, ['table_head', 'table_body', 'table_foot'], true)) {
+        $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
+        $logicalColumn = 0;
+        foreach ($row->children as $index => $cell) {
+            if ($cell->type !== 'table_cell') {
                 continue;
             }
-
-            foreach ($section->children as $row) {
-                if ($row->type !== 'table_row') {
-                    continue;
-                }
-
-                foreach ($row->children as $cell) {
-                    if ($cell->type === 'table_cell' && $this->sourceTableCellRawScope($cell) === 'auto') {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @return list<AstNode>
-     */
-    private function tableRows(AstNode $section): array
-    {
-        $rows = [];
-        foreach ($section->children as $row) {
-            if ($row->type === 'table_row') {
-                $rows[] = $row;
-            }
-        }
-
-        return $rows;
-    }
-
-    /**
-     * @return list<AstNode>
-     */
-    private function tableBodyRows(AstNode $body): array
-    {
-        $rows = [];
-        $bodyHeadRows = $body->attr('headRows', []);
-        if (is_array($bodyHeadRows)) {
-            foreach ($bodyHeadRows as $row) {
-                if ($row instanceof AstNode && $row->type === 'table_row') {
-                    $rows[] = $row;
-                }
-            }
-        }
-
-        array_push($rows, ...$this->tableRows($body));
-
-        return $rows;
-    }
-
-    /**
-     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
-     */
-    private function tableRowEntries(AstNode $section, bool $header): array
-    {
-        $entries = [];
-        foreach ($this->tableRows($section) as $row) {
-            $entries[] = [
-                'row' => $row,
-                'header' => $header,
-                'rowHeadColumns' => 0,
-            ];
-        }
-
-        return $entries;
-    }
-
-    /**
-     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int}>
-     */
-    private function tableBodyRowEntries(AstNode $body, int $columnCount): array
-    {
-        $entries = [];
-        $rowHeadColumns = TableGeometry::rowHeadColumns($body, $columnCount);
-        $bodyHeadRows = $body->attr('headRows', []);
-        if (is_array($bodyHeadRows)) {
-            foreach ($bodyHeadRows as $row) {
-                if ($row instanceof AstNode && $row->type === 'table_row') {
-                    $entries[] = [
-                        'row' => $row,
-                        'header' => true,
-                        'rowHeadColumns' => 0,
-                    ];
-                }
-            }
-        }
-
-        foreach ($this->tableRows($body) as $row) {
-            $entries[] = [
-                'row' => $row,
-                'header' => false,
-                'rowHeadColumns' => $rowHeadColumns,
-            ];
-        }
-
-        return $entries;
-    }
-
-    /**
-     * @param list<array{row:AstNode,header:bool,rowHeadColumns:int}> $rowEntries
-     */
-    private function renderTableRows(array $rowEntries, AstNode $table, int $columnCount, string $section, array $accessibilityAttrs): string
-    {
-        $rows = [];
-        foreach ($rowEntries as $entry) {
-            $rows[] = $entry['row'];
-        }
-
-        $gridRows = $this->preserveTableMissingCells || $this->preserveTableCoveredSlots
-            ? TableGeometry::sectionGrid($rows, $columnCount)
-            : [];
-        $html = '';
-        foreach (TableGeometry::layoutRows($rows, $columnCount) as $index => $layoutRow) {
-            $html .= $this->renderTableRow(
-                $layoutRow,
-                $table,
-                $columnCount,
-                (bool) ($rowEntries[$index]['header'] ?? false),
-                (int) ($rowEntries[$index]['rowHeadColumns'] ?? 0),
-                $section,
-                $index,
-                $accessibilityAttrs,
-                $gridRows[$index] ?? []
-            );
-        }
-
-        return $html;
-    }
-
-    /**
-     * @param array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int}>} $layoutRow
-     * @param list<array<string, mixed>> $gridSlots
-     */
-    private function renderTableRow(
-        array $layoutRow,
-        AstNode $table,
-        int $columnCount,
-        bool $header,
-        int $rowHeadColumns,
-        string $section,
-        int $rowIndex,
-        array $accessibilityAttrs,
-        array $gridSlots
-    ): string
-    {
-        $row = $layoutRow['row'];
-        $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
-        $visualColumn = 0;
-        foreach ($layoutRow['cells'] as $layoutCell) {
-            $cell = $layoutCell['node'];
-            $anchorColumn = (int) $layoutCell['column'];
-            $html .= $this->renderMissingTableCells($gridSlots, $visualColumn, $anchorColumn);
-            $accessibilityKey = TableGeometry::accessibilityKey(
-                $section,
-                $rowIndex,
-                (int) ($layoutCell['sourceCell'] ?? 0),
-                (int) ($layoutCell['sourceColumn'] ?? 0)
-            );
-            $attrs = $this->renderTableCellAttrs(
-                $table,
-                $layoutCell['column'],
-                $layoutCell['colspan'],
-                $layoutCell['rowspan'],
-                $cell,
-                $accessibilityAttrs[$accessibilityKey] ?? [],
-                $this->coveredSlotReplayRecords($gridSlots[$anchorColumn] ?? null)
-            );
-            $tag = TableGeometry::isHeaderCell($header, $rowHeadColumns, $layoutCell['column'], $cell) ? 'th' : 'td';
+            $colspan = max(1, (int) $cell->attr('colspan', 1));
+            $attrs = $this->renderTableCellAttrs($table, $index, $cell);
+            $tag = $header || $cell->attr('header') === true || ($logicalColumn < $rowHeadColumns && $logicalColumn + $colspan <= $rowHeadColumns) ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
-            $visualColumn = max($visualColumn, $anchorColumn + max(1, (int) $layoutCell['colspan']));
+            $logicalColumn += $colspan;
         }
-
-        $html .= $this->renderMissingTableCells($gridSlots, $visualColumn, $columnCount);
 
         return $html . '</tr>';
-    }
-
-    /**
-     * @param list<array<string, mixed>> $gridSlots
-     */
-    private function renderMissingTableCells(array $gridSlots, int $startColumn, int $endColumn): string
-    {
-        if (!$this->preserveTableMissingCells || $gridSlots === []) {
-            return '';
-        }
-
-        $html = '';
-        for ($column = max(0, $startColumn); $column < $endColumn; $column++) {
-            $slot = $gridSlots[$column] ?? null;
-            if (!is_array($slot) || ($slot['kind'] ?? null) !== 'missing') {
-                continue;
-            }
-
-            $row = isset($slot['row']) && is_numeric($slot['row']) ? (int) $slot['row'] : 0;
-            $slotColumn = isset($slot['column']) && is_numeric($slot['column']) ? (int) $slot['column'] : $column;
-            $html .= '<td data-pandoc-missing-cell="true"'
-                . ' data-pandoc-missing-row="' . $this->esc((string) $row) . '"'
-                . ' data-pandoc-missing-column="' . $this->esc((string) $slotColumn) . '"'
-                . ' aria-hidden="true"></td>';
-        }
-
-        return $html;
-    }
-
-    /**
-     * @return list<array{row:int,column:int,covering:string}>
-     */
-    private function coveredSlotReplayRecords(mixed $slot): array
-    {
-        if (!$this->preserveTableCoveredSlots || !is_array($slot) || ($slot['kind'] ?? null) !== 'cell') {
-            return [];
-        }
-
-        $records = [];
-        $occupiedSlots = is_array($slot['occupiedSlots'] ?? null) ? $slot['occupiedSlots'] : [];
-        foreach ($occupiedSlots as $occupiedSlot) {
-            if (!is_array($occupiedSlot)) {
-                continue;
-            }
-
-            $covering = (string) ($occupiedSlot['covering'] ?? '');
-            if (!in_array($covering, ['colspan', 'rowspan', 'rowspan-colspan'], true)) {
-                continue;
-            }
-
-            $records[] = [
-                'row' => isset($occupiedSlot['row']) && is_numeric($occupiedSlot['row']) ? (int) $occupiedSlot['row'] : 0,
-                'column' => isset($occupiedSlot['column']) && is_numeric($occupiedSlot['column']) ? (int) $occupiedSlot['column'] : 0,
-                'covering' => $covering,
-            ];
-        }
-
-        return $records;
     }
 
     private function renderTableCellContent(AstNode $cell): string
@@ -1580,6 +879,7 @@ final class WordPressBlockWriter
             'quoted',
             'math',
             'raw_tex',
+            'raw_tex_inline',
             'raw_html_inline',
             'raw_inline',
             'code',
@@ -1587,29 +887,31 @@ final class WordPressBlockWriter
             'image',
             'note',
             'citation',
-            'citation_group',
         ], true);
     }
 
-    /**
-     * @param list<array{row:int,column:int,covering:string}> $coveredSlots
-     */
-    private function renderTableCellAttrs(AstNode $table, int $column, int $colspan, int $rowspan, AstNode $cell, array $accessibilityAttrs = [], array $coveredSlots = []): string
+    private function renderTableCellAttrs(AstNode $table, int $index, AstNode $cell): string
     {
-        $attrs = $this->renderComputedTableAccessibilityAttrs($cell, $accessibilityAttrs);
-        $attrs .= $this->renderSourceCellDecimalAlignmentAttr($cell);
-        $attrs .= $this->renderStoredHtmlAttrs($cell, true, ['style']);
-        $attrs .= $this->renderCoveredTableSlotAttrs($coveredSlots);
+        $attrs = $this->renderStoredHtmlAttrs($cell, true, ['style']);
+        if ($this->shouldMarkEmptyTableCell($cell)) {
+            $attrs .= ' data-pandoc-empty-cell="true"';
+        }
+
+        $colspan = (int) $cell->attr('colspan', 1);
         if ($colspan > 1) {
             $attrs .= ' colspan="' . $colspan . '"';
         }
 
+        $rowspan = (int) $cell->attr('rowspan', 1);
         if ($rowspan > 1) {
             $attrs .= ' rowspan="' . $rowspan . '"';
         }
 
-        $alignment = TableGeometry::cellAlignment($table, $column, $cell);
-        $verticalAlignment = TableGeometry::cellVerticalAlignment($cell);
+        $alignments = $table->attr('alignments', []);
+        $alignment = (string) $cell->attr('align', '');
+        if ($alignment === '' && is_array($alignments)) {
+            $alignment = (string) ($alignments[$index] ?? 'default');
+        }
 
         $styles = [];
         $sourceStyle = $this->storedHtmlStyle($cell);
@@ -1624,13 +926,6 @@ final class WordPressBlockWriter
             $styles[] = 'text-align:' . $alignment;
         }
 
-        if (
-            in_array($verticalAlignment, ['baseline', 'top', 'middle', 'bottom'], true)
-            && !$this->sourceTableCellHasVerticalAlignment($cell, $sourceStyle)
-        ) {
-            $styles[] = 'vertical-align:' . $verticalAlignment;
-        }
-
         if ($styles !== []) {
             $attrs .= ' style="' . $this->esc(implode('; ', $styles)) . '"';
         }
@@ -1638,124 +933,48 @@ final class WordPressBlockWriter
         return $attrs;
     }
 
-    /**
-     * @param list<array{row:int,column:int,covering:string}> $coveredSlots
-     */
-    private function renderCoveredTableSlotAttrs(array $coveredSlots): string
+    private function shouldMarkEmptyTableCell(AstNode $cell): bool
     {
-        if ($coveredSlots === []) {
-            return '';
-        }
-
-        $tokens = [];
-        foreach ($coveredSlots as $slot) {
-            $tokens[] = max(0, (int) $slot['row'])
-                . ':' . max(0, (int) $slot['column'])
-                . ':' . $slot['covering'];
-        }
-
-        return ' data-pandoc-span-anchor="true"'
-            . ' data-pandoc-covered-slot-count="' . count($tokens) . '"'
-            . ' data-pandoc-covered-slots="' . $this->esc(implode(';', $tokens)) . '"';
+        return (bool) ($this->options['markEmptyTableCells'] ?? false)
+            && $this->isEmptyTableCell($cell);
     }
 
-    private function renderSourceCellDecimalAlignmentAttr(AstNode $cell): string
+    private function isEmptyTableCell(AstNode $cell): bool
     {
-        $htmlAttributes = $cell->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes)) {
-            $htmlAttributes = [];
+        if ($cell->children === []) {
+            return trim((string) $cell->attr('text', '')) === '';
         }
 
-        $attributes = $this->mergedStoredHtmlAttributes($cell, $htmlAttributes);
-        $alignment = strtolower(trim((string) ($attributes['align'] ?? '')));
-
-        return $alignment === 'char' ? ' align="char"' : '';
-    }
-
-    private function sourceTableCellHasVerticalAlignment(AstNode $cell, string $sourceStyle): bool
-    {
-        if (preg_match('/(?:^|;)\s*vertical-align\s*:/i', $sourceStyle) === 1) {
-            return true;
-        }
-
-        $htmlAttributes = $cell->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes)) {
-            $htmlAttributes = [];
-        }
-
-        $htmlAttributes = $this->mergedStoredHtmlAttributes($cell, $htmlAttributes);
-
-        return isset($htmlAttributes['valign']) && trim((string) $htmlAttributes['valign']) !== '';
-    }
-
-    /**
-     * @param array{id?:string,scope?:string,headers?:list<string>} $accessibilityAttrs
-     */
-    private function renderComputedTableAccessibilityAttrs(AstNode $cell, array $accessibilityAttrs): string
-    {
-        if ($accessibilityAttrs === []) {
-            return '';
-        }
-
-        $sourceAttrs = $cell->attr('htmlAttributes', []);
-        if (!is_array($sourceAttrs)) {
-            $sourceAttrs = [];
-        }
-        $lowerSourceAttrs = $this->mergedStoredHtmlAttributes($cell, $sourceAttrs);
-        $attrs = '';
-
-        $id = (string) ($accessibilityAttrs['id'] ?? '');
-        if ($id !== '' && $this->sourceHtmlId($cell) === '') {
-            $attrs .= ' id="' . $this->esc($id) . '"';
-        }
-
-        $scope = (string) ($accessibilityAttrs['scope'] ?? '');
-        if ($scope !== '' && $this->sourceTableCellScope($cell) === '') {
-            $attrs .= ' scope="' . $this->esc($scope) . '"';
-        }
-
-        $headers = $accessibilityAttrs['headers'] ?? [];
-        if (is_array($headers) && $headers !== [] && !isset($lowerSourceAttrs['headers'])) {
-            $attrs .= ' headers="' . $this->esc(implode(' ', array_map(static fn (mixed $value): string => (string) $value, $headers))) . '"';
-        }
-
-        return $attrs;
-    }
-
-    private function sourceHtmlId(AstNode $node): string
-    {
-        $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes)) {
-            $htmlAttributes = [];
-        }
-
-        $htmlAttributes = $this->mergedStoredHtmlAttributes($node, $htmlAttributes);
-        if (isset($htmlAttributes['id'])) {
-            $id = trim((string) $htmlAttributes['id']);
-            if ($id !== '') {
-                return $id;
+        foreach ($cell->children as $child) {
+            if ($this->nodeHasVisibleTableCellContent($child)) {
+                return false;
             }
         }
 
-        return trim((string) $node->attr('id', ''));
+        return true;
     }
 
-    private function sourceTableCellScope(AstNode $cell): string
+    private function nodeHasVisibleTableCellContent(AstNode $node): bool
     {
-        $scope = $this->sourceTableCellRawScope($cell);
-
-        return in_array($scope, self::TABLE_CELL_SCOPES, true) ? $scope : '';
-    }
-
-    private function sourceTableCellRawScope(AstNode $cell): string
-    {
-        $htmlAttributes = $cell->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes)) {
-            $htmlAttributes = [];
+        if (trim((string) $node->attr('text', '')) !== '') {
+            return true;
         }
 
-        $htmlAttributes = $this->mergedStoredHtmlAttributes($cell, $htmlAttributes);
-        return strtolower(trim((string) ($htmlAttributes['scope'] ?? '')));
+        if (in_array($node->type, ['image', 'code_block', 'raw_html', 'raw_tex', 'raw_block', 'table', 'horizontal_rule'], true)) {
+            foreach (['url', 'src', 'alt', 'html', 'tex', 'format'] as $attr) {
+                if (trim((string) $node->attr($attr, '')) !== '') {
+                    return true;
+                }
+            }
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->nodeHasVisibleTableCellContent($child)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1764,12 +983,7 @@ final class WordPressBlockWriter
     private function renderStoredHtmlAttrs(AstNode $node, bool $includeIdentity, array $skip): string
     {
         $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes)) {
-            $htmlAttributes = [];
-        }
-        $htmlAttributes = $this->mergedStoredHtmlAttributes($node, $htmlAttributes);
-
-        if ($htmlAttributes === [] && !$includeIdentity) {
+        if (!is_array($htmlAttributes) || $htmlAttributes === []) {
             return '';
         }
 
@@ -1803,49 +1017,10 @@ final class WordPressBlockWriter
                 continue;
             }
 
-            $value = $this->allowedTableHtmlAttrValue($name, $value);
-            if ($value === null) {
-                continue;
-            }
-
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
         }
 
         return $attrs;
-    }
-
-    /**
-     * @param array<string|int, mixed> $htmlAttributes
-     *
-     * @return array<string, mixed>
-     */
-    private function mergedStoredHtmlAttributes(AstNode $node, array $htmlAttributes): array
-    {
-        $merged = [];
-        foreach ($htmlAttributes as $name => $value) {
-            $name = strtolower(trim((string) $name));
-            if ($name === '' || !is_scalar($value)) {
-                continue;
-            }
-
-            $merged[$name] = $value;
-        }
-
-        $attributes = $node->attr('attributes', []);
-        if (!is_array($attributes)) {
-            return $merged;
-        }
-
-        foreach ($attributes as $name => $value) {
-            $name = strtolower(trim((string) $name));
-            if ($name === '' || !is_scalar($value) || array_key_exists($name, $merged)) {
-                continue;
-            }
-
-            $merged[$name] = $value;
-        }
-
-        return $merged;
     }
 
     private function storedHtmlStyle(AstNode $node): string
@@ -1871,427 +1046,11 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'axis', 'autocapitalize', 'autocorrect', 'bgcolor', 'char', 'charoff', 'dir', 'enterkeyhint', 'headers', 'height', 'inputmode', 'lang', 'nowrap', 'role', 'scope', 'spellcheck', 'style', 'summary', 'title', 'translate', 'valign', 'virtualkeyboardpolicy', 'width', 'writingsuggestions', 'xml:lang'], true);
-    }
-
-    private function allowedTableHtmlAttrValue(string $name, mixed $value): ?string
-    {
-        if (!is_scalar($value)) {
-            return null;
-        }
-
-        $value = (string) $value;
-        if ($name === 'width' || $name === 'height') {
-            return $this->allowedTableDimensionValue($value);
-        }
-
-        if ($name === 'nowrap') {
-            $normalized = strtolower(trim($value));
-
-            return in_array($normalized, ['false', '0', 'no', 'off'], true) ? null : 'nowrap';
-        }
-
-        if ($name === 'scope') {
-            $scope = strtolower(trim($value));
-
-            return in_array($scope, self::TABLE_CELL_SCOPES, true) ? $scope : null;
-        }
-
-        if ($name === 'headers') {
-            $tokens = preg_split('/\s+/', trim($value), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-            $headers = [];
-            foreach ($tokens as $token) {
-                $token = trim((string) $token);
-                if ($token !== '') {
-                    $headers[] = $token;
-                }
-            }
-            $headers = array_values(array_unique($headers));
-
-            return $headers === [] ? null : implode(' ', $headers);
-        }
-
-        if ($name === 'lang' || $name === 'xml:lang') {
-            return $this->allowedTableLanguageValue($value);
-        }
-
-        if ($name === 'translate') {
-            return $this->allowedTableTranslateValue($value);
-        }
-
-        if ($name !== 'dir') {
-            return $value;
-        }
-
-        $direction = strtolower(trim($value));
-
-        return in_array($direction, ['ltr', 'rtl', 'auto'], true) ? $direction : null;
-    }
-
-    private function allowedTableLanguageValue(string $value): ?string
-    {
-        $tag = trim($value);
-        if ($tag === '' || strlen($tag) > 64 || preg_match('/\s/u', $tag) === 1) {
-            return null;
-        }
-
-        if (preg_match('/^[A-Za-z]{1,8}(?:-[A-Za-z0-9]{1,8})*$/', $tag) !== 1) {
-            return null;
-        }
-
-        $parts = explode('-', $tag);
-        if (count($parts) === 1 && strlen($parts[0]) === 1) {
-            return null;
-        }
-
-        $normalized = [];
-        foreach ($parts as $index => $part) {
-            if ($index === 0 || strtolower($parts[0]) === 'x') {
-                $normalized[] = strtolower($part);
-                continue;
-            }
-
-            if (preg_match('/^[A-Za-z]{4}$/', $part) === 1) {
-                $normalized[] = ucfirst(strtolower($part));
-                continue;
-            }
-
-            if (preg_match('/^[A-Za-z]{2}$/', $part) === 1) {
-                $normalized[] = strtoupper($part);
-                continue;
-            }
-
-            $normalized[] = strtolower($part);
-        }
-
-        return implode('-', $normalized);
-    }
-
-    private function allowedTableTranslateValue(string $value): ?string
-    {
-        $state = strtolower(trim($value));
-        if ($state === '') {
-            return 'yes';
-        }
-
-        return in_array($state, ['yes', 'no'], true) ? $state : null;
-    }
-
-    private function legacyTableStyleValue(string $style): string
-    {
-        $declarations = [];
-        foreach (explode(';', $style) as $declaration) {
-            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
-            $name = strtolower(trim($name));
-            $value = trim($value);
-            if ($name === '' || $value === '') {
-                continue;
-            }
-
-            if ($name === 'background-color') {
-                $color = $this->legacyTableBackgroundColorValue($value);
-                if ($color !== '') {
-                    $declarations[] = 'background-color:' . $color;
-                }
-                continue;
-            }
-
-            if ($name === 'width' || $name === 'height') {
-                $dimension = $this->legacyTableCssDimensionValue($value);
-                if ($dimension !== '') {
-                    $declarations[] = $name . ':' . $dimension;
-                }
-                continue;
-            }
-
-            if (in_array($name, ['margin-left', 'margin-right', 'margin-inline-start', 'margin-inline-end'], true)) {
-                $margin = $this->legacyTableCssLengthValue($value, true, true);
-                if ($margin !== '') {
-                    $declarations[] = $name . ':' . $margin;
-                }
-                continue;
-            }
-
-            if ($name === 'table-layout') {
-                $layout = strtolower($value);
-                if (in_array($layout, ['auto', 'fixed'], true)) {
-                    $declarations[] = 'table-layout:' . $layout;
-                }
-                continue;
-            }
-
-            if ($name === 'border-collapse') {
-                $collapse = strtolower($value);
-                if (in_array($collapse, ['collapse', 'separate'], true)) {
-                    $declarations[] = 'border-collapse:' . $collapse;
-                }
-                continue;
-            }
-
-            if ($name === 'border-color') {
-                $color = $this->legacyTableBackgroundColorValue($value);
-                if ($color !== '') {
-                    $declarations[] = 'border-color:' . $color;
-                }
-                continue;
-            }
-
-            if ($name === 'border-style') {
-                $style = $this->legacyTableBorderStyleValue($value);
-                if ($style !== '') {
-                    $declarations[] = 'border-style:' . $style;
-                }
-                continue;
-            }
-
-            if ($name === 'border-width') {
-                $width = $this->legacyTableBorderWidthValue($value);
-                if ($width !== '') {
-                    $declarations[] = 'border-width:' . $width;
-                }
-            }
-        }
-
-        return implode('; ', $declarations);
-    }
-
-    private function legacyTableBorderStyleValue(string $value): string
-    {
-        $value = strtolower(trim($value));
-
-        return in_array($value, ['none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'], true)
-            ? $value
-            : '';
-    }
-
-    private function legacyTableBorderWidthValue(string $value): string
-    {
-        $tokens = preg_split('/\s+/', strtolower(trim($value)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        if ($tokens === [] || count($tokens) > 4) {
-            return '';
-        }
-
-        $normalized = [];
-        foreach ($tokens as $token) {
-            if (in_array($token, ['thin', 'medium', 'thick'], true)) {
-                $normalized[] = $token;
-                continue;
-            }
-
-            $length = $this->legacyTableCssLengthValue($token, false, false);
-            if ($length === '' || str_ends_with($length, '%')) {
-                return '';
-            }
-
-            $normalized[] = $length;
-        }
-
-        return implode(' ', $normalized);
-    }
-
-    private function legacyTableBorderSingleWidthValue(string $value): string
-    {
-        $value = strtolower(trim($value));
-        if (preg_match('/\\s/', $value) === 1) {
-            return '';
-        }
-
-        return $this->legacyTableBorderWidthValue($value);
-    }
-
-    private function legacyTableBorderShorthandValue(string $value): string
-    {
-        $tokens = $this->cssValueTokens($value);
-        if ($tokens === []) {
-            return '';
-        }
-
-        $parts = [
-            'width' => '',
-            'style' => '',
-            'color' => '',
-        ];
-        foreach ($tokens as $token) {
-            $width = $this->legacyTableBorderSingleWidthValue($token);
-            if ($width !== '' && $parts['width'] === '') {
-                $parts['width'] = $width;
-                continue;
-            }
-
-            $style = $this->legacyTableBorderStyleValue($token);
-            if ($style !== '' && $parts['style'] === '') {
-                $parts['style'] = $style;
-                continue;
-            }
-
-            $color = $this->legacyTableBackgroundColorValue($token);
-            if ($color !== '' && $parts['color'] === '') {
-                $parts['color'] = $color;
-                continue;
-            }
-
-            return '';
-        }
-
-        return implode(' ', array_values(array_filter($parts, static fn (string $part): bool => $part !== '')));
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function cssValueTokens(string $value): array
-    {
-        $tokens = [];
-        $token = '';
-        $depth = 0;
-        $length = strlen($value);
-        for ($offset = 0; $offset < $length; $offset++) {
-            $char = $value[$offset];
-            if ($char === '(') {
-                $depth++;
-                $token .= $char;
-                continue;
-            }
-
-            if ($char === ')' && $depth > 0) {
-                $depth--;
-                $token .= $char;
-                continue;
-            }
-
-            if ($depth === 0 && ctype_space($char)) {
-                if ($token !== '') {
-                    $tokens[] = $token;
-                    $token = '';
-                }
-                continue;
-            }
-
-            $token .= $char;
-        }
-
-        if ($token !== '') {
-            $tokens[] = $token;
-        }
-
-        return $tokens;
-    }
-
-    private function legacyTableBackgroundColorValue(string $value): string
-    {
-        $value = trim($value);
-        if ($value === '') {
-            return '';
-        }
-
-        if (preg_match('/^#([0-9a-fA-F]{3})$/', $value, $match) === 1) {
-            return '#' . strtolower($match[1][0] . $match[1][0] . $match[1][1] . $match[1][1] . $match[1][2] . $match[1][2]);
-        }
-
-        if (preg_match('/^#([0-9a-fA-F]{6})$/', $value, $match) === 1) {
-            return '#' . strtolower($match[1]);
-        }
-
-        if (preg_match('/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i', $value, $match) === 1) {
-            $channels = [(int) $match[1], (int) $match[2], (int) $match[3]];
-            foreach ($channels as $channel) {
-                if ($channel < 0 || $channel > 255) {
-                    return '';
-                }
-            }
-
-            return 'rgb(' . implode(', ', array_map(static fn (int $channel): string => (string) $channel, $channels)) . ')';
-        }
-
-        $name = strtolower($value);
-        return in_array($name, [
-            'aqua',
-            'black',
-            'blue',
-            'fuchsia',
-            'gray',
-            'green',
-            'grey',
-            'lime',
-            'maroon',
-            'navy',
-            'olive',
-            'orange',
-            'purple',
-            'red',
-            'silver',
-            'teal',
-            'transparent',
-            'white',
-            'yellow',
-        ], true) ? $name : '';
-    }
-
-    private function legacyTableCssDimensionValue(string $value): string
-    {
-        $value = trim($value);
-        if (preg_match('/^(\d+(?:\.\d+)?)%$/', $value, $match) === 1) {
-            $number = (float) $match[1];
-            if ($number > 0.0 && $number <= 100.0) {
-                return rtrim(rtrim(number_format($number, 4, '.', ''), '0'), '.') . '%';
-            }
-
-            return '';
-        }
-
-        return $this->legacyTableCssLengthValue($value, false, false);
-    }
-
-    private function legacyTableCssLengthValue(string $value, bool $allowAuto, bool $allowNegative): string
-    {
-        $value = trim($value);
-        if ($allowAuto && strtolower($value) === 'auto') {
-            return 'auto';
-        }
-
-        if (preg_match('/^(-?\d+(?:\.\d+)?)(px|pt|pc|in|cm|mm|em|rem|%)$/i', $value, $match) !== 1) {
-            return '';
-        }
-
-        $number = (float) $match[1];
-        if ((!$allowNegative && $number < 0.0) || abs($number) > 10000.0) {
-            return '';
-        }
-
-        return rtrim(rtrim(number_format($number, 4, '.', ''), '0'), '.') . strtolower($match[2]);
-    }
-
-    private function allowedTableDimensionValue(mixed $value): ?string
-    {
-        if (!is_scalar($value)) {
-            return null;
-        }
-
-        $value = trim((string) $value);
-        if (preg_match('/^[1-9]\d{0,3}$/', $value) === 1) {
-            return (string) (int) $value;
-        }
-
-        if (preg_match('/^(\d+(?:\.\d+)?)\s*%$/', $value, $match) !== 1) {
-            return null;
-        }
-
-        $width = (float) $match[1];
-        if ($width <= 0.0 || $width > 100.0) {
-            return null;
-        }
-
-        $formatted = rtrim(rtrim(number_format($width, 4, '.', ''), '0'), '.');
-
-        return ($formatted === '' ? '0' : $formatted) . '%';
+            || in_array($name, ['abbr', 'bgcolor', 'class', 'dir', 'headers', 'id', 'lang', 'role', 'scope', 'style', 'title', 'valign'], true);
     }
 
     private function renderCodeBlock(AstNode $node): string
     {
-        if ($this->highlightCodeBlocks) {
-            return (new SyntaxHighlighter())->wordpressHtmlBlock($node, $this->highlightStyle);
-        }
-
         return '<!-- wp:code -->'
             . "\n" . $this->renderCodeBlockHtml($node)
             . "\n" . '<!-- /wp:code -->';
@@ -2302,46 +1061,50 @@ final class WordPressBlockWriter
         $classes = $node->attr('classes', []);
         $language = is_array($classes) && isset($classes[0]) ? $this->sanitizeCodeClass((string) $classes[0]) : '';
         $codeAttrs = $language === '' ? '' : ' class="language-' . $this->esc($language) . '"';
+        $preAttrs = $this->renderCodeBlockPreAttrs($node);
 
-        return '<pre' . $this->renderCodeBlockPreAttrs($node) . '><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
+        return '<pre class="wp-block-code"' . $preAttrs . '><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
     }
 
     private function renderCodeBlockPreAttrs(AstNode $node): string
     {
-        $htmlAttributes = $this->inlineHtmlAttributes($node);
-        $hasStoredAttributes = false;
-        foreach ($htmlAttributes as $name => $value) {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
             $name = strtolower((string) $name);
-            if ($name !== 'class' && $this->isAllowedHtmlWriterAttr($name) && is_scalar($value)) {
-                $hasStoredAttributes = true;
-                break;
-            }
-        }
-
-        $classes = ['wp-block-code'];
-        if ($hasStoredAttributes && isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
-            foreach (preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
-                $classes[] = $class;
-            }
-        }
-
-        $attrs = ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
-        if (!$hasStoredAttributes) {
-            return $attrs;
-        }
-
-        foreach ($htmlAttributes as $name => $value) {
-            $name = strtolower((string) $name);
-            if ($name === 'class' || !$this->isAllowedHtmlWriterAttr($name) || !is_scalar($value)) {
+            if ($name === 'class') {
                 continue;
             }
 
-            $value = (string) $value;
-            if ($value === '') {
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
                 continue;
             }
 
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedBlockHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
         }
 
         return $attrs;
@@ -2350,169 +1113,113 @@ final class WordPressBlockWriter
     private function renderRawTexBlockHtml(AstNode $node): string
     {
         return '<pre class="wp-block-code"><code class="language-tex">'
-            . $this->esc($this->rawTexText($node))
+            . $this->esc((string) $node->attr('tex', ''))
+            . '</code></pre>';
+    }
+
+    private function renderRawFormatBlockHtml(AstNode $node): string
+    {
+        $format = (string) $node->attr('format', 'raw');
+        $formatToken = $this->rawFormatToken($format);
+        $language = $formatToken === 'openxml' ? 'xml' : $formatToken;
+
+        return '<pre class="wp-block-code pandoc-raw-' . $this->esc($formatToken) . '" data-pandoc-raw-format="' . $this->esc($format) . '"><code class="language-' . $this->esc($language) . '">'
+            . $this->esc((string) $node->attr('text', ''))
             . '</code></pre>';
     }
 
     private function renderRawInlineNode(AstNode $node): string
     {
-        if ($this->isRawHtmlInline($node)) {
-            return $this->rawHtmlText($node);
+        $format = (string) $node->attr('format', 'raw');
+        $text = (string) $node->attr('text', '');
+        $formatToken = $this->rawFormatToken($format);
+
+        if (strtolower($format) === 'openxml') {
+            $bookmark = $this->parseOpenXmlBookmark($text);
+            if ($bookmark !== null) {
+                $attrs = ' class="pandoc-openxml-bookmark-' . $this->esc($bookmark['kind']) . '"'
+                    . ' data-pandoc-raw-format="openxml"';
+                if ($bookmark['id'] !== '') {
+                    $attrs .= ' data-pandoc-bookmark-id="' . $this->esc($bookmark['id']) . '"';
+                }
+                if ($bookmark['name'] !== '') {
+                    $attrs .= ' data-pandoc-bookmark-name="' . $this->esc($bookmark['name']) . '"';
+                }
+
+                return '<span' . $attrs . '></span>';
+            }
         }
 
-        if ($this->isRawTexInline($node)) {
-            return '<span class="pandoc-raw-tex">' . $this->esc($this->rawTexText($node)) . '</span>';
+        return '<span class="pandoc-raw-' . $this->esc($formatToken) . '" data-pandoc-raw-format="' . $this->esc($format) . '">'
+            . $this->esc($text)
+            . '</span>';
+    }
+
+    private function rawFormatToken(string $format): string
+    {
+        $token = $this->sanitizeCodeClass(strtolower(str_replace(['.', ':'], '-', $format)));
+
+        return $token === '' ? 'raw' : $token;
+    }
+
+    /**
+     * @return array{kind:string, id:string, name:string}|null
+     */
+    private function parseOpenXmlBookmark(string $xml): ?array
+    {
+        if (preg_match('/^<w:bookmark(Start|End)\b([^>]*)\/>$/u', trim($xml), $match) !== 1) {
+            return null;
         }
 
-        return '';
+        $attrs = $this->parseOpenXmlAttributes($match[2]);
+
+        return [
+            'kind' => strtolower($match[1]),
+            'id' => (string) ($attrs['id'] ?? ''),
+            'name' => (string) ($attrs['name'] ?? ''),
+        ];
     }
 
-    private function isRawHtmlBlock(AstNode $node): bool
+    /**
+     * @return array<string, string>
+     */
+    private function parseOpenXmlAttributes(string $source): array
     {
-        return $node->type === 'raw_html'
-            || ($node->type === 'raw_block' && $this->isHtmlRawFormat((string) $node->attr('format', '')));
-    }
+        preg_match_all('/\bw:([A-Za-z0-9_.:-]+)="([^"]*)"/u', $source, $matches, PREG_SET_ORDER);
+        $attrs = [];
+        foreach ($matches as $match) {
+            $attrs[$match[1]] = html_entity_decode($match[2], ENT_QUOTES | ENT_XML1, 'UTF-8');
+        }
 
-    private function isRawTexBlock(AstNode $node): bool
-    {
-        return $node->type === 'raw_tex'
-            || ($node->type === 'raw_block' && $this->isTexRawFormat((string) $node->attr('format', '')));
-    }
-
-    private function isRawHtmlInline(AstNode $node): bool
-    {
-        return $node->type === 'raw_html_inline'
-            || ($node->type === 'raw_inline' && $this->isHtmlRawFormat((string) $node->attr('format', '')));
-    }
-
-    private function isRawTexInline(AstNode $node): bool
-    {
-        return $node->type === 'raw_tex'
-            || ($node->type === 'raw_inline' && $this->isTexRawFormat((string) $node->attr('format', '')));
-    }
-
-    private function isHtmlRawFormat(string $format): bool
-    {
-        $baseFormat = $this->rawFormatBase($format);
-
-        return in_array($baseFormat, ['html', 'html4', 'html5', 'xhtml'], true);
-    }
-
-    private function isTexRawFormat(string $format): bool
-    {
-        $baseFormat = $this->rawFormatBase($format);
-
-        return in_array($baseFormat, ['tex', 'latex', 'context'], true);
-    }
-
-    private function rawFormatBase(string $format): string
-    {
-        $format = strtolower($format);
-        $format = str_replace('-', '+', $format);
-
-        return explode('+', $format, 2)[0];
-    }
-
-    private function rawHtmlText(AstNode $node): string
-    {
-        return (string) $node->attr('text', $node->attr('html', ''));
-    }
-
-    private function rawTexText(AstNode $node): string
-    {
-        return (string) $node->attr('text', $node->attr('tex', ''));
+        return $attrs;
     }
 
     private function renderFigureBlock(AstNode $node): string
     {
-        $block = $this->isSimpleImageFigure($node) ? 'image' : 'html';
-
-        return '<!-- wp:' . $block . ' -->'
+        return '<!-- wp:image -->'
             . "\n" . $this->renderFigureHtml($node)
-            . "\n" . '<!-- /wp:' . $block . ' -->';
+            . "\n" . '<!-- /wp:image -->';
     }
 
     private function renderFigureHtml(AstNode $node): string
     {
-        $contentBlocks = $this->figureContentBlocks($node);
-        if (!$this->isSimpleImageFigure($node) && $contentBlocks !== []) {
-            $html = '<figure' . $this->renderHtmlWriterAttrs($node, true) . '>' . $this->renderBlocksAsHtml($contentBlocks);
-            $caption = $this->renderFigureCaption($node);
-            if ($caption !== '') {
-                $html .= '<figcaption>' . $caption . '</figcaption>';
-            }
-
-            return $html . '</figure>';
-        }
-
         $image = $this->firstFigureImage($node);
         if (!$image instanceof AstNode) {
             $image = new AstNode('image', [
                 'url' => '',
                 'alt' => (string) $node->attr('caption', ''),
             ]);
+        } else {
+            $image = $this->imageWithFigureAltFallback($image, $node);
         }
 
-        $caption = (string) $node->attr('caption', $image->attr('alt', ''));
         $html = '<figure' . $this->renderImageFigureAttrs($node) . '>' . $this->renderImageHtml($image);
+        $caption = $this->renderFigureCaption($node, $image);
         if ($caption !== '') {
-            $html .= '<figcaption>' . $this->renderFigureCaption($node) . '</figcaption>';
+            $html .= '<figcaption>' . $caption . '</figcaption>';
         }
 
         return $html . '</figure>';
-    }
-
-    private function renderFigureCaption(AstNode $node): string
-    {
-        if ($node->attr('renderCaptionInlines') === true) {
-            return $this->renderCaptionInlines($node);
-        }
-
-        return $this->esc((string) $node->attr('caption', ''));
-    }
-
-    private function isSimpleImageFigure(AstNode $node): bool
-    {
-        $blocks = $this->figureContentBlocks($node);
-        if (count($blocks) !== 1) {
-            return false;
-        }
-
-        $block = $blocks[0];
-        if ($block->type === 'image') {
-            return true;
-        }
-
-        return in_array($block->type, ['paragraph', 'plain'], true)
-            && count($block->children) === 1
-            && $block->children[0]->type === 'image';
-    }
-
-    /**
-     * @return list<AstNode>
-     */
-    private function figureContentBlocks(AstNode $node): array
-    {
-        $blocks = [];
-        $inlines = [];
-        foreach ($node->children as $child) {
-            if ($this->isInlineNode($child)) {
-                $inlines[] = $child;
-                continue;
-            }
-
-            if ($inlines !== []) {
-                $blocks[] = new AstNode('plain', [], $inlines);
-                $inlines = [];
-            }
-            $blocks[] = $child;
-        }
-
-        if ($inlines !== []) {
-            $blocks[] = new AstNode('plain', [], $inlines);
-        }
-
-        return $blocks;
     }
 
     private function firstFigureImage(AstNode $node): ?AstNode
@@ -2522,60 +1229,131 @@ final class WordPressBlockWriter
                 return $child;
             }
 
-            if (!in_array($child->type, ['paragraph', 'plain'], true)) {
-                continue;
-            }
-
-            foreach ($child->children as $inline) {
-                if ($inline->type === 'image') {
-                    return $inline;
-                }
+            $nested = $this->firstFigureImage($child);
+            if ($nested instanceof AstNode) {
+                return $nested;
             }
         }
 
         return null;
     }
 
+    private function imageWithFigureAltFallback(AstNode $image, AstNode $figure): AstNode
+    {
+        if ((string) $image->attr('alt', '') !== '') {
+            return $image;
+        }
+
+        $alt = $this->figureBodyTextWithoutImages($figure);
+        if ($alt !== '') {
+            return new AstNode('image', array_replace($image->attrs, ['alt' => $alt]), $image->children);
+        }
+
+        $alt = $this->figureCaptionText($figure);
+        if ($alt === '') {
+            return $image;
+        }
+
+        $attrs = array_replace($image->attrs, ['alt' => $alt]);
+        $sourceAttrs = $attrs['attributes'] ?? [];
+        if (!is_array($sourceAttrs)) {
+            $sourceAttrs = [];
+        }
+        if (!isset($sourceAttrs['data-pandoc-alt-source'])) {
+            $sourceAttrs['data-pandoc-alt-source'] = 'figure-caption';
+        }
+        $attrs['attributes'] = $sourceAttrs;
+
+        return new AstNode('image', $attrs, $image->children);
+    }
+
+    private function figureBodyTextWithoutImages(AstNode $figure): string
+    {
+        $parts = [];
+        foreach ($figure->children as $child) {
+            if ($this->nodeContainsImage($child)) {
+                continue;
+            }
+
+            $text = $this->metadataNodeText($child);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return trim(implode(' ', $parts));
+    }
+
+    private function figureCaptionText(AstNode $figure): string
+    {
+        $inlines = $figure->attr('captionInlines', null);
+        if (is_array($inlines)) {
+            $caption = $this->metadataInlinesText($inlines);
+            if ($caption !== '') {
+                return $caption;
+            }
+        }
+
+        return trim((string) $figure->attr('caption', ''));
+    }
+
+    private function nodeContainsImage(AstNode $node): bool
+    {
+        if ($node->type === 'image') {
+            return true;
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->nodeContainsImage($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function renderFigureCaption(AstNode $node, AstNode $image): string
+    {
+        $inlines = $node->attr('captionInlines', null);
+        if (is_array($inlines)) {
+            $html = '';
+            foreach ($inlines as $inline) {
+                if (!$inline instanceof AstNode) {
+                    $html = '';
+                    break;
+                }
+
+                $html .= $this->renderInlineNode($inline);
+            }
+            if ($html !== '') {
+                return $html;
+            }
+        }
+
+        $caption = (string) $node->attr('caption', $image->attr('alt', ''));
+
+        return $caption === '' ? '' : $this->esc($caption);
+    }
+
     private function renderImageFigureAttrs(AstNode $node): string
     {
-        $htmlAttributes = $this->inlineHtmlAttributes($node);
         $classes = ['wp-block-image'];
-        if (isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
-            foreach (preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
-                $classes[] = $class;
+        $extraClasses = $node->attr('classes', []);
+        if (is_array($extraClasses)) {
+            foreach ($extraClasses as $class) {
+                $classes[] = (string) $class;
             }
         }
 
         $attrs = ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
-        $rendered = ['class' => true];
-        foreach ($htmlAttributes as $name => $value) {
-            $name = strtolower((string) $name);
-            if ($name === 'class' || !$this->isAllowedHtmlWriterAttr($name) || !is_scalar($value)) {
-                continue;
-            }
-
-            $value = (string) $value;
-            if ($value === '') {
-                continue;
-            }
-
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
-            $rendered[$name] = true;
+        $id = (string) $node->attr('id', '');
+        if ($id !== '') {
+            $attrs .= ' id="' . $this->esc($id) . '"';
         }
 
         $attributes = $node->attr('attributes', []);
-        if (
-            is_array($attributes)
-            && isset($attributes['latex-placement'])
-            && is_scalar($attributes['latex-placement'])
-            && !isset($rendered['data-pandoc-latex-placement'])
-        ) {
+        if (is_array($attributes) && isset($attributes['latex-placement'])) {
             $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $attributes['latex-placement']) . '"';
-        }
-
-        $shortCaption = (string) $node->attr('shortCaption', '');
-        if ($shortCaption !== '' && $node->attr('renderShortCaptionAttribute') === true && !isset($rendered['data-pandoc-short-caption'])) {
-            $attrs .= ' data-pandoc-short-caption="' . $this->esc($shortCaption) . '"';
         }
 
         return $attrs;
@@ -2589,77 +1367,89 @@ final class WordPressBlockWriter
         if ($title !== '') {
             $attrs .= ' title="' . $this->esc($title) . '"';
         }
-        foreach ($this->imageHtmlAttributes($node) as $name => $value) {
+
+        $sourceAttrs = $this->inlineHtmlAttributes($node);
+        $attrs .= $this->renderImageDimensionAttrs($sourceAttrs);
+        $sourceFormat = $this->unsupportedWordPressImageSourceFormat((string) $node->attr('url', ''));
+        if ($sourceFormat !== '' && !isset($sourceAttrs['data-pandoc-source-format'])) {
+            $attrs .= ' data-pandoc-source-format="' . $this->esc($sourceFormat) . '"';
+        }
+        foreach ($sourceAttrs as $name => $value) {
             $name = strtolower((string) $name);
-            if (in_array($name, ['src', 'alt', 'title'], true) || !$this->isAllowedImageHtmlAttr($name) || !is_scalar($value)) {
+            if (
+                in_array($name, ['src', 'href', 'alt', 'title', 'width', 'height', 'style'], true)
+                || !$this->isAllowedImageHtmlAttr($name)
+            ) {
                 continue;
             }
 
-            $value = (string) $value;
-            if ($value === '') {
-                continue;
-            }
-
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
         }
 
         return '<img' . $attrs . '/>';
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function imageHtmlAttributes(AstNode $node): array
+    private function unsupportedWordPressImageSourceFormat(string $url): string
     {
-        $attributes = $this->inlineHtmlAttributes($node);
-        foreach (['width', 'height'] as $name) {
-            $value = $node->attr($name, '');
-            if (is_string($value) && $value !== '' && !isset($attributes[$name])) {
-                $attributes[$name] = $value;
+        $path = parse_url($url, PHP_URL_PATH);
+        if (!is_string($path) || $path === '') {
+            $path = $url;
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (!in_array($extension, ['emf', 'wmf', 'tif', 'tiff', 'heic', 'heif'], true)) {
+            return '';
+        }
+
+        return $extension;
+    }
+
+    /**
+     * @param array<string, mixed> $sourceAttrs
+     */
+    private function renderImageDimensionAttrs(array $sourceAttrs): string
+    {
+        $attrs = '';
+        $styles = [];
+        foreach (['width', 'height'] as $dimension) {
+            $value = trim((string) ($sourceAttrs[$dimension] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+
+            $attrs .= ' data-pandoc-' . $dimension . '="' . $this->esc($value) . '"';
+            $cssDimension = $this->safeCssDimension($value);
+            if ($cssDimension !== '') {
+                $styles[] = $dimension . ':' . $cssDimension;
             }
         }
 
-        return $attributes;
+        if ($styles !== []) {
+            $attrs .= ' style="' . $this->esc(implode('; ', $styles)) . '"';
+        }
+
+        return $attrs;
     }
 
-    private function isAllowedImageHtmlAttr(string $name): bool
+    private function safeCssDimension(string $value): string
     {
-        return $name === 'width' || $name === 'height' || $this->isAllowedInlineHtmlAttr($name);
+        $value = trim($value);
+        if ($value === '0') {
+            return '0';
+        }
+
+        if (preg_match('/^(?:\d+(?:\.\d+)?|\.\d+)(?:%|px|em|rem|in|cm|mm|pt|pc|vw|vh|vmin|vmax)$/i', $value) === 1) {
+            return $value;
+        }
+
+        return '';
     }
 
     private function renderBlockQuote(AstNode $node): string
     {
         return '<!-- wp:quote -->'
-            . "\n" . '<blockquote' . $this->renderBlockQuoteAttrs($node, true) . '>' . $this->renderBlocksAsHtml($node->children) . '</blockquote>'
+            . "\n" . '<blockquote class="wp-block-quote">' . $this->renderBlocksAsHtml($node->children) . '</blockquote>'
             . "\n" . '<!-- /wp:quote -->';
-    }
-
-    private function renderBlockQuoteAttrs(AstNode $node, bool $includeDefaultClass): string
-    {
-        $htmlAttributes = $this->inlineHtmlAttributes($node);
-        $classes = $includeDefaultClass ? ['wp-block-quote'] : [];
-        if (isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
-            foreach (preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
-                $classes[] = $class;
-            }
-        }
-
-        $attrs = $classes === [] ? '' : ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
-        foreach ($htmlAttributes as $name => $value) {
-            $name = strtolower((string) $name);
-            if ($name === 'class' || !$this->isAllowedHtmlWriterAttr($name) || !is_scalar($value)) {
-                continue;
-            }
-
-            $value = (string) $value;
-            if ($value === '') {
-                continue;
-            }
-
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
-        }
-
-        return $attrs;
     }
 
     private function renderLineBlockBlock(AstNode $node): string
@@ -2680,49 +1470,21 @@ final class WordPressBlockWriter
             $lines[] = $this->renderInlines($line);
         }
 
-        return '<p' . $this->renderParagraphAttrs($node) . '>' . implode('<br/>', $lines) . '</p>';
+        return '<p>' . implode('<br/>', $lines) . '</p>';
     }
 
     private function renderDivBlock(AstNode $node): string
     {
         return '<!-- wp:html -->'
-            . "\n" . '<div' . $this->renderHtmlWriterAttrs($node, true) . '>' . $this->renderBlocksAsHtml($node->children) . '</div>'
+            . "\n" . '<div' . $this->renderDivAttrs($node) . '>' . $this->renderBlocksAsHtml($node->children) . '</div>'
             . "\n" . '<!-- /wp:html -->';
     }
 
-    private function renderHorizontalRule(AstNode $node): string
+    private function renderHorizontalRule(): string
     {
         return '<!-- wp:separator -->'
-            . "\n" . '<hr' . $this->renderHorizontalRuleAttrs($node) . '/>'
+            . "\n" . '<hr class="wp-block-separator has-alpha-channel-opacity"/>'
             . "\n" . '<!-- /wp:separator -->';
-    }
-
-    private function renderHorizontalRuleAttrs(AstNode $node): string
-    {
-        $htmlAttributes = $this->inlineHtmlAttributes($node);
-        $classes = ['wp-block-separator', 'has-alpha-channel-opacity'];
-        if (isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
-            foreach (preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
-                $classes[] = $class;
-            }
-        }
-
-        $attrs = ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
-        foreach ($htmlAttributes as $name => $value) {
-            $name = strtolower((string) $name);
-            if ($name === 'class' || !$this->isAllowedHtmlWriterAttr($name) || !is_scalar($value)) {
-                continue;
-            }
-
-            $value = (string) $value;
-            if ($value === '') {
-                continue;
-            }
-
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
-        }
-
-        return $attrs;
     }
 
     private function sanitizeCodeClass(string $class): string
@@ -2755,17 +1517,16 @@ final class WordPressBlockWriter
                 $html .= $wrapParagraphs ? '<p>' . $rendered . '</p>' : $rendered;
                 continue;
             }
-            if ($this->isRawHtmlBlock($child)) {
-                $html .= $this->rawHtmlText($child);
+            if ($child->type === 'raw_html') {
+                $html .= (string) $child->attr('html', '');
                 continue;
             }
-            if ($this->isRawTexBlock($child)) {
+            if ($child->type === 'raw_tex') {
                 $html .= $this->renderRawTexBlockHtml($child);
                 continue;
             }
             if (!$this->isInlineNode($child)) {
-                $rendered = $this->renderBlocksAsHtml([$child]);
-                $html .= $rendered === '' ? $this->renderInlines($child) : $rendered;
+                $html .= $this->renderBlocksAsHtml([$child]);
                 continue;
             }
 
@@ -2781,18 +1542,17 @@ final class WordPressBlockWriter
     private function renderBlocksAsHtml(array $blocks): string
     {
         $html = '';
-        $wrapPlainBlocks = count($blocks) > 1;
         foreach ($blocks as $block) {
+            if ($this->shouldSkipEmptyParagraphLikeBlock($block)) {
+                continue;
+            }
+
             if ($block->type === 'paragraph') {
-                $html .= '<p' . $this->renderParagraphAttrs($block) . '>' . $this->renderInlines($block) . '</p>';
+                $html .= '<p' . $this->renderBlockHtmlAttrs($block) . '>' . $this->renderInlines($block) . '</p>';
                 continue;
             }
             if ($block->type === 'plain') {
-                $attrs = $this->renderParagraphAttrs($block);
-                $content = $this->renderInlines($block);
-                $html .= $attrs === ''
-                    ? ($wrapPlainBlocks ? '<p>' . $content . '</p>' : $content)
-                    : '<p' . $attrs . '>' . $content . '</p>';
+                $html .= $this->renderInlines($block);
                 continue;
             }
             if ($block->type === 'heading') {
@@ -2829,7 +1589,7 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($block->type === 'blockquote') {
-                $html .= '<blockquote' . $this->renderBlockQuoteAttrs($block, false) . '>' . $this->renderBlocksAsHtml($block->children) . '</blockquote>';
+                $html .= '<blockquote>' . $this->renderBlocksAsHtml($block->children) . '</blockquote>';
                 continue;
             }
             if ($block->type === 'line_block') {
@@ -2837,19 +1597,23 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($block->type === 'horizontal_rule') {
-                $html .= '<hr' . $this->renderHorizontalRuleAttrs($block) . '/>';
+                $html .= '<hr/>';
                 continue;
             }
-            if ($this->isRawHtmlBlock($block)) {
-                $html .= $this->rawHtmlText($block);
+            if ($block->type === 'raw_html') {
+                $html .= (string) $block->attr('html', '');
                 continue;
             }
-            if ($this->isRawTexBlock($block)) {
+            if ($block->type === 'raw_tex') {
                 $html .= $this->renderRawTexBlockHtml($block);
                 continue;
             }
+            if ($block->type === 'raw_block') {
+                $html .= $this->renderRawFormatBlockHtml($block);
+                continue;
+            }
             if ($block->type === 'div') {
-                $html .= '<div' . $this->renderHtmlWriterAttrs($block, true) . '>' . $this->renderBlocksAsHtml($block->children) . '</div>';
+                $html .= '<div' . $this->renderDivAttrs($block) . '>' . $this->renderBlocksAsHtml($block->children) . '</div>';
             }
         }
 
@@ -2862,9 +1626,59 @@ final class WordPressBlockWriter
             return $this->esc((string) $node->attr('text', ''));
         }
 
+        return $this->renderInlineNodes($node->children);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderInlineNodes(array $nodes): string
+    {
         $html = '';
-        foreach ($node->children as $child) {
+        foreach ($nodes as $child) {
             $html .= $this->renderInlineNode($child);
+        }
+
+        return $html;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderInlineNodesWithoutLeadingTaskGlyph(array $nodes): string
+    {
+        $html = '';
+        $stripGlyph = true;
+        $stripFollowingSpace = false;
+
+        foreach ($nodes as $node) {
+            if ($stripGlyph && $node->type === 'text') {
+                $text = (string) $node->attr('text', '');
+                $stripped = preg_replace('/^(?:\x{2610}|\x{2612})/u', '', $text, 1);
+                if ($stripped !== null && $stripped !== $text) {
+                    $stripGlyph = false;
+                    $stripFollowingSpace = $stripped === '';
+                    if ($stripped !== '') {
+                        $html .= $this->esc(ltrim($stripped));
+                    }
+                    continue;
+                }
+            }
+
+            if ($stripFollowingSpace && $node->type === 'text') {
+                $text = ltrim((string) $node->attr('text', ''));
+                $stripFollowingSpace = false;
+                if ($text === '') {
+                    continue;
+                }
+
+                $html .= $this->esc($text);
+                continue;
+            }
+
+            $stripGlyph = false;
+            $stripFollowingSpace = false;
+            $html .= $this->renderInlineNode($node);
         }
 
         return $html;
@@ -2874,147 +1688,217 @@ final class WordPressBlockWriter
     {
         return match ($node->type) {
             'text' => $this->esc((string) $node->attr('text', '')),
-            'emph' => '<em' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</em>',
-            'strong' => '<strong' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</strong>',
-            'small_caps' => '<span style="font-variant:small-caps"' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>',
-            'underline' => '<u' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</u>',
-            'strikeout' => '<del' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</del>',
-            'superscript' => '<sup' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</sup>',
-            'subscript' => '<sub' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</sub>',
-            'space' => ' ',
+            'emph' => '<em>' . $this->renderInlines($node) . '</em>',
+            'strong' => '<strong>' . $this->renderInlines($node) . '</strong>',
+            'small_caps' => '<span style="font-variant:small-caps">' . $this->renderInlines($node) . '</span>',
+            'underline' => '<u>' . $this->renderInlines($node) . '</u>',
+            'strikeout' => '<del>' . $this->renderInlines($node) . '</del>',
+            'superscript' => '<sup>' . $this->renderInlines($node) . '</sup>',
+            'subscript' => '<sub>' . $this->renderInlines($node) . '</sub>',
             'softbreak' => "\n",
             'linebreak' => '<br/>',
-            'span' => '<span' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>',
+            'span' => $this->renderSpanInline($node),
             'quoted' => $this->renderQuotedInline($node),
             'math' => $this->renderMathInline($node),
-            'raw_tex' => '<span class="pandoc-raw-tex">' . $this->esc($this->rawTexText($node)) . '</span>',
-            'raw_html_inline' => $this->rawHtmlText($node),
+            'raw_tex', 'raw_tex_inline' => '<span class="pandoc-raw-tex">' . $this->esc((string) $node->attr('tex', $node->attr('text', ''))) . '</span>',
+            'raw_html_inline' => (string) $node->attr('html', ''),
             'raw_inline' => $this->renderRawInlineNode($node),
             'code' => '<code' . $this->renderInlineCodeAttrs($node) . '>' . $this->esc((string) $node->attr('text', '')) . '</code>',
-            'link' => '<a' . $this->renderLinkAttrs($node) . '>' . $this->renderInlines($node) . '</a>',
+            'link' => $this->renderLinkInline($node),
             'image' => $this->renderImageHtml($node),
             'note' => $this->renderNoteReference($node),
             'citation' => $this->renderCitationInline($node),
-            'citation_group' => $this->renderCitationInline($node),
             default => $this->renderInlines($node),
         };
     }
 
     private function renderCitationInline(AstNode $node): string
     {
-        $parts = $node->attr('cslInlineParts', []);
-        if (is_array($parts) && $parts !== []) {
-            $html = $this->renderCslInlinePartsHtml($parts);
-            if ($html !== '') {
-                return $html;
+        $citations = $this->citationEntries($node);
+        $ids = [];
+        foreach ($citations as $citation) {
+            $id = (string) ($citation['id'] ?? '');
+            if ($id !== '') {
+                $ids[] = $id;
             }
         }
 
-        return $this->esc((string) $node->attr('rendered', $node->attr('text', '')));
+        $attrs = ' class="pandoc-citation"';
+        if (count($ids) === 1) {
+            $attrs .= ' data-pandoc-citation-id="' . $this->esc($ids[0]) . '"';
+        }
+        $attrs .= ' data-pandoc-citation-count="' . count($citations) . '"';
+        if ($ids !== []) {
+            $attrs .= ' data-pandoc-citation-ids="' . $this->esc(json_encode($ids, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . '"';
+        }
+
+        $payload = json_encode($citations, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $attrs .= ' data-pandoc-citations="' . $this->esc($payload) . '"';
+
+        $display = $this->renderInlines($node);
+        if ($display === '') {
+            $display = $this->esc((string) $node->attr('text', $ids === [] ? '' : '[' . implode('; ', array_map(static fn (string $id): string => '@' . $id, $ids)) . ']'));
+        }
+
+        return '<span' . $attrs . '>' . $display . '</span>';
+    }
+
+    private function renderLinkInline(AstNode $node): string
+    {
+        return '<a' . $this->renderLinkAttrs($node) . '>'
+            . $this->renderInlineNodes($this->linksAsSpans($node->children))
+            . '</a>';
     }
 
     /**
-     * @param list<mixed> $parts
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
      */
-    private function renderCslInlinePartsHtml(array $parts): string
+    private function linksAsSpans(array $nodes): array
     {
-        $html = '';
-        foreach ($parts as $part) {
-            if (!is_array($part)) {
+        $mapped = [];
+        foreach ($nodes as $node) {
+            $children = $node->children === [] ? [] : $this->linksAsSpans($node->children);
+            if ($node->type !== 'link') {
+                $mapped[] = $children === $node->children
+                    ? $node
+                    : new AstNode($node->type, $node->attrs, $children);
                 continue;
             }
 
-            $text = (string) ($part['text'] ?? '');
-            if ($text === '') {
-                continue;
+            $attrs = $node->attrs;
+            unset($attrs['url'], $attrs['href'], $attrs['title']);
+            $attributes = $attrs['attributes'] ?? [];
+            if (is_array($attributes)) {
+                unset($attributes['href'], $attributes['title']);
+                if ($attributes === []) {
+                    unset($attrs['attributes']);
+                } else {
+                    $attrs['attributes'] = $attributes;
+                }
             }
 
-            [$classes, $style] = $this->cslFormattingAttrs($part['formatting'] ?? []);
-            if ($classes === [] && $style === '') {
-                $html .= $this->esc($text);
-                continue;
-            }
-
-            $attrs = '';
-            if ($classes !== []) {
-                $attrs .= ' class="' . $this->esc(implode(' ', $classes)) . '"';
-            }
-            if ($style !== '') {
-                $attrs .= ' style="' . $this->esc($style) . '"';
-            }
-
-            $html .= '<span' . $attrs . '>' . $this->esc($text) . '</span>';
+            $mapped[] = new AstNode('span', $attrs, $children);
         }
 
-        return $html;
+        return $mapped;
+    }
+
+    /**
+     * @return list<array{id:string, mode:string, noteNum:int, hash:int, prefix:string, suffix:string}>
+     */
+    private function citationEntries(AstNode $node): array
+    {
+        $citations = $node->attr('citations', null);
+        if (is_array($citations) && $citations !== []) {
+            $entries = [];
+            foreach ($citations as $citation) {
+                if ($citation instanceof AstNode) {
+                    $entries[] = $this->citationEntryFromNode($citation);
+                } elseif (is_array($citation)) {
+                    $entries[] = $this->citationEntryFromArray($citation);
+                }
+            }
+
+            return $entries;
+        }
+
+        $entry = $this->citationEntryFromNode($node);
+
+        return $entry['id'] === '' && (string) $node->attr('text', '') === '' ? [] : [$entry];
+    }
+
+    /**
+     * @return array{id:string, mode:string, noteNum:int, hash:int, prefix:string, suffix:string}
+     */
+    private function citationEntryFromNode(AstNode $node): array
+    {
+        return $this->citationEntryFromArray([
+            'id' => $node->attr('id', ''),
+            'mode' => $node->attr('mode', 'normal'),
+            'noteNum' => $node->attr('noteNum', $node->attr('citationNoteNum', 1)),
+            'hash' => $node->attr('hash', $node->attr('citationHash', 0)),
+            'prefix' => $node->attr('prefix', []),
+            'suffix' => $node->attr('suffix', []),
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $citation
+     * @return array{id:string, mode:string, noteNum:int, hash:int, prefix:string, suffix:string}
+     */
+    private function citationEntryFromArray(array $citation): array
+    {
+        return [
+            'id' => (string) ($citation['id'] ?? $citation['citationId'] ?? ''),
+            'mode' => $this->citationModeName($citation['mode'] ?? $citation['citationMode'] ?? 'normal'),
+            'noteNum' => (int) ($citation['noteNum'] ?? $citation['citationNoteNum'] ?? 1),
+            'hash' => (int) ($citation['hash'] ?? $citation['citationHash'] ?? 0),
+            'prefix' => $this->citationAffixText($citation['prefix'] ?? $citation['citationPrefix'] ?? []),
+            'suffix' => $this->citationAffixText($citation['suffix'] ?? $citation['citationSuffix'] ?? []),
+        ];
+    }
+
+    private function citationModeName(mixed $mode): string
+    {
+        return match (strtolower(str_replace(['-', '_'], '', (string) $mode))) {
+            'authorintext' => 'author_in_text',
+            'suppressauthor' => 'suppress_author',
+            default => 'normal',
+        };
+    }
+
+    private function citationAffixText(mixed $value): string
+    {
+        if ($value instanceof AstNode) {
+            return trim($this->metadataInlineText($value));
+        }
+
+        if (is_string($value)) {
+            return trim($value);
+        }
+
+        if (!is_array($value)) {
+            return '';
+        }
+
+        $nodes = [];
+        $text = '';
+        foreach ($value as $item) {
+            if ($item instanceof AstNode) {
+                $nodes[] = $item;
+                continue;
+            }
+            if (is_string($item)) {
+                $text .= $item;
+            }
+        }
+
+        if ($nodes !== []) {
+            return $this->metadataInlinesText($nodes);
+        }
+
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
     }
 
     private function renderNoteReference(AstNode $node): string
     {
         $number = count($this->footnotes) + 1;
-        $label = $this->sourceNoteLabel($node);
-        $id = $this->registerFootnoteId($label, $number);
-        $labelAttr = $label !== null && !ctype_digit($label)
-            ? ' data-pandoc-note-label="' . $this->esc($label) . '"'
-            : '';
-        $this->footnotes[] = [
-            'id' => $id,
-            'label' => $label,
-            'node' => $node,
-        ];
+        $this->footnotes[] = $node;
 
-        return '<sup id="fnref-' . $this->esc($id) . '"' . $labelAttr . '><a href="#fn-' . $this->esc($id) . '" role="doc-noteref">'
+        return '<sup id="fnref-' . $number . '"><a href="#fn-' . $number . '" role="doc-noteref">'
             . $number
             . '</a></sup>';
-    }
-
-    private function sourceNoteLabel(AstNode $node): ?string
-    {
-        $label = trim((string) $node->attr('label', ''));
-        if ($label === '' || preg_match('/[\]\s]/u', $label) === 1) {
-            return null;
-        }
-
-        return $label;
-    }
-
-    private function registerFootnoteId(?string $label, int $number): string
-    {
-        $base = $label === null ? (string) $number : $this->footnoteIdLabel($label);
-        if ($base === '') {
-            $base = (string) $number;
-        }
-
-        $candidate = $base;
-        $suffix = 2;
-        while (isset($this->footnoteUsedIds[strtolower($candidate)])) {
-            $candidate = $base . '-' . $suffix;
-            $suffix++;
-        }
-
-        $this->footnoteUsedIds[strtolower($candidate)] = true;
-
-        return $candidate;
-    }
-
-    private function footnoteIdLabel(string $label): string
-    {
-        $normalized = preg_replace('/[^A-Za-z0-9:._-]+/', '-', trim($label)) ?? '';
-
-        return trim($normalized, '-');
     }
 
     private function renderFootnotesBlock(): string
     {
         $items = [];
-        foreach ($this->footnotes as $footnote) {
-            $label = $footnote['label'];
-            $labelAttr = $label !== null && !ctype_digit($label)
-                ? ' data-pandoc-note-label="' . $this->esc($label) . '"'
-                : '';
-            $items[] = '<li id="fn-' . $this->esc($footnote['id']) . '"' . $labelAttr . '>'
-                . $this->renderBlocksAsHtml($footnote['node']->children)
-                . ' <a href="#fnref-' . $this->esc($footnote['id']) . '" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a>'
+        foreach ($this->footnotes as $index => $note) {
+            $number = $index + 1;
+            $items[] = '<li id="fn-' . $number . '">'
+                . $this->renderBlocksAsHtml($note->children)
+                . ' <a href="#fnref-' . $number . '" aria-label="Back to content">Back</a>'
                 . '</li>';
         }
 
@@ -3025,7 +1909,12 @@ final class WordPressBlockWriter
 
     private function renderLinkAttrs(AstNode $node): string
     {
-        $attrs = ' href="' . $this->esc((string) $node->attr('url', '')) . '"';
+        $sourceUrl = (string) $node->attr('url', '');
+        $url = $this->normalizeInternalFragmentUrl($sourceUrl);
+        $attrs = ' href="' . $this->esc($url) . '"';
+        if ($url !== $sourceUrl) {
+            $attrs .= ' data-pandoc-source-href="' . $this->esc($sourceUrl) . '"';
+        }
         $title = (string) $node->attr('title', '');
         if ($title !== '') {
             $attrs .= ' title="' . $this->esc($title) . '"';
@@ -3042,65 +1931,427 @@ final class WordPressBlockWriter
 
         foreach ($htmlAttributes as $name => $value) {
             $name = strtolower((string) $name);
-            if ($name === 'href' || ($name === 'title' && $title !== '') || !$this->isAllowedInlineHtmlAttr($name) || !is_scalar($value)) {
+            if (
+                $name === 'href'
+                || ($name === 'title' && $title !== '')
+                || ($name === 'data-pandoc-source-href' && $url !== $sourceUrl)
+                || !$this->isAllowedInlineHtmlAttr($name)
+            ) {
                 continue;
             }
 
-            $value = (string) $value;
-            if ($value === '') {
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderSpanInline(AstNode $node): string
+    {
+        $classes = $this->spanClasses($node);
+        if (in_array('insertion', $classes, true)) {
+            return '<ins' . $this->renderTrackedChangeAttrs($node) . '>' . $this->renderInlines($node) . '</ins>';
+        }
+
+        if (in_array('deletion', $classes, true)) {
+            return '<del' . $this->renderTrackedChangeAttrs($node) . '>' . $this->renderInlines($node) . '</del>';
+        }
+
+        if (in_array('paragraph-insertion', $classes, true)) {
+            return '<span' . $this->renderParagraphChangeSpanAttrs($node, 'insertion') . '>' . $this->renderInlines($node) . '</span>';
+        }
+
+        if (in_array('paragraph-deletion', $classes, true)) {
+            return '<span' . $this->renderParagraphChangeSpanAttrs($node, 'deletion') . '>' . $this->renderInlines($node) . '</span>';
+        }
+
+        if (
+            in_array('comment-start', $classes, true)
+            || in_array('comment-end', $classes, true)
+        ) {
+            return '<span' . $this->renderCommentSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>';
+        }
+
+        if (in_array('indexref', $classes, true)) {
+            return '<span' . $this->renderIndexReferenceSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>';
+        }
+
+        if (in_array('diagram', $classes, true)) {
+            return '<span' . $this->renderDiagramSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>';
+        }
+
+        if (in_array('anchor', $classes, true) && $node->children === []) {
+            return '<span' . $this->renderEmptyAnchorSpanAttrs($node) . '></span>';
+        }
+
+        $spanLike = $this->renderSpanLikeInline($node, $classes);
+        if ($spanLike !== null) {
+            return $spanLike;
+        }
+
+        return '<span' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>';
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderSpanLikeInline(AstNode $node, array $classes): ?string
+    {
+        $firstSpecial = null;
+        foreach ($classes as $index => $class) {
+            if ($this->isSpanLikeClass($class)) {
+                $firstSpecial = $index;
+                break;
+            }
+        }
+
+        if ($firstSpecial === null) {
+            return null;
+        }
+
+        $retainedClasses = [];
+        foreach (array_slice($classes, $firstSpecial + 1) as $class) {
+            if (!$this->isSpanLikeClass($class)) {
+                $retainedClasses[] = $class;
+            }
+        }
+
+        $wrappers = [];
+        for ($index = count($classes) - 1; $index >= 0; $index--) {
+            if ($classes[$index] === 'smallcaps') {
+                $wrappers[] = ['tag' => 'span', 'classes' => ['smallcaps']];
+            } elseif ($classes[$index] === 'underline') {
+                $wrappers[] = ['tag' => 'u', 'classes' => []];
+            }
+        }
+        foreach ($classes as $class) {
+            if ($this->isHtmlSpanLikeElement($class)) {
+                $wrappers[] = ['tag' => $class, 'classes' => []];
+            }
+        }
+
+        if ($wrappers === []) {
+            return null;
+        }
+
+        $html = $this->renderInlines($node);
+        $outerIndex = count($wrappers) - 1;
+        foreach ($wrappers as $index => $wrapper) {
+            $tag = $wrapper['tag'];
+            $wrapperClasses = $wrapper['classes'];
+            $attrs = $index === $outerIndex
+                ? $this->renderSpanLikeAttrs($node, array_values(array_unique(array_merge($wrapperClasses, $retainedClasses))))
+                : $this->renderClassAttr($wrapperClasses);
+            $html = '<' . $tag . $attrs . '>' . $html . '</' . $tag . '>';
+        }
+
+        return $html;
+    }
+
+    private function isSpanLikeClass(string $class): bool
+    {
+        return $class === 'smallcaps'
+            || $class === 'underline'
+            || $this->isHtmlSpanLikeElement($class);
+    }
+
+    private function isHtmlSpanLikeElement(string $class): bool
+    {
+        return in_array($class, ['kbd', 'mark', 'dfn', 'abbr'], true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function spanClasses(AstNode $node): array
+    {
+        $classes = $node->attr('classes', []);
+        if (!is_array($classes)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($classes as $class) {
+            $class = (string) $class;
+            if ($class !== '') {
+                $normalized[] = $class;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function renderTrackedChangeAttrs(AstNode $node): string
+    {
+        $attrs = $this->renderClassAttr($this->spanClasses($node));
+        $sourceAttrs = $this->inlineHtmlAttributes($node);
+        $author = (string) ($sourceAttrs['author'] ?? '');
+        if ($author !== '') {
+            $attrs .= ' data-pandoc-change-author="' . $this->esc($author) . '"';
+        }
+
+        $date = (string) ($sourceAttrs['date'] ?? '');
+        if ($date !== '') {
+            $attrs .= ' data-pandoc-change-date="' . $this->esc($date) . '"';
+            $attrs .= ' datetime="' . $this->esc($date) . '"';
+        } elseif ($author !== '') {
+            $attrs .= ' data-pandoc-change-date-status="missing"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderCommentSpanAttrs(AstNode $node): string
+    {
+        $attrs = $this->renderClassAttr($this->spanClasses($node));
+        $sourceAttrs = $this->inlineHtmlAttributes($node);
+        $id = (string) ($sourceAttrs['id'] ?? '');
+        if ($id !== '') {
+            $attrs .= ' data-pandoc-comment-id="' . $this->esc($id) . '"';
+        }
+
+        $author = (string) ($sourceAttrs['author'] ?? '');
+        if ($author !== '') {
+            $attrs .= ' data-pandoc-comment-author="' . $this->esc($author) . '"';
+        }
+
+        $date = (string) ($sourceAttrs['date'] ?? '');
+        if ($date !== '') {
+            $attrs .= ' data-pandoc-comment-date="' . $this->esc($date) . '"';
+        } elseif ($author !== '') {
+            $attrs .= ' data-pandoc-comment-date-status="missing"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderParagraphChangeSpanAttrs(AstNode $node, string $kind): string
+    {
+        $attrs = $this->renderClassAttr($this->spanClasses($node));
+        $attrs .= ' data-pandoc-paragraph-change="' . $this->esc($kind) . '"';
+        $sourceAttrs = $this->inlineHtmlAttributes($node);
+        $author = (string) ($sourceAttrs['author'] ?? '');
+        if ($author !== '') {
+            $attrs .= ' data-pandoc-change-author="' . $this->esc($author) . '"';
+        }
+
+        $date = (string) ($sourceAttrs['date'] ?? '');
+        if ($date !== '') {
+            $attrs .= ' data-pandoc-change-date="' . $this->esc($date) . '"';
+            $attrs .= ' datetime="' . $this->esc($date) . '"';
+        } elseif ($author !== '') {
+            $attrs .= ' data-pandoc-change-date-status="missing"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderIndexReferenceSpanAttrs(AstNode $node): string
+    {
+        $attrs = $this->renderClassAttr($this->spanClasses($node));
+        $sourceAttrs = $this->inlineHtmlAttributes($node);
+        $entry = trim((string) ($sourceAttrs['entry'] ?? ''));
+        if ($entry !== '') {
+            $attrs .= ' data-pandoc-index-entry="' . $this->esc($entry) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderDiagramSpanAttrs(AstNode $node): string
+    {
+        $attrs = $this->renderInlineSpanAttrs($node);
+        $hasDiagramAttr = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $_value) {
+            if (strtolower((string) $name) === 'data-pandoc-diagram') {
+                $hasDiagramAttr = true;
+                break;
+            }
+        }
+
+        if (!$hasDiagramAttr) {
+            $attrs .= ' data-pandoc-diagram="unsupported-docx-diagram"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderEmptyAnchorSpanAttrs(AstNode $node): string
+    {
+        $attrs = $this->renderInlineSpanAttrs($node);
+        foreach ($this->inlineHtmlAttributes($node) as $name => $_value) {
+            if (strtolower((string) $name) === 'data-pandoc-anchor') {
+                return $attrs;
+            }
+        }
+
+        return $attrs . ' data-pandoc-anchor="empty-target"';
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderClassAttr(array $classes): string
+    {
+        if ($classes === []) {
+            return '';
+        }
+
+        return ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
+    }
+
+    private function renderInlineSpanAttrs(AstNode $node): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
                 continue;
             }
 
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedInlineHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
         }
 
         return $attrs;
     }
 
     /**
-     * @param list<string> $baseClasses
+     * @param list<string> $classes
      */
-    private function renderInlineSpanAttrs(AstNode $node, array $baseClasses = []): string
+    private function renderSpanLikeAttrs(AstNode $node, array $classes): string
     {
         $attrs = '';
+        $renderedSourceId = false;
         $htmlAttributes = $this->inlineHtmlAttributes($node);
-        $renderedClass = false;
-
-        if ($baseClasses !== []) {
-            $classes = [];
-            foreach ($baseClasses as $class) {
-                $class = trim($class);
-                if ($class !== '') {
-                    $classes[] = $class;
-                }
+        $id = (string) ($htmlAttributes['id'] ?? $node->attr('id', ''));
+        if ($id !== '') {
+            $htmlId = $this->htmlFragmentIdNeedsNormalization($id)
+                ? $this->normalizeHtmlFragmentId($id)
+                : $id;
+            if ($htmlId !== '') {
+                $attrs .= ' id="' . $this->esc($htmlId) . '"';
             }
-            if (isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
-                foreach (preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
-                    $classes[] = $class;
-                }
-            }
-            $classes = array_values(array_unique($classes));
-            if ($classes !== []) {
-                $attrs .= ' class="' . $this->esc(implode(' ', $classes)) . '"';
-                $renderedClass = true;
+            if ($htmlId !== $id) {
+                $attrs .= ' data-pandoc-source-id="' . $this->esc($id) . '"';
+                $renderedSourceId = true;
             }
         }
+
+        $attrs .= $this->renderClassAttr($classes);
 
         foreach ($htmlAttributes as $name => $value) {
             $name = strtolower((string) $name);
-            if (($name === 'class' && $renderedClass) || !$this->isAllowedInlineHtmlAttr($name) || !is_scalar($value)) {
+            if ($name === 'id' || $name === 'class') {
                 continue;
             }
 
-            $value = (string) $value;
-            if ($value === '') {
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
                 continue;
             }
 
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedInlineHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
         }
 
         return $attrs;
+    }
+
+    private function renderDivAttrs(AstNode $node): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedBlockHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderCustomStyleDataAttr(string $style): string
+    {
+        $style = trim($style);
+        if ($style === '') {
+            return '';
+        }
+
+        return ' data-pandoc-custom-style="' . $this->esc($style) . '"';
+    }
+
+    private function nodeCustomStyle(AstNode $node): string
+    {
+        $attributes = $node->attr('attributes', []);
+        if (is_array($attributes) && isset($attributes['custom-style'])) {
+            return (string) $attributes['custom-style'];
+        }
+
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (is_array($htmlAttributes) && isset($htmlAttributes['custom-style'])) {
+            return (string) $htmlAttributes['custom-style'];
+        }
+
+        return '';
     }
 
     /**
@@ -3140,6 +2391,35 @@ final class WordPressBlockWriter
         return $htmlAttributes;
     }
 
+    private function normalizeInternalFragmentUrl(string $url): string
+    {
+        if (!str_starts_with($url, '#')) {
+            return $url;
+        }
+
+        $fragment = substr($url, 1);
+        if (!$this->htmlFragmentIdNeedsNormalization($fragment)) {
+            return $url;
+        }
+
+        return '#' . $this->normalizeHtmlFragmentId($fragment);
+    }
+
+    private function htmlFragmentIdNeedsNormalization(string $id): bool
+    {
+        return preg_match('/\s/u', $id) === 1;
+    }
+
+    private function normalizeHtmlFragmentId(string $id): string
+    {
+        $normalized = trim($id);
+        $normalized = preg_replace('/\s+/u', '-', $normalized) ?? $normalized;
+        $normalized = preg_replace('/[^\p{L}\p{N}_.:-]+/u', '-', $normalized) ?? $normalized;
+        $normalized = trim($normalized, '-');
+
+        return $normalized === '' ? 'pandoc-anchor-' . substr(sha1($id), 0, 8) : $normalized;
+    }
+
     private function renderInlineCodeAttrs(AstNode $node): string
     {
         return $this->renderInlineSpanAttrs($node);
@@ -3151,55 +2431,12 @@ final class WordPressBlockWriter
             return false;
         }
 
-        return $this->isAllowedHtmlWriterGlobalAttr($name)
-            || $name === 'cite';
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title'], true);
     }
 
-    private function renderHtmlWriterAttrs(AstNode $node, bool $includeIdentity): string
-    {
-        $htmlAttributes = $this->inlineHtmlAttributes($node);
-        $attrs = '';
-        if ($includeIdentity) {
-            foreach (['id', 'class'] as $identityName) {
-                foreach ($htmlAttributes as $name => $value) {
-                    $name = strtolower((string) $name);
-                    if ($name !== $identityName || !is_scalar($value)) {
-                        continue;
-                    }
-
-                    $value = (string) $value;
-                    if ($value === '') {
-                        continue 2;
-                    }
-
-                    $attrs .= ' ' . $identityName . '="' . $this->esc($value) . '"';
-                    continue 2;
-                }
-            }
-        }
-
-        foreach ($htmlAttributes as $name => $value) {
-            $name = strtolower((string) $name);
-            if (
-                !$this->isAllowedHtmlWriterAttr($name)
-                || ($name === 'id' || $name === 'class')
-                || !is_scalar($value)
-            ) {
-                continue;
-            }
-
-            $value = (string) $value;
-            if ($value === '') {
-                continue;
-            }
-
-            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
-        }
-
-        return $attrs;
-    }
-
-    private function isAllowedHtmlWriterAttr(string $name): bool
+    private function isAllowedBlockHtmlAttr(string $name): bool
     {
         if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
             return false;
@@ -3207,28 +2444,27 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, self::HTML_WRITER_GLOBAL_ATTRIBUTES, true);
+            || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'title'], true);
     }
 
-    private function isAllowedHtmlWriterGlobalAttr(string $name): bool
+    private function isAllowedImageHtmlAttr(string $name): bool
     {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, self::HTML_WRITER_GLOBAL_ATTRIBUTES, true);
+            || in_array($name, ['class', 'decoding', 'dir', 'fetchpriority', 'id', 'lang', 'loading', 'sizes', 'srcset'], true);
     }
 
     private function renderMathInline(AstNode $node): string
     {
-        $class = $node->attr('display') === true ? 'display' : 'inline';
-        $mathml = $node->attr('mathml', null);
-        if (is_string($mathml) && trim($mathml) !== '') {
-            return '<span' . $this->renderInlineSpanAttrs($node, ['math', $class]) . '>' . trim($mathml) . '</span>';
-        }
-
         $open = $node->attr('display') === true ? '\\[' : '\\(';
         $close = $node->attr('display') === true ? '\\]' : '\\)';
+        $class = $node->attr('display') === true ? 'display' : 'inline';
 
-        return '<span' . $this->renderInlineSpanAttrs($node, ['math', $class]) . '>'
+        return '<span class="math ' . $class . '">'
             . $this->esc($open . (string) $node->attr('text', '') . $close)
             . '</span>';
     }

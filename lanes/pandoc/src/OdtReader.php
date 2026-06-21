@@ -6,1948 +6,523 @@ namespace PortLibs\Pandoc;
 
 final class OdtReader
 {
-    public const ODT_MIMETYPE = 'application/vnd.oasis.opendocument.text';
+    private const TEXT_NS = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
+    private const TABLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
+    private const STYLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:style:1.0';
+    private const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
+    private const XLINK_NS = 'http://www.w3.org/1999/xlink';
 
-    public const OFFICE_NS = 'urn:oasis:names:tc:opendocument:xmlns:office:1.0';
-    public const TEXT_NS = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
-    public const STYLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:style:1.0';
-    public const TABLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
-    public const NUMBER_NS = 'urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0';
-    public const DRAW_NS = 'urn:oasis:names:tc:opendocument:xmlns:drawing:1.0';
-    public const XLINK_NS = 'http://www.w3.org/1999/xlink';
-    public const SVG_NS = 'urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0';
-    public const MANIFEST_NS = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0';
-    public const META_NS = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
-    public const DC_NS = 'http://purl.org/dc/elements/1.1/';
-    public const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
-    public const CONFIG_NS = 'urn:oasis:names:tc:opendocument:xmlns:config:1.0';
+    /** @var array<string, array{strong?: bool, emph?: bool}> */
+    private array $textStyles = [];
+
+    /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> */
+    private array $listStyles = [];
+
+    /** @var list<string> */
+    private array $referencedResources = [];
+
+    public function read(string $bytes): AstNode
+    {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new \RuntimeException('Unable to create temporary ODT path.');
+        }
+
+        try {
+            if (file_put_contents($path, $bytes) === false) {
+                throw new \RuntimeException('Unable to write temporary ODT package.');
+            }
+
+            return $this->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function readOdtFile(string $path): AstNode
+    {
+        if (!class_exists(\ZipArchive::class)) {
+            throw new \RuntimeException('ODT analysis needs PHP ZipArchive, which is unavailable in this runtime.');
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($path) !== true) {
+            throw new \InvalidArgumentException("Unable to open ODT package '{$path}'.");
+        }
+
+        try {
+            $content_xml = $zip->getFromName('content.xml');
+            if (!is_string($content_xml)) {
+                throw new \InvalidArgumentException('ODT package is missing content.xml.');
+            }
+            $styles_xml = $zip->getFromName('styles.xml');
+            $meta_xml = $zip->getFromName('meta.xml');
+            $entries = [];
+            $image_resources = [];
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $stat = $zip->statIndex($i);
+                $name = is_array($stat) ? (string) ($stat['name'] ?? '') : '';
+                if ($name === '') {
+                    continue;
+                }
+                $entries[] = $name;
+                if ($this->pathLooksLikeImage($name)) {
+                    $image_resources[] = $this->normalizePackagePath($name);
+                }
+            }
+        } finally {
+            $zip->close();
+        }
+
+        return $this->readPackage(
+            $content_xml,
+            is_string($styles_xml) ? $styles_xml : '',
+            is_string($meta_xml) ? $meta_xml : '',
+            $entries,
+            array_values(array_unique($image_resources)),
+        );
+    }
 
     /**
-     * @return array{document:AstNode, metadata:array<string, string>, settings:array<string, mixed>, importReport:array<string, mixed>, manifest:list<array<string, mixed>>}
+     * @param list<string> $entries
+     * @param list<string> $image_resources
      */
-    public function readPackage(ZipPackage $package): array
+    private function readPackage(string $content_xml, string $styles_xml = '', string $meta_xml = '', array $entries = [], array $image_resources = []): AstNode
     {
-        if (!$package->has('content.xml')) {
-            throw new \RuntimeException('ODT package is missing content.xml');
-        }
+        $content = $this->loadXml($content_xml, 'ODT content.xml');
+        $this->textStyles = array_replace(
+            $styles_xml !== '' ? $this->collectTextStyles($this->loadXml($styles_xml, 'ODT styles.xml')) : [],
+            $this->collectTextStyles($content),
+        );
+        $this->listStyles = array_replace_recursive(
+            $styles_xml !== '' ? $this->collectListStyles($this->loadXml($styles_xml, 'ODT styles.xml')) : [],
+            $this->collectListStyles($content),
+        );
 
-        $mimetype = $package->has('mimetype') ? trim($package->read('mimetype')) : '';
-        if ($mimetype !== '' && $mimetype !== self::ODT_MIMETYPE) {
-            throw new \RuntimeException('ODT package mimetype is not application/vnd.oasis.opendocument.text');
-        }
-
-        $manifest = $this->readManifest($package);
-        $styleCatalog = $this->loadStyleCatalog($package);
-        $contentDom = self::loadXml($package->read('content.xml'), 'ODT content.xml');
-        $contentRoot = $contentDom->documentElement;
-        if (!$contentRoot instanceof \DOMElement || $contentRoot->namespaceURI !== self::OFFICE_NS) {
-            throw new \InvalidArgumentException('ODT content.xml must use an office document root');
-        }
-
-        $this->mergeAutomaticStyles($styleCatalog, $contentRoot);
-        $settings = $this->readSettings($package);
-        $body = $this->firstChildElement($contentRoot, self::OFFICE_NS, 'body');
-        $text = $body instanceof \DOMElement ? $this->firstChildElement($body, self::OFFICE_NS, 'text') : null;
+        $metadata = $meta_xml !== '' ? $this->metadata($this->loadXml($meta_xml, 'ODT meta.xml')) : [];
+        $body = $this->firstElementByLocalName($content, 'body');
+        $text = $body instanceof \DOMElement ? $this->firstChildElementByLocalName($body, 'text') : null;
         if (!$text instanceof \DOMElement) {
-            throw new \InvalidArgumentException('ODT content.xml is missing office:body/office:text');
+            $text = $this->firstElementByLocalName($content, 'text');
         }
 
-        $document = new AstNode('document', [
-            'sourceFormat' => 'odt',
-            'mimetype' => $mimetype === '' ? self::ODT_MIMETYPE : $mimetype,
-            'settings' => $settings,
-        ], $this->bodyBlocks($text, $package, $styleCatalog));
-        $metadata = $this->readMetadata($package, $contentRoot);
-
-        return [
-            'document' => $document,
-            'metadata' => $metadata,
-            'settings' => $settings,
-            'importReport' => $this->importReport($package, $manifest, $document, $styleCatalog, $settings, $mimetype),
-            'manifest' => $manifest,
-        ];
-    }
-
-    public function readDocument(ZipPackage $package): AstNode
-    {
-        return $this->readPackage($package)['document'];
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function readManifest(ZipPackage $package): array
-    {
-        if (!$package->has('META-INF/manifest.xml')) {
-            return [];
-        }
-
-        $dom = self::loadXml($package->read('META-INF/manifest.xml'), 'ODT manifest.xml');
-        $root = $dom->documentElement;
-        if (!$root instanceof \DOMElement || !$this->isElement($root, self::MANIFEST_NS, 'manifest')) {
-            return [];
-        }
-
-        $entries = [];
-        foreach ($root->childNodes as $child) {
-            if (!$child instanceof \DOMElement || !$this->isElement($child, self::MANIFEST_NS, 'file-entry')) {
-                continue;
-            }
-
-            $path = $this->manifestAttr($child, 'full-path');
-            if ($path === null || $path === '') {
-                continue;
-            }
-            $path = self::normalizeManifestPath($path);
-            $packageReference = self::manifestPackageReference($path);
-
-            $size = $this->manifestAttr($child, 'size');
-            $encryption = $this->manifestEncryption($child);
-            $entries[] = [
-                'path' => $path,
-                'packagePath' => $packageReference['packagePath'],
-                'pathReference' => $packageReference['pathReference'],
-                'pathSuffix' => $packageReference['pathSuffix'],
-                'pathQuery' => $packageReference['pathQuery'],
-                'pathFragment' => $packageReference['pathFragment'],
-                'mediaType' => (string) ($this->manifestAttr($child, 'media-type') ?? ''),
-                'encrypted' => $encryption !== null,
-                'encryption' => $encryption,
-                'size' => $size !== null && preg_match('/^\d+$/', $size) === 1 ? (int) $size : null,
-            ];
-        }
-
-        return $entries;
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function manifestEncryption(\DOMElement $entry): ?array
-    {
-        $encryptionElements = $this->childElements($entry, self::MANIFEST_NS, 'encryption-data');
-        if ($encryptionElements === []) {
-            return null;
-        }
-
-        $records = array_map(
-            fn (\DOMElement $encryption): array => $this->manifestEncryptionData($encryption),
-            $encryptionElements
-        );
-        $data = $records[0] ?? [];
-        $data['records'] = $records;
-        $data['recordCount'] = count($records);
-
-        if (count($records) > 1) {
-            $issueCodes = is_array($data['issueCodes'] ?? null) ? $data['issueCodes'] : [];
-            $issueCodes[] = 'odf-manifest-encryption-multiple-encryption-data';
-            $data['issueCodes'] = array_values(array_unique($issueCodes));
-            $data['issueCount'] = count($data['issueCodes']);
-        }
-
-        return $data;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function manifestEncryptionData(\DOMElement $encryption): array
-    {
-        $data = self::withoutEmpty([
-            'checksumType' => self::optionalManifestString($this->manifestAttr($encryption, 'checksum-type')),
-            'checksum' => self::optionalManifestString($this->manifestAttr($encryption, 'checksum')),
-        ]);
-
-        $algorithms = array_map(
-            fn (\DOMElement $algorithm): array => $this->manifestEncryptionAlgorithm($algorithm),
-            $this->childElements($encryption, self::MANIFEST_NS, 'algorithm')
-        );
-        if ($algorithms !== []) {
-            $data['algorithm'] = $algorithms[0];
-            $data['algorithms'] = $algorithms;
-            $data['algorithmCount'] = count($algorithms);
-        }
-
-        $keyDerivations = array_map(
-            fn (\DOMElement $keyDerivation): array => $this->manifestEncryptionKeyDerivation($keyDerivation),
-            $this->childElements($encryption, self::MANIFEST_NS, 'key-derivation')
-        );
-        if ($keyDerivations !== []) {
-            $data['keyDerivation'] = $keyDerivations[0];
-            $data['keyDerivations'] = $keyDerivations;
-            $data['keyDerivationCount'] = count($keyDerivations);
-        }
-
-        $startKeyGenerations = array_map(
-            fn (\DOMElement $startKeyGeneration): array => $this->manifestEncryptionStartKeyGeneration($startKeyGeneration),
-            $this->childElements($encryption, self::MANIFEST_NS, 'start-key-generation')
-        );
-        if ($startKeyGenerations !== []) {
-            $data['startKeyGeneration'] = $startKeyGenerations[0];
-            $data['startKeyGenerations'] = $startKeyGenerations;
-            $data['startKeyGenerationCount'] = count($startKeyGenerations);
-        }
-
-        $unknownChildren = $this->manifestEncryptionUnknownChildren($encryption);
-        if ($unknownChildren !== []) {
-            $data['unknownChildCount'] = count($unknownChildren);
-            $data['unknownChildren'] = $unknownChildren;
-        }
-
-        $issueCodes = [];
-        if (count($algorithms) > 1) {
-            $issueCodes[] = 'odf-manifest-encryption-multiple-algorithms';
-        }
-        if (count($keyDerivations) > 1) {
-            $issueCodes[] = 'odf-manifest-encryption-multiple-key-derivations';
-        }
-        if (count($startKeyGenerations) > 1) {
-            $issueCodes[] = 'odf-manifest-encryption-multiple-start-key-generations';
-        }
-        if ($unknownChildren !== []) {
-            $issueCodes[] = 'odf-manifest-encryption-unknown-child';
-        }
-        if ($issueCodes !== []) {
-            $data['issueCount'] = count($issueCodes);
-            $data['issueCodes'] = $issueCodes;
-        }
-
-        return $data;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function manifestEncryptionAlgorithm(\DOMElement $algorithm): array
-    {
-        $initialisationVector = $this->manifestAttr($algorithm, 'initialisation-vector')
-            ?? $this->manifestAttr($algorithm, 'initialization-vector');
-
-        return self::withoutEmpty([
-            'name' => self::optionalManifestString($this->manifestAttr($algorithm, 'algorithm-name')),
-            'initialisationVector' => self::optionalManifestString($initialisationVector),
-        ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function manifestEncryptionKeyDerivation(\DOMElement $keyDerivation): array
-    {
-        return self::withoutEmpty([
-            'name' => self::optionalManifestString($this->manifestAttr($keyDerivation, 'key-derivation-name')),
-            'keySize' => self::optionalManifestInt($this->manifestAttr($keyDerivation, 'key-size')),
-            'iterationCount' => self::optionalManifestInt($this->manifestAttr($keyDerivation, 'iteration-count')),
-            'salt' => self::optionalManifestString($this->manifestAttr($keyDerivation, 'salt')),
-        ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function manifestEncryptionStartKeyGeneration(\DOMElement $startKeyGeneration): array
-    {
-        return self::withoutEmpty([
-            'name' => self::optionalManifestString($this->manifestAttr($startKeyGeneration, 'start-key-generation-name')),
-            'keySize' => self::optionalManifestInt($this->manifestAttr($startKeyGeneration, 'key-size')),
-        ]);
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function manifestEncryptionUnknownChildren(\DOMElement $encryption): array
-    {
-        $unknownChildren = [];
-        foreach ($this->childElements($encryption) as $child) {
-            if (
-                $child->namespaceURI === self::MANIFEST_NS
-                && in_array($child->localName, ['algorithm', 'key-derivation', 'start-key-generation'], true)
-            ) {
-                continue;
-            }
-
-            $unknownChildren[] = self::withoutEmpty([
-                'name' => self::qualifiedElementName($child),
-                'namespaceUri' => self::optionalManifestString($child->namespaceURI),
-                'localName' => $child->localName,
+        $this->referencedResources = [];
+        $children = $text instanceof \DOMElement ? $this->parseBlockChildren($text) : [];
+        if ($children === []) {
+            $children[] = new AstNode('paragraph', ['text' => 'No readable ODT body content was found.'], [
+                new AstNode('text', ['text' => 'No readable ODT body content was found.']),
             ]);
         }
 
-        return $unknownChildren;
+        $referenced_resources = array_values(array_unique($this->referencedResources));
+        $metadata['odtTextStyleCount'] = count($this->textStyles);
+        $metadata['odtListStyleCount'] = count($this->listStyles);
+        $metadata['odtPackageEntries'] = count($entries);
+        $metadata['odtReferencedResources'] = $referenced_resources;
+        $metadata['odtImageResources'] = $image_resources !== []
+            ? $image_resources
+            : array_values(array_filter($referenced_resources, fn (string $path): bool => $this->pathLooksLikeImage($path)));
+
+        return new AstNode('document', ['meta' => $metadata], $children);
     }
 
     /**
-     * @return array{count:int,itemCount:int,mapEntryCount:int,sets:list<array<string, mixed>>,setsByName:array<string, array<string, mixed>>}
-     */
-    private function readSettings(ZipPackage $package): array
-    {
-        $empty = [
-            'count' => 0,
-            'itemCount' => 0,
-            'mapEntryCount' => 0,
-            'sets' => [],
-            'setsByName' => [],
-        ];
-        if (!$package->has('settings.xml')) {
-            return $empty;
-        }
-
-        $dom = self::loadXml($package->read('settings.xml'), 'ODT settings.xml');
-        $root = $dom->documentElement;
-        if (!$root instanceof \DOMElement || !$this->isElement($root, self::OFFICE_NS, 'document-settings')) {
-            throw new \InvalidArgumentException('ODT settings.xml must use office:document-settings as its root element');
-        }
-
-        $settingsElement = $this->firstChildElement($root, self::OFFICE_NS, 'settings');
-        if (!$settingsElement instanceof \DOMElement) {
-            throw new \RuntimeException('ODT settings.xml is missing office:settings');
-        }
-
-        $sets = [];
-        $setsByName = [];
-        $itemCount = 0;
-        $mapEntryCount = 0;
-        foreach ($this->childElements($settingsElement, self::CONFIG_NS, 'config-item-set') as $setElement) {
-            $name = $this->configAttr($setElement, 'name');
-            if ($name === null || $name === '') {
-                continue;
-            }
-
-            $set = $this->settingsContainerDefinition($setElement) + ['name' => $name];
-            $sets[] = $set;
-            $setsByName[$name] = $set;
-            $itemCount += (int) ($set['itemCount'] ?? 0);
-            $mapEntryCount += (int) ($set['mapEntryCount'] ?? 0);
-        }
-
-        return [
-            'count' => count($sets),
-            'itemCount' => $itemCount,
-            'mapEntryCount' => $mapEntryCount,
-            'sets' => $sets,
-            'setsByName' => $setsByName,
-        ];
-    }
-
-    /**
-     * @return array{itemCount:int,mapEntryCount:int,items:list<array<string, mixed>>,itemsByName:array<string, array<string, mixed>>,maps:list<array<string, mixed>>,mapsByName:array<string, array<string, mixed>>}
-     */
-    private function settingsContainerDefinition(\DOMElement $container): array
-    {
-        $items = [];
-        $itemsByName = [];
-        $maps = [];
-        $mapsByName = [];
-        $itemCount = 0;
-        $mapEntryCount = 0;
-
-        foreach ($this->childElements($container) as $child) {
-            if ($this->isElement($child, self::CONFIG_NS, 'config-item')) {
-                $item = $this->settingsConfigItemDefinition($child);
-                if ($item === []) {
-                    continue;
-                }
-
-                $items[] = $item;
-                $itemsByName[$item['name']] = $item;
-                ++$itemCount;
-                continue;
-            }
-
-            if ($this->isElement($child, self::CONFIG_NS, 'config-item-map-indexed')
-                || $this->isElement($child, self::CONFIG_NS, 'config-item-map-named')
-            ) {
-                $map = $this->settingsConfigMapDefinition($child);
-                if ($map === []) {
-                    continue;
-                }
-
-                $maps[] = $map;
-                $mapsByName[$map['name']] = $map;
-                $itemCount += (int) ($map['itemCount'] ?? 0);
-                $mapEntryCount += (int) ($map['mapEntryCount'] ?? 0);
-            }
-        }
-
-        return [
-            'itemCount' => $itemCount,
-            'mapEntryCount' => $mapEntryCount,
-            'items' => $items,
-            'itemsByName' => $itemsByName,
-            'maps' => $maps,
-            'mapsByName' => $mapsByName,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function settingsConfigItemDefinition(\DOMElement $item): array
-    {
-        $name = $this->configAttr($item, 'name');
-        if ($name === null || $name === '') {
-            return [];
-        }
-
-        $type = $this->configAttr($item, 'type') ?? '';
-        $value = $this->normalizedText($item);
-
-        return self::withoutEmpty([
-            'name' => $name,
-            'type' => $type === '' ? null : $type,
-            'value' => $value,
-            'typedValue' => $this->settingsConfigTypedValue($value, $type),
-        ]);
-    }
-
-    private function settingsConfigTypedValue(string $value, string $type): mixed
-    {
-        $type = strtolower(trim($type));
-        if (in_array($type, ['boolean', 'bool'], true)) {
-            return $this->nullableBool($value);
-        }
-        if (in_array($type, ['int', 'integer', 'long', 'short'], true)) {
-            return preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : $value;
-        }
-        if (in_array($type, ['float', 'double'], true)) {
-            return is_numeric($value) ? (float) $value : $value;
-        }
-
-        return $value;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function settingsConfigMapDefinition(\DOMElement $map): array
-    {
-        $name = $this->configAttr($map, 'name');
-        if ($name === null || $name === '') {
-            return [];
-        }
-
-        $entries = [];
-        $entriesByName = [];
-        $itemCount = 0;
-        $mapEntryCount = 0;
-        foreach ($this->childElements($map, self::CONFIG_NS, 'config-item-map-entry') as $entryElement) {
-            $entry = $this->settingsContainerDefinition($entryElement);
-            $entry['index'] = count($entries);
-            $entryName = $this->configAttr($entryElement, 'name');
-            if ($entryName !== null && $entryName !== '') {
-                $entry['name'] = $entryName;
-                $entriesByName[$entryName] = $entry;
-            }
-
-            $entries[] = $entry;
-            $itemCount += (int) ($entry['itemCount'] ?? 0);
-            $mapEntryCount += 1 + (int) ($entry['mapEntryCount'] ?? 0);
-        }
-
-        $definition = [
-            'name' => $name,
-            'type' => $map->localName === 'config-item-map-named' ? 'named' : 'indexed',
-            'entryCount' => count($entries),
-            'itemCount' => $itemCount,
-            'mapEntryCount' => $mapEntryCount,
-            'entries' => $entries,
-        ];
-        if ($entriesByName !== []) {
-            $definition['entriesByName'] = $entriesByName;
-        }
-
-        return $definition;
-    }
-
-    /**
-     * @return array<string, array<string, mixed>>
-     */
-    private function loadStyleCatalog(ZipPackage $package): array
-    {
-        $catalog = [
-            'styles' => [],
-            'paragraphStyles' => [],
-            'textStyles' => [],
-            'listStyles' => [],
-            'fontFaces' => [],
-            'dataStyles' => [],
-            'tableTemplates' => [],
-            'pageLayouts' => [],
-            'masterPages' => [],
-            'diagnostics' => [],
-        ];
-
-        if ($package->has('styles.xml')) {
-            $dom = self::loadXml($package->read('styles.xml'), 'ODT styles.xml');
-            $root = $dom->documentElement;
-            if ($root instanceof \DOMElement) {
-                $this->mergeStyleElements($catalog, $root);
-            }
-        }
-
-        return $catalog;
-    }
-
-    /**
-     * @param array<string, array<string, mixed>> $catalog
-     */
-    private function mergeAutomaticStyles(array &$catalog, \DOMElement $contentRoot): void
-    {
-        foreach ($contentRoot->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
-
-            if (
-                $this->isElement($child, self::OFFICE_NS, 'font-face-decls')
-                || $this->isElement($child, self::OFFICE_NS, 'automatic-styles')
-            ) {
-                $this->mergeStyleElements($catalog, $child);
-            }
-        }
-    }
-
-    /**
-     * @param array<string, array<string, mixed>> $catalog
-     */
-    private function mergeStyleElements(array &$catalog, \DOMElement $container): void
-    {
-        foreach ($container->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
-
-            if (
-                $this->isElement($child, self::OFFICE_NS, 'styles')
-                || $this->isElement($child, self::OFFICE_NS, 'automatic-styles')
-                || $this->isElement($child, self::OFFICE_NS, 'font-face-decls')
-                || $this->isElement($child, self::OFFICE_NS, 'master-styles')
-            ) {
-                $this->mergeStyleElements($catalog, $child);
-                continue;
-            }
-
-            if ($this->isElement($child, self::STYLE_NS, 'font-face')) {
-                $name = $this->styleAttr($child, 'name');
-                if ($name !== null && $name !== '') {
-                    $this->putStyleCatalogItem(
-                        $catalog['fontFaces'],
-                        $catalog['diagnostics'],
-                        'odt-font-face-duplicate-name',
-                        'fontFaceName',
-                        $name,
-                        $this->fontFaceDefinition($child)
-                    );
-                }
-                continue;
-            }
-
-            if ($this->isElement($child, self::STYLE_NS, 'style')) {
-                $name = $this->styleAttr($child, 'name');
-                $family = strtolower((string) ($this->styleAttr($child, 'family') ?? ''));
-                if ($name === null || $name === '') {
-                    continue;
-                }
-
-                $style = $this->styleDefinition($child, $family);
-                $this->putStyleCatalogItem(
-                    $catalog['styles'],
-                    $catalog['diagnostics'],
-                    'odt-style-duplicate-name',
-                    'styleName',
-                    $name,
-                    $style
-                );
-                if ($family === 'paragraph') {
-                    $catalog['paragraphStyles'][$name] = $style;
-                } elseif ($family === 'text') {
-                    $catalog['textStyles'][$name] = $style;
-                }
-                continue;
-            }
-
-            if ($this->isElement($child, self::TEXT_NS, 'list-style')) {
-                $name = $this->styleAttr($child, 'name');
-                if ($name !== null && $name !== '') {
-                    $this->putStyleCatalogItem(
-                        $catalog['listStyles'],
-                        $catalog['diagnostics'],
-                        'odt-list-style-duplicate-name',
-                        'listStyleName',
-                        $name,
-                        $this->listStyleDefinition($child)
-                    );
-                }
-                continue;
-            }
-
-            if ($child->namespaceURI === self::NUMBER_NS && $this->isDataStyleElement($child)) {
-                $name = $this->styleAttr($child, 'name');
-                if ($name !== null && $name !== '') {
-                    $this->putStyleCatalogItem(
-                        $catalog['dataStyles'],
-                        $catalog['diagnostics'],
-                        'odt-data-style-duplicate-name',
-                        'dataStyleName',
-                        $name,
-                        [
-                            'name' => $name,
-                            'element' => $child->localName,
-                        ]
-                    );
-                }
-                continue;
-            }
-
-            if ($this->isElement($child, self::TABLE_NS, 'table-template')) {
-                $name = $this->tableAttr($child, 'name');
-                if ($name !== null && $name !== '') {
-                    $this->putStyleCatalogItem(
-                        $catalog['tableTemplates'],
-                        $catalog['diagnostics'],
-                        'odt-table-template-duplicate-name',
-                        'tableTemplateName',
-                        $name,
-                        $this->tableTemplateDefinition($child)
-                    );
-                }
-                continue;
-            }
-
-            if ($this->isElement($child, self::STYLE_NS, 'page-layout')) {
-                $name = $this->styleAttr($child, 'name');
-                if ($name !== null && $name !== '') {
-                    $this->putStyleCatalogItem(
-                        $catalog['pageLayouts'],
-                        $catalog['diagnostics'],
-                        'odt-page-layout-duplicate-name',
-                        'pageLayoutName',
-                        $name,
-                        ['name' => $name]
-                    );
-                }
-                continue;
-            }
-
-            if ($this->isElement($child, self::STYLE_NS, 'master-page')) {
-                $name = $this->styleAttr($child, 'name');
-                if ($name !== null && $name !== '') {
-                    $this->putStyleCatalogItem(
-                        $catalog['masterPages'],
-                        $catalog['diagnostics'],
-                        'odt-master-page-duplicate-name',
-                        'masterPageName',
-                        $name,
-                        $this->masterPageDefinition($child)
-                    );
-                }
-            }
-        }
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function styleDefinition(\DOMElement $styleElement, string $family): array
-    {
-        $parent = $this->styleAttr($styleElement, 'parent-style-name');
-        $listStyleName = $this->styleAttr($styleElement, 'list-style-name');
-        $definition = [
-            'name' => $this->styleAttr($styleElement, 'name'),
-            'family' => $family,
-            'parent' => $parent,
-            'parentName' => $parent,
-            'listStyle' => $listStyleName,
-            'listStyleName' => $listStyleName,
-            'styleMaps' => $this->styleMapDefinitions($styleElement),
-            'masterPageName' => $this->styleAttr($styleElement, 'master-page-name'),
-            'dataStyleName' => $this->styleAttr($styleElement, 'data-style-name'),
-        ];
-
-        $textProperties = $this->firstChildElement($styleElement, self::STYLE_NS, 'text-properties');
-        if ($textProperties instanceof \DOMElement) {
-            $textPropertyReport = [];
-            $fontName = $this->styleAttr($textProperties, 'font-name');
-            $definition['fontName'] = $fontName;
-            if ($fontName !== null && $fontName !== '') {
-                $textPropertyReport['fontName'] = $fontName;
-            }
-
-            $fontWeight = strtolower((string) ($this->foAttr($textProperties, 'font-weight') ?? ''));
-            if ($fontWeight === 'bold' || (is_numeric($fontWeight) && (int) $fontWeight >= 600)) {
-                $definition['strong'] = true;
-            }
-
-            $fontStyle = strtolower((string) ($this->foAttr($textProperties, 'font-style') ?? ''));
-            if ($fontStyle === 'italic' || $fontStyle === 'oblique') {
-                $definition['emph'] = true;
-            }
-
-            $underline = strtolower((string) ($this->styleAttr($textProperties, 'text-underline-style') ?? ''));
-            if ($underline !== '' && $underline !== 'none') {
-                $definition['underline'] = true;
-            }
-
-            $strike = strtolower((string) ($this->styleAttr($textProperties, 'text-line-through-style') ?? ''));
-            if ($strike !== '' && $strike !== 'none') {
-                $definition['strikeout'] = true;
-            }
-
-            $position = strtolower((string) ($this->styleAttr($textProperties, 'text-position') ?? ''));
-            if (str_contains($position, 'super')) {
-                $definition['superscript'] = true;
-            } elseif (str_contains($position, 'sub')) {
-                $definition['subscript'] = true;
-            }
-
-            if ($textPropertyReport !== []) {
-                $definition['textProperties'] = $textPropertyReport;
-            }
-        }
-
-        $paragraphProperties = $this->firstChildElement($styleElement, self::STYLE_NS, 'paragraph-properties');
-        if ($paragraphProperties instanceof \DOMElement) {
-            $listStyleName = $this->styleAttr($paragraphProperties, 'list-style-name');
-            if ($listStyleName !== null && $listStyleName !== '') {
-                $definition['listStyle'] = $listStyleName;
-                $definition['listStyleName'] = $listStyleName;
-            }
-
-            $alignment = strtolower((string) ($this->foAttr($paragraphProperties, 'text-align') ?? ''));
-            if (in_array($alignment, ['left', 'right', 'center'], true)) {
-                $definition['align'] = $alignment;
-            }
-        }
-
-        $styleMaps = $this->styleMapDefinitions($styleElement);
-        if ($styleMaps !== []) {
-            $definition['styleMaps'] = $styleMaps;
-        }
-
-        return $definition;
-    }
-
-    /**
-     * @return list<array{condition:string, applyStyleName:string, baseCellAddress:?string}>
-     */
-    private function styleMapDefinitions(\DOMElement $styleElement): array
-    {
-        $maps = [];
-        foreach ($styleElement->childNodes as $child) {
-            if (!$child instanceof \DOMElement || !$this->isElement($child, self::STYLE_NS, 'map')) {
-                continue;
-            }
-
-            $applyStyleName = (string) ($this->styleAttr($child, 'apply-style-name') ?? '');
-            if ($applyStyleName === '') {
-                continue;
-            }
-
-            $maps[] = [
-                'condition' => (string) ($this->styleAttr($child, 'condition') ?? ''),
-                'applyStyleName' => $applyStyleName,
-                'baseCellAddress' => $this->tableAttr($child, 'base-cell-address'),
-            ];
-        }
-
-        return $maps;
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function listStyleDefinition(\DOMElement $listStyle): array
-    {
-        $levels = [];
-        foreach ($listStyle->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
-
-            $isNumber = $this->isElement($child, self::TEXT_NS, 'list-level-style-number');
-            $isBullet = $this->isElement($child, self::TEXT_NS, 'list-level-style-bullet');
-            if (!$isNumber && !$isBullet) {
-                continue;
-            }
-
-            $level = $this->positiveIntAttr($child, self::TEXT_NS, 'level', 1);
-            $definition = [
-                'ordered' => $isNumber,
-                'level' => $level,
-                'style' => $this->orderedListStyle((string) ($this->styleAttr($child, 'num-format') ?? '1')),
-                'format' => $isNumber ? (string) ($this->styleAttr($child, 'num-format') ?? '1') : (string) ($this->textAttr($child, 'bullet-char') ?? ''),
-                'displayLevels' => $this->positiveIntAttr($child, self::TEXT_NS, 'display-levels', 1),
-            ];
-
-            $start = $this->textAttr($child, 'start-value');
-            if ($start !== null && preg_match('/^\d+$/', $start) === 1) {
-                $definition['start'] = max(1, (int) $start);
-            }
-
-            $textProperties = $this->firstChildElement($child, self::STYLE_NS, 'text-properties');
-            if ($textProperties instanceof \DOMElement) {
-                $fontName = $this->styleAttr($textProperties, 'font-name');
-                if ($fontName !== null && $fontName !== '') {
-                    $definition['textProperties'] = ['fontName' => $fontName];
-                }
-            }
-
-            $levels[$level] = $definition;
-        }
-
-        return $levels;
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function fontFaceDefinition(\DOMElement $fontFace): array
-    {
-        return self::withoutEmpty([
-            'name' => $this->styleAttr($fontFace, 'name'),
-            'fontFamily' => $this->svgAttr($fontFace, 'font-family'),
-            'fontFamilyGeneric' => $this->styleAttr($fontFace, 'font-family-generic'),
-            'fontPitch' => $this->styleAttr($fontFace, 'font-pitch'),
-        ]);
-    }
-
-    private function isDataStyleElement(\DOMElement $element): bool
-    {
-        return in_array($element->localName, [
-            'number-style',
-            'currency-style',
-            'percentage-style',
-            'date-style',
-            'time-style',
-            'boolean-style',
-            'text-style',
-        ], true);
-    }
-
-    /**
-     * @return array{name:string, styles:array<string, string>}
-     */
-    private function tableTemplateDefinition(\DOMElement $tableTemplate): array
-    {
-        $styles = [];
-        foreach ([
-            'first-row-start-column' => 'firstRowStartColumn',
-            'first-row-end-column' => 'firstRowEndColumn',
-            'first-column' => 'firstColumn',
-            'last-column' => 'lastColumn',
-            'first-row' => 'firstRow',
-            'last-row' => 'lastRow',
-            'body' => 'body',
-            'odd-rows' => 'oddRows',
-            'even-rows' => 'evenRows',
-            'odd-columns' => 'oddColumns',
-            'even-columns' => 'evenColumns',
-        ] as $attribute => $name) {
-            $value = $this->tableAttr($tableTemplate, $attribute);
-            if ($value !== null && $value !== '') {
-                $styles[$name] = $value;
-            }
-        }
-
-        return [
-            'name' => (string) $this->tableAttr($tableTemplate, 'name'),
-            'styles' => $styles,
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function masterPageDefinition(\DOMElement $masterPage): array
-    {
-        return self::withoutEmpty([
-            'name' => $this->styleAttr($masterPage, 'name'),
-            'pageLayoutName' => $this->styleAttr($masterPage, 'page-layout-name'),
-            'nextStyleName' => $this->styleAttr($masterPage, 'next-style-name'),
-            'drawStyleName' => $this->drawAttr($masterPage, 'style-name'),
-        ]);
-    }
-
-    /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
      * @return list<AstNode>
      */
-    private function bodyBlocks(\DOMElement $text, ZipPackage $package, array $styles): array
+    private function parseBlockChildren(\DOMNode $parent): array
     {
         $blocks = [];
-        foreach ($text->childNodes as $child) {
-            if ($child instanceof \DOMElement) {
-                array_push($blocks, ...$this->blockNodes($child, $package, $styles));
+        foreach ($parent->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            $block = $this->parseBlock($child);
+            if ($block instanceof AstNode) {
+                $blocks[] = $block;
+            } elseif (is_array($block)) {
+                array_push($blocks, ...$block);
             }
         }
 
         return $blocks;
     }
 
-    /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
-     * @return list<AstNode>
-     */
-    private function blockNodes(\DOMElement $element, ZipPackage $package, array $styles): array
+    private function parseBlock(\DOMElement $element): AstNode|array|null
     {
-        if ($this->isElement($element, self::TEXT_NS, 'h')) {
-            $level = $this->positiveIntAttr($element, self::TEXT_NS, 'outline-level', 1);
-            $children = $this->inlineNodes($element, $package, $styles);
-
-            return [new AstNode('heading', [
-                'level' => min(6, $level),
-                'text' => $this->plainInlineText($children),
-                'id' => $this->slugify($this->plainInlineText($children)),
-                'style' => $this->textAttr($element, 'style-name'),
-                'sourceFormat' => 'odt',
-            ], $children)];
-        }
-
-        if ($this->isElement($element, self::TEXT_NS, 'p')) {
-            $paragraph = $this->paragraphNode($element, $package, $styles);
-
-            return $paragraph instanceof AstNode ? [$paragraph] : [];
-        }
-
-        if ($this->isElement($element, self::TEXT_NS, 'list')) {
-            return [$this->listNode($element, $package, $styles)];
-        }
-
-        if ($this->isElement($element, self::TABLE_NS, 'table')) {
-            return [$this->tableNode($element, $package, $styles)];
-        }
-
-        if ($this->isElement($element, self::TEXT_NS, 'section')) {
-            $children = [];
-            foreach ($element->childNodes as $child) {
-                if ($child instanceof \DOMElement) {
-                    array_push($children, ...$this->blockNodes($child, $package, $styles));
-                }
-            }
-
-            return [new AstNode('div', [
-                'sourceFormat' => 'odt-section',
-                'name' => $this->textAttr($element, 'name'),
-            ], $children)];
-        }
-
-        if ($this->isElement($element, self::DRAW_NS, 'frame')) {
-            $node = $this->frameBlockNode($element, $package, $styles);
-
-            return $node instanceof AstNode ? [$node] : [];
-        }
-
-        if ($this->isElement($element, self::OFFICE_NS, 'annotation')) {
-            return [new AstNode('paragraph', [], [$this->annotationSpan($element, $package, $styles)])];
-        }
-
-        return [];
+        return match ($element->localName) {
+            'h' => $this->heading($element),
+            'p' => $this->paragraph($element),
+            'list' => $this->list($element),
+            'table' => $this->table($element),
+            'section', 'div' => $this->parseBlockChildren($element),
+            default => null,
+        };
     }
 
-    /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
-     */
-    private function paragraphNode(\DOMElement $paragraph, ZipPackage $package, array $styles): ?AstNode
+    private function heading(\DOMElement $element): AstNode
     {
-        $children = $this->inlineNodes($paragraph, $package, $styles);
-        $text = $this->plainInlineText($children);
-        if ($children === [] && $text === '') {
+        $level = max(1, min(6, (int) ($this->attr($element, self::TEXT_NS, 'outline-level') ?: '1')));
+        $inlines = $this->parseInlines($element);
+        $text = $this->plainText($inlines);
+
+        return new AstNode('heading', ['level' => $level, 'text' => $text], $inlines);
+    }
+
+    private function paragraph(\DOMElement $element): ?AstNode
+    {
+        $inlines = $this->parseInlines($element);
+        $text = trim($this->plainText($inlines));
+        if ($text === '' && $inlines === []) {
             return null;
         }
 
-        $attrs = ['sourceFormat' => 'odt'];
-        $styleName = $this->textAttr($paragraph, 'style-name');
-        if ($styleName !== null && $styleName !== '') {
-            $attrs['style'] = $styleName;
-            $style = $this->resolveStyle($styleName, $styles['paragraphStyles']);
-            if (isset($style['align'])) {
-                $attrs['htmlAttributes'] = ['style' => 'text-align:' . $style['align']];
-            }
-        }
-
-        return new AstNode('paragraph', $attrs, $children);
+        return new AstNode('paragraph', ['text' => $text], $inlines);
     }
 
-    /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
-     * @return list<AstNode>
-     */
-    private function inlineNodes(\DOMElement $element, ZipPackage $package, array $styles): array
+    private function list(\DOMElement $element): AstNode
     {
-        $nodes = [];
-        foreach ($element->childNodes as $child) {
-            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
-                $value = $child->nodeValue ?? '';
-                if ($value !== '' && trim($value) !== '') {
-                    $nodes[] = new AstNode('text', ['text' => $value]);
-                }
-                continue;
-            }
-
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
-
-            if ($this->isElement($child, self::TEXT_NS, 'span')) {
-                $spanNodes = $this->inlineNodes($child, $package, $styles);
-                $styleName = $this->textAttr($child, 'style-name');
-                array_push($nodes, ...$this->applyTextStyle($spanNodes, $styleName, $styles));
-                continue;
-            }
-
-            if ($this->isElement($child, self::TEXT_NS, 'a')) {
-                $nodes[] = new AstNode('link', [
-                    'url' => (string) ($this->xlinkAttr($child, 'href') ?? ''),
-                    'title' => (string) ($this->officeAttr($child, 'title') ?? ''),
-                    'sourceFormat' => 'odt',
-                ], $this->inlineNodes($child, $package, $styles));
-                continue;
-            }
-
-            if ($this->isElement($child, self::TEXT_NS, 's')) {
-                $nodes[] = new AstNode('text', ['text' => str_repeat(' ', $this->positiveIntAttr($child, self::TEXT_NS, 'c', 1))]);
-                continue;
-            }
-
-            if ($this->isElement($child, self::TEXT_NS, 'tab')) {
-                $nodes[] = new AstNode('text', ['text' => ' ']);
-                continue;
-            }
-
-            if ($this->isElement($child, self::TEXT_NS, 'line-break')) {
-                $nodes[] = new AstNode('linebreak');
-                continue;
-            }
-
-            if ($this->isElement($child, self::TEXT_NS, 'note')) {
-                $nodes[] = $this->noteNode($child, $package, $styles);
-                continue;
-            }
-
-            if ($this->isElement($child, self::OFFICE_NS, 'annotation')) {
-                $nodes[] = $this->annotationSpan($child, $package, $styles);
-                continue;
-            }
-
-            if ($this->isElement($child, self::DRAW_NS, 'frame')) {
-                $frame = $this->frameInlineNode($child, $package, $styles);
-                if ($frame instanceof AstNode) {
-                    $nodes[] = $frame;
-                }
-                continue;
-            }
-
-            if ($this->isElement($child, self::TEXT_NS, 'bookmark') || $this->isElement($child, self::TEXT_NS, 'bookmark-start')) {
-                $name = $this->textAttr($child, 'name');
-                if ($name !== null && $name !== '') {
-                    $nodes[] = new AstNode('span', ['id' => $name, 'classes' => ['anchor']]);
-                }
-                continue;
-            }
-        }
-
-        return $this->coalesceTextNodes($nodes);
-    }
-
-    /**
-     * @param list<AstNode> $nodes
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
-     * @return list<AstNode>
-     */
-    private function applyTextStyle(array $nodes, ?string $styleName, array $styles): array
-    {
-        if ($nodes === [] || $styleName === null || $styleName === '') {
-            return $nodes;
-        }
-
-        $style = $this->resolveStyle($styleName, $styles['textStyles']);
-        foreach (['strong', 'emph', 'underline', 'strikeout', 'superscript', 'subscript'] as $type) {
-            if (($style[$type] ?? false) === true) {
-                $nodes = [new AstNode($type, ['style' => $styleName, 'sourceFormat' => 'odt'], $nodes)];
-            }
-        }
-
-        return $nodes;
-    }
-
-    /**
-     * @param array<string, array<string, mixed>> $styles
-     * @return array<string, mixed>
-     */
-    private function resolveStyle(string $styleName, array $styles): array
-    {
-        $resolved = [];
-        $seen = [];
-        $current = $styleName;
-        $stack = [];
-        while ($current !== '' && isset($styles[$current]) && !isset($seen[$current])) {
-            $seen[$current] = true;
-            $stack[] = $styles[$current];
-            $parent = $styles[$current]['parent'] ?? null;
-            $current = is_string($parent) ? $parent : '';
-        }
-
-        while ($style = array_pop($stack)) {
-            foreach ($style as $key => $value) {
-                if ($key === 'parent' || $key === 'family' || $value === null) {
-                    continue;
-                }
-
-                $resolved[$key] = $value;
-            }
-        }
-
-        return $resolved;
-    }
-
-    /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
-     */
-    private function noteNode(\DOMElement $note, ZipPackage $package, array $styles): AstNode
-    {
-        $citation = '';
-        $blocks = [];
-        foreach ($note->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
-
-            if ($this->isElement($child, self::TEXT_NS, 'note-citation')) {
-                $citation = trim($child->textContent);
-                continue;
-            }
-
-            if ($this->isElement($child, self::TEXT_NS, 'note-body')) {
-                foreach ($child->childNodes as $bodyChild) {
-                    if ($bodyChild instanceof \DOMElement) {
-                        array_push($blocks, ...$this->blockNodes($bodyChild, $package, $styles));
-                    }
-                }
-            }
-        }
-
-        return new AstNode('note', [
-            'sourceFormat' => 'odt',
-            'sourceType' => (string) ($this->textAttr($note, 'note-class') ?? 'footnote'),
-            'citation' => $citation,
-        ], $blocks);
-    }
-
-    /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
-     */
-    private function annotationSpan(\DOMElement $annotation, ZipPackage $package, array $styles): AstNode
-    {
-        $children = [];
-        $attrs = [
-            'classes' => ['odt-annotation'],
-            'attributes' => [],
-        ];
-
-        foreach ($annotation->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
-
-            if ($this->isElement($child, self::DC_NS, 'creator')) {
-                $attrs['attributes']['data-odt-annotation-author'] = trim($child->textContent);
-                continue;
-            }
-
-            if ($this->isElement($child, self::DC_NS, 'date')) {
-                $attrs['attributes']['data-odt-annotation-date'] = trim($child->textContent);
-                continue;
-            }
-
-            if ($this->isElement($child, self::TEXT_NS, 'p')) {
-                $paragraph = $this->paragraphNode($child, $package, $styles);
-                if ($paragraph instanceof AstNode) {
-                    array_push($children, ...$paragraph->children);
-                }
-            }
-        }
-
-        if ($children === []) {
-            $children[] = new AstNode('text', ['text' => trim($annotation->textContent)]);
-        }
-
-        /** @var array<string, string> $attributes */
-        $attributes = array_filter(
-            $attrs['attributes'],
-            static fn (mixed $value): bool => is_string($value) && $value !== ''
-        );
-        $attrs['attributes'] = $attributes;
-
-        return new AstNode('span', $attrs, $this->coalesceTextNodes($children));
-    }
-
-    /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
-     */
-    private function listNode(\DOMElement $list, ZipPackage $package, array $styles): AstNode
-    {
-        $styleName = $this->textAttr($list, 'style-name');
-        $levelDefinition = $styleName !== null ? ($styles['listStyles'][$styleName][1] ?? null) : null;
-        $ordered = is_array($levelDefinition) ? (bool) ($levelDefinition['ordered'] ?? false) : false;
-        $attrs = [
-            'sourceFormat' => 'odt',
-            'styleName' => $styleName,
-        ];
-
-        $start = $this->textAttr($list, 'start-value');
-        if ($ordered) {
-            $attrs['style'] = (string) ($levelDefinition['style'] ?? 'decimal');
-            $attrs['start'] = $start !== null && preg_match('/^\d+$/', $start) === 1
-                ? max(1, (int) $start)
-                : (int) ($levelDefinition['start'] ?? 1);
-            $attrs['restart'] = strtolower((string) ($this->textAttr($list, 'continue-numbering') ?? 'false')) !== 'true';
-        }
-
         $items = [];
-        foreach ($list->childNodes as $child) {
-            if (!$child instanceof \DOMElement || !$this->isElement($child, self::TEXT_NS, 'list-item')) {
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== 'list-item') {
                 continue;
             }
-
-            $itemBlocks = [];
-            foreach ($child->childNodes as $itemChild) {
-                if ($itemChild instanceof \DOMElement) {
-                    array_push($itemBlocks, ...$this->blockNodes($itemChild, $package, $styles));
+            $blocks = $this->parseBlockChildren($child);
+            if ($blocks === []) {
+                $text = trim($child->textContent);
+                if ($text !== '') {
+                    $blocks[] = new AstNode('plain', ['text' => $text], [new AstNode('text', ['text' => $text])]);
                 }
             }
-
-            if ($itemBlocks !== []) {
-                $items[] = new AstNode('list_item', ['sourceFormat' => 'odt'], $itemBlocks);
-            }
+            $items[] = new AstNode('list_item', [], $blocks);
         }
 
-        return new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $items);
+        $attrs = $this->listAttributes($element);
+
+        return new AstNode(($attrs['ordered'] ?? false) ? 'ordered_list' : 'bullet_list', $attrs['attrs'] ?? [], $items);
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
+     * @return array{ordered: bool, attrs: array<string, mixed>}
      */
-    private function tableNode(\DOMElement $table, ZipPackage $package, array $styles): AstNode
+    private function listAttributes(\DOMElement $element): array
+    {
+        $styleName = $this->attr($element, self::TEXT_NS, 'style-name');
+        $level = $this->listLevel($element);
+        $style = $styleName !== '' ? ($this->listStyles[$styleName][$level] ?? $this->listStyles[$styleName][1] ?? null) : null;
+        if (!is_array($style) || !($style['ordered'] ?? false)) {
+            return ['ordered' => false, 'attrs' => []];
+        }
+
+        $attrs = [
+            'start' => $this->listStart($element, $style),
+            'style' => $style['style'] ?? 'decimal',
+            'delimiter' => $style['delimiter'] ?? 'period',
+        ];
+
+        return ['ordered' => true, 'attrs' => $attrs];
+    }
+
+    private function listLevel(\DOMElement $element): int
+    {
+        $level = 1;
+        for ($parent = $element->parentNode; $parent instanceof \DOMElement; $parent = $parent->parentNode) {
+            if ($parent->localName === 'list') {
+                $level++;
+            }
+        }
+
+        return $level;
+    }
+
+    /**
+     * @param array{ordered: bool, style?: string, delimiter?: string, start?: int} $style
+     */
+    private function listStart(\DOMElement $element, array $style): int
+    {
+        $start = $this->attr($element, self::TEXT_NS, 'start-value');
+        if ($start !== '' && is_numeric($start)) {
+            return max(1, (int) $start);
+        }
+
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== 'list-item') {
+                continue;
+            }
+            $itemStart = $this->attr($child, self::TEXT_NS, 'start-value');
+            if ($itemStart !== '' && is_numeric($itemStart)) {
+                return max(1, (int) $itemStart);
+            }
+            break;
+        }
+
+        return max(1, (int) ($style['start'] ?? 1));
+    }
+
+    private function table(\DOMElement $element): AstNode
     {
         $rows = [];
-        foreach ($table->childNodes as $child) {
-            if (!$child instanceof \DOMElement || !$this->isElement($child, self::TABLE_NS, 'table-row')) {
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== 'table-row') {
                 continue;
             }
-
-            $repeat = $this->positiveIntAttr($child, self::TABLE_NS, 'number-rows-repeated', 1);
-            $row = $this->tableRowNode($child, $package, $styles);
-            for ($index = 0; $index < $repeat; $index++) {
+            $repeat = max(1, min(50, (int) ($this->attr($child, self::TABLE_NS, 'number-rows-repeated') ?: '1')));
+            $row = $this->tableRow($child);
+            for ($i = 0; $i < $repeat; $i++) {
                 $rows[] = $row;
             }
         }
 
-        $name = $this->tableAttr($table, 'name');
-        $attrs = [
-            'caption' => $name ?? '',
-            'sourceFormat' => 'odt',
-        ];
-        if ($name !== null && $name !== '') {
-            $attrs['htmlAttributes'] = ['data-odt-table-name' => $name];
-        }
-
-        $body = new AstNode('table_body', [], $rows);
-        $tableNode = new AstNode('table', $attrs, [$body]);
-        $diagnostics = TableGeometry::diagnostics($tableNode);
-        if ($diagnostics !== []) {
-            $attrs['diagnostics'] = $diagnostics;
-            $tableNode = new AstNode('table', $attrs, [$body]);
-        }
-
-        return TableGeometry::withReviewPacket($tableNode, [
-            'idPrefix' => $name === null || $name === '' ? 'odt-table' : $name,
+        return new AstNode('table', [], [
+            new AstNode('table_head'),
+            new AstNode('table_body', [], $rows),
         ]);
     }
 
-    /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
-     */
-    private function tableRowNode(\DOMElement $row, ZipPackage $package, array $styles): AstNode
+    private function tableRow(\DOMElement $row): AstNode
     {
         $cells = [];
-        foreach ($row->childNodes as $child) {
-            if (!$child instanceof \DOMElement || !$this->isElement($child, self::TABLE_NS, 'table-cell')) {
+        foreach ($row->childNodes as $cell) {
+            if (!$cell instanceof \DOMElement || !in_array($cell->localName, ['table-cell', 'covered-table-cell'], true)) {
                 continue;
             }
-
-            $repeat = $this->positiveIntAttr($child, self::TABLE_NS, 'number-columns-repeated', 1);
-            $cell = $this->tableCellNode($child, $package, $styles);
-            for ($index = 0; $index < $repeat; $index++) {
-                $cells[] = $cell;
+            if ($cell->localName === 'covered-table-cell') {
+                continue;
+            }
+            $repeat = max(1, min(50, (int) ($this->attr($cell, self::TABLE_NS, 'number-columns-repeated') ?: '1')));
+            $node = $this->tableCell($cell);
+            for ($i = 0; $i < $repeat; $i++) {
+                $cells[] = $node;
             }
         }
 
         return new AstNode('table_row', [], $cells);
     }
 
-    /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
-     */
-    private function tableCellNode(\DOMElement $cell, ZipPackage $package, array $styles): AstNode
+    private function tableCell(\DOMElement $cell): AstNode
     {
-        $blocks = [];
-        foreach ($cell->childNodes as $child) {
-            if ($child instanceof \DOMElement) {
-                array_push($blocks, ...$this->blockNodes($child, $package, $styles));
-            }
-        }
-
         $attrs = [
-            'text' => $this->plainBlockText($blocks),
+            'colspan' => max(1, (int) ($this->attr($cell, self::TABLE_NS, 'number-columns-spanned') ?: '1')),
+            'rowspan' => max(1, (int) ($this->attr($cell, self::TABLE_NS, 'number-rows-spanned') ?: '1')),
         ];
-        $colspan = $this->positiveIntAttr($cell, self::TABLE_NS, 'number-columns-spanned', 1);
-        $rowspan = $this->positiveIntAttr($cell, self::TABLE_NS, 'number-rows-spanned', 1);
-        if ($colspan > 1) {
-            $attrs['colspan'] = $colspan;
+        $blocks = $this->parseBlockChildren($cell);
+        $text = trim(implode(' ', array_map(fn (AstNode $block): string => $this->nodeText($block), $blocks)));
+        if ($blocks === [] && trim($cell->textContent) !== '') {
+            $text = trim($cell->textContent);
+            $blocks[] = new AstNode('plain', ['text' => $text], [new AstNode('text', ['text' => $text])]);
         }
-        if ($rowspan > 1) {
-            $attrs['rowspan'] = $rowspan;
-        }
+        $attrs['text'] = $text;
 
         return new AstNode('table_cell', $attrs, $blocks);
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
+     * @return list<AstNode>
      */
-    private function frameBlockNode(\DOMElement $frame, ZipPackage $package, array $styles): ?AstNode
+    private function parseInlines(\DOMNode $parent): array
     {
-        $textBox = $this->firstChildElement($frame, self::DRAW_NS, 'text-box');
-        if ($textBox instanceof \DOMElement) {
-            $blocks = [];
-            foreach ($textBox->childNodes as $child) {
-                if ($child instanceof \DOMElement) {
-                    array_push($blocks, ...$this->blockNodes($child, $package, $styles));
+        $inlines = [];
+        foreach ($parent->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                $text = preg_replace('/\s+/u', ' ', $child->nodeValue) ?? $child->nodeValue;
+                if ($text !== '') {
+                    $inlines[] = new AstNode('text', ['text' => $text]);
                 }
-            }
-
-            return new AstNode('div', [
-                'sourceFormat' => 'odt-text-box',
-                'name' => $this->drawAttr($frame, 'name'),
-            ], $blocks);
-        }
-
-        $image = $this->frameInlineNode($frame, $package, $styles);
-        if (!$image instanceof AstNode) {
-            return null;
-        }
-
-        return new AstNode('figure', [
-            'caption' => (string) $image->attr('alt', ''),
-            'sourceFormat' => 'odt',
-            'classes' => ['odt-frame-image'],
-        ], [$image]);
-    }
-
-    /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
-     */
-    private function frameInlineNode(\DOMElement $frame, ZipPackage $package, array $styles): ?AstNode
-    {
-        $image = $this->firstDescendantElement($frame, self::DRAW_NS, 'image');
-        if (!$image instanceof \DOMElement) {
-            return null;
-        }
-
-        $href = (string) ($this->xlinkAttr($image, 'href') ?? '');
-        if ($href === '') {
-            return null;
-        }
-
-        $title = $this->svgAttr($frame, 'title') ?? $this->drawAttr($frame, 'name') ?? '';
-        $attrs = [
-            'url' => $href,
-            'alt' => $title,
-            'title' => $title,
-            'sourceFormat' => 'odt',
-            'sourcePart' => $this->packagePartFromHref($href),
-            'exists' => $this->packagePartFromHref($href) !== null ? $package->has($this->packagePartFromHref($href) ?? '') : null,
-        ];
-
-        $width = $this->svgAttr($frame, 'width');
-        $height = $this->svgAttr($frame, 'height');
-        if ($width !== null || $height !== null) {
-            $attrs['attributes'] = array_filter([
-                'data-odt-width' => $width,
-                'data-odt-height' => $height,
-            ], static fn (mixed $value): bool => is_string($value) && $value !== '');
-        }
-
-        return new AstNode('image', $attrs);
-    }
-
-    private function packagePartFromHref(string $href): ?string
-    {
-        if ($href === '' || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $href) === 1 || str_starts_with($href, '#')) {
-            return null;
-        }
-
-        $path = ltrim($href, '/');
-        if ($path === '') {
-            return null;
-        }
-
-        try {
-            $reference = self::manifestPackageReference(self::normalizeManifestPath($path));
-        } catch (\InvalidArgumentException) {
-            return null;
-        }
-
-        return $reference['packagePath'];
-    }
-
-    /**
-     * @param list<array<string, mixed>> $manifest
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styleCatalog
-     * @return array<string, mixed>
-     */
-    private function importReport(ZipPackage $package, array $manifest, AstNode $document, array $styleCatalog, array $settings, string $mimetype): array
-    {
-        $manifestByPath = [];
-        foreach ($manifest as $entry) {
-            foreach (['path', 'pathReference', 'packagePath'] as $key) {
-                $path = $entry[$key] ?? null;
-                if (is_string($path) && $path !== '' && !isset($manifestByPath[$path])) {
-                    $manifestByPath[$path] = $entry;
-                }
-            }
-        }
-
-        $images = $this->imageImportReport($package, $document, $manifestByPath);
-        $encrypted = array_values(array_filter(
-            $manifest,
-            static fn (array $entry): bool => $entry['encrypted'] === true
-        ));
-        $styleDiagnostics = $this->styleDiagnostics($styleCatalog);
-
-        return [
-            'mimetype' => $mimetype === '' ? self::ODT_MIMETYPE : $mimetype,
-            'manifestEntryCount' => count($manifest),
-            'encryptedEntryCount' => count($encrypted),
-            'encryptedEntries' => array_map(static fn (array $entry): string => $entry['path'], $encrypted),
-            'media' => $images,
-            'settings' => $settings,
-            'styles' => [
-                'count' => count($styleCatalog['styles']),
-                'styleCount' => count($styleCatalog['styles']),
-                'paragraphCount' => count($styleCatalog['paragraphStyles']),
-                'textCount' => count($styleCatalog['textStyles']),
-                'listCount' => count($styleCatalog['listStyles']),
-                'fontFaceCount' => count($styleCatalog['fontFaces']),
-                'dataStyleCount' => count($styleCatalog['dataStyles']),
-                'tableTemplateCount' => count($styleCatalog['tableTemplates']),
-                'pageLayoutCount' => count($styleCatalog['pageLayouts']),
-                'masterPageCount' => count($styleCatalog['masterPages']),
-                'styleMapCount' => $this->styleMapCount($styleCatalog['styles']),
-                'diagnosticCount' => count($styleDiagnostics),
-                'diagnosticCodeCounts' => $this->diagnosticCodeCounts($styleDiagnostics),
-                'diagnostics' => $styleDiagnostics,
-            ],
-            'annotations' => [
-                'count' => $this->countNodesOfType($document, 'span', 'odt-annotation'),
-            ],
-            'sections' => [
-                'count' => $this->countNodesOfType($document, 'div', null, 'odt-section'),
-            ],
-            'textBoxes' => [
-                'count' => $this->countNodesOfType($document, 'div', null, 'odt-text-box'),
-            ],
-        ];
-    }
-
-    /**
-     * @param array<string, array<string, mixed>> $manifestByPath
-     * @return array{count:int, embeddedCount:int, missingCount:int, items:list<array<string, mixed>>}
-     */
-    private function imageImportReport(ZipPackage $package, AstNode $document, array $manifestByPath): array
-    {
-        $images = [];
-        $this->collectImages($document, $images);
-
-        $items = [];
-        foreach ($images as $image) {
-            $href = (string) $image->attr('url', '');
-            $part = $image->attr('sourcePart');
-            $part = is_string($part) && $part !== '' ? $part : null;
-            $exists = $part !== null ? $package->has($part) : null;
-            $manifest = $part !== null ? ($manifestByPath[$part] ?? null) : null;
-            $encrypted = is_array($manifest) && ($manifest['encrypted'] ?? false) === true;
-            $entry = $part !== null && $exists === true ? $package->entry($part) : null;
-            $hasSupportedCompression = $entry instanceof ZipPackageEntry
-                && in_array($entry->compressionMethod, [0, 8], true);
-            $canExposeBytes = $entry instanceof ZipPackageEntry && !$encrypted && $hasSupportedCompression;
-            $byteExposurePolicy = $this->imageByteExposurePolicy($part, $exists, $encrypted, $entry, $hasSupportedCompression);
-            $items[] = [
-                'href' => $href,
-                'part' => $part,
-                'exists' => $exists,
-                'bytes' => $canExposeBytes ? $entry->uncompressedSize : null,
-                'byteLength' => $canExposeBytes ? $entry->uncompressedSize : null,
-                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
-                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
-                'crc32' => $canExposeBytes ? $entry->crc32Hex() : null,
-                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
-                'canExposeBytes' => $canExposeBytes,
-                'byteExposurePolicy' => $byteExposurePolicy,
-                'mediaType' => is_array($manifest) ? $manifest['mediaType'] : null,
-                'encrypted' => $encrypted,
-                'encryption' => is_array($manifest) ? ($manifest['encryption'] ?? null) : null,
-                'encryptionRecordCount' => is_array($manifest) && is_array($manifest['encryption'] ?? null)
-                    ? ($manifest['encryption']['recordCount'] ?? 0)
-                    : 0,
-                'encryptionIssueCodes' => is_array($manifest) && is_array($manifest['encryption'] ?? null)
-                    ? ($manifest['encryption']['issueCodes'] ?? [])
-                    : [],
-                'manifestPath' => is_array($manifest) ? $manifest['path'] : null,
-                'manifestPackagePath' => is_array($manifest) ? $manifest['packagePath'] : null,
-                'manifestPathReference' => is_array($manifest) ? $manifest['pathReference'] : null,
-                'manifestPathSuffix' => is_array($manifest) ? $manifest['pathSuffix'] : null,
-                'manifestPathQuery' => is_array($manifest) ? $manifest['pathQuery'] : null,
-                'manifestPathFragment' => is_array($manifest) ? $manifest['pathFragment'] : null,
-                'alt' => (string) $image->attr('alt', ''),
-            ];
-        }
-
-        return [
-            'count' => count($items),
-            'embeddedCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
-            'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === false)),
-            'exposableCount' => count(array_filter($items, static fn (array $item): bool => $item['canExposeBytes'] === true)),
-            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
-            'items' => $items,
-        ];
-    }
-
-    private function imageByteExposurePolicy(
-        ?string $part,
-        ?bool $exists,
-        bool $encrypted,
-        ?ZipPackageEntry $entry,
-        bool $hasSupportedCompression
-    ): ?string
-    {
-        if ($part === null) {
-            return null;
-        }
-        if ($exists === false) {
-            return 'missing-package-part';
-        }
-        if ($encrypted) {
-            return 'encrypted-resource-bytes-blocked';
-        }
-        if (!$entry instanceof ZipPackageEntry) {
-            return 'missing-package-part';
-        }
-        if (!$hasSupportedCompression) {
-            return 'unsupported-compression-bytes-blocked';
-        }
-
-        return 'package-bytes-exposable';
-    }
-
-    /**
-     * @param list<AstNode> $images
-     */
-    private function collectImages(AstNode $node, array &$images): void
-    {
-        if ($node->type === 'image') {
-            $images[] = $node;
-        }
-
-        foreach ($node->children as $child) {
-            $this->collectImages($child, $images);
-        }
-    }
-
-    private function countNodesOfType(AstNode $node, string $type, ?string $class = null, ?string $sourceFormat = null): int
-    {
-        $count = 0;
-        if ($node->type === $type) {
-            $matches = true;
-            if ($class !== null) {
-                $classes = $node->attr('classes', []);
-                $matches = is_array($classes) && in_array($class, $classes, true);
-            }
-            if ($sourceFormat !== null) {
-                $matches = $matches && $node->attr('sourceFormat') === $sourceFormat;
-            }
-            if ($matches) {
-                $count++;
-            }
-        }
-
-        foreach ($node->children as $child) {
-            $count += $this->countNodesOfType($child, $type, $class, $sourceFormat);
-        }
-
-        return $count;
-    }
-
-    /**
-     * @param array<string, array<string, mixed>> $catalog
-     * @return list<array<string, mixed>>
-     */
-    private function styleDiagnostics(array $catalog): array
-    {
-        $diagnostics = is_array($catalog['diagnostics'] ?? null) ? $catalog['diagnostics'] : [];
-        $stylesByFamily = [];
-        foreach ($catalog['styles'] as $styleName => $style) {
-            $family = (string) ($style['family'] ?? '');
-            if ($family !== '') {
-                $stylesByFamily[$family][$styleName] = $style;
-            }
-        }
-
-        foreach ($catalog['styles'] as $styleName => $style) {
-            $family = (string) ($style['family'] ?? '');
-            $knownFamilyStyles = $family !== '' && isset($stylesByFamily[$family])
-                ? $stylesByFamily[$family]
-                : $catalog['styles'];
-            $parentName = (string) ($style['parent'] ?? $style['parentName'] ?? '');
-            $this->appendMissingReferenceDiagnostic(
-                $diagnostics,
-                'odt-style-missing-parent',
-                (string) $styleName,
-                $family,
-                'parentName',
-                $parentName,
-                $knownFamilyStyles
-            );
-
-            $listStyleName = (string) ($style['listStyle'] ?? $style['listStyleName'] ?? '');
-            $this->appendMissingReferenceDiagnostic(
-                $diagnostics,
-                'odt-style-missing-list-style',
-                (string) $styleName,
-                $family,
-                'listStyleName',
-                $listStyleName,
-                $catalog['listStyles']
-            );
-
-            $this->appendMissingReferenceDiagnostic(
-                $diagnostics,
-                'odt-style-missing-master-page',
-                (string) $styleName,
-                $family,
-                'masterPageName',
-                (string) ($style['masterPageName'] ?? ''),
-                $catalog['masterPages']
-            );
-            $this->appendMissingReferenceDiagnostic(
-                $diagnostics,
-                'odt-style-missing-data-style',
-                (string) $styleName,
-                $family,
-                'dataStyleName',
-                (string) ($style['dataStyleName'] ?? ''),
-                $catalog['dataStyles']
-            );
-
-            $textProperties = $style['textProperties'] ?? [];
-            $fontName = (string) ($style['fontName'] ?? (is_array($textProperties) ? ($textProperties['fontName'] ?? '') : ''));
-            $this->appendMissingReferenceDiagnostic(
-                $diagnostics,
-                'odt-style-missing-font-face',
-                (string) $styleName,
-                $family,
-                'fontName',
-                $fontName,
-                $catalog['fontFaces']
-            );
-
-            $styleMaps = $style['styleMaps'] ?? [];
-            if (!is_array($styleMaps)) {
                 continue;
             }
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            array_push($inlines, ...$this->parseInlineElement($child));
+        }
 
-            foreach ($styleMaps as $index => $styleMap) {
-                if (!is_array($styleMap)) {
-                    continue;
-                }
+        return $this->mergeAdjacentText($inlines);
+    }
 
-                $applyStyleName = (string) ($styleMap['applyStyleName'] ?? '');
-                if ($applyStyleName === '' || isset($catalog['styles'][$applyStyleName])) {
-                    continue;
-                }
+    /**
+     * @return list<AstNode>
+     */
+    private function parseInlineElement(\DOMElement $element): array
+    {
+        return match ($element->localName) {
+            'span' => $this->styledSpan($element),
+            'a' => [new AstNode('link', [
+                'url' => $this->attr($element, self::XLINK_NS, 'href'),
+                'title' => '',
+            ], $this->parseInlines($element))],
+            'line-break' => [new AstNode('linebreak')],
+            'tab' => [new AstNode('text', ['text' => "\t"])],
+            's' => [new AstNode('text', ['text' => str_repeat(' ', max(1, (int) ($this->attr($element, self::TEXT_NS, 'c') ?: '1')))])],
+            'frame' => $this->frame($element),
+            default => $this->parseInlines($element),
+        };
+    }
 
-                $diagnostics[] = self::withoutEmpty([
-                    'code' => 'odt-style-map-missing-target',
-                    'styleName' => (string) $styleName,
-                    'styleFamily' => $family,
-                    'mapIndex' => is_int($index) ? $index : (int) $index,
-                    'applyStyleName' => $applyStyleName,
-                    'condition' => $styleMap['condition'] ?? null,
-                    'baseCellAddress' => $styleMap['baseCellAddress'] ?? null,
+    /**
+     * @return list<AstNode>
+     */
+    private function styledSpan(\DOMElement $element): array
+    {
+        $children = $this->parseInlines($element);
+        $style = $this->textStyles[$this->attr($element, self::TEXT_NS, 'style-name')] ?? [];
+        if (($style['strong'] ?? false) && $children !== []) {
+            $children = [new AstNode('strong', [], $children)];
+        }
+        if (($style['emph'] ?? false) && $children !== []) {
+            $children = [new AstNode('emph', [], $children)];
+        }
+
+        return $children;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function frame(\DOMElement $element): array
+    {
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== 'image') {
+                continue;
+            }
+            $url = $this->attr($child, self::XLINK_NS, 'href');
+            if ($url === '') {
+                continue;
+            }
+            if ($this->isPackageRelativeResourceUrl($url)) {
+                $url = $this->normalizePackagePath($url);
+                $this->referencedResources[] = $url;
+            }
+
+            return [new AstNode('image', [
+                'url' => $url,
+                'title' => '',
+                'alt' => trim($element->textContent),
+            ], [])];
+        }
+
+        return $this->parseInlines($element);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @return list<AstNode>
+     */
+    private function mergeAdjacentText(array $inlines): array
+    {
+        $merged = [];
+        foreach ($inlines as $inline) {
+            $last = $merged[array_key_last($merged)] ?? null;
+            if ($inline->type === 'text' && $last instanceof AstNode && $last->type === 'text') {
+                $merged[array_key_last($merged)] = new AstNode('text', [
+                    'text' => (string) $last->attr('text', '') . (string) $inline->attr('text', ''),
                 ]);
+                continue;
+            }
+            $merged[] = $inline;
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @return array<string, array{strong?: bool, emph?: bool}>
+     */
+    private function collectTextStyles(\DOMDocument $dom): array
+    {
+        $styles = [];
+        foreach ($dom->getElementsByTagName('*') as $style) {
+            if (!$style instanceof \DOMElement || $style->localName !== 'style') {
+                continue;
+            }
+            $family = $this->attr($style, self::STYLE_NS, 'family');
+            if ($family !== '' && $family !== 'text') {
+                continue;
+            }
+            $name = $this->attr($style, self::STYLE_NS, 'name');
+            if ($name === '') {
+                continue;
+            }
+            $entry = [];
+            foreach ($style->childNodes as $props) {
+                if (!$props instanceof \DOMElement || $props->localName !== 'text-properties') {
+                    continue;
+                }
+                $weight = strtolower($this->attr($props, self::FO_NS, 'font-weight') ?: $this->attr($props, self::STYLE_NS, 'font-weight'));
+                $fontStyle = strtolower($this->attr($props, self::FO_NS, 'font-style') ?: $this->attr($props, self::STYLE_NS, 'font-style'));
+                if ($weight === 'bold' || (is_numeric($weight) && (int) $weight >= 600)) {
+                    $entry['strong'] = true;
+                }
+                if ($fontStyle === 'italic' || $fontStyle === 'oblique') {
+                    $entry['emph'] = true;
+                }
+            }
+            if ($entry !== []) {
+                $styles[$name] = $entry;
             }
         }
 
-        foreach ($stylesByFamily as $family => $styles) {
-            array_push($diagnostics, ...$this->styleParentCycleDiagnostics($styles, (string) $family));
-        }
+        return $styles;
+    }
 
-        foreach ($catalog['listStyles'] as $listStyleName => $levels) {
-            foreach ($levels as $level => $definition) {
-                if (!is_array($definition)) {
-                    continue;
-                }
-
-                $textProperties = $definition['textProperties'] ?? [];
-                if (!is_array($textProperties)) {
-                    continue;
-                }
-
-                $fontName = (string) ($textProperties['fontName'] ?? '');
-                if ($fontName === '' || isset($catalog['fontFaces'][$fontName])) {
-                    continue;
-                }
-
-                $diagnostics[] = [
-                    'code' => 'odt-list-style-missing-font-face',
-                    'listStyleName' => (string) $listStyleName,
-                    'level' => is_int($level) ? $level : (int) $level,
-                    'fontName' => $fontName,
-                ];
+    /**
+     * @return array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>>
+     */
+    private function collectListStyles(\DOMDocument $dom): array
+    {
+        $styles = [];
+        foreach ($dom->getElementsByTagName('*') as $style) {
+            if (!$style instanceof \DOMElement || $style->localName !== 'list-style') {
+                continue;
             }
-        }
-
-        foreach ($catalog['tableTemplates'] as $tableTemplateName => $template) {
-            $styles = is_array($template) ? ($template['styles'] ?? []) : [];
-            if (!is_array($styles)) {
+            $name = $this->attr($style, self::STYLE_NS, 'name');
+            if ($name === '') {
+                $name = $this->attr($style, self::TEXT_NS, 'style-name');
+            }
+            if ($name === '') {
                 continue;
             }
 
-            foreach ($styles as $role => $styleName) {
-                $styleName = (string) $styleName;
-                if ($styleName === '' || isset($catalog['styles'][$styleName])) {
+            foreach ($style->childNodes as $levelStyle) {
+                if (!$levelStyle instanceof \DOMElement) {
+                    continue;
+                }
+                if (!in_array($levelStyle->localName, ['list-level-style-number', 'list-level-style-bullet'], true)) {
                     continue;
                 }
 
-                $diagnostics[] = [
-                    'code' => 'odt-table-template-missing-style',
-                    'tableTemplateName' => (string) $tableTemplateName,
-                    'templateRole' => (string) $role,
-                    'styleName' => $styleName,
-                ];
-            }
-        }
-
-        foreach ($catalog['masterPages'] as $masterPageName => $masterPage) {
-            if (!is_array($masterPage)) {
-                continue;
-            }
-
-            foreach ([
-                'odt-master-page-missing-page-layout' => ['pageLayoutName', $catalog['pageLayouts']],
-                'odt-master-page-missing-next-master-page' => ['nextStyleName', $catalog['masterPages']],
-                'odt-master-page-missing-draw-style' => ['drawStyleName', $catalog['styles']],
-            ] as $code => [$field, $known]) {
-                $value = (string) ($masterPage[$field] ?? '');
-                if ($value === '' || isset($known[$value])) {
+                $level = max(1, (int) ($this->attr($levelStyle, self::TEXT_NS, 'level') ?: '1'));
+                if ($levelStyle->localName === 'list-level-style-bullet') {
+                    $styles[$name][$level] = ['ordered' => false];
                     continue;
                 }
 
-                $diagnostics[] = [
-                    'code' => $code,
-                    'masterPageName' => (string) $masterPageName,
-                    $field => $value,
+                $format = $this->attr($levelStyle, self::STYLE_NS, 'num-format');
+                if ($format === '') {
+                    $format = $levelStyle->getAttribute('style:num-format');
+                }
+                $entry = [
+                    'ordered' => true,
+                    'style' => $this->orderedListStyle($format),
+                    'delimiter' => $this->orderedListDelimiter(
+                        $this->attr($levelStyle, self::STYLE_NS, 'num-prefix'),
+                        $this->attr($levelStyle, self::STYLE_NS, 'num-suffix')
+                    ),
                 ];
-            }
-        }
 
-        return $diagnostics;
-    }
-
-    /**
-     * @param array<string, array<array-key, mixed>> $target
-     * @param list<array<string, mixed>> $diagnostics
-     * @param array<array-key, mixed> $item
-     */
-    private function putStyleCatalogItem(array &$target, array &$diagnostics, string $code, string $nameKey, string $name, array $item): void
-    {
-        if (isset($target[$name])) {
-            $diagnostic = [
-                'code' => $code,
-                $nameKey => $name,
-            ];
-            foreach (['family', 'element'] as $field) {
-                $previous = $target[$name][$field] ?? null;
-                $replacement = $item[$field] ?? null;
-                if (is_scalar($previous) && (string) $previous !== '') {
-                    $diagnostic['previous' . ucfirst($field)] = (string) $previous;
-                }
-                if (is_scalar($replacement) && (string) $replacement !== '') {
-                    $diagnostic['replacement' . ucfirst($field)] = (string) $replacement;
-                }
-            }
-            $diagnostics[] = $diagnostic;
-        }
-
-        $target[$name] = $item;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $diagnostics
-     * @param array<string, mixed> $known
-     */
-    private function appendMissingReferenceDiagnostic(array &$diagnostics, string $code, string $styleName, string $family, string $field, string $value, array $known): void
-    {
-        if ($value === '' || isset($known[$value])) {
-            return;
-        }
-
-        $diagnostics[] = [
-            'code' => $code,
-            'styleName' => $styleName,
-            'styleFamily' => $family,
-            $field => $value,
-        ];
-    }
-
-    /**
-     * @param array<string, array<string, mixed>> $styles
-     * @return list<array<string, mixed>>
-     */
-    private function styleParentCycleDiagnostics(array $styles, string $family): array
-    {
-        $diagnostics = [];
-        $reported = [];
-        foreach (array_keys($styles) as $styleName) {
-            $path = [];
-            $seenAt = [];
-            $current = $styleName;
-            while ($current !== '' && isset($styles[$current])) {
-                if (isset($seenAt[$current])) {
-                    $cyclePath = array_slice($path, $seenAt[$current]);
-                    $cyclePath[] = $current;
-                    $cycleMembers = array_slice($cyclePath, 0, -1);
-                    sort($cycleMembers);
-                    $key = $family . ':' . implode('>', $cycleMembers);
-                    if (!isset($reported[$key])) {
-                        $reported[$key] = true;
-                        $diagnostics[] = [
-                            'code' => 'odt-style-parent-cycle',
-                            'styleName' => $styleName,
-                            'styleFamily' => $family,
-                            'cyclePath' => $cyclePath,
-                        ];
-                    }
-                    break;
+                $start = $this->attr($levelStyle, self::TEXT_NS, 'start-value');
+                if ($start !== '' && is_numeric($start)) {
+                    $entry['start'] = max(1, (int) $start);
                 }
 
-                $seenAt[$current] = count($path);
-                $path[] = $current;
-                $parent = $styles[$current]['parent'] ?? null;
-                $current = is_string($parent) ? $parent : '';
+                $styles[$name][$level] = $entry;
             }
         }
 
-        return $diagnostics;
+        return $styles;
     }
 
-    /**
-     * @param array<string, array<string, mixed>> $styles
-     */
-    private function styleMapCount(array $styles): int
+    private function orderedListStyle(string $format): string
     {
-        $count = 0;
-        foreach ($styles as $style) {
-            $styleMaps = $style['styleMaps'] ?? [];
-            if (is_array($styleMaps)) {
-                $count += count($styleMaps);
-            }
-        }
-
-        return $count;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $diagnostics
-     * @return array<string, int>
-     */
-    private function diagnosticCodeCounts(array $diagnostics): array
-    {
-        $counts = [];
-        foreach ($diagnostics as $diagnostic) {
-            $code = (string) ($diagnostic['code'] ?? '');
-            if ($code === '') {
-                continue;
-            }
-
-            $counts[$code] = ($counts[$code] ?? 0) + 1;
-        }
-
-        ksort($counts);
-
-        return $counts;
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function readMetadata(ZipPackage $package, \DOMElement $contentRoot): array
-    {
-        $metadata = [];
-        if ($package->has('meta.xml')) {
-            $dom = self::loadXml($package->read('meta.xml'), 'ODT meta.xml');
-            $root = $dom->documentElement;
-            if ($root instanceof \DOMElement) {
-                $meta = $this->firstDescendantElement($root, self::OFFICE_NS, 'meta');
-                if ($meta instanceof \DOMElement) {
-                    $metadata = $this->metadataFromElement($meta);
-                }
-            }
-        }
-
-        if ($metadata === []) {
-            $meta = $this->firstChildElement($contentRoot, self::OFFICE_NS, 'meta');
-            if ($meta instanceof \DOMElement) {
-                $metadata = $this->metadataFromElement($meta);
-            }
-        }
-
-        return $metadata;
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function metadataFromElement(\DOMElement $meta): array
-    {
-        $map = [
-            'title' => [self::DC_NS, 'title'],
-            'creator' => [self::DC_NS, 'creator'],
-            'description' => [self::DC_NS, 'description'],
-            'subject' => [self::DC_NS, 'subject'],
-            'date' => [self::DC_NS, 'date'],
-            'generator' => [self::META_NS, 'generator'],
-            'initialCreator' => [self::META_NS, 'initial-creator'],
-            'creationDate' => [self::META_NS, 'creation-date'],
-            'keyword' => [self::META_NS, 'keyword'],
-            'editingCycles' => [self::META_NS, 'editing-cycles'],
-        ];
-
-        $metadata = [];
-        foreach ($map as $name => [$namespace, $localName]) {
-            $child = $this->firstChildElement($meta, $namespace, $localName);
-            if ($child instanceof \DOMElement && trim($child->textContent) !== '') {
-                $metadata[$name] = trim($child->textContent);
-            }
-        }
-
-        return $metadata;
-    }
-
-    private function orderedListStyle(string $numFormat): string
-    {
-        return match ($numFormat) {
+        return match ($format) {
             'a' => 'lower_alpha',
             'A' => 'upper_alpha',
             'i' => 'lower_roman',
@@ -1956,359 +531,176 @@ final class OdtReader
         };
     }
 
-    /**
-     * @param list<AstNode> $nodes
-     */
-    private function plainInlineText(array $nodes): string
+    private function orderedListDelimiter(string $prefix, string $suffix): string
     {
-        $text = '';
-        foreach ($nodes as $node) {
-            if ($node->type === 'text') {
-                $text .= (string) $node->attr('text', '');
-                continue;
-            }
-            if ($node->type === 'linebreak') {
-                $text .= "\n";
-                continue;
-            }
-
-            $text .= $this->plainInlineText($node->children);
+        if ($prefix === '(' && $suffix === ')') {
+            return 'two_parens';
+        }
+        if ($suffix === ')') {
+            return 'one_paren';
+        }
+        if ($suffix === '.') {
+            return 'period';
         }
 
-        return $text;
+        return 'default';
     }
 
     /**
-     * @param list<AstNode> $blocks
-     */
-    private function plainBlockText(array $blocks): string
-    {
-        $texts = [];
-        foreach ($blocks as $block) {
-            $texts[] = $this->plainInlineText($block->children);
-        }
-
-        return trim(implode("\n", array_filter($texts, static fn (string $text): bool => $text !== '')));
-    }
-
-    /**
-     * @param list<AstNode> $nodes
-     * @return list<AstNode>
-     */
-    private function coalesceTextNodes(array $nodes): array
-    {
-        $coalesced = [];
-        foreach ($nodes as $node) {
-            $lastIndex = count($coalesced) - 1;
-            if ($node->type === 'text' && $lastIndex >= 0 && $coalesced[$lastIndex]->type === 'text') {
-                $coalesced[$lastIndex] = new AstNode('text', [
-                    'text' => (string) $coalesced[$lastIndex]->attr('text', '') . (string) $node->attr('text', ''),
-                ]);
-                continue;
-            }
-
-            $coalesced[] = $node;
-        }
-
-        return $coalesced;
-    }
-
-    private function slugify(string $text): string
-    {
-        $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9]+/', '-', $text) ?? '', '-'));
-
-        return $slug === '' ? 'section' : $slug;
-    }
-
-    /**
-     * @param array<string, mixed> $values
      * @return array<string, mixed>
      */
-    private static function withoutEmpty(array $values): array
+    private function metadata(\DOMDocument $dom): array
     {
-        return array_filter(
-            $values,
-            static fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []
-        );
-    }
-
-    private static function optionalManifestString(?string $value): ?string
-    {
-        $value = $value === null ? '' : trim($value);
-
-        return $value === '' ? null : $value;
-    }
-
-    private static function optionalManifestInt(?string $value): ?int
-    {
-        $value = $value === null ? '' : trim($value);
-
-        return ctype_digit($value) ? (int) $value : null;
-    }
-
-    private static function qualifiedElementName(\DOMElement $element): string
-    {
-        return $element->prefix === '' ? $element->localName : $element->prefix . ':' . $element->localName;
-    }
-
-    private function positiveIntAttr(\DOMElement $element, string $namespace, string $localName, int $default): int
-    {
-        $value = $this->namespacedAttr($element, $namespace, $localName);
-        if ($value === null || preg_match('/^\d+$/', $value) !== 1) {
-            return $default;
-        }
-
-        return max(1, (int) $value);
-    }
-
-    private function textAttr(\DOMElement $element, string $localName): ?string
-    {
-        return $this->namespacedAttr($element, self::TEXT_NS, $localName);
-    }
-
-    private function styleAttr(\DOMElement $element, string $localName): ?string
-    {
-        return $this->namespacedAttr($element, self::STYLE_NS, $localName);
-    }
-
-    private function tableAttr(\DOMElement $element, string $localName): ?string
-    {
-        return $this->namespacedAttr($element, self::TABLE_NS, $localName);
-    }
-
-    private function drawAttr(\DOMElement $element, string $localName): ?string
-    {
-        return $this->namespacedAttr($element, self::DRAW_NS, $localName);
-    }
-
-    private function xlinkAttr(\DOMElement $element, string $localName): ?string
-    {
-        return $this->namespacedAttr($element, self::XLINK_NS, $localName);
-    }
-
-    private function svgAttr(\DOMElement $element, string $localName): ?string
-    {
-        return $this->namespacedAttr($element, self::SVG_NS, $localName);
-    }
-
-    private function officeAttr(\DOMElement $element, string $localName): ?string
-    {
-        return $this->namespacedAttr($element, self::OFFICE_NS, $localName);
-    }
-
-    private function foAttr(\DOMElement $element, string $localName): ?string
-    {
-        return $this->namespacedAttr($element, self::FO_NS, $localName);
-    }
-
-    private function manifestAttr(\DOMElement $element, string $localName): ?string
-    {
-        return $this->namespacedAttr($element, self::MANIFEST_NS, $localName);
-    }
-
-    private static function normalizeManifestPath(string $path): string
-    {
-        if ($path === '') {
-            throw new \InvalidArgumentException('ODF manifest full-path must not be empty');
-        }
-
-        if ($path === '/') {
-            return '/';
-        }
-
-        if (str_starts_with($path, '/') || str_contains($path, '\\') || str_contains($path, "\0")) {
-            throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
-        }
-
-        $segments = explode('/', $path);
-        foreach ($segments as $index => $segment) {
-            $isTrailingDirectorySegment = $index === count($segments) - 1 && $segment === '';
-            if ($isTrailingDirectorySegment) {
+        $meta = [];
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
                 continue;
             }
-
-            if ($segment === '' || $segment === '.' || $segment === '..') {
-                throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
-            }
-        }
-
-        return $path;
-    }
-
-    /**
-     * @return array{packagePath:string|null,pathReference:string|null,pathSuffix:string|null,pathQuery:string|null,pathFragment:string|null}
-     */
-    private static function manifestPackageReference(string $path): array
-    {
-        if ($path === '/') {
-            return [
-                'packagePath' => null,
-                'pathReference' => null,
-                'pathSuffix' => null,
-                'pathQuery' => null,
-                'pathFragment' => null,
-            ];
-        }
-
-        $pathReference = $path;
-        $pathSuffix = null;
-        $pathQuery = null;
-        $pathFragment = null;
-        $suffixOffset = strcspn($path, '?#');
-        if ($suffixOffset < strlen($path)) {
-            $pathReference = substr($path, 0, $suffixOffset);
-            $pathSuffix = substr($path, $suffixOffset);
-            if (str_starts_with($pathSuffix, '?')) {
-                $queryAndFragment = substr($pathSuffix, 1);
-                $fragmentOffset = strpos($queryAndFragment, '#');
-                if ($fragmentOffset === false) {
-                    $pathQuery = $queryAndFragment;
-                } else {
-                    $pathQuery = substr($queryAndFragment, 0, $fragmentOffset);
-                    $pathFragment = substr($queryAndFragment, $fragmentOffset + 1);
-                }
-            } elseif (str_starts_with($pathSuffix, '#')) {
-                $pathFragment = substr($pathSuffix, 1);
-            }
-        }
-
-        return [
-            'packagePath' => self::manifestPackagePath($pathReference),
-            'pathReference' => $pathReference,
-            'pathSuffix' => $pathSuffix,
-            'pathQuery' => $pathQuery,
-            'pathFragment' => $pathFragment,
-        ];
-    }
-
-    private static function manifestPackagePath(string $path): ?string
-    {
-        if ($path === '/') {
-            return null;
-        }
-
-        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $path) === 1) {
-            throw new \InvalidArgumentException('Malformed percent escape in ODF manifest full-path: ' . $path);
-        }
-
-        $decodedPath = rawurldecode($path);
-        if ($decodedPath === '' || str_starts_with($decodedPath, '/') || str_contains($decodedPath, '\\') || str_contains($decodedPath, "\0")) {
-            throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
-        }
-
-        $segments = explode('/', $decodedPath);
-        foreach ($segments as $index => $segment) {
-            $isTrailingDirectorySegment = $index === count($segments) - 1 && $segment === '';
-            if ($isTrailingDirectorySegment) {
+            $text = trim(preg_replace('/\s+/', ' ', $element->textContent) ?? $element->textContent);
+            if ($text === '') {
                 continue;
             }
-
-            if ($segment === '' || $segment === '.' || $segment === '..') {
-                throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
-            }
-        }
-
-        return $decodedPath;
-    }
-
-    private function configAttr(\DOMElement $element, string $localName): ?string
-    {
-        $value = $this->namespacedAttr($element, self::CONFIG_NS, $localName);
-
-        return $value === null ? null : trim($value);
-    }
-
-    private function namespacedAttr(\DOMElement $element, string $namespace, string $localName): ?string
-    {
-        if ($element->hasAttributeNS($namespace, $localName)) {
-            return $element->getAttributeNS($namespace, $localName);
-        }
-
-        return null;
-    }
-
-    private function isElement(\DOMElement $element, string $namespace, string $localName): bool
-    {
-        return $element->namespaceURI === $namespace && $element->localName === $localName;
-    }
-
-    /**
-     * @return list<\DOMElement>
-     */
-    private function childElements(\DOMElement $element, ?string $namespace = null, ?string $localName = null): array
-    {
-        $elements = [];
-        foreach ($element->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
+            $key = match ($element->localName) {
+                'title' => 'title',
+                'creator' => 'author',
+                'description' => 'description',
+                'date', 'creation-date' => 'date',
+                'keyword' => 'keywords',
+                default => '',
+            };
+            if ($key === '') {
                 continue;
             }
-            if ($namespace !== null && $child->namespaceURI !== $namespace) {
-                continue;
+            if (isset($meta[$key])) {
+                $meta[$key] = is_array($meta[$key]) ? array_merge($meta[$key], [$text]) : [$meta[$key], $text];
+            } else {
+                $meta[$key] = $text;
             }
-            if ($localName !== null && $child->localName !== $localName) {
-                continue;
-            }
-            $elements[] = $child;
-        }
-
-        return $elements;
-    }
-
-    private function firstChildElement(\DOMElement $element, string $namespace, string $localName): ?\DOMElement
-    {
-        foreach ($element->childNodes as $child) {
-            if ($child instanceof \DOMElement && $this->isElement($child, $namespace, $localName)) {
-                return $child;
+            if ($key === 'title') {
+                $meta['titleInlines'] = [new AstNode('text', ['text' => $text])];
             }
         }
 
-        return null;
+        return $meta;
     }
 
-    private function firstDescendantElement(\DOMElement $element, string $namespace, string $localName): ?\DOMElement
+    private function loadXml(string $xml, string $label): \DOMDocument
     {
-        foreach ($element->getElementsByTagNameNS($namespace, $localName) as $child) {
-            if ($child instanceof \DOMElement) {
-                return $child;
-            }
+        if (!class_exists(\DOMDocument::class)) {
+            throw new \RuntimeException($label . ' needs DOMDocument, which is unavailable in this runtime.');
         }
-
-        return null;
-    }
-
-    private function nullableBool(string $value): ?bool
-    {
-        $value = strtolower(trim($value));
-        if ($value === '') {
-            return null;
-        }
-
-        return in_array($value, ['true', '1', 'yes', 'checked'], true);
-    }
-
-    private function normalizedText(\DOMElement $element): string
-    {
-        $text = preg_replace('/\s+/u', ' ', $element->textContent) ?? $element->textContent;
-
-        return trim($text);
-    }
-
-    private static function loadXml(string $xml, string $label): \DOMDocument
-    {
-        $dom = new \DOMDocument();
+        $dom = new \DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);
-        try {
-            $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_COMPACT);
-            if ($loaded === false) {
-                $errors = libxml_get_errors();
-                $message = $errors === [] ? 'unknown XML parse error' : trim($errors[0]->message);
-                throw new \InvalidArgumentException("Unable to parse {$label}: {$message}");
-            }
-        } finally {
-            libxml_clear_errors();
-            libxml_use_internal_errors($previous);
+        $ok = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$ok) {
+            throw new \InvalidArgumentException($label . ' is not valid XML.');
         }
 
         return $dom;
+    }
+
+    private function firstElementByLocalName(\DOMDocument $dom, string $localName): ?\DOMElement
+    {
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if ($element instanceof \DOMElement && $element->localName === $localName) {
+                return $element;
+            }
+        }
+
+        return null;
+    }
+
+    private function firstChildElementByLocalName(\DOMElement $parent, string $localName): ?\DOMElement
+    {
+        foreach ($parent->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->localName === $localName) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private function attr(\DOMElement $element, string $namespace, string $name): string
+    {
+        $value = $element->getAttributeNS($namespace, $name);
+        if ($value !== '') {
+            return $value;
+        }
+        foreach ($element->attributes ?? [] as $attribute) {
+            if ($attribute instanceof \DOMAttr && $attribute->localName === $name) {
+                return $attribute->value;
+            }
+        }
+
+        return '';
+    }
+
+    private function isPackageRelativeResourceUrl(string $url): bool
+    {
+        $url = trim($url);
+        return $url !== ''
+            && !str_starts_with($url, '#')
+            && !str_starts_with(strtolower($url), 'data:')
+            && !str_starts_with(strtolower($url), 'mailto:')
+            && !$this->isAbsoluteUrl($url);
+    }
+
+    private function isAbsoluteUrl(string $url): bool
+    {
+        return (bool) preg_match('/^[a-z][a-z0-9+.-]*:/i', $url) || str_starts_with($url, '//');
+    }
+
+    private function normalizePackagePath(string $path): string
+    {
+        $parts = [];
+        foreach (explode('/', str_replace('\\', '/', $path)) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($parts);
+                continue;
+            }
+            $parts[] = $part;
+        }
+
+        return implode('/', $parts);
+    }
+
+    private function pathLooksLikeImage(string $path): bool
+    {
+        return (bool) preg_match('/\.(?:apng|avif|bmp|gif|ico|jpe?g|png|svgz?|tiff?|webp)$/i', $path);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function plainText(array $inlines): string
+    {
+        $text = '';
+        foreach ($inlines as $inline) {
+            $text .= $this->nodeText($inline);
+        }
+
+        return trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+    }
+
+    private function nodeText(AstNode $node): string
+    {
+        if (isset($node->attrs['text'])) {
+            return (string) $node->attrs['text'];
+        }
+        if ($node->type === 'linebreak') {
+            return ' ';
+        }
+        $text = '';
+        foreach ($node->children as $child) {
+            $text .= $this->nodeText($child);
+        }
+
+        return $text;
     }
 }

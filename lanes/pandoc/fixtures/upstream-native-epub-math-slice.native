@@ -1,0 +1,72 @@
+Pandoc
+  Meta
+    { unMeta =
+        fromList
+          [ ( "description"
+            , MetaInlines
+                [ Str
+                    "Tests for Content Documents in a reflowable context [UNDER CONSTRUCTION]"
+                ]
+            )
+          , ( "identifier"
+            , MetaInlines
+                [ Str "com.github.epub-testsuite.epub30-test-0100" ]
+            )
+          , ( "title"
+            , MetaInlines
+                [ Str "EPUBTEST 0100 - Reflowable Content Tests" ]
+            )
+          ]
+    }
+  [ Para [ Span ( "content-mathml-001.xhtml" , [] , [] ) [] ]
+  , Div
+      ( "content-mathml-001.xhtml_mathml" , [ "section" ] , [] )
+      [ Header 2 ( "" , [] , [] ) [ Str "MathML" ]
+      , Div
+          ( "content-mathml-001.xhtml_mathml-010"
+          , [ "section" , "ctest" ]
+          , []
+          )
+          [ Header
+              2
+              ( "" , [] , [] )
+              [ Span ( "" , [ "nature" ] , [] ) [ Str "[REQUIRED]" ]
+              , SoftBreak
+              , Span ( "" , [ "test-id" ] , [] ) [ Str "mathml-010" ]
+              , Space
+              , Str "Rendering"
+              ]
+          , Plain
+              [ Math
+                  DisplayMath
+                  "\\int_{- \\infty}^{\\infty}e^{- x^{2}}\\, dx = \\sqrt{\\pi}"
+              , SoftBreak
+              , Math
+                  DisplayMath
+                  "\\sum\\limits_{n = 1}^{\\infty}\\frac{1}{n^{2}} = \\frac{\\pi^{2}}{6}"
+              , SoftBreak
+              , Math
+                  DisplayMath
+                  "x = \\frac{- b \\pm \\sqrt{b^{2} - 4ac}}{2a}"
+              ]
+          ]
+      , Div
+          ( "content-mathml-001.xhtml_mathml-023"
+          , [ "section" , "otest" ]
+          , []
+          )
+          [ Header
+              2
+              ( "" , [] , [] )
+              [ Span ( "" , [ "nature" ] , [] ) [ Str "[OPTIONAL]" ]
+              , SoftBreak
+              , Span ( "" , [ "test-id" ] , [] ) [ Str "mathml-023" ]
+              , Space
+              , Str "CSS"
+              , Space
+              , Str "Styling"
+              ]
+          , Plain [ Math InlineMath "{2x}{+ y - z}" ]
+          ]
+      ]
+  ]

@@ -1,6 +1,6 @@
 # markerPDF Native PHP Lane
 
-This directory contains the native PHP markerPDF port used by the WordPress/Data Liberation import work. It is deliberately not a Python, Torch, Surya, Texify, OCR, Streamlit, FastAPI, or GPU integration. The library focuses on deterministic shared-hosting pieces: searchable-PDF parsing, PDF metadata/review extraction, supplied OCR/layout/table/equation handoff boundaries, Gutenberg-ready block rendering, and benchmark-style quality gates.
+This directory contains the native PHP markerPDF port used by the WordPress/Data Liberation import work. It is deliberately not a Python, Torch, Surya, Texify, OCR, Streamlit, FastAPI, or GPU integration. The library focuses on deterministic shared-hosting pieces: searchable-PDF text extraction, PDF preflight checks, supplied OCR/layout/table/equation handoff boundaries, Gutenberg-ready block rendering, and benchmark-style quality gates.
 
 Examples directory:
 
@@ -21,91 +21,106 @@ for f in lanes/markerpdf/examples/*.php; do php "$f" >/dev/null || echo "$f"; do
 
 ## Extract Searchable PDF Text
 
-`PdfTextExtractor` reads PDF content streams and turns visible text into WordPress-ready output without running external PDF tools. It covers common operators and several less obvious PDF text boundaries: stream filters, CMaps, Type0/CID fonts, simple-font encodings, text positioning, page resource inheritance, object streams, xref repair, and inline image exclusion.
+`PdfTextExtractor` reads common PDF content-stream text operators and turns them into block-ready text lines. This example uses a tiny synthetic PDF with a MacRoman simple font. It exercises one of the obscure paths that often breaks naive PDF text extractors: high-byte legacy font encoding before WordPress paragraph rendering.
 
-Representative examples:
+```php
+<?php
 
-- [examples/wordpress-import.php](examples/wordpress-import.php)
-- [examples/wordpress-pdf-ascii85-filter-import.php](examples/wordpress-pdf-ascii85-filter-import.php)
-- [examples/wordpress-pdf-standard-macroman-symbol-encoding-import.php](examples/wordpress-pdf-standard-macroman-symbol-encoding-import.php)
-- [examples/wordpress-pdf-encoding-differences-import.php](examples/wordpress-pdf-encoding-differences-import.php)
-- [examples/wordpress-pdf-cmap-tounicode-row-count-boundary.php](examples/wordpress-pdf-cmap-tounicode-row-count-boundary.php)
-- [examples/wordpress-pdf-cmap-indirect-filter-array-tail-currentbase.php](examples/wordpress-pdf-cmap-indirect-filter-array-tail-currentbase.php)
-- [examples/wordpress-pdf-indirect-filter-decodeparms-owner-currentbase.php](examples/wordpress-pdf-indirect-filter-decodeparms-owner-currentbase.php)
-- [examples/wordpress-pdf-inline-image-tokenizer-boundary-currentbase.php](examples/wordpress-pdf-inline-image-tokenizer-boundary-currentbase.php)
+declare(strict_types=1);
 
-Run a few of them:
+use PortLibs\MarkerPDF\PdfTextExtractor;
+
+require 'tools/bootstrap.php';
+
+$content = "BT /Fmac 12 Tf 72 720 Td <576F72645072657373204D6163526F6D616E3A208E2044617461D120DB> Tj "
+    . "T* [<D251756F7465D3> 120 <20496D706F7274>] TJ ET";
+
+$pdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fmac 2 0 R >> >> /Contents 3 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /MacRomanEncoding >>\nendobj\n"
+    . "3 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+
+$lines = (new PdfTextExtractor())->extractTextLines($pdf);
+
+foreach ($lines as $line) {
+    echo "<!-- wp:paragraph -->\n";
+    echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
+    echo "<!-- /wp:paragraph -->\n\n";
+}
+```
+
+Complete runnable example:
+
+- [examples/wordpress-pdf-macroman-import.php](examples/wordpress-pdf-macroman-import.php)
 
 ```sh
-php lanes/markerpdf/examples/wordpress-import.php
-php lanes/markerpdf/examples/wordpress-pdf-standard-macroman-symbol-encoding-import.php
-php lanes/markerpdf/examples/wordpress-pdf-indirect-filter-decodeparms-owner-currentbase.php
+php lanes/markerpdf/examples/wordpress-pdf-macroman-import.php
 ```
+
+It emits Gutenberg paragraph blocks and records that no Python, model worker, or external PDF tool was used.
 
 ## Gate Imports With Benchmark Reports
 
-The benchmark helpers make PDF import quality measurable before content reaches an editor. They replay supplied conversion callbacks against committed reference snippets and produce upstream-shaped report data for WordPress import gates.
-
-Representative examples:
+The benchmark helpers make PDF import quality measurable before content reaches an editor. They replay supplied conversion callbacks against committed reference snippets and produce the same report shape the upstream benchmark loop expects.
 
 - [examples/wordpress-benchmark-report.php](examples/wordpress-benchmark-report.php)
-- [examples/wordpress-benchmark-runner.php](examples/wordpress-benchmark-runner.php)
-- [examples/wordpress-benchmark-score-verifier-currentbase.php](examples/wordpress-benchmark-score-verifier-currentbase.php)
-- [examples/wordpress-supplied-document-benchmark.php](examples/wordpress-supplied-document-benchmark.php)
-- [examples/wordpress-multicolcnn-supplied-benchmark.php](examples/wordpress-multicolcnn-supplied-benchmark.php)
-- [examples/wordpress-switch-transformers-supplied-benchmark.php](examples/wordpress-switch-transformers-supplied-benchmark.php)
 
 ```sh
 php lanes/markerpdf/examples/wordpress-benchmark-report.php
+```
+
+Expected shape:
+
+```json
+{
+  "scenario": "wordpress-pdf-benchmark-report",
+  "passes_upstream_ci_marker_thresholds": true,
+  "report": {
+    "marker": {
+      "avg_score": 0.8125502414038184
+    }
+  }
+}
+```
+
+## Convert Supplied Layout, Table, And Image Boundaries
+
+When a hosting environment or separate service supplies pdftext/layout/order/table/image data, `SuppliedDocumentConverter` can assemble it into Markdown and Gutenberg-preview metadata without executing OCR or layout models locally.
+
+- [examples/wordpress-supplied-document-benchmark.php](examples/wordpress-supplied-document-benchmark.php)
+
+```sh
 php lanes/markerpdf/examples/wordpress-supplied-document-benchmark.php
 ```
 
-## Convert Supplied Layout, Table, And Equation Boundaries
-
-When a hosting environment or separate service supplies pdftext/layout/order/table/equation data, the PHP lane can assemble it into Markdown, Gutenberg block previews, review metadata, and quality reports without executing OCR or layout models locally.
-
-Representative examples:
-
-- [examples/wordpress-pdftext-block-import.php](examples/wordpress-pdftext-block-import.php)
-- [examples/wordpress-pdftext-page-range-import.php](examples/wordpress-pdftext-page-range-import.php)
-- [examples/wordpress-table-recognition-handoff.php](examples/wordpress-table-recognition-handoff.php)
-- [examples/wordpress-table-ocr-span-grid-benchmark-format-bundle-currentbase.php](examples/wordpress-table-ocr-span-grid-benchmark-format-bundle-currentbase.php)
-- [examples/wordpress-equation-import.php](examples/wordpress-equation-import.php)
-- [examples/wordpress-supplied-equation-import.php](examples/wordpress-supplied-equation-import.php)
-- [examples/wordpress-texify-equation-batch-preflight.php](examples/wordpress-texify-equation-batch-preflight.php)
-
-```sh
-php lanes/markerpdf/examples/wordpress-table-recognition-handoff.php
-php lanes/markerpdf/examples/wordpress-supplied-equation-import.php
-```
-
-## Review Metadata Without Executing PDF Actions
-
-The lane also extracts review metadata that WordPress importers can use without executing JavaScript, PDF actions, media playback, remote actions, or model workers.
-
-Useful examples:
-
-- [examples/wordpress-pdf-outline-import.php](examples/wordpress-pdf-outline-import.php)
-- [examples/wordpress-pdf-outline-action-chain-metadata-currentbase.php](examples/wordpress-pdf-outline-action-chain-metadata-currentbase.php)
-- [examples/wordpress-pdf-page-annots-comment-reference-boundary-currentbase.php](examples/wordpress-pdf-page-annots-comment-reference-boundary-currentbase.php)
-- [examples/wordpress-pdf-acroform-fields-import.php](examples/wordpress-pdf-acroform-fields-import.php)
-- [examples/wordpress-pdf-xmp-metadata-import.php](examples/wordpress-pdf-xmp-metadata-import.php)
-- [examples/wordpress-pdf-xref-prev-chain-incremental-update-currentbase.php](examples/wordpress-pdf-xref-prev-chain-incremental-update-currentbase.php)
-- [examples/wordpress-pdf-image-xobject-boundary-import.php](examples/wordpress-pdf-image-xobject-boundary-import.php)
-
-```sh
-php lanes/markerpdf/examples/wordpress-pdf-page-annots-comment-reference-boundary-currentbase.php
-php lanes/markerpdf/examples/wordpress-pdf-acroform-fields-import.php
-```
+That example converts supplied page dictionaries into a heading, paragraphs, a Markdown table, and an image placeholder, then runs the result through a benchmark gate. It is a good template for a WordPress import worker that accepts precomputed model-boundary payloads.
 
 ## Obscure PDF Features Already Covered
 
-The markerPDF lane has focused examples and tests for many PDF edge cases that are easy to miss:
+The markerPDF lane has focused examples and tests for several edge cases that are easy to miss:
 
-- Stream filters: `ASCIIHexDecode`, `ASCII85Decode`, `RunLengthDecode`, `LZWDecode`, `FlateDecode`, filter arrays, predictor parameters, malformed filter fail-closed behavior, and indirect `/Filter` or `/DecodeParms` operands.
-- Fonts and text: `/WinAnsiEncoding`, `/MacRomanEncoding`, `StandardEncoding`, Symbol fallback, custom `/Differences`, Type0/CID fonts, `/ToUnicode` maps, CMap row-count boundaries, CMap comments, source-width fallback, vertical writing, and glyph-width grouping.
-- Parser recovery: classic xref tables, xref streams, hybrid xrefs, object streams, `/Prev` incremental updates, current-generation precedence, stale stream-length recovery, and stream-owner boundaries.
-- Review-only metadata: outlines, named destinations, page labels, annotations, link and markup spans, AcroForm field state, XFA packets, signatures, attachments, XMP/Info metadata, viewer preferences, page actions, and open actions.
-- WordPress handoffs: supplied pdftext dictionaries, layout/order payloads, table geometry, equation replacement, image review metadata, debug overlays, runtime preflight, upload/API response shaping, and benchmark reports.
+- Stream filters: `ASCIIHexDecode`, `ASCII85Decode`, `RunLengthDecode`, `FlateDecode`, PNG/TIFF predictor parameters, and indirect `/Filter` or `/DecodeParms` objects.
+- Font encodings: `/WinAnsiEncoding`, `/MacRomanEncoding`, custom `/Differences` arrays, indirect `/Encoding` dictionaries, PDF name escapes such as `/F#31`, and partial `/ToUnicode` CMap fallback.
+- Text positioning: adjacent text operators, `TJ` numeric positioning, `Tc`, `Tw`, `Tz`, double-quote spacing operands, non-identity `Tm` horizontal scaling, and `q`/`Q` graphics-state scoping.
+- Parser hardening: UTF-16 literal strings, unknown literal escapes, inline image payload skipping, variable-width CMap `begincodespacerange`, page-range slicing, text-length preflights, and block/span cleanup before Gutenberg rendering.
+- WordPress handoffs: table recognition payloads, equation replacement payloads, image insertion metadata, debug bbox overlays, upload preview metadata, batch conversion planning, and API-upload response shaping.
 
-The guiding rule is stable: keep native PHP deterministic behavior in scope, and keep GPU/model/Python execution out of scope.
+Useful examples:
+
+- [examples/wordpress-pdf-ascii85-filter-import.php](examples/wordpress-pdf-ascii85-filter-import.php)
+- [examples/wordpress-pdf-indirect-filter-import.php](examples/wordpress-pdf-indirect-filter-import.php)
+- [examples/wordpress-pdf-tounicode-import.php](examples/wordpress-pdf-tounicode-import.php)
+- [examples/wordpress-pdf-differences-import.php](examples/wordpress-pdf-differences-import.php)
+- [examples/wordpress-table-recognition-handoff.php](examples/wordpress-table-recognition-handoff.php)
+- [examples/wordpress-supplied-equation-import.php](examples/wordpress-supplied-equation-import.php)
+
+Run them from the repository root:
+
+```sh
+php lanes/markerpdf/examples/wordpress-pdf-ascii85-filter-import.php
+php lanes/markerpdf/examples/wordpress-pdf-indirect-filter-import.php
+php lanes/markerpdf/examples/wordpress-pdf-tounicode-import.php
+php lanes/markerpdf/examples/wordpress-pdf-differences-import.php
+php lanes/markerpdf/examples/wordpress-table-recognition-handoff.php
+php lanes/markerpdf/examples/wordpress-supplied-equation-import.php
+```

@@ -3,683 +3,148 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\OdtReader;
-use PortLibs\Pandoc\TableGeometry;
+use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
-use PortLibs\Pandoc\ZipPackage;
 
-$stylesXml = <<<'XML'
-<office:document-styles
-  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
-  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
-  office:version="1.3">
-  <office:styles>
-    <style:style style:name="Centered" style:family="paragraph">
-      <style:paragraph-properties fo:text-align="center"/>
-    </style:style>
-    <style:style style:name="Emphasis" style:family="text">
-      <style:text-properties fo:font-style="italic"/>
-    </style:style>
-    <style:style style:name="StrongEmphasis" style:family="text" style:parent-style-name="Emphasis">
-      <style:text-properties fo:font-weight="bold"/>
-    </style:style>
-    <text:list-style style:name="ReviewSteps">
-      <text:list-level-style-number text:level="1" style:num-format="a" text:start-value="3"/>
-    </text:list-style>
-  </office:styles>
-</office:document-styles>
-XML;
+return [
+    'reads odt package metadata and body content into shared ast' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
 
-$contentXml = <<<'XML'
-<office:document-content
-  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
-  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
-  xmlns:xlink="http://www.w3.org/1999/xlink"
-  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
-  xmlns:dc="http://purl.org/dc/elements/1.1/"
-  office:version="1.3">
-  <office:body>
-    <office:text>
-      <text:h text:outline-level="1" text:style-name="Heading_20_1">ODT source packet</text:h>
-      <text:p text:style-name="Centered">Reviewer<text:s text:c="2"/><text:span text:style-name="StrongEmphasis">summary</text:span><text:s/><text:a xlink:href="https://example.test/source" office:title="Source packet">source link</text:a><text:line-break/>next line<text:note text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>Footnote source audit.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Reviewer</dc:creator><dc:date>2026-06-04T10:00:00Z</dc:date><text:p>Check imported source.</text:p></office:annotation></text:p>
-      <text:section text:name="ReviewSection"><text:p>Scoped paragraph.</text:p></text:section>
-      <text:list text:style-name="ReviewSteps" text:start-value="3">
-        <text:list-item><text:p>Confirm media map</text:p></text:list-item>
-        <text:list-item><text:p>Publish packet</text:p></text:list-item>
-      </text:list>
-      <table:table table:name="Review matrix">
-        <table:table-row>
-          <table:table-cell table:number-columns-spanned="2" table:number-rows-spanned="2"><text:p>Scope</text:p></table:table-cell>
-          <table:table-cell><text:p>Status</text:p></table:table-cell>
-        </table:table-row>
-        <table:table-row>
-          <table:covered-table-cell/>
-          <table:covered-table-cell/>
-          <table:table-cell><text:p>Ready</text:p></table:table-cell>
-        </table:table-row>
-        <table:table-row>
-          <table:table-cell table:number-columns-repeated="2"><text:p>Owner</text:p></table:table-cell>
-          <table:table-cell><text:p>Migration desk</text:p></table:table-cell>
-        </table:table-row>
-      </table:table>
-      <text:p><draw:frame draw:name="Hero image" svg:width="6cm" svg:height="4cm"><draw:image xlink:href="Pictures/hero.png" xlink:type="simple"/></draw:frame></text:p>
-      <text:p><draw:frame draw:name="Missing image"><draw:image xlink:href="Pictures/missing.png" xlink:type="simple"/></draw:frame></text:p>
-      <draw:frame draw:name="Sidebar"><draw:text-box><text:p>Text box reminder.</text:p></draw:text-box></draw:frame>
-    </office:text>
-  </office:body>
-</office:document-content>
-XML;
-
-$metaXml = <<<'XML'
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('mimetype', 'application/vnd.oasis.opendocument.text');
+        $zip->addFromString('meta.xml', <<<'XML'
+<?xml version="1.0"?>
 <office:document-meta
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
   xmlns:dc="http://purl.org/dc/elements/1.1/"
-  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"
-  office:version="1.3">
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">
   <office:meta>
-    <dc:title>WordPress ODT handoff</dc:title>
-    <dc:creator>Migration Desk</dc:creator>
-    <dc:description>Source packet for ODT import review</dc:description>
-    <meta:initial-creator>Source Editor</meta:initial-creator>
-    <meta:creation-date>2026-06-04T09:30:00Z</meta:creation-date>
-    <meta:editing-cycles>4</meta:editing-cycles>
+    <dc:title>ODT Reader Demo</dc:title>
+    <dc:creator>Port Libs</dc:creator>
+    <dc:description>Bounded ODT reader smoke.</dc:description>
+    <meta:keyword>odt</meta:keyword>
   </office:meta>
 </office:document-meta>
-XML;
-
-$manifestXml = <<<'XML'
-<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
-  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>
-  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
-  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
-  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
-  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="7"/>
-  <manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png"/>
-</manifest:manifest>
-XML;
-
-$buildPackage = static function (array $overrides = []) use ($contentXml, $stylesXml, $metaXml, $manifestXml): ZipPackage {
-    $parts = array_replace([
-        'mimetype' => OdtReader::ODT_MIMETYPE,
-        'content.xml' => $contentXml,
-        'styles.xml' => $stylesXml,
-        'meta.xml' => $metaXml,
-        'META-INF/manifest.xml' => $manifestXml,
-        'Pictures/hero.png' => 'PNGDATA',
-    ], $overrides);
-
-    $zipParts = [];
-    foreach ($parts as $name => $data) {
-        if ($data === null) {
-            continue;
-        }
-
-        $zipParts[] = [
-            'name' => (string) $name,
-            'data' => (string) $data,
-            'compressionMethod' => $name === 'mimetype' ? 0 : 8,
-        ];
-    }
-
-    return ZipPackage::fromParts($zipParts);
-};
-
-return [
-    'reads ODT package metadata manifest and styled body blocks' => static function (TestRunner $t) use ($buildPackage): void {
-        $result = (new OdtReader())->readPackage($buildPackage());
-        $document = $result['document'];
-
-        $t->same('WordPress ODT handoff', $result['metadata']['title']);
-        $t->same('Migration Desk', $result['metadata']['creator']);
-        $t->same('Source Editor', $result['metadata']['initialCreator']);
-        $t->same(6, count($result['manifest']));
-        $t->same('application/vnd.oasis.opendocument.text', $result['importReport']['mimetype']);
-        $t->same('document', $document->type);
-        $t->same('odt', $document->attr('sourceFormat'));
-        $t->same(8, count($document->children));
-
-        $heading = $document->children[0];
-        $t->same('heading', $heading->type);
-        $t->same(1, $heading->attr('level'));
-        $t->same('odt-source-packet', $heading->attr('id'));
-
-        $paragraph = $document->children[1];
-        $t->same('paragraph', $paragraph->type);
-        $t->same('Centered', $paragraph->attr('style'));
-        $t->same(['style' => 'text-align:center'], $paragraph->attr('htmlAttributes'));
-        $t->same('text', $paragraph->children[0]->type);
-        $t->same('Reviewer  ', $paragraph->children[0]->attr('text'));
-        $t->same('emph', $paragraph->children[1]->type);
-        $t->same('strong', $paragraph->children[1]->children[0]->type);
-        $t->same('summary', $paragraph->children[1]->children[0]->children[0]->attr('text'));
-        $t->same('link', $paragraph->children[3]->type);
-        $t->same('https://example.test/source', $paragraph->children[3]->attr('url'));
-        $t->same('linebreak', $paragraph->children[4]->type);
-        $t->same('note', $paragraph->children[6]->type);
-        $t->same('footnote', $paragraph->children[6]->attr('sourceType'));
-        $t->same('span', $paragraph->children[7]->type);
-        $t->same(['odt-annotation'], $paragraph->children[7]->attr('classes'));
-        $t->same('Migration Reviewer', $paragraph->children[7]->attr('attributes')['data-odt-annotation-author']);
-
-        $section = $document->children[2];
-        $t->same('div', $section->type);
-        $t->same('odt-section', $section->attr('sourceFormat'));
-        $t->same('ReviewSection', $section->attr('name'));
-        $t->same('Scoped paragraph.', $section->children[0]->children[0]->attr('text'));
-    },
-    'reports ODT settings XML config sets in package reader output' => static function (TestRunner $t) use ($buildPackage, $manifestXml): void {
-        $settingsXml = <<<'XML'
-<office:document-settings
-  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
-  <office:settings>
-    <config:config-item-set config:name="ooo:view-settings">
-      <config:config-item config:name="ViewAreaTop" config:type="int">1440</config:config-item>
-      <config:config-item config:name="ShowRedlineChanges" config:type="boolean">true</config:config-item>
-      <config:config-item-map-indexed config:name="Views">
-        <config:config-item-map-entry>
-          <config:config-item config:name="ViewId" config:type="string">view-1</config:config-item>
-          <config:config-item config:name="ViewLeft" config:type="int">120</config:config-item>
-        </config:config-item-map-entry>
-        <config:config-item-map-entry>
-          <config:config-item config:name="ViewId" config:type="string">view-2</config:config-item>
-          <config:config-item config:name="ViewLeft" config:type="int">240</config:config-item>
-        </config:config-item-map-entry>
-      </config:config-item-map-indexed>
-    </config:config-item-set>
-    <config:config-item-set config:name="ooo:configuration-settings">
-      <config:config-item config:name="LoadReadonly" config:type="boolean">false</config:config-item>
-      <config:config-item-map-named config:name="ForbiddenCharacters">
-        <config:config-item-map-entry config:name="en-US">
-          <config:config-item config:name="Language" config:type="string">en</config:config-item>
-        </config:config-item-map-entry>
-      </config:config-item-map-named>
-    </config:config-item-set>
-  </office:settings>
-</office:document-settings>
-XML;
-        $manifestWithSettings = str_replace(
-            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
-            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
-            . "\n  "
-            . '<manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>',
-            $manifestXml
-        );
-
-        $result = (new OdtReader())->readPackage($buildPackage([
-            'META-INF/manifest.xml' => $manifestWithSettings,
-            'settings.xml' => $settingsXml,
-        ]));
-        $settings = $result['settings'];
-        $view = $settings['setsByName']['ooo:view-settings'];
-        $configuration = $settings['setsByName']['ooo:configuration-settings'];
-        $views = $view['mapsByName']['Views'];
-        $forbiddenCharacters = $configuration['mapsByName']['ForbiddenCharacters'];
-
-        $t->same(7, count($result['manifest']));
-        $t->same($settings, $result['importReport']['settings']);
-        $t->same($settings, $result['document']->attr('settings'));
-        $t->same(2, $settings['count']);
-        $t->same(8, $settings['itemCount']);
-        $t->same(3, $settings['mapEntryCount']);
-        $t->same(['ooo:view-settings', 'ooo:configuration-settings'], array_column($settings['sets'], 'name'));
-        $t->same(6, $view['itemCount']);
-        $t->same(2, $view['mapEntryCount']);
-        $t->same(1440, $view['itemsByName']['ViewAreaTop']['typedValue']);
-        $t->same('1440', $view['itemsByName']['ViewAreaTop']['value']);
-        $t->same(true, $view['itemsByName']['ShowRedlineChanges']['typedValue']);
-        $t->same('indexed', $views['type']);
-        $t->same(2, $views['entryCount']);
-        $t->same('view-1', $views['entries'][0]['itemsByName']['ViewId']['typedValue']);
-        $t->same(240, $views['entries'][1]['itemsByName']['ViewLeft']['typedValue']);
-        $t->same(2, $configuration['itemCount']);
-        $t->same(false, $configuration['itemsByName']['LoadReadonly']['typedValue']);
-        $t->same('named', $forbiddenCharacters['type']);
-        $t->same('en-US', $forbiddenCharacters['entries'][0]['name']);
-        $t->same('en', $forbiddenCharacters['entriesByName']['en-US']['itemsByName']['Language']['typedValue']);
-
-        $badSettingsXml = '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>';
-        $t->throws(\InvalidArgumentException::class, static fn (): array => (new OdtReader())->readPackage($buildPackage([
-            'META-INF/manifest.xml' => $manifestWithSettings,
-            'settings.xml' => $badSettingsXml,
-        ])));
-    },
-    'maps ODT ordered list restarts from list styles' => static function (TestRunner $t) use ($buildPackage): void {
-        $document = (new OdtReader())->readDocument($buildPackage());
-        $list = $document->children[3];
-
-        $t->same('ordered_list', $list->type);
-        $t->same('ReviewSteps', $list->attr('styleName'));
-        $t->same('lower_alpha', $list->attr('style'));
-        $t->same(3, $list->attr('start'));
-        $t->same(true, $list->attr('restart'));
-        $t->same(2, count($list->children));
-        $t->same('Confirm media map', $list->children[0]->children[0]->children[0]->attr('text'));
-
-        $blocks = (new WordPressBlockWriter())->write($document);
-        $t->contains('<ol start="3" type="a">', $blocks);
-        $t->contains('<li>Confirm media map</li><li>Publish packet</li>', $blocks);
-    },
-    'maps ODT table spans repeated cells and WordPress table output' => static function (TestRunner $t) use ($buildPackage): void {
-        $document = (new OdtReader())->readDocument($buildPackage());
-        $table = $document->children[4];
-        $rows = $table->children[0]->children;
-        $geometry = $table->attr('tableGeometry');
-        $t->same(true, is_array($geometry));
-        $geometry = is_array($geometry) ? $geometry : [];
-
-        $t->same('table', $table->type);
-        $t->same('Review matrix', $table->attr('caption'));
-        $t->same(3, TableGeometry::columnCount($table));
-        $t->same(3, count($rows));
-        $t->same(2, $rows[0]->children[0]->attr('colspan'));
-        $t->same(2, $rows[0]->children[0]->attr('rowspan'));
-        $t->same('Scope', $rows[0]->children[0]->attr('text'));
-        $t->same('Owner', $rows[2]->children[0]->attr('text'));
-        $t->same('Owner', $rows[2]->children[1]->attr('text'));
-        $t->same('Review matrix', $geometry['caption'] ?? null);
-        $t->same(3, $geometry['columnCount'] ?? null);
-        $t->same(1, $geometry['summary']['sectionCount'] ?? null);
-        $t->same(3, $geometry['summary']['rowCount'] ?? null);
-        $t->same(6, $geometry['summary']['cellCount'] ?? null);
-        $t->same(3, $geometry['summary']['coveredSlotCount'] ?? null);
-        $t->same('Scope', $geometry['coverage'][0]['text'] ?? null);
-        $t->same('Ready', $geometry['coverage'][2]['text'] ?? null);
-        $t->same(2, $geometry['coverage'][2]['column'] ?? null);
-        $t->same('covered', $geometry['sections'][0]['rows'][1]['slots'][0]['kind'] ?? null);
-        $t->same('rowspan', $geometry['sections'][0]['rows'][1]['slots'][0]['covering'] ?? null);
-        json_encode($geometry, JSON_THROW_ON_ERROR);
-
-        $blocks = (new WordPressBlockWriter())->write($document);
-        $t->contains('<td colspan="2" rowspan="2">', $blocks);
-        $t->contains('<figcaption class="wp-element-caption">Review matrix</figcaption>', $blocks);
-        $t->contains('<td><p>Migration desk</p></td>', $blocks);
-    },
-    'reports ODT frame images text boxes and package media metadata' => static function (TestRunner $t) use ($buildPackage): void {
-        $result = (new OdtReader())->readPackage($buildPackage());
-        $document = $result['document'];
-        $report = $result['importReport'];
-
-        $heroParagraph = $document->children[5];
-        $missingParagraph = $document->children[6];
-        $textBox = $document->children[7];
-
-        $t->same('image', $heroParagraph->children[0]->type);
-        $t->same('Pictures/hero.png', $heroParagraph->children[0]->attr('sourcePart'));
-        $t->same(true, $heroParagraph->children[0]->attr('exists'));
-        $t->same('6cm', $heroParagraph->children[0]->attr('attributes')['data-odt-width']);
-        $t->same('4cm', $heroParagraph->children[0]->attr('attributes')['data-odt-height']);
-        $t->same('image', $missingParagraph->children[0]->type);
-        $t->same(false, $missingParagraph->children[0]->attr('exists'));
-        $t->same('div', $textBox->type);
-        $t->same('odt-text-box', $textBox->attr('sourceFormat'));
-        $t->same('Text box reminder.', $textBox->children[0]->children[0]->attr('text'));
-
-        $t->same(2, $report['media']['count']);
-        $t->same(1, $report['media']['embeddedCount']);
-        $t->same(1, $report['media']['missingCount']);
-        $t->same(7, $report['media']['items'][0]['bytes']);
-        $t->same('image/png', $report['media']['items'][0]['mediaType']);
-        $t->same(1, $report['annotations']['count']);
-        $t->same(1, $report['sections']['count']);
-        $t->same(1, $report['textBoxes']['count']);
-        $t->same(1, $report['styles']['listCount']);
-    },
-    'blocks encrypted ODT image bytes and reports manifest encryption provenance' => static function (TestRunner $t) use ($buildPackage, $manifestXml): void {
-        $manifestWithEncryptedHero = str_replace(
-            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="7"/>',
-            <<<'XML'
-  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="7">
-    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="hero-checksum">
-      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="hero-iv"/>
-      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:key-size="16" manifest:iteration-count="1024" manifest:salt="hero-salt"/>
-      <manifest:start-key-generation manifest:start-key-generation-name="SHA1" manifest:key-size="20"/>
-    </manifest:encryption-data>
-  </manifest:file-entry>
-XML,
-            $manifestXml
-        );
-
-        $result = (new OdtReader())->readPackage($buildPackage([
-            'META-INF/manifest.xml' => $manifestWithEncryptedHero,
-        ]));
-        $manifestByPath = [];
-        foreach ($result['manifest'] as $entry) {
-            $manifestByPath[$entry['path']] = $entry;
-        }
-        $heroEntry = $manifestByPath['Pictures/hero.png'];
-        $heroMedia = $result['importReport']['media']['items'][0];
-
-        $t->same(1, $result['importReport']['encryptedEntryCount']);
-        $t->same(['Pictures/hero.png'], $result['importReport']['encryptedEntries']);
-        $t->same(true, $heroEntry['encrypted']);
-        $t->same(1, $heroEntry['encryption']['recordCount']);
-        $t->same('SHA1/1K', $heroEntry['encryption']['checksumType']);
-        $t->same('hero-checksum', $heroEntry['encryption']['checksum']);
-        $t->same('Blowfish CFB', $heroEntry['encryption']['algorithm']['name']);
-        $t->same('hero-iv', $heroEntry['encryption']['algorithm']['initialisationVector']);
-        $t->same('PBKDF2', $heroEntry['encryption']['keyDerivation']['name']);
-        $t->same(16, $heroEntry['encryption']['keyDerivation']['keySize']);
-        $t->same(1024, $heroEntry['encryption']['keyDerivation']['iterationCount']);
-        $t->same('hero-salt', $heroEntry['encryption']['keyDerivation']['salt']);
-        $t->same('SHA1', $heroEntry['encryption']['startKeyGeneration']['name']);
-        $t->same(20, $heroEntry['encryption']['startKeyGeneration']['keySize']);
-
-        $t->same(2, $result['importReport']['media']['count']);
-        $t->same(1, $result['importReport']['media']['embeddedCount']);
-        $t->same(1, $result['importReport']['media']['missingCount']);
-        $t->same(0, $result['importReport']['media']['exposableCount']);
-        $t->same(1, $result['importReport']['media']['encryptedCount']);
-        $t->same(true, $heroMedia['exists']);
-        $t->same(true, $heroMedia['encrypted']);
-        $t->same(false, $heroMedia['canExposeBytes']);
-        $t->same(null, $heroMedia['bytes']);
-        $t->same(null, $heroMedia['byteLength']);
-        $t->same(7, $heroMedia['storedByteLength']);
-        $t->same(null, $heroMedia['crc32']);
-        $t->same('db1a1847', $heroMedia['storedCrc32']);
-        $t->same('encrypted-resource-bytes-blocked', $heroMedia['byteExposurePolicy']);
-        $t->same($heroEntry['encryption'], $heroMedia['encryption']);
-        $t->same(1, $heroMedia['encryptionRecordCount']);
-    },
-    'resolves encoded ODT image package references with query and fragment provenance' => static function (TestRunner $t) use ($buildPackage): void {
-        $contentWithEncodedImage = <<<'XML'
-<office:document-content
-  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
-  xmlns:xlink="http://www.w3.org/1999/xlink"
-  office:version="1.3">
-  <office:body>
-    <office:text>
-      <text:p><draw:frame draw:name="Encoded image"><draw:image xlink:href="Pictures/source%20hero.png?cache=1#draw"/></draw:frame></text:p>
-    </office:text>
-  </office:body>
-</office:document-content>
-XML;
-        $manifestWithEncodedImage = <<<'XML'
-<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
-  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>
-  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
-  <manifest:file-entry manifest:full-path="Pictures/source%20hero.png?cache=1#draw" manifest:media-type="image/png" manifest:size="8"/>
-</manifest:manifest>
-XML;
-
-        $result = (new OdtReader())->readPackage($buildPackage([
-            'content.xml' => $contentWithEncodedImage,
-            'META-INF/manifest.xml' => $manifestWithEncodedImage,
-            'Pictures/source hero.png' => 'PNGDATA2',
-        ]));
-
-        $image = $result['document']->children[0]->children[0];
-        $manifestEntry = $result['manifest'][2];
-        $media = $result['importReport']['media'];
-        $item = $media['items'][0];
-
-        $t->same('Pictures/source%20hero.png?cache=1#draw', $image->attr('url'));
-        $t->same('Pictures/source hero.png', $image->attr('sourcePart'));
-        $t->same(true, $image->attr('exists'));
-        $t->same('Pictures/source%20hero.png?cache=1#draw', $manifestEntry['path']);
-        $t->same('Pictures/source hero.png', $manifestEntry['packagePath']);
-        $t->same('Pictures/source%20hero.png', $manifestEntry['pathReference']);
-        $t->same('?cache=1#draw', $manifestEntry['pathSuffix']);
-        $t->same('cache=1', $manifestEntry['pathQuery']);
-        $t->same('draw', $manifestEntry['pathFragment']);
-        $t->same(1, $media['embeddedCount']);
-        $t->same(0, $media['missingCount']);
-        $t->same(8, $item['bytes']);
-        $t->same('image/png', $item['mediaType']);
-        $t->same('Pictures/source%20hero.png?cache=1#draw', $item['manifestPath']);
-        $t->same('Pictures/source hero.png', $item['manifestPackagePath']);
-        $t->same('Pictures/source%20hero.png', $item['manifestPathReference']);
-        $t->same('?cache=1#draw', $item['manifestPathSuffix']);
-        $t->same('cache=1', $item['manifestPathQuery']);
-        $t->same('draw', $item['manifestPathFragment']);
-    },
-    'reports ODT style reference diagnostics for import review' => static function (TestRunner $t) use ($buildPackage): void {
-        $contentWithPlainParagraph = <<<'XML'
-<office:document-content
-  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
-  <office:body>
-    <office:text>
-      <text:p>Style diagnostics packet.</text:p>
-    </office:text>
-  </office:body>
-</office:document-content>
-XML;
-
-        $stylesWithBrokenReferences = <<<'XML'
+XML);
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
 <office:document-styles
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
   xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
   xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
-  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
-  xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0">
-  <office:font-face-decls>
-    <style:font-face style:name="DeclaredFont"/>
-  </office:font-face-decls>
-  <office:automatic-styles>
-    <number:number-style style:name="ExistingNumber">
-      <number:number number:decimal-places="2"/>
-    </number:number-style>
-    <style:page-layout style:name="ExistingLayout"/>
-  </office:automatic-styles>
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
   <office:styles>
-    <style:style style:name="BrokenParagraph" style:family="paragraph" style:parent-style-name="MissingParent" style:list-style-name="MissingList" style:master-page-name="MissingMaster" style:data-style-name="MissingNumber">
-      <style:text-properties style:font-name="MissingFont"/>
-    </style:style>
-    <style:style style:name="CycleA" style:family="paragraph" style:parent-style-name="CycleB"/>
-    <style:style style:name="CycleB" style:family="paragraph" style:parent-style-name="CycleA"/>
-    <style:style style:name="MappedCell" style:family="table-cell">
-      <style:map style:condition="value() &gt; 0" style:apply-style-name="MissingCell" table:base-cell-address="Review.C3"/>
-    </style:style>
-    <text:list-style style:name="BrokenList">
-      <text:list-level-style-bullet text:level="1" text:bullet-char="*">
-        <style:text-properties style:font-name="MissingBulletFont"/>
-      </text:list-level-style-bullet>
+    <style:style style:name="Bold" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
+    <style:style style:name="Italic" style:family="text"><style:text-properties fo:font-style="italic"/></style:style>
+    <text:list-style style:name="NumberedAlpha">
+      <text:list-level-style-number text:level="1" style:num-format="a" style:num-suffix=")"/>
     </text:list-style>
-    <table:table-template table:name="AuditTemplate" table:first-row="MissingHeaderStyle" table:body="MappedCell"/>
   </office:styles>
-  <office:master-styles>
-    <style:master-page style:name="ReviewMaster" style:page-layout-name="MissingLayout" style:next-style-name="MissingNextMaster" draw:style-name="MissingDraw"/>
-  </office:master-styles>
 </office:document-styles>
-XML;
-
-        $result = (new OdtReader())->readPackage($buildPackage([
-            'content.xml' => $contentWithPlainParagraph,
-            'styles.xml' => $stylesWithBrokenReferences,
-        ]));
-        $styleReport = $result['importReport']['styles'];
-        $diagnosticsByCode = [];
-        foreach ($styleReport['diagnostics'] as $diagnostic) {
-            $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
-        }
-
-        $t->same(4, $styleReport['count']);
-        $t->same(3, $styleReport['paragraphCount']);
-        $t->same(0, $styleReport['textCount']);
-        $t->same(1, $styleReport['listCount']);
-        $t->same(1, $styleReport['fontFaceCount']);
-        $t->same(1, $styleReport['dataStyleCount']);
-        $t->same(1, $styleReport['tableTemplateCount']);
-        $t->same(1, $styleReport['pageLayoutCount']);
-        $t->same(1, $styleReport['masterPageCount']);
-        $t->same(1, $styleReport['styleMapCount']);
-        $t->same(12, $styleReport['diagnosticCount']);
-        $t->same([
-            'odt-list-style-missing-font-face' => 1,
-            'odt-master-page-missing-draw-style' => 1,
-            'odt-master-page-missing-next-master-page' => 1,
-            'odt-master-page-missing-page-layout' => 1,
-            'odt-style-map-missing-target' => 1,
-            'odt-style-missing-data-style' => 1,
-            'odt-style-missing-font-face' => 1,
-            'odt-style-missing-list-style' => 1,
-            'odt-style-missing-master-page' => 1,
-            'odt-style-missing-parent' => 1,
-            'odt-style-parent-cycle' => 1,
-            'odt-table-template-missing-style' => 1,
-        ], $styleReport['diagnosticCodeCounts']);
-        $t->same('BrokenParagraph', $diagnosticsByCode['odt-style-missing-parent'][0]['styleName']);
-        $t->same('MissingParent', $diagnosticsByCode['odt-style-missing-parent'][0]['parentName']);
-        $t->same('MissingList', $diagnosticsByCode['odt-style-missing-list-style'][0]['listStyleName']);
-        $t->same('MissingMaster', $diagnosticsByCode['odt-style-missing-master-page'][0]['masterPageName']);
-        $t->same('MissingNumber', $diagnosticsByCode['odt-style-missing-data-style'][0]['dataStyleName']);
-        $t->same('MissingFont', $diagnosticsByCode['odt-style-missing-font-face'][0]['fontName']);
-        $t->same('MissingCell', $diagnosticsByCode['odt-style-map-missing-target'][0]['applyStyleName']);
-        $t->same('Review.C3', $diagnosticsByCode['odt-style-map-missing-target'][0]['baseCellAddress']);
-        $t->same(['CycleA', 'CycleB', 'CycleA'], $diagnosticsByCode['odt-style-parent-cycle'][0]['cyclePath']);
-        $t->same('MissingHeaderStyle', $diagnosticsByCode['odt-table-template-missing-style'][0]['styleName']);
-        $t->same('MissingLayout', $diagnosticsByCode['odt-master-page-missing-page-layout'][0]['pageLayoutName']);
-        $t->same('MissingBulletFont', $diagnosticsByCode['odt-list-style-missing-font-face'][0]['fontName']);
-    },
-    'reports duplicate ODT style catalog names for import review' => static function (TestRunner $t) use ($buildPackage): void {
-        $contentWithPlainParagraph = <<<'XML'
-<office:document-content
-  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
-  <office:body>
-    <office:text>
-      <text:p>Duplicate style diagnostics packet.</text:p>
-    </office:text>
-  </office:body>
-</office:document-content>
-XML;
-
-        $stylesWithDuplicateCatalogNames = <<<'XML'
-<office:document-styles
-  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
-  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
-  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
-  xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
-  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
-  <office:font-face-decls>
-    <style:font-face style:name="ReviewFont" svg:font-family="'Review One'"/>
-    <style:font-face style:name="ReviewFont" svg:font-family="'Review Two'"/>
-  </office:font-face-decls>
-  <office:automatic-styles>
-    <style:page-layout style:name="DuplicateLayout"/>
-    <style:page-layout style:name="DuplicateLayout"/>
-  </office:automatic-styles>
-  <office:styles>
-    <style:style style:name="DuplicateStyle" style:family="paragraph"/>
-    <style:style style:name="DuplicateStyle" style:family="text"/>
-    <text:list-style style:name="DuplicateList">
-      <text:list-level-style-bullet text:level="1" text:bullet-char="*"/>
-    </text:list-style>
-    <text:list-style style:name="DuplicateList">
-      <text:list-level-style-number text:level="1" style:num-format="1"/>
-    </text:list-style>
-    <number:number-style style:name="DuplicateNumber">
-      <number:number number:decimal-places="0"/>
-    </number:number-style>
-    <number:date-style style:name="DuplicateNumber">
-      <number:year/>
-    </number:date-style>
-    <table:table-template table:name="DuplicateTemplate"/>
-    <table:table-template table:name="DuplicateTemplate"/>
-  </office:styles>
-  <office:master-styles>
-    <style:master-page style:name="DuplicateMaster" style:page-layout-name="DuplicateLayout"/>
-    <style:master-page style:name="DuplicateMaster" style:page-layout-name="DuplicateLayout"/>
-  </office:master-styles>
-</office:document-styles>
-XML;
-
-        $result = (new OdtReader())->readPackage($buildPackage([
-            'content.xml' => $contentWithPlainParagraph,
-            'styles.xml' => $stylesWithDuplicateCatalogNames,
-        ]));
-        $styleReport = $result['importReport']['styles'];
-        $diagnosticsByCode = [];
-        foreach ($styleReport['diagnostics'] as $diagnostic) {
-            $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
-        }
-
-        $t->same(1, $styleReport['count']);
-        $t->same(1, $styleReport['fontFaceCount']);
-        $t->same(1, $styleReport['listCount']);
-        $t->same(1, $styleReport['dataStyleCount']);
-        $t->same(1, $styleReport['tableTemplateCount']);
-        $t->same(1, $styleReport['pageLayoutCount']);
-        $t->same(1, $styleReport['masterPageCount']);
-        $t->same(7, $styleReport['diagnosticCount']);
-        $t->same([
-            'odt-data-style-duplicate-name' => 1,
-            'odt-font-face-duplicate-name' => 1,
-            'odt-list-style-duplicate-name' => 1,
-            'odt-master-page-duplicate-name' => 1,
-            'odt-page-layout-duplicate-name' => 1,
-            'odt-style-duplicate-name' => 1,
-            'odt-table-template-duplicate-name' => 1,
-        ], $styleReport['diagnosticCodeCounts']);
-        $t->same('DuplicateStyle', $diagnosticsByCode['odt-style-duplicate-name'][0]['styleName']);
-        $t->same('paragraph', $diagnosticsByCode['odt-style-duplicate-name'][0]['previousFamily']);
-        $t->same('text', $diagnosticsByCode['odt-style-duplicate-name'][0]['replacementFamily']);
-        $t->same('ReviewFont', $diagnosticsByCode['odt-font-face-duplicate-name'][0]['fontFaceName']);
-        $t->same('DuplicateNumber', $diagnosticsByCode['odt-data-style-duplicate-name'][0]['dataStyleName']);
-        $t->same('number-style', $diagnosticsByCode['odt-data-style-duplicate-name'][0]['previousElement']);
-        $t->same('date-style', $diagnosticsByCode['odt-data-style-duplicate-name'][0]['replacementElement']);
-        $t->same('DuplicateTemplate', $diagnosticsByCode['odt-table-template-duplicate-name'][0]['tableTemplateName']);
-        $t->same('DuplicateMaster', $diagnosticsByCode['odt-master-page-duplicate-name'][0]['masterPageName']);
-    },
-    'normalizes ODT tab stops to Pandoc spaces in package reader output' => static function (TestRunner $t) use ($buildPackage): void {
-        $tabbedContentXml = <<<'XML'
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
 <office:document-content
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
   xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-  office:version="1.3">
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:automatic-styles>
+    <style:style xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" style:name="InlineStrong" style:family="text">
+      <style:text-properties xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" fo:font-weight="bold"/>
+    </style:style>
+  </office:automatic-styles>
   <office:body>
     <office:text>
-      <text:h text:outline-level="2">Tabbed<text:tab/>heading</text:h>
-      <text:p>Before<text:tab/>after<text:s text:c="2"/>spaces.</text:p>
+      <text:h text:outline-level="1">ODT Reader Demo</text:h>
+      <text:p>A <text:span text:style-name="Bold">bold</text:span> and <text:span text:style-name="Italic">italic</text:span> paragraph with <text:a xlink:href="https://example.test">a link</text:a>.</text:p>
+      <text:list>
+        <text:list-item><text:p>One</text:p></text:list-item>
+        <text:list-item><text:p>Two</text:p></text:list-item>
+      </text:list>
+      <text:list text:style-name="NumberedAlpha" text:start-value="3">
+        <text:list-item><text:p>Alpha three</text:p></text:list-item>
+        <text:list-item><text:p>Alpha four</text:p></text:list-item>
+      </text:list>
+      <table:table>
+        <table:table-row>
+          <table:table-cell><text:p>Cell A</text:p></table:table-cell>
+          <table:table-cell><text:p>Cell B</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+      <text:p><draw:frame><draw:image xlink:href="Pictures/image.png"/></draw:frame></text:p>
     </office:text>
   </office:body>
 </office:document-content>
-XML;
+XML);
+        $zip->addFromString('Pictures/image.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='));
+        $zip->close();
 
-        $document = (new OdtReader())->readDocument($buildPackage(['content.xml' => $tabbedContentXml]));
-        $heading = $document->children[0];
-        $paragraph = $document->children[1];
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+            $blocks = (new WordPressBlockWriter())->write($document);
+            $converterBlocks = PandocConverter::convertFile($path, 'odt', 'blocks');
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
 
-        $t->same('Tabbed heading', $heading->attr('text'));
-        $t->same('tabbed-heading', $heading->attr('id'));
-        $t->same('Tabbed heading', $heading->children[0]->attr('text'));
-        $t->same('Before after  spaces.', $paragraph->children[0]->attr('text'));
-        $t->true(!str_contains($paragraph->children[0]->attr('text'), "\t"), 'ODT text:tab should not leak literal tab characters');
-
-        $blocks = (new WordPressBlockWriter())->write($document);
-        $t->contains('<h2 id="tabbed-heading">Tabbed heading</h2>', $blocks);
-        $t->contains('<p>Before after  spaces.</p>', $blocks);
-        $t->true(!str_contains($blocks, "\t"), 'WordPress ODT handoff should serialize tab stops as spaces');
-    },
-    'rejects malformed or non ODT package inputs' => static function (TestRunner $t) use ($buildPackage): void {
-        $reader = new OdtReader();
-
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildPackage(['mimetype' => 'application/zip'])));
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildPackage(['content.xml' => null])));
-        $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildPackage(['content.xml' => '<broken>'])));
-        $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildPackage(['content.xml' => '<office:document-content xmlns:office="' . OdtReader::OFFICE_NS . '"/>'])));
-    },
-    'renders ODT package content as WordPress blocks without office tooling' => static function (TestRunner $t) use ($buildPackage): void {
-        $document = (new OdtReader())->readDocument($buildPackage());
-        $blocks = (new WordPressBlockWriter())->write($document);
-
+        $t->same('ODT Reader Demo', $meta['title']);
+        $t->same('Port Libs', $meta['author']);
+        $t->same('Bounded ODT reader smoke.', $meta['description']);
+        $t->same('odt', $meta['keywords']);
+        $t->true(($meta['odtTextStyleCount'] ?? 0) >= 2);
+        $t->same(1, $meta['odtListStyleCount']);
+        $t->true(($meta['odtPackageEntries'] ?? 0) >= 4);
+        $t->same(['Pictures/image.png'], $meta['odtReferencedResources']);
+        $t->same(['Pictures/image.png'], $meta['odtImageResources']);
+        $t->same('bullet_list', $document->children[2]->type);
+        $t->same('ordered_list', $document->children[3]->type);
+        $t->same(3, $document->children[3]->attr('start'));
+        $t->same('lower_alpha', $document->children[3]->attr('style'));
+        $t->same('one_paren', $document->children[3]->attr('delimiter'));
         $t->contains('<!-- wp:heading {"level":1} -->', $blocks);
-        $t->contains('<h1 id="odt-source-packet">ODT source packet</h1>', $blocks);
-        $t->contains('<em><strong>summary</strong></em>', $blocks);
-        $t->contains('<a href="https://example.test/source" title="Source packet">source link</a>', $blocks);
-        $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Footnote source audit.</p>', $blocks);
-        $t->contains('<img src="Pictures/hero.png" alt="Hero image" title="Hero image" data-odt-width="6cm" data-odt-height="4cm"/>', $blocks);
-        $t->contains('<figcaption>Hero image</figcaption>', $blocks);
-        $t->contains('<div><p>Text box reminder.</p></div>', $blocks);
+        $t->contains('<strong>bold</strong>', $blocks);
+        $t->contains('<em>italic</em>', $blocks);
+        $t->contains('<a href="https://example.test">a link</a>', $blocks);
+        $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
+        $t->contains('<ol start="3" type="a"><li>Alpha three</li><li>Alpha four</li></ol>', $blocks);
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('Pictures/image.png', $blocks);
+        $t->contains('<!-- wp:list -->', $converterBlocks);
+    },
+    'reads odt bytes through the converter input path' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('content.xml', '<?xml version="1.0"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><office:body><office:text><text:h text:outline-level="1">Byte ODT</text:h><text:p>Body.</text:p></office:text></office:body></office:document-content>');
+        $zip->close();
+
+        try {
+            $bytes = file_get_contents($path);
+            if (!is_string($bytes)) {
+                throw new RuntimeException('Unable to read temporary ODT package');
+            }
+            $document = PandocConverter::read($bytes, 'odt');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('Byte ODT', $document->children[0]->attr('text'));
+        $t->same('paragraph', $document->children[1]->type);
     },
 ];
