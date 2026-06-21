@@ -29,9 +29,9 @@ return [
         $t->same(9, $report['denominators']['sourceAliasExtensions']);
         $t->same(9, $report['denominators']['richPackageExtensions']);
         $t->same(['supported' => 6, 'unsupported' => 0, 'total' => 6], $report['directSupport']['input']);
-        $t->same(['supported' => 0, 'unsupported' => 11, 'total' => 11], $report['directSupport']['output']);
+        $t->same(['supported' => 2, 'unsupported' => 9, 'total' => 11], $report['directSupport']['output']);
         $t->same(0, count($report['unsupportedDiagnostics']['input']));
-        $t->same(11, count($report['unsupportedDiagnostics']['output']));
+        $t->same(9, count($report['unsupportedDiagnostics']['output']));
         $t->same(8, count($report['extensionDiagnostics']));
     },
 
@@ -111,8 +111,10 @@ return [
         $t->same('unsupported-rich-package-output', $ipynbOutput['state']);
         $t->same(['ipynb-notebook-writer-core'], $ipynbOutput['gates']);
         $t->contains('external-notebook-tooling-disallowed', implode(',', $ipynbOutput['diagnostics']));
-        $t->same('unsupported-rich-package-output', $epub3Output['state']);
+        $t->same('bounded-native-rich-package-output', $epub3Output['state']);
         $t->same(['shared-zip-package-core', 'epub3-package-writer-core', 'xml-html5-dom-core'], $epub3Output['gates']);
+        $t->same('EpubWriter', $epub3Output['component']);
+        $t->same(true, $epub3Output['countsAsDirectSupport']);
         $t->same('unsupported-rich-package-output', $chunkedHtmlOutput['state']);
         $t->same(['shared-zip-package-core', 'xml-html5-dom-core', 'chunked-html-package-writer-core'], $chunkedHtmlOutput['gates']);
         $t->same(['doctemplate-core', 'icml-writer-core'], $icmlOutput['gates']);
@@ -122,9 +124,7 @@ return [
             'docx',
             'odt',
             'opendocument',
-            'epub',
             'epub2',
-            'epub3',
             'ipynb',
             'pptx',
             'chunkedhtml',
@@ -202,7 +202,8 @@ return [
         $t->same(['epub'], $epub['inputFormats']);
         $t->same(['epub', 'epub2', 'epub3'], $epub['outputFormats']);
         $t->same(['epub'], $epub['directInputFormats']);
-        $t->same(['epub', 'epub2', 'epub3'], $epub['unsupportedOutputFormats']);
+        $t->same(['epub', 'epub3'], $epub['directOutputFormats']);
+        $t->same(['epub2'], $epub['unsupportedOutputFormats']);
         $t->same(['output'], $epub['unsupportedDirections']);
         $t->same(true, $epub['externalToolFree']);
 

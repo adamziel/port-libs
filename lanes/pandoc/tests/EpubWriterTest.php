@@ -99,4 +99,71 @@ return [
         $t->same('heading', $roundTrip->children[0]->type);
         $t->same('Converter EPUB', $roundTrip->children[0]->attr('text'));
     },
+    'packages media resources and marks a configured cover image' => static function (TestRunner $t) use ($text): void {
+        $coverBytes = "cover image bytes\n";
+        $gifBytes = "GIF89a tiny image\n";
+        $gifUri = 'data:image/gif;base64,' . base64_encode($gifBytes);
+        $document = new AstNode('document', [
+            'meta' => ['title' => 'Media EPUB', 'author' => 'Port Libs', 'lang' => 'en'],
+        ], [
+            new AstNode('heading', ['level' => 1], [$text('Media EPUB')]),
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => 'images/cover.png',
+                    'alt' => 'Cover image',
+                ], [$text('Cover image')]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $gifUri,
+                    'alt' => 'Inline image',
+                ], [$text('Inline image')]),
+            ]),
+        ]);
+
+        $bytes = (new EpubWriter([
+            'modified' => '2026-06-21T08:32:00Z',
+            'coverImage' => 'images/cover.png',
+            'mediaResources' => [
+                'images/cover.png' => [
+                    'contents' => $coverBytes,
+                    'mimeType' => 'image/png',
+                ],
+            ],
+        ]))->write($document);
+
+        $zip = ZipPackage::fromString($bytes);
+        $epub = EpubPackage::fromString($bytes);
+        $assetSummary = $epub->assetSummary();
+        $chapter = $zip->read('EPUB/text/chapter.xhtml');
+
+        $t->true(in_array('/EPUB/text/media/images/cover.png', $assetSummary['imageParts'], true));
+        $t->same('/EPUB/text/media/images/cover.png', $assetSummary['coverImagePart']);
+        $t->same($coverBytes, $zip->read('EPUB/text/media/images/cover.png'));
+        $t->contains('src="media/images/cover.png"', $chapter);
+        $t->contains('data-pandoc-media-source="images/cover.png"', $chapter);
+
+        $mediaNames = array_values(array_filter(
+            $zip->names(),
+            static fn (string $name): bool => str_starts_with($name, 'EPUB/text/media/')
+        ));
+        sort($mediaNames);
+        $t->same(2, count($mediaNames));
+        $t->true(str_ends_with($mediaNames[0], '.gif') || str_ends_with($mediaNames[1], '.gif'), 'Data URI GIF must be packaged as a GIF media entry');
+        $t->contains('src="media/', $chapter);
+        $t->true(!str_contains($chapter, 'src="data:image/gif'), 'Data URI image src should be replaced by packaged media');
+
+        $coverItems = array_values(array_filter(
+            $epub->manifestItems(),
+            static fn (array $item): bool => in_array('cover-image', $item['properties'], true)
+        ));
+        $t->same(1, count($coverItems));
+        $t->same('text/media/images/cover.png', $coverItems[0]['href']);
+        $t->same('image/png', $coverItems[0]['mediaType']);
+
+        $roundTrip = PandocConverter::read($bytes, 'epub');
+        $roundTripMeta = $roundTrip->attr('meta');
+        $t->true(in_array('EPUB/text/media/images/cover.png', $roundTripMeta['epubImageResources'], true));
+        $t->true(in_array('EPUB/text/media/images/cover.png', $roundTripMeta['epubReferencedResources'], true));
+    },
 ];

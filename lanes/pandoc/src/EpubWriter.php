@@ -12,7 +12,7 @@ final class EpubWriter
     private const STYLESHEET_PATH = 'EPUB/styles/stylesheet.css';
 
     /**
-     * @param array{modified?: string, date?: string, title?: string, author?: string, lang?: string, identifier?: string} $options
+     * @param array{modified?: string, date?: string, title?: string, author?: string, lang?: string, identifier?: string, mediaResources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resources?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, resourceMap?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, media?: array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>, coverImage?: string, epubCoverImage?: string, epubCoverImagePath?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -24,17 +24,24 @@ final class EpubWriter
             throw new \InvalidArgumentException('EPUB writer expects a document node');
         }
 
+        $media = $this->withMediaResources($document);
+        $document = $media['document'];
         $metadata = $this->metadata($document);
         $chapter = $this->chapterXhtml($document, $metadata);
 
-        return ZipPackage::build([
+        $parts = [
             ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'compressionMethod' => 0],
             ['name' => 'META-INF/container.xml', 'data' => $this->containerXml()],
-            ['name' => self::PACKAGE_PATH, 'data' => $this->packageOpf($metadata)],
+            ['name' => self::PACKAGE_PATH, 'data' => $this->packageOpf($metadata, $media['entries'])],
             ['name' => self::NAV_PATH, 'data' => $this->navXhtml($document, $metadata)],
             ['name' => self::CHAPTER_PATH, 'data' => $chapter],
             ['name' => self::STYLESHEET_PATH, 'data' => $this->stylesheet()],
-        ]);
+        ];
+        foreach ($media['entries'] as $entry) {
+            $parts[] = ['name' => $entry['packagePath'], 'data' => $entry['contents']];
+        }
+
+        return ZipPackage::build($parts);
     }
 
     /**
@@ -195,9 +202,19 @@ final class EpubWriter
 
     /**
      * @param array{title:string, author:string, lang:string, identifier:string, modified:string} $metadata
+     * @param list<array{id:string, href:string, packagePath:string, mediaType:string, contents:string, properties:list<string>}> $mediaEntries
      */
-    private function packageOpf(array $metadata): string
+    private function packageOpf(array $metadata, array $mediaEntries): string
     {
+        $mediaItems = '';
+        foreach ($mediaEntries as $entry) {
+            $mediaItems .= '    <item id="' . $this->esc($entry['id']) . '" href="' . $this->esc($entry['href']) . '" media-type="' . $this->esc($entry['mediaType']) . '"';
+            if ($entry['properties'] !== []) {
+                $mediaItems .= ' properties="' . $this->esc(implode(' ', $entry['properties'])) . '"';
+            }
+            $mediaItems .= '/>' . "\n";
+        }
+
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="' . $this->esc($metadata['lang']) . '">' . "\n"
             . '  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">' . "\n"
@@ -211,6 +228,7 @@ final class EpubWriter
             . '    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>' . "\n"
             . '    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>' . "\n"
             . '    <item id="stylesheet" href="styles/stylesheet.css" media-type="text/css"/>' . "\n"
+            . $mediaItems
             . '  </manifest>' . "\n"
             . '  <spine>' . "\n"
             . '    <itemref idref="chapter"/>' . "\n"
@@ -290,6 +308,172 @@ pre {
 }
 
 CSS;
+    }
+
+    /**
+     * @return array{
+     *     document:AstNode,
+     *     entries:list<array{id:string, href:string, packagePath:string, mediaType:string, contents:string, properties:list<string>}>,
+     *     diagnostics:list<string>
+     * }
+     */
+    private function withMediaResources(AstNode $document): array
+    {
+        $bag = new MediaBag();
+        $resources = $this->mediaResourcesOption();
+        $diagnostics = [];
+        if ($resources !== null) {
+            $filled = $bag->fillDocument($document, $resources);
+            $document = $filled['document'];
+            $diagnostics = array_merge($diagnostics, $filled['diagnostics']);
+        } else {
+            $this->loadDataUriMedia($document, $bag, $diagnostics);
+        }
+
+        if ($bag->directory() === []) {
+            return ['document' => $document, 'entries' => [], 'diagnostics' => $diagnostics];
+        }
+
+        $extracted = $bag->extractMedia($document, 'media');
+        $document = $extracted['document'];
+        $diagnostics = array_merge($diagnostics, $extracted['diagnostics']);
+        $coverImage = $this->coverImageSource($document);
+        $entries = [];
+        $index = 1;
+        foreach ($extracted['entries'] as $entry) {
+            $path = $this->normalizeMediaPath((string) $entry['path']);
+            $properties = [];
+            if ($this->isCoverImageEntry($entry, $path, $coverImage)) {
+                $properties[] = 'cover-image';
+            }
+            $entries[] = [
+                'id' => 'media' . $index,
+                'href' => 'text/' . $path,
+                'packagePath' => 'EPUB/text/' . $path,
+                'mediaType' => (string) $entry['mimeType'],
+                'contents' => (string) $entry['contents'],
+                'properties' => $properties,
+            ];
+            $index++;
+        }
+
+        return ['document' => $document, 'entries' => $entries, 'diagnostics' => $diagnostics];
+    }
+
+    /**
+     * @return array<string, string|array{contents?:string, data?:string, mimeType?:string|null}>|null
+     */
+    private function mediaResourcesOption(): ?array
+    {
+        foreach (['mediaResources', 'resources', 'resourceMap', 'media'] as $key) {
+            $value = $this->options[$key] ?? null;
+            if (is_array($value)) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $diagnostics
+     */
+    private function loadDataUriMedia(AstNode $node, MediaBag $bag, array &$diagnostics): void
+    {
+        if ($node->type === 'image' || $node->type === 'link') {
+            $url = (string) $node->attr('url', $node->attr('src', ''));
+            if (str_starts_with($url, 'data:') && !$bag->has($url)) {
+                try {
+                    $bag->insertDataUri($url);
+                    $diagnostics[] = $node->type === 'link'
+                        ? 'media-resource-link-loaded:data-uri'
+                        : 'media-resource-loaded:data-uri';
+                } catch (\InvalidArgumentException) {
+                    $diagnostics[] = $node->type === 'link'
+                        ? 'media-resource-link-invalid:data-uri'
+                        : 'media-resource-invalid:data-uri';
+                }
+            }
+        }
+
+        foreach ($node->children as $child) {
+            $this->loadDataUriMedia($child, $bag, $diagnostics);
+        }
+    }
+
+    private function normalizeMediaPath(string $path): string
+    {
+        $path = trim(str_replace('\\', '/', $path), '/');
+        $parts = [];
+        foreach (explode('/', $path) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($parts);
+                continue;
+            }
+            $parts[] = $part;
+        }
+
+        return implode('/', $parts);
+    }
+
+    private function coverImageSource(AstNode $document): ?string
+    {
+        foreach (['coverImage', 'epubCoverImage', 'epubCoverImagePath'] as $key) {
+            $value = $this->options[$key] ?? null;
+            if (is_string($value) && trim($value) !== '') {
+                return trim($value);
+            }
+        }
+
+        $meta = $document->attr('meta', []);
+        if (is_array($meta)) {
+            foreach (['coverImage', 'epubCoverImage', 'epubCoverImagePath'] as $key) {
+                $value = $meta[$key] ?? null;
+                if (is_string($value) && trim($value) !== '') {
+                    return trim($value);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private function isCoverImageEntry(array $entry, string $path, ?string $coverImage): bool
+    {
+        if ($coverImage === null) {
+            return false;
+        }
+
+        $cover = $this->normalizeMediaComparisonPath($coverImage);
+        foreach (['source', 'sourcePath', 'mediaPath', 'path'] as $key) {
+            $value = $entry[$key] ?? null;
+            if (is_string($value) && $this->normalizeMediaComparisonPath($value) === $cover) {
+                return true;
+            }
+        }
+
+        foreach ([$path, 'text/' . $path, 'EPUB/text/' . $path] as $candidate) {
+            if ($this->normalizeMediaComparisonPath($candidate) === $cover) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeMediaComparisonPath(string $path): string
+    {
+        $path = rawurldecode(trim(str_replace('\\', '/', $path)));
+        $path = preg_replace('#/+#', '/', $path) ?? $path;
+        $path = ltrim($path, '/');
+
+        return strtolower($path);
     }
 
     private function plainBlockText(AstNode $node): string
