@@ -136,6 +136,12 @@ final class DocBookReader
     /** @var array<string, string> */
     private array $calloutLabelsByTarget = [];
 
+    /** @var array<string, string> */
+    private array $xrefLabelsByTarget = [];
+
+    /** @var array<string, string> */
+    private array $xrefElementNamesByTarget = [];
+
     private int $nextCalloutLabel = 1;
 
     /**
@@ -166,6 +172,7 @@ final class DocBookReader
         $review = XmlHtmlDom::summarizeDocBookReviewPacket($dom, $format);
         $bibliography = XmlHtmlDom::summarizeDocBookBibliography($dom);
         $this->prepareCalloutLabels($root);
+        $this->prepareXrefLabels($root);
         $blocks = $this->documentBlocks($root, $structure);
         if ($blocks === []) {
             $text = XmlHtmlDom::normalizedText($root);
@@ -1377,7 +1384,7 @@ final class DocBookReader
                     $label = $this->xrefLabel($child);
                     $children = $this->textInlines($label);
                 }
-                $nodes[] = new AstNode('link', ['url' => $this->linkTarget($child), 'title' => ''], $children);
+                $nodes[] = new AstNode('link', $this->linkAttrsFromElement($child), $children);
                 continue;
             }
             if (in_array($name, ['inlinemediaobject', 'mediaobject', 'imagedata'], true)) {
@@ -1669,8 +1676,49 @@ final class DocBookReader
         }
 
         $target = $this->linkTarget($element);
+        $endTerm = trim((string) (XmlHtmlDom::attribute($element, 'endterm') ?? ''));
+        if ($endTerm !== '' && isset($this->xrefLabelsByTarget[$endTerm])) {
+            return $this->xrefLabelsByTarget[$endTerm];
+        }
+
+        $targetId = $this->targetIdFromUrl($target);
+        if ($targetId !== null && isset($this->xrefLabelsByTarget[$targetId])) {
+            return $this->xrefLabelsByTarget[$targetId];
+        }
 
         return $target === '#' ? 'xref' : ltrim($target, '#');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function linkAttrsFromElement(\DOMElement $element): array
+    {
+        $url = $this->linkTarget($element);
+        $attrs = [
+            'url' => $url,
+            'title' => '',
+        ];
+        $targetId = $this->targetIdFromUrl($url);
+        if ($targetId !== null && isset($this->xrefLabelsByTarget[$targetId])) {
+            $attrs['attributes'] = [
+                'data-docbook-xref-target' => $targetId,
+                'data-docbook-xref-target-label' => $this->xrefLabelsByTarget[$targetId],
+                'data-docbook-xref-target-element' => $this->xrefElementNamesByTarget[$targetId] ?? 'unknown',
+            ];
+        }
+
+        $endTerm = trim((string) (XmlHtmlDom::attribute($element, 'endterm') ?? ''));
+        if ($endTerm !== '') {
+            $attrs['attributes'] = array_replace($attrs['attributes'] ?? [], [
+                'data-docbook-xref-endterm' => $endTerm,
+            ]);
+            if (isset($this->xrefLabelsByTarget[$endTerm])) {
+                $attrs['attributes']['data-docbook-xref-endterm-label'] = $this->xrefLabelsByTarget[$endTerm];
+            }
+        }
+
+        return $attrs;
     }
 
     private function linkTarget(\DOMElement $element): string
@@ -1899,6 +1947,55 @@ final class DocBookReader
             || in_array($name, ['title', 'subtitle', 'abstract'], true);
     }
 
+    private function prepareXrefLabels(\DOMElement $root): void
+    {
+        $this->xrefLabelsByTarget = [];
+        $this->xrefElementNamesByTarget = [];
+
+        foreach (array_merge([$root], XmlHtmlDom::descendantElements($root)) as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $id = $this->elementId($element);
+            if ($id === null) {
+                continue;
+            }
+
+            $label = $this->xrefTargetLabel($element);
+            if ($label === '') {
+                continue;
+            }
+
+            $this->xrefLabelsByTarget[$id] = $label;
+            $this->xrefElementNamesByTarget[$id] = $this->name($element);
+        }
+    }
+
+    private function xrefTargetLabel(\DOMElement $element): string
+    {
+        $elementLabel = $this->firstChildText($element, ['label']);
+        $title = $this->firstChildText($element, ['title', 'caption', 'refname', 'phrase']);
+        if ($title === '' && $this->name($element) === 'refentry') {
+            $title = $this->firstDescendantText($element, ['refname']);
+        }
+        if ($elementLabel !== '' && $title !== '' && $title !== $elementLabel) {
+            return $this->cleanText($elementLabel . ': ' . $title);
+        }
+        if ($title !== '') {
+            return $title;
+        }
+        if ($elementLabel !== '') {
+            return $elementLabel;
+        }
+
+        if (in_array($this->name($element), ['abbrev', 'acronym', 'caption', 'code', 'emphasis', 'literal', 'para', 'phrase', 'refname', 'simpara', 'term', 'title'], true)) {
+            return $this->cleanText(XmlHtmlDom::normalizedText($element));
+        }
+
+        return '';
+    }
+
     private function prepareCalloutLabels(\DOMElement $root): void
     {
         $this->calloutLabelsByTarget = [];
@@ -1962,6 +2059,25 @@ final class DocBookReader
         }
 
         return array_values(array_unique($keys));
+    }
+
+    private function targetIdFromUrl(string $url): ?string
+    {
+        if ($url === '' || $url === '#') {
+            return null;
+        }
+        if (str_starts_with($url, '#')) {
+            $id = substr($url, 1);
+
+            return $id === '' ? null : $id;
+        }
+
+        $fragment = parse_url($url, PHP_URL_FRAGMENT);
+        if (!is_string($fragment) || $fragment === '') {
+            return null;
+        }
+
+        return $fragment;
     }
 
     private function isSectionPreambleElement(\DOMElement $element): bool

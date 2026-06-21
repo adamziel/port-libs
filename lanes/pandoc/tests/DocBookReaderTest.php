@@ -149,6 +149,53 @@ XML;
         $t->same('assets/missing.png', $missingPlaceholder->attr('attributes')['original-image-src']);
         $t->contains('Missing icon', $blocks);
     },
+    'resolves docbook xref labels from target titles and endterms' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" version="5.2">
+  <title>Xref Demo</title>
+  <section xml:id="body">
+    <title>Body</title>
+    <para>See <xref linkend="fig-arch"/>, <xref linkend="table-fields"/>, <xref linkend="intro" endterm="intro-label"/>, <xref linkend="fig-arch">explicit figure text</xref>, and <xref linkend="missing-target"/>.</para>
+    <para><phrase xml:id="intro-label">the introduction section</phrase></para>
+    <figure xml:id="fig-arch">
+      <label>Figure 1</label>
+      <title>Architecture</title>
+      <mediaobject><textobject><phrase>Architecture fallback</phrase></textobject></mediaobject>
+    </figure>
+    <informaltable xml:id="table-fields">
+      <title>Field Status</title>
+      <tgroup cols="1"><tbody><row><entry>Ready</entry></row></tbody></tgroup>
+    </informaltable>
+    <section xml:id="intro"><title>Introduction</title><para>Intro body.</para></section>
+  </section>
+</article>
+XML;
+
+        $document = PandocConverter::read($docbook, 'docbook');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $paragraph = $document->children[2];
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'link', 'text', 'link', 'text', 'link', 'text', 'link', 'text', 'link', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same('Figure 1: Architecture', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same('fig-arch', $paragraph->children[1]->attr('attributes')['data-docbook-xref-target']);
+        $t->same('Figure 1: Architecture', $paragraph->children[1]->attr('attributes')['data-docbook-xref-target-label']);
+        $t->same('figure', $paragraph->children[1]->attr('attributes')['data-docbook-xref-target-element']);
+        $t->same('Field Status', $paragraph->children[3]->children[0]->attr('text'));
+        $t->same('informaltable', $paragraph->children[3]->attr('attributes')['data-docbook-xref-target-element']);
+        $t->same('the introduction section', $paragraph->children[5]->children[0]->attr('text'));
+        $t->same('Introduction', $paragraph->children[5]->attr('attributes')['data-docbook-xref-target-label']);
+        $t->same('intro-label', $paragraph->children[5]->attr('attributes')['data-docbook-xref-endterm']);
+        $t->same('the introduction section', $paragraph->children[5]->attr('attributes')['data-docbook-xref-endterm-label']);
+        $t->same('explicit figure text', $paragraph->children[7]->children[0]->attr('text'));
+        $t->same('Figure 1: Architecture', $paragraph->children[7]->attr('attributes')['data-docbook-xref-target-label']);
+        $t->same('missing-target', $paragraph->children[9]->children[0]->attr('text'));
+        $t->same([], $paragraph->children[9]->attr('attributes', []));
+        $t->contains('<a href="#fig-arch" data-docbook-xref-target="fig-arch" data-docbook-xref-target-label="Figure 1: Architecture" data-docbook-xref-target-element="figure">Figure 1: Architecture</a>', $blocks);
+        $t->contains('<a href="#table-fields" data-docbook-xref-target="table-fields" data-docbook-xref-target-label="Field Status" data-docbook-xref-target-element="informaltable">Field Status</a>', $blocks);
+        $t->contains('<a href="#intro" data-docbook-xref-target="intro" data-docbook-xref-target-label="Introduction" data-docbook-xref-target-element="section" data-docbook-xref-endterm="intro-label" data-docbook-xref-endterm-label="the introduction section">the introduction section</a>', $blocks);
+        $t->contains('<a href="#missing-target">missing-target</a>', $blocks);
+    },
     'maps docbook citations and bibliorefs into citation ast nodes' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
 <article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.2">
