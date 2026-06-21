@@ -27,6 +27,10 @@ final class PandocConverter
     {
         $canonical = self::canonicalInputFormat($format);
         $entry = self::inputSupport($canonical);
+        if ($entry['implementation'] === DelimitedTextReader::class) {
+            return (new DelimitedTextReader())->read($bytes, $canonical, $options);
+        }
+
         $reader = self::reader($entry['implementation'], $canonical, $options);
 
         return $reader->read($bytes);
@@ -40,6 +44,9 @@ final class PandocConverter
         $bytes = file_get_contents($path);
         if (!is_string($bytes)) {
             throw new \RuntimeException("Unable to read '{$path}'.");
+        }
+        if (!isset($options['sourcePath'])) {
+            $options['sourcePath'] = $path;
         }
 
         return self::read($bytes, $format, $options);
@@ -80,6 +87,12 @@ final class PandocConverter
         $bytes = file_get_contents($path);
         if (!is_string($bytes)) {
             throw new \RuntimeException("Unable to read '{$path}'.");
+        }
+        if (!isset($options['readerOptions']) || !is_array($options['readerOptions'])) {
+            $options['readerOptions'] = [];
+        }
+        if (!isset($options['readerOptions']['sourcePath'])) {
+            $options['readerOptions']['sourcePath'] = $path;
         }
 
         return self::convert($bytes, $from, $to, $options);
@@ -166,11 +179,13 @@ final class PandocConverter
         return match ($implementation) {
             DocxReader::class => new DocxReader(),
             EpubReader::class => new EpubReader($options),
+            IpynbReader::class => new IpynbReader(),
             MarkdownReader::class => new MarkdownReader(self::markdownReaderOptions($format, $options)),
             JsonReader::class => new JsonReader(),
             NativeReader::class => new NativeReader(),
             OdtReader::class => new OdtReader(),
             PdfReader::class => new PdfReader($options),
+            RtfReader::class => new RtfReader(),
             default => throw new \InvalidArgumentException("Unsupported Pandoc reader implementation '{$implementation}'."),
         };
     }
@@ -186,6 +201,7 @@ final class PandocConverter
             LatexWriter::class => new LatexWriter($options),
             MarkdownWriter::class => new MarkdownWriter(self::markdownWriterOptions($format, $options)),
             NativeWriter::class => new NativeWriter($options),
+            PlainWriter::class => new PlainWriter($options),
             default => throw new \InvalidArgumentException("Unsupported Pandoc writer implementation '{$implementation}'."),
         };
     }

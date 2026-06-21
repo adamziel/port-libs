@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\HtmlWriter;
+use PortLibs\Pandoc\DelimitedTextReader;
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\EpubReader;
+use PortLibs\Pandoc\IpynbReader;
 use PortLibs\Pandoc\JsonReader;
 use PortLibs\Pandoc\JsonWriter;
 use PortLibs\Pandoc\LatexWriter;
@@ -15,6 +17,8 @@ use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\OdtReader;
 use PortLibs\Pandoc\PandocFormatRegistry;
 use PortLibs\Pandoc\PdfReader;
+use PortLibs\Pandoc\PlainWriter;
+use PortLibs\Pandoc\RtfReader;
 
 return [
     'tracks the current upstream pandoc input format denominator' => static function (TestRunner $t): void {
@@ -123,15 +127,23 @@ return [
         $t->same('partial', $support['native']['status']);
         $t->same(NativeReader::class, $support['native']['implementation']);
         $t->same('partial', $support['html']['status']);
+        $t->same('partial', $support['ipynb']['status']);
+        $t->same(IpynbReader::class, $support['ipynb']['implementation']);
         $t->same('partial', $support['json']['status']);
         $t->same(JsonReader::class, $support['json']['implementation']);
+        $t->same('partial', $support['csv']['status']);
+        $t->same(DelimitedTextReader::class, $support['csv']['implementation']);
+        $t->same('partial', $support['tsv']['status']);
+        $t->same(DelimitedTextReader::class, $support['tsv']['implementation']);
         $t->same('partial', $support['docx']['status']);
         $t->same(DocxReader::class, $support['docx']['implementation']);
         $t->same('partial', $support['epub']['status']);
         $t->same(EpubReader::class, $support['epub']['implementation']);
         $t->same('partial', $support['odt']['status']);
         $t->same(OdtReader::class, $support['odt']['implementation']);
-        $t->same(35, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same('partial', $support['rtf']['status']);
+        $t->same(RtfReader::class, $support['rtf']['implementation']);
+        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();
@@ -148,6 +160,7 @@ return [
         $t->same('partial', $support['native']['status']);
         $t->same(NativeWriter::class, $support['native']['implementation']);
         $t->same('partial', $support['plain']['status']);
+        $t->same(PlainWriter::class, $support['plain']['implementation']);
         $t->same('unsupported', $support['docx']['status']);
         $t->same('unsupported', $support['epub']['status']);
         $t->same('unsupported', $support['odt']['status']);

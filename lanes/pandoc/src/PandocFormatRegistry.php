@@ -179,6 +179,16 @@ final class PandocFormatRegistry
             'implementation' => MarkdownReader::class,
             'notes' => 'Uses the shared Markdown reader with raw attribute and extension slices; full extension parity remains open.',
         ],
+        'csv' => [
+            'status' => 'partial',
+            'implementation' => DelimitedTextReader::class,
+            'notes' => 'Delimited text reader maps CSV rows into the shared table AST with quote, multiline field, row repair, control-character, and provenance diagnostics. Full Pandoc CSV option parity remains open.',
+        ],
+        'tsv' => [
+            'status' => 'partial',
+            'implementation' => DelimitedTextReader::class,
+            'notes' => 'Delimited text reader maps TSV rows into the shared table AST with trailing empty field, ragged row, repair, control-character, and provenance diagnostics. Full Pandoc TSV option parity remains open.',
+        ],
         'docbook' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
@@ -203,6 +213,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
             'notes' => 'HTML reader slices cover many DOM and raw HTML branches; full HTML5 tree construction remains open.',
+        ],
+        'ipynb' => [
+            'status' => 'partial',
+            'implementation' => IpynbReader::class,
+            'notes' => 'Bounded IPYNB reader maps markdown, code, and raw cells into the shared AST with notebook, metadata, attachment, source-shape, execution, and output diagnostics without executing notebooks or exposing embedded output bytes. Native IPYNB writer parity remains open.',
         ],
         'json' => [
             'status' => 'partial',
@@ -248,6 +263,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => OdtReader::class,
             'notes' => 'Bounded ODT package reader parses content.xml, meta.xml, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open.',
+        ],
+        'rtf' => [
+            'status' => 'partial',
+            'implementation' => RtfReader::class,
+            'notes' => 'Bounded RTF reader maps paragraphs, escaped characters, unicode fallbacks, tabs, and core inline styles into the shared AST. Full RTF control-word, destination, table, image, and metadata parity remains open.',
         ],
     ];
 
@@ -336,8 +356,8 @@ final class PandocFormatRegistry
         ],
         'plain' => [
             'status' => 'partial',
-            'implementation' => MarkdownWriter::class,
-            'notes' => 'Plain text output uses MarkdownWriter variant=plain with template slices.',
+            'implementation' => PlainWriter::class,
+            'notes' => 'Plain text writer covers bounded wrapping, table, inline, unicode width, and diagnostic slices. Full Pandoc plain writer parity remains open.',
         ],
     ];
 
@@ -379,6 +399,17 @@ final class PandocFormatRegistry
     public static function outputAliases(): array
     {
         return self::OUTPUT_ALIASES;
+    }
+
+    public static function inferTabularDataFormatFromExtension(string $extension): ?string
+    {
+        $extension = strtolower(ltrim(trim($extension), '.'));
+
+        return match ($extension) {
+            'csv' => 'csv',
+            'tab', 'tsv' => 'tsv',
+            default => null,
+        };
     }
 
     /**

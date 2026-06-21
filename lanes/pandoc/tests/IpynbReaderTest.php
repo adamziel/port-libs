@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\IpynbReader;
+use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PandocFormatRegistry;
+use PortLibs\Pandoc\RichPackageUnsupportedFormatRegistry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 return [
@@ -16,6 +18,7 @@ return [
 
         $document = (new IpynbReader())->read($json);
         $html = (new WordPressBlockWriter())->write($document);
+        $converterHtml = PandocConverter::convert($json, 'ipynb', 'blocks');
 
         $t->same('document', $document->type);
         $t->same('ipynb', $document->attr('sourceFormat'));
@@ -142,6 +145,7 @@ return [
         $t->same(true, $tasks->attr('taskList'));
 
         $t->contains('class="ipynb-cell ipynb-markdown-cell"', $html);
+        $t->contains('class="ipynb-cell ipynb-markdown-cell"', $converterHtml);
         $t->contains('data-ipynb-attachment-count="1"', $html);
         $t->contains('data-ipynb-cell-tags="review"', $html);
         $t->contains('data-ipynb-diagnostics="attachment-bytes-blocked"', $html);
@@ -1369,52 +1373,54 @@ return [
         $t->same(false, str_contains($metadata, 'beta'));
     },
     'registers ipynb as partial rich package input while output parity stays unsupported' => static function (TestRunner $t): void {
-        $inputSupport = PandocFormatRegistry::richPackageInputSupport();
-        $outputSupport = PandocFormatRegistry::richPackageOutputSupport();
+        $inputSupport = PandocFormatRegistry::phpInputSupport();
+        $outputSupport = PandocFormatRegistry::phpOutputSupport();
+        $inputStatus = RichPackageUnsupportedFormatRegistry::formatStatus('ipynb', 'input');
+        $unsupportedRichInputs = array_column(
+            RichPackageUnsupportedFormatRegistry::unsupportedDiagnostics('input'),
+            'format'
+        );
 
         $t->same('partial', $inputSupport['ipynb']['status']);
         $t->same(IpynbReader::class, $inputSupport['ipynb']['implementation']);
+        $t->same('bounded-native-rich-package-input', $inputStatus['state']);
+        $t->same('IpynbReader', $inputStatus['component']);
+        $t->same(true, $inputStatus['countsAsDirectSupport']);
         $t->same([
             'pptx',
             'xlsx',
-        ], PandocFormatRegistry::unsupportedRichPackageInputFormats());
+        ], $unsupportedRichInputs);
 
         $t->same('unsupported', $outputSupport['ipynb']['status']);
         $t->same('', $outputSupport['ipynb']['implementation']);
         $t->contains('No native PHP reader or writer is registered', $outputSupport['ipynb']['notes']);
     },
     'reports native ipynb writer unsupported capability reason without notebook tooling' => static function (TestRunner $t): void {
-        $report = PandocFormatRegistry::ipynbNativeWriterCapabilityReport();
+        $inputSupport = PandocFormatRegistry::phpInputSupport()['ipynb'];
+        $outputSupport = PandocFormatRegistry::phpOutputSupport()['ipynb'];
+        $inputStatus = RichPackageUnsupportedFormatRegistry::formatStatus('ipynb', 'input');
+        $outputStatus = RichPackageUnsupportedFormatRegistry::formatStatus('ipynb', 'output');
+        $extensionStatus = RichPackageUnsupportedFormatRegistry::extensionStatus('.ipynb');
 
-        $t->same('ipynb', $report['format']);
-        $t->same('native-ipynb-writer', $report['capability']);
-        $t->same('output', $report['direction']);
-        $t->same('unsupported', $report['status']);
-        $t->same('partial-input-unsupported-output', $report['verdict']);
-        $t->same('partial', $report['readerStatus']);
-        $t->same('unsupported', $report['writerStatus']);
-        $t->same(IpynbReader::class, $report['inputImplementation']);
-        $t->same('', $report['outputImplementation']);
-        $t->same(false, $report['countsAsDirectSupport']);
-        $t->same(false, $report['nativeWriterParity']);
-        $t->same(false, $report['requiresNotebookExecution']);
-        $t->same(true, $report['externalToolFree']);
-        $t->same([], $report['externalValidators']);
-        $t->same(['output'], $report['unsupportedDirections']);
-        $t->same(['ipynb-notebook-writer-core'], $report['gates']);
-        $t->contains('notebook-writer-not-implemented', implode(',', $report['diagnostics']));
-        $t->contains('external-notebook-tooling-disallowed', implode(',', $report['diagnostics']));
+        $t->same('partial', $inputSupport['status']);
+        $t->same(IpynbReader::class, $inputSupport['implementation']);
+        $t->same('unsupported', $outputSupport['status']);
+        $t->same('', $outputSupport['implementation']);
+        $t->same('bounded-native-rich-package-input', $inputStatus['state']);
+        $t->same('unsupported-rich-package-output', $outputStatus['state']);
+        $t->same(false, $outputStatus['countsAsDirectSupport']);
+        $t->same(['ipynb-notebook-writer-core'], $outputStatus['gates']);
+        $t->contains('notebook-writer-not-implemented', implode(',', $outputStatus['diagnostics']));
+        $t->contains('external-notebook-tooling-disallowed', implode(',', $outputStatus['diagnostics']));
+        $t->same(['output'], $extensionStatus['unsupportedDirections']);
 
-        $t->same('native-ipynb-writer-not-implemented', $report['reason']);
-        $t->same('native-ipynb-writer-not-implemented', $report['reasonPacket']['code']);
-        $t->contains('notebook-execution-not-run', implode(',', $report['reasonPacket']['details']));
-
-        $decodedReason = json_decode($report['reasonJson'], true, 512, JSON_THROW_ON_ERROR);
-        $t->same($report['reasonPacket'], $decodedReason);
-
-        $encodedReport = json_encode($report, JSON_THROW_ON_ERROR);
+        $encodedReport = json_encode([
+            'input' => $inputStatus,
+            'output' => $outputStatus,
+            'extension' => $extensionStatus,
+        ], JSON_THROW_ON_ERROR);
         $decodedReport = json_decode($encodedReport, true, 512, JSON_THROW_ON_ERROR);
-        $t->same('native-ipynb-writer-not-implemented', $decodedReport['reason']);
-        $t->same('', $decodedReport['outputImplementation']);
+        $t->same('unsupported-rich-package-output', $decodedReport['output']['state']);
+        $t->same(['output'], $decodedReport['extension']['unsupportedDirections']);
     },
 ];

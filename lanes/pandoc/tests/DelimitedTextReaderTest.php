@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\DelimitedTextReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
@@ -82,6 +83,26 @@ return [
         $t->same('', $table->children[1]->children[1]->children[2]->attr('text'));
         $t->contains('| 43        | Needs review  |           |', $markdown);
         $t->contains('<td>Needs review</td><td></td>', $wordpress);
+    },
+    'reads csv and tsv through the pandoc converter registry' => static function (TestRunner $t): void {
+        $csvDocument = PandocConverter::read(implode("\n", [
+            'name,qty',
+            'Alpha,10',
+            '',
+        ]), 'csv');
+        $tsvBlocks = PandocConverter::convert(implode("\n", [
+            "name\tqty",
+            "Beta\t20",
+            '',
+        ]), 'tsv', 'blocks');
+
+        $t->true(PandocConverter::canRead('csv'));
+        $t->true(PandocConverter::canRead('tsv'));
+        $t->same('csv', $csvDocument->attr('sourceFormat'));
+        $t->same('table', $csvDocument->children[0]->type);
+        $t->same('Alpha', $csvDocument->children[0]->children[1]->children[0]->children[0]->attr('text'));
+        $t->contains('<th>name</th><th>qty</th>', $tsvBlocks);
+        $t->contains('<td>Beta</td><td>20</td>', $tsvBlocks);
     },
     'records csv and tsv control character row repair interaction summaries' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();
@@ -269,7 +290,7 @@ return [
         $t->same('42', $csvTable->children[1]->children[0]->children[0]->attr('text'));
         $t->same('Legacy, "quoted" title', $csvTable->children[1]->children[0]->children[1]->attr('text'));
         $t->same('43', $csvTable->children[1]->children[1]->children[0]->attr('text'));
-        $t->contains('| 42  | Legacy, \\"quoted\\" title | true  |', $csvMarkdown);
+        $t->contains('| 42 | Legacy, \\"quoted\\" title | true  |', $csvMarkdown);
         $t->contains('<tbody><tr><td>42</td><td>Legacy, &quot;quoted&quot; title</td><td>true</td></tr>', $csvWordpress);
         $t->true(!str_contains($csvWordpress, '<thead>'));
         $csvHead = $csvJson['blocks'][0]['c'][3]['c'] ?? $csvJson['blocks'][0]['c'][3];

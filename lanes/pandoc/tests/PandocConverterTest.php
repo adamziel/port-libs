@@ -46,12 +46,29 @@ return [
         $t->contains('<h1', $html);
         $t->contains('Alias Demo', $html);
     },
+    'converts rtf through the registered reader path' => static function (TestRunner $t): void {
+        $blocks = PandocConverter::convert('{\\rtf1\\ansi\\pard RTF {\\b bold} import.\\par}', 'rtf', 'blocks');
+
+        $t->contains('<!-- wp:paragraph -->', $blocks);
+        $t->contains('<p>RTF <strong>bold</strong> import.</p>', $blocks);
+    },
+    'converts markdown to plain through the registered plain writer' => static function (TestRunner $t): void {
+        $plain = PandocConverter::convert('Plain **writer** output.', 'markdown', 'plain', [
+            'writerOptions' => ['columns' => 80],
+        ]);
+
+        $t->same('Plain writer output.', $plain);
+    },
     'reports supported and unsupported formats from registry state' => static function (TestRunner $t): void {
         $t->true(PandocConverter::canRead('markdown'));
         $t->true(PandocConverter::canRead('json'));
+        $t->true(PandocConverter::canRead('csv'));
+        $t->true(PandocConverter::canRead('tsv'));
         $t->true(PandocConverter::canRead('docx'));
         $t->true(PandocConverter::canRead('epub'));
+        $t->true(PandocConverter::canRead('ipynb'));
         $t->true(PandocConverter::canRead('odt'));
+        $t->true(PandocConverter::canRead('rtf'));
         $t->true(PandocConverter::canRead('pdf'));
         $t->true(PandocConverter::canWrite('blocks'));
         $t->true(PandocConverter::canWrite('native'));
