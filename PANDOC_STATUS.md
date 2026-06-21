@@ -1,6 +1,8 @@
 # Pandoc Status
 
-Updated: 2026-06-16 UTC
+Updated: 2026-06-21 UTC
+
+Current registry audit: 51 upstream input formats tracked; 28 have partial native PHP readers; 23 remain unsupported. Project-local inputs `pdf` and `doc` are tracked separately from upstream Pandoc inputs. The latest XML-family slice registers bounded `xml`, `jats`, and `bits` readers through `PortLibs\Pandoc\XmlReader`; full Pandoc parity remains open.
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 

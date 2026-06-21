@@ -188,6 +188,7 @@ final class PandocConverter
             OdtReader::class => new OdtReader(),
             PdfReader::class => new PdfReader($options),
             RtfReader::class => new RtfReader(),
+            XmlReader::class => new XmlReader($format, $options),
             default => throw new \InvalidArgumentException("Unsupported Pandoc reader implementation '{$implementation}'."),
         };
     }

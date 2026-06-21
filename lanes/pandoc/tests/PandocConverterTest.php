@@ -76,6 +76,9 @@ return [
         $t->true(PandocConverter::canRead('odt'));
         $t->true(PandocConverter::canRead('rtf'));
         $t->true(PandocConverter::canRead('pdf'));
+        $t->true(PandocConverter::canRead('xml'));
+        $t->true(PandocConverter::canRead('jats'));
+        $t->true(PandocConverter::canRead('bits'));
         $t->true(PandocConverter::canWrite('blocks'));
         $t->true(PandocConverter::canWrite('native'));
         $t->true(!PandocConverter::canWrite('pdf'));

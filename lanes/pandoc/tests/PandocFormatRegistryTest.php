@@ -21,6 +21,7 @@ use PortLibs\Pandoc\PandocFormatRegistry;
 use PortLibs\Pandoc\PdfReader;
 use PortLibs\Pandoc\PlainWriter;
 use PortLibs\Pandoc\RtfReader;
+use PortLibs\Pandoc\XmlReader;
 
 return [
     'tracks the current upstream pandoc input format denominator' => static function (TestRunner $t): void {
@@ -133,6 +134,10 @@ return [
             $t->same('partial', $support[$format]['status']);
             $t->same(BibliographyReader::class, $support[$format]['implementation']);
         }
+        foreach (['bits', 'jats', 'xml'] as $format) {
+            $t->same('partial', $support[$format]['status']);
+            $t->same(XmlReader::class, $support[$format]['implementation']);
+        }
         $t->same('partial', $support['native']['status']);
         $t->same(NativeReader::class, $support['native']['implementation']);
         $t->same('partial', $support['html']['status']);
@@ -152,7 +157,7 @@ return [
         $t->same(OdtReader::class, $support['odt']['implementation']);
         $t->same('partial', $support['rtf']['status']);
         $t->same(RtfReader::class, $support['rtf']['implementation']);
-        $t->same(26, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(23, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();

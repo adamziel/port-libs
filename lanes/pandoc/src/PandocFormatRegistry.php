@@ -180,6 +180,11 @@ final class PandocFormatRegistry
             'implementation' => BibliographyReader::class,
             'notes' => 'Bibliography reader parses BibLaTeX-oriented entries, aliases, xdata/crossref metadata, source-file diagnostics, and custom fields into CSL item metadata. Full Pandoc BibLaTeX reader parity remains open.',
         ],
+        'bits' => [
+            'status' => 'partial',
+            'implementation' => XmlReader::class,
+            'notes' => 'Bounded XML-family reader maps BITS/JATS book roots, titles, abstracts, body sections, lists, links, and tables into the shared AST with existing JATS/BITS diagnostic packets. Full Pandoc BITS parity remains open.',
+        ],
         'commonmark' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
@@ -240,6 +245,11 @@ final class PandocFormatRegistry
             'implementation' => IpynbReader::class,
             'notes' => 'Bounded IPYNB reader maps markdown, code, and raw cells into the shared AST with notebook, metadata, attachment, source-shape, execution, and output diagnostics without executing notebooks or exposing embedded output bytes. Native IPYNB writer parity remains open.',
         ],
+        'jats' => [
+            'status' => 'partial',
+            'implementation' => XmlReader::class,
+            'notes' => 'Bounded XML-family reader maps JATS article/book roots, titles, abstracts, body sections, lists, links, and tables into the shared AST while preserving the existing JATS/BITS diagnostic packet metadata. Full Pandoc JATS parity remains open.',
+        ],
         'json' => [
             'status' => 'partial',
             'implementation' => JsonReader::class,
@@ -294,6 +304,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => RtfReader::class,
             'notes' => 'Bounded RTF reader maps paragraphs, escaped characters, unicode fallbacks, tabs, and core inline styles into the shared AST. Full RTF control-word, destination, table, image, and metadata parity remains open.',
+        ],
+        'xml' => [
+            'status' => 'partial',
+            'implementation' => XmlReader::class,
+            'notes' => 'Bounded XML-family reader safely parses XML, records namespace/root provenance, and maps title/paragraph/list/link/table structures into the shared AST. Full Pandoc XML reader parity remains open.',
         ],
     ];
 
