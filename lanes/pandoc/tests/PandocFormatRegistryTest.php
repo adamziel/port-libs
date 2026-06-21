@@ -19,6 +19,7 @@ use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\OdtReader;
+use PortLibs\Pandoc\OpmlReader;
 use PortLibs\Pandoc\PandocFormatRegistry;
 use PortLibs\Pandoc\PdfReader;
 use PortLibs\Pandoc\PlainWriter;
@@ -160,9 +161,11 @@ return [
         $t->same(EpubReader::class, $support['epub']['implementation']);
         $t->same('partial', $support['odt']['status']);
         $t->same(OdtReader::class, $support['odt']['implementation']);
+        $t->same('partial', $support['opml']['status']);
+        $t->same(OpmlReader::class, $support['opml']['implementation']);
         $t->same('partial', $support['rtf']['status']);
         $t->same(RtfReader::class, $support['rtf']['implementation']);
-        $t->same(23, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(22, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();

@@ -295,6 +295,11 @@ final class PandocFormatRegistry
             'implementation' => OdtReader::class,
             'notes' => 'Bounded ODT package reader parses content.xml, meta.xml, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open.',
         ],
+        'opml' => [
+            'status' => 'partial',
+            'implementation' => OpmlReader::class,
+            'notes' => 'Bounded OPML reader maps document title, owner, modified date, nested outlines, link outlines, and Markdown notes into the shared AST. Full Pandoc OPML fixture parity remains open.',
+        ],
         'ris' => [
             'status' => 'partial',
             'implementation' => BibliographyReader::class,

@@ -188,6 +188,7 @@ final class PandocConverter
             JsonReader::class => new JsonReader(),
             NativeReader::class => new NativeReader(),
             OdtReader::class => new OdtReader(),
+            OpmlReader::class => new OpmlReader($options),
             PdfReader::class => new PdfReader($options),
             RtfReader::class => new RtfReader(),
             XmlReader::class => new XmlReader($format, $options),
