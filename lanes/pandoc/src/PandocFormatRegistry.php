@@ -370,6 +370,16 @@ final class PandocFormatRegistry
             'implementation' => MarkdownWriter::class,
             'notes' => 'CommonMark with extensions is partially mapped through raw inline/block branch tests.',
         ],
+        'epub' => [
+            'status' => 'partial',
+            'implementation' => EpubWriter::class,
+            'notes' => 'Bounded EPUB output emits an EPUB3 OCF ZIP package with stored mimetype, container.xml, OPF metadata/manifest/spine, nav.xhtml, stylesheet, and one XHTML spine document rendered through the shared HTML writer. EPUB2 output and full media/template parity remain open.',
+        ],
+        'epub3' => [
+            'status' => 'partial',
+            'implementation' => EpubWriter::class,
+            'notes' => 'Bounded EPUB3 output emits an OCF ZIP package with stored mimetype, container.xml, OPF metadata/manifest/spine, nav.xhtml, stylesheet, and one XHTML spine document rendered through the shared HTML writer. Full Pandoc EPUB3 writer options, split chapters, media bag emission, cover handling, and template parity remain open.',
+        ],
         'gfm' => [
             'status' => 'partial',
             'implementation' => MarkdownWriter::class,

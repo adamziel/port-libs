@@ -8,6 +8,7 @@ use PortLibs\Pandoc\DelimitedTextReader;
 use PortLibs\Pandoc\DocBookReader;
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\EpubReader;
+use PortLibs\Pandoc\EpubWriter;
 use PortLibs\Pandoc\Fb2Reader;
 use PortLibs\Pandoc\HtmlReader;
 use PortLibs\Pandoc\IpynbReader;
@@ -188,6 +189,10 @@ return [
         $t->same(MarkdownWriter::class, $support['markdown']['implementation']);
         $t->same('partial', $support['html']['status']);
         $t->same(HtmlWriter::class, $support['html']['implementation']);
+        $t->same('partial', $support['epub']['status']);
+        $t->same(EpubWriter::class, $support['epub']['implementation']);
+        $t->same('partial', $support['epub3']['status']);
+        $t->same(EpubWriter::class, $support['epub3']['implementation']);
         $t->same('partial', $support['json']['status']);
         $t->same(JsonWriter::class, $support['json']['implementation']);
         $t->same('partial', $support['latex']['status']);
@@ -199,9 +204,9 @@ return [
         $t->same('partial', $support['plain']['status']);
         $t->same(PlainWriter::class, $support['plain']['implementation']);
         $t->same('unsupported', $support['docx']['status']);
-        $t->same('unsupported', $support['epub']['status']);
+        $t->same('unsupported', $support['epub2']['status']);
         $t->same('unsupported', $support['odt']['status']);
         $t->same('unsupported', $support['pdf']['status']);
-        $t->same(60, count(PandocFormatRegistry::unsupportedOutputFormats()));
+        $t->same(58, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
 ];

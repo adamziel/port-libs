@@ -103,6 +103,9 @@ return [
         $t->true(PandocConverter::canWrite('blocks'));
         $t->true(PandocConverter::canWrite('native'));
         $t->true(PandocConverter::canWrite('opml'));
+        $t->true(PandocConverter::canWrite('epub'));
+        $t->true(PandocConverter::canWrite('epub3'));
+        $t->true(!PandocConverter::canWrite('epub2'));
         $t->true(!PandocConverter::canWrite('pdf'));
     },
     'converts markdown sections to opml through the registered writer path' => static function (TestRunner $t): void {

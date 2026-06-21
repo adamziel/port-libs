@@ -93,7 +93,7 @@ final class EpubReader
                 continue;
             }
             $resources[] = $href;
-            $rewritten = $this->rewriteRelativeLinks($xhtml, $this->dirname($href), $referenced_resources);
+            $rewritten = $this->rewriteRelativeLinks($this->bodyMarkup($xhtml), $this->dirname($href), $referenced_resources);
             $document = (new MarkdownReader(['htmlNativeDivs' => true]))->read($rewritten);
             array_push($children, ...$document->children);
         }
@@ -436,6 +436,35 @@ final class EpubReader
         }
 
         return $entries;
+    }
+
+    private function bodyMarkup(string $xhtml): string
+    {
+        try {
+            $dom = $this->loadXml($xhtml, 'EPUB XHTML content document');
+        } catch (\InvalidArgumentException) {
+            return $xhtml;
+        }
+
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || $element->localName !== 'body') {
+                continue;
+            }
+            $parts = [];
+            foreach ($element->childNodes as $child) {
+                if ($child instanceof \DOMText && trim($child->textContent) === '') {
+                    continue;
+                }
+                $serialized = $dom->saveXML($child);
+                if (is_string($serialized) && trim($serialized) !== '') {
+                    $parts[] = trim($serialized);
+                }
+            }
+
+            return implode("\n", $parts);
+        }
+
+        return $xhtml;
     }
 
     /**
