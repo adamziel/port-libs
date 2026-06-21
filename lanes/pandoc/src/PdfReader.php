@@ -779,9 +779,15 @@ final class PdfReader
      */
     private function positionedRowsWithCells(array $rows, array $columns): array
     {
+        $tableBounds = $this->positionedRowsBounds($rows);
+        $columnBounds = $this->positionedColumnBounds($columns, $tableBounds['x1'], $tableBounds['x2']);
         $cellRows = [];
         foreach ($rows as $row) {
-            $cells = array_fill(0, count($columns), null);
+            $rowBounds = $this->positionedRowBounds($row);
+            $cells = [];
+            foreach ($columns as $index => $_column) {
+                $cells[$index] = $this->emptyPositionedCell($rowBounds, $columnBounds[$index] ?? null);
+            }
             foreach ($row['runs'] as $run) {
                 $columnIndex = $this->nearestPositionedColumn($columns, $run['textX1']);
                 $cells[$columnIndex] = $this->mergePositionedCells($cells[$columnIndex], $this->positionedCellFromRun($run));
@@ -793,8 +799,74 @@ final class PdfReader
     }
 
     /**
+     * @param list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}> $rows
+     * @return array{x1: float, y1: float, x2: float, y2: float}
+     */
+    private function positionedRowsBounds(array $rows): array
+    {
+        $bounds = ['x1' => INF, 'y1' => INF, 'x2' => -INF, 'y2' => -INF];
+        foreach ($rows as $row) {
+            foreach ($row['runs'] as $run) {
+                $bounds['x1'] = min($bounds['x1'], $run['x1'], $run['textX1']);
+                $bounds['y1'] = min($bounds['y1'], $run['y1'], $run['textY1']);
+                $bounds['x2'] = max($bounds['x2'], $run['x2'], $run['textX2']);
+                $bounds['y2'] = max($bounds['y2'], $run['y2'], $run['textY2']);
+            }
+        }
+
+        return is_finite($bounds['x1']) && is_finite($bounds['x2']) && is_finite($bounds['y1']) && is_finite($bounds['y2'])
+            ? $bounds
+            : ['x1' => 0.0, 'y1' => 0.0, 'x2' => 0.0, 'y2' => 0.0];
+    }
+
+    /**
+     * @param array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>} $row
+     * @return array{y1: float, y2: float}
+     */
+    private function positionedRowBounds(array $row): array
+    {
+        $y1 = INF;
+        $y2 = -INF;
+        foreach ($row['runs'] as $run) {
+            $y1 = min($y1, $run['y1'], $run['textY1']);
+            $y2 = max($y2, $run['y2'], $run['textY2']);
+        }
+
+        return is_finite($y1) && is_finite($y2)
+            ? ['y1' => $y1, 'y2' => $y2]
+            : ['y1' => $row['center'], 'y2' => $row['center']];
+    }
+
+    /**
+     * @param list<float> $columns
+     * @return list<array{x1: float, x2: float}>
+     */
+    private function positionedColumnBounds(array $columns, float $tableX1, float $tableX2): array
+    {
+        $bounds = [];
+        $count = count($columns);
+        for ($index = 0; $index < $count; $index++) {
+            $left = $index === 0
+                ? min($tableX1, $columns[$index])
+                : ($columns[$index - 1] + $columns[$index]) / 2.0;
+            $right = $index + 1 < $count
+                ? ($columns[$index] + $columns[$index + 1]) / 2.0
+                : max($tableX2, $columns[$index]);
+
+            if ($right <= $left) {
+                $left = $columns[$index] - 4.0;
+                $right = $columns[$index] + 4.0;
+            }
+
+            $bounds[] = ['x1' => $left, 'x2' => $right];
+        }
+
+        return $bounds;
+    }
+
+    /**
      * @param array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float} $run
-     * @return array{text: string, x1: float, y1: float, x2: float, y2: float}
+     * @return array{text: string, x1: float, y1: float, x2: float, y2: float, contentX1: float, contentX2: float}
      */
     private function positionedCellFromRun(array $run): array
     {
@@ -804,15 +876,27 @@ final class PdfReader
             'y1' => $run['y1'],
             'x2' => $run['textX2'],
             'y2' => $run['y2'],
+            'contentX1' => $run['textX1'],
+            'contentX2' => $run['textX2'],
         ];
     }
 
     /**
-     * @return array{text: string}
+     * @param array{y1: float, y2: float}|null $rowBounds
+     * @param array{x1: float, x2: float}|null $columnBounds
+     * @return array<string, mixed>
      */
-    private function emptyPositionedCell(): array
+    private function emptyPositionedCell(?array $rowBounds = null, ?array $columnBounds = null): array
     {
-        return ['text' => ''];
+        $cell = ['text' => ''];
+        if ($rowBounds !== null && $columnBounds !== null) {
+            $cell['x1'] = $columnBounds['x1'];
+            $cell['y1'] = $rowBounds['y1'];
+            $cell['x2'] = $columnBounds['x2'];
+            $cell['y2'] = $rowBounds['y2'];
+        }
+
+        return $cell;
     }
 
     /**
@@ -822,22 +906,34 @@ final class PdfReader
      */
     private function mergePositionedCells(?array $left, array $right): array
     {
-        if ($left === null || $this->cellTextValue($left) === '') {
+        if ($left === null) {
             return $right;
         }
-        if ($this->cellTextValue($right) === '') {
-            return $left;
-        }
 
-        $merged = $left;
-        $merged['text'] = $this->appendCellText($this->cellTextValue($left), $this->cellTextValue($right));
-        foreach (['x1', 'y1', 'x2', 'y2'] as $key) {
-            if (!isset($left[$key]) || !isset($right[$key]) || !is_numeric($left[$key]) || !is_numeric($right[$key])) {
+        $leftText = $this->cellTextValue($left);
+        $rightText = $this->cellTextValue($right);
+        $merged = array_replace($left, array_diff_key($right, array_flip(['text', 'x1', 'y1', 'x2', 'y2', 'contentX1', 'contentX2'])));
+        $merged['text'] = $leftText === ''
+            ? $rightText
+            : ($rightText === '' ? $leftText : $this->appendCellText($leftText, $rightText));
+
+        foreach (['x1', 'y1', 'x2', 'y2', 'contentX1', 'contentX2'] as $key) {
+            $leftValue = $this->numericValue($left[$key] ?? null);
+            $rightValue = $this->numericValue($right[$key] ?? null);
+            if ($leftValue === null && $rightValue === null) {
                 continue;
             }
-            $merged[$key] = in_array($key, ['x1', 'y1'], true)
-                ? min((float) $left[$key], (float) $right[$key])
-                : max((float) $left[$key], (float) $right[$key]);
+            if ($leftValue === null) {
+                $merged[$key] = $rightValue;
+                continue;
+            }
+            if ($rightValue === null) {
+                $merged[$key] = $leftValue;
+                continue;
+            }
+            $merged[$key] = in_array($key, ['x1', 'y1', 'contentX1'], true)
+                ? min($leftValue, $rightValue)
+                : max($leftValue, $rightValue);
         }
 
         return $merged;
@@ -856,7 +952,7 @@ final class PdfReader
 
         foreach ($rows as &$row) {
             foreach ($row as &$cell) {
-                if (!is_array($cell) || $this->cellTextValue($cell) === '') {
+                if (!is_array($cell)) {
                     continue;
                 }
 
@@ -1099,8 +1195,8 @@ final class PdfReader
                 if (!is_array($cell) || $this->cellTextValue($cell) === '') {
                     continue;
                 }
-                $x1 = $this->numericValue($cell['x1'] ?? null);
-                $x2 = $this->numericValue($cell['x2'] ?? null);
+                $x1 = $this->numericValue($cell['contentX1'] ?? $cell['x1'] ?? null);
+                $x2 = $this->numericValue($cell['contentX2'] ?? $cell['x2'] ?? null);
                 if ($x1 !== null && $x2 !== null && abs($x2 - $x1) > 1.0) {
                     $wideCells++;
                 }
