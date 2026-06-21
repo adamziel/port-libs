@@ -133,6 +133,11 @@ final class DocBookReader
         'warning',
     ];
 
+    /** @var array<string, string> */
+    private array $calloutLabelsByTarget = [];
+
+    private int $nextCalloutLabel = 1;
+
     /**
      * @param array<string, mixed> $options
      */
@@ -160,6 +165,7 @@ final class DocBookReader
         $structure = XmlHtmlDom::summarizeDocBookStructure($dom, $format);
         $review = XmlHtmlDom::summarizeDocBookReviewPacket($dom, $format);
         $bibliography = XmlHtmlDom::summarizeDocBookBibliography($dom);
+        $this->prepareCalloutLabels($root);
         $blocks = $this->documentBlocks($root, $structure);
         if ($blocks === []) {
             $text = XmlHtmlDom::normalizedText($root);
@@ -553,6 +559,10 @@ final class DocBookReader
                     $summary[$name] = trim($value);
                 }
             }
+            $label = $this->calloutLabelForElement($area);
+            if ($label !== '') {
+                $summary['label'] = $label;
+            }
             if ($summary !== []) {
                 $areas[] = $summary;
             }
@@ -675,6 +685,12 @@ final class DocBookReader
             if ($arearefs !== '') {
                 $attrs['attributes'] = array_replace($attrs['attributes'] ?? [], [
                     'data-docbook-arearefs' => $arearefs,
+                ]);
+            }
+            $label = $this->calloutLabelForElement($callout);
+            if ($label !== '') {
+                $attrs['attributes'] = array_replace($attrs['attributes'] ?? [], [
+                    'data-docbook-callout-label' => $label,
                 ]);
             }
             $items[] = new AstNode('list_item', $attrs, $blocks);
@@ -1613,6 +1629,7 @@ final class DocBookReader
 
     private function calloutMarkerSpan(\DOMElement $element): AstNode
     {
+        $label = $this->calloutLabelForElement($element);
         $attrs = [
             'classes' => ['docbook-callout'],
             'attributes' => [
@@ -1624,14 +1641,15 @@ final class DocBookReader
             $attrs['id'] = $id;
             $attrs['attributes']['data-docbook-callout-id'] = $id;
         }
-        foreach (['label', 'linkends', 'arearefs'] as $name) {
+        foreach (['linkends', 'arearefs'] as $name) {
             $value = XmlHtmlDom::attribute($element, $name);
             if ($value !== null && trim($value) !== '') {
                 $attrs['attributes']['data-docbook-callout-' . $name] = trim($value);
             }
         }
-
-        $label = $this->cleanText(XmlHtmlDom::attribute($element, 'label') ?? '');
+        if ($label !== '') {
+            $attrs['attributes']['data-docbook-callout-label'] = $label;
+        }
 
         return new AstNode('span', $attrs, $this->textInlines($label));
     }
@@ -1879,6 +1897,71 @@ final class DocBookReader
 
         return in_array($name, self::METADATA_NAMES, true)
             || in_array($name, ['title', 'subtitle', 'abstract'], true);
+    }
+
+    private function prepareCalloutLabels(\DOMElement $root): void
+    {
+        $this->calloutLabelsByTarget = [];
+        $this->nextCalloutLabel = 1;
+
+        foreach (XmlHtmlDom::descendantElements($root) as $element) {
+            if (!in_array($this->name($element), ['co', 'area'], true)) {
+                continue;
+            }
+
+            $label = $this->cleanText(XmlHtmlDom::attribute($element, 'label') ?? '');
+            if ($label === '') {
+                $label = (string) $this->nextCalloutLabel;
+            }
+            foreach ($this->calloutTargetKeys($element) as $key) {
+                if (!isset($this->calloutLabelsByTarget[$key])) {
+                    $this->calloutLabelsByTarget[$key] = $label;
+                }
+            }
+            $this->nextCalloutLabel++;
+        }
+    }
+
+    private function calloutLabelForElement(\DOMElement $element): string
+    {
+        $label = $this->cleanText(XmlHtmlDom::attribute($element, 'label') ?? '');
+        if ($label !== '') {
+            return $label;
+        }
+
+        foreach ($this->calloutTargetKeys($element) as $key) {
+            if (isset($this->calloutLabelsByTarget[$key])) {
+                return $this->calloutLabelsByTarget[$key];
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function calloutTargetKeys(\DOMElement $element): array
+    {
+        $keys = [];
+        $id = $this->elementId($element);
+        if ($id !== null) {
+            $keys[] = $id;
+        }
+        foreach (['linkends', 'arearefs'] as $name) {
+            $value = XmlHtmlDom::attribute($element, $name);
+            if ($value === null) {
+                continue;
+            }
+            foreach (preg_split('/\s+/u', trim($value)) ?: [] as $key) {
+                $key = trim($key);
+                if ($key !== '') {
+                    $keys[] = $key;
+                }
+            }
+        }
+
+        return array_values(array_unique($keys));
     }
 
     private function isSectionPreambleElement(\DOMElement $element): bool

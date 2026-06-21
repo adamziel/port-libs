@@ -306,17 +306,65 @@ XML;
             'linkends' => 'call-install',
             'coords' => '1',
             'units' => 'line',
+            'label' => '2',
         ]], $areas);
         $t->contains('<h1>Documentation Set</h1>', $blocks);
         $t->contains('<h2>Operator Guide</h2>', $blocks);
         $t->contains('<h3>Install</h3>', $blocks);
         $t->contains('<span id="install-anchor" class="anchor docbook-anchor" data-docbook-anchor="true" data-docbook-anchor-id="install-anchor" data-pandoc-anchor="empty-target"></span>', $blocks);
         $t->contains('<span class="indexref docbook-indexterm" data-pandoc-index-entry="Install; CLI"></span>', $blocks);
-        $t->contains('<span id="inline-co" class="docbook-callout" data-docbook-callout="true" data-docbook-callout-id="inline-co" data-docbook-callout-label="1" data-docbook-callout-linkends="call-install">1</span>', $blocks);
+        $t->contains('<span id="inline-co" class="docbook-callout" data-docbook-callout="true" data-docbook-callout-id="inline-co" data-docbook-callout-linkends="call-install" data-docbook-callout-label="1">1</span>', $blocks);
         $t->contains('<pre class="wp-block-code" data-docbook-area-count="1"><code class="language-bash">wp import</code></pre>', $blocks);
-        $t->contains('<ol><li data-docbook-arearefs="co-install">Run the import command.</li></ol>', $blocks);
+        $t->contains('<ol><li data-docbook-arearefs="co-install" data-docbook-callout-label="1">Run the import command.</li></ol>', $blocks);
         $t->contains('[]{#install-anchor .anchor .docbook-anchor data-docbook-anchor="true"', $markdown);
         $t->contains('[]{#idx-install .indexref .docbook-indexterm entry="Install; CLI"', $markdown);
+    },
+    'generates docbook callout labels for markers areas and callout lists' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" version="5.2">
+  <title>Generated Callouts</title>
+  <section>
+    <title>Body</title>
+    <para>Marker <co xml:id="co-auto" linkends="call-auto"/> done.</para>
+    <calloutlist><callout xml:id="call-auto" arearefs="co-auto"><para>Generated callout text.</para></callout></calloutlist>
+    <programlistingco>
+      <areaspec>
+        <area xml:id="area-auto" coords="1"/>
+        <area xml:id="area-explicit" coords="2" label="B"/>
+      </areaspec>
+      <programlisting>one
+two</programlisting>
+      <calloutlist>
+        <callout arearefs="area-auto"><para>Area generated.</para></callout>
+        <callout arearefs="area-explicit"><para>Area explicit.</para></callout>
+      </calloutlist>
+    </programlistingco>
+  </section>
+</article>
+XML;
+
+        $document = PandocConverter::read($docbook, 'docbook');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $paragraph = $document->children[2];
+        $code = $document->children[4];
+        $areas = $code->attr('docbookAreas');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('span', $paragraph->children[1]->type);
+        $t->same('1', $paragraph->children[1]->attr('attributes')['data-docbook-callout-label']);
+        $t->same('1', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same([[
+            'id' => 'area-auto',
+            'coords' => '1',
+            'label' => '2',
+        ], [
+            'id' => 'area-explicit',
+            'coords' => '2',
+            'label' => 'B',
+        ]], $areas);
+        $t->contains('data-docbook-callout-id="co-auto" data-docbook-callout-linkends="call-auto" data-docbook-callout-label="1">1</span>', $blocks);
+        $t->contains('<ol><li data-docbook-arearefs="co-auto" data-docbook-callout-label="1">Generated callout text.</li></ol>', $blocks);
+        $t->contains('<ol><li data-docbook-arearefs="area-auto" data-docbook-callout-label="2">Area generated.</li><li data-docbook-arearefs="area-explicit" data-docbook-callout-label="B">Area explicit.</li></ol>', $blocks);
     },
     'preserves standalone docbook table fragment spans widths and alignments' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
