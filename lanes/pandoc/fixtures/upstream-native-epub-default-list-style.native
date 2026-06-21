@@ -1,0 +1,36 @@
+Pandoc
+  Meta
+    { unMeta =
+        fromList
+          [ ( "identifier"
+            , MetaInlines
+                [ Str "com.github.epub-testsuite.epub30-test-0101" ]
+            )
+          , ( "title"
+            , MetaInlines [ Str "EPUBTEST 0101 - Styling Tests" ]
+            )
+          ]
+    }
+  [ Para [ Span ( "front.xhtml" , [] , [] ) [] ]
+  , Div
+      ( "" , [ "section" ] , [] )
+      [ Header
+          1
+          ( "" , [] , [] )
+          [ Str "EPUB"
+          , Space
+          , Str "3"
+          , Space
+          , Str "Styling"
+          , Space
+          , Str "Test"
+          , Space
+          , Str "Document:"
+          , Space
+          , Str "0101"
+          ]
+      , OrderedList
+          ( 1 , DefaultStyle , DefaultDelim )
+          [ [ Plain [ Str "." ] ] ]
+      ]
+  ]

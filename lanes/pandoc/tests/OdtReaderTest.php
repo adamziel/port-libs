@@ -1,0 +1,150 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\Pandoc\OdtReader;
+use PortLibs\Pandoc\PandocConverter;
+use PortLibs\Pandoc\WordPressBlockWriter;
+
+return [
+    'reads odt package metadata and body content into shared ast' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('mimetype', 'application/vnd.oasis.opendocument.text');
+        $zip->addFromString('meta.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">
+  <office:meta>
+    <dc:title>ODT Reader Demo</dc:title>
+    <dc:creator>Port Libs</dc:creator>
+    <dc:description>Bounded ODT reader smoke.</dc:description>
+    <meta:keyword>odt</meta:keyword>
+  </office:meta>
+</office:document-meta>
+XML);
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:name="Bold" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
+    <style:style style:name="Italic" style:family="text"><style:text-properties fo:font-style="italic"/></style:style>
+    <text:list-style style:name="NumberedAlpha">
+      <text:list-level-style-number text:level="1" style:num-format="a" style:num-suffix=")"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:automatic-styles>
+    <style:style xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" style:name="InlineStrong" style:family="text">
+      <style:text-properties xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" fo:font-weight="bold"/>
+    </style:style>
+  </office:automatic-styles>
+  <office:body>
+    <office:text>
+      <text:h text:outline-level="1">ODT Reader Demo</text:h>
+      <text:p>A <text:span text:style-name="Bold">bold</text:span> and <text:span text:style-name="Italic">italic</text:span> paragraph with <text:a xlink:href="https://example.test">a link</text:a>.</text:p>
+      <text:list>
+        <text:list-item><text:p>One</text:p></text:list-item>
+        <text:list-item><text:p>Two</text:p></text:list-item>
+      </text:list>
+      <text:list text:style-name="NumberedAlpha" text:start-value="3">
+        <text:list-item><text:p>Alpha three</text:p></text:list-item>
+        <text:list-item><text:p>Alpha four</text:p></text:list-item>
+      </text:list>
+      <table:table>
+        <table:table-row>
+          <table:table-cell><text:p>Cell A</text:p></table:table-cell>
+          <table:table-cell><text:p>Cell B</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+      <text:p><draw:frame><draw:image xlink:href="Pictures/image.png"/></draw:frame></text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->addFromString('Pictures/image.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='));
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+            $blocks = (new WordPressBlockWriter())->write($document);
+            $converterBlocks = PandocConverter::convertFile($path, 'odt', 'blocks');
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('ODT Reader Demo', $meta['title']);
+        $t->same('Port Libs', $meta['author']);
+        $t->same('Bounded ODT reader smoke.', $meta['description']);
+        $t->same('odt', $meta['keywords']);
+        $t->true(($meta['odtTextStyleCount'] ?? 0) >= 2);
+        $t->same(1, $meta['odtListStyleCount']);
+        $t->true(($meta['odtPackageEntries'] ?? 0) >= 4);
+        $t->same(['Pictures/image.png'], $meta['odtReferencedResources']);
+        $t->same(['Pictures/image.png'], $meta['odtImageResources']);
+        $t->same('bullet_list', $document->children[2]->type);
+        $t->same('ordered_list', $document->children[3]->type);
+        $t->same(3, $document->children[3]->attr('start'));
+        $t->same('lower_alpha', $document->children[3]->attr('style'));
+        $t->same('one_paren', $document->children[3]->attr('delimiter'));
+        $t->contains('<!-- wp:heading {"level":1} -->', $blocks);
+        $t->contains('<strong>bold</strong>', $blocks);
+        $t->contains('<em>italic</em>', $blocks);
+        $t->contains('<a href="https://example.test">a link</a>', $blocks);
+        $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
+        $t->contains('<ol start="3" type="a"><li>Alpha three</li><li>Alpha four</li></ol>', $blocks);
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('Pictures/image.png', $blocks);
+        $t->contains('<!-- wp:list -->', $converterBlocks);
+    },
+    'reads odt bytes through the converter input path' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('content.xml', '<?xml version="1.0"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><office:body><office:text><text:h text:outline-level="1">Byte ODT</text:h><text:p>Body.</text:p></office:text></office:body></office:document-content>');
+        $zip->close();
+
+        try {
+            $bytes = file_get_contents($path);
+            if (!is_string($bytes)) {
+                throw new RuntimeException('Unable to read temporary ODT package');
+            }
+            $document = PandocConverter::read($bytes, 'odt');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('Byte ODT', $document->children[0]->attr('text'));
+        $t->same('paragraph', $document->children[1]->type);
+    },
+];

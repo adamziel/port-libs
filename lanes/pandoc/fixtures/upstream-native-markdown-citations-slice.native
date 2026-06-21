@@ -1,0 +1,96 @@
+[Header 1 ("pandoc-with-citeproc-hs",[],[]) [Str "Pandoc",Space,Str "with",Space,Str "citeproc-hs"]
+,BulletList
+    [ [Para
+          [Cite
+              [Citation
+                  { citationId = "nonexistent"
+                  , citationPrefix = []
+                  , citationSuffix = []
+                  , citationMode = NormalCitation
+                  , citationNoteNum = 1
+                  , citationHash = 0
+                  }
+              ]
+              [Str "[@nonexistent]"]
+          ]
+      ]
+    , [Para
+          [Cite
+              [Citation
+                  { citationId = "item1"
+                  , citationPrefix = []
+                  , citationSuffix = [Str "p.\160\&30"]
+                  , citationMode = AuthorInText
+                  , citationNoteNum = 4
+                  , citationHash = 0
+                  }
+              ]
+              [Str "@item1",Space,Str "[p.",Space,Str "30]"]
+          ,Space,Str "says",Space,Str "blah."
+          ]
+      ]
+    , [Para
+          [Cite
+              [Citation
+                  { citationId = "item1"
+                  , citationPrefix = []
+                  , citationSuffix = []
+                  , citationMode = AuthorInText
+                  , citationNoteNum = 6
+                  , citationHash = 0
+                  }
+              ,Citation
+                  { citationId = "item2"
+                  , citationPrefix = []
+                  , citationSuffix = [Space,Str "p.\160\&30"]
+                  , citationMode = SuppressAuthor
+                  , citationNoteNum = 6
+                  , citationHash = 0
+                  }
+              ,Citation
+                  { citationId = "\1087\1091\1085\1082\1090\&3"
+                  , citationPrefix = [Str "see",Space,Str "also"]
+                  , citationSuffix = []
+                  , citationMode = NormalCitation
+                  , citationNoteNum = 6
+                  , citationHash = 0
+                  }
+              ]
+              [Str "@item1",Space,Str "[-@item2",Space,Str "p.",Space,Str "30;",Space,Str "see",Space,Str "also",Space,Str "@\1087\1091\1085\1082\1090\&3]"]
+          ,Space,Str "says",Space,Str "blah."
+          ]
+      ]
+    , [Para
+          [Str "In",Space,Str "a",Space,Str "note."
+          ,Note
+              [Para
+                  [Cite
+                      [Citation
+                          { citationId = "\1087\1091\1085\1082\1090\&3"
+                          , citationPrefix = []
+                          , citationSuffix = [Str "p.\160\&12"]
+                          , citationMode = AuthorInText
+                          , citationNoteNum = 7
+                          , citationHash = 0
+                          }
+                      ]
+                      [Str "@\1087\1091\1085\1082\1090\&3",Space,Str "[p.",Space,Str "12]"]
+                  ,Space,Str "and",Space,Str "a",Space,Str "citation",Space,Str "without",Space,Str "locators",Space
+                  ,Cite
+                      [Citation
+                          { citationId = "\1087\1091\1085\1082\1090\&3"
+                          , citationPrefix = []
+                          , citationSuffix = []
+                          , citationMode = NormalCitation
+                          , citationNoteNum = 7
+                          , citationHash = 0
+                          }
+                      ]
+                      [Str "[@\1087\1091\1085\1082\1090\&3]"]
+                  ,Str "."
+                  ]
+              ]
+          ]
+      ]
+    ]
+]

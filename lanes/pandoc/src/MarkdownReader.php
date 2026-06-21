@@ -7,6 +7,94 @@ namespace PortLibs\Pandoc;
 final class MarkdownReader
 {
     private const MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+    /**
+     * Mirrored from upstream pandoc data/abbreviations for the bounded
+     * markdown abbreviation spacing slice.
+     *
+     * @var array<string, true>
+     */
+    private const ABBREVIATIONS = [
+        'aet.' => true,
+        'aetat.' => true,
+        'al.' => true,
+        'Apr.' => true,
+        'Aug.' => true,
+        'bk.' => true,
+        'Bros.' => true,
+        'c.' => true,
+        'Capt.' => true,
+        'cf.' => true,
+        'ch.' => true,
+        'chap.' => true,
+        'chs.' => true,
+        'Co.' => true,
+        'col.' => true,
+        'Corp.' => true,
+        'cp.' => true,
+        'd.' => true,
+        'Dec.' => true,
+        'Dr.' => true,
+        'e.g.' => true,
+        'ed.' => true,
+        'eds.' => true,
+        'esp.' => true,
+        'f.' => true,
+        'fasc.' => true,
+        'Feb.' => true,
+        'ff.' => true,
+        'fig.' => true,
+        'fl.' => true,
+        'fol.' => true,
+        'fols.' => true,
+        'Fr.' => true,
+        'Gen.' => true,
+        'Gov.' => true,
+        'Hon.' => true,
+        'i.e.' => true,
+        'ill.' => true,
+        'Inc.' => true,
+        'incl.' => true,
+        'Jan.' => true,
+        'Jr.' => true,
+        'Jul.' => true,
+        'Jun.' => true,
+        'Ltd.' => true,
+        'M.A.' => true,
+        'M.D.' => true,
+        'Mar.' => true,
+        'Mr.' => true,
+        'Mrs.' => true,
+        'Ms.' => true,
+        'n.' => true,
+        'n.b.' => true,
+        'nn.' => true,
+        'No.' => true,
+        'Nov.' => true,
+        'Oct.' => true,
+        'p.' => true,
+        'Ph.D.' => true,
+        'pp.' => true,
+        'Pres.' => true,
+        'Prof.' => true,
+        'pt.' => true,
+        'q.v.' => true,
+        'Rep.' => true,
+        'Rev.' => true,
+        's.v.' => true,
+        's.vv.' => true,
+        'saec.' => true,
+        'sec.' => true,
+        'Sen.' => true,
+        'Sep.' => true,
+        'Sept.' => true,
+        'Sgt.' => true,
+        'Sr.' => true,
+        'St.' => true,
+        'univ.' => true,
+        'viz.' => true,
+        'vol.' => true,
+        'vs.' => true,
+    ];
 
     /** @var array<string, array{url:string, title:string}> */
     private array $referenceLinks = [];
@@ -23,10 +111,23 @@ final class MarkdownReader
     /** @var array<string, array{arity:int, template:string}> */
     private array $rawTexMacros = [];
 
+    private ?string $htmlBaseHref = null;
+
+    /** @var array<string, list<AstNode>> */
+    private array $htmlFootnoteDefinitions = [];
+
     private bool $resolveFootnoteReferences = true;
 
+    private int $htmlQuoteDepth = 0;
+
     /**
-     * @param array{literateHaskell?: bool} $options
+     * @param array{
+     *     literateHaskell?: bool,
+     *     htmlNativeDivs?: bool,
+     *     htmlRawHtml?: bool,
+     *     rawHtml?: bool,
+     *     htmlIframeResources?: array<string, string|array{mime?: string, contentType?: string, body?: string, content?: string}>
+     * } $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -43,6 +144,8 @@ final class MarkdownReader
         $previousExampleReferences = $this->exampleReferences;
         $previousExampleNumbersByLine = $this->exampleNumbersByLine;
         $previousRawTexMacros = $this->rawTexMacros;
+        $previousHtmlQuoteDepth = $this->htmlQuoteDepth;
+        $this->htmlQuoteDepth = 0;
         $documentAttrs = [];
         [$lines, $titleBlock] = $this->extractTitleBlock($lines);
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
@@ -115,6 +218,16 @@ final class MarkdownReader
                 $blocks[] = $htmlBlockQuote;
                 continue;
             }
+            $htmlFigure = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlFigureBlock($lines, $index) : null;
+            if ($htmlFigure !== null) {
+                $blocks[] = $htmlFigure;
+                continue;
+            }
+            $htmlIframe = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlIframeBlock($lines, $index) : null;
+            if ($htmlIframe !== null) {
+                $blocks[] = $htmlIframe;
+                continue;
+            }
             $htmlHeading = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlHeadingBlock($lines, $index) : null;
             if ($htmlHeading !== null) {
                 $blocks[] = $htmlHeading;
@@ -130,6 +243,21 @@ final class MarkdownReader
                 $blocks[] = $htmlDefinitionList;
                 continue;
             }
+            $htmlNativeDivsMain = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlNativeDivsMainBlock($lines, $index) : null;
+            if ($htmlNativeDivsMain !== null) {
+                array_push($blocks, ...$htmlNativeDivsMain->children);
+                continue;
+            }
+            $htmlNativeDivsHeader = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlNativeDivsHeaderBlock($lines, $index) : null;
+            if ($htmlNativeDivsHeader !== null) {
+                $blocks[] = $htmlNativeDivsHeader;
+                continue;
+            }
+            $htmlNativeDivsContainer = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlNativeDivsContainerBlock($lines, $index) : null;
+            if ($htmlNativeDivsContainer !== null) {
+                $blocks[] = $htmlNativeDivsContainer;
+                continue;
+            }
             $htmlInlineFragment = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlInlineFragmentBlock($lines, $index) : null;
             if ($htmlInlineFragment !== null) {
                 $blocks[] = $htmlInlineFragment;
@@ -143,6 +271,11 @@ final class MarkdownReader
             $htmlHorizontalRule = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlHorizontalRuleBlock($lines, $index) : null;
             if ($htmlHorizontalRule !== null) {
                 $blocks[] = $htmlHorizontalRule;
+                continue;
+            }
+            $rawHtmlDetails = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlDetailsBlock($lines, $index) : null;
+            if ($rawHtmlDetails !== null) {
+                array_push($blocks, ...$rawHtmlDetails);
                 continue;
             }
             $rawHtmlContainer = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlSingleLineContainerBlock($lines, $index) : null;
@@ -279,6 +412,7 @@ final class MarkdownReader
         $this->exampleReferences = $previousExampleReferences;
         $this->exampleNumbersByLine = $previousExampleNumbersByLine;
         $this->rawTexMacros = $previousRawTexMacros;
+        $this->htmlQuoteDepth = $previousHtmlQuoteDepth;
 
         return $document;
     }
@@ -500,7 +634,7 @@ final class MarkdownReader
             return [$line];
         }
 
-        if (preg_match('/^([ \t]*[^<\r\n]*\S[^<\r\n]*)(<(?:p|blockquote|h[1-6]|ul|ol|dl|pre|table|div|hr)\b.*)$/i', $line, $m) !== 1) {
+        if (preg_match('/^([ \t]*[^<\r\n]*\S[^<\r\n]*)(<(?:p|blockquote|h[1-6]|ul|ol|dl|pre|table|div|figure|hr)\b.*)$/i', $line, $m) !== 1) {
             return [$line];
         }
 
@@ -936,6 +1070,12 @@ final class MarkdownReader
             if ($this->isClosingCodeFence($lines[$cursor], $fenceChar, $fenceLength)) {
                 $attrs = $this->parseCodeInfo($info);
                 $attrs['text'] = implode("\n", $content);
+                $rawAttribute = $this->tryParseRawAttributeSpec($info, 0);
+                if ($rawAttribute !== null && $rawAttribute['next'] === strlen($info)) {
+                    $index = $cursor;
+
+                    return $this->rawBlockNode($rawAttribute['format'], $attrs['text']);
+                }
                 if ($info !== '') {
                     $attrs['info'] = $info;
                 }
@@ -950,6 +1090,12 @@ final class MarkdownReader
 
         $attrs = $this->parseCodeInfo($info);
         $attrs['text'] = implode("\n", $content);
+        $rawAttribute = $this->tryParseRawAttributeSpec($info, 0);
+        if ($rawAttribute !== null && $rawAttribute['next'] === strlen($info)) {
+            $index = $cursor - 1;
+
+            return $this->rawBlockNode($rawAttribute['format'], $attrs['text']);
+        }
         if ($info !== '') {
             $attrs['info'] = $info;
         }
@@ -1149,7 +1295,7 @@ final class MarkdownReader
                     $closedOnOpeningLine = $cursor === $openingIndex;
                     $index = $cursor;
 
-                    return $this->buildDivBlock($content, $closedOnOpeningLine);
+                    return $this->buildDivBlock($content, $closedOnOpeningLine, $this->isHtmlLineBlockOpeningTag($lines[$openingIndex]));
                 }
 
                 $lineContent .= substr($segment, $offset, $nextClose['offset'] + $nextClose['length'] - $offset);
@@ -1182,13 +1328,19 @@ final class MarkdownReader
     /**
      * @param list<string> $content
      */
-    private function buildDivBlock(array $content, bool $closedOnOpeningLine): AstNode
+    private function buildDivBlock(array $content, bool $closedOnOpeningLine, bool $lineBlock = false): AstNode
     {
         while ($content !== [] && trim($content[0]) === '') {
             array_shift($content);
         }
         while ($content !== [] && trim($content[array_key_last($content)]) === '') {
             array_pop($content);
+        }
+
+        if ($lineBlock) {
+            return $this->buildHtmlLineBlockFromInlines(
+                $this->parseHtmlInlineFragmentNodes(implode("\n", $content))
+            );
         }
 
         if (
@@ -1209,6 +1361,21 @@ final class MarkdownReader
         return new AstNode('div', [], $inner->children);
     }
 
+    private function isHtmlLineBlockOpeningTag(string $line): bool
+    {
+        if (preg_match('/^ {0,3}<div\b([^>]*)>/i', $line, $m) !== 1) {
+            return false;
+        }
+
+        if (preg_match('/\bclass\s*=\s*(?:"line-block"|\'line-block\'|line-block)(?:\s|$)/i', $m[1]) !== 1) {
+            return false;
+        }
+
+        $withoutClass = preg_replace('/\s*\bclass\s*=\s*(?:"line-block"|\'line-block\'|line-block)\s*/i', ' ', $m[1]) ?? $m[1];
+
+        return trim($withoutClass) === '';
+    }
+
     /**
      * @param list<string> $lines
      */
@@ -1219,7 +1386,7 @@ final class MarkdownReader
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
-        if (preg_match('/^ {0,3}<(script|style)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
+        if (preg_match('/^ {0,3}<(script|style|textarea)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
@@ -1238,10 +1405,96 @@ final class MarkdownReader
      * @param list<string> $lines
      * @return list<AstNode>|null
      */
+    private function tryReadRawHtmlDetailsBlock(array $lines, int &$index): ?array
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<details\b/i', $line) !== 1) {
+            return null;
+        }
+
+        $collected = $this->collectBalancedHtmlElementBlock($lines, $index, 'details');
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $blocks = $this->buildRawHtmlDetailsBlocks($html);
+        if ($blocks === []) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function buildRawHtmlDetailsBlocks(string $html): array
+    {
+        if (preg_match('/^\s*(<details\b[^>]*>)(.*)(<\/details\s*>)\s*$/isu', $html, $match) !== 1) {
+            return [];
+        }
+
+        $rawHtmlEnabled = $this->htmlRawHtmlEnabled();
+        $inner = (string) $match[2];
+        $blocks = [];
+        if ($rawHtmlEnabled) {
+            $blocks[] = new AstNode('raw_html', ['html' => trim($match[1])]);
+        }
+
+        [$summary, $body] = $this->extractRawHtmlDetailsSummary($inner);
+        if ($summary !== '') {
+            if ($rawHtmlEnabled) {
+                $blocks[] = new AstNode('raw_html', ['html' => trim($summary)]);
+            } else {
+                $summaryText = trim(preg_replace('/\s+/', ' ', strip_tags($summary)) ?? '');
+                if ($summaryText !== '') {
+                    $inlines = $this->parseInlines($summaryText);
+                    $blocks[] = new AstNode('plain', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
+                }
+            }
+        }
+
+        $body = trim($body, "\r\n");
+        if ($body !== '') {
+            $bodyDocument = (new self($this->options))->read($body);
+            array_push($blocks, ...$bodyDocument->children);
+        }
+
+        if ($rawHtmlEnabled) {
+            $blocks[] = new AstNode('raw_html', ['html' => trim($match[3])]);
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @return array{0:string, 1:string}
+     */
+    private function extractRawHtmlDetailsSummary(string $inner): array
+    {
+        if (preg_match('/<summary\b[^>]*>.*?<\/summary\s*>/isu', $inner, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return ['', $inner];
+        }
+
+        $summary = $match[0][0];
+        $offset = $match[0][1];
+        $body = substr($inner, 0, $offset) . substr($inner, $offset + strlen($summary));
+
+        return [$summary, $body];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<AstNode>|null
+     */
     private function tryReadRawHtmlSingleLineContainerBlock(array $lines, int &$index): ?array
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}(<(del|button)(?:\s+[^>]*)?>)(.*)(<\/\2\s*>)[ \t]*$/iu', $line, $m) !== 1) {
+        $tags = ($this->options['suppressStandaloneButtonInline'] ?? false) ? 'del|button' : 'del';
+        if (preg_match('/^ {0,3}(<(' . $tags . ')(?:\s+[^>]*)?>)(.*)(<\/\2\s*>)[ \t]*$/iu', $line, $m) !== 1) {
             return null;
         }
 
@@ -1610,7 +1863,14 @@ final class MarkdownReader
             }
         }
 
-        return null;
+        $document = $content === [] ? null : $this->parseHtmlDocument(implode("\n", $content));
+        if ($document === null) {
+            return null;
+        }
+
+        $index = $count - 1;
+
+        return $document;
     }
 
     private function parseHtmlDocument(string $html): ?AstNode
@@ -1632,7 +1892,377 @@ final class MarkdownReader
             return null;
         }
 
-        return new AstNode('document', $this->htmlDocumentAttrs($dom), $this->parseHtmlBlockChildren($body));
+        $previousHtmlBaseHref = $this->htmlBaseHref;
+        $previousHtmlFootnoteDefinitions = $this->htmlFootnoteDefinitions;
+        $this->htmlBaseHref = $this->htmlDocumentBaseHref($dom);
+        $this->htmlFootnoteDefinitions = $this->collectHtmlFootnoteDefinitions($body);
+        try {
+            $attrs = $this->htmlDocumentAttrs($dom);
+            if ($this->htmlNativeDivsEnabled()) {
+                $main = $this->firstHtmlMainElement($body);
+                if ($main instanceof \DOMElement) {
+                    return new AstNode('document', $attrs, $this->htmlNativeDivsMainBlocks($main));
+                }
+            }
+
+            return new AstNode('document', $attrs, $this->parseHtmlBlockChildren($body));
+        } finally {
+            $this->htmlBaseHref = $previousHtmlBaseHref;
+            $this->htmlFootnoteDefinitions = $previousHtmlFootnoteDefinitions;
+        }
+    }
+
+    /**
+     * @return array<string, list<AstNode>>
+     */
+    private function collectHtmlFootnoteDefinitions(\DOMElement $body): array
+    {
+        $definitions = [];
+        foreach ($this->htmlFootnoteContainers($body) as $container) {
+            foreach ($container->getElementsByTagName('*') as $candidate) {
+                if (!$candidate instanceof \DOMElement || !$this->isHtmlFootnoteItemElement($candidate)) {
+                    continue;
+                }
+
+                $id = trim($candidate->getAttribute('id'));
+                if ($id === '' || isset($definitions[$id])) {
+                    continue;
+                }
+
+                $clone = $candidate->cloneNode(true);
+                if (!$clone instanceof \DOMElement) {
+                    continue;
+                }
+
+                $this->removeHtmlFootnoteBacklinks($clone);
+                $definitions[$id] = $this->parseHtmlBlockChildren($clone);
+            }
+        }
+
+        return $definitions;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function htmlFootnoteContainers(\DOMElement $root): array
+    {
+        $containers = [];
+        if ($this->isHtmlFootnoteContainer($root)) {
+            $containers[] = $root;
+        }
+
+        foreach ($root->getElementsByTagName('*') as $candidate) {
+            if ($candidate instanceof \DOMElement && $this->isHtmlFootnoteContainer($candidate)) {
+                $containers[] = $candidate;
+            }
+        }
+
+        return $containers;
+    }
+
+    private function isHtmlFootnoteContainer(\DOMElement $element): bool
+    {
+        if (strtolower(trim($element->getAttribute('role'))) === 'doc-endnotes') {
+            return true;
+        }
+
+        return in_array($this->htmlSemanticType($element), ['footnotes', 'rearnotes'], true);
+    }
+
+    private function isHtmlFootnoteItemElement(\DOMElement $element): bool
+    {
+        if (trim($element->getAttribute('id')) === '') {
+            return false;
+        }
+
+        $name = strtolower($element->localName);
+        if ($name === 'li') {
+            return true;
+        }
+
+        return in_array($this->htmlSemanticType($element), ['footnote', 'rearnote'], true);
+    }
+
+    private function isHtmlNoteReferenceElement(\DOMElement $element): bool
+    {
+        if (strtolower(trim($element->getAttribute('role'))) === 'doc-noteref') {
+            return true;
+        }
+
+        return $this->htmlSemanticType($element) === 'noteref';
+    }
+
+    private function htmlSemanticType(\DOMElement $element): string
+    {
+        $type = trim($element->getAttribute('type'));
+        if ($type === '') {
+            $type = trim($element->getAttribute('epub:type'));
+        }
+
+        return strtolower($type);
+    }
+
+    private function removeHtmlFootnoteBacklinks(\DOMElement $root): void
+    {
+        $links = [];
+        foreach ($root->getElementsByTagName('a') as $link) {
+            if ($link instanceof \DOMElement && strtolower(trim($link->getAttribute('role'))) === 'doc-backlink') {
+                $links[] = $link;
+            }
+        }
+
+        foreach ($links as $link) {
+            $link->parentNode?->removeChild($link);
+        }
+    }
+
+    private function htmlNativeDivsEnabled(): bool
+    {
+        return (bool) ($this->options['htmlNativeDivs'] ?? false);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadHtmlNativeDivsMainBlock(array $lines, int &$index): ?AstNode
+    {
+        if (!$this->htmlNativeDivsEnabled()) {
+            return null;
+        }
+
+        $line = $lines[$index] ?? '';
+        if (preg_match('/<main\b/i', $line) !== 1) {
+            return null;
+        }
+
+        $content = [];
+        $count = count($lines);
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            $line = $this->normalizeRawHtmlLine($lines[$cursor]);
+            if ($cursor > $index && trim($line) === '') {
+                break;
+            }
+
+            $content[] = $line;
+            [$started, $depth] = $this->htmlElementBalance(implode("\n", $content), 'main');
+            if ($started && $depth === 0) {
+                break;
+            }
+        }
+
+        if ($content === []) {
+            return null;
+        }
+
+        $document = $this->parseHtmlNativeDivsFragment(implode("\n", $content));
+        if (!$document instanceof AstNode) {
+            return null;
+        }
+
+        $index += count($content) - 1;
+
+        return $document;
+    }
+
+    private function parseHtmlNativeDivsFragment(string $html): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $main = $this->firstHtmlMainElement($body);
+        if (!$main instanceof \DOMElement) {
+            return null;
+        }
+
+        return new AstNode('document', [], $this->htmlNativeDivsMainBlocks($main));
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadHtmlNativeDivsHeaderBlock(array $lines, int &$index): ?AstNode
+    {
+        if (!$this->htmlNativeDivsEnabled()) {
+            return null;
+        }
+
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<header\b/i', $line) !== 1) {
+            return null;
+        }
+
+        $collected = $this->collectBalancedHtmlElementBlock($lines, $index, 'header');
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $header = $this->parseHtmlNativeDivsHeaderFragment($html);
+        if ($header === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $header;
+    }
+
+    private function parseHtmlNativeDivsHeaderFragment(string $html): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $header = $this->firstChildElement($body, 'header');
+        if (!$header instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->buildHtmlNativeHeaderDivNode($header);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadHtmlNativeDivsContainerBlock(array $lines, int &$index): ?AstNode
+    {
+        if (!$this->htmlNativeDivsEnabled()) {
+            return null;
+        }
+
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<(section|aside)\b/i', $line, $match) !== 1) {
+            return null;
+        }
+
+        $tag = strtolower($match[1]);
+        if ($tag === 'button' && ($this->options['suppressStandaloneButtonInline'] ?? false)) {
+            return null;
+        }
+
+        $collected = $this->collectBalancedHtmlElementBlock($lines, $index, $tag);
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $container = $this->parseHtmlNativeDivsContainerFragment($html, $tag);
+        if ($container === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $container;
+    }
+
+    private function parseHtmlNativeDivsContainerFragment(string $html, string $tag): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $container = $this->firstChildElement($body, $tag);
+        if (!$container instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->buildHtmlNativeDivNode($container);
+    }
+
+    private function firstHtmlMainElement(\DOMElement $root): ?\DOMElement
+    {
+        if (strtolower($root->localName) === 'main') {
+            return $root;
+        }
+
+        foreach ($root->getElementsByTagName('main') as $main) {
+            if ($main instanceof \DOMElement) {
+                return $main;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function htmlNativeDivsMainBlocks(\DOMElement $main): array
+    {
+        $attrs = $this->htmlNativeMainAttrs($main);
+        $children = $this->htmlNativeDivChildren($main, (string) ($attrs['id'] ?? ''));
+        if ($attrs === []) {
+            return $children;
+        }
+
+        return [new AstNode('div', $attrs, $children)];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlNativeMainAttrs(\DOMElement $main): array
+    {
+        $attrs = $this->htmlElementPandocAttrs($main);
+        if ($attrs !== [] && !$main->hasAttribute('role')) {
+            $attributes = $attrs['attributes'] ?? [];
+            if (!is_array($attributes)) {
+                $attributes = [];
+            }
+            $attributes['role'] = 'main';
+            $attrs['attributes'] = $attributes;
+
+            $htmlAttributes = $attrs['htmlAttributes'] ?? [];
+            if (!is_array($htmlAttributes)) {
+                $htmlAttributes = [];
+            }
+            $htmlAttributes['role'] = 'main';
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
     }
 
     /**
@@ -1641,6 +2271,11 @@ final class MarkdownReader
     private function htmlDocumentAttrs(\DOMDocument $dom): array
     {
         $meta = [];
+        $lang = $this->htmlDocumentLang($dom);
+        if ($lang !== '') {
+            $meta['lang'] = $lang;
+        }
+
         $titles = $dom->getElementsByTagName('title');
         $title = $titles->item(0);
         if ($title instanceof \DOMElement) {
@@ -1667,6 +2302,42 @@ final class MarkdownReader
         }
 
         return $meta === [] ? [] : ['meta' => $meta];
+    }
+
+    private function htmlDocumentLang(\DOMDocument $dom): string
+    {
+        $html = $dom->getElementsByTagName('html')->item(0);
+        if (!$html instanceof \DOMElement) {
+            return '';
+        }
+
+        $lang = trim($html->getAttribute('lang'));
+        if ($lang !== '') {
+            return $lang;
+        }
+
+        $xmlLang = $html->attributes?->getNamedItem('xml:lang');
+        if ($xmlLang instanceof \DOMNode) {
+            return trim($xmlLang->nodeValue ?? '');
+        }
+
+        return '';
+    }
+
+    private function htmlDocumentBaseHref(\DOMDocument $dom): ?string
+    {
+        foreach ($dom->getElementsByTagName('base') as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $href = trim($node->getAttribute('href'));
+            if ($href !== '') {
+                return $href;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1748,46 +2419,6 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     */
-    private function tryReadHtmlInlineFragmentBlock(array $lines, int &$index): ?AstNode
-    {
-        $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<br\b[^>]*>/i', $line) !== 1) {
-            return null;
-        }
-
-        return $this->parseHtmlInlineFragmentParagraph(trim($line));
-    }
-
-    private function parseHtmlInlineFragmentParagraph(string $html): ?AstNode
-    {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
-        if (!$body instanceof \DOMElement) {
-            return null;
-        }
-
-        $blocks = $this->parseHtmlBlockChildren($body);
-        if (count($blocks) !== 1 || $blocks[0]->type !== 'paragraph') {
-            return null;
-        }
-
-        return $blocks[0];
-    }
-
-    /**
-     * @param list<string> $lines
      * @return array{0:string, 1:int}|null
      */
     private function collectHtmlParagraphBlock(array $lines, int $index): ?array
@@ -1817,7 +2448,7 @@ final class MarkdownReader
     private function htmlLineStartsImplicitParagraphClose(string $line): bool
     {
         return preg_match(
-            '/^ {0,3}<(?:p|h[1-6]|ul|ol|dl|blockquote|pre|table|div|hr)\b/i',
+            '/^ {0,3}<(?:p|h[1-6]|ul|ol|dl|blockquote|pre|table|div|figure|hr)\b/i',
             $line
         ) === 1;
     }
@@ -1873,6 +2504,93 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
+    private function tryReadHtmlInlineFragmentBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<br\b[^>]*>/i', $line) === 1) {
+            return $this->parseHtmlInlineFragmentParagraph(trim($line));
+        }
+
+        if (preg_match('/^ {0,3}<(abbr|applet|audio|b|bdo|button|cite|code|del|dfn|em|i|ins|kbd|map|mark|noscript|object|progress|q|s|samp|small|source|span|strike|strong|sub|sup|svg|time|track|tt|u|var|video|embed)\b/i', $line, $match) !== 1) {
+            return null;
+        }
+
+        $tag = strtolower($match[1]);
+        if ($tag === 'button' && ($this->options['suppressStandaloneButtonInline'] ?? false)) {
+            return null;
+        }
+
+        $collected = $this->collectBalancedHtmlElementBlock($lines, $index, $tag);
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $paragraph = $this->parseHtmlInlineFragmentParagraph($html);
+        if ($paragraph === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $paragraph;
+    }
+
+    private function parseHtmlInlineFragmentParagraph(string $html): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $blocks = $this->parseHtmlBlockChildren($body);
+        if (count($blocks) !== 1 || $blocks[0]->type !== 'paragraph') {
+            return null;
+        }
+
+        return $blocks[0];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlInlineFragmentNodes(string $html): array
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return [];
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return [];
+        }
+
+        return $this->parseHtmlInlineChildren($body);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
     private function tryReadHtmlHorizontalRuleBlock(array $lines, int &$index): ?AstNode
     {
         $line = $this->normalizeRawHtmlLine($lines[$index] ?? '');
@@ -1907,6 +2625,85 @@ final class MarkdownReader
         $index = $endIndex;
 
         return $quote;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadHtmlFigureBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<figure\b/i', $line) !== 1) {
+            return null;
+        }
+
+        $collected = $this->collectBalancedHtmlElementBlock($lines, $index, 'figure');
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $figure = $this->parseHtmlFigureBlock($html);
+        if ($figure === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $figure;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadHtmlIframeBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<iframe\b/i', $line) !== 1) {
+            return null;
+        }
+
+        $collected = $this->collectBalancedHtmlElementBlock($lines, $index, 'iframe');
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $iframe = $this->parseHtmlIframeBlock($html);
+        if ($iframe === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $iframe;
+    }
+
+    private function parseHtmlIframeBlock(string $html): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $iframe = $this->firstChildElement($body, 'iframe');
+        if (!$iframe instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->buildHtmlIframeNode($iframe);
     }
 
     /**
@@ -2098,20 +2895,46 @@ final class MarkdownReader
     private function buildHtmlPreCodeBlock(\DOMElement $pre): ?AstNode
     {
         $code = $this->firstChildElement($pre, 'code');
-        if (!$code instanceof \DOMElement) {
-            return null;
-        }
 
-        $text = str_replace(["\r\n", "\r"], "\n", $code->textContent);
+        $text = str_replace(["\r\n", "\r"], "\n", $this->htmlPreCodeText($pre));
         if (str_ends_with($text, "\n")) {
             $text = substr($text, 0, -1);
         }
 
-        return new AstNode('code_block', [
-            'classes' => $this->htmlCodeBlockClasses($code),
-            'attributes' => [],
-            'text' => $text,
-        ]);
+        $preAttrs = $this->htmlElementPandocAttrs($pre);
+        if ($preAttrs !== [] || !$code instanceof \DOMElement) {
+            $attrs = $preAttrs;
+        } else {
+            $attrs = $this->htmlCodeBlockAttrs($code);
+        }
+        if (!isset($attrs['attributes'])) {
+            $attrs['attributes'] = [];
+        }
+        $attrs['text'] = $text;
+
+        return new AstNode('code_block', $attrs);
+    }
+
+    private function htmlPreCodeText(\DOMNode $node): string
+    {
+        $text = '';
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                $text .= $child->nodeValue ?? '';
+                continue;
+            }
+
+            if ($child instanceof \DOMElement) {
+                if (strtolower($child->localName) === 'br') {
+                    $text .= "\n";
+                    continue;
+                }
+
+                $text .= $this->htmlPreCodeText($child);
+            }
+        }
+
+        return $text;
     }
 
     private function parseHtmlBlockQuoteBlock(string $html): ?AstNode
@@ -2139,6 +2962,33 @@ final class MarkdownReader
         }
 
         return $this->buildHtmlBlockQuoteNode($quote);
+    }
+
+    private function parseHtmlFigureBlock(string $html): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $figure = $this->firstChildElement($body, 'figure');
+        if (!$figure instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->buildHtmlFigureNode($figure);
     }
 
     private function parseHtmlListBlock(string $html, string $tag): ?AstNode
@@ -2208,6 +3058,10 @@ final class MarkdownReader
         $blocks = [];
         $inlines = [];
         foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isHtmlFootnoteContainer($child)) {
+                continue;
+            }
+
             if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
                 $this->flushHtmlInlineParagraph($inlines, $blocks);
                 $block = $this->parseHtmlBlockElement($child);
@@ -2231,6 +3085,9 @@ final class MarkdownReader
             'blockquote',
             'div',
             'dl',
+            'figure',
+            'iframe',
+            ...($this->htmlNativeDivsEnabled() ? ['aside', 'header', 'main', 'section'] : []),
             'h1',
             'h2',
             'h3',
@@ -2241,7 +3098,10 @@ final class MarkdownReader
             'ol',
             'p',
             'pre',
+            'script',
+            'style',
             'table',
+            'textarea',
             'ul',
         ], true);
     }
@@ -2267,8 +3127,46 @@ final class MarkdownReader
         if ($name === 'table') {
             return $this->parseHtmlTableElement($element);
         }
+        if ($name === 'figure') {
+            return $this->buildHtmlFigureNode($element);
+        }
+        if ($name === 'iframe') {
+            return $this->buildHtmlIframeNode($element);
+        }
+        if ($name === 'script') {
+            $math = $this->buildHtmlScriptMathNode($element);
+            if ($math instanceof AstNode) {
+                return new AstNode('plain', ['text' => (string) $math->attr('text', '')], [$math]);
+            }
+
+            if (!$this->htmlRawHtmlEnabled()) {
+                return null;
+            }
+
+            return $this->buildHtmlRawBlockNode($element);
+        }
+        if ($name === 'textarea') {
+            if (!$this->htmlRawHtmlEnabled()) {
+                return null;
+            }
+
+            return $this->buildHtmlRawBlockNode($element);
+        }
+        if ($name === 'style') {
+            if (!$this->htmlRawHtmlEnabled()) {
+                return null;
+            }
+
+            return $this->buildHtmlRawBlockNode($element);
+        }
+        if ($name === 'div' && $this->isHtmlLineBlockDiv($element)) {
+            return $this->buildHtmlLineBlockNode($element);
+        }
         if ($name === 'div') {
             return new AstNode('div', $this->htmlElementPandocAttrs($element), $this->parseHtmlBlockChildren($element));
+        }
+        if ($this->htmlNativeDivsEnabled() && in_array($name, ['aside', 'header', 'main', 'section'], true)) {
+            return $this->buildHtmlNativeDivNode($element);
         }
         if ($name === 'hr') {
             return new AstNode('horizontal_rule');
@@ -2298,6 +3196,465 @@ final class MarkdownReader
             ['text' => $this->plainTextFromInlines($children)],
             $children
         );
+    }
+
+    private function isHtmlLineBlockDiv(\DOMElement $element): bool
+    {
+        if (strtolower($element->localName) !== 'div' || trim($element->getAttribute('class')) !== 'line-block') {
+            return false;
+        }
+
+        foreach ($element->attributes as $attribute) {
+            if ($attribute instanceof \DOMAttr && strtolower($attribute->name) !== 'class') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function buildHtmlLineBlockNode(\DOMElement $element): AstNode
+    {
+        return $this->buildHtmlLineBlockFromInlines($this->parseHtmlInlineChildren($element));
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function buildHtmlLineBlockFromInlines(array $inlines): AstNode
+    {
+        $lines = [];
+        $current = [];
+        $lastWasLineBreak = false;
+        foreach ($this->trimHtmlLineBlockInlines($inlines) as $inline) {
+            if ($inline->type === 'softbreak') {
+                continue;
+            }
+
+            if ($inline->type === 'linebreak') {
+                $lines[] = $this->buildHtmlLineBlockLine($current);
+                $current = [];
+                $lastWasLineBreak = true;
+                continue;
+            }
+
+            $current[] = $inline;
+            $lastWasLineBreak = false;
+        }
+
+        if ($current !== [] || !$lastWasLineBreak || $lines === []) {
+            $lines[] = $this->buildHtmlLineBlockLine($current);
+        }
+
+        return new AstNode('line_block', [], $lines);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function buildHtmlLineBlockLine(array $inlines): AstNode
+    {
+        return new AstNode('line', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @return list<AstNode>
+     */
+    private function trimHtmlLineBlockInlines(array $inlines): array
+    {
+        while ($inlines !== []) {
+            $first = $inlines[array_key_first($inlines)];
+            if ($first->type !== 'text') {
+                break;
+            }
+
+            $text = ltrim((string) $first->attr('text', ''), " \t\r\n");
+            if ($text !== '') {
+                $inlines[array_key_first($inlines)] = new AstNode('text', array_merge($first->attrs, ['text' => $text]), $first->children);
+                break;
+            }
+
+            array_shift($inlines);
+        }
+
+        while ($inlines !== []) {
+            $lastKey = array_key_last($inlines);
+            $last = $inlines[$lastKey];
+            if ($last->type !== 'text') {
+                break;
+            }
+
+            $text = rtrim((string) $last->attr('text', ''), " \t\r\n");
+            if ($text !== '') {
+                $inlines[$lastKey] = new AstNode('text', array_merge($last->attrs, ['text' => $text]), $last->children);
+                break;
+            }
+
+            array_pop($inlines);
+        }
+
+        return array_values($inlines);
+    }
+
+    private function buildHtmlFigureNode(\DOMElement $figure): AstNode
+    {
+        $captionBlocks = [];
+        $bodyBlocks = [];
+        $inlines = [];
+
+        foreach ($figure->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower($child->localName) === 'figcaption') {
+                $this->flushHtmlFigureInlines($inlines, $bodyBlocks);
+                array_push($captionBlocks, ...$this->parseHtmlFigureCaptionBlocks($child));
+                continue;
+            }
+
+            if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
+                $this->flushHtmlFigureInlines($inlines, $bodyBlocks);
+                $block = $this->parseHtmlBlockElement($child);
+                if ($block instanceof AstNode) {
+                    $bodyBlocks[] = $block;
+                }
+                continue;
+            }
+
+            $this->appendHtmlInlineNodes($inlines, $this->parseHtmlInlineNode($child));
+        }
+
+        $this->flushHtmlFigureInlines($inlines, $bodyBlocks);
+
+        $attrs = $this->htmlElementPandocAttrs($figure);
+        $attrs['caption'] = $this->plainTextFromBlocks($captionBlocks);
+        if ($captionBlocks !== []) {
+            $attrs['captionBlocks'] = $captionBlocks;
+            $captionInlines = $this->captionInlinesFromBlocks($captionBlocks);
+            if ($captionInlines !== []) {
+                $attrs['captionInlines'] = $captionInlines;
+            }
+        }
+
+        return new AstNode('figure', $attrs, $bodyBlocks);
+    }
+
+    private function buildHtmlIframeNode(\DOMElement $iframe): ?AstNode
+    {
+        $rawUrl = trim($iframe->getAttribute('src'));
+        if ($rawUrl === '') {
+            return null;
+        }
+
+        $url = $this->resolveHtmlUrl($rawUrl);
+        $resource = $this->htmlIframeResource($url) ?? $this->htmlIframeResource($rawUrl);
+        if ($resource === null) {
+            return null;
+        }
+
+        $mime = strtolower(trim($resource['mime']));
+        if (str_starts_with($mime, 'text/html')) {
+            $document = $this->parseHtmlDocument($resource['body']);
+
+            return new AstNode('div', $this->htmlIframeDivAttrs(), $document?->children ?? []);
+        }
+
+        if (str_starts_with($mime, 'image/')) {
+            return new AstNode('div', $this->htmlIframeDivAttrs(), [
+                new AstNode('plain', [], [
+                    new AstNode('image', [
+                        'url' => $url,
+                        'title' => '',
+                        'alt' => '',
+                    ]),
+                ]),
+            ]);
+        }
+
+        return new AstNode('div', $this->htmlIframeDivAttrs(['src' => $url]));
+    }
+
+    /**
+     * @return array{mime:string, body:string}|null
+     */
+    private function htmlIframeResource(string $url): ?array
+    {
+        $resources = $this->options['htmlIframeResources'] ?? [];
+        if (!is_array($resources) || !array_key_exists($url, $resources)) {
+            return null;
+        }
+
+        $resource = $resources[$url];
+        if (is_string($resource)) {
+            return [
+                'mime' => 'text/html',
+                'body' => $resource,
+            ];
+        }
+
+        if (!is_array($resource)) {
+            return null;
+        }
+
+        $body = $resource['body'] ?? $resource['content'] ?? '';
+        if (!is_string($body)) {
+            return null;
+        }
+
+        $mime = $resource['mime'] ?? $resource['contentType'] ?? 'application/octet-stream';
+        if (!is_string($mime) || trim($mime) === '') {
+            $mime = 'application/octet-stream';
+        }
+
+        return [
+            'mime' => $mime,
+            'body' => $body,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private function htmlIframeDivAttrs(array $attributes = []): array
+    {
+        $htmlAttributes = ['class' => 'iframe'];
+        foreach ($attributes as $name => $value) {
+            $htmlAttributes[$name] = $value;
+        }
+
+        $attrs = [
+            'classes' => ['iframe'],
+            'htmlAttributes' => $htmlAttributes,
+        ];
+        if ($attributes !== []) {
+            $attrs['attributes'] = $attributes;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlFigureCaptionBlocks(\DOMElement $caption): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($caption->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
+                $this->flushHtmlFigureInlines($inlines, $blocks);
+                $block = $this->parseHtmlBlockElement($child);
+                if ($block instanceof AstNode) {
+                    $blocks[] = $block;
+                }
+                continue;
+            }
+
+            $this->appendHtmlInlineNodes($inlines, $this->parseHtmlInlineNode($child));
+        }
+
+        $this->flushHtmlFigureInlines($inlines, $blocks);
+
+        return $blocks;
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param list<AstNode> $blocks
+     */
+    private function flushHtmlFigureInlines(array &$inlines, array &$blocks): void
+    {
+        $text = trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($inlines)) ?? '');
+        if ($text !== '' || $this->htmlInlinesContainNonText($inlines)) {
+            $blocks[] = new AstNode('plain', ['text' => $text], $inlines);
+        }
+
+        $inlines = [];
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function htmlInlinesContainNonText(array $inlines): bool
+    {
+        foreach ($inlines as $inline) {
+            if (!in_array($inline->type, ['text', 'softbreak', 'linebreak'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function plainTextFromBlocks(array $blocks): string
+    {
+        $parts = [];
+        foreach ($blocks as $block) {
+            $text = $block->children === []
+                ? (string) $block->attr('text', '')
+                : $this->plainTextFromInlines($block->children);
+            $text = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function captionInlinesFromBlocks(array $blocks): array
+    {
+        $inlines = [];
+        foreach ($blocks as $index => $block) {
+            if ($index > 0) {
+                $inlines[] = new AstNode('softbreak');
+            }
+
+            if ($block->children !== []) {
+                array_push($inlines, ...$block->children);
+                continue;
+            }
+
+            $text = (string) $block->attr('text', '');
+            if ($text !== '') {
+                $inlines[] = new AstNode('text', ['text' => $text]);
+            }
+        }
+
+        return $inlines;
+    }
+
+    private function buildHtmlNativeHeaderDivNode(\DOMElement $header): AstNode
+    {
+        return $this->buildHtmlNativeDivNode($header);
+    }
+
+    private function buildHtmlNativeDivNode(\DOMElement $element): AstNode
+    {
+        $attrs = $this->htmlNativeDivAttrs($element);
+
+        return new AstNode(
+            'div',
+            $attrs,
+            $this->htmlNativeDivChildren($element, (string) ($attrs['id'] ?? ''))
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlNativeDivAttrs(\DOMElement $element): array
+    {
+        return match (strtolower($element->localName)) {
+            'aside' => $this->htmlNativeClassedDivAttrs($element, 'aside'),
+            'header' => $this->htmlNativeHeaderAttrs($element),
+            'main' => $this->htmlNativeMainAttrs($element),
+            'section' => $this->htmlNativeClassedDivAttrs($element, 'section'),
+            default => $this->htmlElementPandocAttrs($element),
+        };
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function htmlNativeDivChildren(\DOMElement $element, string $containerId): array
+    {
+        $children = $this->parseHtmlBlockChildren($element);
+        $first = $children[0] ?? null;
+        if ($containerId === '' || !$first instanceof AstNode || $first->type !== 'heading' || $first->attr('id', '') !== $containerId) {
+            return $children;
+        }
+
+        $attrs = $first->attrs;
+        unset($attrs['id']);
+        $htmlAttributes = $attrs['htmlAttributes'] ?? null;
+        if (is_array($htmlAttributes)) {
+            unset($htmlAttributes['id']);
+            if ($htmlAttributes === []) {
+                unset($attrs['htmlAttributes']);
+            } else {
+                $attrs['htmlAttributes'] = $htmlAttributes;
+            }
+        }
+        $children[0] = new AstNode($first->type, $attrs, $first->children);
+
+        return $children;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlNativeClassedDivAttrs(\DOMElement $element, string $nativeClass): array
+    {
+        $attrs = $this->htmlElementPandocAttrs($element);
+        $classes = $attrs['classes'] ?? [];
+        if (!is_array($classes)) {
+            $classes = [];
+        }
+        if (!in_array($nativeClass, $classes, true)) {
+            array_unshift($classes, $nativeClass);
+        }
+        $attrs['classes'] = $classes;
+
+        $htmlAttributes = $attrs['htmlAttributes'] ?? [];
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+        $orderedHtmlAttributes = [];
+        if (isset($htmlAttributes['id'])) {
+            $orderedHtmlAttributes['id'] = $htmlAttributes['id'];
+        }
+        $orderedHtmlAttributes['class'] = implode(' ', $classes);
+        foreach ($htmlAttributes as $name => $value) {
+            if ($name === 'id' || $name === 'class') {
+                continue;
+            }
+            $orderedHtmlAttributes[$name] = $value;
+        }
+        $attrs['htmlAttributes'] = $orderedHtmlAttributes;
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlNativeHeaderAttrs(\DOMElement $header): array
+    {
+        $attrs = $this->htmlElementPandocAttrs($header);
+        $classes = $attrs['classes'] ?? [];
+        if (!is_array($classes)) {
+            $classes = [];
+        }
+        if (!in_array('header', $classes, true)) {
+            $classes[] = 'header';
+        }
+        $attrs['classes'] = $classes;
+
+        $htmlAttributes = $attrs['htmlAttributes'] ?? [];
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+        $orderedHtmlAttributes = [];
+        if (isset($htmlAttributes['id'])) {
+            $orderedHtmlAttributes['id'] = $htmlAttributes['id'];
+        }
+        $orderedHtmlAttributes['class'] = implode(' ', $classes);
+        foreach ($htmlAttributes as $name => $value) {
+            if ($name === 'id' || $name === 'class') {
+                continue;
+            }
+            $orderedHtmlAttributes[$name] = $value;
+        }
+        $attrs['htmlAttributes'] = $orderedHtmlAttributes;
+
+        return $attrs;
     }
 
     /**
@@ -2334,26 +3691,135 @@ final class MarkdownReader
         $ordered = strtolower($list->localName) === 'ol';
         $items = [];
         $loose = false;
-        foreach ($this->childElements($list, 'li') as $itemElement) {
-            $children = $this->parseHtmlListItemChildren($itemElement);
-            $itemLoose = $this->htmlListItemIsLoose($children);
-            $loose = $loose || $itemLoose;
-            $items[] = new AstNode(
-                'list_item',
-                [
-                    'text' => trim(preg_replace('/\s+/', ' ', $itemElement->textContent) ?? $itemElement->textContent),
-                    'loose' => $itemLoose,
-                ],
-                $children
+        $leadingOrphans = [];
+        foreach ($list->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower($child->localName) === 'li') {
+                if ($leadingOrphans !== []) {
+                    $items[] = $this->buildHtmlListItemNode($leadingOrphans);
+                    $leadingOrphans = [];
+                }
+
+                $children = $this->parseHtmlListItemChildren($child);
+                [$children, $taskChecked] = $this->extractHtmlListItemTaskMarker($children);
+                $children = $this->applyHtmlListItemId($child, $children);
+                $items[] = $this->buildHtmlListItemNode($children, $taskChecked);
+                continue;
+            }
+
+            $orphans = $this->parseHtmlListOrphanChild($child);
+            if ($orphans === []) {
+                continue;
+            }
+
+            $lastIndex = array_key_last($items);
+            if ($lastIndex === null) {
+                array_push($leadingOrphans, ...$orphans);
+                continue;
+            }
+
+            $item = $items[$lastIndex];
+            $taskChecked = $item->attr('taskChecked', null);
+            $items[$lastIndex] = $this->buildHtmlListItemNode(
+                [...$item->children, ...$orphans],
+                is_bool($taskChecked) ? $taskChecked : null
             );
+        }
+
+        if ($leadingOrphans !== []) {
+            $items[] = $this->buildHtmlListItemNode($leadingOrphans);
+        }
+
+        foreach ($items as $item) {
+            $loose = $loose || (bool) $item->attr('loose', false);
         }
 
         $attrs = ['loose' => $loose];
         if ($ordered) {
             $attrs = array_merge($attrs, $this->htmlOrderedListAttrs($list));
+        } elseif ($this->allListItemsAreTasks($items)) {
+            $attrs['taskList'] = true;
         }
 
         return new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $items);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function buildHtmlListItemNode(array $children, ?bool $taskChecked = null): AstNode
+    {
+        $itemLoose = $this->htmlListItemIsLoose($children);
+        $attrs = [
+            'text' => $this->plainTextFromListItemChildren($children),
+            'loose' => $itemLoose,
+        ];
+        if ($taskChecked !== null) {
+            $attrs['taskChecked'] = $taskChecked;
+        }
+
+        return new AstNode('list_item', $attrs, $children);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlListOrphanChild(\DOMNode $child): array
+    {
+        if ($child instanceof \DOMText && trim($child->wholeText) === '') {
+            return [];
+        }
+
+        if ($child instanceof \DOMElement && $this->isHtmlFootnoteContainer($child)) {
+            return [];
+        }
+
+        if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
+            $block = $this->parseHtmlBlockElement($child);
+            return $block instanceof AstNode ? [$block] : [];
+        }
+
+        $inlines = $this->parseHtmlInlineNode($child);
+        $text = $this->plainTextFromInlines($inlines);
+        if (trim(preg_replace('/\s+/', ' ', $text) ?? $text) === '') {
+            return [];
+        }
+
+        return $inlines;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function applyHtmlListItemId(\DOMElement $item, array $children): array
+    {
+        $id = trim($item->getAttribute('id'));
+        if ($id === '') {
+            return $children;
+        }
+
+        $inlineRun = [];
+        $cursor = 0;
+        $count = count($children);
+        while ($cursor < $count && $this->htmlListChildIsInline($children[$cursor])) {
+            $inlineRun[] = $children[$cursor];
+            $cursor++;
+        }
+
+        if ($inlineRun !== []) {
+            return [
+                new AstNode('span', [
+                    'id' => $id,
+                    'htmlAttributes' => ['id' => $id],
+                ], $inlineRun),
+                ...array_slice($children, $cursor),
+            ];
+        }
+
+        return [new AstNode('div', [
+            'id' => $id,
+            'htmlAttributes' => ['id' => $id],
+        ], $children)];
     }
 
     private function parseHtmlDefinitionListElement(\DOMElement $list): AstNode
@@ -2505,6 +3971,94 @@ final class MarkdownReader
     }
 
     /**
+     * @param list<AstNode> $children
+     * @return array{0:list<AstNode>, 1:bool|null}
+     */
+    private function extractHtmlListItemTaskMarker(array $children): array
+    {
+        if ($children === []) {
+            return [$children, null];
+        }
+
+        $first = $children[0];
+        if ($first->type === 'paragraph' || $first->type === 'plain') {
+            [$inlines, $taskChecked] = $this->stripLeadingHtmlTaskGlyph($first->children);
+            if ($taskChecked === null) {
+                return [$children, null];
+            }
+
+            $attrs = array_merge($first->attrs, ['text' => $this->plainTextFromInlines($inlines)]);
+            $children[0] = new AstNode($first->type, $attrs, $inlines);
+
+            return [$children, $taskChecked];
+        }
+
+        return $this->stripLeadingHtmlTaskGlyph($children);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return array{0:list<AstNode>, 1:bool|null}
+     */
+    private function stripLeadingHtmlTaskGlyph(array $nodes): array
+    {
+        $taskChecked = null;
+        $strippedGlyph = false;
+        $stripFollowingSpace = false;
+        $result = [];
+
+        foreach ($nodes as $node) {
+            if (!$strippedGlyph && $node->type === 'text' && $node->attr('htmlCheckboxMarker', false) === true) {
+                $text = (string) $node->attr('text', '');
+                if (preg_match('/^(\x{2610}|\x{2612})(.*)$/u', $text, $m) === 1) {
+                    $taskChecked = $m[1] === "\u{2612}";
+                    $strippedGlyph = true;
+                    $stripFollowingSpace = $m[2] === '';
+                    $rest = ltrim($m[2]);
+                    if ($rest !== '') {
+                        $result[] = new AstNode('text', array_merge($node->attrs, ['text' => $rest]), $node->children);
+                    }
+                    continue;
+                }
+            }
+
+            if ($stripFollowingSpace && $node->type === 'text') {
+                $text = ltrim((string) $node->attr('text', ''));
+                $stripFollowingSpace = false;
+                if ($text === '') {
+                    continue;
+                }
+
+                $result[] = new AstNode('text', array_merge($node->attrs, ['text' => $text]), $node->children);
+                continue;
+            }
+
+            $stripFollowingSpace = false;
+            $result[] = $node;
+        }
+
+        return [$taskChecked === null ? $nodes : $result, $taskChecked];
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function plainTextFromListItemChildren(array $children): string
+    {
+        $parts = [];
+        foreach ($children as $child) {
+            if ($this->htmlListChildIsInline($child)) {
+                $parts[] = $this->plainTextFromInlines([$child]);
+                continue;
+            }
+
+            $parts[] = (string) $child->attr('text', $this->plainTextFromInlines($child->children));
+        }
+
+        return trim(preg_replace('/\s+/', ' ', implode(' ', array_filter($parts, static fn (string $part): bool => $part !== ''))) ?? '');
+    }
+
+    /**
      * @return array{start:int, style:string, delimiter:string}
      */
     private function htmlOrderedListAttrs(\DOMElement $list): array
@@ -2593,6 +4147,27 @@ final class MarkdownReader
         }
 
         return $classes;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlCodeBlockAttrs(\DOMElement $code): array
+    {
+        $attrs = $this->htmlElementPandocAttrs($code);
+        $classes = $this->htmlCodeBlockClasses($code);
+        if ($classes !== []) {
+            $attrs['classes'] = $classes;
+
+            $htmlAttributes = $attrs['htmlAttributes'] ?? [];
+            if (!is_array($htmlAttributes)) {
+                $htmlAttributes = [];
+            }
+            $htmlAttributes['class'] = implode(' ', $classes);
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
     }
 
     /**
@@ -3287,11 +4862,61 @@ final class MarkdownReader
             return [new AstNode('text', ['text' => $text])];
         }
 
+        if ($node instanceof \DOMComment) {
+            return $this->htmlRawHtmlEnabled()
+                ? [new AstNode('raw_html_inline', ['html' => '<!--' . $node->nodeValue . '-->'])]
+                : [];
+        }
+
         if (!$node instanceof \DOMElement) {
             return [];
         }
 
         $name = strtolower($node->localName);
+        if ($name === 'svg') {
+            if (!$this->htmlRawHtmlEnabled()) {
+                return [$this->buildHtmlSvgImageNode($node)];
+            }
+
+            return [$this->buildHtmlRawInlineNode($node)];
+        }
+        if ($name === 'style') {
+            return $this->htmlRawHtmlEnabled() ? [$this->buildHtmlRawInlineNode($node)] : [];
+        }
+        if ($name === 'script') {
+            $math = $this->buildHtmlScriptMathNode($node);
+            if ($math instanceof AstNode) {
+                return [$math];
+            }
+
+            return $this->htmlRawHtmlEnabled() ? [$this->buildHtmlRawInlineNode($node)] : [];
+        }
+        if ($name === 'input') {
+            if ($this->htmlElementIsCheckboxInput($node) && $this->htmlElementIsInsideListItem($node)) {
+                return [
+                    new AstNode('text', [
+                        'text' => $node->hasAttribute('checked') ? "\u{2612}" : "\u{2610}",
+                        'htmlCheckboxMarker' => true,
+                    ]),
+                    new AstNode('text', ['text' => ' ']),
+                ];
+            }
+
+            return [];
+        }
+        if ($name === 'math') {
+            return [$this->buildHtmlMathNode($node)];
+        }
+        if ($name === 'q') {
+            return $this->parseHtmlQuoteInline($node);
+        }
+        if ($name === 'span' && $this->htmlElementIsSkippedMathRendererSpan($node)) {
+            return [];
+        }
+        if ($name === 'span' && $this->htmlElementHasClass($node, 'MJX_Assistive_MathML')) {
+            return $this->parseHtmlInlineChildren($node);
+        }
+
         $children = $this->parseHtmlInlineChildren($node);
 
         if (in_array($name, ['strong', 'b'], true)) {
@@ -3306,8 +4931,17 @@ final class MarkdownReader
         if ($name === 'sub') {
             return $this->wrapHtmlInlineWithBoundaryWhitespace('subscript', [], $children);
         }
-        if ($name === 'span' && $this->htmlElementHasSmallCapsStyle($node)) {
+        if ($name === 'span' && $this->htmlElementIsSmallCapsSpan($node)) {
             return $this->wrapHtmlInlineWithBoundaryWhitespace('small_caps', [], $children);
+        }
+        if ($name === 'span' && $this->htmlElementHasExactClass($node, 'strikeout')) {
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('strikeout', [], $children);
+        }
+        if ($name === 'small') {
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('span', ['classes' => ['small']], $children);
+        }
+        if ($name === 'bdo') {
+            return $this->parseHtmlBdoInline($node, $children);
         }
         if (in_array($name, ['u', 'ins'], true)) {
             return $this->wrapHtmlInlineWithBoundaryWhitespace('underline', [], $children);
@@ -3315,17 +4949,11 @@ final class MarkdownReader
         if (in_array($name, ['s', 'strike', 'del'], true)) {
             return $this->wrapHtmlInlineWithBoundaryWhitespace('strikeout', [], $children);
         }
-        if (in_array($name, ['code', 'kbd', 'samp'], true)) {
-            return [new AstNode('code', ['text' => trim(preg_replace('/\s+/', ' ', $node->textContent) ?? $node->textContent)])];
+        if (in_array($name, ['code', 'tt', 'samp', 'var'], true)) {
+            return [$this->buildHtmlInlineCodeNode($node, $this->htmlInlineCodeElementClasses($name))];
         }
-        if ($name === 'q') {
-            $quotedChildren = $children;
-            $attrs = $this->htmlElementPandocAttrs($node);
-            if ($attrs !== []) {
-                $quotedChildren = [new AstNode('span', $attrs, $children)];
-            }
-
-            return [new AstNode('quoted', ['kind' => 'double'], $quotedChildren)];
+        if ($this->isHtmlSpanLikeElement($name)) {
+            return [new AstNode('span', $this->htmlSpanLikeElementAttrs($node, $name), $children)];
         }
         if ($name === 'span') {
             $attrs = $this->htmlElementPandocAttrs($node);
@@ -3336,8 +4964,33 @@ final class MarkdownReader
             return $children;
         }
         if ($name === 'a') {
+            $note = $this->buildHtmlNoteReferenceNode($node);
+            if ($note instanceof AstNode) {
+                return [$note];
+            }
+
+            if (!$node->hasAttribute('href')) {
+                $attrs = $this->htmlElementPandocAttrs($node, ['name']);
+                $nameAttr = trim($node->getAttribute('name'));
+                if ($nameAttr !== '' && (string) ($attrs['id'] ?? '') === '') {
+                    $attrs['id'] = $nameAttr;
+                    $htmlAttributes = $attrs['htmlAttributes'] ?? [];
+                    if (!is_array($htmlAttributes)) {
+                        $htmlAttributes = [];
+                    }
+                    $htmlAttributes['id'] = $nameAttr;
+                    $attrs['htmlAttributes'] = $htmlAttributes;
+                }
+
+                if ($attrs !== []) {
+                    return [new AstNode('span', $attrs, $children)];
+                }
+
+                return $children;
+            }
+
             return [new AstNode('link', [
-                'url' => $node->getAttribute('href'),
+                'url' => $this->resolveHtmlUrl($node->getAttribute('href')),
                 'title' => $node->getAttribute('title'),
             ], $children)];
         }
@@ -3348,7 +5001,370 @@ final class MarkdownReader
             return [new AstNode('linebreak')];
         }
 
+        if ($this->htmlRawHtmlEnabled() && $this->htmlElementUsesGenericRawInlineFallback($node)) {
+            return $this->wrapHtmlRawInlineElement($node, $children);
+        }
+
         return $children;
+    }
+
+    private function htmlElementUsesGenericRawInlineFallback(\DOMElement $element): bool
+    {
+        return in_array(strtolower($element->localName), ['applet', 'area', 'audio', 'blink', 'button', 'cite', 'embed', 'map', 'noscript', 'object', 'progress', 'source', 'time', 'track', 'video', 'wbr'], true);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function wrapHtmlRawInlineElement(\DOMElement $element, array $children): array
+    {
+        if ($this->htmlElementIsVoid($element)) {
+            return [
+                new AstNode('raw_html_inline', ['html' => $this->renderHtmlOpeningTag($element)]),
+                ...$children,
+            ];
+        }
+
+        return [
+            new AstNode('raw_html_inline', ['html' => $this->renderHtmlOpeningTag($element)]),
+            ...$children,
+            new AstNode('raw_html_inline', ['html' => '</' . strtolower($element->localName) . '>']),
+        ];
+    }
+
+    private function htmlElementIsVoid(\DOMElement $element): bool
+    {
+        return in_array(strtolower($element->localName), [
+            'area',
+            'base',
+            'br',
+            'col',
+            'embed',
+            'hr',
+            'img',
+            'input',
+            'link',
+            'meta',
+            'param',
+            'source',
+            'track',
+            'wbr',
+        ], true);
+    }
+
+    private function renderHtmlOpeningTag(\DOMElement $element): string
+    {
+        $tag = '<' . strtolower($element->localName);
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $tag .= ' ' . strtolower($attribute->name) . '="' . htmlspecialchars($attribute->value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+        }
+
+        return $tag . '>';
+    }
+
+    private function buildHtmlNoteReferenceNode(\DOMElement $link): ?AstNode
+    {
+        if (!$this->isHtmlNoteReferenceElement($link)) {
+            return null;
+        }
+
+        $href = trim($link->getAttribute('href'));
+        if (!str_starts_with($href, '#')) {
+            return null;
+        }
+
+        $id = substr($href, 1);
+        if ($id === '') {
+            return null;
+        }
+
+        return new AstNode('note', [], $this->htmlFootnoteDefinitions[$id] ?? []);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlQuoteInline(\DOMElement $node): array
+    {
+        $kind = $this->htmlQuoteDepth % 2 === 0 ? 'double' : 'single';
+        $this->htmlQuoteDepth++;
+        try {
+            $children = $this->parseHtmlInlineChildren($node);
+        } finally {
+            $this->htmlQuoteDepth--;
+        }
+
+        $attrs = $this->htmlQuoteCiteSpanAttrs($node);
+        if ($attrs !== []) {
+            $children = [new AstNode('span', $attrs, $children)];
+        }
+
+        return $this->wrapHtmlInlineWithBoundaryWhitespace('quoted', ['kind' => $kind], $children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlQuoteCiteSpanAttrs(\DOMElement $node): array
+    {
+        if (!$node->hasAttribute('cite')) {
+            return [];
+        }
+
+        $attrs = [
+            'attributes' => [
+                'cite' => $this->resolveHtmlUrl($node->getAttribute('cite')),
+            ],
+        ];
+
+        $id = trim($node->getAttribute('name'));
+        if ($id === '') {
+            $id = trim($node->getAttribute('id'));
+        }
+        if ($id !== '') {
+            $attrs['id'] = $id;
+        }
+
+        $classes = preg_split('/\s+/', trim($node->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($classes !== []) {
+            $attrs['classes'] = array_values($classes);
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function parseHtmlBdoInline(\DOMElement $node, array $children): array
+    {
+        if (!$node->hasAttribute('dir')) {
+            return $children;
+        }
+
+        $direction = strtolower(trim($node->getAttribute('dir')));
+
+        return [new AstNode('span', ['attributes' => ['dir' => $direction]], $children)];
+    }
+
+    private function htmlRawHtmlEnabled(): bool
+    {
+        return (bool) ($this->options['htmlRawHtml'] ?? $this->options['rawHtml'] ?? true);
+    }
+
+    private function htmlElementIsCheckboxInput(\DOMElement $element): bool
+    {
+        return strtolower($element->localName) === 'input'
+            && strtolower(trim($element->getAttribute('type'))) === 'checkbox';
+    }
+
+    private function htmlElementIsInsideListItem(\DOMElement $element): bool
+    {
+        for ($parent = $element->parentNode; $parent instanceof \DOMElement; $parent = $parent->parentNode) {
+            if (strtolower($parent->localName) === 'li') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function buildHtmlSvgImageNode(\DOMElement $svg): AstNode
+    {
+        $raw = $svg->ownerDocument instanceof \DOMDocument
+            ? $svg->ownerDocument->saveHTML($svg)
+            : '';
+        if (!is_string($raw) || $raw === '') {
+            $raw = '<svg></svg>';
+        }
+
+        $attrs = [
+            'url' => 'data:image/svg+xml;base64,' . base64_encode(trim($raw)),
+            'alt' => '',
+            'title' => '',
+        ];
+
+        $id = trim($svg->getAttribute('id'));
+        if ($id !== '') {
+            $attrs['id'] = $id;
+        }
+
+        $classes = preg_split('/\s+/', trim($svg->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($classes !== []) {
+            $attrs['classes'] = array_values($classes);
+        }
+
+        if (array_intersect($classes, ['fa-w-14', 'fa-w-16', 'fa-fw']) !== []) {
+            $attrs['attributes'] = ['width' => '1em'];
+        }
+
+        return new AstNode('image', $attrs);
+    }
+
+    private function buildHtmlRawInlineNode(\DOMElement $element): AstNode
+    {
+        $raw = $element->ownerDocument instanceof \DOMDocument
+            ? $element->ownerDocument->saveHTML($element)
+            : '';
+        if (!is_string($raw) || $raw === '') {
+            $raw = '<' . strtolower($element->localName) . '></' . strtolower($element->localName) . '>';
+        }
+
+        return new AstNode('raw_html_inline', ['html' => trim($raw)]);
+    }
+
+    private function buildHtmlRawBlockNode(\DOMElement $element): AstNode
+    {
+        return new AstNode('raw_html', ['html' => (string) $this->buildHtmlRawInlineNode($element)->attr('html', '')]);
+    }
+
+    private function buildHtmlScriptMathNode(\DOMElement $script): ?AstNode
+    {
+        $type = trim($script->getAttribute('type'));
+        $normalized = strtolower($type);
+        if (!str_starts_with($normalized, 'math/tex')) {
+            return null;
+        }
+
+        return new AstNode('math', [
+            'display' => str_ends_with($normalized, 'display'),
+            'text' => $script->textContent,
+        ]);
+    }
+
+    private function buildHtmlMathNode(\DOMElement $math): AstNode
+    {
+        $tex = $this->htmlMathTexAnnotation($math);
+        if ($tex !== null) {
+            return new AstNode('math', [
+                'display' => strtolower(trim($math->getAttribute('display'))) === 'block',
+                'text' => $tex,
+            ]);
+        }
+
+        $attrs = $this->htmlElementPandocAttrs($math);
+        $classes = $attrs['classes'] ?? [];
+        if (!is_array($classes)) {
+            $classes = [];
+        }
+        if (!in_array('math', $classes, true)) {
+            array_unshift($classes, 'math');
+        }
+        $attrs['classes'] = array_values($classes);
+
+        $htmlAttributes = $attrs['htmlAttributes'] ?? [];
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+        $htmlAttributes['class'] = implode(' ', $attrs['classes']);
+        $attrs['htmlAttributes'] = $htmlAttributes;
+
+        return new AstNode('span', $attrs, [
+            new AstNode('text', ['text' => trim(preg_replace('/\s+/', ' ', $math->textContent) ?? $math->textContent)]),
+        ]);
+    }
+
+    private function htmlMathTexAnnotation(\DOMElement $math): ?string
+    {
+        foreach ($math->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || strtolower($candidate->localName) !== 'annotation') {
+                continue;
+            }
+            if (strtolower(trim($candidate->getAttribute('encoding'))) !== 'application/x-tex') {
+                continue;
+            }
+
+            return $candidate->textContent;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function buildHtmlInlineCodeNode(\DOMElement $code, array $classes = []): AstNode
+    {
+        $attrs = $this->htmlElementPandocAttrs($code);
+        if ($classes !== []) {
+            $existingClasses = $attrs['classes'] ?? [];
+            if (!is_array($existingClasses)) {
+                $existingClasses = [];
+            }
+            foreach ($classes as $class) {
+                if (!in_array($class, $existingClasses, true)) {
+                    $existingClasses[] = $class;
+                }
+            }
+            $attrs['classes'] = $existingClasses;
+
+            $htmlAttributes = $attrs['htmlAttributes'] ?? [];
+            if (!is_array($htmlAttributes)) {
+                $htmlAttributes = [];
+            }
+            $htmlAttributes['class'] = implode(' ', $existingClasses);
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        $attrs['text'] = trim(preg_replace('/\s+/', ' ', $code->textContent) ?? $code->textContent);
+
+        return new AstNode('code', $attrs);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function htmlInlineCodeElementClasses(string $name): array
+    {
+        return match ($name) {
+            'samp' => ['sample'],
+            'var' => ['variable'],
+            default => [],
+        };
+    }
+
+    private function isHtmlSpanLikeElement(string $name): bool
+    {
+        return in_array($name, ['kbd', 'mark', 'dfn', 'abbr'], true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlSpanLikeElementAttrs(\DOMElement $element, string $name): array
+    {
+        $attrs = $this->htmlElementPandocAttrs($element);
+        $classes = $attrs['classes'] ?? [];
+        if (!is_array($classes)) {
+            $classes = [];
+        }
+        array_unshift($classes, $name);
+        $attrs['classes'] = array_values($classes);
+
+        $htmlAttributes = $attrs['htmlAttributes'] ?? [];
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+        $orderedHtmlAttributes = [];
+        if (isset($htmlAttributes['id'])) {
+            $orderedHtmlAttributes['id'] = $htmlAttributes['id'];
+        }
+        $orderedHtmlAttributes['class'] = implode(' ', $attrs['classes']);
+        foreach ($htmlAttributes as $attributeName => $value) {
+            if ($attributeName === 'id' || $attributeName === 'class') {
+                continue;
+            }
+            $orderedHtmlAttributes[$attributeName] = $value;
+        }
+        $attrs['htmlAttributes'] = $orderedHtmlAttributes;
+
+        return $attrs;
     }
 
     /**
@@ -3411,10 +5427,9 @@ final class MarkdownReader
     private function buildHtmlImageNode(\DOMElement $image): AstNode
     {
         $alt = $image->getAttribute('alt');
-        $attrs = [
-            'url' => $image->getAttribute('src'),
-            'alt' => $alt,
-        ];
+        $attrs = $this->htmlElementPandocAttrs($image, ['src', 'alt', 'title']);
+        $attrs['url'] = $this->resolveHtmlUrl($image->getAttribute('src'));
+        $attrs['alt'] = $alt;
         $title = $image->getAttribute('title');
         if ($title !== '') {
             $attrs['title'] = $title;
@@ -3423,6 +5438,73 @@ final class MarkdownReader
         $children = $alt === '' ? [] : [new AstNode('text', ['text' => $alt])];
 
         return new AstNode('image', $attrs, $children);
+    }
+
+    private function resolveHtmlUrl(string $url): string
+    {
+        if ($url === '' || $this->htmlBaseHref === null || $this->htmlBaseHref === '') {
+            return $url;
+        }
+
+        if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $url) === 1 || str_starts_with($url, '//')) {
+            return $url;
+        }
+
+        $base = parse_url($this->htmlBaseHref);
+        if (!is_array($base) || !isset($base['scheme'], $base['host'])) {
+            return $url;
+        }
+
+        $authority = $base['scheme'] . '://';
+        if (isset($base['user'])) {
+            $authority .= $base['user'];
+            if (isset($base['pass'])) {
+                $authority .= ':' . $base['pass'];
+            }
+            $authority .= '@';
+        }
+        $authority .= $base['host'];
+        if (isset($base['port'])) {
+            $authority .= ':' . $base['port'];
+        }
+
+        if (str_starts_with($url, '/')) {
+            return $authority . $this->normalizeHtmlUrlPath($url);
+        }
+
+        $basePath = (string) ($base['path'] ?? '/');
+        $directory = str_ends_with($basePath, '/')
+            ? $basePath
+            : preg_replace('~[^/]*$~', '', $basePath);
+        if (!is_string($directory) || $directory === '') {
+            $directory = '/';
+        }
+
+        return $authority . $this->normalizeHtmlUrlPath($directory . $url);
+    }
+
+    private function normalizeHtmlUrlPath(string $path): string
+    {
+        $prefixSlash = str_starts_with($path, '/');
+        $suffixSlash = str_ends_with($path, '/');
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                array_pop($segments);
+                continue;
+            }
+            $segments[] = $segment;
+        }
+
+        $normalized = ($prefixSlash ? '/' : '') . implode('/', $segments);
+        if ($suffixSlash && $normalized !== '/') {
+            $normalized .= '/';
+        }
+
+        return $normalized === '' ? '/' : $normalized;
     }
 
     private function htmlElementHasSmallCapsStyle(\DOMElement $element): bool
@@ -3434,6 +5516,34 @@ final class MarkdownReader
 
         return preg_match('/(?:^|;)\s*font-variant\s*:\s*small-caps\b/', $style) === 1
             || preg_match('/(?:^|;)\s*font-variant-caps\s*:\s*small-caps\b/', $style) === 1;
+    }
+
+    private function htmlElementIsSmallCapsSpan(\DOMElement $element): bool
+    {
+        return $this->htmlElementHasSmallCapsStyle($element)
+            || $this->htmlElementHasClass($element, 'smallcaps');
+    }
+
+    private function htmlElementHasExactClass(\DOMElement $element, string $class): bool
+    {
+        return trim($element->getAttribute('class')) === $class;
+    }
+
+    private function htmlElementHasClass(\DOMElement $element, string $class): bool
+    {
+        $classes = preg_split('/\s+/', trim($element->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return in_array($class, $classes, true);
+    }
+
+    private function htmlElementIsSkippedMathRendererSpan(\DOMElement $element): bool
+    {
+        $classes = preg_split('/\s+/', trim($element->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($classes === ['katex-html']) {
+            return true;
+        }
+
+        return array_intersect($classes, ['mjx-chtml', 'MathJax_CHTML', 'MathJax_Preview']) !== [];
     }
 
     /**
@@ -5668,7 +7778,9 @@ final class MarkdownReader
         }
 
         return [
-            'parts' => $this->read(implode("\n", $content))->children,
+            'parts' => (new self($this->options + ['suppressStandaloneButtonInline' => true]))
+                ->read(implode("\n", $content))
+                ->children,
             'next' => $cursor,
             'loose' => $loose,
             'text' => trim($marker['text']),
@@ -6605,6 +8717,13 @@ final class MarkdownReader
                         $code = substr($code, 1, -1);
                     }
                     $next = $end + $tickCount;
+                    $rawAttribute = $this->tryParseRawAttributeSpec($text, $next);
+                    if ($rawAttribute !== null) {
+                        $this->flushText($buffer, $nodes);
+                        $nodes[] = $this->rawInlineNode($rawAttribute['format'], $code);
+                        $offset = $rawAttribute['next'];
+                        continue;
+                    }
                     $attrs = ['text' => $code];
                     $attribute = $this->tryParseInlineAttributeSpec($text, $next);
                     $literalAttribute = null;
@@ -6785,6 +8904,13 @@ final class MarkdownReader
             if ($replacement !== null) {
                 $buffer .= $replacement['text'];
                 $offset = $replacement['next'];
+                continue;
+            }
+
+            $abbreviationSpace = $this->tryReadAbbreviationSpace($text, $offset, $buffer);
+            if ($abbreviationSpace !== null) {
+                $buffer .= $abbreviationSpace['text'];
+                $offset = $abbreviationSpace['next'];
                 continue;
             }
 
@@ -7454,6 +9580,79 @@ final class MarkdownReader
     }
 
     /**
+     * @return array{format: string, next: int}|null
+     */
+    private function tryParseRawAttributeSpec(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '{') {
+            return null;
+        }
+
+        $end = $this->findUnescapedCharacter($text, '}', $offset + 1);
+        if ($end === null) {
+            return null;
+        }
+
+        $inside = trim(substr($text, $offset + 1, $end - $offset - 1));
+        if (preg_match('/^=([A-Za-z0-9_.:+-]+)$/', $inside, $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'format' => $match[1],
+            'next' => $end + 1,
+        ];
+    }
+
+    private function rawInlineNode(string $format, string $text): AstNode
+    {
+        $normalized = strtolower($format);
+        if (in_array($normalized, ['html', 'html4', 'html5'], true)) {
+            return new AstNode('raw_html_inline', [
+                'format' => $format,
+                'html' => $text,
+                'text' => $text,
+            ]);
+        }
+        if ($normalized === 'tex') {
+            return new AstNode('raw_tex_inline', [
+                'format' => $format,
+                'tex' => $text,
+                'text' => $text,
+            ]);
+        }
+
+        return new AstNode('raw_inline', [
+            'format' => $format,
+            'text' => $text,
+        ]);
+    }
+
+    private function rawBlockNode(string $format, string $text): AstNode
+    {
+        $normalized = strtolower($format);
+        if (in_array($normalized, ['html', 'html4', 'html5'], true)) {
+            return new AstNode('raw_html', [
+                'format' => $format,
+                'html' => $text,
+                'text' => $text,
+            ]);
+        }
+        if ($normalized === 'tex') {
+            return new AstNode('raw_tex', [
+                'format' => $format,
+                'tex' => $text,
+                'text' => $text,
+            ]);
+        }
+
+        return new AstNode('raw_block', [
+            'format' => $format,
+            'text' => $text,
+        ]);
+    }
+
+    /**
      * @return array{text: string, next: int}|null
      */
     private function tryParseSpacedInlineAttributeLiteral(string $text, int $offset): ?array
@@ -7779,6 +9978,7 @@ final class MarkdownReader
     {
         $length = strlen($text);
         $quote = null;
+        $angleDestination = false;
         $parenDepth = 0;
         for ($cursor = $offset; $cursor < $length; $cursor++) {
             if ($text[$cursor] === '\\') {
@@ -7786,10 +9986,22 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($angleDestination) {
+                if ($text[$cursor] === '>') {
+                    $angleDestination = false;
+                }
+                continue;
+            }
+
             if ($quote !== null) {
                 if ($text[$cursor] === $quote) {
                     $quote = null;
                 }
+                continue;
+            }
+
+            if ($text[$cursor] === '<') {
+                $angleDestination = true;
                 continue;
             }
 
@@ -8365,6 +10577,40 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @return array{text:string, next:int}|null
+     */
+    private function tryReadAbbreviationSpace(string $text, int $offset, string $buffer): ?array
+    {
+        if (($text[$offset] ?? '') !== '.' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        $next = $text[$offset + 1] ?? '';
+        if ($next !== ' ' && $next !== "\t") {
+            return null;
+        }
+
+        if (preg_match('/(?:^|[^\pL\pN])([\pL](?:[\pL]|\.)*)$/u', $buffer, $match) !== 1) {
+            return null;
+        }
+
+        $abbreviation = $match[1] . '.';
+        if (!isset(self::ABBREVIATIONS[$abbreviation])) {
+            return null;
+        }
+
+        $tail = substr($text, $offset + 2);
+        if ($tail === '' || preg_match('/\A\pL/u', $tail) !== 1) {
+            return null;
+        }
+
+        return [
+            'text' => ".\u{00A0}",
+            'next' => $offset + 2,
+        ];
     }
 
     /**

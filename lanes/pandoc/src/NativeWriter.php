@@ -1,0 +1,1014 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Pandoc;
+
+final class NativeWriter
+{
+    /**
+     * @param array{standalone?: bool, blocksOnly?: bool} $options
+     */
+    public function __construct(private readonly array $options = [])
+    {
+    }
+
+    public function write(AstNode $document): string
+    {
+        if ($document->type !== 'document') {
+            throw new \InvalidArgumentException('Native writer expects a document node');
+        }
+
+        $meta = $document->attr('meta', []);
+        $blocksOnly = (bool) ($this->options['blocksOnly'] ?? false);
+        $standalone = (bool) ($this->options['standalone'] ?? false);
+        if ($blocksOnly || (!$standalone && (!is_array($meta) || $meta === []))) {
+            return $this->renderBlockList($document->children, 0);
+        }
+
+        return 'Pandoc' . "\n"
+            . '  ' . $this->renderMeta(is_array($meta) ? $meta : []) . "\n"
+            . '  ' . $this->renderBlockList($document->children, 2);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function renderMeta(array $meta): string
+    {
+        $entries = $this->normalizedMetaEntries($meta);
+        if ($entries === []) {
+            return 'Meta { unMeta = fromList [] }';
+        }
+
+        $pairs = [];
+        foreach ($entries as $key => $value) {
+            $pairs[] = '( ' . $this->quote($key) . ' , ' . $this->renderMetaValue($value) . ' )';
+        }
+
+        return 'Meta { unMeta = fromList [ ' . implode(' , ', $pairs) . ' ] }';
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return array<string, mixed>
+     */
+    private function normalizedMetaEntries(array $meta): array
+    {
+        $entries = [];
+        foreach ($meta as $key => $value) {
+            if (in_array($key, ['titleInlines', 'authorInlines', 'dateInlines', 'authors'], true)) {
+                continue;
+            }
+
+            $entries[(string) $key] = $value;
+        }
+
+        if (isset($meta['titleInlines']) && is_array($meta['titleInlines'])) {
+            $entries['title'] = ['type' => 'MetaInlines', 'value' => $meta['titleInlines']];
+        } elseif (isset($meta['title'])) {
+            $entries['title'] = ['type' => 'MetaInlines', 'value' => $this->textInlines((string) $meta['title'])];
+        }
+
+        if (isset($meta['authorInlines']) && is_array($meta['authorInlines'])) {
+            $authors = [];
+            foreach ($meta['authorInlines'] as $author) {
+                if (is_array($author)) {
+                    $authors[] = ['type' => 'MetaInlines', 'value' => $author];
+                }
+            }
+            if ($authors !== []) {
+                $entries['author'] = ['type' => 'MetaList', 'value' => $authors];
+            }
+        } elseif (isset($meta['author']) && is_array($meta['author']) && !isset($meta['author']['type'])) {
+            $authors = [];
+            foreach ($meta['author'] as $author) {
+                $authors[] = ['type' => 'MetaInlines', 'value' => $this->textInlines((string) $author)];
+            }
+            if ($authors !== []) {
+                $entries['author'] = ['type' => 'MetaList', 'value' => $authors];
+            }
+        }
+
+        if (isset($meta['dateInlines']) && is_array($meta['dateInlines'])) {
+            $entries['date'] = ['type' => 'MetaInlines', 'value' => $meta['dateInlines']];
+        } elseif (isset($meta['date'])) {
+            $entries['date'] = ['type' => 'MetaInlines', 'value' => $this->textInlines((string) $meta['date'])];
+        }
+
+        ksort($entries);
+
+        return $entries;
+    }
+
+    private function renderMetaValue(mixed $value): string
+    {
+        if (is_array($value) && isset($value['type'])) {
+            $type = (string) $value['type'];
+            $payload = $value['value'] ?? null;
+
+            return match ($type) {
+                'MetaInlines' => 'MetaInlines ' . $this->renderInlineList(is_array($payload) ? $payload : []),
+                'MetaBlocks' => 'MetaBlocks ' . $this->renderBlockList(is_array($payload) ? $payload : [], 0),
+                'MetaList' => 'MetaList [ ' . implode(' , ', array_map(fn (mixed $item): string => $this->renderMetaValue($item), is_array($payload) ? $payload : [])) . ' ]',
+                default => 'MetaString ' . $this->quote((string) $payload),
+            };
+        }
+
+        if ($value instanceof AstNode) {
+            if ($this->isInlineNode($value)) {
+                return 'MetaInlines ' . $this->renderInlineList([$value]);
+            }
+
+            return 'MetaBlocks ' . $this->renderBlockList([$value], 0);
+        }
+
+        if (is_bool($value)) {
+            return 'MetaBool ' . ($value ? 'True' : 'False');
+        }
+
+        if (is_string($value) || is_int($value) || is_float($value)) {
+            return 'MetaString ' . $this->quote((string) $value);
+        }
+
+        if (is_array($value)) {
+            if ($this->isAstNodeList($value)) {
+                $inlineNodes = array_filter($value, fn (mixed $node): bool => $node instanceof AstNode && $this->isInlineNode($node));
+                if (count($inlineNodes) === count($value)) {
+                    return 'MetaInlines ' . $this->renderInlineList($value);
+                }
+
+                return 'MetaBlocks ' . $this->renderBlockList($value, 0);
+            }
+
+            if ($this->isList($value)) {
+                return 'MetaList [ ' . implode(' , ', array_map(fn (mixed $item): string => $this->renderMetaValue($item), $value)) . ' ]';
+            }
+
+            ksort($value);
+            $pairs = [];
+            foreach ($value as $key => $item) {
+                $pairs[] = '( ' . $this->quote((string) $key) . ' , ' . $this->renderMetaValue($item) . ' )';
+            }
+
+            return 'MetaMap (fromList [ ' . implode(' , ', $pairs) . ' ])';
+        }
+
+        return 'MetaString ' . $this->quote((string) $value);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function renderBlockList(array $blocks, int $indent): string
+    {
+        if ($blocks === []) {
+            return '[]';
+        }
+
+        $lines = ['[ ' . $this->renderBlock($blocks[0], $indent + 2)];
+        for ($i = 1, $count = count($blocks); $i < $count; $i++) {
+            $lines[] = str_repeat(' ', $indent) . ', ' . $this->renderBlock($blocks[$i], $indent + 2);
+        }
+        $lines[] = str_repeat(' ', $indent) . ']';
+
+        return implode("\n", $lines);
+    }
+
+    private function renderBlock(AstNode $node, int $indent): string
+    {
+        return match ($node->type) {
+            'plain' => 'Plain ' . $this->renderInlineList($node->children),
+            'paragraph' => 'Para ' . $this->renderInlineList($node->children),
+            'heading' => 'Header ' . max(1, min(6, (int) $node->attr('level', 1))) . ' ' . $this->renderAttrTuple($node) . ' ' . $this->renderInlineList($node->children === [] ? $this->textInlines((string) $node->attr('text', '')) : $node->children),
+            'horizontal_rule' => 'HorizontalRule',
+            'code_block' => 'CodeBlock ' . $this->renderAttrTuple($node) . ' ' . $this->quote((string) $node->attr('text', '')),
+            'blockquote' => 'BlockQuote ' . $this->renderBlockList($node->children, $indent),
+            'bullet_list' => 'BulletList ' . $this->renderListItems($node->children, $indent),
+            'ordered_list' => 'OrderedList ' . $this->renderOrderedListAttrs($node) . ' ' . $this->renderListItems($node->children, $indent),
+            'definition_list' => 'DefinitionList ' . $this->renderDefinitionItems($node->children),
+            'line_block' => 'LineBlock [ ' . implode(' , ', array_map(fn (AstNode $line): string => $this->renderInlineList($this->lineInlines($line)), $node->children)) . ' ]',
+            'figure' => 'Figure ' . $this->renderAttrTuple($node) . ' ' . $this->renderCaption($node) . ' ' . $this->renderBlockList($this->figureBlocks($node), $indent),
+            'table' => $this->renderTable($node, $indent),
+            'raw_html' => 'RawBlock (Format "html") ' . $this->quote((string) $node->attr('html', $node->attr('text', ''))),
+            'raw_tex' => 'RawBlock (Format "tex") ' . $this->quote((string) $node->attr('tex', $node->attr('text', ''))),
+            'raw_block', 'raw_markdown' => 'RawBlock (Format ' . $this->quote((string) $node->attr('format', 'markdown')) . ') ' . $this->quote((string) $node->attr('text', '')),
+            'div' => 'Div ' . $this->renderAttrTuple($node) . ' ' . $this->renderBlockList($node->children, $indent),
+            default => throw new \InvalidArgumentException("Native writer does not support block node '{$node->type}'"),
+        };
+    }
+
+    /**
+     * @param list<AstNode> $items
+     */
+    private function renderListItems(array $items, int $indent): string
+    {
+        $blocks = [];
+        foreach ($items as $item) {
+            if ($item->type !== 'list_item') {
+                continue;
+            }
+
+            $blocks[] = $this->renderBlockList($this->listItemBlocks($item), $indent);
+        }
+
+        return '[ ' . implode(' , ', $blocks) . ' ]';
+    }
+
+    private function renderOrderedListAttrs(AstNode $node): string
+    {
+        $styleAttr = $node->attr('style', null);
+        $style = match (is_string($styleAttr) ? $styleAttr : '') {
+            'default' => 'DefaultStyle',
+            'decimal' => 'Decimal',
+            'lower_alpha' => 'LowerAlpha',
+            'upper_alpha' => 'UpperAlpha',
+            'lower_roman' => 'LowerRoman',
+            'upper_roman' => 'UpperRoman',
+            'example' => 'Example',
+            default => 'Decimal',
+        };
+        $delimiterAttr = $node->attr('delimiter', null);
+        $delimiter = match (is_string($delimiterAttr) ? $delimiterAttr : '') {
+            'default' => 'DefaultDelim',
+            'period' => 'Period',
+            'one_paren' => 'OneParen',
+            'two_parens' => 'TwoParens',
+            default => 'Period',
+        };
+
+        return '( ' . (int) $node->attr('start', 1) . ' , ' . $style . ' , ' . $delimiter . ' )';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function listItemBlocks(AstNode $item): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($item->children as $child) {
+            if ($this->isInlineNode($child)) {
+                $inlines[] = $child;
+                continue;
+            }
+
+            if ($inlines !== []) {
+                $blocks[] = new AstNode('plain', [], $inlines);
+                $inlines = [];
+            }
+            $blocks[] = $child;
+        }
+
+        if ($inlines !== []) {
+            $blocks[] = new AstNode('plain', [], $inlines);
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @param list<AstNode> $items
+     */
+    private function renderDefinitionItems(array $items): string
+    {
+        $rendered = [];
+        foreach ($items as $item) {
+            if ($item->type !== 'definition_item') {
+                continue;
+            }
+
+            $term = null;
+            $definitions = [];
+            foreach ($item->children as $child) {
+                if ($child->type === 'term') {
+                    $term = $child;
+                } elseif ($child->type === 'definition') {
+                    $definitions[] = $this->renderBlockList($child->children, 0);
+                }
+            }
+            $termInlines = $term instanceof AstNode
+                ? ($term->children === [] ? $this->textInlines((string) $term->attr('text', $item->attr('term', ''))) : $term->children)
+                : $this->textInlines((string) $item->attr('term', ''));
+            $rendered[] = '( ' . $this->renderInlineList($termInlines) . ' , [ ' . implode(' , ', $definitions) . ' ] )';
+        }
+
+        return '[ ' . implode(' , ', $rendered) . ' ]';
+    }
+
+    private function renderTable(AstNode $node, int $indent): string
+    {
+        $columnCount = $this->tableColumnCount($node);
+
+        return 'Table '
+            . $this->renderAttrTuple($node) . ' '
+            . $this->renderCaption($node) . ' '
+            . $this->renderTableColSpecs($node, $columnCount) . ' '
+            . '(' . $this->renderTableHead($this->tableSection($node, 'table_head'), $indent) . ') '
+            . $this->renderTableBodies($node, $indent) . ' '
+            . '(' . $this->renderTableFoot($this->tableSection($node, 'table_foot'), $indent) . ')';
+    }
+
+    private function renderTableColSpecs(AstNode $table, int $columnCount): string
+    {
+        if ($columnCount <= 0) {
+            return '[]';
+        }
+
+        $alignments = $this->tableAlignments($table, $columnCount);
+        $widths = $this->tableWidths($table, $columnCount);
+        $specs = [];
+        for ($index = 0; $index < $columnCount; $index++) {
+            $specs[] = '( ' . $this->renderTableAlignment($alignments[$index] ?? 'default')
+                . ' , ' . $this->renderTableColumnWidth($widths[$index] ?? null) . ' )';
+        }
+
+        return '[ ' . implode(' , ', $specs) . ' ]';
+    }
+
+    private function renderTableColumnWidth(mixed $width): string
+    {
+        if (is_numeric($width) && (float) $width > 0.0) {
+            return 'ColWidth ' . $this->renderFloat((float) $width);
+        }
+
+        return 'ColWidthDefault';
+    }
+
+    private function renderTableHead(?AstNode $head, int $indent): string
+    {
+        return 'TableHead '
+            . $this->renderAttrTuple($head ?? new AstNode('table_head')) . ' '
+            . $this->renderTableRows($head instanceof AstNode ? $this->tableRowsFromChildren($head->children) : [], $indent);
+    }
+
+    private function renderTableBodies(AstNode $table, int $indent): string
+    {
+        $bodies = $this->tableBodies($table);
+        if ($bodies === []) {
+            return '[]';
+        }
+
+        $rendered = [];
+        foreach ($bodies as $body) {
+            $headRows = $this->tableBodyHeadRows($body);
+            $bodyRows = $this->tableRowsFromChildren($body->children);
+            $rendered[] = 'TableBody '
+                . $this->renderAttrTuple($body) . ' '
+                . '(RowHeadColumns ' . max(0, (int) $body->attr('rowHeadColumns', 0)) . ') '
+                . $this->renderTableRows($headRows, $indent) . ' '
+                . $this->renderTableRows($bodyRows, $indent);
+        }
+
+        return '[ ' . implode(' , ', $rendered) . ' ]';
+    }
+
+    private function renderTableFoot(?AstNode $foot, int $indent): string
+    {
+        return 'TableFoot '
+            . $this->renderAttrTuple($foot ?? new AstNode('table_foot')) . ' '
+            . $this->renderTableRows($foot instanceof AstNode ? $this->tableRowsFromChildren($foot->children) : [], $indent);
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     */
+    private function renderTableRows(array $rows, int $indent): string
+    {
+        $rendered = [];
+        foreach ($rows as $row) {
+            if ($row->type === 'table_row') {
+                $rendered[] = $this->renderTableRow($row, $indent);
+            }
+        }
+
+        return '[ ' . implode(' , ', $rendered) . ' ]';
+    }
+
+    private function renderTableRow(AstNode $row, int $indent): string
+    {
+        $cells = [];
+        foreach ($row->children as $cell) {
+            if ($cell->type === 'table_cell') {
+                $cells[] = $this->renderTableCell($cell, $indent);
+            }
+        }
+
+        return 'Row ' . $this->renderAttrTuple($row) . ' [ ' . implode(' , ', $cells) . ' ]';
+    }
+
+    private function renderTableCell(AstNode $cell, int $indent): string
+    {
+        return 'Cell '
+            . $this->renderAttrTuple($cell) . ' '
+            . $this->renderTableAlignment((string) $cell->attr('align', 'default')) . ' '
+            . '(RowSpan ' . max(1, (int) $cell->attr('rowspan', 1)) . ') '
+            . '(ColSpan ' . max(1, (int) $cell->attr('colspan', 1)) . ') '
+            . $this->renderBlockList($this->tableCellBlocks($cell), $indent);
+    }
+
+    private function renderTableAlignment(string $alignment): string
+    {
+        return match ($alignment) {
+            'left' => 'AlignLeft',
+            'right' => 'AlignRight',
+            'center' => 'AlignCenter',
+            default => 'AlignDefault',
+        };
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableCellBlocks(AstNode $cell): array
+    {
+        if ($cell->children === []) {
+            $text = (string) $cell->attr('text', '');
+
+            return $text === '' ? [] : [new AstNode('plain', [], $this->textInlines($text))];
+        }
+
+        $blocks = [];
+        $inlines = [];
+        foreach ($cell->children as $child) {
+            if ($this->isInlineNode($child)) {
+                $inlines[] = $child;
+                continue;
+            }
+
+            if ($inlines !== []) {
+                $blocks[] = new AstNode('plain', [], $inlines);
+                $inlines = [];
+            }
+            $blocks[] = $child;
+        }
+
+        if ($inlines !== []) {
+            $blocks[] = new AstNode('plain', [], $inlines);
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderInlineList(array $nodes): string
+    {
+        $parts = [];
+        foreach ($nodes as $node) {
+            array_push($parts, ...$this->renderInline($node));
+        }
+
+        return '[ ' . implode(' , ', $parts) . ' ]';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderInline(AstNode $node): array
+    {
+        return match ($node->type) {
+            'text' => $this->renderTextInline((string) $node->attr('text', '')),
+            'softbreak' => ['SoftBreak'],
+            'linebreak' => ['LineBreak'],
+            'emph' => ['Emph ' . $this->renderInlineList($node->children)],
+            'strong' => ['Strong ' . $this->renderInlineList($node->children)],
+            'strikeout' => ['Strikeout ' . $this->renderInlineList($node->children)],
+            'superscript' => ['Superscript ' . $this->renderInlineList($node->children)],
+            'subscript' => ['Subscript ' . $this->renderInlineList($node->children)],
+            'underline' => ['Underline ' . $this->renderInlineList($node->children)],
+            'small_caps' => ['SmallCaps ' . $this->renderInlineList($node->children)],
+            'code' => ['Code ' . $this->renderAttrTuple($node) . ' ' . $this->quote((string) $node->attr('text', ''))],
+            'link' => ['Link ' . $this->renderAttrTuple($node) . ' ' . $this->renderInlineList($node->children) . ' ( ' . $this->quote((string) $node->attr('url', '')) . ' , ' . $this->quote((string) $node->attr('title', '')) . ' )'],
+            'image' => ['Image ' . $this->renderAttrTuple($node) . ' ' . $this->renderInlineList($node->children === [] ? $this->textInlines((string) $node->attr('alt', '')) : $node->children) . ' ( ' . $this->quote((string) $node->attr('url', $node->attr('src', ''))) . ' , ' . $this->quote((string) $node->attr('title', '')) . ' )'],
+            'note' => ['Note ' . $this->renderBlockList($node->children, 0)],
+            'quoted' => ['Quoted ' . (((string) $node->attr('kind', 'double')) === 'single' ? 'SingleQuote' : 'DoubleQuote') . ' ' . $this->renderInlineList($node->children)],
+            'math' => ['Math ' . ($this->mathIsDisplay($node) ? 'DisplayMath' : 'InlineMath') . ' ' . $this->quote((string) $node->attr('text', ''))],
+            'citation' => [$this->renderCitation($node)],
+            'raw_html_inline' => ['RawInline (Format "html") ' . $this->quote((string) $node->attr('html', $node->attr('text', '')))],
+            'raw_tex_inline' => ['RawInline (Format "tex") ' . $this->quote((string) $node->attr('tex', $node->attr('text', '')))],
+            'raw_inline' => ['RawInline (Format ' . $this->quote((string) $node->attr('format', 'markdown')) . ') ' . $this->quote((string) $node->attr('text', ''))],
+            'span' => ['Span ' . $this->renderAttrTuple($node) . ' ' . $this->renderInlineList($node->children)],
+            default => throw new \InvalidArgumentException("Native writer does not support inline node '{$node->type}'"),
+        };
+    }
+
+    private function renderCaption(AstNode $node): string
+    {
+        $shortCaption = $this->captionInlines($node->attr('shortCaptionInlines', null), $node->attr('shortCaption', null));
+        $short = $shortCaption === null ? 'Nothing' : '(Just ' . $this->renderInlineList($shortCaption) . ')';
+        $longBlocks = $this->captionBlocks($node);
+
+        return '(Caption ' . $short . ' ' . $this->renderBlockList($longBlocks, 0) . ')';
+    }
+
+    private function mathIsDisplay(AstNode $node): bool
+    {
+        $display = $node->attr('display', null);
+        if (is_bool($display)) {
+            return $display;
+        }
+
+        return (string) $node->attr('kind', $display ?? 'inline') === 'display';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function captionBlocks(AstNode $node): array
+    {
+        $captionBlocks = $node->attr('captionBlocks', null);
+        if (is_array($captionBlocks) && $this->isAstNodeList($captionBlocks)) {
+            return $captionBlocks;
+        }
+
+        $captionInlines = $this->captionInlines($node->attr('captionInlines', null), $node->attr('caption', null));
+        if ($captionInlines === null) {
+            return [];
+        }
+
+        return [new AstNode('plain', [], $captionInlines)];
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function captionInlines(mixed $inlines, mixed $fallback): ?array
+    {
+        if (is_array($inlines) && $this->isAstNodeList($inlines)) {
+            return $inlines;
+        }
+
+        if ($fallback instanceof AstNode) {
+            return $this->isInlineNode($fallback) ? [$fallback] : null;
+        }
+
+        if (is_string($fallback) && $fallback !== '') {
+            return $this->textInlines($fallback);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function figureBlocks(AstNode $node): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($node->children as $child) {
+            if ($this->isInlineNode($child)) {
+                $inlines[] = $child;
+                continue;
+            }
+
+            if ($inlines !== []) {
+                $blocks[] = new AstNode('plain', [], $inlines);
+                $inlines = [];
+            }
+            $blocks[] = $child;
+        }
+
+        if ($inlines !== []) {
+            $blocks[] = new AstNode('plain', [], $inlines);
+        }
+
+        return $blocks;
+    }
+
+    private function renderCitation(AstNode $node): string
+    {
+        $citations = $this->citationEntries($node);
+        $display = $node->children;
+        if ($display === []) {
+            $display = $this->textInlines((string) $node->attr('text', $this->citationDisplayText($citations)));
+        }
+
+        return 'Cite [ ' . implode(' , ', array_map(fn (array $citation): string => $this->renderCitationEntry($citation), $citations)) . ' ] ' . $this->renderInlineList($display);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function citationEntries(AstNode $node): array
+    {
+        $citations = $node->attr('citations', null);
+        if (is_array($citations) && $citations !== []) {
+            $entries = [];
+            foreach ($citations as $citation) {
+                if ($citation instanceof AstNode) {
+                    $entries[] = $this->citationEntryFromNode($citation);
+                } elseif (is_array($citation)) {
+                    $entries[] = $citation;
+                }
+            }
+
+            return $entries;
+        }
+
+        return [$this->citationEntryFromNode($node)];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function citationEntryFromNode(AstNode $node): array
+    {
+        return [
+            'id' => (string) $node->attr('id', ''),
+            'prefix' => $node->attr('prefix', []),
+            'suffix' => $node->attr('suffix', []),
+            'mode' => (string) $node->attr('mode', 'normal'),
+            'noteNum' => $node->attr('noteNum', $node->attr('citationNoteNum', 1)),
+            'hash' => $node->attr('hash', $node->attr('citationHash', 0)),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $citation
+     */
+    private function renderCitationEntry(array $citation): string
+    {
+        return 'Citation { citationId = ' . $this->quote((string) ($citation['id'] ?? ''))
+            . ' , citationPrefix = ' . $this->renderCitationAffix($citation['prefix'] ?? [])
+            . ' , citationSuffix = ' . $this->renderCitationAffix($citation['suffix'] ?? [])
+            . ' , citationMode = ' . $this->renderCitationMode((string) ($citation['mode'] ?? 'normal'))
+            . ' , citationNoteNum = ' . (int) ($citation['noteNum'] ?? $citation['citationNoteNum'] ?? 1)
+            . ' , citationHash = ' . (int) ($citation['hash'] ?? $citation['citationHash'] ?? 0)
+            . ' }';
+    }
+
+    private function renderCitationAffix(mixed $value): string
+    {
+        if (is_string($value)) {
+            if ($value === '') {
+                return '[]';
+            }
+
+            return $this->renderInlineList($this->textInlines($value));
+        }
+
+        if (!is_array($value)) {
+            return '[]';
+        }
+
+        $nodes = [];
+        foreach ($value as $inline) {
+            if ($inline instanceof AstNode) {
+                $nodes[] = $inline;
+            } elseif (is_string($inline)) {
+                array_push($nodes, ...$this->textInlines($inline));
+            }
+        }
+
+        if ($nodes === []) {
+            return '[]';
+        }
+
+        return $this->renderInlineList($nodes);
+    }
+
+    private function renderCitationMode(string $mode): string
+    {
+        return match (strtolower(str_replace(['-', '_'], '', $mode))) {
+            'authorintext' => 'AuthorInText',
+            'suppressauthor' => 'SuppressAuthor',
+            default => 'NormalCitation',
+        };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $citations
+     */
+    private function citationDisplayText(array $citations): string
+    {
+        if ($citations === []) {
+            return '[]';
+        }
+
+        $parts = [];
+        foreach ($citations as $citation) {
+            $id = (string) ($citation['id'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+            $parts[] = '@' . $id;
+        }
+
+        return $parts === [] ? '[]' : '[' . implode('; ', $parts) . ']';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function lineInlines(AstNode $line): array
+    {
+        return $line->children === [] ? $this->textInlines((string) $line->attr('text', '')) : $line->children;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function textInlines(string $text): array
+    {
+        $nodes = [];
+        foreach ($this->textParts($text) as $part) {
+            $nodes[] = new AstNode('text', ['text' => $part]);
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderTextInline(string $text): array
+    {
+        $parts = [];
+        foreach ($this->textParts($text) as $part) {
+            if (preg_match('/^[ \t]+$/', $part) === 1) {
+                $parts[] = 'Space';
+            } elseif ($part === "\n") {
+                $parts[] = 'SoftBreak';
+            } else {
+                $parts[] = 'Str ' . $this->quote($part);
+            }
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function textParts(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        $parts = preg_split('/([ \t]+|\n)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+
+        return $parts === false ? [$text] : $parts;
+    }
+
+    private function renderAttrTuple(AstNode $node): string
+    {
+        $id = (string) $node->attr('id', '');
+        $classes = $node->attr('classes', []);
+        $attributes = $node->attr('attributes', []);
+        if (!is_array($classes)) {
+            $classes = [];
+        }
+        if (!is_array($attributes)) {
+            $attributes = [];
+        }
+        ksort($attributes);
+
+        $classList = '[ ' . implode(' , ', array_map(fn (mixed $class): string => $this->quote((string) $class), $classes)) . ' ]';
+        $attrPairs = [];
+        foreach ($attributes as $key => $value) {
+            $attrPairs[] = '( ' . $this->quote((string) $key) . ' , ' . $this->quote((string) $value) . ' )';
+        }
+
+        return '( ' . $this->quote($id) . ' , ' . $classList . ' , [ ' . implode(' , ', $attrPairs) . ' ] )';
+    }
+
+    private function quote(string $value): string
+    {
+        $output = '"';
+        $chars = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY);
+        if ($chars === false) {
+            $chars = str_split($value);
+        }
+
+        foreach ($chars as $index => $char) {
+            $escaped = match ($char) {
+                "\\" => "\\\\",
+                '"' => "\\\"",
+                "\n" => "\\n",
+                "\r" => "\\r",
+                "\t" => "\\t",
+                default => $this->quoteCharacter($char),
+            };
+            $output .= $escaped;
+            $next = $chars[$index + 1] ?? null;
+            if ($next !== null && preg_match('/^\\\\\d+$/', $escaped) === 1 && preg_match('/^\d$/', $next) === 1) {
+                $output .= '\\&';
+            }
+        }
+
+        return $output . '"';
+    }
+
+    private function quoteCharacter(string $char): string
+    {
+        $codepoint = $this->unicodeCodepoint($char);
+        if ($codepoint < 32 || $codepoint === 127 || $codepoint > 126) {
+            return '\\' . (string) $codepoint;
+        }
+
+        return $char;
+    }
+
+    private function unicodeCodepoint(string $char): int
+    {
+        if (function_exists('mb_ord')) {
+            return mb_ord($char, 'UTF-8');
+        }
+
+        $encoded = mb_convert_encoding($char, 'UCS-4BE', 'UTF-8');
+        $parts = unpack('N', $encoded);
+
+        return (int) ($parts[1] ?? 0);
+    }
+
+    private function renderFloat(float $value): string
+    {
+        $formatted = rtrim(rtrim(sprintf('%.15F', $value), '0'), '.');
+
+        return $formatted === '' || $formatted === '-0' ? '0' : $formatted;
+    }
+
+    private function tableColumnCount(AstNode $table): int
+    {
+        $max = max(count($this->tableAlignments($table, 0)), count($this->tableWidths($table, 0)));
+        foreach ($this->tableAllRows($table) as $row) {
+            $columns = 0;
+            foreach ($row->children as $cell) {
+                if ($cell->type === 'table_cell') {
+                    $columns += max(1, (int) $cell->attr('colspan', 1));
+                }
+            }
+            $max = max($max, $columns);
+        }
+
+        return $max;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tableAlignments(AstNode $table, int $columnCount): array
+    {
+        $alignments = $table->attr('alignments', []);
+        if (!is_array($alignments)) {
+            $alignments = [];
+        }
+
+        $normalized = [];
+        foreach ($alignments as $alignment) {
+            $normalized[] = in_array($alignment, ['left', 'right', 'center'], true) ? (string) $alignment : 'default';
+        }
+        while ($columnCount > 0 && count($normalized) < $columnCount) {
+            $normalized[] = 'default';
+        }
+
+        return $columnCount > 0 ? array_slice($normalized, 0, $columnCount) : $normalized;
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function tableWidths(AstNode $table, int $columnCount): array
+    {
+        $widths = $table->attr('widths', []);
+        if (!is_array($widths)) {
+            $widths = [];
+        }
+
+        $normalized = [];
+        foreach ($widths as $width) {
+            $normalized[] = is_numeric($width) ? max(0.0, (float) $width) : 0.0;
+        }
+        while ($columnCount > 0 && count($normalized) < $columnCount) {
+            $normalized[] = 0.0;
+        }
+
+        return $columnCount > 0 ? array_slice($normalized, 0, $columnCount) : $normalized;
+    }
+
+    private function tableSection(AstNode $table, string $type): ?AstNode
+    {
+        foreach ($table->children as $child) {
+            if ($child->type === $type) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableBodies(AstNode $table): array
+    {
+        $bodies = [];
+        foreach ($table->children as $child) {
+            if ($child->type === 'table_body') {
+                $bodies[] = $child;
+            }
+        }
+
+        return $bodies;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableBodyHeadRows(AstNode $body): array
+    {
+        $headRows = $body->attr('headRows', []);
+        if (!is_array($headRows)) {
+            return [];
+        }
+
+        return array_values(array_filter($headRows, static fn (mixed $row): bool => $row instanceof AstNode && $row->type === 'table_row'));
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function tableRowsFromChildren(array $children): array
+    {
+        return array_values(array_filter($children, static fn (AstNode $node): bool => $node->type === 'table_row'));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableAllRows(AstNode $table): array
+    {
+        $rows = [];
+        $head = $this->tableSection($table, 'table_head');
+        if ($head instanceof AstNode) {
+            array_push($rows, ...$this->tableRowsFromChildren($head->children));
+        }
+        foreach ($this->tableBodies($table) as $body) {
+            array_push($rows, ...$this->tableBodyHeadRows($body), ...$this->tableRowsFromChildren($body->children));
+        }
+        $foot = $this->tableSection($table, 'table_foot');
+        if ($foot instanceof AstNode) {
+            array_push($rows, ...$this->tableRowsFromChildren($foot->children));
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function isAstNodeList(array $value): bool
+    {
+        if ($value === []) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if (!$item instanceof AstNode) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isInlineNode(AstNode $node): bool
+    {
+        return in_array($node->type, [
+            'text',
+            'softbreak',
+            'linebreak',
+            'emph',
+            'strong',
+            'strikeout',
+            'superscript',
+            'subscript',
+            'underline',
+            'small_caps',
+            'code',
+            'link',
+            'image',
+            'note',
+            'quoted',
+            'math',
+            'citation',
+            'raw_html_inline',
+            'raw_tex_inline',
+            'raw_inline',
+            'span',
+        ], true);
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function isList(array $value): bool
+    {
+        return array_keys($value) === range(0, count($value) - 1);
+    }
+}

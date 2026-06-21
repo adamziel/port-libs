@@ -9,6 +9,13 @@ final class WordPressBlockWriter
     /** @var list<AstNode> */
     private array $footnotes = [];
 
+    /**
+     * @param array{includeMetadata?: bool, preserveListAttributes?: bool, preserveEmptyParagraphs?: bool, taskGlyphsAsCheckboxes?: bool, markEmptyTableCells?: bool} $options
+     */
+    public function __construct(private readonly array $options = [])
+    {
+    }
+
     public function write(AstNode $document): string
     {
         if ($document->type !== 'document') {
@@ -19,9 +26,18 @@ final class WordPressBlockWriter
         $this->footnotes = [];
         $blocks = [];
         $pendingList = [];
+        if ((bool) ($this->options['includeMetadata'] ?? false)) {
+            $metadataBlock = $this->renderMetadataReviewBlock($document);
+            if ($metadataBlock !== '') {
+                $blocks[] = $metadataBlock;
+            }
+        }
         foreach ($document->children as $node) {
             if ($node->type !== 'list_item') {
                 $this->flushList($pendingList, $blocks);
+            }
+            if ($this->shouldSkipEmptyParagraphLikeBlock($node)) {
+                continue;
             }
             if ($node->type === 'heading') {
                 $level = (int) $node->attr('level', 2);
@@ -46,6 +62,8 @@ final class WordPressBlockWriter
                 $blocks[] = $this->renderRawHtmlBlock($node);
             } elseif ($node->type === 'raw_tex') {
                 $blocks[] = $this->renderRawTexBlock($node);
+            } elseif ($node->type === 'raw_block') {
+                $blocks[] = $this->renderRawFormatBlock($node);
             } elseif ($node->type === 'code_block') {
                 $blocks[] = $this->renderCodeBlock($node);
             } elseif ($node->type === 'figure') {
@@ -73,6 +91,232 @@ final class WordPressBlockWriter
         return $output;
     }
 
+    private function isEmptyParagraphLikeBlock(AstNode $node): bool
+    {
+        if (!in_array($node->type, ['paragraph', 'plain'], true)) {
+            return false;
+        }
+
+        if ($node->children !== []) {
+            return false;
+        }
+
+        return trim((string) $node->attr('text', '')) === '';
+    }
+
+    private function shouldSkipEmptyParagraphLikeBlock(AstNode $node): bool
+    {
+        return !(bool) ($this->options['preserveEmptyParagraphs'] ?? false)
+            && $this->isEmptyParagraphLikeBlock($node);
+    }
+
+    private function renderMetadataReviewBlock(AstNode $document): string
+    {
+        $meta = $document->attr('meta', []);
+        if (!is_array($meta) || $meta === []) {
+            return '';
+        }
+
+        $entries = [];
+        foreach ($meta as $key => $value) {
+            $key = (string) $key;
+            if (in_array($key, ['titleInlines', 'authorInlines', 'dateInlines', 'authors'], true)) {
+                continue;
+            }
+
+            $entries[] = '<dt data-pandoc-meta-key="' . $this->esc($key) . '">' . $this->esc($key) . '</dt>'
+                . '<dd>' . $this->renderMetadataValue($value) . '</dd>';
+        }
+
+        if ($entries === []) {
+            return '';
+        }
+
+        return '<!-- wp:html -->'
+            . "\n" . '<section class="pandoc-document-metadata" data-pandoc-source="native-meta"><dl>' . implode('', $entries) . '</dl></section>'
+            . "\n" . '<!-- /wp:html -->';
+    }
+
+    private function renderMetadataValue(mixed $value): string
+    {
+        if ($value instanceof AstNode) {
+            return '<span>' . $this->esc($this->metadataNodeText($value)) . '</span>';
+        }
+
+        if (is_array($value) && isset($value['type'])) {
+            $payload = $value['value'] ?? null;
+
+            return match ((string) $value['type']) {
+                'MetaInlines' => '<span>' . $this->esc($this->metadataInlinesText(is_array($payload) ? $payload : [])) . '</span>',
+                'MetaBlocks' => $this->renderMetadataBlocks(is_array($payload) ? $payload : []),
+                'MetaList' => $this->renderMetadataList(is_array($payload) ? $payload : []),
+                'MetaMap' => $this->renderMetadataMap(is_array($payload) ? $payload : []),
+                default => '<span>' . $this->esc((string) $payload) . '</span>',
+            };
+        }
+
+        if (is_array($value)) {
+            if ($this->metadataArrayIsAstNodes($value)) {
+                return '<span>' . $this->esc($this->metadataNodesText($value)) . '</span>';
+            }
+
+            if ($this->metadataArrayIsSequential($value)) {
+                return $this->renderMetadataList($value);
+            }
+
+            return $this->renderMetadataMap($value);
+        }
+
+        if (is_bool($value)) {
+            return '<span>' . ($value ? 'true' : 'false') . '</span>';
+        }
+
+        return '<span>' . $this->esc((string) $value) . '</span>';
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function renderMetadataList(array $items): string
+    {
+        if ($items === []) {
+            return '<span>[]</span>';
+        }
+
+        $html = '<ul>';
+        foreach ($items as $item) {
+            $html .= '<li>' . $this->renderMetadataValue($item) . '</li>';
+        }
+
+        return $html . '</ul>';
+    }
+
+    /**
+     * @param array<string, mixed> $items
+     */
+    private function renderMetadataMap(array $items): string
+    {
+        if ($items === []) {
+            return '<span>{}</span>';
+        }
+
+        $html = '<dl>';
+        foreach ($items as $key => $item) {
+            $html .= '<dt data-pandoc-meta-key="' . $this->esc((string) $key) . '">' . $this->esc((string) $key) . '</dt>'
+                . '<dd>' . $this->renderMetadataValue($item) . '</dd>';
+        }
+
+        return $html . '</dl>';
+    }
+
+    /**
+     * @param list<mixed> $blocks
+     */
+    private function renderMetadataBlocks(array $blocks): string
+    {
+        if ($blocks === []) {
+            return '<span></span>';
+        }
+
+        $html = '';
+        foreach ($blocks as $block) {
+            if (!$block instanceof AstNode) {
+                continue;
+            }
+
+            $text = $this->metadataNodeText($block);
+            $html .= '<p>' . $this->esc($text) . '</p>';
+        }
+
+        return $html === '' ? '<span></span>' : $html;
+    }
+
+    /**
+     * @param list<mixed> $nodes
+     */
+    private function metadataInlinesText(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            if ($node instanceof AstNode) {
+                $text .= $this->metadataInlineText($node);
+            }
+        }
+
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+    }
+
+    private function metadataInlineText(AstNode $node): string
+    {
+        return match ($node->type) {
+            'text', 'code' => (string) $node->attr('text', ''),
+            'softbreak', 'linebreak' => ' ',
+            'math' => (string) $node->attr('text', ''),
+            'raw_html_inline' => (string) $node->attr('html', ''),
+            'raw_tex', 'raw_tex_inline' => (string) $node->attr('tex', $node->attr('text', '')),
+            'raw_inline' => (string) $node->attr('text', ''),
+            'image' => (string) $node->attr('alt', $this->metadataInlinesText($node->children)),
+            default => $this->metadataInlinesText($node->children),
+        };
+    }
+
+    private function metadataNodeText(AstNode $node): string
+    {
+        return match ($node->type) {
+            'paragraph', 'plain', 'term', 'line' => $this->metadataInlinesText($node->children),
+            'code_block' => (string) $node->attr('text', ''),
+            'raw_html' => (string) $node->attr('html', ''),
+            'raw_tex' => (string) $node->attr('tex', ''),
+            'raw_block' => (string) $node->attr('text', ''),
+            'line_block' => implode(' / ', array_map(fn (AstNode $line): string => $this->metadataNodeText($line), $node->children)),
+            default => $this->metadataNodesText($node->children) !== ''
+                ? $this->metadataNodesText($node->children)
+                : (string) $node->attr('text', ''),
+        };
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function metadataNodesText(array $nodes): string
+    {
+        $parts = [];
+        foreach ($nodes as $node) {
+            $text = $this->metadataNodeText($node);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return trim(implode(' ', $parts));
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function metadataArrayIsAstNodes(array $value): bool
+    {
+        if ($value === []) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if (!$item instanceof AstNode) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function metadataArrayIsSequential(array $value): bool
+    {
+        return $value === [] || array_keys($value) === range(0, count($value) - 1);
+    }
+
     private function renderParagraphBlock(AstNode $node): string
     {
         if (count($node->children) === 1 && $node->children[0]->type === 'image') {
@@ -84,7 +328,7 @@ final class WordPressBlockWriter
         }
 
         return '<!-- wp:paragraph -->'
-            . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
+            . "\n" . '<p' . $this->renderBlockHtmlAttrs($node) . '>' . $this->renderInlines($node) . '</p>'
             . "\n" . '<!-- /wp:paragraph -->';
     }
 
@@ -114,7 +358,7 @@ final class WordPressBlockWriter
             }
             $tagAttrs = $this->renderOrderedListTagAttrs($node);
             $comment = '<!-- wp:list ' . json_encode($attrs, JSON_THROW_ON_ERROR) . ' -->';
-        } elseif ($node->attr('taskList') === true) {
+        } elseif ($this->listIsTaskList($node)) {
             $tagAttrs = ' class="task-list"';
         }
         $items = [];
@@ -134,7 +378,7 @@ final class WordPressBlockWriter
     private function renderListHtml(AstNode $node, bool $ordered): string
     {
         $tag = $ordered ? 'ol' : 'ul';
-        $tagAttrs = $ordered ? $this->renderOrderedListTagAttrs($node) : ($node->attr('taskList') === true ? ' class="task-list"' : '');
+        $tagAttrs = $ordered ? $this->renderOrderedListTagAttrs($node) : ($this->listIsTaskList($node) ? ' class="task-list"' : '');
         $items = [];
         foreach ($node->children as $item) {
             if ($item->type === 'list_item') {
@@ -158,38 +402,28 @@ final class WordPressBlockWriter
             $attrs .= ' type="' . $this->esc($type) . '"';
         }
 
+        if ((bool) ($this->options['preserveListAttributes'] ?? false)) {
+            $style = (string) $node->attr('style', 'default');
+            $styleIsSourceSpecific = !in_array($style, ['', 'default', 'decimal'], true);
+            if ($styleIsSourceSpecific) {
+                $attrs .= ' data-pandoc-list-style="' . $this->esc($style) . '"';
+            }
+
+            $delimiter = (string) $node->attr('delimiter', 'default');
+            if (
+                !in_array($delimiter, ['', 'default'], true)
+                && ($delimiter !== 'period' || $styleIsSourceSpecific)
+            ) {
+                $attrs .= ' data-pandoc-list-delimiter="' . $this->esc($delimiter) . '"';
+            }
+        }
+
         return $attrs;
     }
 
     private function renderHeadingAttrs(AstNode $node): string
     {
-        $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (is_array($htmlAttributes) && $htmlAttributes !== []) {
-            $attrs = '';
-            $id = (string) ($htmlAttributes['id'] ?? $node->attr('id', ''));
-            if ($id !== '') {
-                $attrs .= ' id="' . $this->esc($id) . '"';
-            }
-
-            $class = (string) ($htmlAttributes['class'] ?? '');
-            if ($class !== '') {
-                $attrs .= ' class="' . $this->esc($class) . '"';
-            }
-
-            return $attrs;
-        }
-
-        $id = (string) $node->attr('id', '');
-        $attrs = $id === '' ? '' : ' id="' . $this->esc($id) . '"';
-        $classes = $node->attr('classes', []);
-        if (is_array($classes) && $classes !== []) {
-            $class = implode(' ', array_map(static fn (mixed $value): string => (string) $value, $classes));
-            if ($class !== '') {
-                $attrs .= ' class="' . $this->esc($class) . '"';
-            }
-        }
-
-        return $attrs;
+        return $this->renderBlockHtmlAttrs($node);
     }
 
     private function orderedListHtmlType(string $style): string
@@ -213,8 +447,10 @@ final class WordPressBlockWriter
             }
         }
         $wrapParagraphs = (bool) $item->attr('loose', false) || $paragraphCount > 1;
-        $taskChecked = $item->attr('taskChecked', null);
+        $explicitTaskChecked = $item->attr('taskChecked', null);
+        $taskChecked = is_bool($explicitTaskChecked) ? $explicitTaskChecked : $this->taskGlyphChecked($item);
         $taskPending = is_bool($taskChecked);
+        $stripTaskGlyph = $taskPending && !is_bool($explicitTaskChecked);
         $children = $item->children;
 
         for ($index = 0, $count = count($children); $index < $count; $index++) {
@@ -228,35 +464,92 @@ final class WordPressBlockWriter
                 continue;
             }
             if (!$this->isInlineNode($child) && $child->type !== 'paragraph') {
+                if ($child->type === 'plain') {
+                    $rendered = $stripTaskGlyph
+                        ? $this->renderInlineNodesWithoutLeadingTaskGlyph($child->children)
+                        : $this->renderInlines($child);
+                    if ($taskPending) {
+                        $rendered = $this->renderTaskListLabel($taskChecked, $rendered);
+                        $taskPending = false;
+                        $stripTaskGlyph = false;
+                    }
+                    $html .= $rendered;
+                    continue;
+                }
                 $html .= $this->renderBlocksAsHtml([$child]);
                 continue;
             }
             if ($child->type === 'paragraph') {
-                $rendered = $this->renderInlines($child);
+                $rendered = $stripTaskGlyph
+                    ? $this->renderInlineNodesWithoutLeadingTaskGlyph($child->children)
+                    : $this->renderInlines($child);
                 if ($taskPending) {
                     $rendered = $this->renderTaskListLabel($taskChecked, $rendered);
                     $taskPending = false;
+                    $stripTaskGlyph = false;
                 }
                 $html .= $wrapParagraphs ? '<p>' . $rendered . '</p>' : $rendered;
                 continue;
             }
 
             if ($taskPending) {
-                $inlineHtml = '';
+                $inlineNodes = [];
                 while ($index < $count && $this->isInlineNode($children[$index])) {
-                    $inlineHtml .= $this->renderInlineNode($children[$index]);
+                    $inlineNodes[] = $children[$index];
                     $index++;
                 }
                 $index--;
+                $inlineHtml = $stripTaskGlyph
+                    ? $this->renderInlineNodesWithoutLeadingTaskGlyph($inlineNodes)
+                    : $this->renderInlineNodes($inlineNodes);
                 $html .= $this->renderTaskListLabel($taskChecked, $inlineHtml);
                 $taskPending = false;
+                $stripTaskGlyph = false;
                 continue;
             }
 
             $html .= $this->renderInlineNode($child);
         }
 
-        return '<li>' . $html . '</li>';
+        return '<li' . $this->renderBlockHtmlAttrs($item) . '>' . $html . '</li>';
+    }
+
+    private function renderBlockHtmlAttrs(AstNode $node): string
+    {
+        $htmlAttributes = [];
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if (!$this->isAllowedBlockHtmlAttr($name)) {
+                continue;
+            }
+            $htmlAttributes[$name] = $value;
+        }
+
+        $orderedNames = [];
+        $priority = array_key_exists('id', $htmlAttributes)
+            ? ['id', 'class', 'lang', 'dir', 'role', 'title']
+            : ['lang', 'dir', 'role', 'title'];
+        foreach ($priority as $name) {
+            if (array_key_exists($name, $htmlAttributes)) {
+                $orderedNames[] = $name;
+            }
+        }
+        foreach (array_keys($htmlAttributes) as $name) {
+            if ($name !== 'class' && !in_array($name, $orderedNames, true)) {
+                $orderedNames[] = $name;
+            }
+        }
+        if (!array_key_exists('id', $htmlAttributes) && array_key_exists('class', $htmlAttributes)) {
+            $orderedNames[] = 'class';
+        }
+
+        $attrs = '';
+        foreach ($orderedNames as $name) {
+            $value = $htmlAttributes[$name];
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
     }
 
     private function renderTaskListLabel(bool $checked, string $html): string
@@ -264,6 +557,86 @@ final class WordPressBlockWriter
         $checkbox = '<input type="checkbox"' . ($checked ? ' checked=""' : '') . ' />';
 
         return '<label>' . $checkbox . $html . '</label>';
+    }
+
+    private function listIsTaskList(AstNode $node): bool
+    {
+        if ($node->attr('taskList') === true) {
+            return true;
+        }
+
+        if (!$this->taskGlyphsAsCheckboxesEnabled()) {
+            return false;
+        }
+
+        $hasItems = false;
+        foreach ($node->children as $item) {
+            if ($item->type !== 'list_item') {
+                continue;
+            }
+
+            $hasItems = true;
+            if ($this->taskGlyphChecked($item) === null) {
+                return false;
+            }
+        }
+
+        return $hasItems;
+    }
+
+    private function taskGlyphsAsCheckboxesEnabled(): bool
+    {
+        return (bool) ($this->options['taskGlyphsAsCheckboxes'] ?? false);
+    }
+
+    private function taskGlyphChecked(AstNode $item): ?bool
+    {
+        if (!$this->taskGlyphsAsCheckboxesEnabled()) {
+            return null;
+        }
+
+        foreach ($item->children as $child) {
+            if (in_array($child->type, ['paragraph', 'plain'], true)) {
+                return $this->taskGlyphCheckedFromInlineNodes($child->children);
+            }
+
+            if ($this->isInlineNode($child)) {
+                return $this->taskGlyphCheckedFromInlineNodes([$child]);
+            }
+
+            return null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function taskGlyphCheckedFromInlineNodes(array $nodes): ?bool
+    {
+        foreach ($nodes as $node) {
+            if ($node->type !== 'text') {
+                return null;
+            }
+
+            $text = (string) $node->attr('text', '');
+            if ($text === '') {
+                continue;
+            }
+
+            if (preg_match('/^\x{2610}/u', $text) === 1) {
+                return false;
+            }
+
+            if (preg_match('/^\x{2612}/u', $text) === 1) {
+                return true;
+            }
+
+            return null;
+        }
+
+        return null;
     }
 
     private function renderDefinitionList(AstNode $node): string
@@ -289,6 +662,13 @@ final class WordPressBlockWriter
     {
         return '<!-- wp:code -->'
             . "\n" . $this->renderRawTexBlockHtml($node)
+            . "\n" . '<!-- /wp:code -->';
+    }
+
+    private function renderRawFormatBlock(AstNode $node): string
+    {
+        return '<!-- wp:code -->'
+            . "\n" . $this->renderRawFormatBlockHtml($node)
             . "\n" . '<!-- /wp:code -->';
     }
 
@@ -338,6 +718,8 @@ final class WordPressBlockWriter
             }
         }
 
+        $caption = (string) $node->attr('caption', '');
+        $captionHtml = $caption !== '' ? $this->renderCaptionInlines($node) : '';
         $html = '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
         if ($head instanceof AstNode && $head->children !== []) {
             $html .= '<thead' . $this->renderStoredHtmlAttrs($head, true, []) . '>';
@@ -360,8 +742,9 @@ final class WordPressBlockWriter
                     }
                 }
             }
+            $rowHeadColumns = max(0, (int) $body->attr('rowHeadColumns', 0));
             foreach ($body->children as $row) {
-                $html .= $this->renderTableRow($row, $node, false);
+                $html .= $this->renderTableRow($row, $node, false, $rowHeadColumns);
             }
             $html .= '</tbody>';
         }
@@ -374,9 +757,8 @@ final class WordPressBlockWriter
         }
         $html .= '</table>';
 
-        $caption = (string) $node->attr('caption', '');
         if ($caption !== '') {
-            $html .= '<figcaption class="wp-element-caption">' . $this->renderCaptionInlines($node) . '</figcaption>';
+            $html .= '<figcaption class="wp-element-caption">' . $captionHtml . '</figcaption>';
         }
 
         return $html;
@@ -443,16 +825,19 @@ final class WordPressBlockWriter
         return ($formatted === '' ? '0' : $formatted) . '%';
     }
 
-    private function renderTableRow(AstNode $row, AstNode $table, bool $header): string
+    private function renderTableRow(AstNode $row, AstNode $table, bool $header, int $rowHeadColumns = 0): string
     {
         $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
+        $logicalColumn = 0;
         foreach ($row->children as $index => $cell) {
             if ($cell->type !== 'table_cell') {
                 continue;
             }
+            $colspan = max(1, (int) $cell->attr('colspan', 1));
             $attrs = $this->renderTableCellAttrs($table, $index, $cell);
-            $tag = $header || $cell->attr('header') === true ? 'th' : 'td';
+            $tag = $header || $cell->attr('header') === true || ($logicalColumn < $rowHeadColumns && $logicalColumn + $colspan <= $rowHeadColumns) ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
+            $logicalColumn += $colspan;
         }
 
         return $html . '</tr>';
@@ -494,6 +879,9 @@ final class WordPressBlockWriter
             'quoted',
             'math',
             'raw_tex',
+            'raw_tex_inline',
+            'raw_html_inline',
+            'raw_inline',
             'code',
             'link',
             'image',
@@ -504,7 +892,11 @@ final class WordPressBlockWriter
 
     private function renderTableCellAttrs(AstNode $table, int $index, AstNode $cell): string
     {
-        $attrs = $this->renderStoredHtmlAttrs($cell, false, ['style']);
+        $attrs = $this->renderStoredHtmlAttrs($cell, true, ['style']);
+        if ($this->shouldMarkEmptyTableCell($cell)) {
+            $attrs .= ' data-pandoc-empty-cell="true"';
+        }
+
         $colspan = (int) $cell->attr('colspan', 1);
         if ($colspan > 1) {
             $attrs .= ' colspan="' . $colspan . '"';
@@ -539,6 +931,50 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    private function shouldMarkEmptyTableCell(AstNode $cell): bool
+    {
+        return (bool) ($this->options['markEmptyTableCells'] ?? false)
+            && $this->isEmptyTableCell($cell);
+    }
+
+    private function isEmptyTableCell(AstNode $cell): bool
+    {
+        if ($cell->children === []) {
+            return trim((string) $cell->attr('text', '')) === '';
+        }
+
+        foreach ($cell->children as $child) {
+            if ($this->nodeHasVisibleTableCellContent($child)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function nodeHasVisibleTableCellContent(AstNode $node): bool
+    {
+        if (trim((string) $node->attr('text', '')) !== '') {
+            return true;
+        }
+
+        if (in_array($node->type, ['image', 'code_block', 'raw_html', 'raw_tex', 'raw_block', 'table', 'horizontal_rule'], true)) {
+            foreach (['url', 'src', 'alt', 'html', 'tex', 'format'] as $attr) {
+                if (trim((string) $node->attr($attr, '')) !== '') {
+                    return true;
+                }
+            }
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->nodeHasVisibleTableCellContent($child)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -610,7 +1046,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'bgcolor', 'headers', 'scope', 'style', 'title', 'valign'], true);
+            || in_array($name, ['abbr', 'bgcolor', 'class', 'dir', 'headers', 'id', 'lang', 'role', 'scope', 'style', 'title', 'valign'], true);
     }
 
     private function renderCodeBlock(AstNode $node): string
@@ -625,8 +1061,53 @@ final class WordPressBlockWriter
         $classes = $node->attr('classes', []);
         $language = is_array($classes) && isset($classes[0]) ? $this->sanitizeCodeClass((string) $classes[0]) : '';
         $codeAttrs = $language === '' ? '' : ' class="language-' . $this->esc($language) . '"';
+        $preAttrs = $this->renderCodeBlockPreAttrs($node);
 
-        return '<pre class="wp-block-code"><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
+        return '<pre class="wp-block-code"' . $preAttrs . '><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
+    }
+
+    private function renderCodeBlockPreAttrs(AstNode $node): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'class') {
+                continue;
+            }
+
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedBlockHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
     }
 
     private function renderRawTexBlockHtml(AstNode $node): string
@@ -634,6 +1115,83 @@ final class WordPressBlockWriter
         return '<pre class="wp-block-code"><code class="language-tex">'
             . $this->esc((string) $node->attr('tex', ''))
             . '</code></pre>';
+    }
+
+    private function renderRawFormatBlockHtml(AstNode $node): string
+    {
+        $format = (string) $node->attr('format', 'raw');
+        $formatToken = $this->rawFormatToken($format);
+        $language = $formatToken === 'openxml' ? 'xml' : $formatToken;
+
+        return '<pre class="wp-block-code pandoc-raw-' . $this->esc($formatToken) . '" data-pandoc-raw-format="' . $this->esc($format) . '"><code class="language-' . $this->esc($language) . '">'
+            . $this->esc((string) $node->attr('text', ''))
+            . '</code></pre>';
+    }
+
+    private function renderRawInlineNode(AstNode $node): string
+    {
+        $format = (string) $node->attr('format', 'raw');
+        $text = (string) $node->attr('text', '');
+        $formatToken = $this->rawFormatToken($format);
+
+        if (strtolower($format) === 'openxml') {
+            $bookmark = $this->parseOpenXmlBookmark($text);
+            if ($bookmark !== null) {
+                $attrs = ' class="pandoc-openxml-bookmark-' . $this->esc($bookmark['kind']) . '"'
+                    . ' data-pandoc-raw-format="openxml"';
+                if ($bookmark['id'] !== '') {
+                    $attrs .= ' data-pandoc-bookmark-id="' . $this->esc($bookmark['id']) . '"';
+                }
+                if ($bookmark['name'] !== '') {
+                    $attrs .= ' data-pandoc-bookmark-name="' . $this->esc($bookmark['name']) . '"';
+                }
+
+                return '<span' . $attrs . '></span>';
+            }
+        }
+
+        return '<span class="pandoc-raw-' . $this->esc($formatToken) . '" data-pandoc-raw-format="' . $this->esc($format) . '">'
+            . $this->esc($text)
+            . '</span>';
+    }
+
+    private function rawFormatToken(string $format): string
+    {
+        $token = $this->sanitizeCodeClass(strtolower(str_replace(['.', ':'], '-', $format)));
+
+        return $token === '' ? 'raw' : $token;
+    }
+
+    /**
+     * @return array{kind:string, id:string, name:string}|null
+     */
+    private function parseOpenXmlBookmark(string $xml): ?array
+    {
+        if (preg_match('/^<w:bookmark(Start|End)\b([^>]*)\/>$/u', trim($xml), $match) !== 1) {
+            return null;
+        }
+
+        $attrs = $this->parseOpenXmlAttributes($match[2]);
+
+        return [
+            'kind' => strtolower($match[1]),
+            'id' => (string) ($attrs['id'] ?? ''),
+            'name' => (string) ($attrs['name'] ?? ''),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function parseOpenXmlAttributes(string $source): array
+    {
+        preg_match_all('/\bw:([A-Za-z0-9_.:-]+)="([^"]*)"/u', $source, $matches, PREG_SET_ORDER);
+        $attrs = [];
+        foreach ($matches as $match) {
+            $attrs[$match[1]] = html_entity_decode($match[2], ENT_QUOTES | ENT_XML1, 'UTF-8');
+        }
+
+        return $attrs;
     }
 
     private function renderFigureBlock(AstNode $node): string
@@ -645,27 +1203,136 @@ final class WordPressBlockWriter
 
     private function renderFigureHtml(AstNode $node): string
     {
-        $image = null;
-        foreach ($node->children as $child) {
-            if ($child->type === 'image') {
-                $image = $child;
-                break;
-            }
-        }
+        $image = $this->firstFigureImage($node);
         if (!$image instanceof AstNode) {
             $image = new AstNode('image', [
                 'url' => '',
                 'alt' => (string) $node->attr('caption', ''),
             ]);
+        } else {
+            $image = $this->imageWithFigureAltFallback($image, $node);
         }
 
-        $caption = (string) $node->attr('caption', $image->attr('alt', ''));
         $html = '<figure' . $this->renderImageFigureAttrs($node) . '>' . $this->renderImageHtml($image);
+        $caption = $this->renderFigureCaption($node, $image);
         if ($caption !== '') {
-            $html .= '<figcaption>' . $this->esc($caption) . '</figcaption>';
+            $html .= '<figcaption>' . $caption . '</figcaption>';
         }
 
         return $html . '</figure>';
+    }
+
+    private function firstFigureImage(AstNode $node): ?AstNode
+    {
+        foreach ($node->children as $child) {
+            if ($child->type === 'image') {
+                return $child;
+            }
+
+            $nested = $this->firstFigureImage($child);
+            if ($nested instanceof AstNode) {
+                return $nested;
+            }
+        }
+
+        return null;
+    }
+
+    private function imageWithFigureAltFallback(AstNode $image, AstNode $figure): AstNode
+    {
+        if ((string) $image->attr('alt', '') !== '') {
+            return $image;
+        }
+
+        $alt = $this->figureBodyTextWithoutImages($figure);
+        if ($alt !== '') {
+            return new AstNode('image', array_replace($image->attrs, ['alt' => $alt]), $image->children);
+        }
+
+        $alt = $this->figureCaptionText($figure);
+        if ($alt === '') {
+            return $image;
+        }
+
+        $attrs = array_replace($image->attrs, ['alt' => $alt]);
+        $sourceAttrs = $attrs['attributes'] ?? [];
+        if (!is_array($sourceAttrs)) {
+            $sourceAttrs = [];
+        }
+        if (!isset($sourceAttrs['data-pandoc-alt-source'])) {
+            $sourceAttrs['data-pandoc-alt-source'] = 'figure-caption';
+        }
+        $attrs['attributes'] = $sourceAttrs;
+
+        return new AstNode('image', $attrs, $image->children);
+    }
+
+    private function figureBodyTextWithoutImages(AstNode $figure): string
+    {
+        $parts = [];
+        foreach ($figure->children as $child) {
+            if ($this->nodeContainsImage($child)) {
+                continue;
+            }
+
+            $text = $this->metadataNodeText($child);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return trim(implode(' ', $parts));
+    }
+
+    private function figureCaptionText(AstNode $figure): string
+    {
+        $inlines = $figure->attr('captionInlines', null);
+        if (is_array($inlines)) {
+            $caption = $this->metadataInlinesText($inlines);
+            if ($caption !== '') {
+                return $caption;
+            }
+        }
+
+        return trim((string) $figure->attr('caption', ''));
+    }
+
+    private function nodeContainsImage(AstNode $node): bool
+    {
+        if ($node->type === 'image') {
+            return true;
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->nodeContainsImage($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function renderFigureCaption(AstNode $node, AstNode $image): string
+    {
+        $inlines = $node->attr('captionInlines', null);
+        if (is_array($inlines)) {
+            $html = '';
+            foreach ($inlines as $inline) {
+                if (!$inline instanceof AstNode) {
+                    $html = '';
+                    break;
+                }
+
+                $html .= $this->renderInlineNode($inline);
+            }
+            if ($html !== '') {
+                return $html;
+            }
+        }
+
+        $caption = (string) $node->attr('caption', $image->attr('alt', ''));
+
+        return $caption === '' ? '' : $this->esc($caption);
     }
 
     private function renderImageFigureAttrs(AstNode $node): string
@@ -701,7 +1368,81 @@ final class WordPressBlockWriter
             $attrs .= ' title="' . $this->esc($title) . '"';
         }
 
+        $sourceAttrs = $this->inlineHtmlAttributes($node);
+        $attrs .= $this->renderImageDimensionAttrs($sourceAttrs);
+        $sourceFormat = $this->unsupportedWordPressImageSourceFormat((string) $node->attr('url', ''));
+        if ($sourceFormat !== '' && !isset($sourceAttrs['data-pandoc-source-format'])) {
+            $attrs .= ' data-pandoc-source-format="' . $this->esc($sourceFormat) . '"';
+        }
+        foreach ($sourceAttrs as $name => $value) {
+            $name = strtolower((string) $name);
+            if (
+                in_array($name, ['src', 'href', 'alt', 'title', 'width', 'height', 'style'], true)
+                || !$this->isAllowedImageHtmlAttr($name)
+            ) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
         return '<img' . $attrs . '/>';
+    }
+
+    private function unsupportedWordPressImageSourceFormat(string $url): string
+    {
+        $path = parse_url($url, PHP_URL_PATH);
+        if (!is_string($path) || $path === '') {
+            $path = $url;
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (!in_array($extension, ['emf', 'wmf', 'tif', 'tiff', 'heic', 'heif'], true)) {
+            return '';
+        }
+
+        return $extension;
+    }
+
+    /**
+     * @param array<string, mixed> $sourceAttrs
+     */
+    private function renderImageDimensionAttrs(array $sourceAttrs): string
+    {
+        $attrs = '';
+        $styles = [];
+        foreach (['width', 'height'] as $dimension) {
+            $value = trim((string) ($sourceAttrs[$dimension] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+
+            $attrs .= ' data-pandoc-' . $dimension . '="' . $this->esc($value) . '"';
+            $cssDimension = $this->safeCssDimension($value);
+            if ($cssDimension !== '') {
+                $styles[] = $dimension . ':' . $cssDimension;
+            }
+        }
+
+        if ($styles !== []) {
+            $attrs .= ' style="' . $this->esc(implode('; ', $styles)) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function safeCssDimension(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '0') {
+            return '0';
+        }
+
+        if (preg_match('/^(?:\d+(?:\.\d+)?|\.\d+)(?:%|px|em|rem|in|cm|mm|pt|pc|vw|vh|vmin|vmax)$/i', $value) === 1) {
+            return $value;
+        }
+
+        return '';
     }
 
     private function renderBlockQuote(AstNode $node): string
@@ -735,7 +1476,7 @@ final class WordPressBlockWriter
     private function renderDivBlock(AstNode $node): string
     {
         return '<!-- wp:html -->'
-            . "\n" . '<div>' . $this->renderBlocksAsHtml($node->children) . '</div>'
+            . "\n" . '<div' . $this->renderDivAttrs($node) . '>' . $this->renderBlocksAsHtml($node->children) . '</div>'
             . "\n" . '<!-- /wp:html -->';
     }
 
@@ -784,6 +1525,10 @@ final class WordPressBlockWriter
                 $html .= $this->renderRawTexBlockHtml($child);
                 continue;
             }
+            if (!$this->isInlineNode($child)) {
+                $html .= $this->renderBlocksAsHtml([$child]);
+                continue;
+            }
 
             $html .= $this->renderInlineNode($child);
         }
@@ -798,8 +1543,12 @@ final class WordPressBlockWriter
     {
         $html = '';
         foreach ($blocks as $block) {
+            if ($this->shouldSkipEmptyParagraphLikeBlock($block)) {
+                continue;
+            }
+
             if ($block->type === 'paragraph') {
-                $html .= '<p>' . $this->renderInlines($block) . '</p>';
+                $html .= '<p' . $this->renderBlockHtmlAttrs($block) . '>' . $this->renderInlines($block) . '</p>';
                 continue;
             }
             if ($block->type === 'plain') {
@@ -859,8 +1608,12 @@ final class WordPressBlockWriter
                 $html .= $this->renderRawTexBlockHtml($block);
                 continue;
             }
+            if ($block->type === 'raw_block') {
+                $html .= $this->renderRawFormatBlockHtml($block);
+                continue;
+            }
             if ($block->type === 'div') {
-                $html .= '<div>' . $this->renderBlocksAsHtml($block->children) . '</div>';
+                $html .= '<div' . $this->renderDivAttrs($block) . '>' . $this->renderBlocksAsHtml($block->children) . '</div>';
             }
         }
 
@@ -873,9 +1626,59 @@ final class WordPressBlockWriter
             return $this->esc((string) $node->attr('text', ''));
         }
 
+        return $this->renderInlineNodes($node->children);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderInlineNodes(array $nodes): string
+    {
         $html = '';
-        foreach ($node->children as $child) {
+        foreach ($nodes as $child) {
             $html .= $this->renderInlineNode($child);
+        }
+
+        return $html;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderInlineNodesWithoutLeadingTaskGlyph(array $nodes): string
+    {
+        $html = '';
+        $stripGlyph = true;
+        $stripFollowingSpace = false;
+
+        foreach ($nodes as $node) {
+            if ($stripGlyph && $node->type === 'text') {
+                $text = (string) $node->attr('text', '');
+                $stripped = preg_replace('/^(?:\x{2610}|\x{2612})/u', '', $text, 1);
+                if ($stripped !== null && $stripped !== $text) {
+                    $stripGlyph = false;
+                    $stripFollowingSpace = $stripped === '';
+                    if ($stripped !== '') {
+                        $html .= $this->esc(ltrim($stripped));
+                    }
+                    continue;
+                }
+            }
+
+            if ($stripFollowingSpace && $node->type === 'text') {
+                $text = ltrim((string) $node->attr('text', ''));
+                $stripFollowingSpace = false;
+                if ($text === '') {
+                    continue;
+                }
+
+                $html .= $this->esc($text);
+                continue;
+            }
+
+            $stripGlyph = false;
+            $stripFollowingSpace = false;
+            $html .= $this->renderInlineNode($node);
         }
 
         return $html;
@@ -894,18 +1697,188 @@ final class WordPressBlockWriter
             'subscript' => '<sub>' . $this->renderInlines($node) . '</sub>',
             'softbreak' => "\n",
             'linebreak' => '<br/>',
-            'span' => '<span' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>',
+            'span' => $this->renderSpanInline($node),
             'quoted' => $this->renderQuotedInline($node),
             'math' => $this->renderMathInline($node),
-            'raw_tex' => '<span class="pandoc-raw-tex">' . $this->esc((string) $node->attr('tex', '')) . '</span>',
+            'raw_tex', 'raw_tex_inline' => '<span class="pandoc-raw-tex">' . $this->esc((string) $node->attr('tex', $node->attr('text', ''))) . '</span>',
             'raw_html_inline' => (string) $node->attr('html', ''),
+            'raw_inline' => $this->renderRawInlineNode($node),
             'code' => '<code' . $this->renderInlineCodeAttrs($node) . '>' . $this->esc((string) $node->attr('text', '')) . '</code>',
-            'link' => '<a' . $this->renderLinkAttrs($node) . '>' . $this->renderInlines($node) . '</a>',
+            'link' => $this->renderLinkInline($node),
             'image' => $this->renderImageHtml($node),
             'note' => $this->renderNoteReference($node),
-            'citation' => $this->esc((string) $node->attr('text', '')),
+            'citation' => $this->renderCitationInline($node),
             default => $this->renderInlines($node),
         };
+    }
+
+    private function renderCitationInline(AstNode $node): string
+    {
+        $citations = $this->citationEntries($node);
+        $ids = [];
+        foreach ($citations as $citation) {
+            $id = (string) ($citation['id'] ?? '');
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        $attrs = ' class="pandoc-citation"';
+        if (count($ids) === 1) {
+            $attrs .= ' data-pandoc-citation-id="' . $this->esc($ids[0]) . '"';
+        }
+        $attrs .= ' data-pandoc-citation-count="' . count($citations) . '"';
+        if ($ids !== []) {
+            $attrs .= ' data-pandoc-citation-ids="' . $this->esc(json_encode($ids, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . '"';
+        }
+
+        $payload = json_encode($citations, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $attrs .= ' data-pandoc-citations="' . $this->esc($payload) . '"';
+
+        $display = $this->renderInlines($node);
+        if ($display === '') {
+            $display = $this->esc((string) $node->attr('text', $ids === [] ? '' : '[' . implode('; ', array_map(static fn (string $id): string => '@' . $id, $ids)) . ']'));
+        }
+
+        return '<span' . $attrs . '>' . $display . '</span>';
+    }
+
+    private function renderLinkInline(AstNode $node): string
+    {
+        return '<a' . $this->renderLinkAttrs($node) . '>'
+            . $this->renderInlineNodes($this->linksAsSpans($node->children))
+            . '</a>';
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function linksAsSpans(array $nodes): array
+    {
+        $mapped = [];
+        foreach ($nodes as $node) {
+            $children = $node->children === [] ? [] : $this->linksAsSpans($node->children);
+            if ($node->type !== 'link') {
+                $mapped[] = $children === $node->children
+                    ? $node
+                    : new AstNode($node->type, $node->attrs, $children);
+                continue;
+            }
+
+            $attrs = $node->attrs;
+            unset($attrs['url'], $attrs['href'], $attrs['title']);
+            $attributes = $attrs['attributes'] ?? [];
+            if (is_array($attributes)) {
+                unset($attributes['href'], $attributes['title']);
+                if ($attributes === []) {
+                    unset($attrs['attributes']);
+                } else {
+                    $attrs['attributes'] = $attributes;
+                }
+            }
+
+            $mapped[] = new AstNode('span', $attrs, $children);
+        }
+
+        return $mapped;
+    }
+
+    /**
+     * @return list<array{id:string, mode:string, noteNum:int, hash:int, prefix:string, suffix:string}>
+     */
+    private function citationEntries(AstNode $node): array
+    {
+        $citations = $node->attr('citations', null);
+        if (is_array($citations) && $citations !== []) {
+            $entries = [];
+            foreach ($citations as $citation) {
+                if ($citation instanceof AstNode) {
+                    $entries[] = $this->citationEntryFromNode($citation);
+                } elseif (is_array($citation)) {
+                    $entries[] = $this->citationEntryFromArray($citation);
+                }
+            }
+
+            return $entries;
+        }
+
+        $entry = $this->citationEntryFromNode($node);
+
+        return $entry['id'] === '' && (string) $node->attr('text', '') === '' ? [] : [$entry];
+    }
+
+    /**
+     * @return array{id:string, mode:string, noteNum:int, hash:int, prefix:string, suffix:string}
+     */
+    private function citationEntryFromNode(AstNode $node): array
+    {
+        return $this->citationEntryFromArray([
+            'id' => $node->attr('id', ''),
+            'mode' => $node->attr('mode', 'normal'),
+            'noteNum' => $node->attr('noteNum', $node->attr('citationNoteNum', 1)),
+            'hash' => $node->attr('hash', $node->attr('citationHash', 0)),
+            'prefix' => $node->attr('prefix', []),
+            'suffix' => $node->attr('suffix', []),
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $citation
+     * @return array{id:string, mode:string, noteNum:int, hash:int, prefix:string, suffix:string}
+     */
+    private function citationEntryFromArray(array $citation): array
+    {
+        return [
+            'id' => (string) ($citation['id'] ?? $citation['citationId'] ?? ''),
+            'mode' => $this->citationModeName($citation['mode'] ?? $citation['citationMode'] ?? 'normal'),
+            'noteNum' => (int) ($citation['noteNum'] ?? $citation['citationNoteNum'] ?? 1),
+            'hash' => (int) ($citation['hash'] ?? $citation['citationHash'] ?? 0),
+            'prefix' => $this->citationAffixText($citation['prefix'] ?? $citation['citationPrefix'] ?? []),
+            'suffix' => $this->citationAffixText($citation['suffix'] ?? $citation['citationSuffix'] ?? []),
+        ];
+    }
+
+    private function citationModeName(mixed $mode): string
+    {
+        return match (strtolower(str_replace(['-', '_'], '', (string) $mode))) {
+            'authorintext' => 'author_in_text',
+            'suppressauthor' => 'suppress_author',
+            default => 'normal',
+        };
+    }
+
+    private function citationAffixText(mixed $value): string
+    {
+        if ($value instanceof AstNode) {
+            return trim($this->metadataInlineText($value));
+        }
+
+        if (is_string($value)) {
+            return trim($value);
+        }
+
+        if (!is_array($value)) {
+            return '';
+        }
+
+        $nodes = [];
+        $text = '';
+        foreach ($value as $item) {
+            if ($item instanceof AstNode) {
+                $nodes[] = $item;
+                continue;
+            }
+            if (is_string($item)) {
+                $text .= $item;
+            }
+        }
+
+        if ($nodes !== []) {
+            return $this->metadataInlinesText($nodes);
+        }
+
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
     }
 
     private function renderNoteReference(AstNode $node): string
@@ -936,7 +1909,12 @@ final class WordPressBlockWriter
 
     private function renderLinkAttrs(AstNode $node): string
     {
-        $attrs = ' href="' . $this->esc((string) $node->attr('url', '')) . '"';
+        $sourceUrl = (string) $node->attr('url', '');
+        $url = $this->normalizeInternalFragmentUrl($sourceUrl);
+        $attrs = ' href="' . $this->esc($url) . '"';
+        if ($url !== $sourceUrl) {
+            $attrs .= ' data-pandoc-source-href="' . $this->esc($sourceUrl) . '"';
+        }
         $title = (string) $node->attr('title', '');
         if ($title !== '') {
             $attrs .= ' title="' . $this->esc($title) . '"';
@@ -953,7 +1931,12 @@ final class WordPressBlockWriter
 
         foreach ($htmlAttributes as $name => $value) {
             $name = strtolower((string) $name);
-            if ($name === 'href' || ($name === 'title' && $title !== '') || !$this->isAllowedInlineHtmlAttr($name)) {
+            if (
+                $name === 'href'
+                || ($name === 'title' && $title !== '')
+                || ($name === 'data-pandoc-source-href' && $url !== $sourceUrl)
+                || !$this->isAllowedInlineHtmlAttr($name)
+            ) {
                 continue;
             }
 
@@ -963,11 +1946,290 @@ final class WordPressBlockWriter
         return $attrs;
     }
 
+    private function renderSpanInline(AstNode $node): string
+    {
+        $classes = $this->spanClasses($node);
+        if (in_array('insertion', $classes, true)) {
+            return '<ins' . $this->renderTrackedChangeAttrs($node) . '>' . $this->renderInlines($node) . '</ins>';
+        }
+
+        if (in_array('deletion', $classes, true)) {
+            return '<del' . $this->renderTrackedChangeAttrs($node) . '>' . $this->renderInlines($node) . '</del>';
+        }
+
+        if (in_array('paragraph-insertion', $classes, true)) {
+            return '<span' . $this->renderParagraphChangeSpanAttrs($node, 'insertion') . '>' . $this->renderInlines($node) . '</span>';
+        }
+
+        if (in_array('paragraph-deletion', $classes, true)) {
+            return '<span' . $this->renderParagraphChangeSpanAttrs($node, 'deletion') . '>' . $this->renderInlines($node) . '</span>';
+        }
+
+        if (
+            in_array('comment-start', $classes, true)
+            || in_array('comment-end', $classes, true)
+        ) {
+            return '<span' . $this->renderCommentSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>';
+        }
+
+        if (in_array('indexref', $classes, true)) {
+            return '<span' . $this->renderIndexReferenceSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>';
+        }
+
+        if (in_array('diagram', $classes, true)) {
+            return '<span' . $this->renderDiagramSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>';
+        }
+
+        if (in_array('anchor', $classes, true) && $node->children === []) {
+            return '<span' . $this->renderEmptyAnchorSpanAttrs($node) . '></span>';
+        }
+
+        $spanLike = $this->renderSpanLikeInline($node, $classes);
+        if ($spanLike !== null) {
+            return $spanLike;
+        }
+
+        return '<span' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>';
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderSpanLikeInline(AstNode $node, array $classes): ?string
+    {
+        $firstSpecial = null;
+        foreach ($classes as $index => $class) {
+            if ($this->isSpanLikeClass($class)) {
+                $firstSpecial = $index;
+                break;
+            }
+        }
+
+        if ($firstSpecial === null) {
+            return null;
+        }
+
+        $retainedClasses = [];
+        foreach (array_slice($classes, $firstSpecial + 1) as $class) {
+            if (!$this->isSpanLikeClass($class)) {
+                $retainedClasses[] = $class;
+            }
+        }
+
+        $wrappers = [];
+        for ($index = count($classes) - 1; $index >= 0; $index--) {
+            if ($classes[$index] === 'smallcaps') {
+                $wrappers[] = ['tag' => 'span', 'classes' => ['smallcaps']];
+            } elseif ($classes[$index] === 'underline') {
+                $wrappers[] = ['tag' => 'u', 'classes' => []];
+            }
+        }
+        foreach ($classes as $class) {
+            if ($this->isHtmlSpanLikeElement($class)) {
+                $wrappers[] = ['tag' => $class, 'classes' => []];
+            }
+        }
+
+        if ($wrappers === []) {
+            return null;
+        }
+
+        $html = $this->renderInlines($node);
+        $outerIndex = count($wrappers) - 1;
+        foreach ($wrappers as $index => $wrapper) {
+            $tag = $wrapper['tag'];
+            $wrapperClasses = $wrapper['classes'];
+            $attrs = $index === $outerIndex
+                ? $this->renderSpanLikeAttrs($node, array_values(array_unique(array_merge($wrapperClasses, $retainedClasses))))
+                : $this->renderClassAttr($wrapperClasses);
+            $html = '<' . $tag . $attrs . '>' . $html . '</' . $tag . '>';
+        }
+
+        return $html;
+    }
+
+    private function isSpanLikeClass(string $class): bool
+    {
+        return $class === 'smallcaps'
+            || $class === 'underline'
+            || $this->isHtmlSpanLikeElement($class);
+    }
+
+    private function isHtmlSpanLikeElement(string $class): bool
+    {
+        return in_array($class, ['kbd', 'mark', 'dfn', 'abbr'], true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function spanClasses(AstNode $node): array
+    {
+        $classes = $node->attr('classes', []);
+        if (!is_array($classes)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($classes as $class) {
+            $class = (string) $class;
+            if ($class !== '') {
+                $normalized[] = $class;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function renderTrackedChangeAttrs(AstNode $node): string
+    {
+        $attrs = $this->renderClassAttr($this->spanClasses($node));
+        $sourceAttrs = $this->inlineHtmlAttributes($node);
+        $author = (string) ($sourceAttrs['author'] ?? '');
+        if ($author !== '') {
+            $attrs .= ' data-pandoc-change-author="' . $this->esc($author) . '"';
+        }
+
+        $date = (string) ($sourceAttrs['date'] ?? '');
+        if ($date !== '') {
+            $attrs .= ' data-pandoc-change-date="' . $this->esc($date) . '"';
+            $attrs .= ' datetime="' . $this->esc($date) . '"';
+        } elseif ($author !== '') {
+            $attrs .= ' data-pandoc-change-date-status="missing"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderCommentSpanAttrs(AstNode $node): string
+    {
+        $attrs = $this->renderClassAttr($this->spanClasses($node));
+        $sourceAttrs = $this->inlineHtmlAttributes($node);
+        $id = (string) ($sourceAttrs['id'] ?? '');
+        if ($id !== '') {
+            $attrs .= ' data-pandoc-comment-id="' . $this->esc($id) . '"';
+        }
+
+        $author = (string) ($sourceAttrs['author'] ?? '');
+        if ($author !== '') {
+            $attrs .= ' data-pandoc-comment-author="' . $this->esc($author) . '"';
+        }
+
+        $date = (string) ($sourceAttrs['date'] ?? '');
+        if ($date !== '') {
+            $attrs .= ' data-pandoc-comment-date="' . $this->esc($date) . '"';
+        } elseif ($author !== '') {
+            $attrs .= ' data-pandoc-comment-date-status="missing"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderParagraphChangeSpanAttrs(AstNode $node, string $kind): string
+    {
+        $attrs = $this->renderClassAttr($this->spanClasses($node));
+        $attrs .= ' data-pandoc-paragraph-change="' . $this->esc($kind) . '"';
+        $sourceAttrs = $this->inlineHtmlAttributes($node);
+        $author = (string) ($sourceAttrs['author'] ?? '');
+        if ($author !== '') {
+            $attrs .= ' data-pandoc-change-author="' . $this->esc($author) . '"';
+        }
+
+        $date = (string) ($sourceAttrs['date'] ?? '');
+        if ($date !== '') {
+            $attrs .= ' data-pandoc-change-date="' . $this->esc($date) . '"';
+            $attrs .= ' datetime="' . $this->esc($date) . '"';
+        } elseif ($author !== '') {
+            $attrs .= ' data-pandoc-change-date-status="missing"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderIndexReferenceSpanAttrs(AstNode $node): string
+    {
+        $attrs = $this->renderClassAttr($this->spanClasses($node));
+        $sourceAttrs = $this->inlineHtmlAttributes($node);
+        $entry = trim((string) ($sourceAttrs['entry'] ?? ''));
+        if ($entry !== '') {
+            $attrs .= ' data-pandoc-index-entry="' . $this->esc($entry) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderDiagramSpanAttrs(AstNode $node): string
+    {
+        $attrs = $this->renderInlineSpanAttrs($node);
+        $hasDiagramAttr = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $_value) {
+            if (strtolower((string) $name) === 'data-pandoc-diagram') {
+                $hasDiagramAttr = true;
+                break;
+            }
+        }
+
+        if (!$hasDiagramAttr) {
+            $attrs .= ' data-pandoc-diagram="unsupported-docx-diagram"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderEmptyAnchorSpanAttrs(AstNode $node): string
+    {
+        $attrs = $this->renderInlineSpanAttrs($node);
+        foreach ($this->inlineHtmlAttributes($node) as $name => $_value) {
+            if (strtolower((string) $name) === 'data-pandoc-anchor') {
+                return $attrs;
+            }
+        }
+
+        return $attrs . ' data-pandoc-anchor="empty-target"';
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderClassAttr(array $classes): string
+    {
+        if ($classes === []) {
+            return '';
+        }
+
+        return ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
+    }
+
     private function renderInlineSpanAttrs(AstNode $node): string
     {
         $attrs = '';
+        $renderedSourceId = false;
         foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
             $name = strtolower((string) $name);
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
             if (!$this->isAllowedInlineHtmlAttr($name)) {
                 continue;
             }
@@ -976,6 +2238,120 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderSpanLikeAttrs(AstNode $node, array $classes): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        $id = (string) ($htmlAttributes['id'] ?? $node->attr('id', ''));
+        if ($id !== '') {
+            $htmlId = $this->htmlFragmentIdNeedsNormalization($id)
+                ? $this->normalizeHtmlFragmentId($id)
+                : $id;
+            if ($htmlId !== '') {
+                $attrs .= ' id="' . $this->esc($htmlId) . '"';
+            }
+            if ($htmlId !== $id) {
+                $attrs .= ' data-pandoc-source-id="' . $this->esc($id) . '"';
+                $renderedSourceId = true;
+            }
+        }
+
+        $attrs .= $this->renderClassAttr($classes);
+
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id' || $name === 'class') {
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedInlineHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderDivAttrs(AstNode $node): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedBlockHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderCustomStyleDataAttr(string $style): string
+    {
+        $style = trim($style);
+        if ($style === '') {
+            return '';
+        }
+
+        return ' data-pandoc-custom-style="' . $this->esc($style) . '"';
+    }
+
+    private function nodeCustomStyle(AstNode $node): string
+    {
+        $attributes = $node->attr('attributes', []);
+        if (is_array($attributes) && isset($attributes['custom-style'])) {
+            return (string) $attributes['custom-style'];
+        }
+
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (is_array($htmlAttributes) && isset($htmlAttributes['custom-style'])) {
+            return (string) $htmlAttributes['custom-style'];
+        }
+
+        return '';
     }
 
     /**
@@ -1015,6 +2391,35 @@ final class WordPressBlockWriter
         return $htmlAttributes;
     }
 
+    private function normalizeInternalFragmentUrl(string $url): string
+    {
+        if (!str_starts_with($url, '#')) {
+            return $url;
+        }
+
+        $fragment = substr($url, 1);
+        if (!$this->htmlFragmentIdNeedsNormalization($fragment)) {
+            return $url;
+        }
+
+        return '#' . $this->normalizeHtmlFragmentId($fragment);
+    }
+
+    private function htmlFragmentIdNeedsNormalization(string $id): bool
+    {
+        return preg_match('/\s/u', $id) === 1;
+    }
+
+    private function normalizeHtmlFragmentId(string $id): string
+    {
+        $normalized = trim($id);
+        $normalized = preg_replace('/\s+/u', '-', $normalized) ?? $normalized;
+        $normalized = preg_replace('/[^\p{L}\p{N}_.:-]+/u', '-', $normalized) ?? $normalized;
+        $normalized = trim($normalized, '-');
+
+        return $normalized === '' ? 'pandoc-anchor-' . substr(sha1($id), 0, 8) : $normalized;
+    }
+
     private function renderInlineCodeAttrs(AstNode $node): string
     {
         return $this->renderInlineSpanAttrs($node);
@@ -1029,6 +2434,28 @@ final class WordPressBlockWriter
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
             || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title'], true);
+    }
+
+    private function isAllowedBlockHtmlAttr(string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'title'], true);
+    }
+
+    private function isAllowedImageHtmlAttr(string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['class', 'decoding', 'dir', 'fetchpriority', 'id', 'lang', 'loading', 'sizes', 'srcset'], true);
     }
 
     private function renderMathInline(AstNode $node): string
