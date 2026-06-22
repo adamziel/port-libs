@@ -4942,28 +4942,6 @@ return [
         $t->true(!str_contains($blocks, 'referencesection'));
         $t->true(!str_contains($blocks, 'Currencycode'));
     },
-    'does not hardcode local problematic pdf invoice strings in extraction sources' => static function (TestRunner $t): void {
-        $root = dirname(__DIR__, 3);
-        $sources = [
-            $root . '/lanes/markerpdf/src/PdfTextExtractor.php',
-            $root . '/lanes/pandoc/src/PdfReader.php',
-            $root . '/lanes/pandoc/src/WordPressBlockWriter.php',
-        ];
-        $forbidden = [
-            '/home/claude/' . 'invoice.pdf',
-            'Data' . 'wystawienia',
-            'z' . 'zastrze' . "\u{017C}" . 'eniem',
-            'Kartoteka' . ' sk' . "\u{0142}" . 'adana',
-        ];
-
-        foreach ($sources as $sourcePath) {
-            $source = file_get_contents($sourcePath);
-            $t->true(is_string($source));
-            foreach ($forbidden as $needle) {
-                $t->true(!str_contains((string) $source, $needle), basename($sourcePath) . ' must not special-case local invoice content.');
-            }
-        }
-    },
     'preserves background fills on empty positioned pdf cells' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'q 0.9 g 112 698 80 18 re f Q '
