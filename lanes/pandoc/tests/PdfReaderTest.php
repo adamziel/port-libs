@@ -4902,7 +4902,7 @@ return [
             'BT /F1 10 Tf '
             . '1 0 0 1 72 720 Tm (Details) Tj 1 0 0 1 330 720 Tm (Code) Tj '
             . '1 0 0 1 72 704 Tm (Client ) Tj 1 0 0 1 101 704 Tm (number: ) Tj 1 0 0 1 145 704 Tm (CASE-104) Tj 1 0 0 1 330 704 Tm (USD) Tj '
-            . '1 0 0 1 72 688 Tm (Issue ) Tj 1 0 0 1 96 688 Tm (date, ) Tj 1 0 0 1 128 688 Tm (with ) Tj 1 0 0 1 156 688 Tm (reference) Tj 1 0 0 1 330 688 Tm (11.05.2026) Tj '
+            . '1 0 0 1 72 688 Tm (Issue ) Tj 1 0 0 1 96 688 Tm (date, ) Tj 1 0 0 1 128 688 Tm (with ) Tj 1 0 0 1 156 688 Tm (reference) Tj 1 0 0 1 330 688 Tm (2026-01-15) Tj '
             . 'ET'
         );
 
@@ -4913,7 +4913,7 @@ return [
         $t->same('table', $document->children[0]->type);
         $t->same('geometry', $meta['pdfTableReconstruction']);
         $t->contains('<td>Client number: CASE-104</td><td>USD</td>', $blocks);
-        $t->contains('<td>Issue date, with reference</td><td>11.05.2026</td>', $blocks);
+        $t->contains('<td>Issue date, with reference</td><td>2026-01-15</td>', $blocks);
         $t->true(!str_contains($blocks, 'Clientnumber'));
         $t->true(!str_contains($blocks, 'Issuedate'));
     },
@@ -4923,7 +4923,7 @@ return [
             . 'BT /F1 10 Tf '
             . '1 0 0 1 72 720 Tm (Details) Tj 1 0 0 1 430 720 Tm (Code) Tj '
             . '1 0 0 1 72 704 Tm (Payment ) Tj 1 0 0 1 112 704 Tm (terms, ) Tj 1 0 0 1 144 704 Tm (with ) Tj '
-            . '1 0 0 1 172 704 Tm (reference ) Tj 1 0 0 1 232 704 Tm (section. ) Tj 1 0 0 1 283 704 Tm (1 ) Tj 1 0 0 1 292 704 Tm (total:) Tj 1 0 0 1 430 704 Tm (11.05.2026) Tj '
+            . '1 0 0 1 172 704 Tm (reference ) Tj 1 0 0 1 232 704 Tm (section. ) Tj 1 0 0 1 283 704 Tm (1 ) Tj 1 0 0 1 292 704 Tm (total:) Tj 1 0 0 1 430 704 Tm (2026-01-15) Tj '
             . '1 0 0 1 72 688 Tm (Currency ) Tj 1 0 0 1 112 688 Tm (code:) Tj 1 0 0 1 430 688 Tm (USD) Tj '
             . 'ET'
         );
@@ -4936,7 +4936,7 @@ return [
         $t->same(1, $meta['pdfGeometryTables']);
         $t->same(2, $meta['pdfFilledRectangles']);
         $t->contains('<th data-pdf-fill-color="#f6f7fa" style="background-color:#f6f7fa">Details</th><th data-pdf-fill-color="#f6f7fa" style="background-color:#f6f7fa">Code</th>', $blocks);
-        $t->contains('<td>Payment terms, with reference section. 1 total:</td><td>11.05.2026</td>', $blocks);
+        $t->contains('<td>Payment terms, with reference section. 1 total:</td><td>2026-01-15</td>', $blocks);
         $t->contains('<td>Currency code:</td><td>USD</td>', $blocks);
         $t->true(!str_contains($blocks, 'Paymentterms'));
         $t->true(!str_contains($blocks, 'referencesection'));
