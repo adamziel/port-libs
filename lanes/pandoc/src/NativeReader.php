@@ -348,15 +348,21 @@ final class NativeReader
         $this->expectSymbol('(');
         $start = (int) $this->expectNumber();
         $this->expectSymbol(',');
-        $style = $this->parseOrderedListStyle($this->expectAnyIdentifier());
+        $styleConstructor = $this->expectAnyIdentifier();
+        $style = $this->parseOrderedListStyle($styleConstructor);
         $this->expectSymbol(',');
-        $delimiter = $this->parseOrderedListDelimiter($this->expectAnyIdentifier());
+        $delimiterConstructor = $this->expectAnyIdentifier();
+        $delimiter = $this->parseOrderedListDelimiter($delimiterConstructor);
         $this->expectSymbol(')');
 
         return [
             'start' => $start,
             'style' => $style,
             'delimiter' => $delimiter,
+            'listStyleConstructor' => $styleConstructor,
+            'listStyleNative' => $styleConstructor,
+            'listDelimiterConstructor' => $delimiterConstructor,
+            'listDelimiterNative' => $delimiterConstructor,
         ];
     }
 

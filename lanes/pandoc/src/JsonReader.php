@@ -594,19 +594,24 @@ final class JsonReader
     private function parseListAttributes(mixed $value): array
     {
         [$start, $style, $delimiter] = $this->expectTuple($value, 3, 'ListAttributes');
+        [$styleName, $styleAttrs] = $this->parseOrderedListStyle($style);
+        [$delimiterName, $delimiterAttrs] = $this->parseOrderedListDelimiter($delimiter);
 
-        return [
+        return array_replace([
             'start' => (int) $start,
-            'style' => $this->parseOrderedListStyle($style),
-            'delimiter' => $this->parseOrderedListDelimiter($delimiter),
-        ];
+            'style' => $styleName,
+            'delimiter' => $delimiterName,
+        ], $styleAttrs, $delimiterAttrs);
     }
 
-    private function parseOrderedListStyle(mixed $value): string
+    /**
+     * @return array{0:string, 1:array<string, mixed>}
+     */
+    private function parseOrderedListStyle(mixed $value): array
     {
-        [$style] = $this->tagged($value, 'ListNumberStyle');
+        [$style, $native] = $this->parseEnumPayload($value, 'ListNumberStyle');
 
-        return match ($style) {
+        return [match ($style) {
             'DefaultStyle' => 'default',
             'Example' => 'example',
             'Decimal' => 'decimal',
@@ -615,19 +620,42 @@ final class JsonReader
             'LowerAlpha' => 'lower_alpha',
             'UpperAlpha' => 'upper_alpha',
             default => 'default',
-        };
+        }, [
+            'listStyleConstructor' => $style,
+            'listStyleNative' => $native,
+        ]];
     }
 
-    private function parseOrderedListDelimiter(mixed $value): string
+    /**
+     * @return array{0:string, 1:array<string, mixed>}
+     */
+    private function parseOrderedListDelimiter(mixed $value): array
     {
-        [$delimiter] = $this->tagged($value, 'ListNumberDelim');
+        [$delimiter, $native] = $this->parseEnumPayload($value, 'ListNumberDelim');
 
-        return match ($delimiter) {
+        return [match ($delimiter) {
             'DefaultDelim' => 'default',
             'OneParen' => 'one_paren',
             'TwoParens' => 'two_parens',
             default => 'period',
-        };
+        }, [
+            'listDelimiterConstructor' => $delimiter,
+            'listDelimiterNative' => $native,
+        ]];
+    }
+
+    /**
+     * @return array{0:string, 1:mixed}
+     */
+    private function parseEnumPayload(mixed $value, string $context): array
+    {
+        if (is_string($value) && $value !== '') {
+            return [$value, $value];
+        }
+
+        [$constructor] = $this->tagged($value, $context);
+
+        return [$constructor, $value];
     }
 
     private function parseAlignment(mixed $value): string
