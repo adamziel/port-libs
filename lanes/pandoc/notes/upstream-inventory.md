@@ -26,6 +26,43 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Future EPUB3 parity notes should continue to distinguish preservation and
   diagnostics from script execution or cryptographic trust validation.
 
+## 2026-06-25 EPUB3 OPF Unique-Identifier Reconcile Slice
+
+- Focused PHP coverage is now 1,145 behavior tests and 21,703 full-suite
+  assertions across the Pandoc lane. This slice closes a bounded OPF
+  `unique-identifier` sanitation gap without duplicating the separate
+  metadata-property refines preservation slice.
+- `EpubWriter` now chooses the package `unique-identifier` after generated
+  manifest and itemref IDs are known. Configured IDs that already belong to
+  package elements such as generated manifest items are skipped, surviving
+  `dc:identifier` IDs are preferred, and fallback IDs use an available
+  `book-id` variant so generated package metadata does not create package-wide
+  duplicate IDs.
+- The new reader regression imports OPFs whose `unique-identifier` points at a
+  manifest item and at an OPF metadata property with a valid local `refines`.
+  Both cases report `invalid-unique-identifier-target` without also reporting
+  `missing-unique-identifier`; the metadata-property case also proves valid
+  `refines="#book-id"` does not become a missing-refines diagnostic.
+- The paired writer regression requests a generated manifest item ID as the
+  package unique identifier. Generated EPUB3 output falls back to `book-id`,
+  keeps the manifest item and metadata identifier IDs unique, round-trips
+  `epubPackageUniqueIdentifierId`, and avoids `duplicate-package-id`,
+  `invalid-unique-identifier-target`, `missing-unique-identifier`, and
+  `empty-unique-identifier` self diagnostics.
+- Verification passed `php -l` for `lanes/pandoc/src/EpubWriter.php`,
+  `lanes/pandoc/tests/EpubReaderTest.php`, and
+  `lanes/pandoc/tests/EpubWriterTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubReaderTest.php lanes/pandoc/tests/EpubWriterTest.php`
+  passed 2 files, 15,145 assertions, and 0 failures; `php tools/run-tests.php
+  lanes/pandoc/tests` passed 11 files, 21,703 assertions, and 0 failures with
+  pass-count verification `pass=1145 fail=0`.
+- This remains native PHP EPUB3 OPF identifier/refines sanitation coverage. It
+  does not claim EPUBCheck validation, full upstream Haskell runner parity,
+  full fixture corpus parity, arbitrary multi-rendition graph validation beyond
+  covered generated-package ID collisions, DRM decryption, XML signature
+  cryptographic validation, broader OPF vocabulary validation, or full EPUB2
+  output parity beyond existing bounded tests.
+
 ## 2026-06-25 EPUB2 Guide-Derived Landmark Reader Closure Slice
 
 - Focused PHP coverage is now 1,140 behavior tests and 21,551 full-suite

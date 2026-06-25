@@ -855,7 +855,6 @@ final class EpubWriter
     {
         $meta = $this->metadata($document);
         $identifier = $this->identifier($meta);
-        $identifierId = $this->packageUniqueIdentifierId($meta);
         $title = $this->metaString($meta, 'title', 'Untitled');
         $language = $this->language($meta);
         $modified = $this->modified($meta);
@@ -1010,10 +1009,12 @@ final class EpubWriter
         }
         array_push($spine, ...$this->nonLinearSpineItemRefs($meta, $packageDir, $resourceManifestIds, $resourceMediaTypes, $sanitizedResourceAttributes, $seenSpineIds, $seenItemrefIds));
 
-        $reservedPackageIds = $seenIds + [$identifierId => true];
+        $reservedPackageIds = $seenIds;
         foreach (array_keys($seenItemrefIds) as $itemrefId) {
             $reservedPackageIds[$itemrefId] = true;
         }
+        $identifierId = $this->packageUniqueIdentifierId($meta, $reservedPackageIds);
+        $reservedPackageIds[$identifierId] = true;
         if ($packageId !== '' && isset($reservedPackageIds[$packageId])) {
             $packageId = '';
         }
@@ -4122,7 +4123,7 @@ final class EpubWriter
     /**
      * @param array<string, mixed> $meta
      */
-    private function packageUniqueIdentifierId(array $meta): string
+    private function packageUniqueIdentifierId(array $meta, array $reservedPackageIds = []): string
     {
         $sources = $this->preferMetadataOverOptions
             ? [$meta['epubPackageUniqueIdentifierId'] ?? null, $meta['packageUniqueIdentifierId'] ?? null]
@@ -4137,12 +4138,42 @@ final class EpubWriter
                 continue;
             }
             $id = $this->validManifestId((string) $candidate);
-            if ($id !== '') {
+            if ($id !== '' && !isset($reservedPackageIds[$id])) {
                 return $id;
             }
         }
 
-        return 'book-id';
+        foreach ($this->dublinCoreMetadataRecords($meta, '', $reservedPackageIds) as $record) {
+            if (($record['element'] ?? '') !== 'identifier') {
+                continue;
+            }
+            $id = $this->validManifestId($record['id'] ?? '');
+            if ($id !== '' && !isset($reservedPackageIds[$id])) {
+                return $id;
+            }
+        }
+
+        return $this->availablePackageUniqueIdentifierId('book-id', $reservedPackageIds);
+    }
+
+    /**
+     * @param array<string, true> $reservedPackageIds
+     */
+    private function availablePackageUniqueIdentifierId(string $base, array $reservedPackageIds): string
+    {
+        $base = $this->validManifestId($base);
+        if ($base === '') {
+            $base = 'book-id';
+        }
+
+        $id = $base;
+        $index = 2;
+        while (isset($reservedPackageIds[$id])) {
+            $id = $base . '-' . $index;
+            $index++;
+        }
+
+        return $id;
     }
 
     /**

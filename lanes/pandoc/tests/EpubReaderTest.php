@@ -12677,6 +12677,121 @@ XML, 'pandoc-epub-empty-unique-id-');
         $t->same('OPS/chapter.xhtml', $emptyIdentifierMeta['epubSpineItemRefs'][0]['path'] ?? null);
         $t->contains('Readable package attribute content.', $emptyIdentifierBlocks);
     },
+    'records epub3 unique identifier targets on manifest and metadata property elements' => static function (TestRunner $t): void {
+        $readPackage = static function (string $opf, string $prefix): array {
+            $path = tempnam(sys_get_temp_dir(), $prefix);
+            if ($path === false) {
+                throw new RuntimeException('Unable to create temporary EPUB path');
+            }
+
+            $zip = pandoc_epub_test_zip($path);
+            $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+            $zip->addFromString('OPS/package.opf', $opf);
+            $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Unique Identifier Target</h1><p>Readable unique identifier target content.</p></body></html>');
+            $zip->addFromString('OPS/nav.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Unique Identifier Target</a></li></ol></nav></body></html>');
+            $zip->close();
+
+            try {
+                $document = (new EpubReader())->readEpubFile($path);
+                return [$document->attr('meta'), (new WordPressBlockWriter())->write($document)];
+            } finally {
+                @unlink($path);
+            }
+        };
+        $groupDiagnostics = static function (array $diagnostics): array {
+            $byCode = [];
+            foreach ($diagnostics as $diagnostic) {
+                $code = (string) ($diagnostic['code'] ?? '');
+                if ($code !== '') {
+                    $byCode[$code][] = $diagnostic;
+                }
+            }
+
+            return $byCode;
+        };
+
+        [$manifestMeta, $manifestBlocks] = $readPackage(<<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="chapter">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:unique-id-manifest-target</dc:identifier>
+    <dc:title>Unique Identifier Manifest Target</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T09:50:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML, 'pandoc-epub-unique-id-manifest-target-');
+
+        $manifestDiagnostics = $manifestMeta['epubDiagnostics'] ?? [];
+        $manifestByCode = $groupDiagnostics($manifestDiagnostics);
+        $t->same(count($manifestDiagnostics), $manifestMeta['epubDiagnosticCount']);
+        $t->same(1, $manifestMeta['epubDiagnosticErrorCount']);
+        $t->same(0, $manifestMeta['epubDiagnosticWarningCount']);
+        $t->same(1, count($manifestByCode['invalid-unique-identifier-target'] ?? []));
+        $t->same('chapter', $manifestByCode['invalid-unique-identifier-target'][0]['id'] ?? null);
+        $t->same('item', $manifestByCode['invalid-unique-identifier-target'][0]['target'] ?? null);
+        $t->same('manifest', $manifestByCode['invalid-unique-identifier-target'][0]['parent'] ?? null);
+        $t->same('not-dc-identifier', $manifestByCode['invalid-unique-identifier-target'][0]['reason'] ?? null);
+        $t->same('http://www.idpf.org/2007/opf', $manifestByCode['invalid-unique-identifier-target'][0]['namespace'] ?? null);
+        $t->true(!isset($manifestByCode['missing-unique-identifier']), 'Existing manifest item ids should not be reported as missing unique identifiers.');
+        $t->contains('Readable unique identifier target content.', $manifestBlocks);
+
+        [$propertyMeta, $propertyBlocks] = $readPackage(<<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="title-kind">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:unique-id-property-target</dc:identifier>
+    <dc:title>Unique Identifier Property Target</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T09:55:00Z</meta>
+    <meta property="title-type" id="title-kind" refines="#book-id">main</meta>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML, 'pandoc-epub-unique-id-property-target-');
+
+        $propertyDiagnostics = $propertyMeta['epubDiagnostics'] ?? [];
+        $propertyByCode = $groupDiagnostics($propertyDiagnostics);
+        $propertiesById = [];
+        foreach ($propertyMeta['epubMetadataProperties'] ?? [] as $property) {
+            if (is_array($property) && isset($property['id'])) {
+                $propertiesById[$property['id']] = $property;
+            }
+        }
+
+        $t->same(count($propertyDiagnostics), $propertyMeta['epubDiagnosticCount']);
+        $t->same(1, $propertyMeta['epubDiagnosticErrorCount']);
+        $t->same(0, $propertyMeta['epubDiagnosticWarningCount']);
+        $t->same(1, count($propertyByCode['invalid-unique-identifier-target'] ?? []));
+        $t->same('title-kind', $propertyByCode['invalid-unique-identifier-target'][0]['id'] ?? null);
+        $t->same('meta', $propertyByCode['invalid-unique-identifier-target'][0]['target'] ?? null);
+        $t->same('metadata', $propertyByCode['invalid-unique-identifier-target'][0]['parent'] ?? null);
+        $t->same('not-dc-identifier', $propertyByCode['invalid-unique-identifier-target'][0]['reason'] ?? null);
+        $t->same('http://www.idpf.org/2007/opf', $propertyByCode['invalid-unique-identifier-target'][0]['namespace'] ?? null);
+        $t->same('#book-id', $propertiesById['title-kind']['refines'] ?? null);
+        $t->true(!isset($propertyByCode['missing-unique-identifier']), 'Existing metadata property ids should not be reported as missing unique identifiers.');
+        $t->true(!isset($propertyByCode['missing-metadata-refines-target']), 'Valid metadata property refines should not be reported as missing while the unique identifier target is invalid.');
+        $t->contains('Readable unique identifier target content.', $propertyBlocks);
+    },
     'records epub3 unique identifier targets outside package metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-unique-id-scope-');
         if ($path === false) {

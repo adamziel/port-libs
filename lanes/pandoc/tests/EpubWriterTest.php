@@ -29741,6 +29741,81 @@ XML;
         $t->true(!str_contains($diagnosticsJson, 'duplicate-metadata-id'), 'Generated Dublin Core metadata should not self-diagnose duplicate metadata ids.');
         $t->true(!str_contains($diagnosticsJson, 'duplicate-package-id'), 'Generated Dublin Core metadata should not create duplicate package-wide ids.');
     },
+    'writes epub3 package unique identifier ids without manifest collisions' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [
+            'meta' => [
+                'identifier' => 'urn:uuid:sanitized-package-unique-idref',
+                'title' => 'Sanitized Package Unique Identifier',
+                'lang' => 'en',
+                'epubPackageUniqueIdentifierId' => 'chapter-1',
+                'epubDublinCoreMetadata' => [
+                    [
+                        'element' => 'identifier',
+                        'id' => 'book-id',
+                        'value' => 'urn:uuid:sanitized-package-unique-idref',
+                    ],
+                    [
+                        'element' => 'title',
+                        'value' => 'Sanitized Package Unique Identifier',
+                    ],
+                    [
+                        'element' => 'language',
+                        'value' => 'en',
+                    ],
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Sanitized Package Unique Identifier'], [
+                new AstNode('text', ['text' => 'Sanitized Package Unique Identifier']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Package unique identifier body.']),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-25T09:45:00Z',
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-package-unique-idref-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary generated EPUB path');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated EPUB package');
+            }
+            $package = $zip->getFromName('OEBPS/package.opf');
+            if (!is_string($package)) {
+                throw new RuntimeException('Generated EPUB package is missing package file');
+            }
+
+            $t->contains('version="3.0" unique-identifier="book-id"', $package);
+            $t->contains('<dc:identifier id="book-id">urn:uuid:sanitized-package-unique-idref</dc:identifier>', $package);
+            $t->contains('<item id="chapter-1" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>', $package);
+            $t->same(1, substr_count($package, 'id="book-id"'));
+            $t->same(1, substr_count($package, 'id="chapter-1"'));
+            $t->true(!str_contains($package, 'unique-identifier="chapter-1"'), 'Package unique-identifier must not target a manifest item id.');
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+
+        $roundTrip = PandocConverter::read($epub, 'epub');
+        $meta = $roundTrip->attr('meta');
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+        $t->same('book-id', $meta['epubPackageUniqueIdentifierId'] ?? null);
+        foreach ([
+            'duplicate-package-id',
+            'invalid-unique-identifier-target',
+            'missing-unique-identifier',
+            'empty-unique-identifier',
+        ] as $code) {
+            $t->true(!str_contains($diagnosticsJson, $code), "Generated package unique identifier should not self-diagnose {$code}.");
+        }
+    },
     'writes epub3 package root and spine ids without duplicate self diagnostics' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'meta' => [
