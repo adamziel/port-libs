@@ -3071,10 +3071,20 @@ final class HtmlWriter
 
     private function parseTexMathCommand(string $source, int &$offset): string
     {
+        $commandStart = $offset;
         $offset++;
         $command = $this->readTexMathCommandName($source, $offset);
         if ($command === '') {
             return '<mo>\\</mo>';
+        }
+
+        if (in_array($command, ['hline', 'hdashline'], true)) {
+            return '';
+        }
+
+        if (in_array($command, ['cline', 'hhline'], true)) {
+            $this->readTexMathRawGroup($source, $offset);
+            return '';
         }
 
         if ($command === 'left') {
@@ -3101,14 +3111,14 @@ final class HtmlWriter
 
         if ($command === 'begin') {
             $environmentOffset = $offset;
-            $environmentName = $this->readTexMathRawGroup($source, $environmentOffset);
-            $environment = is_string($environmentName) ? rtrim($environmentName, '*') : null;
+            $rawEnvironment = $this->readTexMathRawGroup($source, $environmentOffset);
+            $environment = is_string($rawEnvironment) ? $this->texMathNormalizedEnvironmentName($rawEnvironment) : null;
             if ($environment === 'array' || $environment === 'subarray') {
                 $arrayOffset = $environmentOffset;
                 $columnSpec = $this->readTexMathRawGroup($source, $arrayOffset);
                 if ($columnSpec !== null) {
                     $bodyOffset = $arrayOffset;
-                    $body = $this->readTexMathEnvironmentBody($source, $bodyOffset, $environmentName ?? $environment);
+                    $body = $this->readTexMathEnvironmentBody($source, $bodyOffset, $rawEnvironment);
                     if ($body !== null) {
                         $offset = $bodyOffset;
                         return $this->texMathMatrixToMathML(
@@ -3119,43 +3129,47 @@ final class HtmlWriter
                         );
                     }
                 }
+
+                return $this->texMathMalformedEnvironmentFallback($source, $offset, $commandStart);
             }
 
             if ($environment === 'equation') {
                 $bodyOffset = $environmentOffset;
-                $body = $this->readTexMathEnvironmentBody($source, $bodyOffset, $environmentName ?? $environment);
+                $body = $this->readTexMathEnvironmentBody($source, $bodyOffset, $rawEnvironment);
                 if ($body !== null) {
-                    $contentOffset = 0;
-                    $content = $this->parseTexMathRow($body, $contentOffset, '');
-                    if (trim(substr($body, $contentOffset)) === '') {
+                    $bodyParseOffset = 0;
+                    $bodyContent = $this->parseTexMathRow($body, $bodyParseOffset, '');
+                    if ($bodyContent !== '' && trim(substr($body, $bodyParseOffset)) === '') {
                         $offset = $bodyOffset;
-                        return $this->mathMLRow($content);
+                        return $this->mathMLRow($bodyContent);
                     }
                 }
-            }
 
-            if ($environment === 'alignat' || $environment === 'alignedat') {
-                $this->readTexMathRawGroup($source, $environmentOffset);
-            }
-
-            $columnAlign = is_string($environment) ? $this->texMathAmsEnvironmentColumnAlign($environment) : null;
-            if ($columnAlign !== null) {
-                $bodyOffset = $environmentOffset;
-                $body = $this->readTexMathEnvironmentBody($source, $bodyOffset, $environmentName ?? $environment);
-                if ($body !== null) {
-                    $offset = $bodyOffset;
-                    return $this->texMathMatrixToMathML($body, null, null, $columnAlign);
-                }
+                return $this->texMathMalformedEnvironmentFallback($source, $offset, $commandStart);
             }
 
             $fences = is_string($environment) ? $this->texMathMatrixEnvironmentFences($environment) : null;
             if ($fences !== null) {
                 $bodyOffset = $environmentOffset;
-                $body = $this->readTexMathEnvironmentBody($source, $bodyOffset, $environmentName ?? $environment);
+                if ($this->texMathEnvironmentConsumesLeadingGroup($environment)) {
+                    $pairCount = $this->readTexMathRawGroup($source, $bodyOffset);
+                    if ($pairCount === null) {
+                        return $this->texMathMalformedEnvironmentFallback($source, $offset, $commandStart);
+                    }
+                }
+
+                $body = $this->readTexMathEnvironmentBody($source, $bodyOffset, $rawEnvironment);
                 if ($body !== null) {
                     $offset = $bodyOffset;
-                    return $this->texMathMatrixToMathML($body, $fences[0], $fences[1]);
+                    return $this->texMathMatrixToMathML(
+                        $body,
+                        $fences[0],
+                        $fences[1],
+                        $this->texMathMatrixEnvironmentColumnAlign($environment)
+                    );
                 }
+
+                return $this->texMathMalformedEnvironmentFallback($source, $offset, $commandStart);
             }
         }
 
@@ -3804,8 +3818,35 @@ final class HtmlWriter
     {
         $alignments = [];
         $length = strlen($columnSpec);
-        for ($index = 0; $index < $length; $index++) {
-            $alignment = match ($columnSpec[$index]) {
+        for ($index = 0; $index < $length;) {
+            $char = $columnSpec[$index];
+
+            if ($char === '@' || $char === '!') {
+                $index++;
+                $this->readTexMathRawGroup($columnSpec, $index);
+                continue;
+            }
+
+            if ($char === '*') {
+                $index++;
+                $repeatRaw = $this->readTexMathRawGroup($columnSpec, $index);
+                $specRaw = $this->readTexMathRawGroup($columnSpec, $index);
+                if ($repeatRaw !== null && $specRaw !== null && preg_match('/^\d+$/', trim($repeatRaw)) === 1) {
+                    $repeated = $this->texMathArrayColumnAlign($specRaw);
+                    if ($repeated !== '') {
+                        for ($repeat = 0; $repeat < (int) trim($repeatRaw); $repeat++) {
+                            foreach (explode(' ', $repeated) as $alignment) {
+                                if ($alignment !== '') {
+                                    $alignments[] = $alignment;
+                                }
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+
+            $alignment = match ($char) {
                 'l' => 'left',
                 'c' => 'center',
                 'r' => 'right',
@@ -3814,23 +3855,10 @@ final class HtmlWriter
             if ($alignment !== null) {
                 $alignments[] = $alignment;
             }
+            $index++;
         }
 
         return implode(' ', $alignments);
-    }
-
-    private function texMathAmsEnvironmentColumnAlign(string $environment): ?string
-    {
-        return [
-            'eqnarray' => 'right center left',
-            'align' => 'right left',
-            'alignat' => 'right left',
-            'flalign' => 'left right',
-            'flaligned' => 'left right',
-            'gather' => 'center',
-            'multline' => 'center',
-            'multlined' => 'center',
-        ][$environment] ?? null;
     }
 
     private function texMathStyleCommandVariant(string $command): ?string
@@ -3874,9 +3902,19 @@ final class HtmlWriter
      */
     private function texMathMatrixEnvironmentFences(string $environment): ?array
     {
+        $environment = $this->texMathNormalizedEnvironmentName($environment);
         $fences = [
+            'align' => [null, null],
+            'alignat' => [null, null],
             'aligned' => [null, null],
+            'alignedat' => [null, null],
+            'eqnarray' => [null, null],
+            'flalign' => [null, null],
+            'flaligned' => [null, null],
+            'gather' => [null, null],
             'gathered' => [null, null],
+            'multline' => [null, null],
+            'multlined' => [null, null],
             'split' => [null, null],
             'cases' => ['{', null],
             'dcases' => ['{', null],
@@ -3891,6 +3929,27 @@ final class HtmlWriter
         ];
 
         return $fences[$environment] ?? null;
+    }
+
+    private function texMathNormalizedEnvironmentName(string $environment): string
+    {
+        return str_ends_with($environment, '*') ? substr($environment, 0, -1) : $environment;
+    }
+
+    private function texMathEnvironmentConsumesLeadingGroup(string $environment): bool
+    {
+        return in_array($this->texMathNormalizedEnvironmentName($environment), ['alignat', 'alignedat'], true);
+    }
+
+    private function texMathMatrixEnvironmentColumnAlign(string $environment): string
+    {
+        return match ($this->texMathNormalizedEnvironmentName($environment)) {
+            'align', 'aligned', 'alignat', 'alignedat', 'split' => 'right left',
+            'flalign', 'flaligned' => 'left right',
+            'eqnarray' => 'right center left',
+            'gather', 'gathered', 'multline', 'multlined' => 'center',
+            default => '',
+        };
     }
 
     private function readTexMathEnvironmentBody(string $source, int &$offset, string $environment): ?string
@@ -3940,12 +3999,14 @@ final class HtmlWriter
     private function texMathMatrixToMathML(string $body, ?string $leftFence, ?string $rightFence, string $columnAlign = ''): string
     {
         $rows = [];
+        $columnCount = 0;
         foreach ($this->splitTexMathMatrixRows($body) as $row) {
             $cells = $this->splitTexMathMatrixCells($row);
             if (count($cells) === 1 && trim($cells[0]) === '') {
                 continue;
             }
 
+            $columnCount = max($columnCount, count($cells));
             $cellXml = '';
             foreach ($cells as $cell) {
                 $cellXml .= '<mtd>' . $this->texMathMatrixCellToMathML($cell) . '</mtd>';
@@ -3956,9 +4017,40 @@ final class HtmlWriter
             return '';
         }
 
+        $columnAlign = $this->texMathColumnAlignForTable($columnAlign, $columnCount);
         $attrs = $columnAlign === '' ? '' : ' columnalign="' . $this->esc($columnAlign) . '"';
         $table = '<mtable' . $attrs . '>' . implode('', $rows) . '</mtable>';
         return $this->texMathFencedRow($table, $leftFence, $rightFence);
+    }
+
+    private function texMathColumnAlignForTable(string $columnAlign, int $columnCount): string
+    {
+        $alignments = array_values(array_filter(
+            preg_split('/\s+/', trim($columnAlign)) ?: [],
+            static fn (string $alignment): bool => $alignment !== ''
+        ));
+        if ($alignments === [] || $columnCount <= 0) {
+            return '';
+        }
+
+        $cyclePattern = in_array($alignments, [
+            ['center'],
+            ['right', 'left'],
+            ['left', 'right'],
+            ['right', 'center', 'left'],
+        ], true);
+        if ($cyclePattern) {
+            $pattern = $alignments;
+            while (count($alignments) < $columnCount) {
+                $alignments[] = $pattern[count($alignments) % count($pattern)];
+            }
+        } elseif (count($alignments) < $columnCount) {
+            while (count($alignments) < $columnCount) {
+                $alignments[] = 'center';
+            }
+        }
+
+        return implode(' ', $alignments);
     }
 
     private function texMathFencedRow(string $body, ?string $leftFence, ?string $rightFence): string
@@ -4019,8 +4111,9 @@ final class HtmlWriter
                     && ($source[$cursor + 1] ?? '') === '\\'
                 ) {
                     $parts[] = substr($source, $start, $cursor - $start);
-                    $cursor++;
-                    $start = $cursor + 1;
+                    $afterBreak = $this->consumeTexMathMatrixLineBreakSuffix($source, $cursor + 2);
+                    $cursor = $afterBreak - 1;
+                    $start = $afterBreak;
                     continue;
                 }
 
@@ -4078,13 +4171,52 @@ final class HtmlWriter
 
     private function texMathTableEnvironmentHasBody(string $environment): bool
     {
-        $environment = rtrim($environment, '*');
-
+        $environment = $this->texMathNormalizedEnvironmentName($environment);
         return $environment === 'array'
             || $environment === 'subarray'
-            || $this->texMathAmsEnvironmentColumnAlign($environment) !== null
             || $environment === 'equation'
             || $this->texMathMatrixEnvironmentFences($environment) !== null;
+    }
+
+    private function consumeTexMathMatrixLineBreakSuffix(string $source, int $offset): int
+    {
+        $cursor = $offset;
+        $length = strlen($source);
+        while ($cursor < $length && ctype_space($source[$cursor])) {
+            $cursor++;
+        }
+
+        if (($source[$cursor] ?? '') !== '[') {
+            return $offset;
+        }
+
+        $cursor++;
+        $depth = 1;
+        while ($cursor < $length) {
+            $char = $source[$cursor];
+            if ($char === '\\') {
+                $cursor += 2;
+                continue;
+            }
+            if ($char === '[') {
+                $depth++;
+            } elseif ($char === ']') {
+                $depth--;
+                if ($depth === 0) {
+                    return $cursor + 1;
+                }
+            }
+            $cursor++;
+        }
+
+        return $offset;
+    }
+
+    private function texMathMalformedEnvironmentFallback(string $source, int &$offset, int $start): string
+    {
+        $offset = strlen($source);
+
+        return '<mtext>' . $this->esc(substr($source, $start)) . '</mtext>';
     }
 
     private function texMathMatrixCellToMathML(string $cell): string
