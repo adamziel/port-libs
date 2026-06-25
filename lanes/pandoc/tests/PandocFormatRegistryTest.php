@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\BibTexReader;
+use PortLibs\Pandoc\CsvReader;
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\EpubReader;
 use PortLibs\Pandoc\EpubWriter;
@@ -127,6 +128,10 @@ return [
         $t->same(BibTexReader::class, $support['bibtex']['implementation']);
         $t->same('partial', $support['biblatex']['status']);
         $t->same(BibTexReader::class, $support['biblatex']['implementation']);
+        $t->same('partial', $support['csv']['status']);
+        $t->same(CsvReader::class, $support['csv']['implementation']);
+        $t->same('partial', $support['tsv']['status']);
+        $t->same(CsvReader::class, $support['tsv']['implementation']);
         $t->same('partial', $support['markdown']['status']);
         $t->same(MarkdownReader::class, $support['markdown']['implementation']);
         $t->same('partial', $support['native']['status']);
@@ -144,7 +149,7 @@ return [
         $t->same(PptxReader::class, $support['pptx']['implementation']);
         $t->same('partial', $support['xlsx']['status']);
         $t->same(XlsxReader::class, $support['xlsx']['implementation']);
-        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(29, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();

@@ -189,6 +189,16 @@ final class PandocFormatRegistry
             'implementation' => MarkdownReader::class,
             'notes' => 'Uses the shared Markdown reader with raw attribute and extension slices; full extension parity remains open.',
         ],
+        'csv' => [
+            'status' => 'partial',
+            'implementation' => CsvReader::class,
+            'notes' => 'Bounded CSV reader maps RFC-style comma-delimited records with quoted fields, escaped quotes, multiline cells, first-row headers, and table metadata into the shared AST. Full CSV option parity remains open.',
+        ],
+        'tsv' => [
+            'status' => 'partial',
+            'implementation' => CsvReader::class,
+            'notes' => 'Bounded TSV reader maps tab-delimited records without quote interpretation into the shared AST using the same first-row header table shape as the upstream TSV reader. Full TSV option parity remains open.',
+        ],
         'docbook' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,

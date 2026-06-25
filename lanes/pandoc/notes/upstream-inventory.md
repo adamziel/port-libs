@@ -149,6 +149,34 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   inheritance, full TeX decoding, CSL style processing, bibliography sorting,
   bibliography validation, or writer support.
 
+## 2026-06-25 CSV/TSV Reader Table Slice
+
+- `CsvReader` is now registered as partial native PHP support for upstream
+  Pandoc input formats `csv` and `tsv`. The CSV path parses comma-delimited
+  records with quoted fields, escaped quotes, multiline cells, first-row table
+  headers, default table alignments, table metadata, and empty input handling.
+  The TSV path uses the same table shape but treats quotes literally, matching
+  the upstream TSV reader option that disables quote interpretation.
+- The first CSV/TSV reader slice maps the first record into a `TableHead`,
+  remaining records into a `TableBody`, and multiline cell text into linebreak
+  inlines inside plain table cells for WordPress table conversion.
+- `PandocConverter` now accepts `csv` and `tsv` input and can convert delimited
+  sources directly to WordPress block markup through the existing `blocks`/`wp`
+  output alias. `PandocFormatRegistry` now counts 22 partial PHP upstream input
+  formats and 29 unsupported input formats.
+- Verification: `php -l` passed for `CsvReader.php`,
+  `PandocConverter.php`, `PandocFormatRegistry.php`, `CsvReaderTest.php`, and
+  `PandocFormatRegistryTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/CsvReaderTest.php
+  lanes/pandoc/tests/PandocFormatRegistryTest.php` passed 2 files, 264
+  assertions, 0 failures; and `php tools/run-tests.php lanes/pandoc/tests`
+  passed 24 files, 23,510 assertions, 0 failures with pass-count verification
+  `pass=1215 fail=0`.
+- This is reader-only CSV/TSV progress for downstream WordPress table
+  conversion. It does not claim full upstream Haskell CSV option parity,
+  dialect detection, schema/type inference, streaming import, malformed-row
+  recovery beyond bounded parsing, CSV writer support, or TSV writer support.
+
 ## 2026-06-25 EPUB3 CSS Image-Set Resource Policy Closure
 
 - `EpubReader` and `EpubWriter` now treat top-level quoted string candidates
