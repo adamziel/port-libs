@@ -26,6 +26,43 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Future EPUB3 parity notes should continue to distinguish preservation and
   diagnostics from script execution or cryptographic trust validation.
 
+## 2026-06-25 EPUB NCX Direct-Child Navigation Import Slice
+
+- Focused PHP coverage is now 1,139 behavior tests and 21,527 full-suite
+  assertions across the Pandoc lane. This slice tightens NCX compatibility for
+  EPUB3 packages that still carry NCX `navMap`, `pageList`, and `navList`
+  navigation.
+- `EpubReader` now imports NCX `navPoint`, `pageTarget`, and `navTarget` text,
+  language, and `content src` only from direct `navLabel`/`content` children.
+  That aligns import with the diagnostics path, so malformed parent navigation
+  entries no longer borrow descendant labels or targets while valid nested
+  `navPoint` children continue to import.
+- The new reader regression builds valid nested `navPoint` entries, page-list
+  and nav-list entries, and a malformed parent `navPoint` whose only label and
+  target live on a child. Read-back reports missing direct `navLabel` and
+  `content` diagnostics for the parent, imports the valid child instead of
+  synthesizing the parent, normalizes relative NCX content sources, preserves
+  label language metadata, and keeps `pageList`/`navList` metadata intact.
+- The paired writer regression proves generated EPUB3 NCX output normalizes
+  duplicate/backward explicit `playOrder` metadata into a monotonic sequence
+  across `navMap`, `pageList`, and `navList` output without self-diagnosing
+  duplicate/out-of-order play order, missing content, or target errors.
+- Verification passed `php -l` for `lanes/pandoc/src/EpubReader.php`,
+  `lanes/pandoc/tests/EpubReaderTest.php`, and
+  `lanes/pandoc/tests/EpubWriterTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubReaderTest.php` passed 1 file, 4,794 assertions, and
+  0 failures; `php tools/run-tests.php lanes/pandoc/tests/EpubWriterTest.php`
+  passed 1 file, 10,175 assertions, and 0 failures; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubReaderTest.php lanes/pandoc/tests/EpubWriterTest.php`
+  passed 2 files, 14,969 assertions, and 0 failures; and `php
+  tools/run-tests.php lanes/pandoc/tests` passed 11 files, 21,527 assertions,
+  and 0 failures.
+- This remains native PHP EPUB3 NCX compatibility coverage. It does not claim
+  EPUBCheck validation, full upstream Haskell runner parity, full fixture corpus
+  parity, DRM decryption, XML signature cryptographic validation, arbitrary
+  multi-rendition graph validation beyond covered paths, broader TeX/MathML
+  parser parity, or full EPUB2 output parity beyond existing bounded NCX tests.
+
 ## 2026-06-24 EPUB3 Samp/Var Source Handoff Slice
 
 - Focused PHP coverage remains 1,137 behavior tests and is now 21,494

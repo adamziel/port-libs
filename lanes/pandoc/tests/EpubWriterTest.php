@@ -38709,6 +38709,94 @@ HTML;
             $t->true(!str_contains($guideReferencesJson, $omitted), "Invalid alternate guide reference should not round-trip: {$omitted}.");
         }
     },
+    'writes epub3 ncx nested navigation with normalized play order' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [
+            'meta' => [
+                'identifier' => 'urn:uuid:epub3-ncx-normalized-play-order',
+                'title' => 'EPUB3 NCX Normalized Play Order',
+                'lang' => 'en',
+                'epubTocEntries' => [
+                    ['text' => 'Root', 'href' => 'OEBPS/text/chapter.xhtml#root', 'level' => 1, 'id' => 'toc-root', 'type' => 'chapter', 'lang' => 'en', 'playOrder' => 3],
+                    ['text' => 'Child', 'href' => 'OEBPS/text/chapter.xhtml#child', 'level' => 2, 'id' => 'toc-child', 'type' => 'section', 'xmlLanguage' => 'fr', 'playOrder' => 3],
+                ],
+                'epubPageListEntries' => [
+                    ['text' => '1', 'href' => 'OEBPS/text/chapter.xhtml#page-one', 'level' => 1, 'id' => 'page-one-entry', 'type' => 'pagebreak', 'value' => '1', 'playOrder' => 2],
+                ],
+                'epubNcxNavLists' => [
+                    [
+                        'label' => 'Figures',
+                        'id' => 'figures',
+                        'type' => 'loi',
+                        'lang' => 'es',
+                        'entries' => [
+                            ['text' => 'Figure 1', 'href' => 'OEBPS/text/chapter.xhtml#figure-one', 'level' => 1, 'id' => 'figure-one-entry', 'type' => 'figure', 'playOrder' => 4],
+                        ],
+                    ],
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Root', 'id' => 'root'], [
+                new AstNode('text', ['text' => 'Root']),
+            ]),
+            new AstNode('heading', ['level' => 2, 'text' => 'Child', 'id' => 'child'], [
+                new AstNode('text', ['text' => 'Child']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Body with page and figure anchors.']),
+                new AstNode('span', ['id' => 'page-one', 'classes' => ['pagebreak'], 'attributes' => ['title' => '1']]),
+                new AstNode('span', ['id' => 'figure-one']),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-25T00:00:00Z',
+            'includeNcx' => true,
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub3-ncx-normalized-play-order-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary generated EPUB3 NCX path');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated EPUB3 NCX package');
+            }
+            $package = $zip->getFromName('OEBPS/package.opf');
+            $ncx = $zip->getFromName('OEBPS/toc.ncx');
+            if (!is_string($package) || !is_string($ncx)) {
+                throw new RuntimeException('Generated EPUB3 NCX package is missing package or NCX files');
+            }
+
+            $t->contains('<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>', $package);
+            $t->contains('<spine toc="toc">', $package);
+            $t->contains('<navPoint id="toc-root" playOrder="3" class="chapter">', $ncx);
+            $t->contains('<navLabel xml:lang="en"><text>Root</text></navLabel>', $ncx);
+            $t->contains('<navPoint id="toc-child" playOrder="4" class="section">', $ncx);
+            $t->contains('<navLabel xml:lang="fr"><text>Child</text></navLabel>', $ncx);
+            $t->contains('<pageTarget id="page-one-entry" playOrder="5" type="normal" value="1">', $ncx);
+            $t->contains('<navList id="figures" class="loi">', $ncx);
+            $t->contains('<navLabel xml:lang="es"><text>Figures</text></navLabel>', $ncx);
+            $t->contains('<navTarget id="figure-one-entry" playOrder="6" class="figure">', $ncx);
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+
+        $roundTrip = PandocConverter::read($epub, 'epub');
+        $meta = $roundTrip->attr('meta');
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+        foreach ([
+            'duplicate-ncx-play-order',
+            'out-of-order-ncx-play-order',
+            'missing-ncx-content-src',
+            'missing-ncx-spine-target',
+            'ncx-target-non-linear-spine',
+        ] as $diagnosticCode) {
+            $t->true(!str_contains($diagnosticsJson, $diagnosticCode), "Generated EPUB3 NCX output should not self-diagnose {$diagnosticCode}.");
+        }
+    },
     'writes alternate epub rootfile ncx compatibility metadata from structured entries' => static function (TestRunner $t): void {
         $alternateBody = new AstNode('document', [], [
             new AstNode('heading', ['level' => 1, 'text' => 'Alternate NCX Start', 'id' => 'alt-start'], [

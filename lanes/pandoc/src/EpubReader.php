@@ -14640,7 +14640,7 @@ final class EpubReader
             $context['value'] = $value;
         }
 
-        $label = $this->firstChildElement($element, 'navLabel') ?? $this->firstDescendantElement($element, 'navLabel');
+        $label = $this->firstChildElement($element, 'navLabel');
         if ($label instanceof \DOMElement) {
             $text = $this->ncxNavLabelText($label);
             if ($text !== '') {
@@ -16255,8 +16255,9 @@ final class EpubReader
                 continue;
             }
 
-            $text = trim(preg_replace('/\s+/u', ' ', $this->firstDescendantText($child, 'text')) ?? $this->firstDescendantText($child, 'text'));
-            $content = $this->firstDescendantElement($child, 'content');
+            $label = $this->firstChildElement($child, 'navLabel');
+            $text = $label instanceof \DOMElement ? $this->ncxNavLabelText($label) : '';
+            $content = $this->firstChildElement($child, 'content');
             $href = $content instanceof \DOMElement ? html_entity_decode($content->getAttribute('src'), ENT_QUOTES | ENT_XML1, 'UTF-8') : '';
             if ($text !== '' && $href !== '') {
                 $entry = [
@@ -16316,8 +16317,9 @@ final class EpubReader
                 continue;
             }
 
-            $text = trim(preg_replace('/\s+/u', ' ', $this->firstDescendantText($child, 'text')) ?? $this->firstDescendantText($child, 'text'));
-            $content = $this->firstDescendantElement($child, 'content');
+            $label = $this->firstChildElement($child, 'navLabel');
+            $text = $label instanceof \DOMElement ? $this->ncxNavLabelText($label) : '';
+            $content = $this->firstChildElement($child, 'content');
             $href = $content instanceof \DOMElement ? html_entity_decode($content->getAttribute('src'), ENT_QUOTES | ENT_XML1, 'UTF-8') : '';
             if ($text !== '' && $href !== '') {
                 $entry = [
@@ -16407,9 +16409,9 @@ final class EpubReader
                 continue;
             }
 
-            $label = $this->firstChildElement($child, 'navLabel') ?? $this->firstDescendantElement($child, 'navLabel');
+            $label = $this->firstChildElement($child, 'navLabel');
             $text = $label instanceof \DOMElement ? $this->ncxNavLabelText($label) : '';
-            $content = $this->firstDescendantElement($child, 'content');
+            $content = $this->firstChildElement($child, 'content');
             $href = $content instanceof \DOMElement ? html_entity_decode($content->getAttribute('src'), ENT_QUOTES | ENT_XML1, 'UTF-8') : '';
             if ($text !== '' && $href !== '') {
                 $entry = [
@@ -16447,7 +16449,7 @@ final class EpubReader
 
     private function ncxNavLabelLanguage(\DOMElement $entry): string
     {
-        $label = $this->firstChildElement($entry, 'navLabel') ?? $this->firstDescendantElement($entry, 'navLabel');
+        $label = $this->firstChildElement($entry, 'navLabel');
         if (!$label instanceof \DOMElement) {
             return '';
         }

@@ -15972,6 +15972,107 @@ XML);
         $t->contains('Second NCX readable chapter.', $blocks);
         $t->contains('Third NCX readable chapter.', $blocks);
     },
+    'records epub ncx direct child navigation import boundaries' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-ncx-direct-children-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:ncx-direct-child-boundaries</dc:identifier>
+    <dc:title>NCX Direct Child Boundaries</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="one" href="one.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+  </manifest>
+  <spine toc="toc">
+    <itemref idref="one"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/one.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="start">NCX Direct Child Boundaries</h1><h2 id="child">Nested Child</h2><h2 id="fallback-child">Fallback Child</h2><span id="page-1">1</span><figure id="fig-1">Figure 1</figure><p>Readable NCX direct child boundary content.</p></body></html>');
+        $zip->addFromString('OPS/nav.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="one.xhtml">NCX Direct Child Boundaries</a></li></ol></nav></body></html>');
+        $zip->addFromString('OPS/toc.ncx', <<<'XML'
+<?xml version="1.0"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head><meta name="dtb:uid" content="urn:uuid:ncx-direct-child-boundaries"/></head>
+  <docTitle><text>NCX Direct Child Boundaries</text></docTitle>
+  <navMap>
+    <navPoint id="parent" playOrder="1" class="chapter"><navLabel xml:lang="en"><text>Parent Start</text></navLabel><content src="./one.xhtml#start"/><navPoint id="child" playOrder="2" class="section"><navLabel><text xml:lang="fr">Nested Child</text></navLabel><content src="sub/../one.xhtml#child"/></navPoint></navPoint>
+    <navPoint id="fallback-parent" playOrder="3" class="chapter"><navPoint id="fallback-child" playOrder="4" class="section"><navLabel><text>Fallback Child</text></navLabel><content src="one.xhtml#fallback-child"/></navPoint></navPoint>
+  </navMap>
+  <pageList>
+    <navLabel><text>Pages</text></navLabel>
+    <pageTarget id="page-one" playOrder="5" type="normal" value="1"><navLabel xml:lang="en-GB"><text>1</text></navLabel><content src="one.xhtml#page-1"/></pageTarget>
+  </pageList>
+  <navList id="figures" class="loi">
+    <navLabel xml:lang="es"><text>Figures</text></navLabel>
+    <navTarget id="fig-one" playOrder="6" class="figure"><navLabel><text xml:lang="es">Figure 1</text></navLabel><content src="one.xhtml#fig-1"/></navTarget>
+  </navList>
+</ncx>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $diagnostics = $meta['epubDiagnostics'] ?? [];
+        $byCode = [];
+        foreach ($diagnostics as $diagnostic) {
+            $code = (string) ($diagnostic['code'] ?? '');
+            if ($code !== '') {
+                $byCode[$code][] = $diagnostic;
+            }
+        }
+
+        $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
+        $t->same(2, $meta['epubDiagnosticErrorCount']);
+        $t->same(0, $meta['epubDiagnosticWarningCount']);
+        $t->same('fallback-parent', $byCode['missing-ncx-nav-label'][0]['id'] ?? null);
+        $t->true(!isset($byCode['missing-ncx-nav-label'][0]['text']), 'Missing direct NCX navLabel should not borrow descendant text.');
+        $t->same('fallback-parent', $byCode['missing-ncx-content-src'][0]['id'] ?? null);
+        $t->true(!isset($byCode['missing-ncx-content-src'][0]['text']), 'Missing direct NCX content should not borrow descendant label text.');
+
+        $t->same([
+            ['text' => 'NCX Direct Child Boundaries', 'href' => 'OPS/one.xhtml', 'level' => 1],
+            ['text' => 'Parent Start', 'href' => 'OPS/one.xhtml#start', 'level' => 1, 'id' => 'parent', 'type' => 'chapter', 'lang' => 'en', 'playOrder' => 1],
+            ['text' => 'Nested Child', 'href' => 'OPS/one.xhtml#child', 'level' => 2, 'id' => 'child', 'type' => 'section', 'lang' => 'fr', 'playOrder' => 2],
+            ['text' => 'Fallback Child', 'href' => 'OPS/one.xhtml#fallback-child', 'level' => 2, 'id' => 'fallback-child', 'type' => 'section', 'playOrder' => 4],
+        ], $meta['epubTocEntries']);
+        $t->same([
+            ['text' => '1', 'href' => 'OPS/one.xhtml#page-1', 'level' => 1, 'id' => 'page-one', 'type' => 'normal', 'value' => '1', 'lang' => 'en-GB', 'playOrder' => 5],
+        ], $meta['epubPageListEntries']);
+        $t->same([
+            [
+                'label' => 'Figures',
+                'entries' => [
+                    ['text' => 'Figure 1', 'href' => 'OPS/one.xhtml#fig-1', 'level' => 1, 'id' => 'fig-one', 'type' => 'figure', 'lang' => 'es', 'playOrder' => 6],
+                ],
+                'id' => 'figures',
+                'type' => 'loi',
+                'lang' => 'es',
+            ],
+        ], $meta['epubNcxNavLists']);
+        $t->true(!str_contains(json_encode($meta['epubTocEntries'], JSON_THROW_ON_ERROR), 'fallback-parent'), 'Malformed parent navPoint should not be imported from descendant label/content.');
+        $t->contains('Readable NCX direct child boundary content.', $blocks);
+    },
     'records missing local manifest resource diagnostics without flagging allowed remote hrefs' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-manifest-resource-diagnostics-');
         if ($path === false) {
