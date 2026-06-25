@@ -100,6 +100,29 @@ return [
             $assertMathMLCase($t, $case, $actual);
         }
     },
+    'prototypes texmath-style plainmath atom categories without mathml annotations' => static function (TestRunner $t) use ($corpus, $mathDocument): void {
+        $writer = new HtmlWriter(['writerHTMLMathMethod' => 'mathml']);
+        $checked = 0;
+
+        foreach ($corpus['mathml'] as $case) {
+            if (!isset($case['atomCategories'])) {
+                continue;
+            }
+
+            $checked++;
+            $t->same(
+                $case['atomCategories'],
+                $writer->plainMathAtomCategoryPrototype((string) $case['tex']),
+                'PlainMath case ' . $case['id'] . ' should expose TexMath-style atom category diagnostics.'
+            );
+
+            $actual = $writer->write($mathDocument((string) $case['tex'], (bool) ($case['display'] ?? false)));
+            $t->true(!str_contains($actual, 'data-plainmath-atom'), 'PlainMath case ' . $case['id'] . ' should not annotate runtime MathML atoms.');
+            $t->true(!str_contains($actual, 'atomCategory'), 'PlainMath case ' . $case['id'] . ' should keep atom categories out of runtime MathML.');
+        }
+
+        $t->true($checked >= 1, 'PlainMath fixture should include atom category prototype cases.');
+    },
     'records predictable plainmath fallback without malformed mathml' => static function (TestRunner $t) use ($corpus, $mathDocument): void {
         $writer = new HtmlWriter(['writerHTMLMathMethod' => 'mathml']);
 

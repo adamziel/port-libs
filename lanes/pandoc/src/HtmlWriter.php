@@ -44,6 +44,29 @@ final class HtmlWriter
         }
     }
 
+    /**
+     * Prototype-only PlainMath atom classifier aligned with TexMath's
+     * TeXSymbolType categories. It is intentionally not used by write().
+     *
+     * @return list<array{source:string,value:string,category:string,mathmlElement:string}>
+     */
+    public function plainMathAtomCategoryPrototype(string $tex): array
+    {
+        $source = trim($tex);
+        if ($source === '') {
+            return [];
+        }
+
+        $parseSource = $this->preprocessTexMathSource($source);
+        if ($parseSource === null || $parseSource === '') {
+            return [];
+        }
+
+        $offset = 0;
+
+        return $this->texMathAtomCategoryPrototypeRow($parseSource, $offset, '', false);
+    }
+
     private function renderDocument(AstNode $document): string
     {
         if ($this->usesSectionDivs()) {
@@ -2511,6 +2534,461 @@ final class HtmlWriter
         } finally {
             $this->texMathStructuralParseFailed = $previousStructuralParseFailed;
         }
+    }
+
+    /**
+     * @return list<array{source:string,value:string,category:string,mathmlElement:string}>
+     */
+    private function texMathAtomCategoryPrototypeRow(string $source, int &$offset, string $terminator, bool $stopAtRight): array
+    {
+        $items = [];
+        $length = strlen($source);
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if ($terminator !== '' && $char === $terminator) {
+                $offset++;
+                break;
+            }
+            if ($terminator === '' && $char === '}') {
+                break;
+            }
+            if (ctype_space($char) || $char === '^' || $char === '_') {
+                $offset++;
+                continue;
+            }
+            if ($char === '{') {
+                $offset++;
+                array_push($items, ...$this->texMathAtomCategoryPrototypeRow($source, $offset, '}', false));
+                continue;
+            }
+            if ($char === "'") {
+                $start = $offset;
+                $prime = $this->consumeTexMathPrimeSuffix($source, $offset);
+                $token = $this->texMathAtomCategoryPrototypeTokenFromElement(
+                    substr($source, $start, $offset - $start),
+                    $prime,
+                    'Ord'
+                );
+                if ($token !== null) {
+                    $items[] = $token;
+                }
+                continue;
+            }
+            if ($char === '\\') {
+                $commandStart = $offset;
+                $offset++;
+                $command = $this->readTexMathCommandName($source, $offset);
+                if ($command === 'right') {
+                    $token = $this->texMathDelimiterAtomCategoryPrototype($source, $commandStart, $offset, 'Close');
+                    if ($token !== null) {
+                        $items[] = $token;
+                    }
+                    if ($stopAtRight) {
+                        return $items;
+                    }
+                    continue;
+                }
+
+                array_push($items, ...$this->texMathCommandAtomCategoryPrototype($source, $commandStart, $offset, $command));
+                continue;
+            }
+            if (ctype_digit($char)) {
+                $start = $offset;
+                $value = $this->readTexMathNumber($source, $offset);
+                $items[] = $this->texMathAtomCategoryPrototypeToken(
+                    substr($source, $start, $offset - $start),
+                    $value,
+                    'Ord',
+                    'mn'
+                );
+                continue;
+            }
+
+            $start = $offset;
+            $identifier = $this->readTexMathIdentifier($source, $offset);
+            if ($identifier !== '') {
+                $items[] = $this->texMathAtomCategoryPrototypeToken(
+                    substr($source, $start, $offset - $start),
+                    $identifier,
+                    'Ord',
+                    'mi'
+                );
+                continue;
+            }
+
+            $value = $this->readTexMathCharacter($source, $offset);
+            $items[] = $this->texMathAtomCategoryPrototypeToken(
+                substr($source, $start, $offset - $start),
+                $value,
+                $this->texMathAtomCategoryForOperatorValue($value) ?? 'Ord',
+                'mo'
+            );
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return list<array{source:string,value:string,category:string,mathmlElement:string}>
+     */
+    private function texMathCommandAtomCategoryPrototype(string $source, int $commandStart, int &$offset, string $command): array
+    {
+        if ($command === '' || in_array($command, ['hline', 'hdashline', 'limits', 'nolimits', 'displaylimits'], true)) {
+            return [];
+        }
+
+        if ($command === 'left') {
+            $token = $this->texMathDelimiterAtomCategoryPrototype($source, $commandStart, $offset, 'Open');
+            $items = $token === null ? [] : [$token];
+            array_push($items, ...$this->texMathAtomCategoryPrototypeRow($source, $offset, '', true));
+
+            return $items;
+        }
+
+        if ($command === 'middle') {
+            $token = $this->texMathDelimiterAtomCategoryPrototype($source, $commandStart, $offset, 'Pun');
+
+            return $token === null ? [] : [$token];
+        }
+
+        if ($command === 'not') {
+            $negated = $this->readTexMathNegatedRelation($source, $offset) ?? '<mo>¬</mo>';
+            $token = $this->texMathAtomCategoryPrototypeTokenFromElement(
+                substr($source, $commandStart, $offset - $commandStart),
+                $negated,
+                'Rel'
+            );
+
+            return $token === null ? [] : [$token];
+        }
+
+        if ($command === 'operatorname') {
+            if (($source[$offset] ?? '') === '*') {
+                $offset++;
+            }
+            $name = $this->readTexMathRawGroup($source, $offset);
+            if (is_string($name) && trim($name) !== '') {
+                return [$this->texMathAtomCategoryPrototypeToken(
+                    substr($source, $commandStart, $offset - $commandStart),
+                    $this->texMathOperatorNameText($name),
+                    'Op',
+                    'mi'
+                )];
+            }
+        }
+
+        $namedOperator = $this->texMathNamedOperatorElement($command);
+        if ($namedOperator !== null) {
+            $token = $this->texMathAtomCategoryPrototypeTokenFromElement(
+                substr($source, $commandStart, $offset - $commandStart),
+                $namedOperator,
+                'Op'
+            );
+
+            return $token === null ? [] : [$token];
+        }
+
+        $mapped = $this->texMathCommandElement($command);
+        if ($mapped !== null) {
+            $token = $this->texMathAtomCategoryPrototypeTokenFromElement(
+                substr($source, $commandStart, $offset - $commandStart),
+                $mapped,
+                $this->texMathAtomCategoryForCommand($command, $mapped)
+            );
+
+            return $token === null ? [] : [$token];
+        }
+
+        return [$this->texMathAtomCategoryPrototypeToken(
+            substr($source, $commandStart, $offset - $commandStart),
+            $command,
+            'Ord',
+            'mi'
+        )];
+    }
+
+    /**
+     * @return array{source:string,value:string,category:string,mathmlElement:string}|null
+     */
+    private function texMathDelimiterAtomCategoryPrototype(string $source, int $commandStart, int &$offset, string $category): ?array
+    {
+        $delimiter = $this->readTexMathDelimiter($source, $offset);
+        if ($delimiter === null) {
+            return null;
+        }
+
+        return $this->texMathAtomCategoryPrototypeToken(
+            substr($source, $commandStart, $offset - $commandStart),
+            $delimiter,
+            $category,
+            'mo'
+        );
+    }
+
+    /**
+     * @return array{source:string,value:string,category:string,mathmlElement:string}|null
+     */
+    private function texMathAtomCategoryPrototypeTokenFromElement(string $source, string $element, string $category): ?array
+    {
+        if ($element === '' || str_starts_with($element, '<mspace')) {
+            return null;
+        }
+
+        if (preg_match('/^<([a-z0-9]+)(?:\s[^>]*)?>(.*)<\/\1>$/us', $element, $match) !== 1) {
+            return null;
+        }
+
+        return $this->texMathAtomCategoryPrototypeToken(
+            $source,
+            html_entity_decode(strip_tags($match[2]), ENT_QUOTES | ENT_XML1, 'UTF-8'),
+            $category,
+            $match[1]
+        );
+    }
+
+    /**
+     * @return array{source:string,value:string,category:string,mathmlElement:string}
+     */
+    private function texMathAtomCategoryPrototypeToken(string $source, string $value, string $category, string $mathmlElement): array
+    {
+        return [
+            'source' => $source,
+            'value' => $value,
+            'category' => $category,
+            'mathmlElement' => $mathmlElement,
+        ];
+    }
+
+    private function texMathAtomCategoryForCommand(string $command, string $element): string
+    {
+        $token = $this->texMathAtomCategoryPrototypeTokenFromElement('\\' . $command, $element, 'Ord');
+        $value = $token['value'] ?? '';
+        if (in_array($command, [
+            'int',
+            'intop',
+            'smallint',
+            'oint',
+            'iint',
+            'iiint',
+            'iiiint',
+            'idotsint',
+            'oiint',
+            'oiiint',
+            'sum',
+            'Bbbsum',
+            'prod',
+            'coprod',
+            'bigcup',
+            'bigcap',
+            'bigsqcup',
+            'bigvee',
+            'bigwedge',
+            'bigoplus',
+            'bigotimes',
+            'bigodot',
+            'biguplus',
+        ], true)) {
+            return 'Op';
+        }
+        if (in_array($command, ['{', 'lbrace', 'lparen', 'lbrack', 'langle', 'lfloor', 'lceil', 'lvert', 'lVert'], true)) {
+            return 'Open';
+        }
+        if (in_array($command, ['}', 'rbrace', 'rparen', 'rbrack', 'rangle', 'rfloor', 'rceil', 'rvert', 'rVert'], true)) {
+            return 'Close';
+        }
+        if (in_array($command, ['mathcomma', 'mathsemicolon', 'colon'], true)) {
+            return 'Pun';
+        }
+        if (in_array($command, [
+            'le',
+            'leq',
+            'leqq',
+            'leqslant',
+            'lt',
+            'ge',
+            'geq',
+            'geqq',
+            'geqslant',
+            'gt',
+            'ne',
+            'neq',
+            'neqq',
+            'equiv',
+            'approx',
+            'sim',
+            'simeq',
+            'cong',
+            'propto',
+            'in',
+            'ni',
+            'owns',
+            'mid',
+            'parallel',
+            'subset',
+            'subseteq',
+            'subseteqq',
+            'supset',
+            'supseteq',
+            'supseteqq',
+            'sqsubset',
+            'sqsupset',
+            'sqsubseteq',
+            'sqsupseteq',
+            'prec',
+            'succ',
+            'preceq',
+            'succeq',
+        ], true)) {
+            return 'Rel';
+        }
+        if (in_array($command, [
+            'mathplus',
+            'minus',
+            'pm',
+            'mp',
+            'times',
+            'cdot',
+            'cdotp',
+            'div',
+            'ast',
+            'star',
+            'circ',
+            'bullet',
+            'amalg',
+            'wr',
+            'cup',
+            'cap',
+            'sqcup',
+            'sqcap',
+            'uplus',
+            'setminus',
+            'smallsetminus',
+            'wedge',
+            'land',
+            'vee',
+            'lor',
+            'oplus',
+            'ominus',
+            'otimes',
+            'oslash',
+            'odot',
+        ], true)) {
+            return 'Bin';
+        }
+
+        return $this->texMathAtomCategoryForOperatorValue($value) ?? 'Ord';
+    }
+
+    private function texMathAtomCategoryForOperatorValue(string $value): ?string
+    {
+        if (in_array($value, ['(', '[', '{', '⟨', '⌊', '⌈'], true)) {
+            return 'Open';
+        }
+        if (in_array($value, [')', ']', '}', '⟩', '⌋', '⌉'], true)) {
+            return 'Close';
+        }
+        if (in_array($value, [',', ';', ':'], true)) {
+            return 'Pun';
+        }
+        if (in_array($value, [
+            '∫',
+            '∮',
+            '∬',
+            '∭',
+            '⨌',
+            '∯',
+            '∰',
+            '∑',
+            '⅀',
+            '∏',
+            '∐',
+            '⋃',
+            '⋂',
+            '⨆',
+            '⋁',
+            '⋀',
+            '⨁',
+            '⨂',
+            '⨀',
+            '⨄',
+        ], true)) {
+            return 'Op';
+        }
+        if (in_array($value, [
+            '=',
+            '<',
+            '>',
+            '≤',
+            '≦',
+            '⩽',
+            '≥',
+            '≧',
+            '⩾',
+            '≠',
+            '≡',
+            '≈',
+            '∼',
+            '≃',
+            '≅',
+            '∝',
+            '∈',
+            '∋',
+            '∉',
+            '∌',
+            '∣',
+            '∥',
+            '⊂',
+            '⊆',
+            '⫅',
+            '⊃',
+            '⊇',
+            '⫆',
+            '⊏',
+            '⊐',
+            '⊑',
+            '⊒',
+            '≺',
+            '≻',
+            '≼',
+            '≽',
+        ], true)) {
+            return 'Rel';
+        }
+        if (in_array($value, [
+            '+',
+            '-',
+            '−',
+            '±',
+            '∓',
+            '*',
+            '/',
+            '×',
+            '⋅',
+            '÷',
+            '∗',
+            '⋆',
+            '∘',
+            '•',
+            '⨿',
+            '≀',
+            '∪',
+            '∩',
+            '⊔',
+            '⊓',
+            '⊎',
+            '∖',
+            '∧',
+            '∨',
+            '⊕',
+            '⊖',
+            '⊗',
+            '⊘',
+            '⊙',
+        ], true)) {
+            return 'Bin';
+        }
+
+        return null;
     }
 
     private function preprocessTexMathSource(string $source): ?string
