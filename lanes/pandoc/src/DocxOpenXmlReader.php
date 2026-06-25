@@ -21996,7 +21996,10 @@ final class DocxOpenXmlReader
             return [];
         }
 
-        $dom = $this->loadXml($xml, $partName);
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [];
+        }
         $xpath = $this->xpath($dom);
         $abstracts = [];
         foreach ($this->elements($xpath, '/w:numbering/w:abstractNum') as $abstract) {
@@ -22100,7 +22103,10 @@ final class DocxOpenXmlReader
             return $empty;
         }
 
-        $dom = $this->loadXml($xml, $partName);
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return $empty;
+        }
         $xpath = $this->xpath($dom);
         $items = [];
         $byId = [];

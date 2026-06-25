@@ -13109,6 +13109,69 @@ XML;
         $t->same('bullet_list', $bullet->type);
         $t->same('-', $bullet->attr('bulletChar'));
     },
+    'reports invalid docx numbering relationship target without aborting import' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $numberingRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
+        $numberingContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+        $badNumberingXml = '<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/bad-numbering.xml" ContentType="' . $numberingContentType . '"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rBadNumbering" Type="' . $numberingRel . '" Target="bad-numbering.xml?profile=bad#num"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/bad-numbering.xml'] = $badNumberingXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $selected = $package['selectedXmlParts']['byKind']['numbering'];
+        $relationshipReview = $package['numberingRelationship'];
+
+        $t->same('word/bad-numbering.xml', $docx['numberingPart']);
+        $t->same([], $docx['numbering']);
+        $t->same('paragraph', $document->children[2]->type);
+        $t->same('paragraph', $document->children[3]->type);
+        $t->same('rBadNumbering', $docx['numberingRelationship']['id']);
+        $t->same('bad-numbering.xml?profile=bad#num', $docx['numberingRelationship']['target']);
+        $t->same('word/bad-numbering.xml?profile=bad#num', $docx['numberingRelationship']['resolvedTarget']);
+        $t->same('word/bad-numbering.xml', $docx['numberingRelationship']['targetPart']);
+        $t->same(true, $docx['numberingRelationship']['exists']);
+
+        $t->same('relationship', $selected['selectionSource']);
+        $t->same('word/bad-numbering.xml', $selected['partName']);
+        $t->same('rBadNumbering', $selected['relationshipId']);
+        $t->same($numberingRel, $selected['relationshipType']);
+        $t->same('bad-numbering.xml?profile=bad#num', $selected['relationshipTarget']);
+        $t->same('word/bad-numbering.xml?profile=bad#num', $selected['relationshipResolvedTarget']);
+        $t->same('?profile=bad#num', $selected['targetReferenceSuffix']);
+        $t->same('profile=bad', $selected['targetQuery']);
+        $t->same('num', $selected['targetFragment']);
+        $t->same(false, $selected['validRoot']);
+        $t->same(['invalid-xml'], $selected['issues']);
+        $t->contains('abstractNum', $selected['xmlParseError']);
+        $t->same(1, $summary['selectedXmlPartInvalidXmlCount']);
+        $t->true(in_array('numbering', $summary['selectedXmlPartIssueKinds'], true), 'numbering should be marked in selected XML issue kinds');
+
+        $t->same('word/bad-numbering.xml', $relationshipReview['partName']);
+        $t->same(true, $relationshipReview['relationshipPresent']);
+        $t->same(false, $relationshipReview['fallbackUsed']);
+        $t->same('rBadNumbering', $relationshipReview['selectedRelationshipId']);
+        $t->same(1, $relationshipReview['relationshipCount']);
+        $t->same(1, $relationshipReview['selectedRelationshipCount']);
+        $t->same(1, $relationshipReview['existingTargetCount']);
+        $t->same(0, $relationshipReview['issueCount']);
+        $t->same($numberingContentType, $relationshipReview['contentTypeBase']);
+        $t->same(strlen($badNumberingXml), $relationshipReview['bytes']);
+        $t->same(hash('sha256', $badNumberingXml), $relationshipReview['sha256']);
+    },
     'summarizes docx numbering picture bullet relationships for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
