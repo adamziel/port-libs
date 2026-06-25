@@ -674,7 +674,7 @@ final class WordPressBlockWriter
 
     private function renderDefinitionListHtml(AstNode $node): string
     {
-        $html = '<dl>';
+        $html = '<dl' . $this->renderBlockHtmlAttrs($node) . '>';
         foreach ($node->children as $item) {
             if ($item->type !== 'definition_item') {
                 continue;
@@ -758,10 +758,84 @@ final class WordPressBlockWriter
         $html .= '</table>';
 
         if ($caption !== '') {
-            $html .= '<figcaption class="wp-element-caption">' . $captionHtml . '</figcaption>';
+            $html .= '<figcaption' . $this->renderTableFigcaptionAttrs($node) . '>' . $captionHtml . '</figcaption>';
         }
 
         return $html;
+    }
+
+    private function renderTableFigcaptionAttrs(AstNode $node): string
+    {
+        $attrs = $this->tableCaptionSourceAttributes($node);
+        $classes = ['wp-element-caption'];
+        $sourceClass = trim((string) ($attrs['class'] ?? ''));
+        if ($sourceClass !== '') {
+            array_unshift($classes, ...preg_split('/\s+/', $sourceClass, -1, PREG_SPLIT_NO_EMPTY));
+        }
+        $attrs['class'] = implode(' ', array_values(array_unique($classes)));
+
+        return $this->renderBlockHtmlAttrs(new AstNode('figcaption', ['htmlAttributes' => $attrs]));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableCaptionSourceAttributes(AstNode $node): array
+    {
+        $captionSource = $node->attr('captionSource', []);
+        if (!is_array($captionSource)) {
+            return [];
+        }
+
+        $sourceAttributes = $captionSource['sourceAttributes'] ?? [];
+        if (!is_array($sourceAttributes)) {
+            return [];
+        }
+
+        $attrs = [];
+        $htmlAttributes = $sourceAttributes['htmlAttributes'] ?? [];
+        if (is_array($htmlAttributes)) {
+            foreach ($htmlAttributes as $name => $value) {
+                $attrs[strtolower((string) $name)] = $value;
+            }
+        }
+
+        if (!array_key_exists('id', $attrs)) {
+            $id = (string) ($sourceAttributes['id'] ?? '');
+            if ($id !== '') {
+                $attrs['id'] = $id;
+            }
+        }
+
+        $classes = [];
+        $htmlClass = trim((string) ($attrs['class'] ?? ''));
+        if ($htmlClass !== '') {
+            $classes = array_merge($classes, preg_split('/\s+/', $htmlClass, -1, PREG_SPLIT_NO_EMPTY));
+        }
+        $sourceClasses = $sourceAttributes['classes'] ?? [];
+        if (is_array($sourceClasses)) {
+            foreach ($sourceClasses as $class) {
+                $class = trim((string) $class);
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
+            }
+        }
+        if ($classes !== []) {
+            $attrs['class'] = implode(' ', array_values(array_unique($classes)));
+        }
+
+        $attributes = $sourceAttributes['attributes'] ?? [];
+        if (is_array($attributes)) {
+            foreach ($attributes as $name => $value) {
+                $name = strtolower((string) $name);
+                if (!array_key_exists($name, $attrs)) {
+                    $attrs[$name] = $value;
+                }
+            }
+        }
+
+        return $attrs;
     }
 
     private function renderTableFigureAttrs(AstNode $node): string
@@ -1046,7 +1120,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'bgcolor', 'class', 'dir', 'headers', 'id', 'lang', 'role', 'scope', 'style', 'title', 'valign'], true);
+            || in_array($name, ['abbr', 'bgcolor', 'border', 'class', 'dir', 'headers', 'id', 'lang', 'role', 'scope', 'style', 'title', 'valign'], true);
     }
 
     private function renderCodeBlock(AstNode $node): string

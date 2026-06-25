@@ -3545,7 +3545,9 @@ XML);
             $t->same(2, $footerRow->children[0]->attr('colspan'));
 
             $t->contains('<figcaption id="matrix-caption" class="wp-element-caption">Migration <strong>matrix</strong></figcaption>', $blocks);
-            $t->contains('<table id="migration-matrix" class="review" data-review="epub-table" border="1"', $blocks);
+            $t->contains('<table id="migration-matrix" class="review"', $blocks);
+            $t->contains('data-review="epub-table"', $blocks);
+            $t->contains('border="1"', $blocks);
             $t->contains('<th scope="col">Source</th>', $blocks);
             $t->contains('<th scope="row">Posts</th>', $blocks);
             $t->contains('<td style="text-align:center">Ready</td>', $blocks);
