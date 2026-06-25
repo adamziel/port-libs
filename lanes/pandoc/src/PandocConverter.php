@@ -171,6 +171,7 @@ final class PandocConverter
             NativeReader::class => new NativeReader(),
             OdtReader::class => new OdtReader(),
             PdfReader::class => new PdfReader($options),
+            PptxReader::class => new PptxReader($options),
             default => throw new \InvalidArgumentException("Unsupported Pandoc reader implementation '{$implementation}'."),
         };
     }

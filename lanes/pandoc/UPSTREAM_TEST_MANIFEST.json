@@ -13,15 +13,17 @@
         "source": "Pandoc User's Guide 2026-06-03 plus upstream source commit 912bfa5e2e3f5c74eb125dfc19404f67c61ca58b",
         "inputFormats": 51,
         "outputFormats": 75,
-        "partialPhpInputFormats": 16,
+        "partialPhpInputFormats": 17,
         "partialPhpOutputFormats": 16,
-        "unsupportedPhpInputFormats": 35,
+        "unsupportedPhpInputFormats": 34,
         "unsupportedPhpOutputFormats": 59,
         "registry": "lanes/pandoc/src/PandocFormatRegistry.php",
         "test": "lanes/pandoc/tests/PandocFormatRegistryTest.php",
         "jsonReader": "lanes/pandoc/src/JsonReader.php",
         "jsonWriter": "lanes/pandoc/src/JsonWriter.php",
-        "jsonTest": "lanes/pandoc/tests/JsonReaderWriterTest.php"
+        "jsonTest": "lanes/pandoc/tests/JsonReaderWriterTest.php",
+        "pptxReader": "lanes/pandoc/src/PptxReader.php",
+        "pptxTest": "lanes/pandoc/tests/PptxReaderTest.php"
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
@@ -3239,9 +3241,11 @@
     "mappedSharedZipOpcPackagePrimitiveCases": 1,
     "mappedPlainMathTypedParserExpandedCases": 51,
     "plainMathTypedParserFocusedAssertions": 596,
-    "lastUpdated": "2026-06-25T22:14:20Z",
-    "phpPass": 1205,
+    "mappedPptxReaderPackageCases": 2,
+    "pptxReaderFocusedAssertions": 249,
+    "lastUpdated": "2026-06-25T22:21:09Z",
+    "phpPass": 1207,
     "phpFail": 0,
-    "phpAssertions": 23381,
-    "latestPandocSlice": "The 2026-06-25 PlainMath typed TeX macro/preprocessor slice adds a reusable TexPreprocessor for the typed parser, covering TeX comment stripping, ignorable label/tag/notag/nonumber/allowbreak commands, DeclareMathOperator declarations, newcommand/renewcommand/providecommand macro expansion with optional default arguments, newenvironment/renewenvironment expansion with optional defaults, and bounded non-converging expansion diagnostics. TexParser now preprocesses sources before typed parse, supports operator limits/nolimits/default limits through munder/mover/munderover output, recursive text-mode style parsing, style declarations, math style wrappers, and atom coercion commands such as mathop/mathrel/mathbin/mathord/mathopen/mathclose/mathpunct. The typed PlainMath parser now accepts every committed upstream-derived MathML corpus case, 51 of 51, while the HtmlWriter runtime TeX-to-MathML path remains on the existing broad fallback parser until a safe adapter gate is available. Verification passed php -l for TexPreprocessor.php, TexParser.php, Expression.php, MathMlWriter.php, and HtmlWriter.php. php tools/run-tests.php lanes/pandoc/tests/PlainMathParserTest.php lanes/pandoc/tests/PlainMathWriterTest.php lanes/pandoc/tests/PlainMathTokenStreamTest.php lanes/pandoc/tests/PlainMathConformanceTest.php passed 4 files, 596 assertions, 0 failures. php tools/run-tests.php lanes/pandoc/tests/PlainMathParserTest.php lanes/pandoc/tests/PlainMathWriterTest.php lanes/pandoc/tests/PlainMathTokenStreamTest.php lanes/pandoc/tests/PlainMathConformanceTest.php lanes/pandoc/tests/HtmlWriterTest.php lanes/pandoc/tests/EpubWriterTest.php passed 6 files, 11,210 assertions, 0 failures. php tools/run-tests.php lanes/pandoc/tests passed 20 files, 23,381 assertions, 0 failures with pass-count verification pass=1,205 fail=0. No full upstream Haskell TeX reader parity, safe HtmlWriter typed-parser preference, complete symbol/category normalization, TeX writer work, or later requested PPTX/XLSX/BibTeX/CSV/RIS/MediaWiki/RST/XML readers is claimed."
+    "phpAssertions": 23409,
+    "latestPandocSlice": "The 2026-06-25 PPTX reader slice registers pptx as a partial native PHP input format and adds PptxReader. The reader resolves presentation.xml through OPC root relationships, follows ordered slide relationships, extracts core properties, slide size, slide metadata, title placeholders, text boxes, styled DrawingML text runs, hyperlinks, bullet and numbered lists, pictures, DrawingML tables, notes slide text, package entry counts, and ppt/media references into the shared AST for WordPress block conversion. PandocConverter now routes pptx input through PptxReader, and PandocFormatRegistry moves pptx from unsupported to partial input support, bringing partial PHP input formats to 17 and unsupported inputs to 34. Verification passed php -l for PptxReader.php, PandocConverter.php, PandocFormatRegistry.php, PptxReaderTest.php, and PandocFormatRegistryTest.php. php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php passed 2 files, 249 assertions, 0 failures. php tools/run-tests.php lanes/pandoc/tests passed 21 files, 23,409 assertions, 0 failures with pass-count verification pass=1,207 fail=0. This is reader-only PPTX progress for downstream WordPress block conversion and does not claim full upstream Haskell PPTX reader parity, charts, SmartArt hierarchy, animations, comments, masters/layout inheritance, embedded OLE, or PPTX writer support."
 }

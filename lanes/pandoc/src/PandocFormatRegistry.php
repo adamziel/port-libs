@@ -249,6 +249,11 @@ final class PandocFormatRegistry
             'implementation' => OdtReader::class,
             'notes' => 'Bounded ODT package reader parses content.xml, meta.xml, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open.',
         ],
+        'pptx' => [
+            'status' => 'partial',
+            'implementation' => PptxReader::class,
+            'notes' => 'Bounded PPTX package reader resolves presentation.xml through OPC relationships, follows ordered slides, extracts slide titles, text boxes, styled text runs, hyperlinks, bullet/numbered lists, pictures, DrawingML tables, notes text, core properties, slide size, and media references into the shared AST. Full PPTX parity remains open.',
+        ],
     ];
 
     /**

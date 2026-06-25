@@ -61,6 +61,35 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   preference, complete symbol/category normalization, or the later requested
   PPTX/XLSX/BibTeX/CSV/RIS/MediaWiki/RST/XML readers.
 
+## 2026-06-25 PPTX Reader Package/Text/Media Slice
+
+- `PptxReader` is now registered as partial native PHP support for upstream
+  Pandoc input format `pptx`. The reader resolves `ppt/presentation.xml`
+  through OPC root relationships, follows ordered slide relationships from
+  `ppt/_rels/presentation.xml.rels`, and loads slide-local relationships for
+  pictures, hyperlinks, and notes slides.
+- The first PPTX reader slice maps core properties, slide size metadata,
+  package entry counts, `ppt/media/*` references, slide wrapper `Div` nodes,
+  title-placeholder headings, text boxes, styled DrawingML text runs, hyperlink
+  runs, bullet and numbered lists, pictures, DrawingML tables, and notes slide
+  text into the shared AST used by `WordPressBlockWriter`.
+- `PandocConverter` now accepts `pptx` input and can convert PPTX bytes or
+  files directly to WordPress block markup through the existing `blocks`/`wp`
+  output alias. `PandocFormatRegistry` now counts 17 partial PHP upstream input
+  formats and 34 unsupported input formats.
+- Verification: `php -l` passed for `PptxReader.php`,
+  `PandocConverter.php`, `PandocFormatRegistry.php`, `PptxReaderTest.php`, and
+  `PandocFormatRegistryTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/PptxReaderTest.php
+  lanes/pandoc/tests/PandocFormatRegistryTest.php` passed 2 files, 249
+  assertions, 0 failures; and `php tools/run-tests.php lanes/pandoc/tests`
+  passed 21 files, 23,409 assertions, 0 failures with pass-count verification
+  `pass=1207 fail=0`.
+- This is reader-only PPTX progress for downstream WordPress block conversion.
+  It does not claim full upstream Haskell PPTX reader parity, charts, SmartArt
+  hierarchy, animations, comments, masters/layout inheritance, embedded OLE, or
+  PPTX writer support.
+
 ## 2026-06-25 EPUB3 CSS Image-Set Resource Policy Closure
 
 - `EpubReader` and `EpubWriter` now treat top-level quoted string candidates
