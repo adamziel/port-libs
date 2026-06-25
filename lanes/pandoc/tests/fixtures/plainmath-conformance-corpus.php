@@ -221,6 +221,18 @@ return [
             'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">\begin{equation}x^2+1\end{equation}</annotation></semantics></math>',
         ],
         [
+            'id' => 'unicode-identifiers-prime-shorthand',
+            'family' => 'unicode-and-scripts',
+            'tex' => 'α_1 + β\' + γ\'\' + ∂f/∂x',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'test/reader/tex/unicode.test token subset plus TeX prime shorthand',
+                'writer' => 'Text.TeXMath.Writers.MathML identifier/operator/script subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>α</mi><mn>1</mn></msub><mo>+</mo><msup><mi>β</mi><mo>′</mo></msup><mo>+</mo><msup><mi>γ</mi><mo>″</mo></msup><mo>+</mo><mo>∂</mo><mi>f</mi><mo>/</mo><mo>∂</mo><mi>x</mi></mrow><annotation encoding="application/x-tex">α_1 + β&#039; + γ&#039;&#039; + ∂f/∂x</annotation></semantics></math>',
+        ],
+        [
             'id' => 'infix-brack-brace-bangle',
             'family' => 'infix-fractions',
             'tex' => '{r \brack s} + {u \brace v} + {p \bangle q}',
@@ -351,6 +363,12 @@ return [
             'upstream' => 'Text.TeXMath.Readers.TeX.Macros applyMacros fixed-point fallback',
             'tex' => '\newcommand{\loop}{\loop}\loop',
             'gap' => 'Recursive macros are bounded and fall back to the original TeX span, but HtmlWriter does not yet surface a structured diagnostic for the expansion failure.',
+        ],
+        [
+            'id' => 'unicode-symbol-category-parity',
+            'upstream' => 'test/reader/tex/unicode.test and Text.TeXMath.Unicode.ToTeX',
+            'tex' => 'α + β',
+            'gap' => 'Direct UTF-8 identifiers/operators now tokenize safely, but HtmlWriter does not retain TexMath Unicode symbol categories for Bin/Rel/Open/Close/Pun/Ord correction, form attributes, or function-application insertion.',
         ],
     ],
 ];
