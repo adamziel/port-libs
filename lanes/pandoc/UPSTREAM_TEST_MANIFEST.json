@@ -13,9 +13,9 @@
         "source": "Pandoc User's Guide 2026-06-03 plus upstream source commit 912bfa5e2e3f5c74eb125dfc19404f67c61ca58b",
         "inputFormats": 51,
         "outputFormats": 75,
-        "partialPhpInputFormats": 25,
+        "partialPhpInputFormats": 26,
         "partialPhpOutputFormats": 17,
-        "unsupportedPhpInputFormats": 26,
+        "unsupportedPhpInputFormats": 25,
         "unsupportedPhpOutputFormats": 58,
         "registry": "lanes/pandoc/src/PandocFormatRegistry.php",
         "test": "lanes/pandoc/tests/PandocFormatRegistryTest.php",
@@ -35,7 +35,9 @@
         "mediaWikiReader": "lanes/pandoc/src/MediaWikiReader.php",
         "mediaWikiTest": "lanes/pandoc/tests/MediaWikiReaderTest.php",
         "rstReader": "lanes/pandoc/src/RstReader.php",
-        "rstTest": "lanes/pandoc/tests/RstReaderTest.php"
+        "rstTest": "lanes/pandoc/tests/RstReaderTest.php",
+        "xmlReader": "lanes/pandoc/src/XmlReader.php",
+        "xmlTest": "lanes/pandoc/tests/XmlReaderTest.php"
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
@@ -3267,9 +3269,11 @@
     "mediaWikiReaderFocusedAssertions": 283,
     "mappedRstReaderCases": 3,
     "rstReaderFocusedAssertions": 283,
-    "lastUpdated": "2026-06-25T23:08:08Z",
-    "phpPass": 1224,
+    "mappedXmlReaderCases": 3,
+    "xmlReaderFocusedAssertions": 290,
+    "lastUpdated": "2026-06-25T23:17:25Z",
+    "phpPass": 1227,
     "phpFail": 0,
-    "phpAssertions": 23636,
-    "latestPandocSlice": "The 2026-06-25 RST reader slice registers rst as a partial native PHP input format and adds RstReader. The reader maps common reStructuredText section adornments, field lists, paragraphs, inline emphasis/strong/literals/code roles, embedded/reference links, bullet and ordered lists, literal blocks, code directives, image/figure directives with captions/dimensions/classes, raw/class directives, and simple/grid tables into the shared AST for WordPress block conversion. PandocConverter now routes rst input through RstReader, and PandocFormatRegistry moves rst from unsupported to partial input support, bringing partial PHP input formats to 25 and unsupported inputs to 26. Verification passed php -l for RstReader.php, PandocConverter.php, PandocFormatRegistry.php, RstReaderTest.php, and PandocFormatRegistryTest.php. php tools/run-tests.php lanes/pandoc/tests/RstReaderTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php passed 2 files, 283 assertions, 0 failures. php tools/run-tests.php lanes/pandoc/tests passed 27 files, 23,636 assertions, 0 failures with pass-count verification pass=1,224 fail=0. This is reader-only RST progress for downstream WordPress block conversion and does not claim full upstream Haskell reStructuredText reader parity, full docutils directive/substitution/role/citation/footnote semantics, complete table edge cases, or writer support."
+    "phpAssertions": 23687,
+    "latestPandocSlice": "The 2026-06-25 XML reader slice registers xml as a partial native PHP input format and adds XmlReader. The reader uses XmlHtmlDom safe XML loading, rejects unsafe doctype/entity and processing-instruction sources, records namespace review metadata, and maps common document-like XML headings, paragraphs, inline emphasis/strong/code/link/span/MathML, ordered/bullet/definition lists, code blocks, figures/images with dimensions/captions, block quotes, generic containers, and simple HTML-like tables into the shared AST for WordPress block conversion. PandocConverter now routes xml input through XmlReader, and PandocFormatRegistry moves xml from unsupported to partial input support while keeping full XML/JATS/BITS parity marked open, bringing partial PHP input formats to 26 and unsupported inputs to 25. Verification passed php -l for XmlReader.php, PandocConverter.php, PandocFormatRegistry.php, XmlReaderTest.php, and PandocFormatRegistryTest.php. php tools/run-tests.php lanes/pandoc/tests/XmlReaderTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php passed 2 files, 290 assertions, 0 failures. php tools/run-tests.php lanes/pandoc/tests passed 28 files, 23,687 assertions, 0 failures with pass-count verification pass=1,227 fail=0. This is reader-only XML progress for downstream WordPress block conversion and does not claim full upstream Haskell XML/JATS/BITS reader parity, schema-aware DocBook/JATS/BITS semantics, XSLT, entity expansion, DTD validation, arbitrary XML semantic mapping, or writer support."
 }

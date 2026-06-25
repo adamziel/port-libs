@@ -289,6 +289,11 @@ final class PandocFormatRegistry
             'implementation' => RstReader::class,
             'notes' => 'Bounded reStructuredText reader maps common section adornments, paragraphs, inline emphasis/strong/literals, interpreted code roles, reference links, field lists, literal/code directives, image/figure directives, bullet/ordered lists, block quotes, raw/class directives, and simple/grid tables into the shared AST. Full docutils directive, substitution, role, citation, footnote, and table parity remain open.',
         ],
+        'xml' => [
+            'status' => 'partial',
+            'implementation' => XmlReader::class,
+            'notes' => 'Bounded generic XML reader safely loads XML, records namespace review metadata, and maps common document-like headings, paragraphs, inline emphasis/strong/code/link spans, lists, code blocks, figures/images, block quotes, generic containers, and simple table structures into the shared AST. Full Pandoc XML, JATS, and BITS parity remain open.',
+        ],
         'xlsx' => [
             'status' => 'partial',
             'implementation' => XlsxReader::class,
@@ -631,11 +636,16 @@ final class PandocFormatRegistry
         $formats = [];
         $registeredDiagnosticImplementations = 0;
         $boundedDiagnosticSurfaceCount = 0;
+        $registeredDirectReaderFormats = [];
 
         foreach (self::XML_JATS_BITS_INPUT_FORMATS as $format) {
             $support = $inputSupport[$format];
             $direction = $directions[$format];
             $diagnosticSurface = self::XML_JATS_BITS_DIAGNOSTIC_SURFACES[$format];
+            $registeredDirectReader = $support['status'] !== 'unsupported' && $support['implementation'] !== '';
+            if ($registeredDirectReader) {
+                $registeredDirectReaderFormats[] = $format;
+            }
 
             if ($diagnosticSurface['diagnosticImplementation'] !== '') {
                 ++$registeredDiagnosticImplementations;
@@ -660,7 +670,7 @@ final class PandocFormatRegistry
                 'reviewMethod' => $diagnosticSurface['reviewMethod'],
                 'reviewPolicy' => $diagnosticSurface['reviewPolicy'],
                 'directReaderParity' => false,
-                'registeredDirectReaderRecord' => false,
+                'registeredDirectReaderRecord' => $registeredDirectReader,
                 'aliasedTo' => self::INPUT_ALIASES[$format] ?? null,
                 'boundedDiagnostics' => $diagnosticSurface['boundedDiagnostics'],
                 'reviewPacketFields' => $diagnosticSurface['reviewPacketFields'],
@@ -680,13 +690,13 @@ final class PandocFormatRegistry
             'unsupportedDirectReaderFormats' => self::XML_JATS_BITS_INPUT_FORMATS,
             'unsupportedDirectReaderCount' => count(self::XML_JATS_BITS_INPUT_FORMATS),
             'directReaderParitySupported' => false,
-            'registeredDirectReaderImplementations' => 0,
-            'registeredDirectReaderRecords' => 0,
-            'registeredDirectReaderRecordFormats' => [],
+            'registeredDirectReaderImplementations' => count($registeredDirectReaderFormats),
+            'registeredDirectReaderRecords' => count($registeredDirectReaderFormats),
+            'registeredDirectReaderRecordFormats' => $registeredDirectReaderFormats,
             'registeredDiagnosticImplementations' => $registeredDiagnosticImplementations,
             'boundedDiagnosticSurfaceCount' => $boundedDiagnosticSurfaceCount,
-            'explicitUnsupportedVerdict' => true,
-            'reviewNote' => 'XML, JATS, and BITS have no native PHP direct reader parity registered; XML has bounded namespace diagnostics for review packets only.',
+            'explicitUnsupportedVerdict' => $registeredDirectReaderFormats === [],
+            'reviewNote' => 'XML has a bounded native PHP reader and namespace diagnostics; JATS and BITS still have no native PHP direct reader registered, and full XML/JATS/BITS parity remains open.',
             'formats' => $formats,
         ];
     }
@@ -717,13 +727,13 @@ final class PandocFormatRegistry
             'reviewPacketFields' => $xmlFormat['reviewPacketFields'],
             'remainingReaderGaps' => $xmlFormat['remainingReaderGaps'],
             'directReaderParity' => false,
-            'directReaderParityStatus' => 'unsupported',
+            'directReaderParityStatus' => $xmlFormat['inputStatus'],
             'unsupportedDirectReaderReason' => $unsupportedDirectReaderReason['code'],
             'unsupportedDirectReaderDetail' => $unsupportedDirectReaderReason['message'],
             'unsupportedDirectReaderDiagnostic' => $unsupportedDirectReaderReason,
-            'registeredDirectReaderImplementations' => 0,
-            'registeredDirectReaderRecords' => 0,
-            'registeredDirectReaderRecordFormats' => [],
+            'registeredDirectReaderImplementations' => $capabilityPacket['registeredDirectReaderImplementations'],
+            'registeredDirectReaderRecords' => $capabilityPacket['registeredDirectReaderRecords'],
+            'registeredDirectReaderRecordFormats' => $capabilityPacket['registeredDirectReaderRecordFormats'],
             'registeredDiagnosticImplementations' => 1,
             'namespacePrefixFrequencyRows' => $namespacePacket['namespacePrefixFrequencies'],
             'namespacePrefixFrequencyRowCount' => $namespacePacket['namespacePrefixFrequencyCount'],

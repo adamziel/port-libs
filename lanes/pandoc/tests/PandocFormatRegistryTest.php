@@ -23,6 +23,7 @@ use PortLibs\Pandoc\PptxReader;
 use PortLibs\Pandoc\RisReader;
 use PortLibs\Pandoc\RstReader;
 use PortLibs\Pandoc\XmlHtmlDom;
+use PortLibs\Pandoc\XmlReader;
 use PortLibs\Pandoc\XlsxReader;
 
 return [
@@ -156,9 +157,11 @@ return [
         $t->same(MediaWikiReader::class, $support['mediawiki']['implementation']);
         $t->same('partial', $support['rst']['status']);
         $t->same(RstReader::class, $support['rst']['implementation']);
+        $t->same('partial', $support['xml']['status']);
+        $t->same(XmlReader::class, $support['xml']['implementation']);
         $t->same('partial', $support['xlsx']['status']);
         $t->same(XlsxReader::class, $support['xlsx']['implementation']);
-        $t->same(26, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(25, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();
@@ -194,31 +197,37 @@ return [
 
         $t->same($expectedFormats, PandocFormatRegistry::xmlJatsBitsInputFormats());
         $t->same($expectedFormats, array_keys($support));
-        $t->same($expectedFormats, PandocFormatRegistry::unsupportedXmlJatsBitsInputFormats());
+        $t->same(['jats', 'bits'], PandocFormatRegistry::unsupportedXmlJatsBitsInputFormats());
         $t->same($expectedFormats, array_keys($directions));
         $t->same($expectedFormats, $packet['unsupportedDirectReaderFormats']);
         $t->same(3, $packet['unsupportedDirectReaderCount']);
         $t->same(false, $packet['directReaderParitySupported']);
-        $t->same(0, $packet['registeredDirectReaderImplementations']);
-        $t->same(0, $packet['registeredDirectReaderRecords']);
-        $t->same([], $packet['registeredDirectReaderRecordFormats']);
+        $t->same(1, $packet['registeredDirectReaderImplementations']);
+        $t->same(1, $packet['registeredDirectReaderRecords']);
+        $t->same(['xml'], $packet['registeredDirectReaderRecordFormats']);
         $t->same(1, $packet['registeredDiagnosticImplementations']);
         $t->same(1, $packet['boundedDiagnosticSurfaceCount']);
-        $t->same(['unsupported' => 3], $packet['inputSupportStatusCounts']);
+        $t->same(['partial' => 1, 'unsupported' => 2], $packet['inputSupportStatusCounts']);
         $t->same(PandocFormatRegistry::xmlJatsBitsLocalEvidenceCounters(), $packet['localEvidenceCounters']);
-        $t->contains('no native PHP direct reader parity registered', $packet['reviewNote']);
+        $t->contains('XML has a bounded native PHP reader', $packet['reviewNote']);
 
         foreach ($expectedFormats as $format) {
-            $t->same('unsupported', $support[$format]['status']);
-            $t->same('', $support[$format]['implementation']);
-            $t->contains('No native PHP reader or writer is registered', $support[$format]['notes']);
+            if ($format === 'xml') {
+                $t->same('partial', $support[$format]['status']);
+                $t->same(XmlReader::class, $support[$format]['implementation']);
+                $t->contains('Bounded generic XML reader', $support[$format]['notes']);
+            } else {
+                $t->same('unsupported', $support[$format]['status']);
+                $t->same('', $support[$format]['implementation']);
+                $t->contains('No native PHP reader or writer is registered', $support[$format]['notes']);
+            }
             $t->same(true, $directions[$format]['input']);
             $t->same(false, $directions[$format]['output']);
             $t->same('input-only', $directions[$format]['direction']);
-            $t->same('unsupported', $directions[$format]['inputStatus']);
+            $t->same($format === 'xml' ? 'partial' : 'unsupported', $directions[$format]['inputStatus']);
             $t->same('not-applicable', $directions[$format]['outputStatus']);
             $t->same(false, $packet['formats'][$format]['directReaderParity']);
-            $t->same(false, $packet['formats'][$format]['registeredDirectReaderRecord']);
+            $t->same($format === 'xml', $packet['formats'][$format]['registeredDirectReaderRecord']);
             $t->same('full-direct-reader-missing', $packet['formats'][$format]['unsupportedDirectReaderReason']['code']);
             $t->same('unsupported', $packet['formats'][$format]['unsupportedDirectReaderReason']['status']);
             $t->same(false, $packet['formats'][$format]['unsupportedDirectReaderReason']['directReaderParity']);
@@ -272,17 +281,17 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
 
         $t->same('xml', $packet['format']);
         $t->same('xml', $packet['inputFormat']);
-        $t->same('unsupported', $packet['inputStatus']);
-        $t->same('', $packet['inputImplementation']);
+        $t->same('partial', $packet['inputStatus']);
+        $t->same(XmlReader::class, $packet['inputImplementation']);
         $t->same(XmlHtmlDom::class, $packet['diagnosticImplementation']);
         $t->same('summarizeXmlNamespaceUsage', $packet['reviewMethod']);
         $t->same(false, $packet['directReaderParity']);
-        $t->same('unsupported', $packet['directReaderParityStatus']);
+        $t->same('partial', $packet['directReaderParityStatus']);
         $t->same('full-direct-reader-missing', $packet['unsupportedDirectReaderReason']);
         $t->same(false, $packet['unsupportedDirectReaderDiagnostic']['directReaderParity']);
-        $t->same(0, $packet['registeredDirectReaderImplementations']);
-        $t->same(0, $packet['registeredDirectReaderRecords']);
-        $t->same([], $packet['registeredDirectReaderRecordFormats']);
+        $t->same(1, $packet['registeredDirectReaderImplementations']);
+        $t->same(1, $packet['registeredDirectReaderRecords']);
+        $t->same(['xml'], $packet['registeredDirectReaderRecordFormats']);
         $t->same(1, $packet['registeredDiagnosticImplementations']);
         $t->same($packet['namespacePrefixFrequencies'], $packet['namespacePrefixFrequencyRows']);
         $t->same($packet['namespaceUriFrequencies'], $packet['namespaceUriFrequencyRows']);

@@ -177,6 +177,7 @@ final class PandocConverter
             PptxReader::class => new PptxReader($options),
             RisReader::class => new RisReader(),
             RstReader::class => new RstReader(),
+            XmlReader::class => new XmlReader(),
             XlsxReader::class => new XlsxReader(),
             default => throw new \InvalidArgumentException("Unsupported Pandoc reader implementation '{$implementation}'."),
         };
