@@ -32,7 +32,7 @@
 - lane-xhtml-dom: add bounded XHTML/HTML5 DOM fidelity where it affects import/export semantics, excluding JS runtime and browser layout.
 - lane-media-layout: add remaining fixed-layout, page progression, rendition, and media-overlay validation that can be expressed as package metadata behavior.
 - lane-mathml: close bounded TeX/MathML writer/parser gaps that affect EPUB output, while documenting non-goal full PlainMath parity.
-- lane-epub2-output: decide and implement only the EPUB2 output parity still in scope beyond bounded OPF 2.0/NCX writer mode.
+- lane-epub2-output: closed by scope decision; no additional EPUB2 output parity is in scope for this EPUB3 closure beyond bounded OPF 2.0/NCX compatibility behavior.
 - lane-evaluator: review worker artifacts, reject non-EPUB drift, and run focused and full lane verification.
 
 ## Workflow
@@ -54,6 +54,10 @@
 - Re-opening deleted `EpubPackage` / `EpubPackageReader` side architectures.
 - Polishing inventory wording without adding tests, implementation, or a concrete out-of-scope decision.
 - Attempting to satisfy EPUBCheck by shelling out to EPUBCheck and calling that native support.
+
+## Scope Decisions
+- EPUB2 output: deeper EPUB2 writer parity remains out of scope for this EPUB3 closure. The only EPUB2 behavior that may count here is bounded compatibility needed to keep OPF 2.0/NCX edges stable for the EPUB3 package work, such as OPF 2.0 package shape, NCX navigation, guide references, linear spine handling, and suppression of EPUB3-only metadata when an explicit bounded EPUB2 mode exists.
+- EPUB2 non-goals include full upstream Pandoc EPUB2 writer parity, reading-system compatibility matrices, EPUBCheck-backed EPUB2 validation, arbitrary EPUB2 fixture corpus parity, legacy renderer or device-specific behavior, and claiming `epub2` as a direct supported output format while the format registry marks it unsupported.
 
 ## Final Acceptance Criteria
 - All in-scope lane beads are closed with evidence or superseded by a stricter completed lane.
