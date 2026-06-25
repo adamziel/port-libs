@@ -28704,6 +28704,12 @@ XML;
                         'mediaType' => 'application/xml',
                     ],
                     [
+                        'id' => 'package-document-bare-record',
+                        'href' => 'package.opf',
+                        'rel' => 'record',
+                        'mediaType' => 'application/xml',
+                    ],
+                    [
                         'id' => 'fragment-only-package-record',
                         'href' => '#book-id',
                         'rel' => 'record',
@@ -28761,6 +28767,13 @@ XML;
                             ],
                             [
                                 'name' => 'link',
+                                'id' => 'collection-package-document-bare-record',
+                                'href' => 'package.opf',
+                                'rel' => 'record',
+                                'mediaType' => 'application/xml',
+                            ],
+                            [
+                                'name' => 'link',
                                 'id' => 'empty-fragment-collection-record',
                                 'href' => '#',
                                 'rel' => 'record',
@@ -28794,6 +28807,12 @@ XML;
                             [
                                 'id' => 'collection-package-document-member',
                                 'href' => './package.opf#series',
+                                'rel' => 'contents',
+                                'mediaType' => 'application/oebps-package+xml',
+                            ],
+                            [
+                                'id' => 'collection-package-document-bare-member',
+                                'href' => './package.opf',
                                 'rel' => 'contents',
                                 'mediaType' => 'application/oebps-package+xml',
                             ],
@@ -28840,6 +28859,13 @@ XML;
                                         'rel' => 'record',
                                         'mediaType' => 'application/xml',
                                     ],
+                                    [
+                                        'name' => 'link',
+                                        'id' => 'nested-package-document-bare-record',
+                                        'href' => 'package.opf',
+                                        'rel' => 'record',
+                                        'mediaType' => 'application/xml',
+                                    ],
                                 ],
                                 'links' => [
                                     [
@@ -28856,6 +28882,12 @@ XML;
                                     [
                                         'id' => 'nested-package-document-member',
                                         'href' => './package.opf#nested-series',
+                                        'rel' => 'contents',
+                                        'mediaType' => 'application/oebps-package+xml',
+                                    ],
+                                    [
+                                        'id' => 'nested-package-document-bare-member',
+                                        'href' => './package.opf',
                                         'rel' => 'contents',
                                         'mediaType' => 'application/oebps-package+xml',
                                     ],
@@ -28957,14 +28989,19 @@ XML;
             $t->true(!str_contains($package, 'malformed-nested-collection-record'), 'Malformed nested collection metadata link fragment targets should not be emitted.');
             $t->true(!str_contains($package, 'malformed-nested-collection-member'), 'Malformed nested collection member link fragment targets should not be emitted.');
             $t->true(!str_contains($package, 'package-document-record'), 'Package metadata links must not point back into the OPF package document.');
+            $t->true(!str_contains($package, 'package-document-bare-record'), 'Bare package metadata links must not point back to the OPF package document.');
             $t->true(!str_contains($package, 'fragment-only-package-record'), 'Fragment-only package metadata links must not point back into the OPF package document.');
             $t->true(!str_contains($package, 'empty-fragment-package-record'), 'Empty fragment-only package metadata links must not be emitted.');
             $t->true(!str_contains($package, 'empty-fragment-collection-record'), 'Empty fragment-only collection metadata links must not be emitted.');
             $t->true(!str_contains($package, 'empty-fragment-collection-member'), 'Empty fragment-only collection links must not be emitted.');
             $t->true(!str_contains($package, 'collection-package-document-record'), 'Collection metadata links must not point back into the OPF package document.');
             $t->true(!str_contains($package, 'collection-package-document-member'), 'Collection links must not point back into the OPF package document.');
+            $t->true(!str_contains($package, 'collection-package-document-bare-record'), 'Bare collection metadata links must not point back to the OPF package document.');
+            $t->true(!str_contains($package, 'collection-package-document-bare-member'), 'Bare collection member links must not point back to the OPF package document.');
             $t->true(!str_contains($package, 'nested-package-document-record'), 'Nested collection metadata links must not point back into the OPF package document.');
             $t->true(!str_contains($package, 'nested-package-document-member'), 'Nested collection links must not point back into the OPF package document.');
+            $t->true(!str_contains($package, 'nested-package-document-bare-record'), 'Bare nested collection metadata links must not point back to the OPF package document.');
+            $t->true(!str_contains($package, 'nested-package-document-bare-member'), 'Bare nested collection links must not point back to the OPF package document.');
             $t->same($recordXml, $zip->getFromName('OEBPS/metadata/record.xml'));
             $t->same($seriesXml, $zip->getFromName('OEBPS/metadata/series.xml'));
         } finally {
@@ -28985,6 +29022,7 @@ XML;
         $t->true(!str_contains($diagnosticsJson, 'invalid-package-link-manifest-resource'), 'Generated package and collection links should not self-diagnose manifest resource duplication.');
         $t->true(!str_contains($metadataLinksJson, 'missing-package-record'), 'Missing package metadata links should not round-trip.');
         $t->true(!str_contains($metadataLinksJson, 'package-document-record'), 'Package metadata links into the OPF package document should not round-trip.');
+        $t->true(!str_contains($metadataLinksJson, 'package-document-bare-record'), 'Bare package metadata links into the OPF package document should not round-trip.');
         $t->true(!str_contains($metadataLinksJson, 'fragment-only-package-record'), 'Fragment-only package metadata links should not round-trip.');
         $t->true(!str_contains($metadataLinksJson, 'empty-fragment-package-record'), 'Empty fragment-only package metadata links should not round-trip.');
         $t->true(!str_contains($collectionsJson, 'missing-collection-record'), 'Missing collection metadata links should not round-trip.');
@@ -28999,6 +29037,10 @@ XML;
         $t->true(!str_contains($collectionsJson, 'collection-package-document-member'), 'Collection links into the OPF package document should not round-trip.');
         $t->true(!str_contains($collectionsJson, 'nested-package-document-record'), 'Nested collection metadata links into the OPF package document should not round-trip.');
         $t->true(!str_contains($collectionsJson, 'nested-package-document-member'), 'Nested collection links into the OPF package document should not round-trip.');
+        $t->true(!str_contains($collectionsJson, 'collection-package-document-bare-record'), 'Bare collection metadata links into the OPF package document should not round-trip.');
+        $t->true(!str_contains($collectionsJson, 'collection-package-document-bare-member'), 'Bare collection links into the OPF package document should not round-trip.');
+        $t->true(!str_contains($collectionsJson, 'nested-package-document-bare-record'), 'Bare nested collection metadata links into the OPF package document should not round-trip.');
+        $t->true(!str_contains($collectionsJson, 'nested-package-document-bare-member'), 'Bare nested collection links into the OPF package document should not round-trip.');
         $t->contains('existing-package-record', $metadataLinksJson);
         $t->contains('remote-package-record', $metadataLinksJson);
         $t->contains('existing-collection-record', $collectionsJson);

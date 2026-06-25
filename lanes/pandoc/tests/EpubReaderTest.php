@@ -17035,6 +17035,7 @@ XML);
     <link id="record-fragment-only" href="#chapter" rel="record" media-type="application/xml"/>
     <link id="record-opf-fragment" href="package.opf#chapter" rel="record" media-type="application/xml"/>
     <link id="record-ok-fragment" href="metadata/onix.xml#record" rel="record" media-type="application/xml"/>
+    <link id="record-opf-bare" href="package.opf" rel="record" media-type="application/xml"/>
     <link id="record-encoded-package-fragment" href="%2e%2e/OPS/package.opf#chapter" rel="record" media-type="application/xml"/>
     <link id="record-empty-fragment-only" href="#" rel="record" media-type="application/xml"/>
   </metadata>
@@ -17048,6 +17049,7 @@ XML);
   <collection id="series" role="schema:Collection">
     <link id="series-opf-fragment" href="./package.opf#series" rel="record" media-type="application/xml"/>
     <link id="series-ok-fragment" href="metadata/onix.xml#record" rel="record" media-type="application/xml"/>
+    <link id="series-opf-bare" href="./package.opf" rel="record" media-type="application/xml"/>
     <link id="series-empty-fragment-only" href="#" rel="record" media-type="application/xml"/>
   </collection>
 </package>
@@ -17079,7 +17081,7 @@ XML);
         $serializedDiagnostics = json_encode($diagnostics, JSON_THROW_ON_ERROR);
 
         $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
-        $t->same(6, $meta['epubDiagnosticErrorCount']);
+        $t->same(8, $meta['epubDiagnosticErrorCount']);
         $t->same(0, $meta['epubDiagnosticWarningCount']);
         $t->same(1, count($byCode['invalid-package-link-href-path'] ?? []));
         $t->same('record-encoded-package-fragment', $byCode['invalid-package-link-href-path'][0]['id'] ?? null);
@@ -17094,7 +17096,7 @@ XML);
         $t->same('#', $byCode['invalid-package-link-href-fragment'][1]['href'] ?? null);
         $t->same('empty-fragment', $byCode['invalid-package-link-href-fragment'][1]['reason'] ?? null);
         $t->same('collection', $byCode['invalid-package-link-href-fragment'][1]['parent'] ?? null);
-        $t->same(3, count($byCode['invalid-package-link-package-document-reference'] ?? []));
+        $t->same(5, count($byCode['invalid-package-link-package-document-reference'] ?? []));
         $t->same('record-fragment-only', $byCode['invalid-package-link-package-document-reference'][0]['id'] ?? null);
         $t->same('#chapter', $byCode['invalid-package-link-package-document-reference'][0]['href'] ?? null);
         $t->same('OPS/package.opf', $byCode['invalid-package-link-package-document-reference'][0]['path'] ?? null);
@@ -17105,11 +17107,21 @@ XML);
         $t->same('OPS/package.opf', $byCode['invalid-package-link-package-document-reference'][1]['path'] ?? null);
         $t->same('chapter', $byCode['invalid-package-link-package-document-reference'][1]['fragment'] ?? null);
         $t->same('metadata', $byCode['invalid-package-link-package-document-reference'][1]['parent'] ?? null);
-        $t->same('series-opf-fragment', $byCode['invalid-package-link-package-document-reference'][2]['id'] ?? null);
-        $t->same('./package.opf#series', $byCode['invalid-package-link-package-document-reference'][2]['href'] ?? null);
+        $t->same('record-opf-bare', $byCode['invalid-package-link-package-document-reference'][2]['id'] ?? null);
+        $t->same('package.opf', $byCode['invalid-package-link-package-document-reference'][2]['href'] ?? null);
         $t->same('OPS/package.opf', $byCode['invalid-package-link-package-document-reference'][2]['path'] ?? null);
-        $t->same('series', $byCode['invalid-package-link-package-document-reference'][2]['fragment'] ?? null);
-        $t->same('collection', $byCode['invalid-package-link-package-document-reference'][2]['parent'] ?? null);
+        $t->same('metadata', $byCode['invalid-package-link-package-document-reference'][2]['parent'] ?? null);
+        $t->true(!array_key_exists('fragment', $byCode['invalid-package-link-package-document-reference'][2]), 'Bare package-document links should not carry fragment context.');
+        $t->same('series-opf-fragment', $byCode['invalid-package-link-package-document-reference'][3]['id'] ?? null);
+        $t->same('./package.opf#series', $byCode['invalid-package-link-package-document-reference'][3]['href'] ?? null);
+        $t->same('OPS/package.opf', $byCode['invalid-package-link-package-document-reference'][3]['path'] ?? null);
+        $t->same('series', $byCode['invalid-package-link-package-document-reference'][3]['fragment'] ?? null);
+        $t->same('collection', $byCode['invalid-package-link-package-document-reference'][3]['parent'] ?? null);
+        $t->same('series-opf-bare', $byCode['invalid-package-link-package-document-reference'][4]['id'] ?? null);
+        $t->same('./package.opf', $byCode['invalid-package-link-package-document-reference'][4]['href'] ?? null);
+        $t->same('OPS/package.opf', $byCode['invalid-package-link-package-document-reference'][4]['path'] ?? null);
+        $t->same('collection', $byCode['invalid-package-link-package-document-reference'][4]['parent'] ?? null);
+        $t->true(!array_key_exists('fragment', $byCode['invalid-package-link-package-document-reference'][4]), 'Bare collection package-document links should not carry fragment context.');
         $t->true(!isset($byCode['missing-package-link-resource']), 'Package-document references should not be reported as missing archive resources.');
         $t->true(!str_contains($serializedDiagnostics, 'record-ok-fragment'), 'Fragments into existing metadata resources should not be reported.');
         $t->true(!str_contains($serializedDiagnostics, 'series-ok-fragment'), 'Collection links to existing metadata fragments should not be reported.');

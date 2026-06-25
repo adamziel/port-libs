@@ -5387,10 +5387,6 @@ final class EpubReader
                 continue;
             }
 
-            $fragment = $this->urlFragmentIdentifier($href);
-            if ($fragment === '') {
-                continue;
-            }
             if ($this->packageLinkHrefPathDiagnosticReason($href) !== '') {
                 continue;
             }
@@ -5398,6 +5394,7 @@ final class EpubReader
                 continue;
             }
 
+            $fragment = $this->urlFragmentIdentifier($href);
             [$hrefPath] = $this->splitUrlPathSuffix($href);
             $path = trim($hrefPath) === ''
                 ? $packagePath
@@ -5406,15 +5403,18 @@ final class EpubReader
                 continue;
             }
 
+            $context = $this->packageLinkDiagnosticContext($element) + [
+                'href' => $href,
+                'path' => $packagePath,
+            ];
+            if ($fragment !== '') {
+                $context['fragment'] = $fragment;
+            }
             $diagnostics[] = $this->epubDiagnostic(
                 'error',
                 'invalid-package-link-package-document-reference',
-                'OPF package link href must not reference resources via package document elements.',
-                $this->packageLinkDiagnosticContext($element) + [
-                    'href' => $href,
-                    'path' => $packagePath,
-                    'fragment' => $fragment,
-                ]
+                'OPF package link href must not reference the OPF package document as a linked resource.',
+                $context
             );
         }
 
