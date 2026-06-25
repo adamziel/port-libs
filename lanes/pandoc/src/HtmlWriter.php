@@ -14,7 +14,7 @@ final class HtmlWriter
     private int $flushedFootnoteCount = 0;
 
     /**
-     * @param array{htmlQTags?: bool, htmlMathMethod?: string|array<string, mixed>, mathMethod?: string, writerHTMLMathMethod?: string|array<string, mixed>, referenceLocation?: string, writerReferenceLocation?: string, sectionDivs?: bool, writerSectionDivs?: bool, writerWrapText?: string, wrap?: string} $options
+     * @param array{htmlQTags?: bool, htmlMathMethod?: string|array<string, mixed>, mathMethod?: string, writerHTMLMathMethod?: string|array<string, mixed>, referenceLocation?: string, writerReferenceLocation?: string, sectionDivs?: bool, writerSectionDivs?: bool, writerWrapText?: string, wrap?: string, writerSemanticBlockElements?: array<int, string>, semanticBlockElements?: array<int, string>} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -377,7 +377,7 @@ final class HtmlWriter
         if (trim($attributes['open'] ?? '') !== '') {
             return true;
         }
-        if ($this->divAttrsIndicateSemanticBlockElement($attributes)) {
+        if ($this->divAttrsIndicateSemanticBlockElement('details', $attributes)) {
             return true;
         }
 
@@ -589,7 +589,7 @@ final class HtmlWriter
         foreach ($attrs['classes'] as $index => $class) {
             if (
                 !$this->isHtmlSemanticBlockElement($class)
-                || !$this->divAttrsIndicateSemanticBlockElement($attrs['attributes'])
+                || !$this->divAttrsIndicateSemanticBlockElement($class, $attrs['attributes'])
             ) {
                 continue;
             }
@@ -620,13 +620,16 @@ final class HtmlWriter
     /**
      * @param array<string, string> $attributes
      */
-    private function divAttrsIndicateSemanticBlockElement(array $attributes): bool
+    private function divAttrsIndicateSemanticBlockElement(string $tag, array $attributes): bool
     {
         foreach ($attributes as $name => $value) {
             $lowerName = strtolower((string) $name);
             $trimmed = trim((string) $value);
             if ($trimmed === '') {
                 continue;
+            }
+            if ($tag === 'dialog' && $lowerName === 'open') {
+                return true;
             }
             if (in_array($lowerName, ['role', 'epub:type', 'lang', 'xml:lang', 'dir', 'title', 'hidden'], true)) {
                 return true;
@@ -644,7 +647,32 @@ final class HtmlWriter
 
     private function isHtmlSemanticBlockElement(string $tag): bool
     {
-        return in_array($tag, ['article', 'aside', 'nav', 'main', 'header', 'footer'], true);
+        return in_array($tag, $this->htmlSemanticBlockElements(), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function htmlSemanticBlockElements(): array
+    {
+        $elements = ['article', 'aside', 'nav', 'main', 'header', 'footer'];
+        $extra = $this->options['writerSemanticBlockElements'] ?? $this->options['semanticBlockElements'] ?? [];
+        if (!is_array($extra)) {
+            return $elements;
+        }
+
+        foreach ($extra as $element) {
+            if (!is_scalar($element)) {
+                continue;
+            }
+            $element = strtolower(trim((string) $element));
+            if (preg_match('/^[a-z][a-z0-9-]*$/', $element) !== 1) {
+                continue;
+            }
+            $elements[] = $element;
+        }
+
+        return array_values(array_unique($elements));
     }
 
     /**

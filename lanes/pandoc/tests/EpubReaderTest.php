@@ -8655,7 +8655,7 @@ XML);
     <hgroup id="title-group" class="source-title" data-source="classic"><h1>Feature Import</h1><p>Deck copy</p></hgroup>
     <menu id="action-menu" class="source-actions" data-source="classic"><li>Archive</li><li>Publish</li></menu>
     <search id="site-search" class="source-search" role="search" data-source="classic">Search the catalog</search>
-    <dialog id="review-dialog" class="source-dialog" open="open" data-source="classic">Modal notice.</dialog>
+    <dialog id="review-dialog" class="source-dialog" open="open" aria-modal="true" data-source="classic">Modal notice.</dialog>
   </body>
 </html>
 HTML);
@@ -8684,12 +8684,12 @@ HTML);
         $t->same('bullet_list', $document->children[2]->children[0]->type ?? null);
         $t->same(['search', 'source-search'], $document->children[3]->attr('classes'));
         $t->same(['dialog', 'source-dialog'], $document->children[4]->attr('classes'));
-        $t->same(['open' => 'open', 'source' => 'classic'], $document->children[4]->attr('attributes'));
+        $t->same(['open' => 'open', 'aria-modal' => 'true', 'source' => 'classic'], $document->children[4]->attr('attributes'));
         $t->contains('<div id="contact-block" class="address source-contact" data-source="classic"><p>Contact <a href="mailto:editor@example.test">Editorial team</a></p></div>', $blocks);
         $t->contains('<div id="title-group" class="hgroup source-title" data-source="classic"><h1 id="feature-import">Feature Import</h1><p>Deck copy</p></div>', $blocks);
         $t->contains('<div id="action-menu" class="menu source-actions" data-source="classic"><ul><li>Archive</li><li>Publish</li></ul></div>', $blocks);
         $t->contains('<div id="site-search" class="search source-search" role="search" data-source="classic"><p>Search the catalog</p></div>', $blocks);
-        $t->contains('<div id="review-dialog" class="dialog source-dialog" open="open" data-source="classic"><p>Modal notice.</p></div>', $blocks);
+        $t->contains('<div id="review-dialog" class="dialog source-dialog" open="open" aria-modal="true" data-source="classic"><p>Modal notice.</p></div>', $blocks);
 
         $semanticElements = is_array($meta['epubSpineItemRefs'][0]['semanticElements'] ?? null) ? $meta['epubSpineItemRefs'][0]['semanticElements'] : [];
         $semanticById = static function (string $id) use ($semanticElements): ?array {
@@ -8719,6 +8719,7 @@ HTML);
         $t->same('Search the catalog', $search['text'] ?? null);
         $t->same('dialog', $dialog['element'] ?? null);
         $t->same(['source-dialog'], $dialog['classes'] ?? null);
+        $t->same('true', $dialog['ariaModal'] ?? null);
         $t->same(true, $dialog['open'] ?? null);
         $t->same('Modal notice.', $dialog['text'] ?? null);
         $t->true(!str_contains($diagnosticsJson, 'malformed-spine-xhtml'), 'Source residual HTML5 container EPUB should not report malformed spine XHTML.');

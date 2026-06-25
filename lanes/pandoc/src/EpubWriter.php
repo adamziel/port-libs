@@ -1229,7 +1229,16 @@ final class EpubWriter
      */
     private function htmlWriterOptions(): array
     {
-        $options = ['writerHTMLMathMethod' => 'mathml'];
+        $options = [
+            'writerHTMLMathMethod' => 'mathml',
+            'writerSemanticBlockElements' => [
+                'address',
+                'hgroup',
+                'menu',
+                'search',
+                'dialog',
+            ],
+        ];
         if (array_key_exists('htmlQTags', $this->options)) {
             $options['htmlQTags'] = (bool) $this->options['htmlQTags'];
         }

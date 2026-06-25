@@ -13157,6 +13157,7 @@ final class EpubReader
             'ariaDetails' => 'aria-details',
             'ariaControls' => 'aria-controls',
             'ariaCurrent' => 'aria-current',
+            'ariaModal' => 'aria-modal',
             'ariaHidden' => 'aria-hidden',
             'ariaExpanded' => 'aria-expanded',
             'ariaOwns' => 'aria-owns',
