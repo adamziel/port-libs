@@ -6678,12 +6678,19 @@ final class EpubReader
             foreach ($pageListNavs as $pageListNav) {
                 $diagnostics = array_merge($diagnostics, $this->pageListNavStructureDiagnostics($pageListNav, $context, $path, $declaredPrefixes));
             }
+            $navCollisionDiagnostics = [];
+            $crossSectionNavTargets = [];
             foreach ($navs as $sectionIndex => $nav) {
-                $diagnostics = array_merge(
-                    $diagnostics,
-                    $this->navNormalizedTargetCollisionDiagnostics($nav, $context, $path, $sectionIndex)
+                $navCollisionDiagnostics = array_merge(
+                    $navCollisionDiagnostics,
+                    $this->navNormalizedTargetCollisionDiagnostics($nav, $context, $path, $sectionIndex, $crossSectionNavTargets)
                 );
             }
+            $diagnostics = array_merge(
+                $diagnostics,
+                $this->sortNavTargetCollisionDiagnostics($navCollisionDiagnostics),
+                $this->crossSectionNavTargetCollisionDiagnostics($crossSectionNavTargets, $context)
+            );
 
             $targetDocuments = [];
             foreach ($navs as $nav) {
@@ -7084,9 +7091,10 @@ final class EpubReader
 
     /**
      * @param array<string, mixed> $context
+     * @param array<string, list<array<string, mixed>>> $crossSectionTargets
      * @return list<array<string, mixed>>
      */
-    private function navNormalizedTargetCollisionDiagnostics(\DOMElement $nav, array $context, string $navPath, int $sectionIndex): array
+    private function navNormalizedTargetCollisionDiagnostics(\DOMElement $nav, array $context, string $navPath, int $sectionIndex, array &$crossSectionTargets): array
     {
         $diagnostics = [];
         $targets = [];
@@ -7135,13 +7143,15 @@ final class EpubReader
                 continue;
             }
 
-            $targets[$target['normalizedTarget']][] = $linkContext + [
+            $match = $linkContext + [
                 'target' => $target['target'],
                 'normalizedTarget' => $target['normalizedTarget'],
                 'targetPath' => $target['path'],
                 'fragment' => $target['fragment'],
                 'fragmentOnly' => $target['fragmentOnly'],
             ];
+            $targets[$target['normalizedTarget']][] = $match;
+            $crossSectionTargets[$target['normalizedTarget']][] = $match;
         }
 
         $collisionDiagnostics = [];
@@ -7192,6 +7202,160 @@ final class EpubReader
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $targets
+     * @param array<string, mixed> $context
+     * @return list<array<string, mixed>>
+     */
+    private function crossSectionNavTargetCollisionDiagnostics(array $targets, array $context): array
+    {
+        $diagnostics = [];
+        foreach ($targets as $normalizedTarget => $matches) {
+            $sectionKeys = [];
+            foreach ($matches as $match) {
+                $sectionKeys[((int) ($match['sectionIndex'] ?? 0)) . "\0" . ((string) ($match['sectionType'] ?? ''))] = true;
+            }
+
+            if (count($matches) <= 1 || count($sectionKeys) <= 1 || count($this->navCollisionValues($matches, 'linkHref')) <= 1) {
+                continue;
+            }
+
+            $matches = $this->sortNavTargetCollisionMatches($matches);
+            $diagnostics[] = $this->epubDiagnostic(
+                'error',
+                'cross-section-normalized-nav-target-collision',
+                'EPUB navigation sections contain distinct hrefs that normalize to the same target.',
+                $context + $this->navTargetCollisionSummaryContext($matches, $normalizedTarget)
+            );
+        }
+
+        return $this->sortNavTargetCollisionDiagnostics($diagnostics);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $matches
+     * @return array<string, mixed>
+     */
+    private function navTargetCollisionSummaryContext(array $matches, string $normalizedTarget): array
+    {
+        $sectionTypes = [];
+        $sectionIndexes = [];
+        $sectionKeys = [];
+        $navIds = [];
+        $itemRefs = [];
+
+        foreach ($matches as $match) {
+            $sectionType = (string) ($match['sectionType'] ?? '');
+            $sectionIndex = (int) ($match['sectionIndex'] ?? 0);
+            $navId = (string) ($match['navId'] ?? '');
+
+            $sectionTypes[$sectionType] = $sectionType;
+            $sectionIndexes[(string) $sectionIndex] = $sectionIndex;
+            $sectionKeys[$sectionIndex . "\0" . $sectionType] = true;
+            if ($navId !== '') {
+                $navIds[$navId] = $navId;
+            }
+
+            $itemRef = [
+                'sectionType' => $sectionType,
+                'sectionIndex' => $sectionIndex,
+                'itemIndex' => (int) ($match['itemIndex'] ?? 0),
+                'linkHref' => (string) ($match['linkHref'] ?? ''),
+            ];
+            if ($navId !== '') {
+                $itemRef['navId'] = $navId;
+            }
+            if (($match['label'] ?? '') !== '') {
+                $itemRef['label'] = (string) $match['label'];
+            }
+            if (($match['value'] ?? '') !== '') {
+                $itemRef['value'] = (string) $match['value'];
+            }
+            $itemRefs[] = $itemRef;
+        }
+
+        return [
+            'normalizedTarget' => $normalizedTarget,
+            'sectionCount' => count($sectionKeys),
+            'sectionTypes' => array_values($sectionTypes),
+            'sectionIndexes' => array_values($sectionIndexes),
+            'navIds' => array_values($navIds),
+            'itemCount' => count($matches),
+            'rawHrefCount' => count($this->navCollisionValues($matches, 'linkHref')),
+            'itemIndexes' => array_values(array_map(
+                static fn (array $match): int => (int) ($match['itemIndex'] ?? 0),
+                $matches
+            )),
+            'hrefs' => $this->navCollisionValues($matches, 'linkHref'),
+            'targets' => $this->navCollisionValues($matches, 'target'),
+            'labels' => $this->navCollisionValues($matches, 'label'),
+            'collisionKinds' => $this->navCollisionKinds($matches),
+            'itemRefs' => $itemRefs,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private function sortNavTargetCollisionDiagnostics(array $diagnostics): array
+    {
+        usort($diagnostics, function (array $left, array $right): int {
+            return $this->navSectionTypeRank((string) (($left['sectionTypes'][0] ?? null) ?? ($left['sectionType'] ?? '')))
+                <=> $this->navSectionTypeRank((string) (($right['sectionTypes'][0] ?? null) ?? ($right['sectionType'] ?? '')))
+                ?: ((int) (($left['sectionIndexes'][0] ?? null) ?? ($left['sectionIndex'] ?? 0)) <=> (int) (($right['sectionIndexes'][0] ?? null) ?? ($right['sectionIndex'] ?? 0)))
+                ?: ((int) (($left['itemIndexes'][0] ?? null) ?? PHP_INT_MAX) <=> (int) (($right['itemIndexes'][0] ?? null) ?? PHP_INT_MAX))
+                ?: strcmp((string) ($left['normalizedTarget'] ?? ''), (string) ($right['normalizedTarget'] ?? ''))
+                ?: strcmp((string) ($left['code'] ?? ''), (string) ($right['code'] ?? ''));
+        });
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $matches
+     * @return list<array<string, mixed>>
+     */
+    private function sortNavTargetCollisionMatches(array $matches): array
+    {
+        usort($matches, function (array $left, array $right): int {
+            return $this->navSectionTypeRank((string) ($left['sectionType'] ?? ''))
+                <=> $this->navSectionTypeRank((string) ($right['sectionType'] ?? ''))
+                ?: ((int) ($left['sectionIndex'] ?? 0) <=> (int) ($right['sectionIndex'] ?? 0))
+                ?: ((int) ($left['itemIndex'] ?? 0) <=> (int) ($right['itemIndex'] ?? 0))
+                ?: strcmp((string) ($left['linkHref'] ?? ''), (string) ($right['linkHref'] ?? ''));
+        });
+
+        return $matches;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $matches
+     * @return list<string>
+     */
+    private function navCollisionValues(array $matches, string $key): array
+    {
+        $values = [];
+        foreach ($matches as $match) {
+            $value = (string) ($match[$key] ?? '');
+            if ($value !== '' && !in_array($value, $values, true)) {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    private function navSectionTypeRank(string $type): int
+    {
+        return match ($type) {
+            'toc' => 0,
+            'landmarks' => 1,
+            'page-list' => 2,
+            default => 3,
+        };
     }
 
     private function navElementSectionType(\DOMElement $nav): string
