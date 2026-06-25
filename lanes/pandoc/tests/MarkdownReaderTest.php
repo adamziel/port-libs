@@ -2413,7 +2413,7 @@ TEX;
         ]);
 
         $t->same(implode("\n", [
-            '\footnote{hi',
+            '\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}hi',
             '',
             '\begin{Verbatim}',
             'hi',
@@ -2423,7 +2423,7 @@ TEX;
         $latex = (new LatexWriter())->write($review);
         $blocks = (new WordPressBlockWriter())->write($review);
 
-        $t->contains('\footnote{Inspect the shortcode export before publishing.', $latex);
+        $t->contains('\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}Inspect the shortcode export before publishing.', $latex);
         $t->contains('\begin{Verbatim}' . "\n" . 'do_shortcode(\'[gallery ids="4,5"]\');' . "\n" . '\end{Verbatim}}', $latex);
         $t->contains('<p>Source audit:<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup></p>', $blocks);
         $t->contains('<pre class="wp-block-code"><code>do_shortcode(&#039;[gallery ids=&quot;4,5&quot;]&#039;);</code></pre>', $blocks);
@@ -2530,7 +2530,7 @@ TEX;
         ]);
 
         $t->same(
-            '\emph{This sentence}\footnote{paragraph1' . "\n\n" . '  paragraph2}\emph{ has footnote.}',
+            '\emph{This sentence}\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}paragraph1' . "\n\n" . '  paragraph2}\emph{ has footnote.}',
             (new LatexWriter())->write($doc($emph([
                 $text('This sentence'),
                 $bigNote(),
@@ -2538,7 +2538,7 @@ TEX;
             ])))
         );
         $t->same(
-            '\textbf{This sentence}\footnote{paragraph1' . "\n\n" . '  paragraph2}\textbf{ has footnote.}',
+            '\textbf{This sentence}\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}paragraph1' . "\n\n" . '  paragraph2}\textbf{ has footnote.}',
             (new LatexWriter())->write($doc($strong([
                 $text('This sentence'),
                 $bigNote(),
@@ -2546,7 +2546,7 @@ TEX;
             ])))
         );
         $t->same(
-            '\emph{This sentence\footnote{paragraph} has footnote.}',
+            '\emph{This sentence\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}paragraph} has footnote.}',
             (new LatexWriter())->write($doc($emph([
                 $text('This sentence'),
                 $note([$plain([$text('paragraph')])]),
@@ -2554,7 +2554,7 @@ TEX;
             ])))
         );
         $t->same(
-            '\emph{This \textbf{nested sentence }}\footnote{paragraph1' . "\n\n" . '  paragraph2}\emph{\textbf{has }footnote.}',
+            '\emph{This \textbf{nested sentence }}\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}paragraph1' . "\n\n" . '  paragraph2}\emph{\textbf{has }footnote.}',
             (new LatexWriter())->write($doc($emph([
                 $text('This '),
                 $strong([
@@ -2566,7 +2566,7 @@ TEX;
             ])))
         );
         $t->same(
-            '\emph{This sentence}\footnote{1-paragraph1' . "\n\n" . '  1-paragraph2}\emph{ has}\footnote{2-paragraph1' . "\n\n" . '  2-paragraph2}\emph{ footnote.}',
+            '\emph{This sentence}\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}1-paragraph1' . "\n\n" . '  1-paragraph2}\emph{ has}\protect\hypertarget{fnref-2}{}\footnote{\protect\hypertarget{fn-2}{}2-paragraph1' . "\n\n" . '  2-paragraph2}\emph{ footnote.}',
             (new LatexWriter())->write($doc($emph([
                 $text('This sentence'),
                 $bigNote('1-paragraph1', '1-paragraph2'),
@@ -2596,8 +2596,8 @@ TEX;
         $latex = (new LatexWriter())->write($review);
         $blocks = (new WordPressBlockWriter())->write($review);
 
-        $t->contains('\emph{source emphasis}\footnote{First reviewer paragraph.' . "\n\n" . '  Second reviewer paragraph.}\emph{ visible}', $latex);
-        $t->contains('\textbf{strong source text\footnote{Single reviewer note.} intact}', $latex);
+        $t->contains('\emph{source emphasis}\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}First reviewer paragraph.' . "\n\n" . '  Second reviewer paragraph.}\emph{ visible}', $latex);
+        $t->contains('\textbf{strong source text\protect\hypertarget{fnref-2}{}\footnote{\protect\hypertarget{fn-2}{}Single reviewer note.} intact}', $latex);
         $t->contains('<em>source emphasis<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> visible</em>', $blocks);
         $t->contains('<strong>strong source text<sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup> intact</strong>', $blocks);
         $t->contains('<li id="fn-1"><p>First reviewer paragraph.</p><p>Second reviewer paragraph.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
@@ -2619,7 +2619,7 @@ TEX;
         ]);
 
         $t->same(
-            '\ul{This sentence}\footnote{paragraph1' . "\n\n" . '  paragraph2}\ul{ has footnote.}',
+            '\ul{This sentence}\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}paragraph1' . "\n\n" . '  paragraph2}\ul{ has footnote.}',
             (new LatexWriter())->write($doc($underline([
                 $text('This sentence'),
                 $bigNote(),
@@ -2627,7 +2627,7 @@ TEX;
             ])))
         );
         $t->same(
-            '\st{This sentence}\footnote{paragraph1' . "\n\n" . '  paragraph2}\st{ has footnote.}',
+            '\st{This sentence}\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}paragraph1' . "\n\n" . '  paragraph2}\st{ has footnote.}',
             (new LatexWriter())->write($doc($strikeout([
                 $text('This sentence'),
                 $bigNote(),
@@ -2662,8 +2662,8 @@ TEX;
         $latex = (new LatexWriter())->write($review);
         $blocks = (new WordPressBlockWriter())->write($review);
 
-        $t->contains('\ul{inserted source context}\footnote{First insert-note paragraph.' . "\n\n" . '  Second insert-note paragraph.}\ul{ before publish}', $latex);
-        $t->contains('\st{stale shortcode\footnote{Keep source deletion note.} safely removed}', $latex);
+        $t->contains('\ul{inserted source context}\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}First insert-note paragraph.' . "\n\n" . '  Second insert-note paragraph.}\ul{ before publish}', $latex);
+        $t->contains('\st{stale shortcode\protect\hypertarget{fnref-2}{}\footnote{\protect\hypertarget{fn-2}{}Keep source deletion note.} safely removed}', $latex);
         $t->contains('<u>inserted source context<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> before publish</u>', $blocks);
         $t->contains('<del>stale shortcode<sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup> safely removed</del>', $blocks);
         $t->contains('<li id="fn-1"><p>First insert-note paragraph.</p><p>Second insert-note paragraph.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
@@ -2797,7 +2797,7 @@ TEX;
         ]);
 
         $t->same(implode("\n", [
-            '\section*{\texorpdfstring{Header 1\footnote{note}}{Header 1}}\label{foo}',
+            '\section*{\texorpdfstring{Header 1\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}note}}{Header 1}}\label{foo}',
             '\addcontentsline{toc}{section}{Header 1}',
             '',
         ]), (new LatexWriter())->write($upstreamHeading));
@@ -2805,7 +2805,7 @@ TEX;
         $latex = (new LatexWriter())->write($reviewHeading);
         $blocks = (new WordPressBlockWriter())->write($reviewHeading);
 
-        $t->contains('\section*{\texorpdfstring{Source Audit\footnote{Keep reviewer-only context out of the PDF bookmark.}}{Source Audit}}\label{source-audit}', $latex);
+        $t->contains('\section*{\texorpdfstring{Source Audit\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}Keep reviewer-only context out of the PDF bookmark.}}{Source Audit}}\label{source-audit}', $latex);
         $t->contains('\addcontentsline{toc}{section}{Source Audit}', $latex);
         $t->true(!str_contains($latex, '{Source AuditKeep reviewer-only context'), 'LaTeX PDF-string fallback should omit inline note text');
         $t->contains('<h1 id="source-audit" class="unnumbered">Source Audit<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup></h1>', $blocks);

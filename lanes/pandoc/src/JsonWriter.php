@@ -179,7 +179,7 @@ final class JsonWriter
             'raw_html' => $this->tagged('RawBlock', ['html', (string) $node->attr('html', $node->attr('text', ''))]),
             'raw_tex' => $this->tagged('RawBlock', ['tex', (string) $node->attr('tex', $node->attr('text', ''))]),
             'raw_block', 'raw_markdown' => $this->tagged('RawBlock', [(string) $node->attr('format', 'markdown'), (string) $node->attr('text', '')]),
-            'blockquote' => $this->tagged('BlockQuote', $this->blockListData($node->children)),
+            'blockquote' => $this->tagged('BlockQuote', $this->blockListData($this->blockContainerBlocks($node->children))),
             'ordered_list' => $this->tagged('OrderedList', [$this->listAttributesData($node), $this->listItemsData($node->children)]),
             'bullet_list' => $this->tagged('BulletList', $this->listItemsData($node->children)),
             'definition_list' => $this->tagged('DefinitionList', $this->definitionItemsData($node->children)),
@@ -191,7 +191,7 @@ final class JsonWriter
             'horizontal_rule' => $this->tagged('HorizontalRule'),
             'table' => $this->tableData($node),
             'figure' => $this->tagged('Figure', [$this->attrData($node), $this->captionData($node), $this->blockListData($this->figureBlocks($node))]),
-            'div' => $this->tagged('Div', [$this->attrData($node), $this->blockListData($node->children)]),
+            'div' => $this->tagged('Div', [$this->attrData($node), $this->blockListData($this->blockContainerBlocks($node->children))]),
             default => throw new \InvalidArgumentException("JSON writer does not support block node '{$node->type}'"),
         };
     }
@@ -464,7 +464,7 @@ final class JsonWriter
                 $this->inlineListData($node->children === [] ? $this->textInlines((string) $node->attr('alt', '')) : $node->children),
                 [(string) $node->attr('url', $node->attr('src', '')), (string) $node->attr('title', '')],
             ])],
-            'note' => [$this->tagged('Note', $this->blockListData($node->children))],
+            'note' => [$this->tagged('Note', $this->blockListData($this->blockContainerBlocks($node->children)))],
             'span' => [$this->tagged('Span', [$this->attrData($node), $this->inlineListData($node->children)])],
             default => throw new \InvalidArgumentException("JSON writer does not support inline node '{$node->type}'"),
         };
@@ -641,9 +641,18 @@ final class JsonWriter
      */
     private function figureBlocks(AstNode $node): array
     {
+        return $this->blockContainerBlocks($node->children);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function blockContainerBlocks(array $children): array
+    {
         $blocks = [];
         $inlines = [];
-        foreach ($node->children as $child) {
+        foreach ($children as $child) {
             if ($this->isInlineNode($child)) {
                 $inlines[] = $child;
                 continue;

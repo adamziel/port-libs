@@ -183,7 +183,7 @@ final class NativeWriter
             'heading' => 'Header ' . max(1, min(6, (int) $node->attr('level', 1))) . ' ' . $this->renderAttrTuple($node) . ' ' . $this->renderInlineList($node->children === [] ? $this->textInlines((string) $node->attr('text', '')) : $node->children),
             'horizontal_rule' => 'HorizontalRule',
             'code_block' => 'CodeBlock ' . $this->renderAttrTuple($node) . ' ' . $this->quote((string) $node->attr('text', '')),
-            'blockquote' => 'BlockQuote ' . $this->renderBlockList($node->children, $indent),
+            'blockquote' => 'BlockQuote ' . $this->renderBlockList($this->blockContainerBlocks($node->children), $indent),
             'bullet_list' => 'BulletList ' . $this->renderListItems($node->children, $indent),
             'ordered_list' => 'OrderedList ' . $this->renderOrderedListAttrs($node) . ' ' . $this->renderListItems($node->children, $indent),
             'definition_list' => 'DefinitionList ' . $this->renderDefinitionItems($node->children),
@@ -193,7 +193,7 @@ final class NativeWriter
             'raw_html' => 'RawBlock (Format "html") ' . $this->quote((string) $node->attr('html', $node->attr('text', ''))),
             'raw_tex' => 'RawBlock (Format "tex") ' . $this->quote((string) $node->attr('tex', $node->attr('text', ''))),
             'raw_block', 'raw_markdown' => 'RawBlock (Format ' . $this->quote((string) $node->attr('format', 'markdown')) . ') ' . $this->quote((string) $node->attr('text', '')),
-            'div' => 'Div ' . $this->renderAttrTuple($node) . ' ' . $this->renderBlockList($node->children, $indent),
+            'div' => 'Div ' . $this->renderAttrTuple($node) . ' ' . $this->renderBlockList($this->blockContainerBlocks($node->children), $indent),
             default => throw new \InvalidArgumentException("Native writer does not support block node '{$node->type}'"),
         };
     }
@@ -482,7 +482,7 @@ final class NativeWriter
             'code' => ['Code ' . $this->renderAttrTuple($node) . ' ' . $this->quote((string) $node->attr('text', ''))],
             'link' => ['Link ' . $this->renderAttrTuple($node) . ' ' . $this->renderInlineList($node->children) . ' ( ' . $this->quote((string) $node->attr('url', '')) . ' , ' . $this->quote((string) $node->attr('title', '')) . ' )'],
             'image' => ['Image ' . $this->renderAttrTuple($node) . ' ' . $this->renderInlineList($node->children === [] ? $this->textInlines((string) $node->attr('alt', '')) : $node->children) . ' ( ' . $this->quote((string) $node->attr('url', $node->attr('src', ''))) . ' , ' . $this->quote((string) $node->attr('title', '')) . ' )'],
-            'note' => ['Note ' . $this->renderBlockList($node->children, 0)],
+            'note' => ['Note ' . $this->renderBlockList($this->blockContainerBlocks($node->children), 0)],
             'quoted' => ['Quoted ' . (((string) $node->attr('kind', 'double')) === 'single' ? 'SingleQuote' : 'DoubleQuote') . ' ' . $this->renderInlineList($node->children)],
             'math' => ['Math ' . ($this->mathIsDisplay($node) ? 'DisplayMath' : 'InlineMath') . ' ' . $this->quote((string) $node->attr('text', ''))],
             'citation' => [$this->renderCitation($node)],
@@ -556,9 +556,18 @@ final class NativeWriter
      */
     private function figureBlocks(AstNode $node): array
     {
+        return $this->blockContainerBlocks($node->children);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function blockContainerBlocks(array $children): array
+    {
         $blocks = [];
         $inlines = [];
-        foreach ($node->children as $child) {
+        foreach ($children as $child) {
             if ($this->isInlineNode($child)) {
                 $inlines[] = $child;
                 continue;
