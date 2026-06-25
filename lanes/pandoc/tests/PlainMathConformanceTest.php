@@ -181,7 +181,8 @@ return [
         }
     },
     'documents non-runtime plainmath conformance gaps in fixture metadata' => static function (TestRunner $t) use ($corpus): void {
-        $t->true(count($corpus['knownGaps']) >= 3, 'PlainMath fixture metadata should record representative blocked upstream cases.');
+        $t->true(count($corpus['knownGaps']) >= 1, 'PlainMath fixture metadata should record representative blocked upstream cases.');
+        $t->true(in_array('macro-environments', array_column($corpus['knownGaps'], 'id'), true), 'PlainMath gap metadata should retain the custom environment macro blocker.');
 
         foreach ($corpus['knownGaps'] as $gap) {
             foreach (['id', 'upstream', 'tex', 'gap'] as $field) {

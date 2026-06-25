@@ -17,6 +17,30 @@ return [
             'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>x</mi><mn>2</mn></msup><annotation encoding="application/x-tex">x^2</annotation></semantics></math>',
         ],
         [
+            'id' => 'implicit-product-identifiers',
+            'family' => 'identifiers',
+            'tex' => 'ax^2 + bx + c = 0',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'test/reader/tex/03.test subset',
+                'writer' => 'test/writer/mml/03.test subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>a</mi><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mi>b</mi><mi>x</mi><mo>+</mo><mi>c</mi><mo>=</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">ax^2 + bx + c = 0</annotation></semantics></math>',
+        ],
+        [
+            'id' => 'direct-unicode-identifiers',
+            'family' => 'identifiers',
+            'tex' => 'α + β',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'test/reader/tex/unicode.test subset',
+                'writer' => 'Text.TeXMath.Unicode.ToTeX identifier subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>α</mi><mo>+</mo><mi>β</mi></mrow><annotation encoding="application/x-tex">α + β</annotation></semantics></math>',
+        ],
+        [
             'id' => 'sqrt-subscript',
             'family' => 'roots-and-scripts',
             'tex' => '\sqrt{x_2}',
@@ -292,22 +316,10 @@ return [
     ],
     'knownGaps' => [
         [
-            'id' => 'implicit-product-identifiers',
-            'upstream' => 'test/reader/tex/03.test and test/writer/mml/03.test',
-            'tex' => 'ax^2 + bx + c = 0',
-            'gap' => 'TexMath tokenizes adjacent letters as individual identifiers; current HtmlWriter emits mi ax and mi bx.',
-        ],
-        [
             'id' => 'macro-environments',
             'upstream' => 'test/reader/tex/macros.test',
             'tex' => '\newenvironment{foo}{\left(}{\right)}\begin{foo}x\end{foo}',
             'gap' => 'TexMath expands newenvironment definitions; current HtmlWriter only expands command macros and declared operators.',
-        ],
-        [
-            'id' => 'direct-unicode-token-types',
-            'upstream' => 'test/reader/tex/unicode.test and Text.TeXMath.Unicode.ToTeX',
-            'tex' => 'α + β',
-            'gap' => 'TexMath classifies direct non-ASCII math characters by Unicode symbol type; current HtmlWriter tokenization is byte-oriented.',
         ],
         [
             'id' => 'malformed-structural-command-fallback',

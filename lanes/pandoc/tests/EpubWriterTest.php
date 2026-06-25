@@ -7,6 +7,28 @@ use PortLibs\Pandoc\EpubReader;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
+if (!function_exists('pandoc_epub_test_math_identifier_atoms')) {
+    function pandoc_epub_test_math_identifier_atoms(string $text): string
+    {
+        $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+        if ($characters === false || $characters === []) {
+            return '<mi>' . htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mi>';
+        }
+
+        return implode('', array_map(
+            static fn (string $character): string => '<mi>' . htmlspecialchars($character, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mi>',
+            $characters
+        ));
+    }
+
+    function pandoc_epub_test_math_identifier_node(string $text): string
+    {
+        $atoms = pandoc_epub_test_math_identifier_atoms($text);
+
+        return substr_count($atoms, '<mi>') > 1 ? '<mrow>' . $atoms . '</mrow>' : $atoms;
+    }
+}
+
 return [
     'writes epub3 package bytes with opf nav spine and metadata' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
@@ -16101,7 +16123,7 @@ XML;
 
             $t->contains('<item id="chapter-1" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml"/>', $package);
             $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mover accent="true"><mi>x</mi><mo stretchy="true">˙</mo></mover><mo>+</mo><mover accent="true"><mi>y</mi><mo stretchy="true">¨</mo></mover><mo>+</mo><mover accent="true"><mi>z</mi><mo stretchy="true">˘</mo></mover><mo>+</mo><mover accent="true"><mi>w</mi><mo stretchy="true">ˇ</mo></mover></mrow><annotation encoding="application/x-tex">\dot{x} + \ddot{y} + \breve{z} + \check{w}</annotation></semantics></math>', $chapter);
-            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mover accent="true"><mi>α</mi><mo stretchy="true">´</mo></mover><mo>+</mo><mover accent="true"><mi>β</mi><mo stretchy="true">ˋ</mo></mover><mo>+</mo><mover accent="true"><mi>A</mi><mo stretchy="true">˚</mo></mover><mo>+</mo><mover accent="true"><mi>AB</mi><mo stretchy="true">→</mo></mover><mo>+</mo><munder accentunder="true"><mi>CD</mi><mo stretchy="true">←</mo></munder></mrow><annotation encoding="application/x-tex">\acute{\alpha} + \grave{\beta} + \mathring{A} + \overrightarrow{AB} + \underleftarrow{CD}</annotation></semantics></math>', $chapter);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mover accent="true"><mi>α</mi><mo stretchy="true">´</mo></mover><mo>+</mo><mover accent="true"><mi>β</mi><mo stretchy="true">ˋ</mo></mover><mo>+</mo><mover accent="true"><mi>A</mi><mo stretchy="true">˚</mo></mover><mo>+</mo><mover accent="true"><mrow><mi>A</mi><mi>B</mi></mrow><mo stretchy="true">→</mo></mover><mo>+</mo><munder accentunder="true"><mrow><mi>C</mi><mi>D</mi></mrow><mo stretchy="true">←</mo></munder></mrow><annotation encoding="application/x-tex">\acute{\alpha} + \grave{\beta} + \mathring{A} + \overrightarrow{AB} + \underleftarrow{CD}</annotation></semantics></math>', $chapter);
             foreach (['<mi>dot</mi>', '<mi>ddot</mi>', '<mi>breve</mi>', '<mi>check</mi>', '<mi>acute</mi>', '<mi>grave</mi>', '<mi>mathring</mi>', '<mi>overrightarrow</mi>', '<mi>underleftarrow</mi>'] as $fallback) {
                 $t->true(!str_contains($chapter, $fallback), "TeX additional accent command should not fall back to a literal identifier: {$fallback}.");
             }
@@ -16160,7 +16182,7 @@ XML;
         $inlineTex = implode(' + ', array_map(static fn (string $command, array $pair): string => '\\' . $command . '{' . $pair[0] . '}', array_keys($inlineAccents), $inlineAccents));
         $displayTex = implode(' + ', array_map(static fn (string $command, array $tuple): string => '\\' . $command . '{' . $tuple[0] . '}', array_keys($displayAccents), $displayAccents));
         $inlineExpected = '<mrow>' . implode('<mo>+</mo>', array_map(
-            static fn (array $pair): string => '<mover accent="true"><mi>' . $pair[0] . '</mi><mo stretchy="true">' . htmlspecialchars($pair[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo></mover>',
+            static fn (array $pair): string => '<mover accent="true">' . pandoc_epub_test_math_identifier_node($pair[0]) . '<mo stretchy="true">' . htmlspecialchars($pair[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo></mover>',
             $inlineAccents
         )) . '</mrow>';
         $displayExpected = '<mrow>' . implode('<mo>+</mo>', array_map(
@@ -16168,7 +16190,7 @@ XML;
                 [$base, $operator, $wrapper] = $tuple;
                 $attribute = $wrapper === 'munder' ? ' accentunder="true"' : ' accent="true"';
 
-                return '<' . $wrapper . $attribute . '><mi>' . $base . '</mi><mo stretchy="true">' . htmlspecialchars($operator, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo></' . $wrapper . '>';
+                return '<' . $wrapper . $attribute . '>' . pandoc_epub_test_math_identifier_node($base) . '<mo stretchy="true">' . htmlspecialchars($operator, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo></' . $wrapper . '>';
             },
             $displayAccents
         )) . '</mrow>';
@@ -16268,15 +16290,15 @@ XML;
         $inlineTex = implode(' + ', array_map(static fn (string $command, array $pair): string => '\\' . $command . '{' . $pair[0] . '}', array_keys($accentAliases), $accentAliases))
             . ' + \\notaccent{I=J}';
         $inlineExpected = '<mrow>' . implode('<mo>+</mo>', array_map(
-            static fn (array $pair): string => '<mover accent="true"><mi>' . $pair[0] . '</mi><mo stretchy="true">' . htmlspecialchars($pair[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo></mover>',
+            static fn (array $pair): string => '<mover accent="true">' . pandoc_epub_test_math_identifier_node($pair[0]) . '<mo stretchy="true">' . htmlspecialchars($pair[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo></mover>',
             $accentAliases
         )) . '<mo>+</mo><menclose notation="updiagonalstrike"><mrow><mi>I</mi><mo>=</mo><mi>J</mi></mrow></menclose></mrow>';
         $displayTex = '\\overbracket{x+y} + \\underbracket{a_b} + \\overparen{PQ} + \\underparen{rs}';
         $displayExpected = '<mrow>'
             . '<mover><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mo stretchy="true">⎴</mo></mover>'
             . '<mo>+</mo><munder><msub><mi>a</mi><mi>b</mi></msub><mo stretchy="true">⎵</mo></munder>'
-            . '<mo>+</mo><mover><mi>PQ</mi><mo stretchy="true">⏜</mo></mover>'
-            . '<mo>+</mo><munder><mi>rs</mi><mo stretchy="true">⏝</mo></munder>'
+            . '<mo>+</mo><mover><mrow><mi>P</mi><mi>Q</mi></mrow><mo stretchy="true">⏜</mo></mover>'
+            . '<mo>+</mo><munder><mrow><mi>r</mi><mi>s</mi></mrow><mo stretchy="true">⏝</mo></munder>'
             . '</mrow>';
 
         $document = new AstNode('document', [
@@ -16746,7 +16768,7 @@ XML;
 
             $t->contains('<item id="chapter-1" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml"/>', $package);
             $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle mathvariant="normal"><mi>d</mi></mstyle><mi>x</mi><mo>+</mo><mstyle mathvariant="bold"><mi>v</mi></mstyle></mrow><annotation encoding="application/x-tex">\mathrm{d}x + \mathbf{v}</annotation></semantics></math>', $chapter);
-            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mstyle mathvariant="script"><mi>F</mi></mstyle><mo>=</mo><mstyle mathvariant="bold"><mtext>rate</mtext></mstyle><mo>+</mo><mstyle mathvariant="monospace"><mi>code</mi></mstyle></mrow><annotation encoding="application/x-tex">\mathcal{F} = \textbf{rate} + \mathtt{code}</annotation></semantics></math>', $chapter);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mstyle mathvariant="script"><mi>F</mi></mstyle><mo>=</mo><mstyle mathvariant="bold"><mtext>rate</mtext></mstyle><mo>+</mo><mstyle mathvariant="monospace"><mrow><mi>c</mi><mi>o</mi><mi>d</mi><mi>e</mi></mrow></mstyle></mrow><annotation encoding="application/x-tex">\mathcal{F} = \textbf{rate} + \mathtt{code}</annotation></semantics></math>', $chapter);
             foreach (['<mi>mathrm</mi>', '<mi>mathbf</mi>', '<mi>mathcal</mi>', '<mi>textbf</mi>', '<mi>mathtt</mi>'] as $fallback) {
                 $t->true(!str_contains($chapter, $fallback), "TeX style command should not fall back to a literal identifier: {$fallback}.");
             }
@@ -17082,7 +17104,7 @@ XML;
 
             $t->contains('<item id="chapter-1" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml"/>', $package);
             $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><mi>i</mi><mo>+</mo><msubsup><mo>∏</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mi>m</mi></msubsup><mi>k</mi></mrow><annotation encoding="application/x-tex">\sum\limits_{i=1}^{n} i + \prod\nolimits_{k=1}^{m} k</annotation></semantics></math>', $chapter);
-            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><munderover><mo>∫</mo><mn>0</mn><mn>1</mn></munderover><mi>x</mi><mi>dx</mi><mo>+</mo><munderover><mo>⋃</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mi>p</mi></munderover><msub><mi>A</mi><mi>j</mi></msub><mo>+</mo><munder><mi mathvariant="normal">lim</mi><mrow><mi>x</mi><mo>→</mo><mn>0</mn></mrow></munder><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">\int\limits_{0}^{1} x dx + \bigcup\limits_{j=1}^{p} A_j + \lim\limits_{x\to0} f(x)</annotation></semantics></math>', $chapter);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><munderover><mo>∫</mo><mn>0</mn><mn>1</mn></munderover><mi>x</mi><mi>d</mi><mi>x</mi><mo>+</mo><munderover><mo>⋃</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mi>p</mi></munderover><msub><mi>A</mi><mi>j</mi></msub><mo>+</mo><munder><mi mathvariant="normal">lim</mi><mrow><mi>x</mi><mo>→</mo><mn>0</mn></mrow></munder><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">\int\limits_{0}^{1} x dx + \bigcup\limits_{j=1}^{p} A_j + \lim\limits_{x\to0} f(x)</annotation></semantics></math>', $chapter);
             foreach (['<mi>limits</mi>', '<mi>nolimits</mi>', '<mi>displaylimits</mi>', '<mi>bigcup</mi>'] as $fallback) {
                 $t->true(!str_contains($chapter, $fallback), "TeX large-operator limit command should not fall back to a literal identifier: {$fallback}.");
             }
@@ -17249,7 +17271,7 @@ XML;
             }
 
             $t->contains('<item id="chapter-1" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml"/>', $package);
-            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mo>∮</mo><mi>C</mi></msub><mi>f</mi><mo>(</mo><mi>z</mi><mo>)</mo><mspace width="0.167em"/><mi>dz</mi><mo>+</mo><msub><mo>∬</mo><mi>D</mi></msub><mi>g</mi><mo>(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>)</mo><mspace width="0.167em"/><mi>dxdy</mi><mo>+</mo><msub><mo>∭</mo><mi>E</mi></msub><mi>h</mi><mspace width="0.167em"/><mi>dV</mi><mo>+</mo><msubsup><mo>∫</mo><mi>a</mi><mi>b</mi></msubsup><mi>f</mi></mrow><annotation encoding="application/x-tex">\oint_C f(z)\,dz + \iint_D g(x,y)\,dxdy + \iiint_E h\,dV + \smallint_a^b f</annotation></semantics></math>', $chapter);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mo>∮</mo><mi>C</mi></msub><mi>f</mi><mo>(</mo><mi>z</mi><mo>)</mo><mspace width="0.167em"/><mi>d</mi><mi>z</mi><mo>+</mo><msub><mo>∬</mo><mi>D</mi></msub><mi>g</mi><mo>(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>)</mo><mspace width="0.167em"/><mi>d</mi><mi>x</mi><mi>d</mi><mi>y</mi><mo>+</mo><msub><mo>∭</mo><mi>E</mi></msub><mi>h</mi><mspace width="0.167em"/><mi>d</mi><mi>V</mi><mo>+</mo><msubsup><mo>∫</mo><mi>a</mi><mi>b</mi></msubsup><mi>f</mi></mrow><annotation encoding="application/x-tex">\oint_C f(z)\,dz + \iint_D g(x,y)\,dxdy + \iiint_E h\,dV + \smallint_a^b f</annotation></semantics></math>', $chapter);
             $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><munder><mo>∯</mo><mi>S</mi></munder><mi>F</mi><mo>⋅</mo><mi>n</mi><mo>+</mo><msub><mo>∰</mo><mi>V</mi></msub><mi>h</mi><mo>+</mo><msub><mo>⨌</mo><mi>Q</mi></msub><mi>k</mi><mo>+</mo><munder><mo>∫⋯∫</mo><mi>R</mi></munder><mi>m</mi></mrow><annotation encoding="application/x-tex">\oiint\limits_S F\cdot n + \oiiint_V h + \iiiint_Q k + \idotsint\limits_R m</annotation></semantics></math>', $chapter);
             foreach (['<mi>oint</mi>', '<mi>iint</mi>', '<mi>iiint</mi>', '<mi>smallint</mi>', '<mi>oiint</mi>', '<mi>oiiint</mi>', '<mi>iiiint</mi>', '<mi>idotsint</mi>'] as $fallback) {
                 $t->true(!str_contains($chapter, $fallback), "TeX integral variant command should not fall back to a literal identifier: {$fallback}.");
@@ -17334,7 +17356,7 @@ XML;
             }
 
             $t->contains('<item id="chapter-1" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml"/>', $package);
-            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><munder><mo>∑</mo><mtable columnalign="center"><mtr><mtd><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow></mtd></mtr><mtr><mtd><mrow><mi>j</mi><mo>=</mo><mn>2</mn></mrow></mtd></mtr></mtable></munder><msub><mi>a</mi><mi>ij</mi></msub><mo>+</mo><msup><mi>x</mi><mtable columnalign="center"><mtr><mtd><mi>p</mi></mtd></mtr><mtr><mtd><mi>q</mi></mtd></mtr></mtable></msup></mrow><annotation encoding="application/x-tex">\sum\limits_{\substack{i=1\\\\j=2}} a_{ij} + x^{\substack{p\\\\q}}</annotation></semantics></math>', $chapter);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><munder><mo>∑</mo><mtable columnalign="center"><mtr><mtd><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow></mtd></mtr><mtr><mtd><mrow><mi>j</mi><mo>=</mo><mn>2</mn></mrow></mtd></mtr></mtable></munder><msub><mi>a</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>+</mo><msup><mi>x</mi><mtable columnalign="center"><mtr><mtd><mi>p</mi></mtd></mtr><mtr><mtd><mi>q</mi></mtd></mtr></mtable></msup></mrow><annotation encoding="application/x-tex">\sum\limits_{\substack{i=1\\\\j=2}} a_{ij} + x^{\substack{p\\\\q}}</annotation></semantics></math>', $chapter);
             $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><munder><mo>∏</mo><mtable columnalign="right"><mtr><mtd><mrow><mi>n</mi><mo>&gt;</mo><mn>0</mn></mrow></mtd></mtr><mtr><mtd><mrow><mi>m</mi><mo>&lt;</mo><mi>n</mi></mrow></mtd></mtr></mtable></munder><msub><mi>b</mi><mi>n</mi></msub><mo>+</mo><munder><mi mathvariant="normal">lim</mi><mtable columnalign="center"><mtr><mtd><mrow><mi>x</mi><mo>→</mo><mn>0</mn></mrow></mtd></mtr><mtr><mtd><mrow><mi>x</mi><mo>&gt;</mo><mn>0</mn></mrow></mtd></mtr></mtable></munder><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">\prod\limits_{\begin{subarray}{r} n&gt;0\\\\m&lt;n \end{subarray}} b_n + \lim\limits_{\begin{subarray}{c} x\to0\\\\x&gt;0 \end{subarray}} f(x)</annotation></semantics></math>', $chapter);
             foreach (['<mi>substack</mi>', '<mi>subarray</mi>'] as $fallback) {
                 $t->true(!str_contains($chapter, $fallback), "TeX substack/subarray command should not fall back to a literal identifier: {$fallback}.");
@@ -17746,7 +17768,7 @@ XML;
             $offset = 0;
             foreach ($symbols as [$glyph, $nodeName]) {
                 $escapedGlyph = htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><' . $nodeName . '>' . $escapedGlyph . '</' . $nodeName . '><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<' . $nodeName . '>' . $escapedGlyph . '</' . $nodeName . '>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 
@@ -17877,7 +17899,7 @@ XML;
             $pieces = [];
             $offset = 0;
             foreach ($symbols as $glyph) {
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 
@@ -18016,7 +18038,7 @@ XML;
             $offset = 0;
             foreach ($symbols as [$glyph, $nodeName]) {
                 $escapedGlyph = htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><' . $nodeName . '>' . $escapedGlyph . '</' . $nodeName . '><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<' . $nodeName . '>' . $escapedGlyph . '</' . $nodeName . '>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 
@@ -18160,7 +18182,7 @@ XML;
 
             $t->contains('<item id="chapter-1" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml"/>', $package);
             $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>ϖ</mi><mo>+</mo><mi>ς</mi><mo>+</mo><mi>ϝ</mi><mo>+</mo><mi>ℓ</mi><mo>+</mo><mi>ℏ</mi></mrow><annotation encoding="application/x-tex">\varpi + \varsigma + \digamma + \ell + \hbar</annotation></semantics></math>', $chapter);
-            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mo>∅</mo><mo>⊆</mo><mi>A</mi><mo>∧</mo><mo>∀</mo><mi>x</mi><mo>∈</mo><mi>B</mi><mo>,</mo><mo>∃</mo><mi>y</mi><mo>∉</mo><mi>C</mi><mo>∠</mo><mi>ABC</mi><mo>+</mo><mi>f</mi><mo>′</mo></mrow><annotation encoding="application/x-tex">\emptyset \subseteq A \land \forall x \in B, \exists y \notin C \angle ABC + f\prime</annotation></semantics></math>', $chapter);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mo>∅</mo><mo>⊆</mo><mi>A</mi><mo>∧</mo><mo>∀</mo><mi>x</mi><mo>∈</mo><mi>B</mi><mo>,</mo><mo>∃</mo><mi>y</mi><mo>∉</mo><mi>C</mi><mo>∠</mo><mi>A</mi><mi>B</mi><mi>C</mi><mo>+</mo><mi>f</mi><mo>′</mo></mrow><annotation encoding="application/x-tex">\emptyset \subseteq A \land \forall x \in B, \exists y \notin C \angle ABC + f\prime</annotation></semantics></math>', $chapter);
             foreach (['<mi>varpi</mi>', '<mi>varsigma</mi>', '<mi>digamma</mi>', '<mi>ell</mi>', '<mi>hbar</mi>', '<mi>emptyset</mi>', '<mi>forall</mi>', '<mi>exists</mi>', '<mi>angle</mi>', '<mi>prime</mi>'] as $fallback) {
                 $t->true(!str_contains($chapter, $fallback), "TeX symbol variant command should not fall back to a literal identifier: {$fallback}.");
             }
@@ -18734,7 +18756,7 @@ XML;
             $offset = 0;
             foreach ($symbols as $glyph) {
                 $escapedGlyph = htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><mo>' . $escapedGlyph . '</mo><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<mo>' . $escapedGlyph . '</mo>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 
@@ -20391,7 +20413,7 @@ XML;
             $pieces = [];
             $offset = 0;
             foreach ($symbols as $glyph) {
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 
@@ -20544,7 +20566,7 @@ XML;
             $pieces = [];
             $offset = 0;
             foreach ($symbols as $glyph) {
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 
@@ -20681,7 +20703,7 @@ XML;
             $pieces = [];
             $offset = 0;
             foreach ($symbols as $glyph) {
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 
@@ -20826,7 +20848,7 @@ XML;
             $pieces = [];
             $offset = 0;
             foreach ($symbols as $glyph) {
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 
@@ -20951,7 +20973,7 @@ XML;
             $pieces = [];
             $offset = 0;
             foreach ($symbols as $glyph) {
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 
@@ -21098,7 +21120,7 @@ XML;
             $pieces = [];
             $offset = 0;
             foreach ($symbols as $glyph) {
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 
@@ -21270,7 +21292,7 @@ XML;
             $pieces = [];
             $offset = 0;
             foreach ($symbols as $glyph) {
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 
@@ -26048,7 +26070,7 @@ XML;
             $pieces = [];
             $offset = 0;
             foreach ($symbols as $glyph) {
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 
@@ -26191,7 +26213,7 @@ XML;
             $pieces = [];
             $offset = 0;
             foreach ($symbols as $glyph) {
-                $pieces[] = '<mi>' . $letters[$offset] . '</mi><mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo><mi>' . $letters[$offset + 1] . '</mi>';
+                $pieces[] = pandoc_epub_test_math_identifier_atoms($letters[$offset]) . '<mo>' . htmlspecialchars($glyph, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</mo>' . pandoc_epub_test_math_identifier_atoms($letters[$offset + 1]);
                 $offset += 2;
             }
 

@@ -38,6 +38,10 @@
 - Initial passing corpus:
   - `script-super`: `x^2`, from `test/reader/tex/03.test` and
     `test/writer/mml/03.test` subsets.
+  - `implicit-product-identifiers`: adjacent bare letters split into individual
+    MathML identifiers, matching TexMath's implicit product tokenization.
+  - `direct-unicode-identifiers`: direct UTF-8 Greek identifiers parse as
+    Unicode `mi` nodes instead of byte fallback output.
   - `sqrt-subscript`: `\sqrt{x_2}`, from `test/reader/tex/tokens.test` and
     `test/writer/mml/tokens.test` subsets.
   - `display-fraction-root`: `\frac{x^2}{\sqrt{y_1}}`, a small
@@ -62,15 +66,9 @@
     partial MathML.
 
 ## Gaps And Blockers
-- `implicit-product-identifiers`: TexMath splits adjacent letters such as
-  `ax^2 + bx + c = 0` into individual identifiers; current `HtmlWriter` emits
-  `mi ax` and `mi bx`.
 - `macro-environments`: TexMath expands `\newenvironment` and
   `\renewenvironment`; current `HtmlWriter` only expands command macros and
   declared operators.
-- `direct-unicode-token-types`: TexMath classifies direct non-ASCII math
-  characters by Unicode symbol type; current `HtmlWriter` tokenization is still
-  byte-oriented.
 - `writer-style-attrs`: TexMath MathML often adds `form`, `columnalign`, and
   text-align style attributes not emitted by the local bounded writer. The
   initial passing corpus snapshots current XHTML-safe output and records

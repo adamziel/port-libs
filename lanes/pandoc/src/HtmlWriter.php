@@ -4361,7 +4361,7 @@ final class HtmlWriter
     private function readTexMathIdentifier(string $source, int &$offset): string
     {
         $remaining = substr($source, $offset);
-        if (preg_match('/^\p{L}[\p{L}\p{M}\p{N}]*/u', $remaining, $match) !== 1) {
+        if (preg_match('/^\p{L}\p{M}*/u', $remaining, $match) !== 1) {
             return '';
         }
 
