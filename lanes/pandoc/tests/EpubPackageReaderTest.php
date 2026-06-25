@@ -1829,6 +1829,226 @@ XML);
             $removeDirectory($root);
         }
     },
+    'isolates selected epub nav structures from alternate and auxiliary navs' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-selected-nav-closure-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:review="https://example.invalid/epub-review" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml" review:profile="primary"/>
+    <rootfile full-path="ALT/package.opf" media-type="application/oebps-package+xml" review:profile="alternate"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-selected-nav-closure</dc:identifier>
+    <dc:title>Selected Nav Closure</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="chapter1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter2" href="chapter2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="chapter1"/>
+    <itemref idref="chapter2"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="toc-primary" epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li><a href="chapter1.xhtml#start">Start</a></li>
+        <li><a href="chapter2.xhtml#start">Chapter Two</a></li>
+      </ol>
+    </nav>
+    <nav id="figures-primary" epub:type="loi">
+      <h2>Figures</h2>
+      <ol>
+        <li><a href="chapter1.xhtml#fig-1">Figure One</a></li>
+      </ol>
+    </nav>
+    <nav id="landmarks-primary" epub:type="landmarks">
+      <h2>Landmarks</h2>
+      <ol>
+        <li><a epub:type="bodymatter" href="chapter1.xhtml#start">Begin reading</a></li>
+      </ol>
+    </nav>
+    <nav id="pages-primary" epub:type="page-list">
+      <h2>Pages</h2>
+      <ol>
+        <li><a epub:type="pagebreak" href="chapter1.xhtml#page-1">1</a></li>
+        <li><a epub:type="pagebreak" href="chapter2.xhtml#page-2">2</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/toc.ncx', <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head>
+    <meta name="dtb:uid" content="urn:reader-selected-nav-closure"/>
+  </head>
+  <docTitle><text>Selected Nav Closure</text></docTitle>
+  <navMap>
+    <navPoint id="ncx-start" playOrder="1">
+      <navLabel><text>NCX Start</text></navLabel>
+      <content src="chapter1.xhtml#start"/>
+    </navPoint>
+    <navPoint id="ncx-chapter-two" playOrder="2">
+      <navLabel><text>NCX Chapter Two</text></navLabel>
+      <content src="chapter2.xhtml#start"/>
+    </navPoint>
+  </navMap>
+  <pageList>
+    <navTarget id="ncx-page-one" playOrder="3">
+      <navLabel><text>NCX Page One</text></navLabel>
+      <content src="chapter1.xhtml#page-1"/>
+    </navTarget>
+  </pageList>
+  <navList>
+    <navTarget id="ncx-figure-one" playOrder="4">
+      <navLabel><text>NCX Figure One</text></navLabel>
+      <content src="chapter1.xhtml#fig-1"/>
+    </navTarget>
+  </navList>
+</ncx>
+XML);
+            $writePackageFile($root, 'EPUB/chapter1.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <h1 id="start">Start</h1>
+    <p id="page-1">Page one.</p>
+    <figure id="fig-1"><figcaption>Figure one.</figcaption></figure>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter2.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <h1 id="start">Chapter two</h1>
+    <p id="page-2">Page two.</p>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'ALT/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="altid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="altid">urn:reader-selected-nav-alternate</dc:identifier>
+    <dc:title>Alternate Nav Noise</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="alt-nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine/>
+</package>
+XML);
+            $writePackageFile($root, 'ALT/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="alternate-pages" epub:type="page-list" hidden="hidden">
+      <ol/>
+    </nav>
+    <nav id="alternate-loi" epub:type="loi">
+      <a href="missing.xhtml">Alternate-only item</a>
+    </nav>
+  </body>
+</html>
+XML);
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $meta = $document->attr('meta');
+            $epub = $document->attr('epub');
+            $container = $epub['containerReport'];
+            $rootfiles = $container['rootfiles'];
+            $navReport = $epub['navReport'];
+            $documentReport = $navReport['document'];
+            $tocReport = $navReport['toc'];
+            $landmarkReport = $navReport['landmarks'];
+            $pageListReport = $epub['pageListReport'];
+            $ncxReport = $epub['ncxReport'];
+
+            $t->same('Selected Nav Closure', $meta['title']);
+            $t->same('EPUB/package.opf', $epub['containerRootfile']);
+            $t->same(0, $epub['containerSelectedRootfileIndex']);
+            $t->same(2, $container['rootfileCount']);
+            $t->same(1, $container['alternateRootfileCount']);
+            $t->same(true, $rootfiles[0]['selected']);
+            $t->same(false, $rootfiles[1]['selected']);
+            $t->same('ALT/package.opf', $rootfiles[1]['path']);
+            $t->same(['review:profile' => 'alternate'], $rootfiles[1]['customAttributes']);
+
+            $t->same($navReport, $epub['tocReport']);
+            $t->same($navReport, $epub['navigationReport']);
+            $t->same(true, $documentReport['present']);
+            $t->same(4, $documentReport['sectionCount']);
+            $t->same(3, $documentReport['primarySectionCount']);
+            $t->same(1, $documentReport['tocSectionCount']);
+            $t->same(1, $documentReport['landmarksSectionCount']);
+            $t->same(1, $documentReport['pageListSectionCount']);
+            $t->same(1, $documentReport['unrecognizedSectionCount']);
+            $t->same(0, $documentReport['missingOrderedListSectionCount']);
+            $t->same(0, $documentReport['emptySectionCount']);
+            $t->same(1, $documentReport['diagnosticCount']);
+            $t->same(['unrecognized-nav-section-type'], array_column($documentReport['diagnostics'], 'type'));
+            $t->same(['toc-primary', 'figures-primary', 'landmarks-primary', 'pages-primary'], array_column($documentReport['sections'], 'sectionId'));
+            $t->same(['loi'], $documentReport['sections'][1]['epubTypes']);
+            $t->same(null, $documentReport['sections'][1]['sectionType']);
+            $t->same(['toc-primary', 'landmarks-primary', 'pages-primary'], array_column($navReport['sections'], 'sectionId'));
+
+            $t->same(5, $navReport['itemCount']);
+            $t->same(2, $navReport['tocEntryCount']);
+            $t->same(1, $navReport['landmarksEntryCount']);
+            $t->same(2, $navReport['pageListEntryCount']);
+            $t->same(['toc' => 2, 'landmarks' => 1, 'page-list' => 2], $navReport['typeCounts']);
+            $t->same(1, $navReport['documentDiagnosticCount']);
+            $t->same(0, $navReport['diagnosticCount']);
+            $t->same([], $navReport['diagnostics']);
+            $t->same(['Start', 'Chapter Two', 'Begin reading', '1', '2'], array_column($epub['toc'], 'label'));
+
+            $t->same(true, $tocReport['present']);
+            $t->same(2, $tocReport['itemCount']);
+            $t->same(2, $tocReport['targetedItemCount']);
+            $t->same(1, $tocReport['landmarkRelationCount']);
+            $t->same(0, $tocReport['pageListRelationCount']);
+            $t->same(0, $tocReport['diagnosticCount']);
+            $t->same(['landmarks'], $tocReport['items'][0]['relationSections']);
+            $t->same([], $tocReport['items'][1]['relationSections']);
+
+            $t->same(true, $landmarkReport['present']);
+            $t->same(1, $landmarkReport['itemCount']);
+            $t->same(1, $landmarkReport['typedItemCount']);
+            $t->same(1, $landmarkReport['spineMappedCount']);
+            $t->same(0, $landmarkReport['diagnosticCount']);
+
+            $t->same(true, $pageListReport['present']);
+            $t->same(2, $pageListReport['itemCount']);
+            $t->same(2, $pageListReport['pageBreakItemCount']);
+            $t->same(2, $pageListReport['manifestTargetCount']);
+            $t->same(2, $pageListReport['spineReadingOrderTargetCount']);
+            $t->same(0, $pageListReport['collisionTargetCount']);
+            $t->same(0, $pageListReport['diagnosticCount']);
+            $t->same(['chapter1', 'chapter2'], array_column($pageListReport['items'], 'manifestId'));
+
+            $t->same(true, $ncxReport['present']);
+            $t->same(2, $ncxReport['itemCount']);
+            $t->same(2, $ncxReport['topLevelItemCount']);
+            $t->same(2, $ncxReport['playOrderCount']);
+            $t->same(0, $ncxReport['diagnosticCount']);
+            $t->same(['NCX Start', 'NCX Chapter Two'], array_column($epub['ncx'], 'label'));
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports epub toc accessibility labels roles and duplicate nav relations' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-toc-a11y-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
