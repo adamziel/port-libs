@@ -4820,9 +4820,9 @@ return [
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
             . '1 0 0 1 72 720 Tm (Product) Tj 1 0 0 1 250 720 Tm (Qty) Tj 1 0 0 1 320 720 Tm (Size) Tj '
-            . '1 0 0 1 72 704 Tm (Kartoteka) Tj 1 0 0 1 250 704 Tm (30) Tj 1 0 0 1 320 704 Tm (260x362x320mm) Tj '
-            . '1 0 0 1 72 688 Tm (skladana Durable Carry) Tj '
-            . '1 0 0 1 72 672 Tm (Organizer) Tj 1 0 0 1 250 672 Tm (12) Tj 1 0 0 1 320 672 Tm (120x200mm) Tj '
+            . '1 0 0 1 72 704 Tm (Portable) Tj 1 0 0 1 250 704 Tm (30) Tj 1 0 0 1 320 704 Tm (A4) Tj '
+            . '1 0 0 1 72 688 Tm (folder bin) Tj '
+            . '1 0 0 1 72 672 Tm (Organizer) Tj 1 0 0 1 250 672 Tm (12) Tj 1 0 0 1 320 672 Tm (A5) Tj '
             . 'ET'
         );
 
@@ -4836,18 +4836,18 @@ return [
         $t->same('geometry', $meta['pdfTableReconstruction']);
         $t->contains('<!-- wp:table -->', $blocks);
         $t->contains('<th>Product</th><th>Qty</th><th>Size</th>', $blocks);
-        $t->contains('<td>Kartoteka skladana Durable Carry</td><td>30</td><td>260x362x320mm</td>', $blocks);
-        $t->contains('<td>Organizer</td><td>12</td><td>120x200mm</td>', $blocks);
+        $t->contains('<td>Portable folder bin</td><td>30</td><td>A4</td>', $blocks);
+        $t->contains('<td>Organizer</td><td>12</td><td>A5</td>', $blocks);
     },
     'preserves positioned pdf tables embedded between surrounding text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
-            . '1 0 0 1 72 752 Tm (Invoice summary for client K1041792) Tj '
+            . '1 0 0 1 72 752 Tm (Order summary for sample S1001) Tj '
             . '1 0 0 1 72 720 Tm (Product) Tj 1 0 0 1 250 720 Tm (Qty) Tj 1 0 0 1 320 720 Tm (Size) Tj '
-            . '1 0 0 1 72 704 Tm (Kartoteka) Tj 1 0 0 1 250 704 Tm (30) Tj 1 0 0 1 320 704 Tm (260x362x320mm) Tj '
-            . '1 0 0 1 72 688 Tm (skladana Durable Carry) Tj '
-            . '1 0 0 1 72 672 Tm (Organizer) Tj 1 0 0 1 250 672 Tm (12) Tj 1 0 0 1 320 672 Tm (120x200mm) Tj '
-            . '1 0 0 1 72 640 Tm (Payment due in 30 days) Tj '
+            . '1 0 0 1 72 704 Tm (Portable) Tj 1 0 0 1 250 704 Tm (30) Tj 1 0 0 1 320 704 Tm (A4) Tj '
+            . '1 0 0 1 72 688 Tm (folder bin) Tj '
+            . '1 0 0 1 72 672 Tm (Organizer) Tj 1 0 0 1 250 672 Tm (12) Tj 1 0 0 1 320 672 Tm (A5) Tj '
+            . '1 0 0 1 72 640 Tm (Follow-up due in 30 days) Tj '
             . 'ET'
         );
 
@@ -4856,18 +4856,18 @@ return [
         $meta = $document->attr('meta');
 
         $t->same('paragraph', $document->children[0]->type);
-        $t->same('Invoice summary for client K1041792', $document->children[0]->attr('text'));
+        $t->same('Order summary for sample S1001', $document->children[0]->attr('text'));
         $t->same('table', $document->children[1]->type);
         $t->same('paragraph', $document->children[2]->type);
-        $t->same('Payment due in 30 days', $document->children[2]->attr('text'));
+        $t->same('Follow-up due in 30 days', $document->children[2]->attr('text'));
         $t->same(1, $meta['pdfDetectedTables']);
         $t->same(1, $meta['pdfGeometryTables']);
         $t->same('geometry', $meta['pdfTableReconstruction']);
-        $t->contains('Invoice summary for client K1041792', $blocks);
+        $t->contains('Order summary for sample S1001', $blocks);
         $t->contains('<!-- wp:table -->', $blocks);
         $t->contains('<th>Product</th><th>Qty</th><th>Size</th>', $blocks);
-        $t->contains('<td>Kartoteka skladana Durable Carry</td><td>30</td><td>260x362x320mm</td>', $blocks);
-        $t->contains('Payment due in 30 days', $blocks);
+        $t->contains('<td>Portable folder bin</td><td>30</td><td>A4</td>', $blocks);
+        $t->contains('Follow-up due in 30 days', $blocks);
     },
     'splits positioned pdf tables at section breaks instead of one sparse table' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
@@ -4901,8 +4901,10 @@ return [
         $pdf = $pdfWithContent(
             'BT /F1 10 Tf '
             . '1 0 0 1 72 720 Tm (Details) Tj 1 0 0 1 330 720 Tm (Code) Tj '
-            . '1 0 0 1 72 704 Tm (Client ) Tj 1 0 0 1 101 704 Tm (number: ) Tj 1 0 0 1 145 704 Tm (K1041792) Tj 1 0 0 1 330 704 Tm (USD) Tj '
-            . '1 0 0 1 72 688 Tm (Issue ) Tj 1 0 0 1 96 688 Tm (date, ) Tj 1 0 0 1 128 688 Tm (with ) Tj 1 0 0 1 156 688 Tm (reference) Tj 1 0 0 1 330 688 Tm (11.05.2026) Tj '
+            . '1 0 0 1 72 704 Tm (Reference ) Tj 1 0 0 1 123 704 Tm (code: ) Tj 1 0 0 1 158 704 Tm (A1001) Tj 1 0 0 1 330 704 Tm (USD) Tj '
+            . '1 0 0 1 72 688 Tm (Issue ) Tj 1 0 0 1 96 688 Tm (date, ) Tj 1 0 0 1 128 688 Tm (with ) Tj 1 0 0 1 156 688 Tm (reference) Tj 1 0 0 1 330 688 Tm (2026-01-15) Tj '
+            . '1 0 0 1 72 672 Tm (Review ) Tj 1 0 0 1 105 672 Tm (note, ) Tj 1 0 0 1 136 672 Tm (linked ) Tj 1 0 0 1 174 672 Tm (with ) Tj 1 0 0 1 202 672 Tm (clause ) Tj 1 0 0 1 240 672 Tm (12ab ) Tj 1 0 0 1 270 672 Tm (part ) Tj 1 0 0 1 296 672 Tm (4:) Tj 1 0 0 1 330 672 Tm (ready) Tj '
+            . '1 0 0 1 72 656 Tm (Box ) Tj 1 0 0 1 96 656 Tm (320mm) Tj 1 0 0 1 330 656 Tm (kept) Tj '
             . 'ET'
         );
 
@@ -4912,10 +4914,83 @@ return [
 
         $t->same('table', $document->children[0]->type);
         $t->same('geometry', $meta['pdfTableReconstruction']);
-        $t->contains('<td>Client number: K1041792</td><td>USD</td>', $blocks);
-        $t->contains('<td>Issue date, with reference</td><td>11.05.2026</td>', $blocks);
-        $t->true(!str_contains($blocks, 'Clientnumber'));
+        $t->contains('<td>Reference code: A1001</td><td>USD</td>', $blocks);
+        $t->contains('<td>Issue date, with reference</td><td>2026-01-15</td>', $blocks);
+        $t->contains('<td>Review note, linked with clause 12ab part 4:</td><td>ready</td>', $blocks);
+        $t->contains('<td>Box 320mm</td><td>kept</td>', $blocks);
+        $t->true(!str_contains($blocks, 'Referencecode'));
         $t->true(!str_contains($blocks, 'Issuedate'));
+        $t->true(!str_contains($blocks, 'Reviewnote'));
+        $t->true(!str_contains($blocks, 'linkedwithclause'));
+        $t->true(!str_contains($blocks, '12 ab'));
+        $t->true(!str_contains($blocks, '12abpart'));
+        $t->true(!str_contains($blocks, '320 mm'));
+    },
+    'collapses synthetic trailing spaces inside positioned pdf table words' => static function (TestRunner $t): void {
+        $widths = array_fill(0, 91, 600);
+        $widths[0] = 0;
+        foreach ([ord('e'), ord('p'), ord('r')] as $code) {
+            $widths[$code - 32] = 450;
+        }
+        $widthArray = implode(' ', $widths);
+        $content = 'BT /Fcompact 10 Tf '
+            . '1 0 0 1 72 720 Tm (Field) Tj 1 0 0 1 250 720 Tm (Value) Tj '
+            . '1 0 0 1 72 704 Tm (pre ) Tj 1 0 0 1 85.5 704 Tm (view ) Tj 1 0 0 1 108 704 Tm (value) Tj 1 0 0 1 250 704 Tm (OK) Tj '
+            . '1 0 0 1 72 688 Tm (customer ) Tj 1 0 0 1 108 688 Tm (record) Tj 1 0 0 1 250 688 Tm (kept) Tj '
+            . '1 0 0 1 72 672 Tm (as ) Tj 1 0 0 1 84 672 Tm (term. ) Tj 1 0 0 1 108 672 Tm (1 ) Tj 1 0 0 1 114 672 Tm (ready:) Tj 1 0 0 1 250 672 Tm (PLN) Tj '
+            . 'ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcompact 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 122 /Widths [{$widthArray}] >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+
+        $document = (new PdfReader())->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same('table', $document->children[0]->type);
+        $t->same('geometry', $meta['pdfTableReconstruction']);
+        $t->contains('<td>preview value</td><td>OK</td>', $blocks);
+        $t->contains('<td>customer record</td><td>kept</td>', $blocks);
+        $t->contains('<td>as term. 1 ready:</td><td>PLN</td>', $blocks);
+        $t->true(!str_contains($blocks, 'pre view'));
+        $t->true(!str_contains($blocks, 'customerrecord'));
+        $t->true(!str_contains($blocks, 'asterm'));
+    },
+    'preserves explicit narrow-font spaces inside positioned pdf table cells' => static function (TestRunner $t): void {
+        $widths = array_fill(0, 91, 600);
+        $widths[0] = 0;
+        for ($code = ord('a'); $code <= ord('z'); $code++) {
+            $widths[$code - 32] = 459;
+        }
+        $widthArray = implode(' ', $widths);
+        $content = 'BT /Fnarrow 7 Tf '
+            . '1 0 0 1 72 720 Tm (Field) Tj 1 0 0 1 250 720 Tm (Value) Tj '
+            . '1 0 0 1 72 704 Tm (customer ) Tj 1 0 0 1 97.704 704 Tm (record) Tj 1 0 0 1 250 704 Tm (kept) Tj '
+            . '1 0 0 1 72 688 Tm (service ) Tj 1 0 0 1 94.491 688 Tm (terms) Tj 1 0 0 1 250 688 Tm (ok) Tj '
+            . '1 0 0 1 72 672 Tm (item ) Tj 1 0 0 1 84.852 672 Tm (label) Tj 1 0 0 1 250 672 Tm (safe) Tj '
+            . 'ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fnarrow 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 122 /Widths [{$widthArray}] >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+
+        $document = (new PdfReader())->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same('table', $document->children[0]->type);
+        $t->same('geometry', $meta['pdfTableReconstruction']);
+        $t->contains('<td>customer record</td><td>kept</td>', $blocks);
+        $t->contains('<td>service terms</td><td>ok</td>', $blocks);
+        $t->contains('<td>item label</td><td>safe</td>', $blocks);
+        $t->true(!str_contains($blocks, 'customerrecord'));
+        $t->true(!str_contains($blocks, 'serviceterms'));
+        $t->true(!str_contains($blocks, 'itemlabel'));
     },
     'preserves decoded word gaps and rgb table cell fills' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
@@ -4923,7 +4998,7 @@ return [
             . 'BT /F1 10 Tf '
             . '1 0 0 1 72 720 Tm (Details) Tj 1 0 0 1 430 720 Tm (Code) Tj '
             . '1 0 0 1 72 704 Tm (Payment ) Tj 1 0 0 1 112 704 Tm (terms, ) Tj 1 0 0 1 144 704 Tm (with ) Tj '
-            . '1 0 0 1 172 704 Tm (reference ) Tj 1 0 0 1 232 704 Tm (section. ) Tj 1 0 0 1 283 704 Tm (1 ) Tj 1 0 0 1 292 704 Tm (total:) Tj 1 0 0 1 430 704 Tm (11.05.2026) Tj '
+            . '1 0 0 1 172 704 Tm (reference ) Tj 1 0 0 1 232 704 Tm (section. ) Tj 1 0 0 1 283 704 Tm (1 ) Tj 1 0 0 1 292 704 Tm (total:) Tj 1 0 0 1 430 704 Tm (2026-01-15) Tj '
             . '1 0 0 1 72 688 Tm (Currency ) Tj 1 0 0 1 112 688 Tm (code:) Tj 1 0 0 1 430 688 Tm (USD) Tj '
             . 'ET'
         );
@@ -4936,11 +5011,56 @@ return [
         $t->same(1, $meta['pdfGeometryTables']);
         $t->same(2, $meta['pdfFilledRectangles']);
         $t->contains('<th data-pdf-fill-color="#f6f7fa" style="background-color:#f6f7fa">Details</th><th data-pdf-fill-color="#f6f7fa" style="background-color:#f6f7fa">Code</th>', $blocks);
-        $t->contains('<td>Payment terms, with reference section. 1 total:</td><td>11.05.2026</td>', $blocks);
+        $t->contains('<td>Payment terms, with reference section. 1 total:</td><td>2026-01-15</td>', $blocks);
         $t->contains('<td>Currency code:</td><td>USD</td>', $blocks);
         $t->true(!str_contains($blocks, 'Paymentterms'));
         $t->true(!str_contains($blocks, 'referencesection'));
         $t->true(!str_contains($blocks, 'Currencycode'));
+    },
+    'preserves rgb fills on empty positioned pdf table cells' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'q /DeviceRGB cs 0.9647058823529412 0.9686274509803922 0.9803921568627451 scn '
+            . '70 714 60 18 re f 150 714 60 18 re f 230 714 60 18 re f Q '
+            . 'BT /F1 10 Tf '
+            . '1 0 0 1 72 720 Tm (A) Tj 1 0 0 1 232 720 Tm (C) Tj '
+            . '1 0 0 1 72 704 Tm (1) Tj 1 0 0 1 152 704 Tm (2) Tj 1 0 0 1 232 704 Tm (3) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader())->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same('table', $document->children[0]->type);
+        $t->same(1, $meta['pdfGeometryTables']);
+        $t->same(3, $meta['pdfFilledRectangles']);
+        $t->contains('<th data-pdf-fill-color="#f6f7fa" style="background-color:#f6f7fa">A</th><th data-pdf-fill-color="#f6f7fa" style="background-color:#f6f7fa"></th><th data-pdf-fill-color="#f6f7fa" style="background-color:#f6f7fa">C</th>', $blocks);
+        $t->contains('<td>1</td><td>2</td><td>3</td>', $blocks);
+    },
+    'does not mirror pdf table fill rectangles onto unrelated upper rows' => static function (TestRunner $t): void {
+        $content = 'q /DeviceRGB cs 0.9647058823529412 0.9686274509803922 0.9803921568627451 scn 70 144 200 18 re f 300 144 90 18 re f Q '
+            . 'BT /F1 10 Tf '
+            . '1 0 0 1 72 648 Tm (Seller) Tj 1 0 0 1 302 648 Tm (Buyer) Tj '
+            . '1 0 0 1 72 632 Tm (Alpha) Tj 1 0 0 1 302 632 Tm (Beta) Tj '
+            . '1 0 0 1 72 150 Tm (Header A) Tj 1 0 0 1 302 150 Tm (Header B) Tj '
+            . '1 0 0 1 72 134 Tm (Value A) Tj 1 0 0 1 302 134 Tm (Value B) Tj '
+            . 'ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+
+        $document = (new PdfReader())->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same(2, $meta['pdfGeometryTables']);
+        $t->same(2, $meta['pdfFilledRectangles']);
+        $t->contains('<th>Seller</th><th>Buyer</th>', $blocks);
+        $t->true(!str_contains($blocks, '<th data-pdf-fill-color="#f6f7fa" style="background-color:#f6f7fa">Seller</th>'));
+        $t->contains('<th data-pdf-fill-color="#f6f7fa" style="background-color:#f6f7fa">Header A</th><th data-pdf-fill-color="#f6f7fa" style="background-color:#f6f7fa">Header B</th>', $blocks);
     },
     'uses pdf simple font Widths for positioned text in pandoc ast blocks' => static function (TestRunner $t) use ($pdfWithSimpleFontWidthsForPositioning): void {
         $document = (new PdfReader())->read($pdfWithSimpleFontWidthsForPositioning());
@@ -7103,10 +7223,10 @@ return [
     },
     'does not emit blocks from unmapped custom subset glyph streams' => static function (TestRunner $t): void {
         $content = "BT /F1 12 Tf 72 720 Td "
-            . "(stuvwxyz) Tj T* "
-            . "(?PKEA) Tj T* "
+            . "(FixtureUnmappedAsciiA) Tj T* "
+            . "(FixtureUnmappedAsciiB) Tj T* "
             . "<8788898A8A8B888C8B898D8B8A8B8C8A8E8F8F8D888B8987> Tj T* "
-            . "(?1GI1EA) Tj ET";
+            . "(FixtureUnmappedAsciiC) Tj ET";
         $pdf = "%PDF-1.4\n"
             . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
@@ -7124,8 +7244,8 @@ return [
         $t->same(4, $meta['pdfSuppressedGlyphRuns']);
         $t->contains('suppressed because their font lacks a Unicode map', implode("\n", $meta['pdfWarnings']));
         $t->same('', trim($blocks));
-        $t->true(!str_contains($blocks, 'stuvwxyz'));
-        $t->true(!str_contains($blocks, '?PKEA'));
-        $t->true(!str_contains($blocks, '?1GI1EA'));
+        foreach (['FixtureUnmappedAsciiA', 'FixtureUnmappedAsciiB', 'FixtureUnmappedAsciiC'] as $needle) {
+            $t->true(!str_contains($blocks, $needle));
+        }
     },
 ];

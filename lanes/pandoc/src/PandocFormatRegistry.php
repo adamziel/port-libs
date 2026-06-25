@@ -192,7 +192,7 @@ final class PandocFormatRegistry
         'epub' => [
             'status' => 'partial',
             'implementation' => EpubReader::class,
-            'notes' => 'Bounded EPUB package reader resolves the OPF rootfile, extracts metadata, follows XHTML spine items, rewrites package-relative href/src resources, records image/resource references, parses EPUB3 nav and NCX table-of-contents resources into metadata, and maps spine content through the shared HTML-capable reader path. Full EPUB parity remains open.',
+            'notes' => 'Bounded EPUB package reader resolves the OPF rootfile, records OPF package attributes, bindings, collections, manifest fallback metadata, and selected unique identifiers, extracts core Dublin Core metadata, follows linear XHTML spine items, skips non-linear spine resources from body content while recording them, rewrites package-relative href/src/poster resources, records image/resource references, catalogs manifest asset resources, can extract bounded base64 resource payload metadata, parses hierarchical EPUB3 toc/landmark/page-list nav and NCX toc/page-list resources into metadata, records OPF media-overlay links with SMIL text/audio target metadata, reads EPUB/ARIA footnote semantics through the shared HTML-capable reader path, and maps spine content into the shared AST. Full EPUB parity remains open.',
         ],
         'gfm' => [
             'status' => 'partial',
@@ -279,6 +279,21 @@ final class PandocFormatRegistry
             'implementation' => MarkdownWriter::class,
             'notes' => 'CommonMark with extensions is partially mapped through raw inline/block branch tests.',
         ],
+        'epub' => [
+            'status' => 'partial',
+            'implementation' => EpubWriter::class,
+            'notes' => 'Alias-compatible EPUB output uses the bounded EPUB3 writer for native PHP package generation.',
+        ],
+        'epub3' => [
+            'status' => 'partial',
+            'implementation' => EpubWriter::class,
+            'notes' => 'Bounded EPUB3 writer emits a native PHP EPUB package with stored mimetype, META-INF/container.xml, OPF package attributes, Dublin Core metadata, manifest/spine, bindings, collections, manifest fallback/fallback-style metadata, fixed-layout viewport metadata in XHTML spine heads, hierarchical nav.xhtml TOC/landmarks/page-list navigation, one or more XHTML spine documents rendered through HtmlWriter, EPUB-specific normalization for raw HTML fragments so common void elements, boolean attributes, HTML named entities, and raw script/style text remain XML-valid, optional or metadata-carried packaged resources with preserved manifest ids, OPF guide references, cover-image manifest properties, CSS links, chapter-relative resource rewriting including poster attributes, OPF media-overlay links to packaged SMIL resources, packaged HTML5 media resources, EPUB/ARIA footnote/pagebreak spine semantics, and OPF mathml/svg/scripted/remote-resources manifest properties for matching XHTML spine content. Full EPUB writer parity and generic TeX-to-MathML conversion remain open.',
+        ],
+        'epub2' => [
+            'status' => 'partial',
+            'implementation' => EpubWriter::class,
+            'notes' => 'Bounded EPUB2 writer mode emits an OPF 2.0 package with NCX navigation, XHTML spine documents, Dublin Core metadata, guide references, and native PHP OCF packaging. Deeper EPUB2 parity remains open.',
+        ],
         'gfm' => [
             'status' => 'partial',
             'implementation' => MarkdownWriter::class,
@@ -287,7 +302,7 @@ final class PandocFormatRegistry
         'html' => [
             'status' => 'partial',
             'implementation' => HtmlWriter::class,
-            'notes' => 'HTML writer covers core block/inline output and many upstream slices; standalone/template parity remains open.',
+            'notes' => 'HTML writer covers core block/inline output and many upstream slices, including explicit MathML payload preservation when the mathml writer method is selected. Standalone/template parity and generic TeX-to-MathML conversion remain open.',
         ],
         'html5' => [
             'status' => 'partial',

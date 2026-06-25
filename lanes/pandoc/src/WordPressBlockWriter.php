@@ -723,8 +723,9 @@ final class WordPressBlockWriter
         $html = '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
         if ($head instanceof AstNode && $head->children !== []) {
             $html .= '<thead' . $this->renderStoredHtmlAttrs($head, true, []) . '>';
+            $rowspanOccupancy = [];
             foreach ($head->children as $row) {
-                $html .= $this->renderTableRow($row, $node, true);
+                $html .= $this->renderTableRow($row, $node, true, 0, $rowspanOccupancy);
             }
             $html .= '</thead>';
         }
@@ -734,24 +735,26 @@ final class WordPressBlockWriter
         }
         foreach ($bodies as $body) {
             $html .= '<tbody' . $this->renderStoredHtmlAttrs($body, true, []) . '>';
+            $rowspanOccupancy = [];
             $bodyHeadRows = $body->attr('headRows', []);
             if (is_array($bodyHeadRows)) {
                 foreach ($bodyHeadRows as $row) {
                     if ($row instanceof AstNode) {
-                        $html .= $this->renderTableRow($row, $node, true);
+                        $html .= $this->renderTableRow($row, $node, true, 0, $rowspanOccupancy);
                     }
                 }
             }
             $rowHeadColumns = max(0, (int) $body->attr('rowHeadColumns', 0));
             foreach ($body->children as $row) {
-                $html .= $this->renderTableRow($row, $node, false, $rowHeadColumns);
+                $html .= $this->renderTableRow($row, $node, false, $rowHeadColumns, $rowspanOccupancy);
             }
             $html .= '</tbody>';
         }
         if ($foot instanceof AstNode && $foot->children !== []) {
             $html .= '<tfoot' . $this->renderStoredHtmlAttrs($foot, true, []) . '>';
+            $rowspanOccupancy = [];
             foreach ($foot->children as $row) {
-                $html .= $this->renderTableRow($row, $node, false);
+                $html .= $this->renderTableRow($row, $node, false, 0, $rowspanOccupancy);
             }
             $html .= '</tfoot>';
         }
@@ -801,6 +804,11 @@ final class WordPressBlockWriter
 
     private function renderTableColgroup(AstNode $node): string
     {
+        $preserved = $this->renderStoredTableColgroups($node);
+        if ($preserved !== '') {
+            return $preserved;
+        }
+
         $widths = $node->attr('widths', null);
         if (!is_array($widths) || $widths === []) {
             return '';
@@ -818,6 +826,35 @@ final class WordPressBlockWriter
         return '<colgroup>' . implode('', $cols) . '</colgroup>';
     }
 
+    private function renderStoredTableColgroups(AstNode $node): string
+    {
+        $groups = $node->attr('colgroups', []);
+        if (!is_array($groups) || $groups === []) {
+            return '';
+        }
+
+        $html = '';
+        foreach ($groups as $group) {
+            if (!is_array($group)) {
+                continue;
+            }
+
+            $attrs = isset($group['attrs']) && is_array($group['attrs']) ? $group['attrs'] : [];
+            $html .= '<colgroup' . $this->renderStoredHtmlAttrs(new AstNode('colgroup', $attrs), true, []) . '>';
+            $cols = isset($group['cols']) && is_array($group['cols']) ? $group['cols'] : [];
+            foreach ($cols as $colAttrs) {
+                if (!is_array($colAttrs)) {
+                    continue;
+                }
+
+                $html .= '<col' . $this->renderStoredHtmlAttrs(new AstNode('col', $colAttrs), true, []) . '/>';
+            }
+            $html .= '</colgroup>';
+        }
+
+        return $html;
+    }
+
     private function formatTableWidth(float $width): string
     {
         $formatted = rtrim(rtrim(number_format($width * 100, 4, '.', ''), '0'), '.');
@@ -825,20 +862,47 @@ final class WordPressBlockWriter
         return ($formatted === '' ? '0' : $formatted) . '%';
     }
 
-    private function renderTableRow(AstNode $row, AstNode $table, bool $header, int $rowHeadColumns = 0): string
+    /**
+     * @param array<int, array{remaining: int}>|null $rowspanOccupancy
+     */
+    private function renderTableRow(AstNode $row, AstNode $table, bool $header, int $rowHeadColumns = 0, ?array &$rowspanOccupancy = null): string
     {
         $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
+        $occupiedColumns = $rowspanOccupancy ?? [];
+        $nextOccupancy = [];
+        foreach ($occupiedColumns as $column => $state) {
+            if (($state['remaining'] ?? 0) > 1) {
+                $nextOccupancy[(int) $column] = [
+                    'remaining' => ((int) $state['remaining']) - 1,
+                ];
+            }
+        }
+
         $logicalColumn = 0;
-        foreach ($row->children as $index => $cell) {
+        foreach ($row->children as $cell) {
             if ($cell->type !== 'table_cell') {
                 continue;
             }
+            while (isset($occupiedColumns[$logicalColumn])) {
+                $logicalColumn++;
+            }
+
             $colspan = max(1, (int) $cell->attr('colspan', 1));
-            $attrs = $this->renderTableCellAttrs($table, $index, $cell);
+            $rowspan = max(1, (int) $cell->attr('rowspan', 1));
+            $attrs = $this->renderTableCellAttrs($table, $logicalColumn, $cell);
             $tag = $header || $cell->attr('header') === true || ($logicalColumn < $rowHeadColumns && $logicalColumn + $colspan <= $rowHeadColumns) ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
+            if ($rowspan > 1) {
+                for ($column = $logicalColumn; $column < $logicalColumn + $colspan; $column++) {
+                    $nextOccupancy[$column] = [
+                        'remaining' => max((int) ($nextOccupancy[$column]['remaining'] ?? 0), $rowspan - 1),
+                    ];
+                }
+            }
             $logicalColumn += $colspan;
         }
+
+        $rowspanOccupancy = $nextOccupancy;
 
         return $html . '</tr>';
     }
@@ -1046,7 +1110,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'bgcolor', 'class', 'dir', 'headers', 'id', 'lang', 'role', 'scope', 'style', 'title', 'valign'], true);
+            || in_array($name, ['abbr', 'align', 'axis', 'background', 'bgcolor', 'border', 'cellpadding', 'cellspacing', 'char', 'charoff', 'class', 'dir', 'epub:type', 'headers', 'height', 'id', 'lang', 'role', 'scope', 'span', 'style', 'summary', 'title', 'valign', 'width', 'xml:lang'], true);
     }
 
     private function renderCodeBlock(AstNode $node): string
@@ -1356,6 +1420,21 @@ final class WordPressBlockWriter
             $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $attributes['latex-placement']) . '"';
         }
 
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if (
+                in_array($name, ['class', 'id'], true)
+                || !(
+                    str_starts_with($name, 'aria-')
+                    || in_array($name, ['dir', 'epub:type', 'lang', 'role', 'title', 'xml:lang'], true)
+                )
+            ) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
         return $attrs;
     }
 
@@ -1476,8 +1555,99 @@ final class WordPressBlockWriter
     private function renderDivBlock(AstNode $node): string
     {
         return '<!-- wp:html -->'
-            . "\n" . '<div' . $this->renderDivAttrs($node) . '>' . $this->renderBlocksAsHtml($node->children) . '</div>'
+            . "\n" . $this->renderDivHtml($node)
             . "\n" . '<!-- /wp:html -->';
+    }
+
+    private function renderDivHtml(AstNode $node): string
+    {
+        $formHtml = $this->renderFormDivHtml($node);
+        if ($formHtml !== null) {
+            return $formHtml;
+        }
+
+        return '<div' . $this->renderDivAttrs($node) . '>' . $this->renderBlocksAsHtml($node->children) . '</div>';
+    }
+
+    private function renderFormDivHtml(AstNode $node): ?string
+    {
+        $classes = $this->spanClasses($node);
+        $attributes = $this->inlineHtmlAttributes($node);
+        foreach ($classes as $index => $class) {
+            if (
+                !in_array($class, ['form', 'fieldset'], true)
+                || !$this->divAttrsIndicateFormBlockElement($class, $attributes)
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($classes, $index + 1) as $retainedClass) {
+                if (!in_array($retainedClass, ['form', 'fieldset'], true)) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $renderNode = $this->nodeWithClasses($node, $retainedClasses);
+
+            $html = '<' . $class . $this->renderDivAttrs($renderNode) . '>';
+            foreach ($node->children as $child) {
+                if ($class === 'fieldset' && $child->type === 'div') {
+                    $legend = $this->renderLegendDivHtml($child);
+                    if ($legend !== null) {
+                        $html .= $legend;
+                        continue;
+                    }
+                }
+
+                $html .= $this->renderBlocksAsHtml([$child]);
+            }
+
+            return $html . '</' . $class . '>';
+        }
+
+        return null;
+    }
+
+    private function renderLegendDivHtml(AstNode $node): ?string
+    {
+        $classes = $this->spanClasses($node);
+        foreach ($classes as $index => $class) {
+            if ($class !== 'legend') {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($classes, $index + 1) as $retainedClass) {
+                if ($retainedClass !== 'legend') {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $renderNode = $this->nodeWithClasses($node, $retainedClasses);
+
+            return '<legend' . $this->renderDivAttrs($renderNode) . '>' . $this->renderBlocksAsHtml($node->children) . '</legend>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
+    private function divAttrsIndicateFormBlockElement(string $tag, array $attributes): bool
+    {
+        $provingAttributes = match ($tag) {
+            'form' => ['action', 'method', 'enctype', 'target', 'name', 'accept-charset', 'autocomplete', 'novalidate'],
+            'fieldset' => ['disabled', 'name', 'form'],
+            default => [],
+        };
+
+        foreach ($provingAttributes as $attribute) {
+            if (trim((string) ($attributes[$attribute] ?? '')) !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function renderHorizontalRule(): string
@@ -1613,7 +1783,7 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($block->type === 'div') {
-                $html .= '<div' . $this->renderDivAttrs($block) . '>' . $this->renderBlocksAsHtml($block->children) . '</div>';
+                $html .= $this->renderDivHtml($block);
             }
         }
 
@@ -1703,7 +1873,7 @@ final class WordPressBlockWriter
             'raw_tex', 'raw_tex_inline' => '<span class="pandoc-raw-tex">' . $this->esc((string) $node->attr('tex', $node->attr('text', ''))) . '</span>',
             'raw_html_inline' => (string) $node->attr('html', ''),
             'raw_inline' => $this->renderRawInlineNode($node),
-            'code' => '<code' . $this->renderInlineCodeAttrs($node) . '>' . $this->esc((string) $node->attr('text', '')) . '</code>',
+            'code' => $this->renderInlineCode($node),
             'link' => $this->renderLinkInline($node),
             'image' => $this->renderImageHtml($node),
             'note' => $this->renderNoteReference($node),
@@ -1741,6 +1911,43 @@ final class WordPressBlockWriter
         }
 
         return '<span' . $attrs . '>' . $display . '</span>';
+    }
+
+    private function renderInlineCode(AstNode $node): string
+    {
+        $text = $this->esc((string) $node->attr('text', ''));
+        if ($this->inlineCodeHasBareRole($node, 'sample')) {
+            return '<samp>' . $text . '</samp>';
+        }
+        if ($this->inlineCodeHasBareRole($node, 'variable')) {
+            return '<var>' . $text . '</var>';
+        }
+
+        return '<code' . $this->renderInlineCodeAttrs($node) . '>' . $text . '</code>';
+    }
+
+    private function inlineCodeHasBareRole(AstNode $node, string $role): bool
+    {
+        if ((string) $node->attr('id', '') !== '') {
+            return false;
+        }
+
+        $classes = $node->attr('classes', []);
+        if (!is_array($classes) || array_values($classes) !== [$role]) {
+            return false;
+        }
+
+        $attributes = $node->attr('attributes', []);
+        if (is_array($attributes) && $attributes !== []) {
+            return false;
+        }
+
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes) || $htmlAttributes === []) {
+            return true;
+        }
+
+        return count($htmlAttributes) === 1 && (string) ($htmlAttributes['class'] ?? '') === $role;
     }
 
     private function renderLinkInline(AstNode $node): string
@@ -1984,12 +2191,657 @@ final class WordPressBlockWriter
             return '<span' . $this->renderEmptyAnchorSpanAttrs($node) . '></span>';
         }
 
+        $iframe = $this->renderIframeSpanLikeInline($node, $classes);
+        if ($iframe !== null) {
+            return $iframe;
+        }
+
+        $canvas = $this->renderCanvasSpanLikeInline($node, $classes);
+        if ($canvas !== null) {
+            return $canvas;
+        }
+
+        $picture = $this->renderPictureSpanLikeInline($node, $classes);
+        if ($picture !== null) {
+            return $picture;
+        }
+
+        $map = $this->renderMapSpanLikeInline($node, $classes);
+        if ($map !== null) {
+            return $map;
+        }
+
+        $media = $this->renderMediaSpanLikeInline($node, $classes);
+        if ($media !== null) {
+            return $media;
+        }
+
+        $object = $this->renderObjectSpanLikeInline($node, $classes);
+        if ($object !== null) {
+            return $object;
+        }
+
+        $semanticVoid = $this->renderSemanticVoidSpanLikeInline($node, $classes);
+        if ($semanticVoid !== null) {
+            return $semanticVoid;
+        }
+
+        $semanticSpanLike = $this->renderSemanticSpanLikeInline($node, $classes);
+        if ($semanticSpanLike !== null) {
+            return $semanticSpanLike;
+        }
+
+        $formControl = $this->renderFormControlSpanLikeInline($node, $classes);
+        if ($formControl !== null) {
+            return $formControl;
+        }
+
         $spanLike = $this->renderSpanLikeInline($node, $classes);
         if ($spanLike !== null) {
             return $spanLike;
         }
 
         return '<span' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>';
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderIframeSpanLikeInline(AstNode $node, array $classes): ?string
+    {
+        $attributes = $this->inlineHtmlAttributes($node);
+        foreach ($classes as $index => $class) {
+            if ($class !== 'iframe' || !$this->spanAttrsIndicateIframeElement($attributes)) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($classes, $index + 1) as $retainedClass) {
+                if (
+                    $retainedClass !== 'iframe'
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlSemanticSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                    && !$this->isSpanLikeClass($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $renderNode = $this->nodeWithClasses($node, $retainedClasses);
+
+            return '<iframe' . $this->renderIframeSpanAttrs($renderNode) . '>'
+                . $this->renderInlines($node)
+                . '</iframe>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
+    private function spanAttrsIndicateIframeElement(array $attributes): bool
+    {
+        return trim((string) ($attributes['src'] ?? '')) !== ''
+            || trim((string) ($attributes['srcdoc'] ?? '')) !== '';
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderCanvasSpanLikeInline(AstNode $node, array $classes): ?string
+    {
+        $attributes = $this->inlineHtmlAttributes($node);
+        foreach ($classes as $index => $class) {
+            if ($class !== 'canvas' || !$this->spanAttrsIndicateCanvasElement($attributes)) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($classes, $index + 1) as $retainedClass) {
+                if (
+                    $retainedClass !== 'canvas'
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlSemanticSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                    && !$this->isSpanLikeClass($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $renderNode = $this->nodeWithClasses($node, $retainedClasses);
+
+            return '<canvas' . $this->renderCanvasSpanAttrs($renderNode) . '>'
+                . $this->renderInlines($node)
+                . '</canvas>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
+    private function spanAttrsIndicateCanvasElement(array $attributes): bool
+    {
+        return trim((string) ($attributes['width'] ?? '')) !== ''
+            || trim((string) ($attributes['height'] ?? '')) !== '';
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderPictureSpanLikeInline(AstNode $node, array $classes): ?string
+    {
+        foreach ($classes as $index => $class) {
+            if ($class !== 'picture' || !$this->spanChildrenIndicatePictureElement($node->children)) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($classes, $index + 1) as $retainedClass) {
+                if (
+                    $retainedClass !== 'picture'
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlSemanticSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                    && !$this->isSpanLikeClass($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $renderNode = $this->nodeWithClasses($node, $retainedClasses);
+
+            return '<picture' . $this->renderPictureSpanAttrs($renderNode) . '>'
+                . $this->renderInlines($node)
+                . '</picture>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function spanChildrenIndicatePictureElement(array $children): bool
+    {
+        foreach ($children as $child) {
+            if ($child->type === 'image') {
+                return true;
+            }
+
+            if ($child->type !== 'span') {
+                continue;
+            }
+
+            $childAttributes = $this->inlineHtmlAttributes($child);
+            foreach ($this->spanClasses($child) as $class) {
+                if ($class === 'source' && $this->spanAttrsIndicateVoidElement($class, $childAttributes)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderMapSpanLikeInline(AstNode $node, array $classes): ?string
+    {
+        $attributes = $this->inlineHtmlAttributes($node);
+        foreach ($classes as $index => $class) {
+            if (
+                $class !== 'map'
+                || !$this->spanAttrsOrChildrenIndicateMapElement($attributes, $node->children)
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($classes, $index + 1) as $retainedClass) {
+                if (
+                    $retainedClass !== 'map'
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlSemanticSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                    && !$this->isSpanLikeClass($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $renderNode = $this->nodeWithClasses($node, $retainedClasses);
+
+            return '<map' . $this->renderImageMapSpanAttrs($renderNode, 'map') . '>'
+                . $this->renderInlines($node)
+                . '</map>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     * @param list<AstNode> $children
+     */
+    private function spanAttrsOrChildrenIndicateMapElement(array $attributes, array $children): bool
+    {
+        if (trim((string) ($attributes['name'] ?? '')) !== '') {
+            return true;
+        }
+
+        foreach ($children as $child) {
+            if ($child->type !== 'span') {
+                continue;
+            }
+
+            $childAttributes = $this->inlineHtmlAttributes($child);
+            foreach ($this->spanClasses($child) as $class) {
+                if ($class === 'area' && $this->spanAttrsIndicateVoidElement($class, $childAttributes)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderMediaSpanLikeInline(AstNode $node, array $classes): ?string
+    {
+        $attributes = $this->inlineHtmlAttributes($node);
+        foreach ($classes as $index => $class) {
+            if (
+                !in_array($class, ['audio', 'video'], true)
+                || !$this->spanAttrsOrChildrenIndicateMediaElement($class, $attributes, $node->children)
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($classes, $index + 1) as $retainedClass) {
+                if (
+                    !in_array($retainedClass, ['audio', 'video'], true)
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlSemanticSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                    && !$this->isSpanLikeClass($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $renderNode = $this->nodeWithClasses($node, $retainedClasses);
+
+            return '<' . $class . $this->renderMediaSpanAttrs($renderNode, $class) . '>'
+                . $this->renderInlines($node)
+                . '</' . $class . '>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     * @param list<AstNode> $children
+     */
+    private function spanAttrsOrChildrenIndicateMediaElement(string $tag, array $attributes, array $children): bool
+    {
+        $provingAttributes = $tag === 'video'
+            ? ['src', 'poster', 'controls', 'width', 'height', 'autoplay', 'loop', 'muted', 'playsinline', 'preload']
+            : ['src', 'controls', 'autoplay', 'loop', 'muted', 'preload'];
+
+        foreach ($provingAttributes as $attribute) {
+            if (trim((string) ($attributes[$attribute] ?? '')) !== '') {
+                return true;
+            }
+        }
+
+        foreach ($children as $child) {
+            if ($child->type !== 'span') {
+                continue;
+            }
+
+            $childAttributes = $this->inlineHtmlAttributes($child);
+            foreach ($this->spanClasses($child) as $class) {
+                if (
+                    in_array($class, ['source', 'track'], true)
+                    && $this->spanAttrsIndicateVoidElement($class, $childAttributes)
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderObjectSpanLikeInline(AstNode $node, array $classes): ?string
+    {
+        $attributes = $this->inlineHtmlAttributes($node);
+        foreach ($classes as $index => $class) {
+            if (
+                $class !== 'object'
+                || !$this->spanAttrsOrChildrenIndicateObjectElement($attributes, $node->children)
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($classes, $index + 1) as $retainedClass) {
+                if (
+                    $retainedClass !== 'object'
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlSemanticSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                    && !$this->isSpanLikeClass($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $renderNode = $this->nodeWithClasses($node, $retainedClasses);
+
+            return '<object' . $this->renderObjectSpanAttrs($renderNode, 'object') . '>'
+                . $this->renderInlines($node)
+                . '</object>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     * @param list<AstNode> $children
+     */
+    private function spanAttrsOrChildrenIndicateObjectElement(array $attributes, array $children): bool
+    {
+        foreach (['data', 'type', 'name', 'width', 'height'] as $attribute) {
+            if (trim((string) ($attributes[$attribute] ?? '')) !== '') {
+                return true;
+            }
+        }
+
+        foreach ($children as $child) {
+            if ($child->type !== 'span') {
+                continue;
+            }
+
+            $childAttributes = $this->inlineHtmlAttributes($child);
+            foreach ($this->spanClasses($child) as $class) {
+                if (
+                    in_array($class, ['embed', 'param'], true)
+                    && $this->spanAttrsIndicateVoidElement($class, $childAttributes)
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderSemanticVoidSpanLikeInline(AstNode $node, array $classes): ?string
+    {
+        $attributes = $this->inlineHtmlAttributes($node);
+        foreach ($classes as $index => $class) {
+            if (
+                !$this->isHtmlVoidSpanLikeElement($class)
+                || !$this->spanAttrsIndicateVoidElement($class, $attributes)
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($classes, $index + 1) as $retainedClass) {
+                if (
+                    !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlSemanticSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                    && !$this->isSpanLikeClass($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $renderNode = $this->nodeWithClasses($node, $retainedClasses);
+
+            $attrs = match ($class) {
+                'wbr' => $this->renderSemanticSpanAttrs($renderNode, 'wbr'),
+                'source', 'track' => $this->renderMediaSpanAttrs($renderNode, $class),
+                'embed', 'param' => $this->renderObjectSpanAttrs($renderNode, $class),
+                default => $this->renderImageMapSpanAttrs($renderNode, $class),
+            };
+
+            return '<' . $class . $attrs . '>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
+    private function spanAttrsIndicateVoidElement(string $tag, array $attributes): bool
+    {
+        if ($tag === 'area') {
+            foreach (['href', 'alt', 'coords', 'shape', 'target', 'download', 'rel'] as $attribute) {
+                if (trim((string) ($attributes[$attribute] ?? '')) !== '') {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if ($tag === 'source') {
+            return trim((string) ($attributes['src'] ?? '')) !== ''
+                || trim((string) ($attributes['srcset'] ?? '')) !== '';
+        }
+
+        if ($tag === 'track') {
+            return trim((string) ($attributes['src'] ?? '')) !== '';
+        }
+
+        if ($tag === 'param') {
+            return trim((string) ($attributes['name'] ?? '')) !== ''
+                || trim((string) ($attributes['value'] ?? '')) !== '';
+        }
+
+        if ($tag === 'embed') {
+            return trim((string) ($attributes['src'] ?? '')) !== '';
+        }
+
+        if ($tag === 'wbr') {
+            foreach ($attributes as $name => $value) {
+                $lowerName = strtolower((string) $name);
+                if (
+                    trim((string) $value) !== ''
+                    && (
+                        str_starts_with($lowerName, 'data-')
+                        || in_array($lowerName, ['title', 'aria-label'], true)
+                    )
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderSemanticSpanLikeInline(AstNode $node, array $classes): ?string
+    {
+        $attributes = $this->inlineHtmlAttributes($node);
+        $sourceHtmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($sourceHtmlAttributes)) {
+            $sourceHtmlAttributes = [];
+        }
+        foreach ($classes as $index => $class) {
+            if (
+                !$this->isHtmlSemanticSpanLikeElement($class)
+                || !$this->spanAttrsIndicateSemanticElement($class, $attributes, $sourceHtmlAttributes)
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($classes, $index + 1) as $retainedClass) {
+                if (
+                    !$this->isHtmlSemanticSpanLikeElement($retainedClass)
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                    && !$this->isSpanLikeClass($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $renderNode = $this->nodeWithClasses($node, $retainedClasses);
+
+            return '<' . $class . $this->renderSemanticSpanAttrs($renderNode, $class) . '>'
+                . $this->renderInlines($node)
+                . '</' . $class . '>';
+        }
+
+        return null;
+    }
+
+    private function isHtmlSemanticSpanLikeElement(string $class): bool
+    {
+        return in_array($class, ['bdi', 'cite', 'data', 'meter', 'output', 'progress', 'small', 'time'], true);
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     * @param array<string, mixed> $sourceHtmlAttributes
+     */
+    private function spanAttrsIndicateSemanticElement(string $tag, array $attributes, array $sourceHtmlAttributes): bool
+    {
+        $provingAttributes = match ($tag) {
+            'bdi' => ['dir'],
+            'cite' => [],
+            'data' => ['value'],
+            'meter' => ['value', 'min', 'max', 'low', 'high', 'optimum'],
+            'output' => ['for', 'name'],
+            'progress' => ['value', 'max'],
+            'time' => ['datetime'],
+            default => [],
+        };
+
+        if ($tag === 'small') {
+            return $this->classAttributeContainsToken((string) ($sourceHtmlAttributes['class'] ?? ''), 'small');
+        }
+
+        if ($tag === 'cite') {
+            return true;
+        }
+
+        foreach ($provingAttributes as $attribute) {
+            if (trim((string) ($attributes[$attribute] ?? '')) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function classAttributeContainsToken(string $classAttribute, string $token): bool
+    {
+        foreach (preg_split('/\s+/', trim($classAttribute)) ?: [] as $class) {
+            if ($class === $token) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderFormControlSpanLikeInline(AstNode $node, array $classes): ?string
+    {
+        $attributes = $this->inlineHtmlAttributes($node);
+        foreach ($classes as $index => $class) {
+            if (
+                !$this->isHtmlFormControlSpanLikeElement($class)
+                || !$this->spanAttrsIndicateFormControlElement($class, $attributes, $node->children)
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($classes, $index + 1) as $retainedClass) {
+                if (
+                    !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isSpanLikeClass($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $renderNode = $this->nodeWithClasses($node, $retainedClasses);
+
+            return '<' . $class . $this->renderFormControlSpanAttrs($renderNode) . '>'
+                . $this->renderInlines($node)
+                . '</' . $class . '>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     * @param list<AstNode> $children
+     */
+    private function spanAttrsIndicateFormControlElement(string $tag, array $attributes, array $children): bool
+    {
+        $provingAttributes = match ($tag) {
+            'button' => ['type', 'name', 'value', 'form', 'formaction', 'formmethod', 'formenctype', 'formtarget', 'formnovalidate', 'disabled', 'autofocus'],
+            'label' => ['for'],
+            'select' => ['name', 'form', 'size', 'autocomplete', 'multiple', 'disabled', 'required', 'autofocus'],
+            'option' => ['value', 'label', 'selected', 'disabled'],
+            'optgroup' => ['label'],
+            'textarea' => ['name', 'placeholder', 'rows', 'cols', 'wrap', 'form', 'maxlength', 'minlength', 'dirname', 'disabled', 'readonly', 'required', 'autofocus'],
+            default => [],
+        };
+
+        foreach ($provingAttributes as $attribute) {
+            if (trim((string) ($attributes[$attribute] ?? '')) !== '') {
+                return true;
+            }
+        }
+
+        if ($tag !== 'select') {
+            return false;
+        }
+
+        foreach ($children as $child) {
+            if ($child->type !== 'span') {
+                continue;
+            }
+
+            $childAttributes = $this->inlineHtmlAttributes($child);
+            foreach ($this->spanClasses($child) as $class) {
+                if (
+                    in_array($class, ['option', 'optgroup'], true)
+                    && $this->spanAttrsIndicateFormControlElement($class, $childAttributes, $child->children)
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2057,7 +2909,46 @@ final class WordPressBlockWriter
 
     private function isHtmlSpanLikeElement(string $class): bool
     {
-        return in_array($class, ['kbd', 'mark', 'dfn', 'abbr'], true);
+        return in_array($class, ['kbd', 'mark', 'dfn', 'abbr', 'ruby', 'rt', 'rp'], true);
+    }
+
+    private function isHtmlVoidSpanLikeElement(string $class): bool
+    {
+        return in_array($class, ['area', 'embed', 'param', 'source', 'track', 'wbr'], true);
+    }
+
+    private function isHtmlFormControlSpanLikeElement(string $class): bool
+    {
+        return in_array($class, ['button', 'label', 'optgroup', 'option', 'select', 'textarea'], true);
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function nodeWithClasses(AstNode $node, array $classes): AstNode
+    {
+        $attrs = $node->attrs;
+        if ($classes === []) {
+            unset($attrs['classes']);
+        } else {
+            $attrs['classes'] = array_values($classes);
+        }
+
+        $htmlAttributes = $attrs['htmlAttributes'] ?? [];
+        if (is_array($htmlAttributes)) {
+            if ($classes === []) {
+                unset($htmlAttributes['class']);
+            } else {
+                $htmlAttributes['class'] = implode(' ', array_values($classes));
+            }
+            if ($htmlAttributes === []) {
+                unset($attrs['htmlAttributes']);
+            } else {
+                $attrs['htmlAttributes'] = $htmlAttributes;
+            }
+        }
+
+        return new AstNode($node->type, $attrs, $node->children);
     }
 
     /**
@@ -2231,6 +3122,326 @@ final class WordPressBlockWriter
             }
 
             if (!$this->isAllowedInlineHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderFormControlSpanAttrs(AstNode $node): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedFormControlHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderSemanticSpanAttrs(AstNode $node, string $tag): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedSemanticSpanHtmlAttr($tag, $name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderImageMapSpanAttrs(AstNode $node, string $tag): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedImageMapHtmlAttr($tag, $name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderMediaSpanAttrs(AstNode $node, string $tag): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedMediaHtmlAttr($tag, $name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderObjectSpanAttrs(AstNode $node, string $tag): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedObjectHtmlAttr($tag, $name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderIframeSpanAttrs(AstNode $node): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedIframeHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderCanvasSpanAttrs(AstNode $node): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedCanvasHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function renderPictureSpanAttrs(AstNode $node): string
+    {
+        $attrs = '';
+        $renderedSourceId = false;
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id') {
+                $sourceId = (string) $value;
+                $htmlId = $this->htmlFragmentIdNeedsNormalization($sourceId)
+                    ? $this->normalizeHtmlFragmentId($sourceId)
+                    : $sourceId;
+                if ($htmlId !== '') {
+                    $attrs .= ' id="' . $this->esc($htmlId) . '"';
+                }
+                if ($htmlId !== $sourceId) {
+                    $attrs .= ' data-pandoc-source-id="' . $this->esc($sourceId) . '"';
+                    $renderedSourceId = true;
+                }
+                continue;
+            }
+
+            if ($name === 'custom-style') {
+                $attrs .= $this->renderCustomStyleDataAttr((string) $value);
+                continue;
+            }
+
+            if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if (!$this->isAllowedPictureHtmlAttr($name)) {
                 continue;
             }
 
@@ -2433,7 +3644,142 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title'], true);
+            || in_array($name, ['cite', 'class', 'dir', 'epub:type', 'id', 'lang', 'role', 'title', 'xml:lang'], true);
+    }
+
+    private function isAllowedSemanticSpanHtmlAttr(string $tag, string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        if (
+            str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['class', 'dir', 'epub:type', 'id', 'lang', 'role', 'title', 'xml:lang'], true)
+        ) {
+            return true;
+        }
+
+        return in_array($name, match ($tag) {
+            'data' => ['value'],
+            'meter' => ['value', 'min', 'max', 'low', 'high', 'optimum'],
+            'output' => ['for', 'name'],
+            'progress' => ['value', 'max'],
+            'time' => ['datetime'],
+            'wbr' => [],
+            default => [],
+        }, true);
+    }
+
+    private function isAllowedFormControlHtmlAttr(string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['autofocus', 'autocomplete', 'checked', 'class', 'cols', 'dir', 'dirname', 'disabled', 'enctype', 'epub:type', 'for', 'form', 'formaction', 'formenctype', 'formmethod', 'formnovalidate', 'formtarget', 'id', 'label', 'lang', 'maxlength', 'minlength', 'multiple', 'name', 'placeholder', 'readonly', 'required', 'role', 'rows', 'selected', 'size', 'target', 'title', 'type', 'value', 'wrap', 'xml:lang'], true);
+    }
+
+    private function isAllowedImageMapHtmlAttr(string $tag, string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        if (
+            str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['class', 'dir', 'epub:type', 'id', 'lang', 'role', 'title', 'xml:lang'], true)
+        ) {
+            return true;
+        }
+
+        return in_array($name, match ($tag) {
+            'area' => ['alt', 'coords', 'download', 'href', 'hreflang', 'media', 'ping', 'referrerpolicy', 'rel', 'shape', 'target', 'type'],
+            'map' => ['name'],
+            default => [],
+        }, true);
+    }
+
+    private function isAllowedMediaHtmlAttr(string $tag, string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        if (
+            str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['class', 'dir', 'epub:type', 'id', 'lang', 'role', 'title', 'xml:lang'], true)
+        ) {
+            return true;
+        }
+
+        return in_array($name, match ($tag) {
+            'audio' => ['autoplay', 'controls', 'controlslist', 'crossorigin', 'loop', 'muted', 'preload', 'src'],
+            'source' => ['height', 'media', 'sizes', 'src', 'srcset', 'type', 'width'],
+            'track' => ['default', 'kind', 'label', 'src', 'srclang'],
+            'video' => ['autoplay', 'controls', 'controlslist', 'crossorigin', 'height', 'loop', 'muted', 'playsinline', 'poster', 'preload', 'src', 'width'],
+            default => [],
+        }, true);
+    }
+
+    private function isAllowedObjectHtmlAttr(string $tag, string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        if (
+            str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['class', 'dir', 'epub:type', 'id', 'lang', 'role', 'title', 'xml:lang'], true)
+        ) {
+            return true;
+        }
+
+        return in_array($name, match ($tag) {
+            'embed' => ['height', 'src', 'type', 'width'],
+            'object' => ['data', 'form', 'height', 'name', 'type', 'typemustmatch', 'usemap', 'width'],
+            'param' => ['name', 'value'],
+            default => [],
+        }, true);
+    }
+
+    private function isAllowedIframeHtmlAttr(string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['allow', 'allowfullscreen', 'class', 'dir', 'epub:type', 'height', 'id', 'lang', 'loading', 'name', 'referrerpolicy', 'role', 'sandbox', 'src', 'srcdoc', 'title', 'width', 'xml:lang'], true);
+    }
+
+    private function isAllowedCanvasHtmlAttr(string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['class', 'dir', 'epub:type', 'height', 'id', 'lang', 'role', 'title', 'width', 'xml:lang'], true);
+    }
+
+    private function isAllowedPictureHtmlAttr(string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['class', 'dir', 'epub:type', 'id', 'lang', 'role', 'title', 'xml:lang'], true);
     }
 
     private function isAllowedBlockHtmlAttr(string $name): bool
@@ -2444,7 +3790,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'title'], true);
+            || in_array($name, ['accept-charset', 'action', 'autocomplete', 'class', 'dir', 'disabled', 'enctype', 'epub:type', 'form', 'id', 'lang', 'method', 'name', 'novalidate', 'open', 'role', 'target', 'title', 'xml:lang'], true);
     }
 
     private function isAllowedImageHtmlAttr(string $name): bool
@@ -2455,7 +3801,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['class', 'decoding', 'dir', 'fetchpriority', 'id', 'lang', 'loading', 'sizes', 'srcset'], true);
+            || in_array($name, ['class', 'decoding', 'dir', 'epub:type', 'fetchpriority', 'id', 'lang', 'loading', 'role', 'sizes', 'srcset', 'xml:lang'], true);
     }
 
     private function renderMathInline(AstNode $node): string

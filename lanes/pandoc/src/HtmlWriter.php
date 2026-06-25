@@ -199,7 +199,7 @@ final class HtmlWriter
     private function renderSectionHeading(AstNode $heading): string
     {
         $level = max(1, min(6, (int) $heading->attr('level', 1)));
-        $attrs = $this->attrTuple($heading);
+        $attrs = $this->htmlAttrTuple($heading);
         $attrs['id'] = '';
 
         return '<h' . $level . $this->renderAttrTuple($attrs, $this->allowedHeadingAttribute(...)) . '>'
@@ -234,7 +234,7 @@ final class HtmlWriter
     {
         $level = max(1, min(6, (int) $node->attr('level', 1)));
 
-        return '<h' . $level . $this->renderAttributes($node, $this->allowedHeadingAttribute(...)) . '>'
+        return '<h' . $level . $this->renderHtmlAttributes($node, $this->allowedHeadingAttribute(...)) . '>'
             . $this->renderInlines($node->children)
             . '</h' . $level . '>';
     }
@@ -275,7 +275,7 @@ final class HtmlWriter
             return $html === '' ? '' : $this->addRootAttributes($html, $this->wrapperDivAttributes($node));
         }
 
-        $attrs = $this->attrTuple($node);
+        $attrs = $this->htmlAttrTuple($node);
         $isCslBibBody = $attrs['id'] === 'refs' || in_array('csl-bib-body', $attrs['classes'], true);
         $isCslBibEntry = in_array('csl-entry', $attrs['classes'], true);
         if ($isCslBibBody && !array_key_exists('role', $attrs['attributes'])) {
@@ -283,6 +283,26 @@ final class HtmlWriter
         }
         if ($isCslBibEntry && !array_key_exists('role', $attrs['attributes'])) {
             $attrs['attributes']['role'] = 'listitem';
+        }
+
+        $formBlockHtml = $this->renderFormBlockElement($node, $attrs);
+        if ($formBlockHtml !== null) {
+            return $formBlockHtml;
+        }
+
+        $detailsBlockHtml = $this->renderDetailsBlockElement($node, $attrs);
+        if ($detailsBlockHtml !== null) {
+            return $detailsBlockHtml;
+        }
+
+        $epubSwitchHtml = $this->renderEpubSwitchBlockElement($node, $attrs);
+        if ($epubSwitchHtml !== null) {
+            return $epubSwitchHtml;
+        }
+
+        $semanticBlockHtml = $this->renderSemanticBlockElement($node, $attrs);
+        if ($semanticBlockHtml !== null) {
+            return $semanticBlockHtml;
         }
 
         $tag = 'div';
@@ -313,6 +333,424 @@ final class HtmlWriter
         return implode("\n", $lines);
     }
 
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderDetailsBlockElement(AstNode $node, array $attrs): ?string
+    {
+        foreach ($attrs['classes'] as $index => $class) {
+            if (
+                $class !== 'details'
+                || !$this->divAttrsIndicateDetailsBlockElement($node, $attrs['attributes'])
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if ($retainedClass !== 'details') {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            $lines = ['<details' . $this->renderAttrTuple($attrs) . '>'];
+            foreach ($node->children as $child) {
+                $html = $this->renderDetailsChild($child);
+                if ($html !== '') {
+                    $lines[] = $html;
+                }
+            }
+            $lines[] = '</details>';
+
+            return implode("\n", $lines);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function divAttrsIndicateDetailsBlockElement(AstNode $node, array $attributes): bool
+    {
+        if (trim($attributes['open'] ?? '') !== '') {
+            return true;
+        }
+        if ($this->divAttrsIndicateSemanticBlockElement($attributes)) {
+            return true;
+        }
+
+        foreach ($node->children as $child) {
+            if ($child->type === 'div' && $this->divHasClass($child, 'summary')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function renderDetailsChild(AstNode $node): string
+    {
+        if ($node->type === 'div') {
+            $summaryHtml = $this->renderSummaryBlockElement($node);
+            if ($summaryHtml !== null) {
+                return $summaryHtml;
+            }
+        }
+
+        return $this->renderBlock($node);
+    }
+
+    private function renderSummaryBlockElement(AstNode $node): ?string
+    {
+        $attrs = $this->htmlAttrTuple($node);
+        foreach ($attrs['classes'] as $index => $class) {
+            if ($class !== 'summary') {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if ($retainedClass !== 'summary') {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            $lines = ['<summary' . $this->renderAttrTuple($attrs) . '>'];
+            foreach ($node->children as $child) {
+                $html = $this->renderBlock($child);
+                if ($html !== '') {
+                    $lines[] = $html;
+                }
+            }
+            $lines[] = '</summary>';
+
+            return implode("\n", $lines);
+        }
+
+        return null;
+    }
+
+    private function divHasClass(AstNode $node, string $class): bool
+    {
+        $classes = $this->htmlAttrTuple($node)['classes'];
+
+        return in_array($class, $classes, true);
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderEpubSwitchBlockElement(AstNode $node, array $attrs): ?string
+    {
+        foreach ($attrs['classes'] as $index => $class) {
+            if ($class !== 'switch' || !$this->divAttrsIndicateEpubSwitchBlockElement($node)) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if ($retainedClass !== 'switch') {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            $lines = ['<epub:switch' . $this->renderAttrTuple($attrs) . '>'];
+            foreach ($node->children as $child) {
+                $html = $this->renderEpubSwitchChild($child);
+                if ($html !== '') {
+                    $lines[] = $html;
+                }
+            }
+            $lines[] = '</epub:switch>';
+
+            return implode("\n", $lines);
+        }
+
+        return null;
+    }
+
+    private function divAttrsIndicateEpubSwitchBlockElement(AstNode $node): bool
+    {
+        foreach ($node->children as $child) {
+            if ($child->type === 'div' && $this->divIndicatesEpubSwitchCaseElement($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function renderEpubSwitchChild(AstNode $node): string
+    {
+        if ($node->type === 'div') {
+            $caseHtml = $this->renderEpubSwitchCaseBlockElement($node);
+            if ($caseHtml !== null) {
+                return $caseHtml;
+            }
+        }
+
+        return $this->renderBlock($node);
+    }
+
+    private function renderEpubSwitchCaseBlockElement(AstNode $node): ?string
+    {
+        $attrs = $this->htmlAttrTuple($node);
+        foreach ($attrs['classes'] as $index => $class) {
+            if (
+                !in_array($class, ['case', 'default'], true)
+                || ($class === 'case' && !$this->attrsIndicateEpubSwitchCaseElement($attrs['attributes']))
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if (!in_array($retainedClass, ['case', 'default'], true)) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+            $attrs = $this->attrsForEpubSwitchCaseBlockElement($class, $attrs);
+            $tag = $class === 'case' ? 'epub:case' : 'epub:default';
+
+            $lines = ['<' . $tag . $this->renderAttrTuple($attrs) . '>'];
+            foreach ($node->children as $child) {
+                $html = $this->renderBlock($child);
+                if ($html !== '') {
+                    $lines[] = $html;
+                }
+            }
+            $lines[] = '</' . $tag . '>';
+
+            return implode("\n", $lines);
+        }
+
+        return null;
+    }
+
+    private function divIndicatesEpubSwitchCaseElement(AstNode $node): bool
+    {
+        $attrs = $this->htmlAttrTuple($node);
+        foreach ($attrs['classes'] as $class) {
+            if ($class === 'case' && $this->attrsIndicateEpubSwitchCaseElement($attrs['attributes'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function attrsIndicateEpubSwitchCaseElement(array $attributes): bool
+    {
+        foreach (['required-namespace', 'requiredNamespace', 'required-modules', 'requiredModules'] as $attribute) {
+            if (trim($attributes[$attribute] ?? '') !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     * @return array{id:string, classes:list<string>, attributes:array<string, string>}
+     */
+    private function attrsForEpubSwitchCaseBlockElement(string $tag, array $attrs): array
+    {
+        if ($tag !== 'case') {
+            return $attrs;
+        }
+
+        foreach ([
+            'requiredNamespace' => 'required-namespace',
+            'requiredModules' => 'required-modules',
+        ] as $source => $target) {
+            if (!isset($attrs['attributes'][$target]) && isset($attrs['attributes'][$source])) {
+                $attrs['attributes'][$target] = $attrs['attributes'][$source];
+            }
+            unset($attrs['attributes'][$source]);
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderSemanticBlockElement(AstNode $node, array $attrs): ?string
+    {
+        foreach ($attrs['classes'] as $index => $class) {
+            if (
+                !$this->isHtmlSemanticBlockElement($class)
+                || !$this->divAttrsIndicateSemanticBlockElement($attrs['attributes'])
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if (!$this->isHtmlSemanticBlockElement($retainedClass)) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            $lines = ['<' . $class . $this->renderAttrTuple($attrs) . '>'];
+            foreach ($node->children as $child) {
+                $html = $this->renderBlock($child);
+                if ($html !== '') {
+                    $lines[] = $html;
+                }
+            }
+            $lines[] = '</' . $class . '>';
+
+            return implode("\n", $lines);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function divAttrsIndicateSemanticBlockElement(array $attributes): bool
+    {
+        foreach ($attributes as $name => $value) {
+            $lowerName = strtolower((string) $name);
+            $trimmed = trim((string) $value);
+            if ($trimmed === '') {
+                continue;
+            }
+            if (in_array($lowerName, ['role', 'epub:type', 'lang', 'xml:lang', 'dir', 'title', 'hidden'], true)) {
+                return true;
+            }
+            if (str_starts_with($lowerName, 'aria-')) {
+                return true;
+            }
+            if (str_starts_with($lowerName, 'data-') && $lowerName !== 'data-source') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isHtmlSemanticBlockElement(string $tag): bool
+    {
+        return in_array($tag, ['article', 'aside', 'nav', 'main', 'header', 'footer'], true);
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderFormBlockElement(AstNode $node, array $attrs): ?string
+    {
+        foreach ($attrs['classes'] as $index => $class) {
+            if (
+                !$this->isHtmlFormBlockElement($class)
+                || !$this->divAttrsIndicateFormBlockElement($class, $attrs['attributes'])
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if (!$this->isHtmlFormBlockElement($retainedClass)) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            $lines = ['<' . $class . $this->renderAttrTuple($attrs) . '>'];
+            foreach ($node->children as $child) {
+                $html = $class === 'fieldset' ? $this->renderFieldsetChild($child) : $this->renderBlock($child);
+                if ($html !== '') {
+                    $lines[] = $html;
+                }
+            }
+            $lines[] = '</' . $class . '>';
+
+            return implode("\n", $lines);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function divAttrsIndicateFormBlockElement(string $tag, array $attributes): bool
+    {
+        $provingAttributes = match ($tag) {
+            'form' => ['action', 'method', 'enctype', 'target', 'name', 'accept-charset', 'autocomplete', 'novalidate'],
+            'fieldset' => ['disabled', 'name', 'form'],
+            default => [],
+        };
+
+        foreach ($provingAttributes as $attribute) {
+            if (trim($attributes[$attribute] ?? '') !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function renderFieldsetChild(AstNode $node): string
+    {
+        if ($node->type === 'div') {
+            $legendHtml = $this->renderLegendBlockElement($node);
+            if ($legendHtml !== null) {
+                return $legendHtml;
+            }
+        }
+
+        return $this->renderBlock($node);
+    }
+
+    private function renderLegendBlockElement(AstNode $node): ?string
+    {
+        $attrs = $this->htmlAttrTuple($node);
+        foreach ($attrs['classes'] as $index => $class) {
+            if ($class !== 'legend') {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if ($retainedClass !== 'legend') {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            $lines = ['<legend' . $this->renderAttrTuple($attrs) . '>'];
+            foreach ($node->children as $child) {
+                $html = $this->renderBlock($child);
+                if ($html !== '') {
+                    $lines[] = $html;
+                }
+            }
+            $lines[] = '</legend>';
+
+            return implode("\n", $lines);
+        }
+
+        return null;
+    }
+
+    private function isHtmlFormBlockElement(string $tag): bool
+    {
+        return in_array($tag, ['form', 'fieldset'], true);
+    }
+
     private function divIsWrapper(AstNode $node): bool
     {
         if (count($node->children) !== 1) {
@@ -329,7 +767,7 @@ final class HtmlWriter
      */
     private function wrapperDivAttributes(AstNode $node): array
     {
-        $attrs = $this->attrTuple($node);
+        $attrs = $this->htmlAttrTuple($node);
         unset($attrs['attributes']['wrapper']);
 
         return $attrs;
@@ -449,7 +887,7 @@ final class HtmlWriter
 
     private function renderFigure(AstNode $node): string
     {
-        $lines = ['<figure' . $this->renderAttributes($node) . '>'];
+        $lines = ['<figure' . $this->renderHtmlAttributes($node) . '>'];
         foreach ($node->children as $child) {
             $html = $this->renderFigureBodyBlock($child);
             if ($html !== '') {
@@ -578,34 +1016,37 @@ final class HtmlWriter
 
         if ($head instanceof AstNode && $this->tableRows($head) !== []) {
             $lines[] = '<thead' . $this->renderHtmlAttributes($head) . '>';
+            $headRowspanOccupancy = [];
             foreach ($this->tableRows($head) as $row) {
-                $lines[] = $this->renderTableRow($row, $node, true);
+                $lines[] = $this->renderTableRow($row, $node, true, 0, $headRowspanOccupancy);
             }
             $lines[] = '</thead>';
         }
 
         foreach ($bodies as $body) {
             $lines[] = '<tbody' . $this->renderHtmlAttributes($body) . '>';
+            $bodyRowspanOccupancy = [];
             $headRows = $body->attr('headRows', []);
             if (is_array($headRows)) {
                 foreach ($headRows as $row) {
                     if ($row instanceof AstNode && $row->type === 'table_row') {
-                        $lines[] = $this->renderTableRow($row, $node, true);
+                        $lines[] = $this->renderTableRow($row, $node, true, 0, $bodyRowspanOccupancy);
                     }
                 }
             }
 
             $rowHeadColumns = max(0, (int) $body->attr('rowHeadColumns', 0));
             foreach ($this->tableRows($body) as $row) {
-                $lines[] = $this->renderTableRow($row, $node, false, $rowHeadColumns);
+                $lines[] = $this->renderTableRow($row, $node, false, $rowHeadColumns, $bodyRowspanOccupancy);
             }
             $lines[] = '</tbody>';
         }
 
         if ($foot instanceof AstNode && $this->tableRows($foot) !== []) {
             $lines[] = '<tfoot' . $this->renderHtmlAttributes($foot) . '>';
+            $footRowspanOccupancy = [];
             foreach ($this->tableRows($foot) as $row) {
-                $lines[] = $this->renderTableRow($row, $node, false);
+                $lines[] = $this->renderTableRow($row, $node, false, 0, $footRowspanOccupancy);
             }
             $lines[] = '</tfoot>';
         }
@@ -710,16 +1151,32 @@ final class HtmlWriter
         ));
     }
 
-    private function renderTableRow(AstNode $row, AstNode $table, bool $header, int $rowHeadColumns = 0): string
+    /**
+     * @param array<int, int> $rowspanOccupancy
+     */
+    private function renderTableRow(AstNode $row, AstNode $table, bool $header, int $rowHeadColumns, array &$rowspanOccupancy): string
     {
         $html = '<tr' . $this->renderHtmlAttributes($row) . '>';
+        $occupiedColumns = $rowspanOccupancy;
+        $nextOccupancy = [];
+        foreach ($occupiedColumns as $column => $remainingRows) {
+            if ($remainingRows > 1) {
+                $nextOccupancy[(int) $column] = $remainingRows - 1;
+            }
+        }
+
         $logicalColumn = 0;
         foreach ($row->children as $cell) {
             if ($cell->type !== 'table_cell') {
                 continue;
             }
 
+            while (($occupiedColumns[$logicalColumn] ?? 0) > 0) {
+                $logicalColumn++;
+            }
+
             $colspan = max(1, (int) $cell->attr('colspan', 1));
+            $rowspan = max(1, (int) $cell->attr('rowspan', 1));
             $tag = $header
                 || $cell->attr('header') === true
                 || ($logicalColumn < $rowHeadColumns && $logicalColumn + $colspan <= $rowHeadColumns)
@@ -728,8 +1185,15 @@ final class HtmlWriter
             $html .= '<' . $tag . $this->renderTableCellAttributes($table, $logicalColumn, $cell) . '>'
                 . $this->renderTableCellContents($cell)
                 . '</' . $tag . '>';
+            if ($rowspan > 1) {
+                for ($column = $logicalColumn; $column < $logicalColumn + $colspan; $column++) {
+                    $nextOccupancy[$column] = max($nextOccupancy[$column] ?? 0, $rowspan - 1);
+                }
+            }
             $logicalColumn += $colspan;
         }
+
+        $rowspanOccupancy = $nextOccupancy;
 
         return $html . '</tr>';
     }
@@ -1086,7 +1550,7 @@ final class HtmlWriter
 
     private function renderLink(AstNode $node): string
     {
-        $attrs = $this->attrTuple($node);
+        $attrs = $this->htmlAttrTuple($node);
         $sourceHref = $attrs['attributes']['href'] ?? '';
         $sourceTitle = $attrs['attributes']['title'] ?? '';
         unset($attrs['attributes']['href'], $attrs['attributes']['title']);
@@ -1138,7 +1602,42 @@ final class HtmlWriter
 
     private function renderSpan(AstNode $node): string
     {
-        $attrs = $this->spanAttrsWithCslStyle($this->attrTuple($node));
+        $attrs = $this->spanAttrsWithCslStyle($this->htmlAttrTuple($node));
+        $pictureHtml = $this->renderPictureSpanLikeElement($node, $attrs);
+        if ($pictureHtml !== null) {
+            return $pictureHtml;
+        }
+
+        $formControlHtml = $this->renderFormControlSpanLikeElement($node, $attrs);
+        if ($formControlHtml !== null) {
+            return $formControlHtml;
+        }
+
+        $mapHtml = $this->renderMapSpanLikeElement($node, $attrs);
+        if ($mapHtml !== null) {
+            return $mapHtml;
+        }
+
+        $voidHtml = $this->renderVoidSpanLikeElement($attrs);
+        if ($voidHtml !== null) {
+            return $voidHtml;
+        }
+
+        $bdoHtml = $this->renderBdoSpanLikeElement($node, $attrs);
+        if ($bdoHtml !== null) {
+            return $bdoHtml;
+        }
+
+        $progressHtml = $this->renderProgressSpanLikeElement($node, $attrs);
+        if ($progressHtml !== null) {
+            return $progressHtml;
+        }
+
+        $revisionHtml = $this->renderRevisionSpanLikeElement($node, $attrs);
+        if ($revisionHtml !== null) {
+            return $revisionHtml;
+        }
+
         $spanLike = $this->spanLikeTagsAndClasses($attrs['classes']);
         $html = $this->renderInlines($node->children);
 
@@ -1164,6 +1663,450 @@ final class HtmlWriter
         }
 
         return $html;
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderBdoSpanLikeElement(AstNode $node, array $attrs): ?string
+    {
+        foreach ($attrs['classes'] as $index => $class) {
+            if ($class !== 'bdo' || !$this->spanAttrsIndicateBdoElement($attrs['attributes'])) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if (
+                    $retainedClass !== 'bdo'
+                    && !$this->isSpanLikeClass($retainedClass)
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                    && !$this->isHtmlRevisionSpanLikeElement($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            return '<bdo' . $this->renderAttrTuple($attrs) . '>' . $this->renderInlines($node->children) . '</bdo>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function spanAttrsIndicateBdoElement(array $attributes): bool
+    {
+        return in_array(strtolower(trim($attributes['dir'] ?? '')), ['ltr', 'rtl'], true);
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderRevisionSpanLikeElement(AstNode $node, array $attrs): ?string
+    {
+        foreach ($attrs['classes'] as $index => $class) {
+            if (!$this->isHtmlRevisionSpanLikeElement($class) || !$this->spanAttrsIndicateRevisionElement($attrs['attributes'])) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if (
+                    !$this->isHtmlRevisionSpanLikeElement($retainedClass)
+                    && !$this->isSpanLikeClass($retainedClass)
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            return '<' . $class . $this->renderAttrTuple($attrs) . '>' . $this->renderInlines($node->children) . '</' . $class . '>';
+        }
+
+        return null;
+    }
+
+    private function isHtmlRevisionSpanLikeElement(string $class): bool
+    {
+        return in_array($class, ['ins', 'del'], true);
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function spanAttrsIndicateRevisionElement(array $attributes): bool
+    {
+        return trim($attributes['cite'] ?? '') !== ''
+            || trim($attributes['datetime'] ?? '') !== '';
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderProgressSpanLikeElement(AstNode $node, array $attrs): ?string
+    {
+        foreach ($attrs['classes'] as $index => $class) {
+            if ($class !== 'progress' || !$this->spanAttrsIndicateProgressElement($attrs['attributes'])) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if (
+                    $retainedClass !== 'progress'
+                    && !$this->isSpanLikeClass($retainedClass)
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            return '<progress' . $this->renderAttrTuple($attrs) . '>' . $this->renderInlines($node->children) . '</progress>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function spanAttrsIndicateProgressElement(array $attributes): bool
+    {
+        return trim($attributes['value'] ?? '') !== ''
+            || trim($attributes['max'] ?? '') !== '';
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderPictureSpanLikeElement(AstNode $node, array $attrs): ?string
+    {
+        foreach ($attrs['classes'] as $index => $class) {
+            if ($class !== 'picture' || !$this->spanChildrenIndicatePictureElement($node->children)) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if (
+                    $retainedClass !== 'picture'
+                    && !$this->isSpanLikeClass($retainedClass)
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            return '<picture' . $this->renderAttrTuple($attrs) . '>' . $this->renderInlines($node->children) . '</picture>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function spanChildrenIndicatePictureElement(array $children): bool
+    {
+        foreach ($children as $child) {
+            if ($child->type === 'image') {
+                return true;
+            }
+
+            if ($child->type !== 'span') {
+                continue;
+            }
+
+            $attrs = $this->htmlAttrTuple($child);
+            foreach ($attrs['classes'] as $class) {
+                if ($class === 'source' && $this->spanAttrsIndicateVoidElement($class, $attrs['attributes'])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderMapSpanLikeElement(AstNode $node, array $attrs): ?string
+    {
+        foreach ($attrs['classes'] as $index => $class) {
+            if ($class !== 'map' || !$this->spanAttrsOrChildrenIndicateMapElement($attrs['attributes'], $node->children)) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if (
+                    $retainedClass !== 'map'
+                    && !$this->isSpanLikeClass($retainedClass)
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            return '<map' . $this->renderAttrTuple($attrs) . '>' . $this->renderInlines($node->children) . '</map>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param list<AstNode> $children
+     */
+    private function spanAttrsOrChildrenIndicateMapElement(array $attributes, array $children): bool
+    {
+        if (trim($attributes['name'] ?? '') !== '') {
+            return true;
+        }
+
+        foreach ($children as $child) {
+            if ($child->type !== 'span') {
+                continue;
+            }
+
+            $attrs = $this->htmlAttrTuple($child);
+            foreach ($attrs['classes'] as $class) {
+                if ($class === 'area' && $this->spanAttrsIndicateVoidElement($class, $attrs['attributes'])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderFormControlSpanLikeElement(AstNode $node, array $attrs): ?string
+    {
+        foreach ($attrs['classes'] as $index => $class) {
+            if (
+                !$this->isHtmlFormControlSpanLikeElement($class)
+                || !$this->spanAttrsIndicateFormControlElement($class, $attrs['attributes'], $node->children)
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if (
+                    !$this->isSpanLikeClass($retainedClass)
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            return '<' . $class . $this->renderAttrTuple($attrs) . '>' . $this->renderInlines($node->children) . '</' . $class . '>';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param list<AstNode> $children
+     */
+    private function spanAttrsIndicateFormControlElement(string $tag, array $attributes, array $children): bool
+    {
+        $provingAttributes = match ($tag) {
+            'select' => ['name', 'form', 'size', 'autocomplete', 'multiple', 'disabled', 'required', 'autofocus'],
+            'option' => ['value', 'label', 'selected', 'disabled'],
+            'optgroup' => ['label'],
+            'textarea' => ['name', 'placeholder', 'rows', 'cols', 'wrap', 'form', 'maxlength', 'minlength', 'dirname', 'disabled', 'readonly', 'required', 'autofocus'],
+            default => [],
+        };
+
+        foreach ($provingAttributes as $attribute) {
+            if (trim($attributes[$attribute] ?? '') !== '') {
+                return true;
+            }
+        }
+
+        if ($tag !== 'select') {
+            return false;
+        }
+
+        foreach ($children as $child) {
+            if ($child->type !== 'span') {
+                continue;
+            }
+
+            $childAttrs = $this->htmlAttrTuple($child);
+            foreach ($childAttrs['classes'] as $class) {
+                if (
+                    in_array($class, ['option', 'optgroup'], true)
+                    && $this->spanAttrsIndicateFormControlElement($class, $childAttrs['attributes'], $child->children)
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderVoidSpanLikeElement(array $attrs): ?string
+    {
+        foreach ($attrs['classes'] as $index => $class) {
+            if (
+                !$this->isHtmlVoidSpanLikeElement($class)
+                || !$this->spanAttrsIndicateVoidElement($class, $attrs['attributes'])
+            ) {
+                continue;
+            }
+
+            $retainedClasses = [];
+            foreach (array_slice($attrs['classes'], $index + 1) as $retainedClass) {
+                if (
+                    !$this->isSpanLikeClass($retainedClass)
+                    && !$this->isHtmlVoidSpanLikeElement($retainedClass)
+                    && !$this->isHtmlFormControlSpanLikeElement($retainedClass)
+                ) {
+                    $retainedClasses[] = $retainedClass;
+                }
+            }
+            $attrs['classes'] = $this->classesWithoutCslNoStyleMarkers($retainedClasses);
+
+            $attrs = $this->attrsForVoidSpanLikeElement($class, $attrs);
+
+            return '<' . $this->voidSpanLikeElementTagName($class) . $this->renderAttrTuple($attrs) . ' />';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function spanAttrsIndicateVoidElement(string $tag, array $attributes): bool
+    {
+        if ($tag === 'area') {
+            foreach (['href', 'alt', 'coords', 'shape', 'target', 'download', 'rel'] as $attribute) {
+                if (trim($attributes[$attribute] ?? '') !== '') {
+                    return true;
+                }
+            }
+        }
+
+        if ($tag === 'param') {
+            return trim($attributes['name'] ?? '') !== ''
+                || trim($attributes['value'] ?? '') !== '';
+        }
+
+        if ($tag === 'wbr') {
+            foreach ($attributes as $name => $value) {
+                $lowerName = strtolower((string) $name);
+                if (
+                    trim($value) !== ''
+                    && (
+                        str_starts_with($lowerName, 'data-')
+                        || in_array($lowerName, ['title', 'aria-label'], true)
+                    )
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        if ($tag === 'source') {
+            return trim($attributes['src'] ?? '') !== ''
+                || trim($attributes['srcset'] ?? '') !== '';
+        }
+
+        if ($tag === 'track' || $tag === 'embed') {
+            return trim($attributes['src'] ?? '') !== '';
+        }
+
+        if ($tag === 'input') {
+            foreach ([
+                'type',
+                'name',
+                'value',
+                'src',
+                'alt',
+                'placeholder',
+                'form',
+                'min',
+                'max',
+                'step',
+                'pattern',
+                'accept',
+                'autocomplete',
+                'inputmode',
+                'checked',
+                'disabled',
+                'readonly',
+                'required',
+                'multiple',
+                'autofocus',
+            ] as $attribute) {
+                if (trim($attributes[$attribute] ?? '') !== '') {
+                    return true;
+                }
+            }
+        }
+
+        if ($tag === 'trigger') {
+            foreach (['observer', 'ev:observer', 'event', 'ev:event', 'action', 'ref'] as $attribute) {
+                if (trim($attributes[$attribute] ?? '') !== '') {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     * @return array{id:string, classes:list<string>, attributes:array<string, string>}
+     */
+    private function attrsForVoidSpanLikeElement(string $tag, array $attrs): array
+    {
+        if ($tag !== 'trigger') {
+            return $attrs;
+        }
+
+        $attributes = [];
+        foreach ($attrs['attributes'] as $name => $value) {
+            $attributes[match (strtolower((string) $name)) {
+                'observer' => 'ev:observer',
+                'event' => 'ev:event',
+                default => $name,
+            }] = $value;
+        }
+        $attrs['attributes'] = $attributes;
+
+        return $attrs;
+    }
+
+    private function voidSpanLikeElementTagName(string $tag): string
+    {
+        return $tag === 'trigger' ? 'epub:trigger' : $tag;
     }
 
     /**
@@ -1266,7 +2209,17 @@ final class HtmlWriter
 
     private function isHtmlSpanLikeElement(string $class): bool
     {
-        return in_array($class, ['kbd', 'mark', 'dfn', 'abbr'], true);
+        return in_array($class, ['kbd', 'mark', 'dfn', 'abbr', 'cite', 'small', 'ruby', 'rt', 'rp', 'bdi', 'data', 'meter', 'output', 'time', 'label', 'button', 'canvas', 'iframe', 'audio', 'video', 'object'], true);
+    }
+
+    private function isHtmlVoidSpanLikeElement(string $tag): bool
+    {
+        return in_array($tag, ['area', 'param', 'source', 'track', 'embed', 'input', 'trigger', 'wbr'], true);
+    }
+
+    private function isHtmlFormControlSpanLikeElement(string $tag): bool
+    {
+        return in_array($tag, ['select', 'option', 'optgroup', 'textarea'], true);
     }
 
     /**
@@ -1435,12 +2388,4018 @@ final class HtmlWriter
         return match ($this->htmlMathMethod()) {
             'webtex' => $this->renderWebTeXMath($text, $display, $class),
             'gladtex' => $this->renderGladTeXMath($text, $display),
+            'mathml' => $this->renderMathML($node, $text, $display, $class),
             'mathjax' => '<span class="math ' . $class . '">'
                 . $this->esc(($display ? '\\[' : '\\(') . $text . ($display ? '\\]' : '\\)'))
                 . '</span>',
             'katex' => '<span class="math ' . $class . '">' . $this->esc($text) . '</span>',
             default => '<span class="math ' . $class . '">' . $this->esc($text) . '</span>',
         };
+    }
+
+    private function renderMathML(AstNode $node, string $text, bool $display, string $class): string
+    {
+        $mathml = $node->attr('mathml', $node->attr('html', ''));
+        if (is_scalar($mathml)) {
+            $mathml = trim((string) $mathml);
+            if ($this->looksLikeMathMLElement($mathml)) {
+                return $this->mathMLWithRequiredAttributes($mathml, $display);
+            }
+        }
+
+        $generated = $this->texMathToMathML($text, $display);
+        if ($generated !== '') {
+            return $generated;
+        }
+
+        return '<span class="math ' . $class . '">' . $this->esc($text) . '</span>';
+    }
+
+    private function looksLikeMathMLElement(string $mathml): bool
+    {
+        return preg_match('/^<math(?:\s|>|\/)/i', $mathml) === 1
+            && !str_contains($mathml, '<?')
+            && stripos($mathml, '<script') === false;
+    }
+
+    private function mathMLWithRequiredAttributes(string $mathml, bool $display): string
+    {
+        return preg_replace_callback('/^<math\b([^>]*)>/i', function (array $match) use ($display): string {
+            $tail = $match[1];
+            $attrs = rtrim($tail);
+            if (preg_match('/\sxmlns\s*=/i', $tail) !== 1) {
+                $attrs .= ' xmlns="http://www.w3.org/1998/Math/MathML"';
+            }
+            if ($display && preg_match('/\sdisplay\s*=/i', $tail) !== 1) {
+                $attrs .= ' display="block"';
+            }
+
+            return '<math' . $attrs . '>';
+        }, $mathml, 1) ?? $mathml;
+    }
+
+    private function texMathToMathML(string $text, bool $display): string
+    {
+        $source = trim($text);
+        if ($source === '') {
+            return '';
+        }
+
+        $offset = 0;
+        $body = $this->parseTexMathRow($source, $offset, '');
+        if (trim(substr($source, $offset)) !== '') {
+            $body = '<mtext>' . $this->esc($source) . '</mtext>';
+        }
+        if ($body === '') {
+            return '';
+        }
+
+        $attributes = ' xmlns="http://www.w3.org/1998/Math/MathML"';
+        if ($display) {
+            $attributes .= ' display="block"';
+        }
+
+        return '<math' . $attributes . '><semantics>'
+            . $this->mathMLRow($body)
+            . '<annotation encoding="application/x-tex">' . $this->esc($source) . '</annotation>'
+            . '</semantics></math>';
+    }
+
+    private function parseTexMathRow(string $source, int &$offset, string $terminator): string
+    {
+        $items = [];
+        $length = strlen($source);
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if ($terminator !== '' && $char === $terminator) {
+                $offset++;
+                break;
+            }
+            if (ctype_space($char)) {
+                $offset++;
+                continue;
+            }
+
+            $infixOffset = $offset;
+            $infixCommand = $this->readTexMathInfixFractionCommand($source, $infixOffset);
+            if ($infixCommand !== null && $items !== []) {
+                $denominatorOffset = $infixOffset;
+                $denominator = $this->parseTexMathRow($source, $denominatorOffset, $terminator);
+                if ($denominator !== '') {
+                    $offset = $denominatorOffset;
+                    return $this->texMathInfixFractionElement($infixCommand, implode('', $items), $denominator);
+                }
+            }
+
+            $atom = $this->parseTexMathScriptedAtom($source, $offset);
+            if ($atom === '') {
+                $offset++;
+                continue;
+            }
+            $items[] = $atom;
+        }
+
+        return implode('', $items);
+    }
+
+    private function readTexMathInfixFractionCommand(string $source, int &$offset): ?string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        if (($source[$offset] ?? '') !== '\\') {
+            return null;
+        }
+
+        $commandOffset = $offset + 1;
+        $command = $this->readTexMathCommandName($source, $commandOffset);
+        if (!in_array($command, ['over', 'atop', 'choose', 'brack', 'brace'], true)) {
+            return null;
+        }
+
+        $offset = $commandOffset;
+
+        return $command;
+    }
+
+    private function parseTexMathScriptedAtom(string $source, int &$offset): string
+    {
+        $base = $this->parseTexMathAtom($source, $offset);
+        if ($base === '') {
+            return '';
+        }
+
+        $limitModifier = $this->consumeTexMathLimitModifier($source, $offset);
+        $useUnderOverLimits = $limitModifier !== 'nolimits'
+            && $limitModifier !== null
+            && $this->texMathSupportsUnderOverLimits($base);
+        $superscript = '';
+        $subscript = '';
+        $length = strlen($source);
+        while ($offset < $length) {
+            $this->skipTexMathWhitespace($source, $offset);
+            $marker = $source[$offset] ?? '';
+            if ($marker !== '^' && $marker !== '_') {
+                break;
+            }
+            $offset++;
+            $argument = $this->parseTexMathArgument($source, $offset);
+            if ($argument === '') {
+                continue;
+            }
+            if ($marker === '^' && $superscript === '') {
+                $superscript = $argument;
+            } elseif ($marker === '_' && $subscript === '') {
+                $subscript = $argument;
+            }
+        }
+
+        if ($useUnderOverLimits) {
+            if ($superscript !== '' && $subscript !== '') {
+                return '<munderover>' . $base . $this->mathMLRow($subscript) . $this->mathMLRow($superscript) . '</munderover>';
+            }
+            if ($superscript !== '') {
+                return '<mover>' . $base . $this->mathMLRow($superscript) . '</mover>';
+            }
+            if ($subscript !== '') {
+                return '<munder>' . $base . $this->mathMLRow($subscript) . '</munder>';
+            }
+        }
+
+        if ($superscript !== '' && $subscript !== '') {
+            return '<msubsup>' . $base . $this->mathMLRow($subscript) . $this->mathMLRow($superscript) . '</msubsup>';
+        }
+        if ($superscript !== '') {
+            return '<msup>' . $base . $this->mathMLRow($superscript) . '</msup>';
+        }
+        if ($subscript !== '') {
+            return '<msub>' . $base . $this->mathMLRow($subscript) . '</msub>';
+        }
+
+        return $base;
+    }
+
+    private function consumeTexMathLimitModifier(string $source, int &$offset): ?string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        if (($source[$offset] ?? '') !== '\\') {
+            return null;
+        }
+
+        $commandOffset = $offset + 1;
+        $command = $this->readTexMathCommandName($source, $commandOffset);
+        if (!in_array($command, ['limits', 'nolimits', 'displaylimits'], true)) {
+            return null;
+        }
+
+        $offset = $commandOffset;
+
+        return $command;
+    }
+
+    private function texMathSupportsUnderOverLimits(string $base): bool
+    {
+        if (preg_match('/^<mi mathvariant="normal">[^<]+<\/mi>$/', $base) === 1) {
+            return true;
+        }
+
+        return in_array($base, [
+            '<mo>∫</mo>',
+            '<mo>∮</mo>',
+            '<mo>∬</mo>',
+            '<mo>∭</mo>',
+            '<mo>⨌</mo>',
+            '<mo>∯</mo>',
+            '<mo>∰</mo>',
+            '<mo>∫⋯∫</mo>',
+            '<mo>∑</mo>',
+            '<mo>⅀</mo>',
+            '<mo>∏</mo>',
+            '<mo>∐</mo>',
+            '<mo>⋃</mo>',
+            '<mo>⋂</mo>',
+            '<mo>⨆</mo>',
+            '<mo>⋁</mo>',
+            '<mo>⋀</mo>',
+            '<mo>⨁</mo>',
+            '<mo>⨂</mo>',
+            '<mo>⨀</mo>',
+            '<mo>⨄</mo>',
+            '<mi>lim</mi>',
+            '<mi>inf</mi>',
+            '<mi>sup</mi>',
+        ], true);
+    }
+
+    private function parseTexMathAtom(string $source, int &$offset): string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        $char = $source[$offset] ?? '';
+        if ($char === '') {
+            return '';
+        }
+
+        if ($char === '{') {
+            $offset++;
+            return $this->mathMLRow($this->parseTexMathRow($source, $offset, '}'));
+        }
+        if ($char === '}') {
+            return '';
+        }
+        if ($char === '\\') {
+            return $this->parseTexMathCommand($source, $offset);
+        }
+        if (ctype_digit($char)) {
+            return '<mn>' . $this->esc($this->readTexMathNumber($source, $offset)) . '</mn>';
+        }
+        if (ctype_alpha($char)) {
+            return '<mi>' . $this->esc($this->readTexMathLetters($source, $offset)) . '</mi>';
+        }
+
+        $offset++;
+        return '<mo>' . $this->esc($char) . '</mo>';
+    }
+
+    private function parseTexMathCommand(string $source, int &$offset): string
+    {
+        $offset++;
+        $command = $this->readTexMathCommandName($source, $offset);
+        if ($command === '') {
+            return '<mo>\\</mo>';
+        }
+
+        if ($command === 'left') {
+            $afterCommand = $offset;
+            $leftDelimiter = $this->readTexMathDelimiter($source, $offset);
+            $bodyOffset = $offset;
+            $fenced = $this->parseTexMathRowUntilRight($source, $bodyOffset);
+            if ($fenced !== null) {
+                $offset = $bodyOffset;
+                return $this->texMathFencedRow($fenced[0], $leftDelimiter, $fenced[1]);
+            }
+            $offset = $afterCommand;
+        }
+
+        if ($command === 'middle') {
+            $delimiter = $this->readTexMathDelimiter($source, $offset);
+            return $delimiter === null ? '' : '<mo stretchy="true">' . $this->esc($delimiter) . '</mo>';
+        }
+
+        if ($command === 'not') {
+            $negated = $this->readTexMathNegatedRelation($source, $offset);
+            return $negated ?? '<mo>¬</mo>';
+        }
+
+        if ($command === 'begin') {
+            $environmentOffset = $offset;
+            $environment = $this->readTexMathRawGroup($source, $environmentOffset);
+            if ($environment === 'array' || $environment === 'subarray') {
+                $arrayOffset = $environmentOffset;
+                $columnSpec = $this->readTexMathRawGroup($source, $arrayOffset);
+                if ($columnSpec !== null) {
+                    $bodyOffset = $arrayOffset;
+                    $body = $this->readTexMathEnvironmentBody($source, $bodyOffset, $environment);
+                    if ($body !== null) {
+                        $offset = $bodyOffset;
+                        return $this->texMathMatrixToMathML(
+                            $body,
+                            null,
+                            null,
+                            $this->texMathArrayColumnAlign($columnSpec)
+                        );
+                    }
+                }
+            }
+
+            $fences = is_string($environment) ? $this->texMathMatrixEnvironmentFences($environment) : null;
+            if ($fences !== null) {
+                $bodyOffset = $environmentOffset;
+                $body = $this->readTexMathEnvironmentBody($source, $bodyOffset, $environment);
+                if ($body !== null) {
+                    $offset = $bodyOffset;
+                    return $this->texMathMatrixToMathML($body, $fences[0], $fences[1]);
+                }
+            }
+        }
+
+        if (in_array($command, ['frac', 'dfrac', 'tfrac'], true)) {
+            $numerator = $this->parseTexMathArgument($source, $offset);
+            $denominator = $this->parseTexMathArgument($source, $offset);
+            if ($numerator !== '' && $denominator !== '') {
+                return $this->texMathFractionElement($numerator, $denominator, $this->texMathFractionDisplayStyle($command));
+            }
+        }
+
+        if (in_array($command, ['binom', 'dbinom', 'tbinom'], true)) {
+            $numerator = $this->parseTexMathArgument($source, $offset);
+            $denominator = $this->parseTexMathArgument($source, $offset);
+            if ($numerator !== '' && $denominator !== '') {
+                $fraction = $this->texMathFractionElement($numerator, $denominator, null, false);
+                $binomial = $this->texMathFencedRow($fraction, '(', ')');
+
+                return $this->texMathApplyDisplayStyle($binomial, $this->texMathFractionDisplayStyle($command));
+            }
+        }
+
+        if ($command === 'genfrac') {
+            $leftFence = $this->readTexMathRawGroup($source, $offset);
+            $rightFence = $this->readTexMathRawGroup($source, $offset);
+            $lineThickness = $this->readTexMathRawGroup($source, $offset);
+            $style = $this->readTexMathRawGroup($source, $offset);
+            $numerator = $this->parseTexMathArgument($source, $offset);
+            $denominator = $this->parseTexMathArgument($source, $offset);
+            if (
+                $leftFence !== null
+                && $rightFence !== null
+                && $lineThickness !== null
+                && $style !== null
+                && $numerator !== ''
+                && $denominator !== ''
+            ) {
+                return $this->texMathGeneralFractionElement(
+                    $leftFence,
+                    $rightFence,
+                    $lineThickness,
+                    $style,
+                    $numerator,
+                    $denominator
+                );
+            }
+        }
+
+        if ($command === 'sqrt') {
+            $rootIndex = $this->parseTexMathOptionalBracketArgument($source, $offset);
+            $radicand = $this->parseTexMathArgument($source, $offset);
+            if ($radicand !== '') {
+                if ($rootIndex !== '') {
+                    return '<mroot>' . $this->mathMLRow($radicand) . $this->mathMLRow($rootIndex) . '</mroot>';
+                }
+
+                return '<msqrt>' . $this->mathMLRow($radicand) . '</msqrt>';
+            }
+        }
+
+        $overscript = [
+            'acute' => '´',
+            'breve' => '˘',
+            'check' => 'ˇ',
+            'ddot' => '¨',
+            'dot' => '˙',
+            'grave' => 'ˋ',
+            'mathring' => '˚',
+            'overline' => '¯',
+            'bar' => '¯',
+            'overbar' => '¯',
+            'wideoverbar' => '¯',
+            'hat' => '^',
+            'widehat' => '^',
+            'tilde' => '~',
+            'widetilde' => '~',
+            'widebreve' => '˘',
+            'ocirc' => '˚',
+            'widecheck' => 'ˇ',
+            'vec' => '→',
+            'overrightarrow' => '→',
+            'overleftarrow' => '←',
+            'overleftrightarrow' => '↔',
+            'leftharpoonaccent' => '↼',
+            'overleftharpoon' => '↼',
+            'rightharpoonaccent' => '⇀',
+            'overrightharpoon' => '⇀',
+            'dddot' => '⃛',
+            'ddddot' => '⃜',
+            'asteraccent' => '*',
+            'ovhook' => '̉',
+            'candra' => '̐',
+            'oturnedcomma' => '̒',
+            'ocommatopright' => '̕',
+            'droang' => '̚',
+            'vertoverlay' => '⃒',
+            'annuity' => '⃧',
+            'widebridgeabove' => '⃩',
+        ];
+        if (isset($overscript[$command])) {
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($base !== '') {
+                return '<mover accent="true">' . $this->mathMLRow($base) . '<mo stretchy="true">' . $this->esc($overscript[$command]) . '</mo></mover>';
+            }
+        }
+
+        $underscript = [
+            'underleftarrow' => '←',
+            'underrightarrow' => '→',
+            'underleftrightarrow' => '↔',
+            'wideutilde' => '~',
+            'mathunderbar' => '_',
+            'threeunderdot' => '⃨',
+            'underrightharpoondown' => '⇁',
+            'underleftharpoondown' => '↽',
+        ];
+        if (isset($underscript[$command])) {
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($base !== '') {
+                return '<munder accentunder="true">' . $this->mathMLRow($base) . '<mo stretchy="true">' . $this->esc($underscript[$command]) . '</mo></munder>';
+            }
+        }
+
+        if ($command === 'notaccent') {
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($base !== '') {
+                return '<menclose notation="updiagonalstrike">' . $this->mathMLRow($base) . '</menclose>';
+            }
+        }
+
+        if ($command === 'underline') {
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($base !== '') {
+                return '<munder accentunder="true">' . $this->mathMLRow($base) . '<mo stretchy="true">_</mo></munder>';
+            }
+        }
+
+        $overUnderOperators = [
+            'overbracket' => ['mover', '⎴'],
+            'underbracket' => ['munder', '⎵'],
+            'overparen' => ['mover', '⏜'],
+            'underparen' => ['munder', '⏝'],
+            'overbrace' => ['mover', '⏞'],
+            'underbrace' => ['munder', '⏟'],
+        ];
+        if (isset($overUnderOperators[$command])) {
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($base !== '') {
+                [$wrapper, $operator] = $overUnderOperators[$command];
+
+                return '<' . $wrapper . '>' . $this->mathMLRow($base) . '<mo stretchy="true">' . $this->esc($operator) . '</mo></' . $wrapper . '>';
+            }
+        }
+
+        if ($command === 'overset' || $command === 'stackrel') {
+            $above = $this->parseTexMathArgument($source, $offset);
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($above !== '' && $base !== '') {
+                return '<mover>' . $this->mathMLRow($base) . $this->mathMLRow($above) . '</mover>';
+            }
+        }
+
+        if ($command === 'underset') {
+            $below = $this->parseTexMathArgument($source, $offset);
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($below !== '' && $base !== '') {
+                return '<munder>' . $this->mathMLRow($base) . $this->mathMLRow($below) . '</munder>';
+            }
+        }
+
+        if ($command === 'substack') {
+            $body = $this->readTexMathRawGroup($source, $offset);
+            if (is_string($body)) {
+                return $this->texMathMatrixToMathML($body, null, null, 'center');
+            }
+        }
+
+        $enclosureNotation = $this->texMathEnclosureNotation($command);
+        if ($enclosureNotation !== null) {
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($base !== '') {
+                return '<menclose notation="' . $this->esc($enclosureNotation) . '">' . $this->mathMLRow($base) . '</menclose>';
+            }
+        }
+
+        if (in_array($command, ['mod', 'pmod', 'pod'], true)) {
+            $argument = $this->parseTexMathArgument($source, $offset);
+            if ($argument !== '') {
+                return $this->texMathModuloElement($command, $argument);
+            }
+        }
+
+        if (in_array($command, ['color', 'textcolor'], true)) {
+            $color = $this->readTexMathRawGroup($source, $offset);
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($color !== null && trim($color) !== '' && $base !== '') {
+                return $this->texMathMStyleElement('mathcolor', $color, $base);
+            }
+        }
+
+        if ($command === 'colorbox') {
+            $color = $this->readTexMathRawGroup($source, $offset);
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($color !== null && trim($color) !== '' && $base !== '') {
+                return $this->texMathMStyleElement('mathbackground', $color, $base);
+            }
+        }
+
+        if (in_array($command, ['phantom', 'hphantom', 'vphantom'], true)) {
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($base !== '') {
+                return '<mphantom>' . $this->mathMLRow($base) . '</mphantom>';
+            }
+        }
+
+        if ($command === 'smash') {
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($base !== '') {
+                return '<mpadded height="0" depth="0">' . $this->mathMLRow($base) . '</mpadded>';
+            }
+        }
+
+        if ($command === 'operatorname') {
+            if (($source[$offset] ?? '') === '*') {
+                $offset++;
+            }
+            $name = $this->readTexMathRawGroup($source, $offset);
+            if (is_string($name) && trim($name) !== '') {
+                return '<mi mathvariant="normal">' . $this->esc($this->texMathOperatorNameText($name)) . '</mi>';
+            }
+        }
+
+        $namedOperator = $this->texMathNamedOperatorElement($command);
+        if ($namedOperator !== null) {
+            return $namedOperator;
+        }
+
+        $mathVariant = $this->texMathStyleCommandVariant($command);
+        if ($mathVariant !== null) {
+            if (str_starts_with($command, 'text')) {
+                $text = $this->readTexMathRawGroup($source, $offset);
+                if ($text !== null) {
+                    return '<mstyle mathvariant="' . $this->esc($mathVariant) . '"><mtext>' . $this->esc($text) . '</mtext></mstyle>';
+                }
+            } else {
+                $base = $this->parseTexMathArgument($source, $offset);
+                if ($base !== '') {
+                    return '<mstyle mathvariant="' . $this->esc($mathVariant) . '">' . $this->mathMLRow($base) . '</mstyle>';
+                }
+            }
+        }
+
+        if ($command === 'text') {
+            $text = $this->readTexMathBalancedText($source, $offset);
+            return $text === '' ? '' : '<mtext>' . $this->esc($text) . '</mtext>';
+        }
+
+        if (in_array($command, ['mbox', 'hbox'], true)) {
+            $text = $this->readTexMathBalancedText($source, $offset);
+            return $text === '' ? '' : '<mtext>' . $this->esc($text) . '</mtext>';
+        }
+
+        $mapped = $this->texMathCommandElement($command);
+        if ($mapped !== null) {
+            return $mapped;
+        }
+
+        return '<mi>' . $this->esc($command) . '</mi>';
+    }
+
+    private function parseTexMathArgument(string $source, int &$offset): string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        if (($source[$offset] ?? '') === '{') {
+            $offset++;
+            return $this->parseTexMathRow($source, $offset, '}');
+        }
+
+        return $this->parseTexMathAtom($source, $offset);
+    }
+
+    private function texMathOperatorNameText(string $name): string
+    {
+        $text = trim($name);
+        $text = preg_replace('/\\\\(?:,|:|;|!|thinspace|medspace|thickspace|negthinspace|negmedspace|negthickspace|enspace|quad|qquad)\s*/', ' ', $text) ?? $text;
+        $text = preg_replace('/\\\\([A-Za-z]+)/', '$1', $text) ?? $text;
+        $text = str_replace(['\\{', '\\}'], ['{', '}'], $text);
+
+        return preg_replace('/\s+/', ' ', $text) ?? $text;
+    }
+
+    private function texMathFractionDisplayStyle(string $command): ?bool
+    {
+        return [
+            'dfrac' => true,
+            'dbinom' => true,
+            'tfrac' => false,
+            'tbinom' => false,
+        ][$command] ?? null;
+    }
+
+    private function texMathFractionElement(string $numerator, string $denominator, ?bool $displayStyle, bool $withLine = true): string
+    {
+        $fraction = '<mfrac' . ($withLine ? '' : ' linethickness="0"') . '>'
+            . $this->mathMLRow($numerator)
+            . $this->mathMLRow($denominator)
+            . '</mfrac>';
+
+        return $this->texMathApplyDisplayStyle($fraction, $displayStyle);
+    }
+
+    private function texMathGeneralFractionElement(
+        string $leftFence,
+        string $rightFence,
+        string $lineThickness,
+        string $style,
+        string $numerator,
+        string $denominator
+    ): string {
+        $fraction = '<mfrac' . $this->texMathLineThicknessAttribute($lineThickness) . '>'
+            . $this->mathMLRow($numerator)
+            . $this->mathMLRow($denominator)
+            . '</mfrac>';
+        $fenced = $this->texMathFencedRow(
+            $fraction,
+            $this->texMathDelimiterFromRaw($leftFence),
+            $this->texMathDelimiterFromRaw($rightFence)
+        );
+
+        return $this->texMathApplyStyleNumber($fenced, $style);
+    }
+
+    private function texMathLineThicknessAttribute(string $lineThickness): string
+    {
+        $thickness = trim($lineThickness);
+        if ($thickness === '') {
+            return '';
+        }
+
+        if (preg_match('/^0(?:\.0+)?(?:pt|em|ex|px|in|cm|mm|pc|%)?$/i', $thickness) === 1) {
+            return ' linethickness="0"';
+        }
+
+        return ' linethickness="' . $this->esc($thickness) . '"';
+    }
+
+    private function texMathApplyStyleNumber(string $element, string $style): string
+    {
+        return match (trim($style)) {
+            '0' => '<mstyle displaystyle="true">' . $element . '</mstyle>',
+            '1' => '<mstyle displaystyle="false">' . $element . '</mstyle>',
+            '2' => '<mstyle displaystyle="false" scriptlevel="1">' . $element . '</mstyle>',
+            '3' => '<mstyle displaystyle="false" scriptlevel="2">' . $element . '</mstyle>',
+            default => $element,
+        };
+    }
+
+    private function texMathInfixFractionElement(string $command, string $numerator, string $denominator): string
+    {
+        $fraction = $this->texMathFractionElement($numerator, $denominator, null, $command === 'over');
+
+        return match ($command) {
+            'choose' => $this->texMathFencedRow($fraction, '(', ')'),
+            'brack' => $this->texMathFencedRow($fraction, '[', ']'),
+            'brace' => $this->texMathFencedRow($fraction, '{', '}'),
+            default => $fraction,
+        };
+    }
+
+    private function texMathApplyDisplayStyle(string $element, ?bool $displayStyle): string
+    {
+        if ($displayStyle === null) {
+            return $element;
+        }
+
+        return '<mstyle displaystyle="' . ($displayStyle ? 'true' : 'false') . '">' . $element . '</mstyle>';
+    }
+
+    private function texMathMStyleElement(string $attribute, string $value, string $body): string
+    {
+        return '<mstyle ' . $attribute . '="' . $this->esc(trim($value)) . '">' . $this->mathMLRow($body) . '</mstyle>';
+    }
+
+    private function texMathEnclosureNotation(string $command): ?string
+    {
+        return [
+            'boxed' => 'box',
+            'fbox' => 'box',
+            'cancel' => 'updiagonalstrike',
+            'bcancel' => 'downdiagonalstrike',
+            'xcancel' => 'updiagonalstrike downdiagonalstrike',
+        ][$command] ?? null;
+    }
+
+    private function texMathModuloElement(string $command, string $argument): string
+    {
+        if ($command === 'pod') {
+            return $this->texMathFencedRow($argument, '(', ')');
+        }
+
+        $content = '<mi mathvariant="normal">mod</mi>' . $this->mathMLRow($argument);
+        if ($command === 'pmod') {
+            return $this->texMathFencedRow($content, '(', ')');
+        }
+
+        return $this->mathMLRow($content);
+    }
+
+    private function texMathNamedOperatorElement(string $command): ?string
+    {
+        static $operators = [
+            'arccos',
+            'arcsin',
+            'arctan',
+            'arg',
+            'cos',
+            'cosh',
+            'cot',
+            'coth',
+            'csc',
+            'deg',
+            'det',
+            'dim',
+            'exp',
+            'gcd',
+            'hom',
+            'inf',
+            'ker',
+            'lg',
+            'lim',
+            'liminf',
+            'limsup',
+            'ln',
+            'log',
+            'max',
+            'min',
+            'Pr',
+            'sec',
+            'sin',
+            'sinh',
+            'sup',
+            'tan',
+            'tanh',
+        ];
+
+        if (!in_array($command, $operators, true)) {
+            return null;
+        }
+
+        return '<mi mathvariant="normal">' . $this->esc($command) . '</mi>';
+    }
+
+    /**
+     * @return array{0:string,1:?string}|null
+     */
+    private function parseTexMathRowUntilRight(string $source, int &$offset): ?array
+    {
+        $items = [];
+        $length = strlen($source);
+        while ($offset < $length) {
+            $this->skipTexMathWhitespace($source, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $commandOffset = $offset + 1;
+            if (($source[$offset] ?? '') === '\\' && $this->readTexMathCommandName($source, $commandOffset) === 'right') {
+                $offset = $commandOffset;
+                return [implode('', $items), $this->readTexMathDelimiter($source, $offset)];
+            }
+
+            $infixOffset = $offset;
+            $infixCommand = $this->readTexMathInfixFractionCommand($source, $infixOffset);
+            if ($infixCommand !== null && $items !== []) {
+                $denominatorOffset = $infixOffset;
+                $fenced = $this->parseTexMathRowUntilRight($source, $denominatorOffset);
+                if ($fenced !== null && $fenced[0] !== '') {
+                    $offset = $denominatorOffset;
+                    return [$this->texMathInfixFractionElement($infixCommand, implode('', $items), $fenced[0]), $fenced[1]];
+                }
+            }
+
+            $atom = $this->parseTexMathScriptedAtom($source, $offset);
+            if ($atom === '') {
+                $offset++;
+                continue;
+            }
+            $items[] = $atom;
+        }
+
+        return null;
+    }
+
+    private function parseTexMathOptionalBracketArgument(string $source, int &$offset): string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        if (($source[$offset] ?? '') !== '[') {
+            return '';
+        }
+
+        $length = strlen($source);
+        $start = $offset + 1;
+        $cursor = $start;
+        $depth = 1;
+        while ($cursor < $length) {
+            $char = $source[$cursor];
+            if ($char === '\\') {
+                $cursor++;
+                while ($cursor < $length && ctype_alpha($source[$cursor])) {
+                    $cursor++;
+                }
+                if ($cursor < $length && !ctype_alpha($source[$cursor])) {
+                    $cursor++;
+                }
+                continue;
+            }
+            if ($char === '[') {
+                $depth++;
+            } elseif ($char === ']') {
+                $depth--;
+                if ($depth === 0) {
+                    $inner = substr($source, $start, $cursor - $start);
+                    $innerOffset = 0;
+                    $content = $this->parseTexMathRow($inner, $innerOffset, '');
+                    if (trim(substr($inner, $innerOffset)) !== '') {
+                        return '';
+                    }
+
+                    $offset = $cursor + 1;
+                    return $content;
+                }
+            }
+            $cursor++;
+        }
+
+        return '';
+    }
+
+    private function readTexMathRawGroup(string $source, int &$offset): ?string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        if (($source[$offset] ?? '') !== '{') {
+            return null;
+        }
+
+        $offset++;
+        $start = $offset;
+        $depth = 1;
+        $length = strlen($source);
+        while ($offset < $length && $depth > 0) {
+            $char = $source[$offset];
+            if ($char === '\\') {
+                $offset += 2;
+                continue;
+            }
+            if ($char === '{') {
+                $depth++;
+            } elseif ($char === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    $text = substr($source, $start, $offset - $start);
+                    $offset++;
+                    return $text;
+                }
+            }
+            $offset++;
+        }
+
+        return null;
+    }
+
+    private function readTexMathDelimiter(string $source, int &$offset): ?string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        $char = $source[$offset] ?? '';
+        if ($char === '') {
+            return null;
+        }
+
+        if ($char !== '\\') {
+            $offset++;
+            return $char === '.' ? null : $char;
+        }
+
+        $offset++;
+        $command = $this->readTexMathCommandName($source, $offset);
+        return match ($command) {
+            '.', '' => null,
+            '{', 'lbrace' => '{',
+            '}', 'rbrace' => '}',
+            'lparen' => '(',
+            'rparen' => ')',
+            'lbrack' => '[',
+            'rbrack' => ']',
+            'langle' => '⟨',
+            'rangle' => '⟩',
+            'lfloor' => '⌊',
+            'rfloor' => '⌋',
+            'lceil' => '⌈',
+            'rceil' => '⌉',
+            'vert', 'lvert', 'rvert' => '|',
+            '|', 'Vert', 'lVert', 'rVert' => '‖',
+            'backslash' => '\\',
+            default => $command,
+        };
+    }
+
+    private function texMathDelimiterFromRaw(string $raw): ?string
+    {
+        $trimmed = trim($raw);
+        if ($trimmed === '' || $trimmed === '.') {
+            return null;
+        }
+
+        $offset = 0;
+        $delimiter = $this->readTexMathDelimiter($trimmed, $offset);
+        if ($delimiter === null) {
+            return null;
+        }
+        if (trim(substr($trimmed, $offset)) !== '') {
+            return $trimmed;
+        }
+
+        return $delimiter;
+    }
+
+    private function texMathArrayColumnAlign(string $columnSpec): string
+    {
+        $alignments = [];
+        $length = strlen($columnSpec);
+        for ($index = 0; $index < $length; $index++) {
+            $alignment = match ($columnSpec[$index]) {
+                'l' => 'left',
+                'c' => 'center',
+                'r' => 'right',
+                default => null,
+            };
+            if ($alignment !== null) {
+                $alignments[] = $alignment;
+            }
+        }
+
+        return implode(' ', $alignments);
+    }
+
+    private function texMathStyleCommandVariant(string $command): ?string
+    {
+        return [
+            'mathrm' => 'normal',
+            'textrm' => 'normal',
+            'mathbf' => 'bold',
+            'textbf' => 'bold',
+            'mathit' => 'italic',
+            'textit' => 'italic',
+            'mathsf' => 'sans-serif',
+            'textsf' => 'sans-serif',
+            'mathtt' => 'monospace',
+            'texttt' => 'monospace',
+            'mathbb' => 'double-struck',
+            'mathcal' => 'script',
+            'mathfrak' => 'fraktur',
+        ][$command] ?? null;
+    }
+
+    /**
+     * @return array{0:?string,1:?string}|null
+     */
+    private function texMathMatrixEnvironmentFences(string $environment): ?array
+    {
+        $fences = [
+            'aligned' => [null, null],
+            'gathered' => [null, null],
+            'split' => [null, null],
+            'cases' => ['{', null],
+            'dcases' => ['{', null],
+            'rcases' => [null, '}'],
+            'matrix' => [null, null],
+            'smallmatrix' => [null, null],
+            'pmatrix' => ['(', ')'],
+            'bmatrix' => ['[', ']'],
+            'Bmatrix' => ['{', '}'],
+            'vmatrix' => ['|', '|'],
+            'Vmatrix' => ['‖', '‖'],
+        ];
+
+        return $fences[$environment] ?? null;
+    }
+
+    private function readTexMathEnvironmentBody(string $source, int &$offset, string $environment): ?string
+    {
+        $start = $offset;
+        $cursor = $offset;
+        $depth = 1;
+        $length = strlen($source);
+        while ($cursor < $length) {
+            if ($source[$cursor] !== '\\') {
+                $cursor++;
+                continue;
+            }
+
+            $commandStart = $cursor;
+            $cursor++;
+            $command = $this->readTexMathCommandName($source, $cursor);
+            if ($command !== 'begin' && $command !== 'end') {
+                continue;
+            }
+
+            $environmentOffset = $cursor;
+            $name = $this->readTexMathRawGroup($source, $environmentOffset);
+            if ($name !== $environment) {
+                continue;
+            }
+
+            if ($command === 'begin') {
+                $depth++;
+                $cursor = $environmentOffset;
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                $body = substr($source, $start, $commandStart - $start);
+                $offset = $environmentOffset;
+                return $body;
+            }
+
+            $cursor = $environmentOffset;
+        }
+
+        return null;
+    }
+
+    private function texMathMatrixToMathML(string $body, ?string $leftFence, ?string $rightFence, string $columnAlign = ''): string
+    {
+        $rows = [];
+        foreach ($this->splitTexMathMatrixRows($body) as $row) {
+            $cells = $this->splitTexMathMatrixCells($row);
+            if (count($cells) === 1 && trim($cells[0]) === '') {
+                continue;
+            }
+
+            $cellXml = '';
+            foreach ($cells as $cell) {
+                $cellXml .= '<mtd>' . $this->texMathMatrixCellToMathML($cell) . '</mtd>';
+            }
+            $rows[] = '<mtr>' . $cellXml . '</mtr>';
+        }
+        if ($rows === []) {
+            return '';
+        }
+
+        $attrs = $columnAlign === '' ? '' : ' columnalign="' . $this->esc($columnAlign) . '"';
+        $table = '<mtable' . $attrs . '>' . implode('', $rows) . '</mtable>';
+        return $this->texMathFencedRow($table, $leftFence, $rightFence);
+    }
+
+    private function texMathFencedRow(string $body, ?string $leftFence, ?string $rightFence): string
+    {
+        if ($leftFence === null && $rightFence === null) {
+            return $body;
+        }
+
+        $content = '<mrow>';
+        if ($leftFence !== null) {
+            $content .= '<mo stretchy="true">' . $this->esc($leftFence) . '</mo>';
+        }
+        $content .= $this->mathMLRow($body);
+        if ($rightFence !== null) {
+            $content .= '<mo stretchy="true">' . $this->esc($rightFence) . '</mo>';
+        }
+
+        return $content . '</mrow>';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitTexMathMatrixRows(string $body): array
+    {
+        return $this->splitTexMathMatrixParts($body, true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitTexMathMatrixCells(string $row): array
+    {
+        return $this->splitTexMathMatrixParts($row, false);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitTexMathMatrixParts(string $source, bool $splitRows): array
+    {
+        $parts = [];
+        $start = 0;
+        $braceDepth = 0;
+        $bracketDepth = 0;
+        $environmentDepth = 0;
+        $length = strlen($source);
+
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            $char = $source[$cursor];
+
+            if ($char === '\\') {
+                if (
+                    $splitRows
+                    && $braceDepth === 0
+                    && $bracketDepth === 0
+                    && $environmentDepth === 0
+                    && ($source[$cursor + 1] ?? '') === '\\'
+                ) {
+                    $parts[] = substr($source, $start, $cursor - $start);
+                    $cursor++;
+                    $start = $cursor + 1;
+                    continue;
+                }
+
+                $commandOffset = $cursor + 1;
+                $command = $this->readTexMathCommandName($source, $commandOffset);
+                if ($command === 'begin' || $command === 'end') {
+                    $environmentOffset = $commandOffset;
+                    $environment = $this->readTexMathRawGroup($source, $environmentOffset);
+                    if (is_string($environment) && $this->texMathTableEnvironmentHasBody($environment)) {
+                        if ($command === 'begin') {
+                            $environmentDepth++;
+                        } elseif ($environmentDepth > 0) {
+                            $environmentDepth--;
+                        }
+                        $cursor = $environmentOffset - 1;
+                        continue;
+                    }
+                }
+
+                $cursor = max($cursor, $commandOffset - 1);
+                continue;
+            }
+
+            if ($char === '{') {
+                $braceDepth++;
+                continue;
+            }
+            if ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+            if (
+                !$splitRows
+                && $char === '&'
+                && $braceDepth === 0
+                && $bracketDepth === 0
+                && $environmentDepth === 0
+            ) {
+                $parts[] = substr($source, $start, $cursor - $start);
+                $start = $cursor + 1;
+            }
+        }
+
+        $parts[] = substr($source, $start);
+        return $parts;
+    }
+
+    private function texMathTableEnvironmentHasBody(string $environment): bool
+    {
+        return $environment === 'array'
+            || $environment === 'subarray'
+            || $this->texMathMatrixEnvironmentFences($environment) !== null;
+    }
+
+    private function texMathMatrixCellToMathML(string $cell): string
+    {
+        $trimmed = trim($cell);
+        $offset = 0;
+        $content = $this->parseTexMathRow($trimmed, $offset, '');
+        if (trim(substr($trimmed, $offset)) !== '') {
+            return '<mtext>' . $this->esc($trimmed) . '</mtext>';
+        }
+        if ($content === '') {
+            return '<mrow></mrow>';
+        }
+
+        return $this->mathMLRow($content);
+    }
+
+    private function skipTexMathWhitespace(string $source, int &$offset): void
+    {
+        $length = strlen($source);
+        while ($offset < $length && ctype_space($source[$offset])) {
+            $offset++;
+        }
+    }
+
+    private function readTexMathCommandName(string $source, int &$offset): string
+    {
+        $length = strlen($source);
+        $start = $offset;
+        while ($offset < $length && ctype_alpha($source[$offset])) {
+            $offset++;
+        }
+        if ($offset > $start) {
+            return substr($source, $start, $offset - $start);
+        }
+
+        $command = $source[$offset] ?? '';
+        if ($command !== '') {
+            $offset++;
+        }
+
+        return $command;
+    }
+
+    private function readTexMathNegatedRelation(string $source, int &$offset): ?string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        $char = $source[$offset] ?? '';
+        if ($char === '') {
+            return null;
+        }
+
+        if ($char === '\\') {
+            $commandOffset = $offset + 1;
+            $command = $this->readTexMathCommandName($source, $commandOffset);
+            $negated = $this->texMathNegatedRelationSymbol($command);
+            if ($negated === null) {
+                return null;
+            }
+            $offset = $commandOffset;
+
+            return '<mo>' . $this->esc($negated) . '</mo>';
+        }
+
+        $negated = $this->texMathNegatedRelationSymbol($char);
+        if ($negated === null) {
+            return null;
+        }
+        $offset++;
+
+        return '<mo>' . $this->esc($negated) . '</mo>';
+    }
+
+    private function texMathNegatedRelationSymbol(string $relation): ?string
+    {
+        return [
+            '=' => '≠',
+            '<' => '≮',
+            '>' => '≯',
+            'in' => '∉',
+            'ni' => '∌',
+            'owns' => '∌',
+            'le' => '≰',
+            'leq' => '≰',
+            'leqq' => '≰',
+            'ge' => '≱',
+            'geq' => '≱',
+            'geqq' => '≱',
+            'lt' => '≮',
+            'gt' => '≯',
+            'equiv' => '≢',
+            'approx' => '≉',
+            'sim' => '≁',
+            'simeq' => '≄',
+            'cong' => '≇',
+            'lesssim' => '≴',
+            'gtrsim' => '≵',
+            'prec' => '⊀',
+            'succ' => '⊁',
+            'preceq' => '⋠',
+            'succeq' => '⋡',
+            'subset' => '⊄',
+            'subseteq' => '⊈',
+            'supset' => '⊅',
+            'supseteq' => '⊉',
+            'sqsubseteq' => '⋢',
+            'sqsupseteq' => '⋣',
+            'asymp' => '≭',
+            'parallel' => '∦',
+            'mid' => '∤',
+        ][$relation] ?? null;
+    }
+
+    private function readTexMathNumber(string $source, int &$offset): string
+    {
+        $start = $offset;
+        $length = strlen($source);
+        while ($offset < $length && (ctype_digit($source[$offset]) || $source[$offset] === '.')) {
+            $offset++;
+        }
+
+        return substr($source, $start, $offset - $start);
+    }
+
+    private function readTexMathLetters(string $source, int &$offset): string
+    {
+        $start = $offset;
+        $length = strlen($source);
+        while ($offset < $length && ctype_alpha($source[$offset])) {
+            $offset++;
+        }
+
+        return substr($source, $start, $offset - $start);
+    }
+
+    private function readTexMathBalancedText(string $source, int &$offset): string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        if (($source[$offset] ?? '') !== '{') {
+            return '';
+        }
+
+        $offset++;
+        $start = $offset;
+        $depth = 1;
+        $length = strlen($source);
+        while ($offset < $length && $depth > 0) {
+            $char = $source[$offset];
+            if ($char === '\\') {
+                $offset += 2;
+                continue;
+            }
+            if ($char === '{') {
+                $depth++;
+            } elseif ($char === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    $text = substr($source, $start, $offset - $start);
+                    $offset++;
+                    return $text;
+                }
+            }
+            $offset++;
+        }
+
+        return substr($source, $start);
+    }
+
+    private function texMathCommandElement(string $command): ?string
+    {
+        $greek = [
+            'alpha' => 'α',
+            'beta' => 'β',
+            'gamma' => 'γ',
+            'delta' => 'δ',
+            'epsilon' => 'ϵ',
+            'varepsilon' => 'ε',
+            'zeta' => 'ζ',
+            'eta' => 'η',
+            'theta' => 'θ',
+            'vartheta' => 'ϑ',
+            'iota' => 'ι',
+            'kappa' => 'κ',
+            'lambda' => 'λ',
+            'mu' => 'μ',
+            'nu' => 'ν',
+            'xi' => 'ξ',
+            'pi' => 'π',
+            'varpi' => 'ϖ',
+            'rho' => 'ρ',
+            'varrho' => 'ϱ',
+            'sigma' => 'σ',
+            'varsigma' => 'ς',
+            'tau' => 'τ',
+            'upsilon' => 'υ',
+            'phi' => 'ϕ',
+            'varphi' => 'φ',
+            'chi' => 'χ',
+            'psi' => 'ψ',
+            'omega' => 'ω',
+            'digamma' => 'ϝ',
+            'varkappa' => 'ϰ',
+            'Gamma' => 'Γ',
+            'Delta' => 'Δ',
+            'Theta' => 'Θ',
+            'Lambda' => 'Λ',
+            'Xi' => 'Ξ',
+            'Pi' => 'Π',
+            'Sigma' => 'Σ',
+            'Upsilon' => 'Υ',
+            'Phi' => 'Φ',
+            'Psi' => 'Ψ',
+            'Omega' => 'Ω',
+            'mupAlpha' => 'Α',
+            'mupBeta' => 'Β',
+            'mupGamma' => 'Γ',
+            'mupDelta' => 'Δ',
+            'mupEpsilon' => 'Ε',
+            'mupZeta' => 'Ζ',
+            'mupEta' => 'Η',
+            'mupTheta' => 'Θ',
+            'mupIota' => 'Ι',
+            'mupKappa' => 'Κ',
+            'mupLambda' => 'Λ',
+            'mupMu' => 'Μ',
+            'mupNu' => 'Ν',
+            'mupXi' => 'Ξ',
+            'mupOmicron' => 'Ο',
+            'mupPi' => 'Π',
+            'mupRho' => 'Ρ',
+            'mupSigma' => 'Σ',
+            'mupTau' => 'Τ',
+            'mupUpsilon' => 'Υ',
+            'mupPhi' => 'Φ',
+            'mupChi' => 'Χ',
+            'mupPsi' => 'Ψ',
+            'mupOmega' => 'Ω',
+            'mupalpha' => 'α',
+            'mupbeta' => 'β',
+            'mupgamma' => 'γ',
+            'mupdelta' => 'δ',
+            'mupvarepsilon' => 'ε',
+            'mupzeta' => 'ζ',
+            'mupeta' => 'η',
+            'muptheta' => 'θ',
+            'mupiota' => 'ι',
+            'mupkappa' => 'κ',
+            'muplambda' => 'λ',
+            'mupmu' => 'μ',
+            'mupnu' => 'ν',
+            'mupxi' => 'ξ',
+            'mupomicron' => 'ο',
+            'muppi' => 'π',
+            'muprho' => 'ρ',
+            'mupvarsigma' => 'ς',
+            'mupsigma' => 'σ',
+            'muptau' => 'τ',
+            'mupupsilon' => 'υ',
+            'mupvarphi' => 'φ',
+            'mupchi' => 'χ',
+            'muppsi' => 'ψ',
+            'mupomega' => 'ω',
+            'mupvartheta' => 'ϑ',
+            'mupphi' => 'ϕ',
+            'mupvarpi' => 'ϖ',
+            'upDigamma' => 'Ϝ',
+            'updigamma' => 'ϝ',
+            'mupvarkappa' => 'ϰ',
+            'mupvarrho' => 'ϱ',
+            'mupvarTheta' => 'ϴ',
+            'mupepsilon' => 'ϵ',
+            'mbfAlpha' => '𝚨',
+            'mbfBeta' => '𝚩',
+            'mbfGamma' => '𝚪',
+            'mbfDelta' => '𝚫',
+            'mbfEpsilon' => '𝚬',
+            'mbfZeta' => '𝚭',
+            'mbfEta' => '𝚮',
+            'mbfTheta' => '𝚯',
+            'mbfIota' => '𝚰',
+            'mbfKappa' => '𝚱',
+            'mbfLambda' => '𝚲',
+            'mbfMu' => '𝚳',
+            'mbfNu' => '𝚴',
+            'mbfXi' => '𝚵',
+            'mbfOmicron' => '𝚶',
+            'mbfPi' => '𝚷',
+            'mbfRho' => '𝚸',
+            'mbfvarTheta' => '𝚹',
+            'mbfSigma' => '𝚺',
+            'mbfTau' => '𝚻',
+            'mbfUpsilon' => '𝚼',
+            'mbfPhi' => '𝚽',
+            'mbfChi' => '𝚾',
+            'mbfPsi' => '𝚿',
+            'mbfOmega' => '𝛀',
+            'mbfnabla' => '𝛁',
+            'mbfalpha' => '𝛂',
+            'mbfbeta' => '𝛃',
+            'mbfgamma' => '𝛄',
+            'mbfdelta' => '𝛅',
+            'mbfvarepsilon' => '𝛆',
+            'mbfzeta' => '𝛇',
+            'mbfeta' => '𝛈',
+            'mbftheta' => '𝛉',
+            'mbfiota' => '𝛊',
+            'mbfkappa' => '𝛋',
+            'mbflambda' => '𝛌',
+            'mbfmu' => '𝛍',
+            'mbfnu' => '𝛎',
+            'mbfxi' => '𝛏',
+            'mbfomicron' => '𝛐',
+            'mbfpi' => '𝛑',
+            'mbfrho' => '𝛒',
+            'mbfvarsigma' => '𝛓',
+            'mbfsigma' => '𝛔',
+            'mbftau' => '𝛕',
+            'mbfupsilon' => '𝛖',
+            'mbfvarphi' => '𝛗',
+            'mbfchi' => '𝛘',
+            'mbfpsi' => '𝛙',
+            'mbfomega' => '𝛚',
+            'mbfpartial' => '𝛛',
+            'mbfepsilon' => '𝛜',
+            'mbfvartheta' => '𝛝',
+            'mbfvarkappa' => '𝛞',
+            'mbfphi' => '𝛟',
+            'mbfvarrho' => '𝛠',
+            'mbfvarpi' => '𝛡',
+            'mitAlpha' => '𝛢',
+            'mitBeta' => '𝛣',
+            'mitGamma' => '𝛤',
+            'mitDelta' => '𝛥',
+            'mitEpsilon' => '𝛦',
+            'mitZeta' => '𝛧',
+            'mitEta' => '𝛨',
+            'mitTheta' => '𝛩',
+            'mitIota' => '𝛪',
+            'mitKappa' => '𝛫',
+            'mitLambda' => '𝛬',
+            'mitMu' => '𝛭',
+            'mitNu' => '𝛮',
+            'mitXi' => '𝛯',
+            'mitOmicron' => '𝛰',
+            'mitPi' => '𝛱',
+            'mitRho' => '𝛲',
+            'mitvarTheta' => '𝛳',
+            'mitSigma' => '𝛴',
+            'mitTau' => '𝛵',
+            'mitUpsilon' => '𝛶',
+            'mitPhi' => '𝛷',
+            'mitChi' => '𝛸',
+            'mitPsi' => '𝛹',
+            'mitOmega' => '𝛺',
+            'mitnabla' => '𝛻',
+            'mitalpha' => '𝛼',
+            'mitbeta' => '𝛽',
+            'mitgamma' => '𝛾',
+            'mitdelta' => '𝛿',
+            'mitvarepsilon' => '𝜀',
+            'mitzeta' => '𝜁',
+            'miteta' => '𝜂',
+            'mittheta' => '𝜃',
+            'mitiota' => '𝜄',
+            'mitkappa' => '𝜅',
+            'mitlambda' => '𝜆',
+            'mitmu' => '𝜇',
+            'mitnu' => '𝜈',
+            'mitxi' => '𝜉',
+            'mitomicron' => '𝜊',
+            'mitpi' => '𝜋',
+            'mitrho' => '𝜌',
+            'mitvarsigma' => '𝜍',
+            'mitsigma' => '𝜎',
+            'mittau' => '𝜏',
+            'mitupsilon' => '𝜐',
+            'mitvarphi' => '𝜑',
+            'mitchi' => '𝜒',
+            'mitpsi' => '𝜓',
+            'mitomega' => '𝜔',
+            'mitpartial' => '𝜕',
+            'mitepsilon' => '𝜖',
+            'mitvartheta' => '𝜗',
+            'mitvarkappa' => '𝜘',
+            'mitphi' => '𝜙',
+            'mitvarrho' => '𝜚',
+            'mitvarpi' => '𝜛',
+            'mbfitAlpha' => '𝜜',
+            'mbfitBeta' => '𝜝',
+            'mbfitGamma' => '𝜞',
+            'mbfitDelta' => '𝜟',
+            'mbfitEpsilon' => '𝜠',
+            'mbfitZeta' => '𝜡',
+            'mbfitEta' => '𝜢',
+            'mbfitTheta' => '𝜣',
+            'mbfitIota' => '𝜤',
+            'mbfitKappa' => '𝜥',
+            'mbfitLambda' => '𝜦',
+            'mbfitMu' => '𝜧',
+            'mbfitNu' => '𝜨',
+            'mbfitXi' => '𝜩',
+            'mbfitOmicron' => '𝜪',
+            'mbfitPi' => '𝜫',
+            'mbfitRho' => '𝜬',
+            'mbfitvarTheta' => '𝜭',
+            'mbfitSigma' => '𝜮',
+            'mbfitTau' => '𝜯',
+            'mbfitUpsilon' => '𝜰',
+            'mbfitPhi' => '𝜱',
+            'mbfitChi' => '𝜲',
+            'mbfitPsi' => '𝜳',
+            'mbfitOmega' => '𝜴',
+            'mbfitnabla' => '𝜵',
+            'mbfitalpha' => '𝜶',
+            'mbfitbeta' => '𝜷',
+            'mbfitgamma' => '𝜸',
+            'mbfitdelta' => '𝜹',
+            'mbfitvarepsilon' => '𝜺',
+            'mbfitzeta' => '𝜻',
+            'mbfiteta' => '𝜼',
+            'mbfittheta' => '𝜽',
+            'mbfitiota' => '𝜾',
+            'mbfitkappa' => '𝜿',
+            'mbfitlambda' => '𝝀',
+            'mbfitmu' => '𝝁',
+            'mbfitnu' => '𝝂',
+            'mbfitxi' => '𝝃',
+            'mbfitomicron' => '𝝄',
+            'mbfitpi' => '𝝅',
+            'mbfitrho' => '𝝆',
+            'mbfitvarsigma' => '𝝇',
+            'mbfitsigma' => '𝝈',
+            'mbfittau' => '𝝉',
+            'mbfitupsilon' => '𝝊',
+            'mbfitvarphi' => '𝝋',
+            'mbfitchi' => '𝝌',
+            'mbfitpsi' => '𝝍',
+            'mbfitomega' => '𝝎',
+            'mbfitpartial' => '𝝏',
+            'mbfitepsilon' => '𝝐',
+            'mbfitvartheta' => '𝝑',
+            'mbfitvarkappa' => '𝝒',
+            'mbfitphi' => '𝝓',
+            'mbfitvarrho' => '𝝔',
+            'mbfitvarpi' => '𝝕',
+            'mbfsansAlpha' => '𝝖',
+            'mbfsansBeta' => '𝝗',
+            'mbfsansGamma' => '𝝘',
+            'mbfsansDelta' => '𝝙',
+            'mbfsansEpsilon' => '𝝚',
+            'mbfsansZeta' => '𝝛',
+            'mbfsansEta' => '𝝜',
+            'mbfsansTheta' => '𝝝',
+            'mbfsansIota' => '𝝞',
+            'mbfsansKappa' => '𝝟',
+            'mbfsansLambda' => '𝝠',
+            'mbfsansMu' => '𝝡',
+            'mbfsansNu' => '𝝢',
+            'mbfsansXi' => '𝝣',
+            'mbfsansOmicron' => '𝝤',
+            'mbfsansPi' => '𝝥',
+            'mbfsansRho' => '𝝦',
+            'mbfsansvarTheta' => '𝝧',
+            'mbfsansSigma' => '𝝨',
+            'mbfsansTau' => '𝝩',
+            'mbfsansUpsilon' => '𝝪',
+            'mbfsansPhi' => '𝝫',
+            'mbfsansChi' => '𝝬',
+            'mbfsansPsi' => '𝝭',
+            'mbfsansOmega' => '𝝮',
+            'mbfsansnabla' => '𝝯',
+            'mbfsansalpha' => '𝝰',
+            'mbfsansbeta' => '𝝱',
+            'mbfsansgamma' => '𝝲',
+            'mbfsansdelta' => '𝝳',
+            'mbfsansvarepsilon' => '𝝴',
+            'mbfsanszeta' => '𝝵',
+            'mbfsanseta' => '𝝶',
+            'mbfsanstheta' => '𝝷',
+            'mbfsansiota' => '𝝸',
+            'mbfsanskappa' => '𝝹',
+            'mbfsanslambda' => '𝝺',
+            'mbfsansmu' => '𝝻',
+            'mbfsansnu' => '𝝼',
+            'mbfsansxi' => '𝝽',
+            'mbfsansomicron' => '𝝾',
+            'mbfsanspi' => '𝝿',
+            'mbfsansrho' => '𝞀',
+            'mbfsansvarsigma' => '𝞁',
+            'mbfsanssigma' => '𝞂',
+            'mbfsanstau' => '𝞃',
+            'mbfsansupsilon' => '𝞄',
+            'mbfsansvarphi' => '𝞅',
+            'mbfsanschi' => '𝞆',
+            'mbfsanspsi' => '𝞇',
+            'mbfsansomega' => '𝞈',
+            'mbfsanspartial' => '𝞉',
+            'mbfsansepsilon' => '𝞊',
+            'mbfsansvartheta' => '𝞋',
+            'mbfsansvarkappa' => '𝞌',
+            'mbfsansphi' => '𝞍',
+            'mbfsansvarrho' => '𝞎',
+            'mbfsansvarpi' => '𝞏',
+            'mbfitsansAlpha' => '𝞐',
+            'mbfitsansBeta' => '𝞑',
+            'mbfitsansGamma' => '𝞒',
+            'mbfitsansDelta' => '𝞓',
+            'mbfitsansEpsilon' => '𝞔',
+            'mbfitsansZeta' => '𝞕',
+            'mbfitsansEta' => '𝞖',
+            'mbfitsansTheta' => '𝞗',
+            'mbfitsansIota' => '𝞘',
+            'mbfitsansKappa' => '𝞙',
+            'mbfitsansLambda' => '𝞚',
+            'mbfitsansMu' => '𝞛',
+            'mbfitsansNu' => '𝞜',
+            'mbfitsansXi' => '𝞝',
+            'mbfitsansOmicron' => '𝞞',
+            'mbfitsansPi' => '𝞟',
+            'mbfitsansRho' => '𝞠',
+            'mbfitsansvarTheta' => '𝞡',
+            'mbfitsansSigma' => '𝞢',
+            'mbfitsansTau' => '𝞣',
+            'mbfitsansUpsilon' => '𝞤',
+            'mbfitsansPhi' => '𝞥',
+            'mbfitsansChi' => '𝞦',
+            'mbfitsansPsi' => '𝞧',
+            'mbfitsansOmega' => '𝞨',
+            'mbfitsansnabla' => '𝞩',
+            'mbfitsansalpha' => '𝞪',
+            'mbfitsansbeta' => '𝞫',
+            'mbfitsansgamma' => '𝞬',
+            'mbfitsansdelta' => '𝞭',
+            'mbfitsansvarepsilon' => '𝞮',
+            'mbfitsanszeta' => '𝞯',
+            'mbfitsanseta' => '𝞰',
+            'mbfitsanstheta' => '𝞱',
+            'mbfitsansiota' => '𝞲',
+            'mbfitsanskappa' => '𝞳',
+            'mbfitsanslambda' => '𝞴',
+            'mbfitsansmu' => '𝞵',
+            'mbfitsansnu' => '𝞶',
+            'mbfitsansxi' => '𝞷',
+            'mbfitsansomicron' => '𝞸',
+            'mbfitsanspi' => '𝞹',
+            'mbfitsansrho' => '𝞺',
+            'mbfitsansvarsigma' => '𝞻',
+            'mbfitsanssigma' => '𝞼',
+            'mbfitsanstau' => '𝞽',
+            'mbfitsansupsilon' => '𝞾',
+            'mbfitsansvarphi' => '𝞿',
+            'mbfitsanschi' => '𝟀',
+            'mbfitsanspsi' => '𝟁',
+            'mbfitsansomega' => '𝟂',
+            'mbfitsanspartial' => '𝟃',
+            'mbfitsansepsilon' => '𝟄',
+            'mbfitsansvartheta' => '𝟅',
+            'mbfitsansvarkappa' => '𝟆',
+            'mbfitsansphi' => '𝟇',
+            'mbfitsansvarrho' => '𝟈',
+            'mbfitsansvarpi' => '𝟉',
+            'mbfDigamma' => '𝟊',
+            'mbfdigamma' => '𝟋',
+        ];
+        if (isset($greek[$command])) {
+            return '<mi>' . $this->esc($greek[$command]) . '</mi>';
+        }
+
+        $numberSymbols = [
+            'mbfzero' => '𝟎',
+            'mbfone' => '𝟏',
+            'mbftwo' => '𝟐',
+            'mbfthree' => '𝟑',
+            'mbffour' => '𝟒',
+            'mbffive' => '𝟓',
+            'mbfsix' => '𝟔',
+            'mbfseven' => '𝟕',
+            'mbfeight' => '𝟖',
+            'mbfnine' => '𝟗',
+            'Bbbzero' => '𝟘',
+            'Bbbone' => '𝟙',
+            'Bbbtwo' => '𝟚',
+            'Bbbthree' => '𝟛',
+            'Bbbfour' => '𝟜',
+            'Bbbfive' => '𝟝',
+            'Bbbsix' => '𝟞',
+            'Bbbseven' => '𝟟',
+            'Bbbeight' => '𝟠',
+            'Bbbnine' => '𝟡',
+            'msanszero' => '𝟢',
+            'msansone' => '𝟣',
+            'msanstwo' => '𝟤',
+            'msansthree' => '𝟥',
+            'msansfour' => '𝟦',
+            'msansfive' => '𝟧',
+            'msanssix' => '𝟨',
+            'msansseven' => '𝟩',
+            'msanseight' => '𝟪',
+            'msansnine' => '𝟫',
+            'mbfsanszero' => '𝟬',
+            'mbfsansone' => '𝟭',
+            'mbfsanstwo' => '𝟮',
+            'mbfsansthree' => '𝟯',
+            'mbfsansfour' => '𝟰',
+            'mbfsansfive' => '𝟱',
+            'mbfsanssix' => '𝟲',
+            'mbfsansseven' => '𝟳',
+            'mbfsanseight' => '𝟴',
+            'mbfsansnine' => '𝟵',
+            'mttzero' => '𝟶',
+            'mttone' => '𝟷',
+            'mtttwo' => '𝟸',
+            'mttthree' => '𝟹',
+            'mttfour' => '𝟺',
+            'mttfive' => '𝟻',
+            'mttsix' => '𝟼',
+            'mttseven' => '𝟽',
+            'mtteight' => '𝟾',
+            'mttnine' => '𝟿',
+        ];
+        if (isset($numberSymbols[$command])) {
+            return '<mn>' . $this->esc($numberSymbols[$command]) . '</mn>';
+        }
+
+        $letterSymbols = [
+            'aleph' => 'ℵ',
+            'beth' => 'ℶ',
+            'gimel' => 'ℷ',
+            'daleth' => 'ℸ',
+            'ell' => 'ℓ',
+            'Eulerconst' => 'ℇ',
+            'Planckconst' => 'ℎ',
+            'hbar' => 'ℏ',
+            'hslash' => 'ℏ',
+            'imath' => 'ı',
+            'jmath' => 'ȷ',
+            'wp' => '℘',
+            'mho' => '℧',
+            'Finv' => 'Ⅎ',
+            'Game' => '⅁',
+            'eth' => 'ð',
+            'matheth' => 'ð',
+            'mathhyphen' => '‐',
+            'Zbar' => 'Ƶ',
+            'mscrg' => 'ℊ',
+            'mscrH' => 'ℋ',
+            'mscrI' => 'ℐ',
+            'mscrL' => 'ℒ',
+            'mscrR' => 'ℛ',
+            'turnediota' => '℩',
+            'Angstrom' => 'Å',
+            'mscrB' => 'ℬ',
+            'mscre' => 'ℯ',
+            'mscrE' => 'ℰ',
+            'mscrF' => 'ℱ',
+            'mscrM' => 'ℳ',
+            'mscro' => 'ℴ',
+            'mscrA' => '𝒜',
+            'mscrC' => '𝒞',
+            'mscrD' => '𝒟',
+            'mscrG' => '𝒢',
+            'mscrJ' => '𝒥',
+            'mscrK' => '𝒦',
+            'mscrN' => '𝒩',
+            'mscrO' => '𝒪',
+            'mscrP' => '𝒫',
+            'mscrQ' => '𝒬',
+            'mscrS' => '𝒮',
+            'mscrT' => '𝒯',
+            'mscrU' => '𝒰',
+            'mscrV' => '𝒱',
+            'mscrW' => '𝒲',
+            'mscrX' => '𝒳',
+            'mscrY' => '𝒴',
+            'mscrZ' => '𝒵',
+            'mscra' => '𝒶',
+            'mscrb' => '𝒷',
+            'mscrc' => '𝒸',
+            'mscrd' => '𝒹',
+            'mscrf' => '𝒻',
+            'mscrh' => '𝒽',
+            'mscri' => '𝒾',
+            'mscrj' => '𝒿',
+            'mscrk' => '𝓀',
+            'mscrl' => '𝓁',
+            'mscrm' => '𝓂',
+            'mscrn' => '𝓃',
+            'mscrp' => '𝓅',
+            'mscrq' => '𝓆',
+            'mscrr' => '𝓇',
+            'mscrs' => '𝓈',
+            'mscrt' => '𝓉',
+            'mscru' => '𝓊',
+            'mscrv' => '𝓋',
+            'mscrw' => '𝓌',
+            'mscrx' => '𝓍',
+            'mscry' => '𝓎',
+            'mscrz' => '𝓏',
+            'Bbbk' => '𝕜',
+            'Bbbpi' => 'ℼ',
+            'Bbbgamma' => 'ℽ',
+            'BbbGamma' => 'ℾ',
+            'BbbPi' => 'ℿ',
+            'sansLturned' => '⅂',
+            'sansLmirrored' => '⅃',
+            'Yup' => '⅄',
+            'mitBbbD' => 'ⅅ',
+            'mitBbbd' => 'ⅆ',
+            'mitBbbe' => 'ⅇ',
+            'mitBbbi' => 'ⅈ',
+            'mitBbbj' => 'ⅉ',
+            'PropertyLine' => '⅊',
+            'Re' => 'ℜ',
+            'Im' => 'ℑ',
+            'mbfA' => '𝐀',
+            'mbfB' => '𝐁',
+            'mbfC' => '𝐂',
+            'mbfD' => '𝐃',
+            'mbfE' => '𝐄',
+            'mbfF' => '𝐅',
+            'mbfG' => '𝐆',
+            'mbfH' => '𝐇',
+            'mbfI' => '𝐈',
+            'mbfJ' => '𝐉',
+            'mbfK' => '𝐊',
+            'mbfL' => '𝐋',
+            'mbfM' => '𝐌',
+            'mbfN' => '𝐍',
+            'mbfO' => '𝐎',
+            'mbfP' => '𝐏',
+            'mbfQ' => '𝐐',
+            'mbfR' => '𝐑',
+            'mbfS' => '𝐒',
+            'mbfT' => '𝐓',
+            'mbfU' => '𝐔',
+            'mbfV' => '𝐕',
+            'mbfW' => '𝐖',
+            'mbfX' => '𝐗',
+            'mbfY' => '𝐘',
+            'mbfZ' => '𝐙',
+            'mbfa' => '𝐚',
+            'mbfb' => '𝐛',
+            'mbfc' => '𝐜',
+            'mbfd' => '𝐝',
+            'mbfe' => '𝐞',
+            'mbff' => '𝐟',
+            'mbfg' => '𝐠',
+            'mbfh' => '𝐡',
+            'mbfi' => '𝐢',
+            'mbfj' => '𝐣',
+            'mbfk' => '𝐤',
+            'mbfl' => '𝐥',
+            'mbfm' => '𝐦',
+            'mbfn' => '𝐧',
+            'mbfo' => '𝐨',
+            'mbfp' => '𝐩',
+            'mbfq' => '𝐪',
+            'mbfr' => '𝐫',
+            'mbfs' => '𝐬',
+            'mbft' => '𝐭',
+            'mbfu' => '𝐮',
+            'mbfv' => '𝐯',
+            'mbfw' => '𝐰',
+            'mbfx' => '𝐱',
+            'mbfy' => '𝐲',
+            'mbfz' => '𝐳',
+            'mitA' => '𝐴',
+            'mitB' => '𝐵',
+            'mitC' => '𝐶',
+            'mitD' => '𝐷',
+            'mitE' => '𝐸',
+            'mitF' => '𝐹',
+            'mitG' => '𝐺',
+            'mitH' => '𝐻',
+            'mitI' => '𝐼',
+            'mitJ' => '𝐽',
+            'mitK' => '𝐾',
+            'mitL' => '𝐿',
+            'mitM' => '𝑀',
+            'mitN' => '𝑁',
+            'mitO' => '𝑂',
+            'mitP' => '𝑃',
+            'mitQ' => '𝑄',
+            'mitR' => '𝑅',
+            'mitS' => '𝑆',
+            'mitT' => '𝑇',
+            'mitU' => '𝑈',
+            'mitV' => '𝑉',
+            'mitW' => '𝑊',
+            'mitX' => '𝑋',
+            'mitY' => '𝑌',
+            'mitZ' => '𝑍',
+            'mita' => '𝑎',
+            'mitb' => '𝑏',
+            'mitc' => '𝑐',
+            'mitd' => '𝑑',
+            'mite' => '𝑒',
+            'mitf' => '𝑓',
+            'mitg' => '𝑔',
+            'miti' => '𝑖',
+            'mitj' => '𝑗',
+            'mitk' => '𝑘',
+            'mitl' => '𝑙',
+            'mitm' => '𝑚',
+            'mitn' => '𝑛',
+            'mito' => '𝑜',
+            'mitp' => '𝑝',
+            'mitq' => '𝑞',
+            'mitr' => '𝑟',
+            'mits' => '𝑠',
+            'mitt' => '𝑡',
+            'mitu' => '𝑢',
+            'mitv' => '𝑣',
+            'mitw' => '𝑤',
+            'mitx' => '𝑥',
+            'mity' => '𝑦',
+            'mitz' => '𝑧',
+            'mbfitA' => '𝑨',
+            'mbfitB' => '𝑩',
+            'mbfitC' => '𝑪',
+            'mbfitD' => '𝑫',
+            'mbfitE' => '𝑬',
+            'mbfitF' => '𝑭',
+            'mbfitG' => '𝑮',
+            'mbfitH' => '𝑯',
+            'mbfitI' => '𝑰',
+            'mbfitJ' => '𝑱',
+            'mbfitK' => '𝑲',
+            'mbfitL' => '𝑳',
+            'mbfitM' => '𝑴',
+            'mbfitN' => '𝑵',
+            'mbfitO' => '𝑶',
+            'mbfitP' => '𝑷',
+            'mbfitQ' => '𝑸',
+            'mbfitR' => '𝑹',
+            'mbfitS' => '𝑺',
+            'mbfitT' => '𝑻',
+            'mbfitU' => '𝑼',
+            'mbfitV' => '𝑽',
+            'mbfitW' => '𝑾',
+            'mbfitX' => '𝑿',
+            'mbfitY' => '𝒀',
+            'mbfitZ' => '𝒁',
+            'mbfita' => '𝒂',
+            'mbfitb' => '𝒃',
+            'mbfitc' => '𝒄',
+            'mbfitd' => '𝒅',
+            'mbfite' => '𝒆',
+            'mbfitf' => '𝒇',
+            'mbfitg' => '𝒈',
+            'mbfith' => '𝒉',
+            'mbfiti' => '𝒊',
+            'mbfitj' => '𝒋',
+            'mbfitk' => '𝒌',
+            'mbfitl' => '𝒍',
+            'mbfitm' => '𝒎',
+            'mbfitn' => '𝒏',
+            'mbfito' => '𝒐',
+            'mbfitp' => '𝒑',
+            'mbfitq' => '𝒒',
+            'mbfitr' => '𝒓',
+            'mbfits' => '𝒔',
+            'mbfitt' => '𝒕',
+            'mbfitu' => '𝒖',
+            'mbfitv' => '𝒗',
+            'mbfitw' => '𝒘',
+            'mbfitx' => '𝒙',
+            'mbfity' => '𝒚',
+            'mbfitz' => '𝒛',
+            'mbfscrA' => '𝓐',
+            'mbfscrB' => '𝓑',
+            'mbfscrC' => '𝓒',
+            'mbfscrD' => '𝓓',
+            'mbfscrE' => '𝓔',
+            'mbfscrF' => '𝓕',
+            'mbfscrG' => '𝓖',
+            'mbfscrH' => '𝓗',
+            'mbfscrI' => '𝓘',
+            'mbfscrJ' => '𝓙',
+            'mbfscrK' => '𝓚',
+            'mbfscrL' => '𝓛',
+            'mbfscrM' => '𝓜',
+            'mbfscrN' => '𝓝',
+            'mbfscrO' => '𝓞',
+            'mbfscrP' => '𝓟',
+            'mbfscrQ' => '𝓠',
+            'mbfscrR' => '𝓡',
+            'mbfscrS' => '𝓢',
+            'mbfscrT' => '𝓣',
+            'mbfscrU' => '𝓤',
+            'mbfscrV' => '𝓥',
+            'mbfscrW' => '𝓦',
+            'mbfscrX' => '𝓧',
+            'mbfscrY' => '𝓨',
+            'mbfscrZ' => '𝓩',
+            'mbfscra' => '𝓪',
+            'mbfscrb' => '𝓫',
+            'mbfscrc' => '𝓬',
+            'mbfscrd' => '𝓭',
+            'mbfscre' => '𝓮',
+            'mbfscrf' => '𝓯',
+            'mbfscrg' => '𝓰',
+            'mbfscrh' => '𝓱',
+            'mbfscri' => '𝓲',
+            'mbfscrj' => '𝓳',
+            'mbfscrk' => '𝓴',
+            'mbfscrl' => '𝓵',
+            'mbfscrm' => '𝓶',
+            'mbfscrn' => '𝓷',
+            'mbfscro' => '𝓸',
+            'mbfscrp' => '𝓹',
+            'mbfscrq' => '𝓺',
+            'mbfscrr' => '𝓻',
+            'mbfscrs' => '𝓼',
+            'mbfscrt' => '𝓽',
+            'mbfscru' => '𝓾',
+            'mbfscrv' => '𝓿',
+            'mbfscrw' => '𝔀',
+            'mbfscrx' => '𝔁',
+            'mbfscry' => '𝔂',
+            'mbfscrz' => '𝔃',
+            'mfrakA' => '𝔄',
+            'mfrakB' => '𝔅',
+            'mfrakC' => 'ℭ',
+            'mfrakD' => '𝔇',
+            'mfrakE' => '𝔈',
+            'mfrakF' => '𝔉',
+            'mfrakG' => '𝔊',
+            'mfrakH' => 'ℌ',
+            'mfrakJ' => '𝔍',
+            'mfrakK' => '𝔎',
+            'mfrakL' => '𝔏',
+            'mfrakM' => '𝔐',
+            'mfrakN' => '𝔑',
+            'mfrakO' => '𝔒',
+            'mfrakP' => '𝔓',
+            'mfrakQ' => '𝔔',
+            'mfrakS' => '𝔖',
+            'mfrakT' => '𝔗',
+            'mfrakU' => '𝔘',
+            'mfrakV' => '𝔙',
+            'mfrakW' => '𝔚',
+            'mfrakX' => '𝔛',
+            'mfrakY' => '𝔜',
+            'mfrakZ' => 'ℨ',
+            'mfraka' => '𝔞',
+            'mfrakb' => '𝔟',
+            'mfrakc' => '𝔠',
+            'mfrakd' => '𝔡',
+            'mfrake' => '𝔢',
+            'mfrakf' => '𝔣',
+            'mfrakg' => '𝔤',
+            'mfrakh' => '𝔥',
+            'mfraki' => '𝔦',
+            'mfrakj' => '𝔧',
+            'mfrakk' => '𝔨',
+            'mfrakl' => '𝔩',
+            'mfrakm' => '𝔪',
+            'mfrakn' => '𝔫',
+            'mfrako' => '𝔬',
+            'mfrakp' => '𝔭',
+            'mfrakq' => '𝔮',
+            'mfrakr' => '𝔯',
+            'mfraks' => '𝔰',
+            'mfrakt' => '𝔱',
+            'mfraku' => '𝔲',
+            'mfrakv' => '𝔳',
+            'mfrakw' => '𝔴',
+            'mfrakx' => '𝔵',
+            'mfraky' => '𝔶',
+            'mfrakz' => '𝔷',
+            'mbffrakA' => '𝕬',
+            'mbffrakB' => '𝕭',
+            'mbffrakC' => '𝕮',
+            'mbffrakD' => '𝕯',
+            'mbffrakE' => '𝕰',
+            'mbffrakF' => '𝕱',
+            'mbffrakG' => '𝕲',
+            'mbffrakH' => '𝕳',
+            'mbffrakI' => '𝕴',
+            'mbffrakJ' => '𝕵',
+            'mbffrakK' => '𝕶',
+            'mbffrakL' => '𝕷',
+            'mbffrakM' => '𝕸',
+            'mbffrakN' => '𝕹',
+            'mbffrakO' => '𝕺',
+            'mbffrakP' => '𝕻',
+            'mbffrakQ' => '𝕼',
+            'mbffrakR' => '𝕽',
+            'mbffrakS' => '𝕾',
+            'mbffrakT' => '𝕿',
+            'mbffrakU' => '𝖀',
+            'mbffrakV' => '𝖁',
+            'mbffrakW' => '𝖂',
+            'mbffrakX' => '𝖃',
+            'mbffrakY' => '𝖄',
+            'mbffrakZ' => '𝖅',
+            'mbffraka' => '𝖆',
+            'mbffrakb' => '𝖇',
+            'mbffrakc' => '𝖈',
+            'mbffrakd' => '𝖉',
+            'mbffrake' => '𝖊',
+            'mbffrakf' => '𝖋',
+            'mbffrakg' => '𝖌',
+            'mbffrakh' => '𝖍',
+            'mbffraki' => '𝖎',
+            'mbffrakj' => '𝖏',
+            'mbffrakk' => '𝖐',
+            'mbffrakl' => '𝖑',
+            'mbffrakm' => '𝖒',
+            'mbffrakn' => '𝖓',
+            'mbffrako' => '𝖔',
+            'mbffrakp' => '𝖕',
+            'mbffrakq' => '𝖖',
+            'mbffrakr' => '𝖗',
+            'mbffraks' => '𝖘',
+            'mbffrakt' => '𝖙',
+            'mbffraku' => '𝖚',
+            'mbffrakv' => '𝖛',
+            'mbffrakw' => '𝖜',
+            'mbffrakx' => '𝖝',
+            'mbffraky' => '𝖞',
+            'mbffrakz' => '𝖟',
+            'BbbA' => '𝔸',
+            'BbbB' => '𝔹',
+            'BbbC' => 'ℂ',
+            'BbbD' => '𝔻',
+            'BbbE' => '𝔼',
+            'BbbF' => '𝔽',
+            'BbbG' => '𝔾',
+            'BbbH' => 'ℍ',
+            'BbbI' => '𝕀',
+            'BbbJ' => '𝕁',
+            'BbbK' => '𝕂',
+            'BbbL' => '𝕃',
+            'BbbM' => '𝕄',
+            'BbbN' => 'ℕ',
+            'BbbO' => '𝕆',
+            'BbbP' => 'ℙ',
+            'BbbQ' => 'ℚ',
+            'BbbR' => 'ℝ',
+            'BbbS' => '𝕊',
+            'BbbT' => '𝕋',
+            'BbbU' => '𝕌',
+            'BbbV' => '𝕍',
+            'BbbW' => '𝕎',
+            'BbbX' => '𝕏',
+            'BbbY' => '𝕐',
+            'BbbZ' => 'ℤ',
+            'Bbba' => '𝕒',
+            'Bbbb' => '𝕓',
+            'Bbbc' => '𝕔',
+            'Bbbd' => '𝕕',
+            'Bbbe' => '𝕖',
+            'Bbbf' => '𝕗',
+            'Bbbg' => '𝕘',
+            'Bbbh' => '𝕙',
+            'Bbbi' => '𝕚',
+            'Bbbj' => '𝕛',
+            'Bbbl' => '𝕝',
+            'Bbbm' => '𝕞',
+            'Bbbn' => '𝕟',
+            'Bbbo' => '𝕠',
+            'Bbbp' => '𝕡',
+            'Bbbq' => '𝕢',
+            'Bbbr' => '𝕣',
+            'Bbbs' => '𝕤',
+            'Bbbt' => '𝕥',
+            'Bbbu' => '𝕦',
+            'Bbbv' => '𝕧',
+            'Bbbw' => '𝕨',
+            'Bbbx' => '𝕩',
+            'Bbby' => '𝕪',
+            'Bbbz' => '𝕫',
+            'msansA' => '𝖠',
+            'msansB' => '𝖡',
+            'msansC' => '𝖢',
+            'msansD' => '𝖣',
+            'msansE' => '𝖤',
+            'msansF' => '𝖥',
+            'msansG' => '𝖦',
+            'msansH' => '𝖧',
+            'msansI' => '𝖨',
+            'msansJ' => '𝖩',
+            'msansK' => '𝖪',
+            'msansL' => '𝖫',
+            'msansM' => '𝖬',
+            'msansN' => '𝖭',
+            'msansO' => '𝖮',
+            'msansP' => '𝖯',
+            'msansQ' => '𝖰',
+            'msansR' => '𝖱',
+            'msansS' => '𝖲',
+            'msansT' => '𝖳',
+            'msansU' => '𝖴',
+            'msansV' => '𝖵',
+            'msansW' => '𝖶',
+            'msansX' => '𝖷',
+            'msansY' => '𝖸',
+            'msansZ' => '𝖹',
+            'msansa' => '𝖺',
+            'msansb' => '𝖻',
+            'msansc' => '𝖼',
+            'msansd' => '𝖽',
+            'msanse' => '𝖾',
+            'msansf' => '𝖿',
+            'msansg' => '𝗀',
+            'msansh' => '𝗁',
+            'msansi' => '𝗂',
+            'msansj' => '𝗃',
+            'msansk' => '𝗄',
+            'msansl' => '𝗅',
+            'msansm' => '𝗆',
+            'msansn' => '𝗇',
+            'msanso' => '𝗈',
+            'msansp' => '𝗉',
+            'msansq' => '𝗊',
+            'msansr' => '𝗋',
+            'msanss' => '𝗌',
+            'msanst' => '𝗍',
+            'msansu' => '𝗎',
+            'msansv' => '𝗏',
+            'msansw' => '𝗐',
+            'msansx' => '𝗑',
+            'msansy' => '𝗒',
+            'msansz' => '𝗓',
+            'mbfsansA' => '𝗔',
+            'mbfsansB' => '𝗕',
+            'mbfsansC' => '𝗖',
+            'mbfsansD' => '𝗗',
+            'mbfsansE' => '𝗘',
+            'mbfsansF' => '𝗙',
+            'mbfsansG' => '𝗚',
+            'mbfsansH' => '𝗛',
+            'mbfsansI' => '𝗜',
+            'mbfsansJ' => '𝗝',
+            'mbfsansK' => '𝗞',
+            'mbfsansL' => '𝗟',
+            'mbfsansM' => '𝗠',
+            'mbfsansN' => '𝗡',
+            'mbfsansO' => '𝗢',
+            'mbfsansP' => '𝗣',
+            'mbfsansQ' => '𝗤',
+            'mbfsansR' => '𝗥',
+            'mbfsansS' => '𝗦',
+            'mbfsansT' => '𝗧',
+            'mbfsansU' => '𝗨',
+            'mbfsansV' => '𝗩',
+            'mbfsansW' => '𝗪',
+            'mbfsansX' => '𝗫',
+            'mbfsansY' => '𝗬',
+            'mbfsansZ' => '𝗭',
+            'mbfsansa' => '𝗮',
+            'mbfsansb' => '𝗯',
+            'mbfsansc' => '𝗰',
+            'mbfsansd' => '𝗱',
+            'mbfsanse' => '𝗲',
+            'mbfsansf' => '𝗳',
+            'mbfsansg' => '𝗴',
+            'mbfsansh' => '𝗵',
+            'mbfsansi' => '𝗶',
+            'mbfsansj' => '𝗷',
+            'mbfsansk' => '𝗸',
+            'mbfsansl' => '𝗹',
+            'mbfsansm' => '𝗺',
+            'mbfsansn' => '𝗻',
+            'mbfsanso' => '𝗼',
+            'mbfsansp' => '𝗽',
+            'mbfsansq' => '𝗾',
+            'mbfsansr' => '𝗿',
+            'mbfsanss' => '𝘀',
+            'mbfsanst' => '𝘁',
+            'mbfsansu' => '𝘂',
+            'mbfsansv' => '𝘃',
+            'mbfsansw' => '𝘄',
+            'mbfsansx' => '𝘅',
+            'mbfsansy' => '𝘆',
+            'mbfsansz' => '𝘇',
+            'mitsansA' => '𝘈',
+            'mitsansB' => '𝘉',
+            'mitsansC' => '𝘊',
+            'mitsansD' => '𝘋',
+            'mitsansE' => '𝘌',
+            'mitsansF' => '𝘍',
+            'mitsansG' => '𝘎',
+            'mitsansH' => '𝘏',
+            'mitsansI' => '𝘐',
+            'mitsansJ' => '𝘑',
+            'mitsansK' => '𝘒',
+            'mitsansL' => '𝘓',
+            'mitsansM' => '𝘔',
+            'mitsansN' => '𝘕',
+            'mitsansO' => '𝘖',
+            'mitsansP' => '𝘗',
+            'mitsansQ' => '𝘘',
+            'mitsansR' => '𝘙',
+            'mitsansS' => '𝘚',
+            'mitsansT' => '𝘛',
+            'mitsansU' => '𝘜',
+            'mitsansV' => '𝘝',
+            'mitsansW' => '𝘞',
+            'mitsansX' => '𝘟',
+            'mitsansY' => '𝘠',
+            'mitsansZ' => '𝘡',
+            'mitsansa' => '𝘢',
+            'mitsansb' => '𝘣',
+            'mitsansc' => '𝘤',
+            'mitsansd' => '𝘥',
+            'mitsanse' => '𝘦',
+            'mitsansf' => '𝘧',
+            'mitsansg' => '𝘨',
+            'mitsansh' => '𝘩',
+            'mitsansi' => '𝘪',
+            'mitsansj' => '𝘫',
+            'mitsansk' => '𝘬',
+            'mitsansl' => '𝘭',
+            'mitsansm' => '𝘮',
+            'mitsansn' => '𝘯',
+            'mitsanso' => '𝘰',
+            'mitsansp' => '𝘱',
+            'mitsansq' => '𝘲',
+            'mitsansr' => '𝘳',
+            'mitsanss' => '𝘴',
+            'mitsanst' => '𝘵',
+            'mitsansu' => '𝘶',
+            'mitsansv' => '𝘷',
+            'mitsansw' => '𝘸',
+            'mitsansx' => '𝘹',
+            'mitsansy' => '𝘺',
+            'mitsansz' => '𝘻',
+            'mbfitsansA' => '𝘼',
+            'mbfitsansB' => '𝘽',
+            'mbfitsansC' => '𝘾',
+            'mbfitsansD' => '𝘿',
+            'mbfitsansE' => '𝙀',
+            'mbfitsansF' => '𝙁',
+            'mbfitsansG' => '𝙂',
+            'mbfitsansH' => '𝙃',
+            'mbfitsansI' => '𝙄',
+            'mbfitsansJ' => '𝙅',
+            'mbfitsansK' => '𝙆',
+            'mbfitsansL' => '𝙇',
+            'mbfitsansM' => '𝙈',
+            'mbfitsansN' => '𝙉',
+            'mbfitsansO' => '𝙊',
+            'mbfitsansP' => '𝙋',
+            'mbfitsansQ' => '𝙌',
+            'mbfitsansR' => '𝙍',
+            'mbfitsansS' => '𝙎',
+            'mbfitsansT' => '𝙏',
+            'mbfitsansU' => '𝙐',
+            'mbfitsansV' => '𝙑',
+            'mbfitsansW' => '𝙒',
+            'mbfitsansX' => '𝙓',
+            'mbfitsansY' => '𝙔',
+            'mbfitsansZ' => '𝙕',
+            'mbfitsansa' => '𝙖',
+            'mbfitsansb' => '𝙗',
+            'mbfitsansc' => '𝙘',
+            'mbfitsansd' => '𝙙',
+            'mbfitsanse' => '𝙚',
+            'mbfitsansf' => '𝙛',
+            'mbfitsansg' => '𝙜',
+            'mbfitsansh' => '𝙝',
+            'mbfitsansi' => '𝙞',
+            'mbfitsansj' => '𝙟',
+            'mbfitsansk' => '𝙠',
+            'mbfitsansl' => '𝙡',
+            'mbfitsansm' => '𝙢',
+            'mbfitsansn' => '𝙣',
+            'mbfitsanso' => '𝙤',
+            'mbfitsansp' => '𝙥',
+            'mbfitsansq' => '𝙦',
+            'mbfitsansr' => '𝙧',
+            'mbfitsanss' => '𝙨',
+            'mbfitsanst' => '𝙩',
+            'mbfitsansu' => '𝙪',
+            'mbfitsansv' => '𝙫',
+            'mbfitsansw' => '𝙬',
+            'mbfitsansx' => '𝙭',
+            'mbfitsansy' => '𝙮',
+            'mbfitsansz' => '𝙯',
+            'mttA' => '𝙰',
+            'mttB' => '𝙱',
+            'mttC' => '𝙲',
+            'mttD' => '𝙳',
+            'mttE' => '𝙴',
+            'mttF' => '𝙵',
+            'mttG' => '𝙶',
+            'mttH' => '𝙷',
+            'mttI' => '𝙸',
+            'mttJ' => '𝙹',
+            'mttK' => '𝙺',
+            'mttL' => '𝙻',
+            'mttM' => '𝙼',
+            'mttN' => '𝙽',
+            'mttO' => '𝙾',
+            'mttP' => '𝙿',
+            'mttQ' => '𝚀',
+            'mttR' => '𝚁',
+            'mttS' => '𝚂',
+            'mttT' => '𝚃',
+            'mttU' => '𝚄',
+            'mttV' => '𝚅',
+            'mttW' => '𝚆',
+            'mttX' => '𝚇',
+            'mttY' => '𝚈',
+            'mttZ' => '𝚉',
+            'mtta' => '𝚊',
+            'mttb' => '𝚋',
+            'mttc' => '𝚌',
+            'mttd' => '𝚍',
+            'mtte' => '𝚎',
+            'mttf' => '𝚏',
+            'mttg' => '𝚐',
+            'mtth' => '𝚑',
+            'mtti' => '𝚒',
+            'mttj' => '𝚓',
+            'mttk' => '𝚔',
+            'mttl' => '𝚕',
+            'mttm' => '𝚖',
+            'mttn' => '𝚗',
+            'mtto' => '𝚘',
+            'mttp' => '𝚙',
+            'mttq' => '𝚚',
+            'mttr' => '𝚛',
+            'mtts' => '𝚜',
+            'mttt' => '𝚝',
+            'mttu' => '𝚞',
+            'mttv' => '𝚟',
+            'mttw' => '𝚠',
+            'mttx' => '𝚡',
+            'mtty' => '𝚢',
+            'mttz' => '𝚣',
+        ];
+        if (isset($letterSymbols[$command])) {
+            return '<mi>' . $this->esc($letterSymbols[$command]) . '</mi>';
+        }
+
+        $operators = [
+            ',' => '<mspace width="0.167em"/>',
+            ':' => '<mspace width="0.222em"/>',
+            ';' => '<mspace width="0.278em"/>',
+            '!' => '<mspace width="0em"/>',
+            'thinspace' => '<mspace width="0.167em"/>',
+            'medspace' => '<mspace width="0.222em"/>',
+            'thickspace' => '<mspace width="0.278em"/>',
+            'negthinspace' => '<mspace width="0em"/>',
+            'negmedspace' => '<mspace width="0em"/>',
+            'negthickspace' => '<mspace width="0em"/>',
+            'enspace' => '<mspace width="0.5em"/>',
+            'quad' => '<mspace width="1em"/>',
+            'qquad' => '<mspace width="2em"/>',
+            'mathexclam' => '!',
+            'mathoctothorpe' => '#',
+            'mathdollar' => '$',
+            'mathpercent' => '%',
+            'mathampersand' => '&',
+            'mathplus' => '+',
+            'mathcomma' => ',',
+            'mathperiod' => '.',
+            'mathslash' => '/',
+            'mathcolon' => ':',
+            'mathsemicolon' => ';',
+            'less' => '<',
+            'equal' => '=',
+            'greater' => '>',
+            'mathquestion' => '?',
+            'mathatsign' => '@',
+            'mathsterling' => '£',
+            'mathyen' => '¥',
+            'mathsection' => '§',
+            'mathparagraph' => '¶',
+            'horizbar' => '―',
+            'twolowline' => '‗',
+            'smblkcircle' => '•',
+            'enleadertwodots' => '‥',
+            'unicodeellipsis' => '…',
+            'dprime' => '″',
+            'trprime' => '‴',
+            'backdprime' => '‶',
+            'backtrprime' => '‷',
+            'caretinsert' => '‸',
+            'Exclam' => '‼',
+            'tieconcat' => '⁀',
+            'hyphenbullet' => '⁃',
+            'fracslash' => '⁄',
+            'Question' => '⁇',
+            'closure' => '⁐',
+            'qprime' => '⁗',
+            'euro' => '€',
+            'enclosecircle' => '⃝',
+            'enclosesquare' => '⃞',
+            'enclosediamond' => '⃟',
+            'enclosetriangle' => '⃤',
+            'increment' => '∆',
+            'smallin' => '∊',
+            'nni' => '∌',
+            'smallni' => '∍',
+            'QED' => '∎',
+            'minus' => '−',
+            'vysmwhtcircle' => '∘',
+            'vysmblkcircle' => '∙',
+            'surd' => '√',
+            'cuberoot' => '∛',
+            'fourthroot' => '∜',
+            'rightangle' => '∟',
+            'intclockwise' => '∱',
+            'varointclockwise' => '∲',
+            'ointctrclockwise' => '∳',
+            'mathratio' => '∶',
+            'Colon' => '∷',
+            'dotminus' => '∸',
+            'dashcolon' => '∹',
+            'dotsminusdots' => '∺',
+            'kernelcontraction' => '∻',
+            'invlazys' => '∾',
+            'sinewave' => '∿',
+            'times' => '×',
+            'cdot' => '⋅',
+            'cdotp' => '⋅',
+            'dotplus' => '∔',
+            'divslash' => '∕',
+            'ldotp' => '.',
+            'dots' => '…',
+            'ldots' => '…',
+            'mathellipsis' => '…',
+            'dotsc' => '…',
+            'dotso' => '…',
+            'cdots' => '⋯',
+            'dotsb' => '⋯',
+            'dotsm' => '⋯',
+            'dotsi' => '⋯',
+            'vdots' => '⋮',
+            'ddots' => '⋱',
+            'iddots' => '⋰',
+            'colon' => ':',
+            'div' => '÷',
+            'ast' => '∗',
+            'star' => '⋆',
+            'circ' => '∘',
+            'bullet' => '•',
+            'amalg' => '⨿',
+            'upand' => '⅋',
+            'wr' => '≀',
+            'dag' => '†',
+            'dagger' => '†',
+            'ddag' => '‡',
+            'ddagger' => '‡',
+            'diamond' => '⋄',
+            'bigcirc' => '◯',
+            'triangleleft' => '◁',
+            'triangleright' => '▷',
+            'lhd' => '◁',
+            'rhd' => '▷',
+            'unlhd' => '⊴',
+            'unrhd' => '⊵',
+            'bigtriangleup' => '△',
+            'bigtriangledown' => '▽',
+            'boxplus' => '⊞',
+            'boxminus' => '⊟',
+            'boxtimes' => '⊠',
+            'boxdot' => '⊡',
+            'boxbar' => '◫',
+            'boxdiag' => '⧄',
+            'boxbslash' => '⧅',
+            'boxast' => '⧆',
+            'boxcircle' => '⧇',
+            'boxbox' => '⧈',
+            'ltimes' => '⋉',
+            'rtimes' => '⋊',
+            'leftthreetimes' => '⋋',
+            'rightthreetimes' => '⋌',
+            'curlyvee' => '⋎',
+            'curlywedge' => '⋏',
+            'barwedge' => '⊼',
+            'veebar' => '⊻',
+            'doublebarwedge' => '⩞',
+            'Cup' => '⋓',
+            'Cap' => '⋒',
+            'doublecup' => '⋓',
+            'doublecap' => '⋒',
+            'intercal' => '⊺',
+            'circledast' => '⊛',
+            'circledcirc' => '⊚',
+            'circleddash' => '⊝',
+            'circledequal' => '⊜',
+            'circlehbar' => '⦵',
+            'circledvert' => '⦶',
+            'circledparallel' => '⦷',
+            'obslash' => '⦸',
+            'operp' => '⦹',
+            'obar' => '⌽',
+            'olessthan' => '⧀',
+            'ogreaterthan' => '⧁',
+            'pm' => '±',
+            'mp' => '∓',
+            'le' => '≤',
+            'leq' => '≤',
+            'leqq' => '≦',
+            'leqslant' => '⩽',
+            'lt' => '<',
+            'ge' => '≥',
+            'geq' => '≥',
+            'geqq' => '≧',
+            'geqslant' => '⩾',
+            'gt' => '>',
+            'ne' => '≠',
+            'neq' => '≠',
+            'neqq' => '≠',
+            'equiv' => '≡',
+            'approx' => '≈',
+            'napprox' => '≉',
+            'approxident' => '≋',
+            'simeq' => '≃',
+            'sime' => '≃',
+            'nsim' => '≁',
+            'nsime' => '≄',
+            'nsimeq' => '≄',
+            'simneqq' => '≆',
+            'sim' => '∼',
+            'cong' => '≅',
+            'ncong' => '≇',
+            'backcong' => '≌',
+            'propto' => '∝',
+            'varpropto' => '∝',
+            'coloneq' => '≔',
+            'eqcolon' => '≕',
+            'arceq' => '≘',
+            'wedgeq' => '≙',
+            'veeeq' => '≚',
+            'stareq' => '≛',
+            'eqdef' => '≝',
+            'measeq' => '≞',
+            'nequiv' => '≢',
+            'Equiv' => '≣',
+            'nasymp' => '≭',
+            'lesssim' => '≲',
+            'gtrsim' => '≳',
+            'lessapprox' => '⪅',
+            'gtrapprox' => '⪆',
+            'll' => '≪',
+            'gg' => '≫',
+            'lll' => '⋘',
+            'llless' => '⋘',
+            'ggg' => '⋙',
+            'gggtr' => '⋙',
+            'lessgtr' => '≶',
+            'gtrless' => '≷',
+            'nlessgtr' => '≸',
+            'ngtrless' => '≹',
+            'lesseqgtr' => '⋚',
+            'gtreqless' => '⋛',
+            'lesseqqgtr' => '⪋',
+            'gtreqqless' => '⪌',
+            'lessdot' => '⋖',
+            'gtrdot' => '⋗',
+            'eqless' => '⋜',
+            'eqgtr' => '⋝',
+            'prec' => '≺',
+            'succ' => '≻',
+            'preceq' => '≼',
+            'succeq' => '≽',
+            'preccurlyeq' => '≼',
+            'succcurlyeq' => '≽',
+            'curlyeqprec' => '⋞',
+            'curlyeqsucc' => '⋟',
+            'precsim' => '≾',
+            'succsim' => '≿',
+            'precneq' => '⪱',
+            'succneq' => '⪲',
+            'preceqq' => '⪳',
+            'succeqq' => '⪴',
+            'precapprox' => '⪷',
+            'succapprox' => '⪸',
+            'precneqq' => '⪵',
+            'succneqq' => '⪶',
+            'precnsim' => '⋨',
+            'succnsim' => '⋩',
+            'precnapprox' => '⪹',
+            'succnapprox' => '⪺',
+            'Prec' => '⪻',
+            'Succ' => '⪼',
+            'asymp' => '≍',
+            'approxeq' => '≊',
+            'eqsim' => '≂',
+            'thicksim' => '∼',
+            'thickapprox' => '≈',
+            'backsim' => '∽',
+            'backsimeq' => '⋍',
+            'doteq' => '≐',
+            'Doteq' => '≑',
+            'doteqdot' => '≑',
+            'risingdotseq' => '≓',
+            'fallingdotseq' => '≒',
+            'bumpeq' => '≏',
+            'Bumpeq' => '≎',
+            'circeq' => '≗',
+            'triangleq' => '≜',
+            'eqcirc' => '≖',
+            'questeq' => '≟',
+            'in' => '∈',
+            'notin' => '∉',
+            'ni' => '∋',
+            'owns' => '∋',
+            'emptyset' => '∅',
+            'varnothing' => '∅',
+            'forall' => '∀',
+            'exists' => '∃',
+            'nexists' => '∄',
+            'neg' => '¬',
+            'lnot' => '¬',
+            'top' => '⊤',
+            'bot' => '⊥',
+            'angle' => '∠',
+            'measuredangle' => '∡',
+            'sphericalangle' => '∢',
+            'triangle' => '△',
+            'therefore' => '∴',
+            'because' => '∵',
+            'prime' => '′',
+            'backprime' => '‵',
+            'complement' => '∁',
+            'vartriangle' => '△',
+            'triangledown' => '▽',
+            'blacktriangle' => '▲',
+            'blacktriangledown' => '▼',
+            'blacklozenge' => '◆',
+            'bigstar' => '★',
+            'diagup' => '⟋',
+            'diagdown' => '⟍',
+            'circledS' => 'Ⓢ',
+            'backepsilon' => '϶',
+            'upbackepsilon' => '϶',
+            'nmid' => '∤',
+            'nparallel' => '∦',
+            'parallel' => '∥',
+            'perp' => '⊥',
+            'mid' => '∣',
+            'equalparallel' => '⋕',
+            'shortmid' => '∣',
+            'shortparallel' => '∥',
+            'nshortmid' => '∤',
+            'nshortparallel' => '∦',
+            'vdash' => '⊢',
+            'dashv' => '⊣',
+            'models' => '⊨',
+            'vDash' => '⊨',
+            'Vdash' => '⊩',
+            'Vvdash' => '⊪',
+            'VDash' => '⊫',
+            'nvdash' => '⊬',
+            'nvDash' => '⊭',
+            'nVdash' => '⊮',
+            'nVDash' => '⊯',
+            'assert' => '⊦',
+            'prurel' => '⊰',
+            'scurel' => '⊱',
+            'origof' => '⊶',
+            'imageof' => '⊷',
+            'hermitmatrix' => '⊹',
+            'measuredrightangle' => '⊾',
+            'varlrtriangle' => '⊿',
+            'smwhtdiamond' => '⋄',
+            'unicodecdots' => '⋯',
+            'adots' => '⋰',
+            'disin' => '⋲',
+            'varisins' => '⋳',
+            'isins' => '⋴',
+            'isindot' => '⋵',
+            'varisinobar' => '⋶',
+            'isinobar' => '⋷',
+            'isinvb' => '⋸',
+            'isinE' => '⋹',
+            'nisd' => '⋺',
+            'varnis' => '⋻',
+            'nis' => '⋼',
+            'varniobar' => '⋽',
+            'niobar' => '⋾',
+            'bagmember' => '⋿',
+            'diameter' => '⌀',
+            'house' => '⌂',
+            'varbarwedge' => '⌅',
+            'vardoublebarwedge' => '⌆',
+            'invnot' => '⌐',
+            'sqlozenge' => '⌑',
+            'profline' => '⌒',
+            'profsurf' => '⌓',
+            'viewdata' => '⌗',
+            'turnednot' => '⌙',
+            'ulcorner' => '⌜',
+            'urcorner' => '⌝',
+            'llcorner' => '⌞',
+            'lrcorner' => '⌟',
+            'inttop' => '⌠',
+            'intbottom' => '⌡',
+            'varhexagonlrbonds' => '⌬',
+            'conictaper' => '⌲',
+            'topbot' => '⌶',
+            'APLnotslash' => '⌿',
+            'APLnotbackslash' => '⍀',
+            'APLboxupcaret' => '⍓',
+            'APLboxquestion' => '⍰',
+            'rangledownzigzagarrow' => '⍼',
+            'hexagon' => '⎔',
+            'lparenuend' => '⎛',
+            'lparenextender' => '⎜',
+            'lparenlend' => '⎝',
+            'rparenuend' => '⎞',
+            'rparenextender' => '⎟',
+            'rparenlend' => '⎠',
+            'lbrackuend' => '⎡',
+            'lbrackextender' => '⎢',
+            'lbracklend' => '⎣',
+            'rbrackuend' => '⎤',
+            'rbrackextender' => '⎥',
+            'rbracklend' => '⎦',
+            'lbraceuend' => '⎧',
+            'lbracemid' => '⎨',
+            'lbracelend' => '⎩',
+            'vbraceextender' => '⎪',
+            'rbraceuend' => '⎫',
+            'rbracemid' => '⎬',
+            'rbracelend' => '⎭',
+            'intextender' => '⎮',
+            'harrowextender' => '⎯',
+            'lmoustache' => '⎰',
+            'rmoustache' => '⎱',
+            'sumtop' => '⎲',
+            'sumbottom' => '⎳',
+            'bbrktbrk' => '⎶',
+            'sqrtbottom' => '⎷',
+            'lvboxline' => '⎸',
+            'rvboxline' => '⎹',
+            'varcarriagereturn' => '⏎',
+            'obrbrak' => '⏠',
+            'ubrbrak' => '⏡',
+            'trapezium' => '⏢',
+            'benzenr' => '⏣',
+            'strns' => '⏤',
+            'fltns' => '⏥',
+            'accurrent' => '⏦',
+            'elinters' => '⏧',
+            'blanksymbol' => '␢',
+            'mathvisiblespace' => '␣',
+            'bdtriplevdash' => '┆',
+            'blockuphalf' => '▀',
+            'blocklowhalf' => '▄',
+            'blockfull' => '█',
+            'blocklefthalf' => '▌',
+            'blockrighthalf' => '▐',
+            'blockqtrshaded' => '░',
+            'blockhalfshaded' => '▒',
+            'blockthreeqtrshaded' => '▓',
+            'mdlgblksquare' => '■',
+            'mdlgwhtsquare' => '□',
+            'squoval' => '▢',
+            'blackinwhitesquare' => '▣',
+            'squarehfill' => '▤',
+            'squarevfill' => '▥',
+            'squarehvfill' => '▦',
+            'squarenwsefill' => '▧',
+            'squareneswfill' => '▨',
+            'squarecrossfill' => '▩',
+            'smblksquare' => '▪',
+            'smwhtsquare' => '▫',
+            'hrectangleblack' => '▬',
+            'hrectangle' => '▭',
+            'vrectangleblack' => '▮',
+            'vrectangle' => '▯',
+            'parallelogramblack' => '▰',
+            'parallelogram' => '▱',
+            'bigblacktriangleup' => '▲',
+            'smallblacktriangleright' => '▸',
+            'smalltriangleright' => '▹',
+            'blackpointerright' => '►',
+            'whitepointerright' => '▻',
+            'bigblacktriangledown' => '▼',
+            'smallblacktriangleleft' => '◂',
+            'smalltriangleleft' => '◃',
+            'blackpointerleft' => '◄',
+            'whitepointerleft' => '◅',
+            'mdlgblkdiamond' => '◆',
+            'mdlgwhtdiamond' => '◇',
+            'blackinwhitediamond' => '◈',
+            'fisheye' => '◉',
+            'mdlgwhtlozenge' => '◊',
+            'mdlgwhtcircle' => '○',
+            'dottedcircle' => '◌',
+            'circlevertfill' => '◍',
+            'bullseye' => '◎',
+            'mdlgblkcircle' => '●',
+            'circlelefthalfblack' => '◐',
+            'circlerighthalfblack' => '◑',
+            'circlebottomhalfblack' => '◒',
+            'circletophalfblack' => '◓',
+            'circleurquadblack' => '◔',
+            'blackcircleulquadwhite' => '◕',
+            'blacklefthalfcircle' => '◖',
+            'blackrighthalfcircle' => '◗',
+            'inversebullet' => '◘',
+            'inversewhitecircle' => '◙',
+            'invwhiteupperhalfcircle' => '◚',
+            'invwhitelowerhalfcircle' => '◛',
+            'ularc' => '◜',
+            'urarc' => '◝',
+            'lrarc' => '◞',
+            'llarc' => '◟',
+            'topsemicircle' => '◠',
+            'botsemicircle' => '◡',
+            'lrblacktriangle' => '◢',
+            'llblacktriangle' => '◣',
+            'ulblacktriangle' => '◤',
+            'urblacktriangle' => '◥',
+            'smwhtcircle' => '◦',
+            'squareleftblack' => '◧',
+            'squarerightblack' => '◨',
+            'squareulblack' => '◩',
+            'squarelrblack' => '◪',
+            'trianglecdot' => '◬',
+            'triangleleftblack' => '◭',
+            'trianglerightblack' => '◮',
+            'lgwhtcircle' => '◯',
+            'squareulquad' => '◰',
+            'squarellquad' => '◱',
+            'squarelrquad' => '◲',
+            'squareurquad' => '◳',
+            'circleulquad' => '◴',
+            'circlellquad' => '◵',
+            'circlelrquad' => '◶',
+            'circleurquad' => '◷',
+            'ultriangle' => '◸',
+            'urtriangle' => '◹',
+            'lltriangle' => '◺',
+            'mdwhtsquare' => '◻',
+            'mdblksquare' => '◼',
+            'mdsmwhtsquare' => '◽',
+            'mdsmblksquare' => '◾',
+            'lrtriangle' => '◿',
+            'bigwhitestar' => '☆',
+            'astrosun' => '☉',
+            'danger' => '☡',
+            'blacksmiley' => '☻',
+            'sun' => '☼',
+            'rightmoon' => '☽',
+            'leftmoon' => '☾',
+            'female' => '♀',
+            'male' => '♂',
+            'varspadesuit' => '♤',
+            'varheartsuit' => '♥',
+            'vardiamondsuit' => '♦',
+            'varclubsuit' => '♧',
+            'quarternote' => '♩',
+            'eighthnote' => '♪',
+            'twonotes' => '♫',
+            'acidfree' => '♾',
+            'dicei' => '⚀',
+            'diceii' => '⚁',
+            'diceiii' => '⚂',
+            'diceiv' => '⚃',
+            'dicev' => '⚄',
+            'dicevi' => '⚅',
+            'circledrightdot' => '⚆',
+            'circledtwodots' => '⚇',
+            'blackcircledrightdot' => '⚈',
+            'blackcircledtwodots' => '⚉',
+            'Hermaphrodite' => '⚥',
+            'mdwhtcircle' => '⚪',
+            'mdblkcircle' => '⚫',
+            'mdsmwhtcircle' => '⚬',
+            'neuter' => '⚲',
+            'checkmark' => '✓',
+            'maltese' => '✠',
+            'circledstar' => '✪',
+            'varstar' => '✶',
+            'dingasterisk' => '✽',
+            'lbrbrak' => '❲',
+            'rbrbrak' => '❳',
+            'draftingarrow' => '➛',
+            'threedangle' => '⟀',
+            'whiteinwhitetriangle' => '⟁',
+            'subsetcirc' => '⟃',
+            'supsetcirc' => '⟄',
+            'lbag' => '⟅',
+            'rbag' => '⟆',
+            'bsolhsub' => '⟈',
+            'suphsol' => '⟉',
+            'longdivision' => '⟌',
+            'diamondcdot' => '⟐',
+            'upin' => '⟒',
+            'pullback' => '⟓',
+            'pushout' => '⟔',
+            'DashVDash' => '⟚',
+            'dashVdash' => '⟛',
+            'multimapinv' => '⟜',
+            'vlongdash' => '⟝',
+            'longdashv' => '⟞',
+            'cirbot' => '⟟',
+            'lozengeminus' => '⟠',
+            'concavediamond' => '⟡',
+            'concavediamondtickleft' => '⟢',
+            'concavediamondtickright' => '⟣',
+            'whitesquaretickleft' => '⟤',
+            'whitesquaretickright' => '⟥',
+            'lBrack' => '⟦',
+            'rBrack' => '⟧',
+            'lAngle' => '⟪',
+            'rAngle' => '⟫',
+            'Lbrbrak' => '⟬',
+            'Rbrbrak' => '⟭',
+            'lgroup' => '⟮',
+            'rgroup' => '⟯',
+            'UUparrow' => '⟰',
+            'DDownarrow' => '⟱',
+            'acwgapcirclearrow' => '⟲',
+            'cwgapcirclearrow' => '⟳',
+            'rightarrowonoplus' => '⟴',
+            'arabicmaj' => '𞻰',
+            'arabichad' => '𞻱',
+            'subset' => '⊂',
+            'subseteq' => '⊆',
+            'subseteqq' => '⫅',
+            'subsetneq' => '⊊',
+            'subsetneqq' => '⫋',
+            'subsetapprox' => '⫉',
+            'subsetdot' => '⪽',
+            'subsetplus' => '⪿',
+            'submult' => '⫁',
+            'subedot' => '⫃',
+            'subsim' => '⫇',
+            'nsubset' => '⊄',
+            'nsubseteq' => '⊈',
+            'nsubseteqq' => '⫅̸',
+            'supset' => '⊃',
+            'supseteq' => '⊇',
+            'supseteqq' => '⫆',
+            'supsetneq' => '⊋',
+            'supsetneqq' => '⫌',
+            'supsetapprox' => '⫊',
+            'supsetdot' => '⪾',
+            'supsetplus' => '⫀',
+            'supmult' => '⫂',
+            'supedot' => '⫄',
+            'supsim' => '⫈',
+            'nsupset' => '⊅',
+            'nsupseteq' => '⊉',
+            'nsupseteqq' => '⫆̸',
+            'lsqhook' => '⫍',
+            'rsqhook' => '⫎',
+            'csub' => '⫏',
+            'csup' => '⫐',
+            'csube' => '⫑',
+            'csupe' => '⫒',
+            'subsup' => '⫓',
+            'supsub' => '⫔',
+            'subsub' => '⫕',
+            'supsup' => '⫖',
+            'suphsub' => '⫗',
+            'supdsub' => '⫘',
+            'forkv' => '⫙',
+            'topfork' => '⫚',
+            'mlcp' => '⫛',
+            'forks' => '⫝̸',
+            'forksnot' => '⫝',
+            'shortlefttack' => '⫞',
+            'shortdowntack' => '⫟',
+            'shortuptack' => '⫠',
+            'perps' => '⫡',
+            'vDdash' => '⫢',
+            'dashV' => '⫣',
+            'Dashv' => '⫤',
+            'DashV' => '⫥',
+            'varVdash' => '⫦',
+            'Barv' => '⫧',
+            'vBar' => '⫨',
+            'vBarv' => '⫩',
+            'barV' => '⫪',
+            'Vbar' => '⫫',
+            'Not' => '⫬',
+            'bNot' => '⫭',
+            'revnmid' => '⫮',
+            'cirmid' => '⫯',
+            'midcir' => '⫰',
+            'Subset' => '⋐',
+            'Supset' => '⋑',
+            'sqsubset' => '⊏',
+            'sqsupset' => '⊐',
+            'sqsubseteq' => '⊑',
+            'sqsupseteq' => '⊒',
+            'nsqsubseteq' => '⋢',
+            'nsqsupseteq' => '⋣',
+            'sqsubsetneq' => '⋤',
+            'sqsupsetneq' => '⋥',
+            'sqsubsetneqq' => '⋤',
+            'sqsupsetneqq' => '⋥',
+            'vartriangleleft' => '⊲',
+            'vartriangleright' => '⊳',
+            'trianglelefteq' => '⊴',
+            'trianglerighteq' => '⊵',
+            'nvartriangleleft' => '⋪',
+            'nvartriangleright' => '⋫',
+            'ntrianglelefteq' => '⋬',
+            'ntrianglerighteq' => '⋭',
+            'blacktriangleleft' => '◀',
+            'blacktriangleright' => '▶',
+            'nleq' => '≰',
+            'ngeq' => '≱',
+            'nleqq' => '≦̸',
+            'ngeqq' => '≧̸',
+            'nless' => '≮',
+            'ngtr' => '≯',
+            'nleqslant' => '≰',
+            'ngeqslant' => '≱',
+            'lneq' => '⪇',
+            'gneq' => '⪈',
+            'lneqq' => '≨',
+            'gneqq' => '≩',
+            'lvertneqq' => '≨︀',
+            'gvertneqq' => '≩︀',
+            'lnsim' => '⋦',
+            'gnsim' => '⋧',
+            'lnapprox' => '⪉',
+            'gnapprox' => '⪊',
+            'nlesssim' => '≴',
+            'ngtrsim' => '≵',
+            'nlessapprox' => '⪉',
+            'ngtrapprox' => '⪊',
+            'npreceq' => '⋠',
+            'nsucceq' => '⋡',
+            'npreccurlyeq' => '⋠',
+            'nsucccurlyeq' => '⋡',
+            'nprec' => '⊀',
+            'nsucc' => '⊁',
+            'nprecsim' => '⋨',
+            'nsuccsim' => '⋩',
+            'eqslantless' => '⪕',
+            'eqslantgtr' => '⪖',
+            'bowtie' => '⋈',
+            'Join' => '⋈',
+            'between' => '≬',
+            'pitchfork' => '⋔',
+            'leftouterjoin' => '⟕',
+            'rightouterjoin' => '⟖',
+            'fullouterjoin' => '⟗',
+            'bigbot' => '⟘',
+            'bigtop' => '⟙',
+            'smile' => '⌣',
+            'frown' => '⌢',
+            'cup' => '∪',
+            'cap' => '∩',
+            'cupleftarrow' => '⊌',
+            'cupdot' => '⊍',
+            'barcup' => '⩂',
+            'sqcup' => '⊔',
+            'sqcap' => '⊓',
+            'barcap' => '⩃',
+            'uplus' => '⊎',
+            'setminus' => '∖',
+            'smallsetminus' => '∖',
+            'wedge' => '∧',
+            'land' => '∧',
+            'vee' => '∨',
+            'lor' => '∨',
+            'veedot' => '⟇',
+            'wedgedot' => '⟑',
+            'oplus' => '⊕',
+            'ominus' => '⊖',
+            'otimes' => '⊗',
+            'oslash' => '⊘',
+            'odot' => '⊙',
+            'divideontimes' => '⋇',
+            'barvee' => '⊽',
+            'intprod' => '⨼',
+            'intprodr' => '⨽',
+            'varveebar' => '⩡',
+            'topcir' => '⫱',
+            'nhpar' => '⫲',
+            'parsim' => '⫳',
+            'interleave' => '⫴',
+            'nhVvert' => '⫵',
+            'threedotcolon' => '⫶',
+            'lllnest' => '⫷',
+            'gggnest' => '⫸',
+            'leqqslant' => '⫹',
+            'geqqslant' => '⫺',
+            'trslash' => '⫻',
+            'biginterleave' => '⫼',
+            'sslash' => '⫽',
+            'talloblong' => '⫾',
+            'bigtalloblong' => '⫿',
+            'bmod' => 'mod',
+            'clubsuit' => '♣',
+            'spadesuit' => '♠',
+            'heartsuit' => '♡',
+            'diamondsuit' => '♢',
+            'flat' => '♭',
+            'natural' => '♮',
+            'sharp' => '♯',
+            'Box' => '□',
+            'square' => '□',
+            'Diamond' => '◇',
+            'lozenge' => '◊',
+            'to' => '→',
+            'gets' => '←',
+            'rightarrow' => '→',
+            'leftarrow' => '←',
+            'Rightarrow' => '⇒',
+            'Leftarrow' => '⇐',
+            'leftrightarrow' => '↔',
+            'Leftrightarrow' => '⇔',
+            'implies' => '⇒',
+            'impliedby' => '⇐',
+            'iff' => '⇔',
+            'mapsto' => '↦',
+            'hookrightarrow' => '↪',
+            'hookleftarrow' => '↩',
+            'longrightarrow' => '⟶',
+            'longleftarrow' => '⟵',
+            'longleftrightarrow' => '⟷',
+            'Longrightarrow' => '⟹',
+            'Longleftarrow' => '⟸',
+            'Longleftrightarrow' => '⟺',
+            'longmapsto' => '⟼',
+            'nleftarrow' => '↚',
+            'nrightarrow' => '↛',
+            'nleftrightarrow' => '↮',
+            'nLeftarrow' => '⇍',
+            'nRightarrow' => '⇏',
+            'nLeftrightarrow' => '⇎',
+            'leftwavearrow' => '↜',
+            'rightwavearrow' => '↝',
+            'twoheaduparrow' => '↟',
+            'twoheaddownarrow' => '↡',
+            'mapsfrom' => '↤',
+            'mapsup' => '↥',
+            'mapsdown' => '↧',
+            'updownarrowbar' => '↨',
+            'downzigzagarrow' => '↯',
+            'Ldsh' => '↲',
+            'Rdsh' => '↳',
+            'linefeed' => '↴',
+            'carriagereturn' => '↵',
+            'barovernorthwestarrow' => '↸',
+            'barleftarrowrightarrowbar' => '↹',
+            'acwopencirclearrow' => '↺',
+            'cwopencirclearrow' => '↻',
+            'updownarrows' => '⇅',
+            'Nwarrow' => '⇖',
+            'Nearrow' => '⇗',
+            'Searrow' => '⇘',
+            'Swarrow' => '⇙',
+            'nHuparrow' => '⇞',
+            'nHdownarrow' => '⇟',
+            'leftdasharrow' => '⇠',
+            'updasharrow' => '⇡',
+            'rightdasharrow' => '⇢',
+            'downdasharrow' => '⇣',
+            'leftwhitearrow' => '⇦',
+            'upwhitearrow' => '⇧',
+            'rightwhitearrow' => '⇨',
+            'downwhitearrow' => '⇩',
+            'whitearrowupfrombar' => '⇪',
+            'leftsquigarrow' => '⇜',
+            'barleftarrow' => '⇤',
+            'rightarrowbar' => '⇥',
+            'circleonrightarrow' => '⇴',
+            'downuparrows' => '⇵',
+            'rightthreearrows' => '⇶',
+            'nvleftarrow' => '⇷',
+            'nvrightarrow' => '⇸',
+            'nvleftrightarrow' => '⇹',
+            'nVleftarrow' => '⇺',
+            'nVrightarrow' => '⇻',
+            'nVleftrightarrow' => '⇼',
+            'leftarrowtriangle' => '⇽',
+            'rightarrowtriangle' => '⇾',
+            'leftrightarrowtriangle' => '⇿',
+            'longmapsfrom' => '⟻',
+            'Longmapsfrom' => '⟽',
+            'Longmapsto' => '⟾',
+            'longrightsquigarrow' => '⟿',
+            'nvtwoheadrightarrow' => '⤀',
+            'nVtwoheadrightarrow' => '⤁',
+            'nvLeftarrow' => '⤂',
+            'nvRightarrow' => '⤃',
+            'nvLeftrightarrow' => '⤄',
+            'twoheadmapsto' => '⤅',
+            'Mapsfrom' => '⤆',
+            'Mapsto' => '⤇',
+            'downarrowbarred' => '⤈',
+            'uparrowbarred' => '⤉',
+            'Uuparrow' => '⤊',
+            'Ddownarrow' => '⤋',
+            'leftbkarrow' => '⤌',
+            'rightbkarrow' => '⤍',
+            'leftdbkarrow' => '⤎',
+            'dbkarrow' => '⤏',
+            'drbkarrow' => '⤐',
+            'rightdotarrow' => '⤑',
+            'baruparrow' => '⤒',
+            'downarrowbar' => '⤓',
+            'nvrightarrowtail' => '⤔',
+            'nVrightarrowtail' => '⤕',
+            'twoheadrightarrowtail' => '⤖',
+            'nvtwoheadrightarrowtail' => '⤗',
+            'nVtwoheadrightarrowtail' => '⤘',
+            'lefttail' => '⤙',
+            'righttail' => '⤚',
+            'leftdbltail' => '⤛',
+            'rightdbltail' => '⤜',
+            'diamondleftarrow' => '⤝',
+            'rightarrowdiamond' => '⤞',
+            'diamondleftarrowbar' => '⤟',
+            'barrightarrowdiamond' => '⤠',
+            'nwsearrow' => '⤡',
+            'neswarrow' => '⤢',
+            'hknwarrow' => '⤣',
+            'hknearrow' => '⤤',
+            'hksearrow' => '⤥',
+            'hkswarrow' => '⤦',
+            'tona' => '⤧',
+            'toea' => '⤨',
+            'tosa' => '⤩',
+            'towa' => '⤪',
+            'rdiagovfdiag' => '⤫',
+            'fdiagovrdiag' => '⤬',
+            'seovnearrow' => '⤭',
+            'neovsearrow' => '⤮',
+            'fdiagovnearrow' => '⤯',
+            'rdiagovsearrow' => '⤰',
+            'neovnwarrow' => '⤱',
+            'nwovnearrow' => '⤲',
+            'rightcurvedarrow' => '⤳',
+            'uprightcurvearrow' => '⤴',
+            'downrightcurvedarrow' => '⤵',
+            'leftdowncurvedarrow' => '⤶',
+            'rightdowncurvedarrow' => '⤷',
+            'cwrightarcarrow' => '⤸',
+            'acwleftarcarrow' => '⤹',
+            'acwoverarcarrow' => '⤺',
+            'acwunderarcarrow' => '⤻',
+            'curvearrowrightminus' => '⤼',
+            'curvearrowleftplus' => '⤽',
+            'cwundercurvearrow' => '⤾',
+            'ccwundercurvearrow' => '⤿',
+            'acwcirclearrow' => '⥀',
+            'cwcirclearrow' => '⥁',
+            'rightarrowshortleftarrow' => '⥂',
+            'leftarrowshortrightarrow' => '⥃',
+            'shortrightarrowleftarrow' => '⥄',
+            'rightarrowplus' => '⥅',
+            'leftarrowplus' => '⥆',
+            'rightarrowx' => '⥇',
+            'leftrightarrowcircle' => '⥈',
+            'twoheaduparrowcircle' => '⥉',
+            'leftrightharpoonupdown' => '⥊',
+            'leftrightharpoondownup' => '⥋',
+            'updownharpoonrightleft' => '⥌',
+            'updownharpoonleftright' => '⥍',
+            'leftrightharpoonupup' => '⥎',
+            'updownharpoonrightright' => '⥏',
+            'leftrightharpoondowndown' => '⥐',
+            'updownharpoonleftleft' => '⥑',
+            'barleftharpoonup' => '⥒',
+            'rightharpoonupbar' => '⥓',
+            'barupharpoonright' => '⥔',
+            'downharpoonrightbar' => '⥕',
+            'barleftharpoondown' => '⥖',
+            'rightharpoondownbar' => '⥗',
+            'barupharpoonleft' => '⥘',
+            'downharpoonleftbar' => '⥙',
+            'leftharpoonupbar' => '⥚',
+            'barrightharpoonup' => '⥛',
+            'upharpoonrightbar' => '⥜',
+            'bardownharpoonright' => '⥝',
+            'leftharpoondownbar' => '⥞',
+            'barrightharpoondown' => '⥟',
+            'upharpoonleftbar' => '⥠',
+            'bardownharpoonleft' => '⥡',
+            'leftharpoonsupdown' => '⥢',
+            'upharpoonsleftright' => '⥣',
+            'rightharpoonsupdown' => '⥤',
+            'downharpoonsleftright' => '⥥',
+            'leftrightharpoonsup' => '⥦',
+            'leftrightharpoonsdown' => '⥧',
+            'rightleftharpoonsup' => '⥨',
+            'rightleftharpoonsdown' => '⥩',
+            'leftharpoonupdash' => '⥪',
+            'dashleftharpoondown' => '⥫',
+            'rightharpoonupdash' => '⥬',
+            'dashrightharpoondown' => '⥭',
+            'updownharpoonsleftright' => '⥮',
+            'downupharpoonsleftright' => '⥯',
+            'rightimply' => '⥰',
+            'equalrightarrow' => '⥱',
+            'similarrightarrow' => '⥲',
+            'leftarrowsimilar' => '⥳',
+            'rightarrowsimilar' => '⥴',
+            'rightarrowapprox' => '⥵',
+            'ltlarr' => '⥶',
+            'leftarrowless' => '⥷',
+            'gtrarr' => '⥸',
+            'subrarr' => '⥹',
+            'leftarrowsubset' => '⥺',
+            'suplarr' => '⥻',
+            'leftfishtail' => '⥼',
+            'rightfishtail' => '⥽',
+            'upfishtail' => '⥾',
+            'downfishtail' => '⥿',
+            'Vvert' => '⦀',
+            'mdsmblkcircle' => '⦁',
+            'typecolon' => '⦂',
+            'lBrace' => '⦃',
+            'rBrace' => '⦄',
+            'lParen' => '⦅',
+            'rParen' => '⦆',
+            'llparenthesis' => '⦇',
+            'rrparenthesis' => '⦈',
+            'llangle' => '⦉',
+            'rrangle' => '⦊',
+            'lbrackubar' => '⦋',
+            'rbrackubar' => '⦌',
+            'lbrackultick' => '⦍',
+            'rbracklrtick' => '⦎',
+            'lbracklltick' => '⦏',
+            'rbrackurtick' => '⦐',
+            'langledot' => '⦑',
+            'rangledot' => '⦒',
+            'lparenless' => '⦓',
+            'rparengtr' => '⦔',
+            'Lparengtr' => '⦕',
+            'Rparenless' => '⦖',
+            'lblkbrbrak' => '⦗',
+            'rblkbrbrak' => '⦘',
+            'fourvdots' => '⦙',
+            'vzigzag' => '⦚',
+            'measuredangleleft' => '⦛',
+            'rightanglesqr' => '⦜',
+            'rightanglemdot' => '⦝',
+            'angles' => '⦞',
+            'angdnr' => '⦟',
+            'gtlpar' => '⦠',
+            'sphericalangleup' => '⦡',
+            'turnangle' => '⦢',
+            'revangle' => '⦣',
+            'angleubar' => '⦤',
+            'revangleubar' => '⦥',
+            'wideangledown' => '⦦',
+            'wideangleup' => '⦧',
+            'measanglerutone' => '⦨',
+            'measanglelutonw' => '⦩',
+            'measanglerdtose' => '⦪',
+            'measangleldtosw' => '⦫',
+            'measangleurtone' => '⦬',
+            'measangleultonw' => '⦭',
+            'measangledrtose' => '⦮',
+            'measangledltosw' => '⦯',
+            'revemptyset' => '⦰',
+            'emptysetobar' => '⦱',
+            'emptysetocirc' => '⦲',
+            'emptysetoarr' => '⦳',
+            'emptysetoarrl' => '⦴',
+            'obot' => '⦺',
+            'olcross' => '⦻',
+            'odotslashdot' => '⦼',
+            'uparrowoncircle' => '⦽',
+            'circledwhitebullet' => '⦾',
+            'circledbullet' => '⦿',
+            'squaretopblack' => '⬒',
+            'squarebotblack' => '⬓',
+            'squareurblack' => '⬔',
+            'squarellblack' => '⬕',
+            'diamondleftblack' => '⬖',
+            'diamondrightblack' => '⬗',
+            'diamondtopblack' => '⬘',
+            'diamondbotblack' => '⬙',
+            'dottedsquare' => '⬚',
+            'lgblksquare' => '⬛',
+            'lgwhtsquare' => '⬜',
+            'vysmblksquare' => '⬝',
+            'vysmwhtsquare' => '⬞',
+            'pentagonblack' => '⬟',
+            'pentagon' => '⬠',
+            'varhexagon' => '⬡',
+            'varhexagonblack' => '⬢',
+            'hexagonblack' => '⬣',
+            'lgblkcircle' => '⬤',
+            'mdblkdiamond' => '⬥',
+            'mdwhtdiamond' => '⬦',
+            'mdblklozenge' => '⬧',
+            'mdwhtlozenge' => '⬨',
+            'smblkdiamond' => '⬩',
+            'smblklozenge' => '⬪',
+            'smwhtlozenge' => '⬫',
+            'blkhorzoval' => '⬬',
+            'whthorzoval' => '⬭',
+            'blkvertoval' => '⬮',
+            'whtvertoval' => '⬯',
+            'circleonleftarrow' => '⬰',
+            'leftthreearrows' => '⬱',
+            'leftarrowonoplus' => '⬲',
+            'longleftsquigarrow' => '⬳',
+            'nvtwoheadleftarrow' => '⬴',
+            'nVtwoheadleftarrow' => '⬵',
+            'twoheadmapsfrom' => '⬶',
+            'twoheadleftdbkarrow' => '⬷',
+            'leftdotarrow' => '⬸',
+            'nvleftarrowtail' => '⬹',
+            'nVleftarrowtail' => '⬺',
+            'twoheadleftarrowtail' => '⬻',
+            'nvtwoheadleftarrowtail' => '⬼',
+            'nVtwoheadleftarrowtail' => '⬽',
+            'leftarrowx' => '⬾',
+            'leftcurvedarrow' => '⬿',
+            'equalleftarrow' => '⭀',
+            'bsimilarleftarrow' => '⭁',
+            'leftarrowbackapprox' => '⭂',
+            'rightarrowgtr' => '⭃',
+            'rightarrowsupset' => '⭄',
+            'LLeftarrow' => '⭅',
+            'RRightarrow' => '⭆',
+            'bsimilarrightarrow' => '⭇',
+            'rightarrowbackapprox' => '⭈',
+            'similarleftarrow' => '⭉',
+            'leftarrowapprox' => '⭊',
+            'leftarrowbsimilar' => '⭋',
+            'rightarrowbsimilar' => '⭌',
+            'medwhitestar' => '⭐',
+            'medblackstar' => '⭑',
+            'smwhitestar' => '⭒',
+            'rightpentagonblack' => '⭓',
+            'rightpentagon' => '⭔',
+            'postalmark' => '〒',
+            'hzigzag' => '〰',
+            'cirscir' => '⧂',
+            'cirE' => '⧃',
+            'boxonbox' => '⧉',
+            'triangleodot' => '⧊',
+            'triangleubar' => '⧋',
+            'triangles' => '⧌',
+            'triangleserifs' => '⧍',
+            'rtriltri' => '⧎',
+            'ltrivb' => '⧏',
+            'vbrtri' => '⧐',
+            'lfbowtie' => '⧑',
+            'rfbowtie' => '⧒',
+            'fbowtie' => '⧓',
+            'lftimes' => '⧔',
+            'rftimes' => '⧕',
+            'hourglass' => '⧖',
+            'blackhourglass' => '⧗',
+            'lvzigzag' => '⧘',
+            'rvzigzag' => '⧙',
+            'Lvzigzag' => '⧚',
+            'Rvzigzag' => '⧛',
+            'iinfin' => '⧜',
+            'tieinfty' => '⧝',
+            'nvinfty' => '⧞',
+            'dualmap' => '⧟',
+            'laplac' => '⧠',
+            'lrtriangleeq' => '⧡',
+            'shuffle' => '⧢',
+            'eparsl' => '⧣',
+            'smeparsl' => '⧤',
+            'eqvparsl' => '⧥',
+            'gleichstark' => '⧦',
+            'thermod' => '⧧',
+            'downtriangleleftblack' => '⧨',
+            'downtrianglerightblack' => '⧩',
+            'blackdiamonddownarrow' => '⧪',
+            'mdlgblklozenge' => '⧫',
+            'circledownarrow' => '⧬',
+            'blackcircledownarrow' => '⧭',
+            'errbarsquare' => '⧮',
+            'errbarblacksquare' => '⧯',
+            'errbardiamond' => '⧰',
+            'errbarblackdiamond' => '⧱',
+            'errbarcircle' => '⧲',
+            'errbarblackcircle' => '⧳',
+            'ruledelayed' => '⧴',
+            'reversesolidus' => '⧵',
+            'dsol' => '⧶',
+            'rsolbar' => '⧷',
+            'xsol' => '⧸',
+            'xbsol' => '⧹',
+            'doubleplus' => '⧺',
+            'tripleplus' => '⧻',
+            'lcurvyangle' => '⧼',
+            'rcurvyangle' => '⧽',
+            'tplus' => '⧾',
+            'tminus' => '⧿',
+            'bigcupdot' => '⨃',
+            'bigsqcap' => '⨅',
+            'conjquant' => '⨇',
+            'disjquant' => '⨈',
+            'bigtimes' => '⨉',
+            'modtwosum' => '⨊',
+            'sumint' => '⨋',
+            'intbar' => '⨍',
+            'intBar' => '⨎',
+            'fint' => '⨏',
+            'cirfnint' => '⨐',
+            'awint' => '⨑',
+            'rppolint' => '⨒',
+            'scpolint' => '⨓',
+            'npolint' => '⨔',
+            'pointint' => '⨕',
+            'sqint' => '⨖',
+            'intlarhk' => '⨗',
+            'intx' => '⨘',
+            'intcap' => '⨙',
+            'intcup' => '⨚',
+            'upint' => '⨛',
+            'lowint' => '⨜',
+            'bigtriangleleft' => '⨞',
+            'zcmp' => '⨟',
+            'zpipe' => '⨠',
+            'zproject' => '⨡',
+            'ringplus' => '⨢',
+            'plushat' => '⨣',
+            'simplus' => '⨤',
+            'plusdot' => '⨥',
+            'plussim' => '⨦',
+            'plussubtwo' => '⨧',
+            'plustrif' => '⨨',
+            'commaminus' => '⨩',
+            'minusdot' => '⨪',
+            'minusfdots' => '⨫',
+            'minusrdots' => '⨬',
+            'opluslhrim' => '⨭',
+            'oplusrhrim' => '⨮',
+            'vectimes' => '⨯',
+            'dottimes' => '⨰',
+            'timesbar' => '⨱',
+            'btimes' => '⨲',
+            'smashtimes' => '⨳',
+            'otimeslhrim' => '⨴',
+            'otimesrhrim' => '⨵',
+            'otimeshat' => '⨶',
+            'Otimes' => '⨷',
+            'odiv' => '⨸',
+            'triangleplus' => '⨹',
+            'triangleminus' => '⨺',
+            'triangletimes' => '⨻',
+            'fcmp' => '⨾',
+            'capdot' => '⩀',
+            'uminus' => '⩁',
+            'capwedge' => '⩄',
+            'cupvee' => '⩅',
+            'cupovercap' => '⩆',
+            'capovercup' => '⩇',
+            'cupbarcap' => '⩈',
+            'capbarcup' => '⩉',
+            'twocups' => '⩊',
+            'twocaps' => '⩋',
+            'closedvarcup' => '⩌',
+            'closedvarcap' => '⩍',
+            'Sqcap' => '⩎',
+            'Sqcup' => '⩏',
+            'closedvarcupsmashprod' => '⩐',
+            'wedgeodot' => '⩑',
+            'veeodot' => '⩒',
+            'Wedge' => '⩓',
+            'Vee' => '⩔',
+            'wedgeonwedge' => '⩕',
+            'veeonvee' => '⩖',
+            'bigslopedvee' => '⩗',
+            'bigslopedwedge' => '⩘',
+            'veeonwedge' => '⩙',
+            'wedgemidvert' => '⩚',
+            'veemidvert' => '⩛',
+            'midbarwedge' => '⩜',
+            'midbarvee' => '⩝',
+            'wedgebar' => '⩟',
+            'wedgedoublebar' => '⩠',
+            'doublebarvee' => '⩢',
+            'veedoublebar' => '⩣',
+            'dsub' => '⩤',
+            'rsub' => '⩥',
+            'eqdot' => '⩦',
+            'dotequiv' => '⩧',
+            'equivVert' => '⩨',
+            'equivVvert' => '⩩',
+            'dotsim' => '⩪',
+            'simrdots' => '⩫',
+            'simminussim' => '⩬',
+            'congdot' => '⩭',
+            'asteq' => '⩮',
+            'hatapprox' => '⩯',
+            'approxeqq' => '⩰',
+            'eqqplus' => '⩱',
+            'pluseqq' => '⩲',
+            'eqqsim' => '⩳',
+            'Coloneq' => '⩴',
+            'eqeq' => '⩵',
+            'eqeqeq' => '⩶',
+            'ddotseq' => '⩷',
+            'equivDD' => '⩸',
+            'ltcir' => '⩹',
+            'gtcir' => '⩺',
+            'ltquest' => '⩻',
+            'gtquest' => '⩼',
+            'lesdot' => '⩿',
+            'gesdot' => '⪀',
+            'lesdoto' => '⪁',
+            'gesdoto' => '⪂',
+            'lesdotor' => '⪃',
+            'gesdotol' => '⪄',
+            'lsime' => '⪍',
+            'gsime' => '⪎',
+            'lsimg' => '⪏',
+            'gsiml' => '⪐',
+            'lgE' => '⪑',
+            'glE' => '⪒',
+            'lesges' => '⪓',
+            'gesles' => '⪔',
+            'elsdot' => '⪗',
+            'egsdot' => '⪘',
+            'eqqless' => '⪙',
+            'eqqgtr' => '⪚',
+            'eqqslantless' => '⪛',
+            'eqqslantgtr' => '⪜',
+            'simless' => '⪝',
+            'simgtr' => '⪞',
+            'simlE' => '⪟',
+            'simgE' => '⪠',
+            'Lt' => '⪡',
+            'Gt' => '⪢',
+            'partialmeetcontraction' => '⪣',
+            'glj' => '⪤',
+            'gla' => '⪥',
+            'ltcc' => '⪦',
+            'gtcc' => '⪧',
+            'lescc' => '⪨',
+            'gescc' => '⪩',
+            'smt' => '⪪',
+            'lat' => '⪫',
+            'smte' => '⪬',
+            'late' => '⪭',
+            'bumpeqq' => '⪮',
+            'curvearrowleft' => '↶',
+            'curvearrowright' => '↷',
+            'circlearrowleft' => '↺',
+            'circlearrowright' => '↻',
+            'Lsh' => '↰',
+            'Rsh' => '↱',
+            'dashleftarrow' => '⇠',
+            'dashrightarrow' => '⇢',
+            'leftleftarrows' => '⇇',
+            'rightrightarrows' => '⇉',
+            'leftrightarrows' => '⇆',
+            'rightleftarrows' => '⇄',
+            'looparrowleft' => '↫',
+            'looparrowright' => '↬',
+            'leftrightsquigarrow' => '↭',
+            'Lleftarrow' => '⇚',
+            'Rrightarrow' => '⇛',
+            'uparrow' => '↑',
+            'downarrow' => '↓',
+            'updownarrow' => '↕',
+            'Uparrow' => '⇑',
+            'Downarrow' => '⇓',
+            'Updownarrow' => '⇕',
+            'nearrow' => '↗',
+            'searrow' => '↘',
+            'swarrow' => '↙',
+            'nwarrow' => '↖',
+            'leadsto' => '↝',
+            'rightsquigarrow' => '⇝',
+            'twoheadrightarrow' => '↠',
+            'twoheadleftarrow' => '↞',
+            'rightarrowtail' => '↣',
+            'leftarrowtail' => '↢',
+            'upuparrows' => '⇈',
+            'downdownarrows' => '⇊',
+            'upharpoonleft' => '↿',
+            'upharpoonright' => '↾',
+            'downharpoonleft' => '⇃',
+            'downharpoonright' => '⇂',
+            'rightharpoonup' => '⇀',
+            'rightharpoondown' => '⇁',
+            'leftharpoonup' => '↼',
+            'leftharpoondown' => '↽',
+            'rightleftharpoons' => '⇌',
+            'leftrightharpoons' => '⇋',
+            'restriction' => '↾',
+            'multimap' => '⊸',
+            'infty' => '∞',
+            'partial' => '∂',
+            'nabla' => '∇',
+            'int' => '∫',
+            'intop' => '∫',
+            'smallint' => '∫',
+            'oint' => '∮',
+            'iint' => '∬',
+            'iiint' => '∭',
+            'iiiint' => '⨌',
+            'idotsint' => '∫⋯∫',
+            'oiint' => '∯',
+            'oiiint' => '∰',
+            'sum' => '∑',
+            'Bbbsum' => '⅀',
+            'prod' => '∏',
+            'coprod' => '∐',
+            'bigcup' => '⋃',
+            'bigcap' => '⋂',
+            'bigsqcup' => '⨆',
+            'bigvee' => '⋁',
+            'bigwedge' => '⋀',
+            'bigoplus' => '⨁',
+            'bigotimes' => '⨂',
+            'bigodot' => '⨀',
+            'biguplus' => '⨄',
+            '{' => '{',
+            '}' => '}',
+            'lbrace' => '{',
+            'rbrace' => '}',
+            'lparen' => '(',
+            'rparen' => ')',
+            'lbrack' => '[',
+            'rbrack' => ']',
+            'langle' => '⟨',
+            'rangle' => '⟩',
+            'lfloor' => '⌊',
+            'rfloor' => '⌋',
+            'lceil' => '⌈',
+            'rceil' => '⌉',
+            'vert' => '|',
+            'lvert' => '|',
+            'rvert' => '|',
+            '|' => '‖',
+            'Vert' => '‖',
+            'lVert' => '‖',
+            'rVert' => '‖',
+            'backslash' => '\\',
+            'left' => '',
+            'right' => '',
+        ];
+        if (!array_key_exists($command, $operators)) {
+            return null;
+        }
+        if ($operators[$command] === '') {
+            return '';
+        }
+        if (str_starts_with($operators[$command], '<mspace')) {
+            return $operators[$command];
+        }
+
+        return '<mo>' . $this->esc($operators[$command]) . '</mo>';
+    }
+
+    private function mathMLRow(string $content): string
+    {
+        return $this->mathMLContentIsSingleElement($content)
+            ? $content
+            : '<mrow>' . $content . '</mrow>';
+    }
+
+    private function mathMLContentIsSingleElement(string $content): bool
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $ok = $dom->loadXML('<root>' . $content . '</root>', LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$ok || !$dom->documentElement instanceof \DOMElement) {
+            return false;
+        }
+
+        $elements = [];
+        foreach ($dom->documentElement->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->wholeText) === '') {
+                continue;
+            }
+            if (!$child instanceof \DOMElement) {
+                return false;
+            }
+            $elements[] = $child;
+        }
+        if (count($elements) !== 1) {
+            return false;
+        }
+
+        return in_array(strtolower($elements[0]->localName), [
+            'munderover',
+            'msubsup',
+            'msup',
+            'msub',
+            'mfrac',
+            'msqrt',
+            'mroot',
+            'mover',
+            'munder',
+            'menclose',
+            'mtable',
+            'mtr',
+            'mtd',
+            'mphantom',
+            'mpadded',
+            'mstyle',
+            'mrow',
+            'mtext',
+            'mi',
+            'mn',
+            'mo',
+            'mspace',
+        ], true);
     }
 
     private function renderWebTeXMath(string $text, bool $display, string $class): string
@@ -1475,6 +6434,7 @@ final class HtmlWriter
         return match ($normalized) {
             'webtex' => 'webtex',
             'gladtex' => 'gladtex',
+            'mathml' => 'mathml',
             'mathjax' => 'mathjax',
             'katex' => 'katex',
             default => 'plain',
@@ -1810,9 +6770,9 @@ final class HtmlWriter
         return $this->renderAttrTuple($this->attrTuple($node), $attributeFilter);
     }
 
-    private function renderHtmlAttributes(AstNode $node): string
+    private function renderHtmlAttributes(AstNode $node, ?callable $attributeFilter = null): string
     {
-        return $this->renderAttrTuple($this->htmlAttrTuple($node));
+        return $this->renderAttrTuple($this->htmlAttrTuple($node), $attributeFilter);
     }
 
     /**
@@ -1855,8 +6815,13 @@ final class HtmlWriter
 
         foreach ($htmlAttributes as $name => $value) {
             $name = (string) $name;
+            $lowerName = strtolower($name);
+            if (str_starts_with($lowerName, 'data-')) {
+                unset($attrs['attributes'][substr($name, 5)], $attrs['attributes'][substr($lowerName, 5)]);
+            }
+
             if (
-                in_array(strtolower($name), ['id', 'class'], true)
+                in_array($lowerName, ['id', 'class'], true)
                 || !is_scalar($value)
                 || array_key_exists($name, $attrs['attributes'])
             ) {
@@ -1897,7 +6862,7 @@ final class HtmlWriter
 
     private function allowedHeadingAttribute(string $name): bool
     {
-        return in_array($name, ['lang', 'dir', 'title', 'style', 'align'], true)
+        return in_array($name, ['lang', 'xml:lang', 'dir', 'title', 'style', 'align', 'role', 'epub:type', 'hidden'], true)
             || str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-');
     }

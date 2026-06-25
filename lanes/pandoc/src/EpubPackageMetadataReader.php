@@ -7,7 +7,9 @@ namespace PortLibs\Pandoc;
 final class EpubPackageMetadataReader
 {
     private const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
+    private const OPF_NAMESPACE = 'http://www.idpf.org/2007/opf';
     private const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
+    private const OCF_CONTAINER_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:container';
 
     /**
      * @var array<string, string>
@@ -53,7 +55,7 @@ final class EpubPackageMetadataReader
     {
         $dom = $this->loadXml($xml, 'EPUB package document');
         $package = $dom->documentElement;
-        if (!$package instanceof \DOMElement || $package->localName !== 'package') {
+        if (!$package instanceof \DOMElement || !$this->isOpfElement($package, 'package')) {
             throw new \InvalidArgumentException('EPUB package document must have a package root element');
         }
 
@@ -65,15 +67,27 @@ final class EpubPackageMetadataReader
     private function rootfilePath(string $containerXml): string
     {
         $dom = $this->loadXml($containerXml, 'EPUB container document');
-        $xpath = new \DOMXPath($dom);
-        $rootfiles = $xpath->query('//*[local-name()="rootfile"]');
-        if (!$rootfiles instanceof \DOMNodeList) {
-            throw new \InvalidArgumentException('EPUB container rootfile list cannot be read');
+        $container = $dom->documentElement;
+        if (!$container instanceof \DOMElement || !$this->isOcfContainerElement($container, 'container')) {
+            throw new \InvalidArgumentException('EPUB container document must have a container root element');
+        }
+
+        $rootfiles = null;
+        foreach ($container->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isOcfContainerElement($child, 'rootfiles')) {
+                $rootfiles = $child;
+                break;
+            }
+        }
+
+        if (!$rootfiles instanceof \DOMElement) {
+            throw new \InvalidArgumentException('EPUB container does not declare an OPF rootfile');
         }
 
         $fallback = null;
-        foreach ($rootfiles as $rootfile) {
-            if (!$rootfile instanceof \DOMElement) {
+        $fallbackException = null;
+        foreach ($rootfiles->childNodes as $rootfile) {
+            if (!$rootfile instanceof \DOMElement || !$this->isOcfContainerElement($rootfile, 'rootfile')) {
                 continue;
             }
 
@@ -82,15 +96,24 @@ final class EpubPackageMetadataReader
                 continue;
             }
 
-            if (trim($rootfile->getAttribute('media-type')) === self::OPF_MEDIA_TYPE) {
+            if ($this->mediaTypeMatches(trim($rootfile->getAttribute('media-type')), self::OPF_MEDIA_TYPE)) {
                 return $this->normalizeZipPath($path);
             }
 
-            $fallback ??= $path;
+            if ($fallback === null) {
+                try {
+                    $fallback = $this->normalizeZipPath($path);
+                } catch (\InvalidArgumentException $exception) {
+                    $fallbackException ??= $exception;
+                }
+            }
         }
 
         if ($fallback !== null) {
-            return $this->normalizeZipPath($fallback);
+            return $fallback;
+        }
+        if ($fallbackException instanceof \InvalidArgumentException) {
+            throw $fallbackException;
         }
 
         throw new \InvalidArgumentException('EPUB container does not declare an OPF rootfile');
@@ -103,7 +126,7 @@ final class EpubPackageMetadataReader
     {
         $metadata = null;
         foreach ($package->childNodes as $child) {
-            if ($child instanceof \DOMElement && $child->localName === 'metadata') {
+            if ($child instanceof \DOMElement && $this->isOpfElement($child, 'metadata')) {
                 $metadata = $child;
                 break;
             }
@@ -136,7 +159,7 @@ final class EpubPackageMetadataReader
                 continue;
             }
 
-            if ($child->localName !== 'meta') {
+            if (!$this->isOpfElement($child, 'meta')) {
                 continue;
             }
 
@@ -206,8 +229,27 @@ final class EpubPackageMetadataReader
     private function isDublinCoreElement(\DOMElement $element): bool
     {
         return $element->namespaceURI === self::DC_NAMESPACE
-            || (array_key_exists($element->localName, self::DC_FIELD_KEYS)
+            && (array_key_exists($element->localName, self::DC_FIELD_KEYS)
                 || in_array($element->localName, ['title', 'creator', 'date', 'language', 'identifier', 'subject'], true));
+    }
+
+    private function isOpfElement(\DOMElement $element, string $localName): bool
+    {
+        return $element->localName === $localName
+            && ($element->namespaceURI ?? '') === self::OPF_NAMESPACE;
+    }
+
+    private function isOcfContainerElement(\DOMElement $element, string $localName): bool
+    {
+        return $element->localName === $localName
+            && ($element->namespaceURI ?? '') === self::OCF_CONTAINER_NAMESPACE;
+    }
+
+    private function mediaTypeMatches(string $actual, string $expected): bool
+    {
+        $type = strtolower(trim(explode(';', $actual, 2)[0]));
+
+        return $type === $expected;
     }
 
     /**

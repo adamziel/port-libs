@@ -181,6 +181,7 @@ final class PandocConverter
     private static function writer(string $implementation, string $format, array $options): object
     {
         return match ($implementation) {
+            EpubWriter::class => new EpubWriter(array_replace(['writerFormat' => $format], $options)),
             HtmlWriter::class => new HtmlWriter($options),
             JsonWriter::class => new JsonWriter(),
             LatexWriter::class => new LatexWriter($options),

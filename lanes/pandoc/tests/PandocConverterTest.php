@@ -54,6 +54,9 @@ return [
         $t->true(PandocConverter::canRead('odt'));
         $t->true(PandocConverter::canRead('pdf'));
         $t->true(PandocConverter::canWrite('blocks'));
+        $t->true(PandocConverter::canWrite('epub'));
+        $t->true(PandocConverter::canWrite('epub2'));
+        $t->true(PandocConverter::canWrite('epub3'));
         $t->true(PandocConverter::canWrite('native'));
         $t->true(!PandocConverter::canWrite('pdf'));
     },

@@ -116,6 +116,9 @@ final class MarkdownReader
     /** @var array<string, list<AstNode>> */
     private array $htmlFootnoteDefinitions = [];
 
+    /** @var array<string, true> */
+    private array $htmlFootnoteReferenceIds = [];
+
     private bool $resolveFootnoteReferences = true;
 
     private int $htmlQuoteDepth = 0;
@@ -1894,7 +1897,9 @@ final class MarkdownReader
 
         $previousHtmlBaseHref = $this->htmlBaseHref;
         $previousHtmlFootnoteDefinitions = $this->htmlFootnoteDefinitions;
+        $previousHtmlFootnoteReferenceIds = $this->htmlFootnoteReferenceIds;
         $this->htmlBaseHref = $this->htmlDocumentBaseHref($dom);
+        $this->htmlFootnoteReferenceIds = $this->collectHtmlFootnoteReferenceIds($body);
         $this->htmlFootnoteDefinitions = $this->collectHtmlFootnoteDefinitions($body);
         try {
             $attrs = $this->htmlDocumentAttrs($dom);
@@ -1909,7 +1914,28 @@ final class MarkdownReader
         } finally {
             $this->htmlBaseHref = $previousHtmlBaseHref;
             $this->htmlFootnoteDefinitions = $previousHtmlFootnoteDefinitions;
+            $this->htmlFootnoteReferenceIds = $previousHtmlFootnoteReferenceIds;
         }
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function collectHtmlFootnoteReferenceIds(\DOMElement $body): array
+    {
+        $ids = [];
+        foreach ($body->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || !$this->isHtmlNoteReferenceElement($candidate)) {
+                continue;
+            }
+
+            $id = $this->htmlLocalFragmentId(trim($candidate->getAttribute('href')));
+            if ($id !== '') {
+                $ids[$id] = true;
+            }
+        }
+
+        return $ids;
     }
 
     /**
@@ -1938,6 +1964,20 @@ final class MarkdownReader
                 $definitions[$id] = $this->parseHtmlBlockChildren($clone);
             }
         }
+        foreach ($this->htmlStandaloneFootnoteItems($body) as $candidate) {
+            $id = trim($candidate->getAttribute('id'));
+            if ($id === '' || !isset($this->htmlFootnoteReferenceIds[$id]) || isset($definitions[$id])) {
+                continue;
+            }
+
+            $clone = $candidate->cloneNode(true);
+            if (!$clone instanceof \DOMElement) {
+                continue;
+            }
+
+            $this->removeHtmlFootnoteBacklinks($clone);
+            $definitions[$id] = $this->parseHtmlBlockChildren($clone);
+        }
 
         return $definitions;
     }
@@ -1961,13 +2001,28 @@ final class MarkdownReader
         return $containers;
     }
 
+    /**
+     * @return list<\DOMElement>
+     */
+    private function htmlStandaloneFootnoteItems(\DOMElement $root): array
+    {
+        $items = [];
+        foreach ($root->getElementsByTagName('*') as $candidate) {
+            if ($candidate instanceof \DOMElement && $this->isHtmlStandaloneFootnoteItemElement($candidate)) {
+                $items[] = $candidate;
+            }
+        }
+
+        return $items;
+    }
+
     private function isHtmlFootnoteContainer(\DOMElement $element): bool
     {
-        if (strtolower(trim($element->getAttribute('role'))) === 'doc-endnotes') {
+        if ($this->htmlHasRole($element, ['doc-endnotes'])) {
             return true;
         }
 
-        return in_array($this->htmlSemanticType($element), ['footnotes', 'rearnotes'], true);
+        return $this->htmlHasSemanticType($element, ['footnotes', 'rearnotes']);
     }
 
     private function isHtmlFootnoteItemElement(\DOMElement $element): bool
@@ -1981,33 +2036,117 @@ final class MarkdownReader
             return true;
         }
 
-        return in_array($this->htmlSemanticType($element), ['footnote', 'rearnote'], true);
+        return $this->htmlHasSemanticType($element, ['footnote', 'rearnote']);
+    }
+
+    private function isHtmlStandaloneFootnoteItemElement(\DOMElement $element): bool
+    {
+        if (trim($element->getAttribute('id')) === '') {
+            return false;
+        }
+        if ($this->hasHtmlFootnoteContainerAncestor($element)) {
+            return false;
+        }
+        if ($this->htmlHasRole($element, ['doc-footnote'])) {
+            return true;
+        }
+
+        return $this->htmlHasSemanticType($element, ['footnote', 'rearnote']);
+    }
+
+    private function isHtmlReferencedStandaloneFootnoteItemElement(\DOMElement $element): bool
+    {
+        $id = trim($element->getAttribute('id'));
+
+        return $id !== ''
+            && isset($this->htmlFootnoteReferenceIds[$id])
+            && $this->isHtmlStandaloneFootnoteItemElement($element);
+    }
+
+    private function hasHtmlFootnoteContainerAncestor(\DOMElement $element): bool
+    {
+        for ($node = $element->parentNode; $node instanceof \DOMElement; $node = $node->parentNode) {
+            if ($this->isHtmlFootnoteContainer($node)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isHtmlNoteReferenceElement(\DOMElement $element): bool
     {
-        if (strtolower(trim($element->getAttribute('role'))) === 'doc-noteref') {
+        if ($this->htmlHasRole($element, ['doc-noteref'])) {
             return true;
         }
 
-        return $this->htmlSemanticType($element) === 'noteref';
+        return $this->htmlHasSemanticType($element, ['noteref']);
     }
 
     private function htmlSemanticType(\DOMElement $element): string
     {
-        $type = trim($element->getAttribute('type'));
-        if ($type === '') {
-            $type = trim($element->getAttribute('epub:type'));
+        $type = trim($element->getAttribute('epub:type'));
+        if ($type !== '') {
+            return strtolower($type);
         }
 
+        foreach ($element->attributes ?? [] as $attribute) {
+            if (
+                $attribute instanceof \DOMAttr
+                && $attribute->localName === 'type'
+                && (
+                    $attribute->namespaceURI === 'http://www.idpf.org/2007/ops'
+                    || $attribute->prefix === 'epub'
+                    || strtolower($attribute->name) === 'epub:type'
+                )
+            ) {
+                return strtolower(trim($attribute->value));
+            }
+        }
+
+        $type = trim($element->getAttribute('type'));
+
         return strtolower($type);
+    }
+
+    /**
+     * @param list<string> $types
+     */
+    private function htmlHasSemanticType(\DOMElement $element, array $types): bool
+    {
+        $semanticType = $this->htmlSemanticType($element);
+        if ($semanticType === '') {
+            return false;
+        }
+
+        $tokens = preg_split('/\s+/', $semanticType);
+        if ($tokens === false) {
+            $tokens = [$semanticType];
+        }
+
+        return array_intersect($types, $tokens) !== [];
+    }
+
+    /**
+     * @param list<string> $roles
+     */
+    private function htmlHasRole(\DOMElement $element, array $roles): bool
+    {
+        $role = strtolower(trim($element->getAttribute('role')));
+        if ($role === '') {
+            return false;
+        }
+
+        $tokens = preg_split('/\s+/', $role, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return array_intersect($roles, $tokens) !== [];
     }
 
     private function removeHtmlFootnoteBacklinks(\DOMElement $root): void
     {
         $links = [];
         foreach ($root->getElementsByTagName('a') as $link) {
-            if ($link instanceof \DOMElement && strtolower(trim($link->getAttribute('role'))) === 'doc-backlink') {
+            if ($link instanceof \DOMElement && $this->isHtmlFootnoteBacklinkElement($link)) {
                 $links[] = $link;
             }
         }
@@ -2015,6 +2154,36 @@ final class MarkdownReader
         foreach ($links as $link) {
             $link->parentNode?->removeChild($link);
         }
+    }
+
+    private function isHtmlFootnoteBacklinkElement(\DOMElement $link): bool
+    {
+        return $this->htmlHasRole($link, ['doc-backlink'])
+            || $this->htmlHasSemanticType($link, ['backlink'])
+            || $this->htmlElementHasClass($link, 'footnote-back');
+    }
+
+    private function htmlLocalFragmentId(string $href): string
+    {
+        $href = html_entity_decode(trim($href), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($href === '') {
+            return '';
+        }
+
+        if (str_starts_with($href, '#')) {
+            return rawurldecode(substr($href, 1));
+        }
+
+        if (str_starts_with($href, '//')) {
+            return '';
+        }
+
+        $parts = parse_url($href);
+        if (!is_array($parts) || isset($parts['scheme']) || !isset($parts['fragment'])) {
+            return '';
+        }
+
+        return rawurldecode((string) $parts['fragment']);
     }
 
     private function htmlNativeDivsEnabled(): bool
@@ -2159,15 +2328,11 @@ final class MarkdownReader
         }
 
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<(section|aside)\b/i', $line, $match) !== 1) {
+        if (preg_match('/^ {0,3}<(' . implode('|', $this->htmlNativeDivElementNames()) . ')\b/i', $line, $match) !== 1) {
             return null;
         }
 
         $tag = strtolower($match[1]);
-        if ($tag === 'button' && ($this->options['suppressStandaloneButtonInline'] ?? false)) {
-            return null;
-        }
-
         $collected = $this->collectBalancedHtmlElementBlock($lines, $index, $tag);
         if ($collected === null) {
             return null;
@@ -2511,7 +2676,7 @@ final class MarkdownReader
             return $this->parseHtmlInlineFragmentParagraph(trim($line));
         }
 
-        if (preg_match('/^ {0,3}<(abbr|applet|audio|b|bdo|button|cite|code|del|dfn|em|i|ins|kbd|map|mark|noscript|object|progress|q|s|samp|small|source|span|strike|strong|sub|sup|svg|time|track|tt|u|var|video|embed)\b/i', $line, $match) !== 1) {
+        if (preg_match('/^ {0,3}<(abbr|applet|audio|b|bdi|bdo|button|canvas|cite|code|data|del|dfn|em|i|iframe|ins|kbd|map|mark|meter|noscript|object|output|picture|progress|q|s|samp|small|source|span|strike|strong|sub|sup|svg|time|track|tt|u|var|video|embed)\b/i', $line, $match) !== 1) {
             return null;
         }
 
@@ -2557,7 +2722,9 @@ final class MarkdownReader
 
         $blocks = $this->parseHtmlBlockChildren($body);
         if (count($blocks) !== 1 || $blocks[0]->type !== 'paragraph') {
-            return null;
+            $children = $this->parseHtmlInlineChildren($body);
+
+            return $children === [] ? null : new AstNode('paragraph', [], $children);
         }
 
         return $blocks[0];
@@ -2669,7 +2836,7 @@ final class MarkdownReader
         }
 
         [$html, $endIndex] = $collected;
-        $iframe = $this->parseHtmlIframeBlock($html);
+        $iframe = $this->parseHtmlIframeBlock($html, false);
         if ($iframe === null) {
             return null;
         }
@@ -2679,7 +2846,7 @@ final class MarkdownReader
         return $iframe;
     }
 
-    private function parseHtmlIframeBlock(string $html): ?AstNode
+    private function parseHtmlIframeBlock(string $html, bool $fallbackUnknown = true): ?AstNode
     {
         $previous = libxml_use_internal_errors(true);
         $dom = new \DOMDocument('1.0', 'UTF-8');
@@ -2703,7 +2870,7 @@ final class MarkdownReader
             return null;
         }
 
-        return $this->buildHtmlIframeNode($iframe);
+        return $this->buildHtmlIframeNode($iframe, $fallbackUnknown);
     }
 
     /**
@@ -3058,7 +3225,7 @@ final class MarkdownReader
         $blocks = [];
         $inlines = [];
         foreach ($element->childNodes as $child) {
-            if ($child instanceof \DOMElement && $this->isHtmlFootnoteContainer($child)) {
+            if ($child instanceof \DOMElement && ($this->isHtmlFootnoteContainer($child) || $this->isHtmlReferencedStandaloneFootnoteItemElement($child))) {
                 continue;
             }
 
@@ -3083,11 +3250,14 @@ final class MarkdownReader
     {
         return in_array(strtolower($element->localName), [
             'blockquote',
+            'details',
             'div',
             'dl',
             'figure',
+            'fieldset',
+            'form',
             'iframe',
-            ...($this->htmlNativeDivsEnabled() ? ['aside', 'header', 'main', 'section'] : []),
+            ...($this->htmlNativeDivsEnabled() ? $this->htmlNativeDivElementNames() : []),
             'h1',
             'h2',
             'h3',
@@ -3095,6 +3265,7 @@ final class MarkdownReader
             'h5',
             'h6',
             'hr',
+            'legend',
             'ol',
             'p',
             'pre',
@@ -3108,6 +3279,10 @@ final class MarkdownReader
 
     private function parseHtmlBlockElement(\DOMElement $element): ?AstNode
     {
+        if ($this->isHtmlReferencedStandaloneFootnoteItemElement($element)) {
+            return null;
+        }
+
         $name = strtolower($element->localName);
         if ($name === 'p') {
             return $this->buildHtmlParagraphNode($element);
@@ -3117,6 +3292,19 @@ final class MarkdownReader
         }
         if ($name === 'blockquote') {
             return $this->buildHtmlBlockQuoteNode($element);
+        }
+        if ($name === 'details') {
+            if ($this->htmlRawHtmlEnabled()) {
+                return $this->buildHtmlRawBlockNode($element);
+            }
+
+            return new AstNode('div', $this->htmlElementPandocAttrs($element), $this->parseHtmlBlockChildren($element));
+        }
+        if ($name === 'form' || $name === 'fieldset') {
+            return $this->buildHtmlFormBlockNode($element);
+        }
+        if ($name === 'legend') {
+            return $this->buildHtmlLegendBlockNode($element);
         }
         if ($name === 'ol' || $name === 'ul') {
             return $this->parseHtmlListElement($element);
@@ -3165,7 +3353,7 @@ final class MarkdownReader
         if ($name === 'div') {
             return new AstNode('div', $this->htmlElementPandocAttrs($element), $this->parseHtmlBlockChildren($element));
         }
-        if ($this->htmlNativeDivsEnabled() && in_array($name, ['aside', 'header', 'main', 'section'], true)) {
+        if ($this->htmlNativeDivsEnabled() && in_array($name, $this->htmlNativeDivElementNames(), true)) {
             return $this->buildHtmlNativeDivNode($element);
         }
         if ($name === 'hr') {
@@ -3337,7 +3525,7 @@ final class MarkdownReader
         return new AstNode('figure', $attrs, $bodyBlocks);
     }
 
-    private function buildHtmlIframeNode(\DOMElement $iframe): ?AstNode
+    private function buildHtmlIframeNode(\DOMElement $iframe, bool $fallbackUnknown = true): ?AstNode
     {
         $rawUrl = trim($iframe->getAttribute('src'));
         if ($rawUrl === '') {
@@ -3347,11 +3535,17 @@ final class MarkdownReader
         $url = $this->resolveHtmlUrl($rawUrl);
         $resource = $this->htmlIframeResource($url) ?? $this->htmlIframeResource($rawUrl);
         if ($resource === null) {
-            return null;
+            if (!$fallbackUnknown) {
+                return null;
+            }
+
+            return new AstNode('paragraph', [], [
+                $this->buildHtmlIframeSpanNode($iframe),
+            ]);
         }
 
         $mime = strtolower(trim($resource['mime']));
-        if (str_starts_with($mime, 'text/html')) {
+        if (str_starts_with($mime, 'text/html') || str_contains($mime, 'xhtml')) {
             $document = $this->parseHtmlDocument($resource['body']);
 
             return new AstNode('div', $this->htmlIframeDivAttrs(), $document?->children ?? []);
@@ -3370,6 +3564,15 @@ final class MarkdownReader
         }
 
         return new AstNode('div', $this->htmlIframeDivAttrs(['src' => $url]));
+    }
+
+    private function buildHtmlIframeSpanNode(\DOMElement $iframe): AstNode
+    {
+        return new AstNode(
+            'span',
+            $this->htmlSpanLikeElementAttrs($iframe, 'iframe'),
+            $this->parseHtmlInlineChildren($iframe)
+        );
     }
 
     /**
@@ -3408,6 +3611,71 @@ final class MarkdownReader
             'mime' => $mime,
             'body' => $body,
         ];
+    }
+
+    private function buildHtmlFormBlockNode(\DOMElement $element): AstNode
+    {
+        return new AstNode(
+            'div',
+            $this->htmlNativeClassedDivAttrs($element, strtolower($element->localName)),
+            $this->parseHtmlFormBlockChildren($element)
+        );
+    }
+
+    private function buildHtmlLegendBlockNode(\DOMElement $legend): AstNode
+    {
+        return new AstNode(
+            'div',
+            $this->htmlNativeClassedDivAttrs($legend, 'legend'),
+            $this->parseHtmlBlockChildren($legend)
+        );
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlFormBlockChildren(\DOMElement $element): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && ($this->isHtmlFootnoteContainer($child) || $this->isHtmlReferencedStandaloneFootnoteItemElement($child))) {
+                continue;
+            }
+
+            if ($child instanceof \DOMElement && $this->htmlElementIsDirectFormInline($child)) {
+                $this->appendHtmlInlineNodes($inlines, $this->parseHtmlInlineNode($child));
+                continue;
+            }
+
+            if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                $block = $this->parseHtmlBlockElement($child);
+                if ($block instanceof AstNode) {
+                    $blocks[] = $block;
+                }
+                continue;
+            }
+
+            $this->appendHtmlInlineNodes($inlines, $this->parseHtmlInlineNode($child));
+        }
+
+        $this->flushHtmlInlineParagraph($inlines, $blocks);
+
+        return $blocks;
+    }
+
+    private function htmlElementIsDirectFormInline(\DOMElement $element): bool
+    {
+        return in_array(strtolower($element->localName), [
+            'button',
+            'input',
+            'label',
+            'optgroup',
+            'option',
+            'select',
+            'textarea',
+        ], true);
     }
 
     /**
@@ -3538,12 +3806,36 @@ final class MarkdownReader
     private function buildHtmlNativeDivNode(\DOMElement $element): AstNode
     {
         $attrs = $this->htmlNativeDivAttrs($element);
+        $children = strtolower($element->localName) === 'menu'
+            ? $this->htmlNativeMenuChildren($element)
+            : $this->htmlNativeDivChildren($element, (string) ($attrs['id'] ?? ''));
 
         return new AstNode(
             'div',
             $attrs,
-            $this->htmlNativeDivChildren($element, (string) ($attrs['id'] ?? ''))
+            $children
         );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function htmlNativeDivElementNames(): array
+    {
+        return [
+            'address',
+            'article',
+            'aside',
+            'dialog',
+            'footer',
+            'header',
+            'hgroup',
+            'main',
+            'menu',
+            'nav',
+            'search',
+            'section',
+        ];
     }
 
     /**
@@ -3552,12 +3844,30 @@ final class MarkdownReader
     private function htmlNativeDivAttrs(\DOMElement $element): array
     {
         return match (strtolower($element->localName)) {
+            'address' => $this->htmlNativeClassedDivAttrs($element, 'address'),
+            'article' => $this->htmlNativeClassedDivAttrs($element, 'article'),
             'aside' => $this->htmlNativeClassedDivAttrs($element, 'aside'),
+            'dialog' => $this->htmlNativeClassedDivAttrs($element, 'dialog'),
+            'footer' => $this->htmlNativeClassedDivAttrs($element, 'footer'),
             'header' => $this->htmlNativeHeaderAttrs($element),
+            'hgroup' => $this->htmlNativeClassedDivAttrs($element, 'hgroup'),
             'main' => $this->htmlNativeMainAttrs($element),
+            'menu' => $this->htmlNativeClassedDivAttrs($element, 'menu'),
+            'nav' => $this->htmlNativeClassedDivAttrs($element, 'nav'),
+            'search' => $this->htmlNativeClassedDivAttrs($element, 'search'),
             'section' => $this->htmlNativeClassedDivAttrs($element, 'section'),
             default => $this->htmlElementPandocAttrs($element),
         };
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function htmlNativeMenuChildren(\DOMElement $menu): array
+    {
+        $list = $this->parseHtmlListElement($menu);
+
+        return $list->children === [] ? $this->htmlNativeDivChildren($menu, '') : [$list];
     }
 
     /**
@@ -3769,7 +4079,7 @@ final class MarkdownReader
             return [];
         }
 
-        if ($child instanceof \DOMElement && $this->isHtmlFootnoteContainer($child)) {
+        if ($child instanceof \DOMElement && ($this->isHtmlFootnoteContainer($child) || $this->isHtmlReferencedStandaloneFootnoteItemElement($child))) {
             return [];
         }
 
@@ -4450,6 +4760,7 @@ final class MarkdownReader
         $thead = $this->firstChildElement($table, 'thead');
         $tfoot = $this->firstChildElement($table, 'tfoot');
         $bodySections = $this->childElements($table, 'tbody');
+        $colgroups = $this->readHtmlTableColgroups($table);
 
         $headRows = $thead instanceof \DOMElement ? $this->readHtmlTableRows($thead, true, $maxColumns) : [];
         $bodyNodes = [];
@@ -4479,10 +4790,13 @@ final class MarkdownReader
         $captionInlines = $caption instanceof \DOMElement ? $this->parseHtmlInlineChildren($caption) : [];
         $attrs = array_merge($this->htmlElementPandocAttrs($table), [
             'caption' => $captionInlines === [] ? '' : trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($captionInlines)) ?? ''),
-            'alignments' => array_fill(0, $maxColumns, 'default'),
+            'alignments' => $this->readHtmlTableAlignments($table, $maxColumns, $headRows, $bodyNodes, $footRows),
         ]);
         if ($captionInlines !== []) {
             $attrs['captionInlines'] = $captionInlines;
+        }
+        if ($colgroups !== []) {
+            $attrs['colgroups'] = $colgroups;
         }
 
         $widths = $this->readHtmlTableColumnWidths($table, $maxColumns);
@@ -4585,39 +4899,106 @@ final class MarkdownReader
         }
 
         $minimum = null;
+        $rowspanOccupancy = [];
         foreach ($rows as $row) {
-            $count = 0;
-            foreach ($row->children as $cell) {
-                if ($cell->type !== 'table_cell' || $cell->attr('header') !== true) {
-                    break;
+            $occupiedColumns = $rowspanOccupancy;
+            $nextOccupancy = [];
+            foreach ($occupiedColumns as $column => $state) {
+                if (($state['remaining'] ?? 0) > 1) {
+                    $nextOccupancy[(int) $column] = [
+                        'remaining' => ((int) $state['remaining']) - 1,
+                        'header' => (bool) ($state['header'] ?? false),
+                    ];
                 }
+            }
+
+            $headerColumns = [];
+            foreach ($occupiedColumns as $column => $state) {
+                if (($state['header'] ?? false) === true) {
+                    $headerColumns[(int) $column] = true;
+                }
+            }
+
+            $logicalColumn = 0;
+            foreach ($row->children as $cell) {
+                if ($cell->type !== 'table_cell') {
+                    continue;
+                }
+
+                while (isset($occupiedColumns[$logicalColumn])) {
+                    $logicalColumn++;
+                }
+
+                $colspan = max(1, (int) $cell->attr('colspan', 1));
+                $rowspan = max(1, (int) $cell->attr('rowspan', 1));
+                $header = $cell->attr('header') === true;
+                for ($column = $logicalColumn; $column < $logicalColumn + $colspan; $column++) {
+                    if ($header) {
+                        $headerColumns[$column] = true;
+                    }
+                    if ($rowspan > 1) {
+                        $nextOccupancy[$column] = [
+                            'remaining' => max((int) ($nextOccupancy[$column]['remaining'] ?? 0), $rowspan - 1),
+                            'header' => $header,
+                        ];
+                    }
+                }
+
+                $logicalColumn += $colspan;
+            }
+
+            $count = 0;
+            while (($headerColumns[$count] ?? false) === true) {
                 $count++;
             }
 
+            if ($count === 0) {
+                $minimum = 0;
+                break;
+            }
             $minimum = $minimum === null ? $count : min($minimum, $count);
+            $rowspanOccupancy = $nextOccupancy;
         }
 
         return $minimum ?? 0;
     }
-
     /**
      * @return list<float>|null
      */
     private function readHtmlTableColumnWidths(\DOMElement $table, int $maxColumns): ?array
     {
-        $colgroup = $this->firstChildElement($table, 'colgroup');
-        if (!$colgroup instanceof \DOMElement) {
+        $colgroups = $this->childElements($table, 'colgroup');
+        if ($colgroups === []) {
             return null;
         }
 
         $widths = [];
-        foreach ($this->childElements($colgroup, 'col') as $col) {
-            $width = $this->htmlColumnWidthPercent($col);
-            if ($width === null) {
-                return null;
+        foreach ($colgroups as $colgroup) {
+            $cols = $this->childElements($colgroup, 'col');
+            if ($cols === []) {
+                $width = $this->htmlColumnWidthPercent($colgroup);
+                if ($width === null) {
+                    return null;
+                }
+
+                $span = $this->positiveHtmlSpan($colgroup->getAttribute('span'));
+                for ($index = 0; $index < $span; $index++) {
+                    $widths[] = $width;
+                }
+                continue;
             }
 
-            $widths[] = $width;
+            foreach ($cols as $col) {
+                $width = $this->htmlColumnWidthPercent($col);
+                if ($width === null) {
+                    return null;
+                }
+
+                $span = $this->positiveHtmlSpan($col->getAttribute('span'));
+                for ($index = 0; $index < $span; $index++) {
+                    $widths[] = $width;
+                }
+            }
         }
 
         if ($widths === [] || ($maxColumns > 0 && count($widths) !== $maxColumns)) {
@@ -4640,6 +5021,151 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<AstNode> $headRows
+     * @param list<AstNode> $bodyNodes
+     * @param list<AstNode> $footRows
+     * @return list<string>
+     */
+    private function readHtmlTableAlignments(\DOMElement $table, int $maxColumns, array $headRows, array $bodyNodes, array $footRows): array
+    {
+        $alignments = array_fill(0, $maxColumns, 'default');
+        if ($maxColumns <= 0) {
+            return $alignments;
+        }
+
+        $column = 0;
+        foreach ($this->childElements($table, 'colgroup') as $colgroup) {
+            if ($column >= $maxColumns) {
+                break;
+            }
+
+            $groupAlignment = $this->normalizeHtmlTableAlignment($colgroup);
+            $cols = $this->childElements($colgroup, 'col');
+            if ($cols === []) {
+                $span = $this->positiveHtmlSpan($colgroup->getAttribute('span'));
+                if ($groupAlignment !== 'default') {
+                    for ($offset = 0; $offset < $span && $column + $offset < $maxColumns; $offset++) {
+                        $alignments[$column + $offset] = $groupAlignment;
+                    }
+                }
+                $column += $span;
+                continue;
+            }
+
+            foreach ($cols as $col) {
+                if ($column >= $maxColumns) {
+                    break;
+                }
+
+                $alignment = $this->normalizeHtmlTableAlignment($col);
+                if ($alignment === 'default') {
+                    $alignment = $groupAlignment;
+                }
+                if ($alignment !== 'default') {
+                    $span = $this->positiveHtmlSpan($col->getAttribute('span'));
+                    for ($offset = 0; $offset < $span && $column + $offset < $maxColumns; $offset++) {
+                        $alignments[$column + $offset] = $alignment;
+                    }
+                }
+                $column += $this->positiveHtmlSpan($col->getAttribute('span'));
+            }
+        }
+
+        $rows = $headRows;
+        foreach ($bodyNodes as $bodyNode) {
+            $headRowsFromBody = $bodyNode->attr('headRows', []);
+            if (is_array($headRowsFromBody)) {
+                foreach ($headRowsFromBody as $row) {
+                    if ($row instanceof AstNode) {
+                        $rows[] = $row;
+                    }
+                }
+            }
+            foreach ($bodyNode->children as $row) {
+                if ($row instanceof AstNode) {
+                    $rows[] = $row;
+                }
+            }
+        }
+        foreach ($footRows as $row) {
+            if ($row instanceof AstNode) {
+                $rows[] = $row;
+            }
+        }
+
+        foreach ([false, true] as $allowSpans) {
+            foreach ($rows as $row) {
+                $column = 0;
+                foreach ($row->children as $cell) {
+                    if (!$cell instanceof AstNode || $cell->type !== 'table_cell') {
+                        continue;
+                    }
+
+                    $span = max(1, (int) $cell->attr('colspan', 1));
+                    $alignment = (string) $cell->attr('align', 'default');
+                    if ($alignment !== 'default' && ($allowSpans || $span === 1)) {
+                        for ($offset = 0; $offset < $span && $column + $offset < $maxColumns; $offset++) {
+                            if ($alignments[$column + $offset] === 'default') {
+                                $alignments[$column + $offset] = $alignment;
+                            }
+                        }
+                    }
+
+                    $column += $span;
+                }
+            }
+        }
+
+        return $alignments;
+    }
+
+    /**
+     * @return list<array{attrs: array<string, mixed>, cols: list<array<string, mixed>>}>
+     */
+    private function readHtmlTableColgroups(\DOMElement $table): array
+    {
+        $groups = [];
+        foreach ($this->childElements($table, 'colgroup') as $colgroup) {
+            $cols = [];
+            foreach ($this->childElements($colgroup, 'col') as $col) {
+                $cols[] = $this->htmlTableColumnAttrs($col);
+            }
+
+            $attrs = $this->htmlTableColumnAttrs($colgroup);
+            if ($attrs === [] && $cols === []) {
+                continue;
+            }
+
+            $groups[] = [
+                'attrs' => $attrs,
+                'cols' => $cols,
+            ];
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlTableColumnAttrs(\DOMElement $element): array
+    {
+        $attrs = $this->htmlElementPandocAttrs($element);
+        $span = $this->positiveHtmlSpan($element->getAttribute('span'));
+        if ($span > 1 || trim($element->getAttribute('span')) !== '') {
+            $attrs['span'] = $span;
+            $htmlAttributes = $attrs['htmlAttributes'] ?? [];
+            if (!is_array($htmlAttributes)) {
+                $htmlAttributes = [];
+            }
+            $htmlAttributes['span'] = (string) $span;
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
     }
 
     /**
@@ -4902,7 +5428,34 @@ final class MarkdownReader
                 ];
             }
 
-            return [];
+            return ($this->options['preserveHtmlInputControls'] ?? false) && $this->htmlRawHtmlEnabled()
+                ? [$this->buildHtmlRawInlineNode($node)]
+                : [];
+        }
+        if (
+            ($this->options['preserveHtmlInputControls'] ?? false)
+            && in_array($name, ['button', 'label', 'optgroup', 'option', 'select', 'textarea'], true)
+        ) {
+            $children = $this->parseHtmlInlineChildren($node);
+
+            return [new AstNode('span', $this->htmlSpanLikeElementAttrs($node, $name), $children)];
+        }
+        if ($name === 'wbr') {
+            return array_merge(
+                [new AstNode('span', $this->htmlSpanLikeElementAttrs($node, $name))],
+                $this->parseHtmlInlineChildren($node)
+            );
+        }
+        if (in_array($name, ['area', 'embed', 'param', 'source', 'track'], true)) {
+            return array_merge(
+                [new AstNode('span', $this->htmlSpanLikeElementAttrs($node, $name))],
+                $this->parseHtmlInlineChildren($node)
+            );
+        }
+        if (in_array($name, ['audio', 'bdi', 'canvas', 'cite', 'data', 'iframe', 'map', 'meter', 'object', 'output', 'picture', 'progress', 'rp', 'rt', 'ruby', 'time', 'video'], true)) {
+            $children = $this->parseHtmlInlineChildren($node);
+
+            return [new AstNode('span', $this->htmlSpanLikeElementAttrs($node, $name), $children)];
         }
         if ($name === 'math') {
             return [$this->buildHtmlMathNode($node)];
@@ -4938,7 +5491,7 @@ final class MarkdownReader
             return $this->wrapHtmlInlineWithBoundaryWhitespace('strikeout', [], $children);
         }
         if ($name === 'small') {
-            return $this->wrapHtmlInlineWithBoundaryWhitespace('span', ['classes' => ['small']], $children);
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('span', $this->htmlSpanLikeElementAttrs($node, 'small'), $children);
         }
         if ($name === 'bdo') {
             return $this->parseHtmlBdoInline($node, $children);
@@ -4989,10 +5542,15 @@ final class MarkdownReader
                 return $children;
             }
 
-            return [new AstNode('link', [
+            $attrs = [
                 'url' => $this->resolveHtmlUrl($node->getAttribute('href')),
                 'title' => $node->getAttribute('title'),
-            ], $children)];
+            ];
+            foreach ($this->htmlElementPandocAttrs($node, ['href', 'title']) as $key => $value) {
+                $attrs[$key] = $value;
+            }
+
+            return [new AstNode('link', $attrs, $children)];
         }
         if ($name === 'img') {
             return [$this->buildHtmlImageNode($node)];
@@ -5010,7 +5568,7 @@ final class MarkdownReader
 
     private function htmlElementUsesGenericRawInlineFallback(\DOMElement $element): bool
     {
-        return in_array(strtolower($element->localName), ['applet', 'area', 'audio', 'blink', 'button', 'cite', 'embed', 'map', 'noscript', 'object', 'progress', 'source', 'time', 'track', 'video', 'wbr'], true);
+        return in_array(strtolower($element->localName), ['applet', 'area', 'audio', 'bdi', 'blink', 'button', 'cite', 'data', 'embed', 'map', 'meter', 'noscript', 'object', 'output', 'progress', 'rp', 'rt', 'ruby', 'source', 'time', 'track', 'video', 'wbr'], true);
     }
 
     /**
@@ -5073,12 +5631,7 @@ final class MarkdownReader
             return null;
         }
 
-        $href = trim($link->getAttribute('href'));
-        if (!str_starts_with($href, '#')) {
-            return null;
-        }
-
-        $id = substr($href, 1);
+        $id = $this->htmlLocalFragmentId(trim($link->getAttribute('href')));
         if ($id === '') {
             return null;
         }

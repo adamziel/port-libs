@@ -47,6 +47,89 @@ XML;
         $t->same('MetaList', $json['meta']['author']['t']);
         $t->same('MetaList', $json['meta']['subject']['t']);
     },
+    'normalizes package metadata text and property value lists' => static function (TestRunner $t): void {
+        $xml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">  urn:uuid:normalized-metadata  </dc:identifier>
+    <dc:title>
+      Normalized
+      Metadata Title
+    </dc:title>
+    <dc:creator>  First
+      Author  </dc:creator>
+    <dc:subject>  first
+      subject </dc:subject>
+    <dc:subject>second subject</dc:subject>
+    <meta property="schema:accessMode"> textual </meta>
+    <meta property="schema:accessMode">
+      visual
+    </meta>
+    <meta property="rendition:layout"> reflowable </meta>
+    <meta property="schema:ignored">   </meta>
+  </metadata>
+</package>
+XML;
+
+        $meta = (new EpubPackageMetadataReader())->readPackageXml($xml)->attr('meta');
+
+        $t->same('urn:uuid:normalized-metadata', $meta['identifier']);
+        $t->same('Normalized Metadata Title', $meta['title']);
+        $t->same(['First Author'], $meta['author']);
+        $t->same(['first subject', 'second subject'], $meta['subject']);
+        $t->same([
+            'rendition:layout' => 'reflowable',
+            'schema:accessMode' => ['textual', 'visual'],
+        ], $meta['epubProperties']);
+    },
+    'ignores package metadata namespace lookalikes' => static function (TestRunner $t): void {
+        $xml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:fake="https://example.test/not-opf"
+         version="3.0"
+         unique-identifier="book-id">
+  <fake:metadata>
+    <dc:title>Wrong Metadata Branch</dc:title>
+  </fake:metadata>
+  <metadata>
+    <title>OPF Namespace Title Lookalike</title>
+    <dc:identifier id="book-id">namespaced-id</dc:identifier>
+    <dc:title>Namespaced Metadata Title</dc:title>
+    <dc:creator>Namespaced Author</dc:creator>
+    <fake:meta property="schema:accessMode">fake</fake:meta>
+    <meta property="schema:accessMode">textual</meta>
+  </metadata>
+</package>
+XML;
+
+        $meta = (new EpubPackageMetadataReader())->readPackageXml($xml)->attr('meta');
+
+        $t->same('namespaced-id', $meta['identifier']);
+        $t->same('Namespaced Metadata Title', $meta['title']);
+        $t->same(['Namespaced Author'], $meta['author']);
+        $t->same(['schema:accessMode' => 'textual'], $meta['epubProperties']);
+    },
+    'rejects package root namespace lookalikes' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static function (): void {
+            (new EpubPackageMetadataReader())->readPackageXml(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="https://example.test/not-opf">
+  <metadata/>
+</package>
+XML);
+        });
+    },
+    'rejects malformed package xml' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static function (): void {
+            (new EpubPackageMetadataReader())->readPackageXml('<package>');
+        });
+    },
     'discovers opf rootfile from an epub zip container' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
         if ($path === false) {
@@ -63,7 +146,7 @@ XML;
 <?xml version="1.0"?>
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
   <rootfiles>
-    <rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/>
+    <rootfile full-path="/OPS/./package.opf" media-type="Application/Oebps-Package+Xml; charset=utf-8"/>
   </rootfiles>
 </container>
 XML);
@@ -113,6 +196,76 @@ XML);
 <?xml version="1.0"?>
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
   <rootfiles/>
+</container>
+XML);
+        $zip->close();
+
+        try {
+            $t->throws(InvalidArgumentException::class, static function () use ($path): void {
+                (new EpubPackageMetadataReader())->readEpubFile($path);
+            });
+        } finally {
+            @unlink($path);
+        }
+    },
+    'rejects container rootfile namespace lookalikes' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        $opened = $zip->open($path, ZipArchive::OVERWRITE);
+        if ($opened !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', <<<'XML'
+<?xml version="1.0"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"
+           xmlns:fake="https://example.test/not-container"
+           version="1.0">
+  <rootfiles>
+    <fake:rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0">
+  <metadata>
+    <dc:title>Namespace Lookalike</dc:title>
+  </metadata>
+</package>
+XML);
+        $zip->close();
+
+        try {
+            $t->throws(InvalidArgumentException::class, static function () use ($path): void {
+                (new EpubPackageMetadataReader())->readEpubFile($path);
+            });
+        } finally {
+            @unlink($path);
+        }
+    },
+    'rejects container rootfile paths that escape the archive' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        $opened = $zip->open($path, ZipArchive::OVERWRITE);
+        if ($opened !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', <<<'XML'
+<?xml version="1.0"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="../OPS/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
 </container>
 XML);
         $zip->close();

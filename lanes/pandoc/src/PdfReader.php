@@ -53,7 +53,7 @@ final class PdfReader
             is_array($diagnostics['taggedStructureItems'] ?? null) ? $diagnostics['taggedStructureItems'] : [],
             $limitedLines
         );
-        $geometryTableBlocks = $taggedBlocks === [] ? $this->blocksFromPositionedTables($limitedPositionedRuns, $filledRectangles) : [];
+        $geometryTableBlocks = $taggedBlocks === [] ? $this->blocksFromPositionedTables($limitedPositionedRuns, $filledRectangles, $this->pageHeights($pdfBytes)) : [];
         $blocks = $taggedBlocks !== [] ? $taggedBlocks : ($geometryTableBlocks !== [] ? $geometryTableBlocks : $this->blocksFromLines($limitedLines));
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
         $metadata = array_replace($this->structuralMetadata($pdfBytes), [
@@ -149,6 +149,26 @@ final class PdfReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<int, float>
+     */
+    private function pageHeights(string $pdfBytes): array
+    {
+        if (preg_match_all('/\/MediaBox\s*\[\s*([-+]?\d*\.?\d+)\s+([-+]?\d*\.?\d+)\s+([-+]?\d*\.?\d+)\s+([-+]?\d*\.?\d+)\s*\]/', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
+            return [];
+        }
+
+        $heights = [];
+        foreach ($matches as $index => $match) {
+            $height = abs((float) $match[4] - (float) $match[2]);
+            if ($height > 0.0) {
+                $heights[$index + 1] = $height;
+            }
+        }
+
+        return $heights;
     }
 
     /**
@@ -288,9 +308,10 @@ final class PdfReader
     /**
      * @param list<array<string, mixed>> $runs
      * @param list<array<string, mixed>> $filledRectangles
+     * @param array<int, float> $pageHeights
      * @return list<AstNode>
      */
-    private function blocksFromPositionedTables(array $runs, array $filledRectangles = []): array
+    private function blocksFromPositionedTables(array $runs, array $filledRectangles = [], array $pageHeights = []): array
     {
         if ($runs === []) {
             return [];
@@ -310,7 +331,7 @@ final class PdfReader
 
         $filledRectanglesByPage = [];
         foreach ($filledRectangles as $rectangle) {
-            $normalized = $this->positionedFillRectangle($rectangle);
+            $normalized = $this->positionedFillRectangle($rectangle, $pageHeights);
             if ($normalized !== null) {
                 $filledRectanglesByPage[$normalized['page']][] = $normalized;
             }
@@ -363,14 +384,17 @@ final class PdfReader
             'fontSize' => max(1.0, $fontSize ?? max(1.0, abs($y2 - $y1))),
             'startsWithWhitespace' => preg_match('/^\s/u', $rawText) === 1,
             'endsWithWhitespace' => preg_match('/\s$/u', $rawText) === 1,
+            'tailTextAdvance' => abs($textX2 - $textX1),
+            'tailText' => $rawText,
         ];
     }
 
     /**
      * @param array<string, mixed> $rectangle
-     * @return array{page: int, x1: float, y1: float, x2: float, y2: float, fillColor: string}|null
+     * @param array<int, float> $pageHeights
+     * @return array{page: int, x1: float, y1: float, x2: float, y2: float, fillColor: string, pageHeight?: float}|null
      */
-    private function positionedFillRectangle(array $rectangle): ?array
+    private function positionedFillRectangle(array $rectangle, array $pageHeights = []): ?array
     {
         $x1 = $this->numericValue($rectangle['x1'] ?? null);
         $y1 = $this->numericValue($rectangle['y1'] ?? null);
@@ -381,14 +405,20 @@ final class PdfReader
             return null;
         }
 
-        return [
-            'page' => max(1, (int) ($rectangle['page'] ?? 1)),
+        $page = max(1, (int) ($rectangle['page'] ?? 1));
+        $normalized = [
+            'page' => $page,
             'x1' => min($x1, $x2),
             'y1' => min($y1, $y2),
             'x2' => max($x1, $x2),
             'y2' => max($y1, $y2),
             'fillColor' => strtolower($fillColor),
         ];
+        if (isset($pageHeights[$page]) && $pageHeights[$page] > 0.0) {
+            $normalized['pageHeight'] = $pageHeights[$page];
+        }
+
+        return $normalized;
     }
 
     /**
@@ -707,7 +737,9 @@ final class PdfReader
                             $gap,
                             max($run['fontSize'], $last['fontSize']),
                             (bool) ($last['endsWithWhitespace'] ?? false),
-                            (bool) ($run['startsWithWhitespace'] ?? false)
+                            (bool) ($run['startsWithWhitespace'] ?? false),
+                            $this->numericValue($last['tailTextAdvance'] ?? null),
+                            is_string($last['tailText'] ?? null) ? $last['tailText'] : $last['text']
                         ),
                         'x1' => min($last['x1'], $run['x1']),
                         'y1' => min($last['y1'], $run['y1']),
@@ -720,6 +752,8 @@ final class PdfReader
                         'fontSize' => max($run['fontSize'], $last['fontSize']),
                         'startsWithWhitespace' => (bool) ($last['startsWithWhitespace'] ?? false),
                         'endsWithWhitespace' => (bool) ($run['endsWithWhitespace'] ?? false),
+                        'tailTextAdvance' => $this->numericValue($run['tailTextAdvance'] ?? null) ?? abs($run['textX2'] - $run['textX1']),
+                        'tailText' => is_string($run['tailText'] ?? null) ? $run['tailText'] : $run['text'],
                     ];
                     continue;
                 }
@@ -779,9 +813,15 @@ final class PdfReader
      */
     private function positionedRowsWithCells(array $rows, array $columns): array
     {
+        $tableBounds = $this->positionedRowsBounds($rows);
+        $columnBounds = $this->positionedColumnBounds($columns, $tableBounds['x1'], $tableBounds['x2']);
         $cellRows = [];
         foreach ($rows as $row) {
-            $cells = array_fill(0, count($columns), null);
+            $rowBounds = $this->positionedRowBounds($row);
+            $cells = [];
+            foreach ($columns as $index => $_column) {
+                $cells[$index] = $this->emptyPositionedCell($rowBounds, $columnBounds[$index] ?? null);
+            }
             foreach ($row['runs'] as $run) {
                 $columnIndex = $this->nearestPositionedColumn($columns, $run['textX1']);
                 $cells[$columnIndex] = $this->mergePositionedCells($cells[$columnIndex], $this->positionedCellFromRun($run));
@@ -793,26 +833,115 @@ final class PdfReader
     }
 
     /**
+     * @param list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}> $rows
+     * @return array{x1: float, y1: float, x2: float, y2: float}
+     */
+    private function positionedRowsBounds(array $rows): array
+    {
+        $bounds = ['x1' => INF, 'y1' => INF, 'x2' => -INF, 'y2' => -INF];
+        foreach ($rows as $row) {
+            foreach ($row['runs'] as $run) {
+                $bounds['x1'] = min($bounds['x1'], $run['x1'], $run['textX1']);
+                $bounds['y1'] = min($bounds['y1'], $run['y1'], $run['textY1']);
+                $bounds['x2'] = max($bounds['x2'], $run['x2'], $run['textX2']);
+                $bounds['y2'] = max($bounds['y2'], $run['y2'], $run['textY2']);
+            }
+        }
+
+        return is_finite($bounds['x1']) && is_finite($bounds['x2']) && is_finite($bounds['y1']) && is_finite($bounds['y2'])
+            ? $bounds
+            : ['x1' => 0.0, 'y1' => 0.0, 'x2' => 0.0, 'y2' => 0.0];
+    }
+
+    /**
+     * @param array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>} $row
+     * @return array{y1: float, y2: float, page?: int}
+     */
+    private function positionedRowBounds(array $row): array
+    {
+        $y1 = INF;
+        $y2 = -INF;
+        $page = null;
+        foreach ($row['runs'] as $run) {
+            $y1 = min($y1, $run['y1'], $run['textY1']);
+            $y2 = max($y2, $run['y2'], $run['textY2']);
+            $page ??= (int) $run['page'];
+        }
+
+        $bounds = is_finite($y1) && is_finite($y2)
+            ? ['y1' => $y1, 'y2' => $y2]
+            : ['y1' => $row['center'], 'y2' => $row['center']];
+        if ($page !== null) {
+            $bounds['page'] = $page;
+        }
+
+        return $bounds;
+    }
+
+    /**
+     * @param list<float> $columns
+     * @return list<array{x1: float, x2: float}>
+     */
+    private function positionedColumnBounds(array $columns, float $tableX1, float $tableX2): array
+    {
+        $bounds = [];
+        $count = count($columns);
+        for ($index = 0; $index < $count; $index++) {
+            $left = $index === 0
+                ? min($tableX1, $columns[$index])
+                : ($columns[$index - 1] + $columns[$index]) / 2.0;
+            $right = $index + 1 < $count
+                ? ($columns[$index] + $columns[$index + 1]) / 2.0
+                : max($tableX2, $columns[$index]);
+
+            if ($right <= $left) {
+                $left = $columns[$index] - 4.0;
+                $right = $columns[$index] + 4.0;
+            }
+
+            $bounds[] = ['x1' => $left, 'x2' => $right];
+        }
+
+        return $bounds;
+    }
+
+    /**
      * @param array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float} $run
-     * @return array{text: string, x1: float, y1: float, x2: float, y2: float}
+     * @return array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, contentX1: float, contentX2: float}
      */
     private function positionedCellFromRun(array $run): array
     {
         return [
             'text' => $run['text'],
+            'page' => $run['page'],
             'x1' => $run['textX1'],
             'y1' => $run['y1'],
             'x2' => $run['textX2'],
             'y2' => $run['y2'],
+            'contentX1' => $run['textX1'],
+            'contentX2' => $run['textX2'],
         ];
     }
 
     /**
-     * @return array{text: string}
+     * @param array{y1: float, y2: float, page?: int}|null $rowBounds
+     * @param array{x1: float, x2: float}|null $columnBounds
+     * @return array<string, mixed>
      */
-    private function emptyPositionedCell(): array
+    private function emptyPositionedCell(?array $rowBounds = null, ?array $columnBounds = null): array
     {
-        return ['text' => ''];
+        $cell = ['text' => ''];
+        if ($rowBounds !== null && $columnBounds !== null) {
+            $cell['x1'] = $columnBounds['x1'];
+            $cell['y1'] = $rowBounds['y1'];
+            $cell['x2'] = $columnBounds['x2'];
+            $cell['y2'] = $rowBounds['y2'];
+            if (isset($rowBounds['page'])) {
+                $cell['page'] = $rowBounds['page'];
+            }
+        }
+
+        return $cell;
     }
 
     /**
@@ -822,22 +951,34 @@ final class PdfReader
      */
     private function mergePositionedCells(?array $left, array $right): array
     {
-        if ($left === null || $this->cellTextValue($left) === '') {
+        if ($left === null) {
             return $right;
         }
-        if ($this->cellTextValue($right) === '') {
-            return $left;
-        }
 
-        $merged = $left;
-        $merged['text'] = $this->appendCellText($this->cellTextValue($left), $this->cellTextValue($right));
-        foreach (['x1', 'y1', 'x2', 'y2'] as $key) {
-            if (!isset($left[$key]) || !isset($right[$key]) || !is_numeric($left[$key]) || !is_numeric($right[$key])) {
+        $leftText = $this->cellTextValue($left);
+        $rightText = $this->cellTextValue($right);
+        $merged = array_replace($left, array_diff_key($right, array_flip(['text', 'x1', 'y1', 'x2', 'y2', 'contentX1', 'contentX2'])));
+        $merged['text'] = $leftText === ''
+            ? $rightText
+            : ($rightText === '' ? $leftText : $this->appendCellText($leftText, $rightText));
+
+        foreach (['x1', 'y1', 'x2', 'y2', 'contentX1', 'contentX2'] as $key) {
+            $leftValue = $this->numericValue($left[$key] ?? null);
+            $rightValue = $this->numericValue($right[$key] ?? null);
+            if ($leftValue === null && $rightValue === null) {
                 continue;
             }
-            $merged[$key] = in_array($key, ['x1', 'y1'], true)
-                ? min((float) $left[$key], (float) $right[$key])
-                : max((float) $left[$key], (float) $right[$key]);
+            if ($leftValue === null) {
+                $merged[$key] = $rightValue;
+                continue;
+            }
+            if ($rightValue === null) {
+                $merged[$key] = $leftValue;
+                continue;
+            }
+            $merged[$key] = in_array($key, ['x1', 'y1', 'contentX1'], true)
+                ? min($leftValue, $rightValue)
+                : max($leftValue, $rightValue);
         }
 
         return $merged;
@@ -845,7 +986,7 @@ final class PdfReader
 
     /**
      * @param list<list<mixed>> $rows
-     * @param list<array{page: int, x1: float, y1: float, x2: float, y2: float, fillColor: string}> $filledRectangles
+     * @param list<array{page: int, x1: float, y1: float, x2: float, y2: float, fillColor: string, pageHeight?: float}> $filledRectangles
      * @return list<list<mixed>>
      */
     private function withPositionedCellBackgrounds(array $rows, array $filledRectangles): array
@@ -856,7 +997,7 @@ final class PdfReader
 
         foreach ($rows as &$row) {
             foreach ($row as &$cell) {
-                if (!is_array($cell) || $this->cellTextValue($cell) === '') {
+                if (!is_array($cell)) {
                     continue;
                 }
 
@@ -883,7 +1024,7 @@ final class PdfReader
 
     /**
      * @param array<string, mixed> $cell
-     * @param list<array{page: int, x1: float, y1: float, x2: float, y2: float, fillColor: string}> $filledRectangles
+     * @param list<array{page: int, x1: float, y1: float, x2: float, y2: float, fillColor: string, pageHeight?: float}> $filledRectangles
      */
     private function positionedCellBackgroundColor(array $cell, array $filledRectangles): ?string
     {
@@ -897,21 +1038,46 @@ final class PdfReader
 
         $centerX = ($x1 + $x2) / 2.0;
         $centerY = ($y1 + $y2) / 2.0;
+        $contentX1 = $this->numericValue($cell['contentX1'] ?? null);
+        $contentX2 = $this->numericValue($cell['contentX2'] ?? null);
+        $contentCenterX = $contentX1 !== null && $contentX2 !== null ? ($contentX1 + $contentX2) / 2.0 : null;
+        $cellArea = max(0.0, ($x2 - $x1) * ($y2 - $y1));
         $bestColor = null;
-        $bestArea = INF;
+        $bestScore = 0.0;
+        $cellPage = isset($cell['page']) ? max(1, (int) $cell['page']) : null;
         foreach ($filledRectangles as $rectangle) {
-            if (!$this->pointInsideRectangle($centerX, $centerY, $rectangle, 2.0)) {
+            if ($cellPage !== null && (int) $rectangle['page'] !== $cellPage) {
                 continue;
             }
 
-            $area = max(0.0, ($rectangle['x2'] - $rectangle['x1']) * ($rectangle['y2'] - $rectangle['y1']));
-            if ($area < $bestArea) {
-                $bestArea = $area;
+            $overlapArea = $this->rectangleIntersectionArea(['x1' => $x1, 'y1' => $y1, 'x2' => $x2, 'y2' => $y2], $rectangle);
+            $centerHit = $this->pointInsideRectangle($centerX, $centerY, $rectangle, 2.0);
+            $contentHit = $contentCenterX !== null && $this->pointInsideRectangle($contentCenterX, $centerY, $rectangle, 2.0);
+            $overlapRatio = $cellArea > 0.0 ? $overlapArea / $cellArea : 0.0;
+            if (!$centerHit && !$contentHit && $overlapRatio < 0.12) {
+                continue;
+            }
+
+            $score = ($centerHit || $contentHit ? 1.0 : 0.0) + $overlapRatio;
+            if ($score > $bestScore) {
+                $bestScore = $score;
                 $bestColor = $rectangle['fillColor'];
             }
         }
 
         return $bestColor;
+    }
+
+    /**
+     * @param array{x1: float, y1: float, x2: float, y2: float} $a
+     * @param array{x1: float, y1: float, x2: float, y2: float} $b
+     */
+    private function rectangleIntersectionArea(array $a, array $b): float
+    {
+        $xOverlap = max(0.0, min($a['x2'], $b['x2']) - max($a['x1'], $b['x1']));
+        $yOverlap = max(0.0, min($a['y2'], $b['y2']) - max($a['y1'], $b['y1']));
+
+        return $xOverlap * $yOverlap;
     }
 
     /**
@@ -1099,8 +1265,8 @@ final class PdfReader
                 if (!is_array($cell) || $this->cellTextValue($cell) === '') {
                     continue;
                 }
-                $x1 = $this->numericValue($cell['x1'] ?? null);
-                $x2 = $this->numericValue($cell['x2'] ?? null);
+                $x1 = $this->numericValue($cell['contentX1'] ?? $cell['x1'] ?? null);
+                $x2 = $this->numericValue($cell['contentX2'] ?? $cell['x2'] ?? null);
                 if ($x1 !== null && $x2 !== null && abs($x2 - $x1) > 1.0) {
                     $wideCells++;
                 }
@@ -1170,15 +1336,52 @@ final class PdfReader
         float $gap,
         float $fontSize,
         bool $leftEndsWithWhitespace = false,
-        bool $rightStartsWithWhitespace = false
+        bool $rightStartsWithWhitespace = false,
+        ?float $leftTailTextAdvance = null,
+        ?string $leftTailText = null
     ): string
     {
-        $separator = ($leftEndsWithWhitespace
-            || $rightStartsWithWhitespace
+        $explicitWhitespace = $leftEndsWithWhitespace || $rightStartsWithWhitespace;
+        $syntheticWhitespace = $explicitWhitespace
+            && $this->positionedExplicitWhitespaceLooksSynthetic($leftTailText ?? $left, $right, $gap, $fontSize, $leftTailTextAdvance);
+        $separator = (($explicitWhitespace && !$syntheticWhitespace)
             || $gap > max(1.0, $fontSize * 0.35)
             || $this->positionedGapLooksLikeWordBoundary($gap, $fontSize, $left, $right)) ? ' ' : '';
 
         return $this->positionedCellText($left . $separator . $right);
+    }
+
+    private function positionedExplicitWhitespaceLooksSynthetic(string $leftTailText, string $rightText, float $gap, float $fontSize, ?float $leftTailTextAdvance): bool
+    {
+        if ($leftTailTextAdvance === null || $gap > max(0.5, $fontSize * 0.08)) {
+            return false;
+        }
+
+        $leftWord = $this->lastWordToken($leftTailText);
+        $rightWord = $this->firstWordToken($rightText);
+        if ($leftWord === '' || $rightWord === '') {
+            return false;
+        }
+
+        if (preg_match('/^\p{Ll}+$/u', $leftWord) !== 1 || preg_match('/^\p{Ll}+$/u', $rightWord) !== 1) {
+            return false;
+        }
+
+        $leftLength = $this->length($leftWord);
+        $rightLength = $this->length($rightWord);
+        if ($leftLength < 2 || $rightLength < 2) {
+            return false;
+        }
+
+        if ($leftLength > 3 && !($leftLength >= 12 && $rightLength <= 5)) {
+            return false;
+        }
+
+        if (preg_match('/[^\p{L}\s]$/u', rtrim($leftTailText)) === 1 || preg_match('/^[^\p{L}\s]/u', ltrim($rightText)) === 1) {
+            return false;
+        }
+
+        return ($leftTailTextAdvance / max(1, $leftLength)) <= max(1.0, $fontSize * 0.52);
     }
 
     private function positionedGapLooksLikeWordBoundary(float $gap, float $fontSize, string $leftText, string $rightText): bool
@@ -1190,6 +1393,14 @@ final class PdfReader
         $rightWord = $this->firstWordToken($rightText);
         if ($rightWord === '') {
             return false;
+        }
+
+        $leftTrimmed = rtrim($leftText);
+        if (
+            preg_match('/[:;,]$/u', $leftTrimmed) === 1
+            || (preg_match('/(?<!\d)\.$/u', $leftTrimmed) === 1 && preg_match('/^[\p{L}\p{N}]/u', ltrim($rightText)) === 1)
+        ) {
+            return true;
         }
 
         if ($gap >= max(1.0, $fontSize * 0.35)) {

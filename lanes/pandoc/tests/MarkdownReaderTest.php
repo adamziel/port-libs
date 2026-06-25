@@ -5032,6 +5032,26 @@ TEX;
         $t->contains('<span class="math inline">\(\langle post_id,media_id \rangle\)</span>', $blocks);
         $t->contains('<span class="math display">\[\alpha + \omega \times x^2\]</span>', $blocks);
     },
+    'maps upstream html writer mathml method from tex source' => static function (TestRunner $t): void {
+        $math = static fn (string $text, bool $display = false): AstNode => new AstNode('math', [
+            'text' => $text,
+            'display' => $display,
+        ]);
+        $plain = static fn (AstNode $inline): AstNode => new AstNode('document', [], [
+            new AstNode('plain', [], [$inline]),
+        ]);
+
+        $writer = new HtmlWriter(['writerHTMLMathMethod' => 'mathml']);
+
+        $t->same(
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>x</mi><mn>2</mn></msup><annotation encoding="application/x-tex">x^2</annotation></semantics></math>',
+            $writer->write($plain($math('x^2')))
+        );
+        $t->same(
+            '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mfrac><mrow><mi>α</mi><mo>+</mo><mn>1</mn></mrow><msqrt><msub><mi>x</mi><mn>2</mn></msub></msqrt></mfrac><annotation encoding="application/x-tex">\frac{\alpha + 1}{\sqrt{x_2}}</annotation></semantics></math>',
+            $writer->write($plain($math('\frac{\alpha + 1}{\sqrt{x_2}}', true)))
+        );
+    },
     'maps upstream html writer webtex and gladtex math outputs' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $math = static fn (string $text, bool $display = false): AstNode => new AstNode('math', [
@@ -9836,7 +9856,7 @@ HTML);
         $t->contains('<p>Normal text but then a “<span cite="https://www.imdb.com/title/tt0062622/quotes/qt0396921">inline quote</span>”.</p>', $blocks);
         $t->contains('<p>“Missing a cite attribute means its just normal text”</p>', $blocks);
     },
-    'maps upstream html reader small inline tags to small spans' => static function (TestRunner $t): void {
+    'maps upstream html reader small inline tags to source small spans' => static function (TestRunner $t): void {
         $reader = new MarkdownReader();
         $document = $reader->read('<p>Lead <small id="discarded" class="source-small">fine <em>print</em></small> tail.</p>');
         $paragraph = $document->children[0] ?? new AstNode('missing');
@@ -9847,13 +9867,13 @@ HTML);
         $t->same('paragraph', $paragraph->type);
         $t->same(['text', 'span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
         $t->same('span', $small->type);
-        $t->same('', $small->attr('id', ''));
-        $t->same(['small'], $small->attr('classes'));
+        $t->same('discarded', $small->attr('id'));
+        $t->same(['small', 'source-small'], $small->attr('classes'));
         $t->same(['text', 'emph'], array_map(static fn (AstNode $node): string => $node->type, $small->children));
         $t->same('fine ', $small->children[0]->attr('text'));
         $t->same('print', $small->children[1]->children[0]->attr('text'));
-        $t->contains('Span ( "" , [ "small" ] , [  ] ) [ Str "fine" , Space , Emph [ Str "print" ] ]', $native);
-        $t->contains('<p>Lead <span class="small">fine <em>print</em></span> tail.</p>', $blocks);
+        $t->contains('Span ( "discarded" , [ "small" , "source-small" ] , [  ] ) [ Str "fine" , Space , Emph [ Str "print" ] ]', $native);
+        $t->contains('<p>Lead <small id="discarded" class="source-small">fine <em>print</em></small> tail.</p>', $blocks);
 
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-small-inline.html');
         $fixtureDocument = $reader->read($fixture);
@@ -9862,9 +9882,9 @@ HTML);
 
         $t->same('HTML Small Inline Import', $fixtureDocument->attr('meta')['title'] ?? '');
         $t->same('span', $fixtureSmall->type);
-        $t->same(['small'], $fixtureSmall->attr('classes'));
-        $t->same('', $fixtureSmall->attr('id', ''));
-        $t->contains('<span class="small">source fine print <strong>needs review</strong></span>', $fixtureBlocks);
+        $t->same(['small', 'source-small'], $fixtureSmall->attr('classes'));
+        $t->same('discarded', $fixtureSmall->attr('id', ''));
+        $t->contains('<small id="discarded" class="source-small">source fine print <strong>needs review</strong></small>', $fixtureBlocks);
     },
     'maps upstream html reader bdo direction override to spans' => static function (TestRunner $t): void {
         $reader = new MarkdownReader();
@@ -9950,9 +9970,9 @@ HTML);
         $small = $document->children[0]->children[0] ?? new AstNode('missing');
         $sup = $document->children[1]->children[0] ?? new AstNode('missing');
         $smallCaps = $document->children[2]->children[0] ?? new AstNode('missing');
-        $timeOpen = $document->children[3]->children[0] ?? new AstNode('missing');
+        $time = $document->children[3]->children[0] ?? new AstNode('missing');
         $quote = $document->children[4]->children[0] ?? new AstNode('missing');
-        $citeOpen = $document->children[5]->children[0] ?? new AstNode('missing');
+        $cite = $document->children[5]->children[0] ?? new AstNode('missing');
         $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
@@ -9964,19 +9984,23 @@ HTML);
         $t->same('2', $sup->children[0]->attr('text'));
         $t->same('small_caps', $smallCaps->type);
         $t->same('source term', $smallCaps->children[0]->attr('text'));
-        $t->same('raw_html_inline', $timeOpen->type);
-        $t->same('<time datetime="2026-05-24">', $timeOpen->attr('html'));
-        $t->same('handoff day', $document->children[3]->children[1]->attr('text'));
+        $t->same('span', $time->type);
+        $t->same(['time'], $time->attr('classes'));
+        $t->same('2026-05-24', $time->attr('attributes')['datetime'] ?? null);
+        $t->same('handoff day', $time->children[0]->attr('text'));
         $t->same('quoted', $quote->type);
         $t->same(['cite' => 'https://example.test/source'], $quote->children[0]->attr('attributes'));
-        $t->same('raw_html_inline', $citeOpen->type);
-        $t->same('<cite data-source="manual">', $citeOpen->attr('html'));
-        $t->contains('Span ( "" , [ "small" ] , [  ] ) [ Str "source" , Space , Strong [ Str "fine" , Space , Str "print" ] ]', $native);
+        $t->same('span', $cite->type);
+        $t->same(['cite'], $cite->attr('classes'));
+        $t->same('manual', $cite->attr('attributes')['source'] ?? null);
+        $t->same('emph', $cite->children[0]->type ?? null);
+        $t->same('Handbook', $cite->children[0]->children[0]->attr('text') ?? null);
+        $t->contains('Span ( "" , [ "small" ] , [ ( "source" , "classic" ) ] ) [ Str "source" , Space , Strong [ Str "fine" , Space , Str "print" ] ]', $native);
         $t->contains('Superscript [ Str "2" ]', $native);
         $t->contains('SmallCaps [ Str "source" , Space , Str "term" ]', $native);
-        $t->contains('RawInline (Format "html") "<time datetime=\\"2026-05-24\\">"', $native);
-        $t->contains('RawInline (Format "html") "<cite data-source=\\"manual\\">"', $native);
-        $t->contains('<p><span class="small">source <strong>fine print</strong></span></p>', $blocks);
+        $t->contains('Span ( "" , [ "time" ]', $native);
+        $t->contains('Span ( "" , [ "cite" ] , [ ( "source" , "manual" ) ] ) [ Emph [ Str "Handbook" ] ]', $native);
+        $t->contains('<p><small data-source="classic">source <strong>fine print</strong></small></p>', $blocks);
         $t->contains('<p><sup>2</sup></p>', $blocks);
         $t->contains('<p><span style="font-variant:small-caps">source term</span></p>', $blocks);
         $t->contains('<p><time datetime="2026-05-24">handoff day</time></p>', $blocks);
@@ -9988,7 +10012,7 @@ HTML);
         $fixtureBlocks = (new WordPressBlockWriter())->write($fixtureDocument);
 
         $t->same(5, count($fixtureDocument->children));
-        $t->contains('<span class="small">source <strong>fine print</strong></span>', $fixtureBlocks);
+        $t->contains('<small data-source="classic-editor">source <strong>fine print</strong></small>', $fixtureBlocks);
         $t->contains('<span style="font-variant:small-caps">review term</span>', $fixtureBlocks);
         $t->contains('<time datetime="2026-05-24">handoff day</time>', $fixtureBlocks);
         $t->contains('<p>“<span cite="https://example.test/import-log#source">quoted source</span>”</p>', $fixtureBlocks);
@@ -11576,6 +11600,28 @@ HTML;
         $t->contains('<td data-part="cell">1</td><td valign="bottom">2</td><td style="color: #151950">3</td>', $blocks);
         $t->contains('<td data-square="true">4</td>', $blocks);
     },
+    'preserves epub table semantic attributes in wordpress block output' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="semantic-table" epub:type="table" role="doc-table" xml:lang="pl" dir="ltr">
+  <thead>
+    <tr>
+      <th id="semantic-head" epub:type="ordinal" xml:lang="en">Head</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td id="semantic-cell" epub:type="data" role="doc-cell" xml:lang="pl">Cell</td>
+    </tr>
+  </tbody>
+</table>
+HTML;
+        $document = (new MarkdownReader(['htmlNativeDivs' => true]))->read($html);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<table id="semantic-table" epub:type="table" role="doc-table" xml:lang="pl" dir="ltr">', $blocks);
+        $t->contains('<th id="semantic-head" epub:type="ordinal" xml:lang="en">Head</th>', $blocks);
+        $t->contains('<td id="semantic-cell" epub:type="data" role="doc-cell" xml:lang="pl">Cell</td>', $blocks);
+    },
     'maps upstream html reader empty tables as omitted blocks' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 This section should be empty.
@@ -11708,7 +11754,7 @@ HTML;
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<p>Structured HTML import table:</p>', $blocks);
-        $t->contains('<figure class="wp-block-table"><table id="nordics" data-source="wikipedia"><colgroup><col style="width:30%"/><col style="width:30%"/><col style="width:20%"/><col style="width:20%"/></colgroup><thead class="simple-head"><tr><th style="text-align:center">Name</th><th style="text-align:center">Capital</th><th style="text-align:center">Population', $blocks);
+        $t->contains('<figure class="wp-block-table"><table id="nordics" data-source="wikipedia"><colgroup><col style="width: 30%"/><col style="width: 30%"/><col style="width: 20%"/><col style="width: 20%"/></colgroup><thead class="simple-head"><tr><th style="text-align:center">Name</th><th style="text-align:center">Capital</th><th style="text-align:center">Population', $blocks);
         $t->contains('<tbody class="souvereign-states"><tr class="country"><th style="text-align:center">Denmark</th><td style="text-align:left">Copenhagen</td>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">States belonging to the <em>Nordics.</em></figcaption>', $blocks);
         $t->contains('<tfoot><tr id="summary"><td style="text-align:center">Total</td><td style="text-align:left"></td><td id="total-population" style="text-align:left">27,376,022</td><td id="total-area" style="text-align:left">1,258,336</td></tr></tfoot>', $blocks);
@@ -13274,6 +13320,135 @@ XML;
         $t->same(['priority' => 'high'], $reviewAside->attr('attributes'));
         $t->contains('<div id="article" class="wp-import" data-source="legacy-export" role="main"><div id="release-audit" class="section source-section" data-review="keep"><h2>Release audit</h2><p>Reviewer section copy belongs in the import packet.</p></div><div id="migration-note" class="aside review-note" data-priority="high"><p>Keep the migration note visible for editors.</p></div></div>', $blocks);
     },
+    'maps html reader native divs residual html5 containers' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader(['htmlNativeDivs' => true]);
+        $document = $reader->read(<<<'HTML'
+<article id="feature" class="legacy" data-review="keep">
+  <h2 id="feature">Feature</h2>
+  <p>Body copy.</p>
+  <nav id="local-nav" aria-label="Local links">Local links</nav>
+  <footer id="feature-footer">Footer copy.</footer>
+</article>
+<address id="contact" class="source-contact" data-source="classic">Contact <a href="mailto:editor@example.test">Editorial team</a></address>
+<hgroup id="title-group"><h1>Feature Import</h1><p>Deck copy</p></hgroup>
+<menu id="action-menu"><li>Archive</li><li>Publish</li></menu>
+<search id="site-search" role="search">Search catalog</search>
+<dialog id="review-dialog" open="open">Modal notice.</dialog>
+HTML);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $article = $document->children[0] ?? new AstNode('missing');
+        $articleHeading = $article->children[0] ?? new AstNode('missing');
+        $articleNav = $article->children[2] ?? new AstNode('missing');
+        $articleFooter = $article->children[3] ?? new AstNode('missing');
+        $address = $document->children[1] ?? new AstNode('missing');
+        $hgroup = $document->children[2] ?? new AstNode('missing');
+        $menu = $document->children[3] ?? new AstNode('missing');
+        $search = $document->children[4] ?? new AstNode('missing');
+        $dialog = $document->children[5] ?? new AstNode('missing');
+
+        $t->same('div', $article->type);
+        $t->same('feature', $article->attr('id'));
+        $t->same(['article', 'legacy'], $article->attr('classes'));
+        $t->same(['review' => 'keep'], $article->attr('attributes'));
+        $t->same('', $articleHeading->attr('id', ''), 'Article heading id should move to wrapper only once');
+        $t->same('div', $articleNav->type);
+        $t->same(['nav'], $articleNav->attr('classes'));
+        $t->same(['aria-label' => 'Local links'], $articleNav->attr('attributes'));
+        $t->same('div', $articleFooter->type);
+        $t->same(['footer'], $articleFooter->attr('classes'));
+        $t->same('div', $address->type);
+        $t->same(['address', 'source-contact'], $address->attr('classes'));
+        $t->same('link', $address->children[0]->children[1]->type ?? null);
+        $t->same('div', $hgroup->type);
+        $t->same(['hgroup'], $hgroup->attr('classes'));
+        $t->same(['heading', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $hgroup->children));
+        $t->same('div', $menu->type);
+        $t->same(['menu'], $menu->attr('classes'));
+        $t->same('bullet_list', $menu->children[0]->type ?? null);
+        $t->same(['Archive', 'Publish'], array_map(static fn (AstNode $item): string => $item->attr('text'), $menu->children[0]->children ?? []));
+        $t->same('div', $search->type);
+        $t->same(['search'], $search->attr('classes'));
+        $t->same(['role' => 'search'], $search->attr('attributes'));
+        $t->same('div', $dialog->type);
+        $t->same(['dialog'], $dialog->attr('classes'));
+        $t->same(['open' => 'open'], $dialog->attr('attributes'));
+
+        $t->contains('<div id="feature" class="article legacy" data-review="keep"><h2>Feature</h2><p>Body copy.</p><div id="local-nav" class="nav" aria-label="Local links"><p>Local links</p></div><div id="feature-footer" class="footer"><p>Footer copy.</p></div></div>', $blocks);
+        $t->contains('<div id="contact" class="address source-contact" data-source="classic"><p>Contact <a href="mailto:editor@example.test">Editorial team</a></p></div>', $blocks);
+        $t->contains('<div id="action-menu" class="menu"><ul><li>Archive</li><li>Publish</li></ul></div>', $blocks);
+        $t->contains('<div id="review-dialog" class="dialog" open="open"><p>Modal notice.</p></div>', $blocks);
+    },
+    'maps html reader form controls as structured source elements' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader(['htmlNativeDivs' => true, 'preserveHtmlInputControls' => true]);
+        $document = $reader->read(<<<'HTML'
+<html>
+  <body>
+    <form id="quiz" class="review-form" action="review/submit.xhtml" method="post" data-source="epub-form">
+      <fieldset id="identity" name="reader" disabled="disabled">
+        <legend id="identity-legend">Identity</legend>
+        <p><label id="name-label" for="reader-name">Reader name</label>
+        <input id="reader-name" type="text" name="reader" value="Ada" required="required" data-source="legacy-input"/>
+        <button id="play-button" class="primary-action" type="button" name="play" value="narration" formaction="review/submit.xhtml" formmethod="post" disabled="disabled" data-action="play">Play narration</button>
+        <select id="choice" name="choice" required="required"><optgroup id="choice-group" label="Primary" disabled="disabled"><option id="choice-a" value="a" selected="selected">Choice A</option></optgroup></select></p>
+        <textarea id="notes" name="notes" rows="2" cols="20" required="required">Imported notes</textarea>
+      </fieldset>
+    </form>
+  </body>
+</html>
+HTML);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $html = (new HtmlWriter())->write($document);
+        $form = $document->children[0] ?? new AstNode('missing');
+        $fieldset = $form->children[0] ?? new AstNode('missing');
+        $legend = $fieldset->children[0] ?? new AstNode('missing');
+        $controls = $fieldset->children[1] ?? new AstNode('missing');
+        $label = $controls->children[0] ?? new AstNode('missing');
+        $input = $controls->children[1] ?? new AstNode('missing');
+        $button = $controls->children[2] ?? new AstNode('missing');
+        $select = $controls->children[3] ?? new AstNode('missing');
+        $optgroup = $select->children[0] ?? new AstNode('missing');
+        $option = $optgroup->children[0] ?? new AstNode('missing');
+        $textarea = $fieldset->children[2]->children[0] ?? new AstNode('missing');
+
+        $t->same('div', $form->type);
+        $t->same(['form', 'review-form'], $form->attr('classes'));
+        $t->same(['action' => 'review/submit.xhtml', 'method' => 'post', 'source' => 'epub-form'], $form->attr('attributes'));
+        $t->same('div', $fieldset->type);
+        $t->same(['fieldset'], $fieldset->attr('classes'));
+        $t->same(['name' => 'reader', 'disabled' => 'disabled'], $fieldset->attr('attributes'));
+        $t->same(['legend'], $legend->attr('classes'));
+        $t->same('span', $label->type);
+        $t->same(['label'], $label->attr('classes'));
+        $t->same(['for' => 'reader-name'], $label->attr('attributes'));
+        $t->same('raw_html_inline', $input->type);
+        $t->same('<input id="reader-name" type="text" name="reader" value="Ada" required="required" data-source="legacy-input">', $input->attr('html'));
+        $t->same('span', $button->type);
+        $t->same(['button', 'primary-action'], $button->attr('classes'));
+        $t->same([
+            'type' => 'button',
+            'name' => 'play',
+            'value' => 'narration',
+            'formaction' => 'review/submit.xhtml',
+            'formmethod' => 'post',
+            'disabled' => 'disabled',
+            'action' => 'play',
+        ], $button->attr('attributes'));
+        $t->same(['select'], $select->attr('classes'));
+        $t->same(['name' => 'choice', 'required' => 'required'], $select->attr('attributes'));
+        $t->same(['optgroup'], $optgroup->attr('classes'));
+        $t->same(['label' => 'Primary', 'disabled' => 'disabled'], $optgroup->attr('attributes'));
+        $t->same(['option'], $option->attr('classes'));
+        $t->same(['value' => 'a', 'selected' => 'selected'], $option->attr('attributes'));
+        $t->same(['textarea'], $textarea->attr('classes'));
+        $t->same(['name' => 'notes', 'rows' => '2', 'cols' => '20', 'required' => 'required'], $textarea->attr('attributes'));
+
+        $t->contains('<form id="quiz" class="review-form" action="review/submit.xhtml" method="post" data-source="epub-form"><fieldset id="identity" name="reader" disabled="disabled">', $blocks);
+        $t->contains('<label id="name-label" for="reader-name">Reader name</label><input id="reader-name" type="text" name="reader" value="Ada" required="required" data-source="legacy-input"><button id="play-button" class="primary-action" type="button" name="play" value="narration" formaction="review/submit.xhtml" formmethod="post" disabled="disabled" data-action="play">Play narration</button><select id="choice" name="choice" required="required"><optgroup id="choice-group" label="Primary" disabled="disabled"><option id="choice-a" value="a" selected="selected">Choice A</option></optgroup></select>', $blocks);
+        $t->contains('<textarea id="notes" name="notes" rows="2" cols="20" required="required">Imported notes</textarea>', $blocks);
+        $t->contains('<form id="quiz" class="review-form" action="review/submit.xhtml" method="post" data-source="epub-form">', $html);
+        $t->contains('<button id="play-button" class="primary-action" type="button" name="play" value="narration" formaction="review/submit.xhtml" formmethod="post" disabled="disabled" data-action="play">Play narration</button>', $html);
+        $t->contains('<select id="choice" name="choice" required="required"><optgroup id="choice-group" label="Primary" disabled="disabled"><option id="choice-a" value="a" selected="selected">Choice A</option></optgroup></select>', $html);
+    },
     'maps upstream html reader iframe local resource fallback' => static function (TestRunner $t): void {
         $resources = [
             'https://example.test/imports/embedded-review.html' => [
@@ -13444,9 +13619,7 @@ XML;
         $buttonStrong = $paragraph->children[2] ?? new AstNode('missing');
         $buttonClose = $paragraph->children[3] ?? new AstNode('missing');
         $comment = $paragraph->children[5] ?? new AstNode('missing');
-        $timeOpen = $paragraph->children[6] ?? new AstNode('missing');
-        $timeText = $paragraph->children[7] ?? new AstNode('missing');
-        $timeClose = $paragraph->children[8] ?? new AstNode('missing');
+        $time = $paragraph->children[6] ?? new AstNode('missing');
         $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
@@ -13458,9 +13631,7 @@ XML;
             'raw_html_inline',
             'text',
             'raw_html_inline',
-            'raw_html_inline',
-            'text',
-            'raw_html_inline',
+            'span',
             'text',
         ], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
         $t->same('<button class="wp-action" data-source="batch-42">', $buttonOpen->attr('html'));
@@ -13468,13 +13639,14 @@ XML;
         $t->same('Publish', $buttonStrong->children[0]->attr('text'));
         $t->same('</button>', $buttonClose->attr('html'));
         $t->same('<!--source:classic-->', $comment->attr('html'));
-        $t->same('<time datetime="2026-05-24">', $timeOpen->attr('html'));
-        $t->same('today', $timeText->attr('text'));
-        $t->same('</time>', $timeClose->attr('html'));
+        $t->same('span', $time->type);
+        $t->same(['time'], $time->attr('classes'));
+        $t->same('2026-05-24', $time->attr('attributes')['datetime'] ?? null);
+        $t->same('today', $time->children[0]->attr('text'));
         $t->contains('RawInline (Format "html") "<button class=\\"wp-action\\" data-source=\\"batch-42\\">"', $native);
         $t->contains('Strong [ Str "Publish" ]', $native);
         $t->contains('RawInline (Format "html") "<!--source:classic-->"', $native);
-        $t->contains('RawInline (Format "html") "<time datetime=\\"2026-05-24\\">"', $native);
+        $t->contains('Span ( "" , [ "time" ]', $native);
         $t->contains('<p>Action <button class="wp-action" data-source="batch-42"><strong>Publish</strong></button> note<!--source:classic--><time datetime="2026-05-24">today</time>.</p>', $blocks);
 
         $disabledDocument = (new MarkdownReader(['htmlRawHtml' => false]))->read($source);
@@ -13483,9 +13655,8 @@ XML;
 
         $t->true(!str_contains($disabledNative, 'RawInline (Format "html")'), 'Disabled raw HTML import should drop generic raw inline tag boundaries and comments');
         $t->contains('Strong [ Str "Publish" ]', $disabledNative);
-        $t->contains('<p>Action <strong>Publish</strong> notetoday.</p>', $disabledBlocks);
+        $t->contains('<p>Action <strong>Publish</strong> note<time datetime="2026-05-24">today</time>.</p>', $disabledBlocks);
         $t->true(!str_contains($disabledBlocks, '<button'), 'Disabled raw HTML import should not render unknown inline tag boundaries');
-        $t->true(!str_contains($disabledBlocks, '<time'), 'Disabled raw HTML import should not render generic inline tag boundaries');
         $t->true(!str_contains($disabledBlocks, 'source:classic'), 'Disabled raw HTML import should omit raw comments');
 
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-generic-raw-inline.html');
@@ -13497,53 +13668,55 @@ XML;
         $t->same('raw_html_inline', $fixtureParagraph->children[1]->type ?? '');
         $t->same('strong', $fixtureParagraph->children[2]->type ?? '');
         $t->same('raw_html_inline', $fixtureParagraph->children[5]->type ?? '');
-        $t->same('raw_html_inline', $fixtureParagraph->children[6]->type ?? '');
+        $t->same('span', $fixtureParagraph->children[6]->type ?? '');
         $t->contains('<button class="wp-action" data-source="batch-42"><strong>Publish</strong></button>', $fixtureBlocks);
         $t->contains('<!--source:classic--><time datetime="2026-05-24">today</time>', $fixtureBlocks);
     },
-    'maps upstream html reader cite and wbr raw inline fallback' => static function (TestRunner $t): void {
+    'maps upstream html reader cite and wbr source spans' => static function (TestRunner $t): void {
         $source = '<p>Source <cite id="manual" class="source-title" data-source="batch-42"><em>Handbook</em></cite> slug<wbr data-break="slug">tail.</p>';
         $reader = new MarkdownReader();
         $document = $reader->read($source);
         $paragraph = $document->children[0] ?? new AstNode('missing');
-        $citeOpen = $paragraph->children[1] ?? new AstNode('missing');
-        $citeEmph = $paragraph->children[2] ?? new AstNode('missing');
-        $citeClose = $paragraph->children[3] ?? new AstNode('missing');
-        $wbr = $paragraph->children[5] ?? new AstNode('missing');
-        $tail = $paragraph->children[6] ?? new AstNode('missing');
+        $cite = $paragraph->children[1] ?? new AstNode('missing');
+        $citeEmph = $cite->children[0] ?? new AstNode('missing');
+        $wbr = $paragraph->children[3] ?? new AstNode('missing');
+        $tail = $paragraph->children[4] ?? new AstNode('missing');
         $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('paragraph', $paragraph->type);
         $t->same([
             'text',
-            'raw_html_inline',
-            'emph',
-            'raw_html_inline',
+            'span',
             'text',
-            'raw_html_inline',
+            'span',
             'text',
         ], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
-        $t->same('<cite id="manual" class="source-title" data-source="batch-42">', $citeOpen->attr('html'));
+        $t->same('manual', $cite->attr('id'));
+        $t->same(['cite', 'source-title'], $cite->attr('classes'));
+        $t->same('batch-42', $cite->attr('attributes')['source'] ?? null);
+        $t->same('batch-42', $cite->attr('htmlAttributes')['data-source'] ?? null);
         $t->same('emph', $citeEmph->type);
         $t->same('Handbook', $citeEmph->children[0]->attr('text'));
-        $t->same('</cite>', $citeClose->attr('html'));
-        $t->same('<wbr data-break="slug">', $wbr->attr('html'));
+        $t->same(['wbr'], $wbr->attr('classes'));
+        $t->same('slug', $wbr->attr('attributes')['break'] ?? null);
+        $t->same('slug', $wbr->attr('htmlAttributes')['data-break'] ?? null);
+        $t->same([], $wbr->children);
         $t->same('tail.', $tail->attr('text'));
-        $t->contains('RawInline (Format "html") "<cite id=\\"manual\\" class=\\"source-title\\" data-source=\\"batch-42\\">"', $native);
+        $t->contains('Span ( "manual" , [ "cite" , "source-title" ] , [ ( "source" , "batch-42" ) ] ) [ Emph [ Str "Handbook" ] ]', $native);
         $t->contains('Emph [ Str "Handbook" ]', $native);
-        $t->contains('RawInline (Format "html") "<wbr data-break=\\"slug\\">"', $native);
+        $t->contains('Span ( "" , [ "wbr" ] , [ ( "break" , "slug" ) ] ) [  ]', $native);
         $t->contains('<p>Source <cite id="manual" class="source-title" data-source="batch-42"><em>Handbook</em></cite> slug<wbr data-break="slug">tail.</p>', $blocks);
 
         $disabledDocument = (new MarkdownReader(['htmlRawHtml' => false]))->read($source);
         $disabledNative = (new NativeWriter(['blocksOnly' => true]))->write($disabledDocument);
         $disabledBlocks = (new WordPressBlockWriter())->write($disabledDocument);
 
-        $t->true(!str_contains($disabledNative, 'RawInline (Format "html")'), 'Disabled raw HTML import should drop cite and wbr raw inline boundaries');
+        $t->true(!str_contains($disabledNative, 'RawInline (Format "html")'), 'Disabled raw HTML import should keep cite and wbr out of raw inline boundaries');
+        $t->contains('Span ( "manual" , [ "cite" , "source-title" ] , [ ( "source" , "batch-42" ) ] ) [ Emph [ Str "Handbook" ] ]', $disabledNative);
+        $t->contains('Span ( "" , [ "wbr" ] , [ ( "break" , "slug" ) ] ) [  ]', $disabledNative);
         $t->contains('Emph [ Str "Handbook" ]', $disabledNative);
-        $t->contains('<p>Source <em>Handbook</em> slugtail.</p>', $disabledBlocks);
-        $t->true(!str_contains($disabledBlocks, '<cite'), 'Disabled raw HTML import should not render cite boundaries');
-        $t->true(!str_contains($disabledBlocks, '<wbr'), 'Disabled raw HTML import should not render wbr boundaries');
+        $t->contains('<p>Source <cite id="manual" class="source-title" data-source="batch-42"><em>Handbook</em></cite> slug<wbr data-break="slug">tail.</p>', $disabledBlocks);
 
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-cite-wbr-raw-inline.html');
         $fixtureDocument = $reader->read($fixture);
@@ -13551,10 +13724,54 @@ XML;
         $fixtureBlocks = (new WordPressBlockWriter())->write($fixtureDocument);
 
         $t->same('HTML Cite Wbr Raw Inline Import', $fixtureDocument->attr('meta')['title'] ?? '');
-        $t->same('raw_html_inline', $fixtureParagraph->children[1]->type ?? '');
-        $t->same('raw_html_inline', $fixtureParagraph->children[5]->type ?? '');
+        $t->same('span', $fixtureParagraph->children[1]->type ?? '');
+        $t->same(['cite'], $fixtureParagraph->children[1]->attr('classes') ?? []);
+        $t->same('classic-editor', $fixtureParagraph->children[1]->attr('attributes')['source'] ?? null);
+        $t->same('span', $fixtureParagraph->children[3]->type ?? '');
+        $t->same(['wbr'], $fixtureParagraph->children[3]->attr('classes') ?? []);
+        $t->same('slug-break', $fixtureParagraph->children[3]->attr('attributes')['source'] ?? null);
         $t->contains('<cite data-source="classic-editor">Import Review Handbook</cite>', $fixtureBlocks);
         $t->contains('import-<wbr data-source="slug-break">packet remains readable.', $fixtureBlocks);
+    },
+    'maps html reader ruby annotation source spans' => static function (TestRunner $t): void {
+        $source = '<p>Term <ruby class="reading" data-source="epub">kanji<rp>(</rp><rt>reading</rt><rp>)</rp></ruby> stays visible.</p>';
+        $reader = new MarkdownReader();
+        $document = $reader->read($source);
+        $paragraph = $document->children[0] ?? new AstNode('missing');
+        $ruby = $paragraph->children[1] ?? new AstNode('missing');
+        $rubyText = $ruby->children[0] ?? new AstNode('missing');
+        $openRp = $ruby->children[1] ?? new AstNode('missing');
+        $rt = $ruby->children[2] ?? new AstNode('missing');
+        $closeRp = $ruby->children[3] ?? new AstNode('missing');
+        $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same([
+            'text',
+            'span',
+            'text',
+        ], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['ruby', 'reading'], $ruby->attr('classes'));
+        $t->same('epub', $ruby->attr('attributes')['source'] ?? null);
+        $t->same('kanji', $rubyText->attr('text'));
+        $t->same(['rp'], $openRp->attr('classes'));
+        $t->same('(', $openRp->children[0]->attr('text') ?? null);
+        $t->same(['rt'], $rt->attr('classes'));
+        $t->same('reading', $rt->children[0]->attr('text') ?? null);
+        $t->same(['rp'], $closeRp->attr('classes'));
+        $t->same(')', $closeRp->children[0]->attr('text') ?? null);
+        $t->contains('Span ( "" , [ "ruby" , "reading" ] , [ ( "source" , "epub" ) ] )', $native);
+        $t->contains('Span ( "" , [ "rt" ] , [  ] ) [ Str "reading" ]', $native);
+        $t->true(!str_contains($native, 'RawInline (Format "html")'), 'Ruby source import should not depend on raw inline boundaries');
+        $t->contains('<p>Term <ruby class="reading" data-source="epub">kanji<rp>(</rp><rt>reading</rt><rp>)</rp></ruby> stays visible.</p>', $blocks);
+
+        $disabledDocument = (new MarkdownReader(['htmlRawHtml' => false]))->read($source);
+        $disabledNative = (new NativeWriter(['blocksOnly' => true]))->write($disabledDocument);
+        $disabledBlocks = (new WordPressBlockWriter())->write($disabledDocument);
+
+        $t->contains('Span ( "" , [ "ruby" , "reading" ] , [ ( "source" , "epub" ) ] )', $disabledNative);
+        $t->contains('<p>Term <ruby class="reading" data-source="epub">kanji<rp>(</rp><rt>reading</rt><rp>)</rp></ruby> stays visible.</p>', $disabledBlocks);
     },
     'maps upstream html reader math renderer spans as skipped visual output' => static function (TestRunner $t): void {
         $reader = new MarkdownReader();
@@ -13876,6 +14093,38 @@ HTML);
         $t->true(!str_contains($blocks, 'footnote-back'), 'Original HTML footnote backlink should not be duplicated in native note output');
         $t->true(!str_contains($blocks, 'id="footnotes"'), 'Original doc-endnotes container should be replaced by native WordPress footnotes');
     },
+    'maps upstream html reader standalone epub aside footnotes into native notes' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<!doctype html>
+<html>
+  <head><title>Standalone EPUB Aside Footnote Import</title></head>
+  <body>
+    <p>EPUB aside note<a href="#fn1" epub:type="noteref bibliography">1</a> stays native.</p>
+    <aside id="fn1" epub:type="footnote review-note">
+      <p>Aside footnote <strong>body</strong>.</p>
+      <a href="#ref-fn1" role="doc-backlink">Back</a>
+    </aside>
+  </body>
+</html>
+HTML;
+        $document = (new MarkdownReader())->read($html);
+        $paragraph = $document->children[0] ?? new AstNode('missing');
+        $note = $paragraph->children[1] ?? new AstNode('missing');
+        $noteParagraph = $note->children[0] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Standalone EPUB Aside Footnote Import', $document->attr('meta')['title'] ?? '');
+        $t->same(1, count($document->children));
+        $t->same(['text', 'note', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('note', $note->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $noteParagraph->children));
+        $t->same('Aside footnote ', $noteParagraph->children[0]->attr('text'));
+        $t->same('body', $noteParagraph->children[1]->children[0]->attr('text'));
+        $t->contains('<p>EPUB aside note<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> stays native.</p>', $blocks);
+        $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Aside footnote <strong>body</strong>.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li></ol></section>', $blocks);
+        $t->true(!str_contains($blocks, 'id="fn1"'), 'Standalone EPUB footnote definition should not remain in body output');
+        $t->true(!str_contains($blocks, 'doc-backlink'), 'Original EPUB footnote backlink should not be duplicated in native note output');
+    },
     'maps upstream html reader doc-noteref placement through table captions and cells' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-doc-noteref-table-placement.html');
         $document = (new MarkdownReader())->read($fixture);
@@ -13944,7 +14193,7 @@ HTML);
         $t->same('Missing alt text', $codes[2]->attr('text'));
         $t->same(['variable'], $codes[3]->attr('classes'));
         $t->same('post_title', $codes[3]->attr('text'));
-        $t->contains('<p>Reviewer diagnostics: <code>core/image</code>, <code>[gallery ids=&quot;4,5&quot;]</code>, <code class="sample">Missing alt text</code>, and <code class="variable">post_title</code>.</p>', $blocks);
+        $t->contains('<p>Reviewer diagnostics: <code>core/image</code>, <code>[gallery ids=&quot;4,5&quot;]</code>, <samp>Missing alt text</samp>, and <var>post_title</var>.</p>', $blocks);
     },
     'maps upstream html reader base href media urls into absolute import links' => static function (TestRunner $t): void {
         $reader = new MarkdownReader();
@@ -15116,7 +15365,7 @@ NATIVE;
         $t->contains('<col style="width:9.7076%"/>', $blocks);
         $t->contains('<th rowspan="2" style="text-align:left">A</th>', $blocks);
         $t->contains('<th colspan="3">E</th>', $blocks);
-        $t->contains('<th style="text-align:left"><strong>G</strong></th><th><strong>H</strong></th><th><strong>I</strong></th>', $blocks);
+        $t->contains('<th><strong>G</strong></th><th><strong>H</strong></th><th><strong>I</strong></th>', $blocks);
     },
     'maps upstream native docx table gridbefore placeholders into wordpress cells' => static function (TestRunner $t): void {
         $native = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-native-docx-table-gridbefore-slice.native');
@@ -15676,88 +15925,255 @@ NATIVE;
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('paragraph', $paragraph->type);
-        $t->same(['raw_html_inline', 'text', 'raw_html_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
-        $t->same('<progress value="7" max="10">', $paragraph->children[0]->attr('html'));
-        $t->same('70%', $paragraph->children[1]->attr('text'));
-        $t->same('</progress>', $paragraph->children[2]->attr('html'));
+        $t->same(['span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['progress'], $paragraph->children[0]->attr('classes'));
+        $t->same('7', $paragraph->children[0]->attr('attributes')['value'] ?? null);
+        $t->same('10', $paragraph->children[0]->attr('attributes')['max'] ?? null);
+        $t->same('70%', $paragraph->children[0]->children[0]->attr('text'));
         $t->contains('<p><progress value="7" max="10">70%</progress> import complete.</p>', $blocks);
     },
     'maps upstream html reader standalone map area inline fragments' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-standalone-map-inline.html');
         $document = (new MarkdownReader())->read($fixture);
         $paragraph = $document->children[0];
+        $map = $paragraph->children[0] ?? new AstNode('missing');
+        $area = $map->children[0] ?? new AstNode('missing');
+        $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('paragraph', $paragraph->type);
-        $t->same(['raw_html_inline', 'raw_html_inline', 'raw_html_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
-        $t->same('<map name="legacy-image-map">', $paragraph->children[0]->attr('html'));
-        $t->same('<area shape="rect" coords="0,0,80,40" href="/wp-admin/upload.php" alt="Media library">', $paragraph->children[1]->attr('html'));
-        $t->same('</map>', $paragraph->children[2]->attr('html'));
+        $t->same(['span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['map'], $map->attr('classes'));
+        $t->same('legacy-image-map', $map->attr('attributes')['name'] ?? null);
+        $t->same(['span'], array_map(static fn (AstNode $node): string => $node->type, $map->children));
+        $t->same(['area'], $area->attr('classes'));
+        $t->same('rect', $area->attr('attributes')['shape'] ?? null);
+        $t->same('0,0,80,40', $area->attr('attributes')['coords'] ?? null);
+        $t->same('/wp-admin/upload.php', $area->attr('attributes')['href'] ?? null);
+        $t->same('Media library', $area->attr('attributes')['alt'] ?? null);
+        $t->contains('Span ( "" , [ "map" ] , [ ( "name" , "legacy-image-map" ) ] )', $native);
+        $t->contains('Span ( "" , [ "area" ] , [ ( "alt" , "Media library" ) , ( "coords" , "0,0,80,40" ) , ( "href" , "/wp-admin/upload.php" ) , ( "shape" , "rect" ) ] )', $native);
         $t->contains('<p><map name="legacy-image-map"><area shape="rect" coords="0,0,80,40" href="/wp-admin/upload.php" alt="Media library"></map> keeps imported hotspots visible.</p>', $blocks);
+
+        $disabled = (new MarkdownReader(['htmlRawHtml' => false]))->read($fixture);
+        $disabledParagraph = $disabled->children[0];
+        $disabledNative = (new NativeWriter(['blocksOnly' => true]))->write($disabled);
+        $disabledBlocks = (new WordPressBlockWriter())->write($disabled);
+        $t->same(['span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $disabledParagraph->children));
+        $t->true(!str_contains($disabledNative, 'RawInline'), 'Disabled raw HTML import should keep image maps as structured spans, not raw inline HTML.');
+        $t->contains('<p><map name="legacy-image-map"><area shape="rect" coords="0,0,80,40" href="/wp-admin/upload.php" alt="Media library"></map> keeps imported hotspots visible.</p>', $disabledBlocks);
     },
     'maps upstream html reader standalone audio source track inline fragments' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-standalone-audio-inline.html');
         $document = (new MarkdownReader())->read($fixture);
         $paragraph = $document->children[0];
+        $audio = $paragraph->children[0] ?? new AstNode('missing');
+        $source = $audio->children[0] ?? new AstNode('missing');
+        $track = $audio->children[1] ?? new AstNode('missing');
+        $fallback = $audio->children[2] ?? new AstNode('missing');
+        $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('paragraph', $paragraph->type);
-        $t->same([
-            'raw_html_inline',
-            'raw_html_inline',
-            'raw_html_inline',
-            'text',
-            'raw_html_inline',
-            'text',
-        ], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
-        $t->same('<audio controls="" src="/wp-content/uploads/imported-sermon.mp3">', $paragraph->children[0]->attr('html'));
-        $t->same('<source src="/wp-content/uploads/imported-sermon.ogg" type="audio/ogg">', $paragraph->children[1]->attr('html'));
-        $t->same('<track kind="captions" src="/wp-content/uploads/imported-sermon.vtt" srclang="en" label="English captions">', $paragraph->children[2]->attr('html'));
-        $t->same('Audio fallback', $paragraph->children[3]->attr('text'));
-        $t->same('</audio>', $paragraph->children[4]->attr('html'));
+        $t->same(['span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['audio'], $audio->attr('classes'));
+        $t->same('/wp-content/uploads/imported-sermon.mp3', $audio->attr('attributes')['src'] ?? null);
+        $t->same(['span', 'span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $audio->children));
+        $t->same(['source'], $source->attr('classes'));
+        $t->same('/wp-content/uploads/imported-sermon.ogg', $source->attr('attributes')['src'] ?? null);
+        $t->same('audio/ogg', $source->attr('attributes')['type'] ?? null);
+        $t->same(['track'], $track->attr('classes'));
+        $t->same('captions', $track->attr('attributes')['kind'] ?? null);
+        $t->same('/wp-content/uploads/imported-sermon.vtt', $track->attr('attributes')['src'] ?? null);
+        $t->same('en', $track->attr('attributes')['srclang'] ?? null);
+        $t->same('English captions', $track->attr('attributes')['label'] ?? null);
+        $t->same('Audio fallback', $fallback->attr('text'));
+        $t->contains('Span ( "" , [ "audio" ]', $native);
+        $t->contains('Span ( "" , [ "source" ]', $native);
+        $t->contains('Span ( "" , [ "track" ]', $native);
         $t->contains('<p><audio controls="" src="/wp-content/uploads/imported-sermon.mp3"><source src="/wp-content/uploads/imported-sermon.ogg" type="audio/ogg"><track kind="captions" src="/wp-content/uploads/imported-sermon.vtt" srclang="en" label="English captions">Audio fallback</audio> remains playable after import.</p>', $blocks);
+
+        $disabled = (new MarkdownReader(['htmlRawHtml' => false]))->read($fixture);
+        $disabledNative = (new NativeWriter(['blocksOnly' => true]))->write($disabled);
+        $disabledBlocks = (new WordPressBlockWriter())->write($disabled);
+        $t->true(!str_contains($disabledNative, 'RawInline'), 'Disabled raw HTML import should keep audio media as structured spans, not raw inline HTML.');
+        $t->contains('<p><audio controls="" src="/wp-content/uploads/imported-sermon.mp3"><source src="/wp-content/uploads/imported-sermon.ogg" type="audio/ogg"><track kind="captions" src="/wp-content/uploads/imported-sermon.vtt" srclang="en" label="English captions">Audio fallback</audio> remains playable after import.</p>', $disabledBlocks);
     },
     'maps upstream html reader standalone video source track inline fragments' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-standalone-video-inline.html');
         $document = (new MarkdownReader())->read($fixture);
         $paragraph = $document->children[0];
+        $video = $paragraph->children[0] ?? new AstNode('missing');
+        $source = $video->children[0] ?? new AstNode('missing');
+        $track = $video->children[1] ?? new AstNode('missing');
+        $fallback = $video->children[2] ?? new AstNode('missing');
+        $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('paragraph', $paragraph->type);
-        $t->same([
-            'raw_html_inline',
-            'raw_html_inline',
-            'raw_html_inline',
-            'text',
-            'raw_html_inline',
-            'text',
-        ], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
-        $t->same('<video controls="" poster="/wp-content/uploads/imported-poster.jpg">', $paragraph->children[0]->attr('html'));
-        $t->same('<source src="/wp-content/uploads/imported-tour.mp4" type="video/mp4">', $paragraph->children[1]->attr('html'));
-        $t->same('<track kind="captions" src="/wp-content/uploads/imported-tour.vtt" srclang="en" label="English captions">', $paragraph->children[2]->attr('html'));
-        $t->same('Video fallback', $paragraph->children[3]->attr('text'));
-        $t->same('</video>', $paragraph->children[4]->attr('html'));
+        $t->same(['span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['video'], $video->attr('classes'));
+        $t->same('/wp-content/uploads/imported-poster.jpg', $video->attr('attributes')['poster'] ?? null);
+        $t->same(['span', 'span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $video->children));
+        $t->same(['source'], $source->attr('classes'));
+        $t->same('/wp-content/uploads/imported-tour.mp4', $source->attr('attributes')['src'] ?? null);
+        $t->same('video/mp4', $source->attr('attributes')['type'] ?? null);
+        $t->same(['track'], $track->attr('classes'));
+        $t->same('captions', $track->attr('attributes')['kind'] ?? null);
+        $t->same('/wp-content/uploads/imported-tour.vtt', $track->attr('attributes')['src'] ?? null);
+        $t->same('en', $track->attr('attributes')['srclang'] ?? null);
+        $t->same('English captions', $track->attr('attributes')['label'] ?? null);
+        $t->same('Video fallback', $fallback->attr('text'));
+        $t->contains('Span ( "" , [ "video" ]', $native);
+        $t->contains('Span ( "" , [ "source" ]', $native);
+        $t->contains('Span ( "" , [ "track" ]', $native);
         $t->contains('<p><video controls="" poster="/wp-content/uploads/imported-poster.jpg"><source src="/wp-content/uploads/imported-tour.mp4" type="video/mp4"><track kind="captions" src="/wp-content/uploads/imported-tour.vtt" srclang="en" label="English captions">Video fallback</video> remains visible after import.</p>', $blocks);
+
+        $disabled = (new MarkdownReader(['htmlRawHtml' => false]))->read($fixture);
+        $disabledNative = (new NativeWriter(['blocksOnly' => true]))->write($disabled);
+        $disabledBlocks = (new WordPressBlockWriter())->write($disabled);
+        $t->true(!str_contains($disabledNative, 'RawInline'), 'Disabled raw HTML import should keep video media as structured spans, not raw inline HTML.');
+        $t->contains('<p><video controls="" poster="/wp-content/uploads/imported-poster.jpg"><source src="/wp-content/uploads/imported-tour.mp4" type="video/mp4"><track kind="captions" src="/wp-content/uploads/imported-tour.vtt" srclang="en" label="English captions">Video fallback</video> remains visible after import.</p>', $disabledBlocks);
+    },
+    'maps upstream html reader standalone iframe inline fragments' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-standalone-iframe-inline.html');
+        $document = (new MarkdownReader())->read($fixture);
+        $paragraph = $document->children[0];
+        $iframe = $paragraph->children[0] ?? new AstNode('missing');
+        $fallback = $iframe->children[0] ?? new AstNode('missing');
+        $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('span', $iframe->type);
+        $t->same('review-frame', $iframe->attr('id'));
+        $t->same(['iframe', 'review-frame'], $iframe->attr('classes'));
+        $t->same('https://frames.example.test/review.xhtml', $iframe->attr('attributes')['src'] ?? null);
+        $t->same('Review frame', $iframe->attr('attributes')['title'] ?? null);
+        $t->same('lazy', $iframe->attr('attributes')['loading'] ?? null);
+        $t->same('iframe-source', $iframe->attr('attributes')['source'] ?? null);
+        $t->same('Review frame fallback', $fallback->attr('text'));
+        $t->contains('Span ( "review-frame" , [ "iframe" , "review-frame" ]', $native);
+        $t->true(!str_contains($native, 'RawInline'), 'Iframe source import should use a structured span, not raw inline HTML.');
+        $t->contains('<p><iframe id="review-frame" class="review-frame" src="https://frames.example.test/review.xhtml" title="Review frame" loading="lazy" data-source="iframe-source">Review frame fallback</iframe> remains embedded after import.</p>', $blocks);
+
+        $disabled = (new MarkdownReader(['htmlRawHtml' => false]))->read($fixture);
+        $disabledNative = (new NativeWriter(['blocksOnly' => true]))->write($disabled);
+        $disabledBlocks = (new WordPressBlockWriter())->write($disabled);
+        $t->true(!str_contains($disabledNative, 'RawInline'), 'Disabled raw HTML import should keep iframe media as a structured span, not raw inline HTML.');
+        $t->contains('<p><iframe id="review-frame" class="review-frame" src="https://frames.example.test/review.xhtml" title="Review frame" loading="lazy" data-source="iframe-source">Review frame fallback</iframe> remains embedded after import.</p>', $disabledBlocks);
+    },
+    'maps upstream html reader standalone canvas inline fragments' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-standalone-canvas-inline.html');
+        $document = (new MarkdownReader())->read($fixture);
+        $paragraph = $document->children[0];
+        $canvas = $paragraph->children[0] ?? new AstNode('missing');
+        $fallback = $canvas->children[0] ?? new AstNode('missing');
+        $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('span', $canvas->type);
+        $t->same('sales-canvas', $canvas->attr('id'));
+        $t->same(['canvas', 'chart-canvas'], $canvas->attr('classes'));
+        $t->same('320', $canvas->attr('attributes')['width'] ?? null);
+        $t->same('180', $canvas->attr('attributes')['height'] ?? null);
+        $t->same('Sales chart', $canvas->attr('attributes')['title'] ?? null);
+        $t->same('canvas-source', $canvas->attr('attributes')['source'] ?? null);
+        $t->same('Sales chart fallback', $fallback->attr('text'));
+        $t->contains('Span ( "sales-canvas" , [ "canvas" , "chart-canvas" ]', $native);
+        $t->true(!str_contains($native, 'RawInline'), 'Canvas source import should use a structured span, not raw inline HTML.');
+        $t->contains('<p><canvas id="sales-canvas" class="chart-canvas" width="320" height="180" title="Sales chart" data-source="canvas-source">Sales chart fallback</canvas> remains script-free after import.</p>', $blocks);
+
+        $disabled = (new MarkdownReader(['htmlRawHtml' => false]))->read($fixture);
+        $disabledNative = (new NativeWriter(['blocksOnly' => true]))->write($disabled);
+        $disabledBlocks = (new WordPressBlockWriter())->write($disabled);
+        $t->true(!str_contains($disabledNative, 'RawInline'), 'Disabled raw HTML import should keep canvas media as a structured span, not raw inline HTML.');
+        $t->contains('<p><canvas id="sales-canvas" class="chart-canvas" width="320" height="180" title="Sales chart" data-source="canvas-source">Sales chart fallback</canvas> remains script-free after import.</p>', $disabledBlocks);
+    },
+    'maps upstream html reader standalone picture source inline fragments' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-standalone-picture-inline.html');
+        $document = (new MarkdownReader())->read($fixture);
+        $paragraph = $document->children[0];
+        $picture = $paragraph->children[0] ?? new AstNode('missing');
+        $source = $picture->children[0] ?? new AstNode('missing');
+        $image = $picture->children[1] ?? new AstNode('missing');
+        $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['picture', 'responsive-picture'], $picture->attr('classes'));
+        $t->same('Responsive hero', $picture->attr('attributes')['title'] ?? null);
+        $t->same('picture-source', $picture->attr('attributes')['source'] ?? null);
+        $t->same(['span', 'image'], array_map(static fn (AstNode $node): string => $node->type, $picture->children));
+        $t->same(['source', 'webp-source'], $source->attr('classes'));
+        $t->same('/wp-content/uploads/hero.webp 1x, /wp-content/uploads/hero@2x.webp 2x', $source->attr('attributes')['srcset'] ?? null);
+        $t->same('image/webp', $source->attr('attributes')['type'] ?? null);
+        $t->same('(min-width: 48em)', $source->attr('attributes')['media'] ?? null);
+        $t->same('source-source', $source->attr('attributes')['source'] ?? null);
+        $t->same('image', $image->type);
+        $t->same('hero-img', $image->attr('id'));
+        $t->same(['fallback-image'], $image->attr('classes'));
+        $t->same('/wp-content/uploads/hero.png', $image->attr('url'));
+        $t->same('Hero fallback', $image->attr('alt'));
+        $t->same('/wp-content/uploads/hero.png 1x, /wp-content/uploads/hero@2x.png 2x', $image->attr('attributes')['srcset'] ?? null);
+        $t->same('image-source', $image->attr('attributes')['source'] ?? null);
+        $t->contains('Span ( "hero-picture" , [ "picture" , "responsive-picture" ]', $native);
+        $t->contains('Span ( "hero-webp-source" , [ "source" , "webp-source" ]', $native);
+        $t->true(!str_contains($native, 'RawInline'), 'Picture source import should use structured spans and images, not raw inline HTML.');
+        $t->contains('<p><picture id="hero-picture" class="responsive-picture" title="Responsive hero" data-source="picture-source"><source id="hero-webp-source" class="webp-source" srcset="/wp-content/uploads/hero.webp 1x, /wp-content/uploads/hero@2x.webp 2x" type="image/webp" media="(min-width: 48em)" data-source="source-source"><img src="/wp-content/uploads/hero.png" alt="Hero fallback" id="hero-img" class="fallback-image" srcset="/wp-content/uploads/hero.png 1x, /wp-content/uploads/hero@2x.png 2x" data-source="image-source"/></picture> remains responsive after import.</p>', $blocks);
+
+        $disabled = (new MarkdownReader(['htmlRawHtml' => false]))->read($fixture);
+        $disabledNative = (new NativeWriter(['blocksOnly' => true]))->write($disabled);
+        $disabledBlocks = (new WordPressBlockWriter())->write($disabled);
+        $t->true(!str_contains($disabledNative, 'RawInline'), 'Disabled raw HTML import should keep picture media as structured spans and images, not raw inline HTML.');
+        $t->contains('<p><picture id="hero-picture" class="responsive-picture" title="Responsive hero" data-source="picture-source"><source id="hero-webp-source" class="webp-source" srcset="/wp-content/uploads/hero.webp 1x, /wp-content/uploads/hero@2x.webp 2x" type="image/webp" media="(min-width: 48em)" data-source="source-source"><img src="/wp-content/uploads/hero.png" alt="Hero fallback" id="hero-img" class="fallback-image" srcset="/wp-content/uploads/hero.png 1x, /wp-content/uploads/hero@2x.png 2x" data-source="image-source"/></picture> remains responsive after import.</p>', $disabledBlocks);
     },
     'maps upstream html reader standalone object embed inline fragments' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-standalone-object-embed-inline.html');
         $document = (new MarkdownReader())->read($fixture);
         $paragraph = $document->children[0];
+        $object = $paragraph->children[0] ?? new AstNode('missing');
+        $param = $object->children[0] ?? new AstNode('missing');
+        $embed = $object->children[1] ?? new AstNode('missing');
+        $fallback = $object->children[2] ?? new AstNode('missing');
+        $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('paragraph', $paragraph->type);
-        $t->same([
-            'raw_html_inline',
-            'raw_html_inline',
-            'text',
-            'raw_html_inline',
-            'text',
-        ], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
-        $t->same('<object data="/wp-content/uploads/imported-map.svg" type="image/svg+xml">', $paragraph->children[0]->attr('html'));
-        $t->same('<embed src="/wp-content/uploads/imported-map-fallback.swf" type="application/x-shockwave-flash">', $paragraph->children[1]->attr('html'));
-        $t->same('Interactive map fallback', $paragraph->children[2]->attr('text'));
-        $t->same('</object>', $paragraph->children[3]->attr('html'));
-        $t->contains('<p><object data="/wp-content/uploads/imported-map.svg" type="image/svg+xml"><embed src="/wp-content/uploads/imported-map-fallback.swf" type="application/x-shockwave-flash">Interactive map fallback</object> remains reviewable after import.</p>', $blocks);
+        $t->same(['span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['object', 'interactive-object'], $object->attr('classes'));
+        $t->same('/wp-content/uploads/imported-map.svg', $object->attr('attributes')['data'] ?? null);
+        $t->same('image/svg+xml', $object->attr('attributes')['type'] ?? null);
+        $t->same('320', $object->attr('attributes')['width'] ?? null);
+        $t->same('200', $object->attr('attributes')['height'] ?? null);
+        $t->same('object-source', $object->attr('attributes')['source'] ?? null);
+        $t->same(['span', 'span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $object->children));
+        $t->same(['param'], $param->attr('classes'));
+        $t->same('quality', $param->attr('attributes')['name'] ?? null);
+        $t->same('high', $param->attr('attributes')['value'] ?? null);
+        $t->same('param-source', $param->attr('attributes')['source'] ?? null);
+        $t->same(['embed', 'legacy-embed'], $embed->attr('classes'));
+        $t->same('/wp-content/uploads/imported-map-fallback.swf', $embed->attr('attributes')['src'] ?? null);
+        $t->same('application/x-shockwave-flash', $embed->attr('attributes')['type'] ?? null);
+        $t->same('320', $embed->attr('attributes')['width'] ?? null);
+        $t->same('200', $embed->attr('attributes')['height'] ?? null);
+        $t->same('embed-source', $embed->attr('attributes')['source'] ?? null);
+        $t->same('Interactive map fallback', $fallback->attr('text'));
+        $t->contains('Span ( "imported-object" , [ "object" , "interactive-object" ]', $native);
+        $t->contains('Span ( "object-quality" , [ "param" ]', $native);
+        $t->contains('Span ( "object-fallback" , [ "embed" , "legacy-embed" ]', $native);
+        $t->true(!str_contains($native, 'RawInline'), 'Object/embed source import should use structured spans, not raw inline HTML.');
+        $t->contains('<p><object id="imported-object" class="interactive-object" data="/wp-content/uploads/imported-map.svg" type="image/svg+xml" width="320" height="200" data-source="object-source"><param id="object-quality" name="quality" value="high" data-source="param-source"><embed id="object-fallback" class="legacy-embed" src="/wp-content/uploads/imported-map-fallback.swf" type="application/x-shockwave-flash" width="320" height="200" data-source="embed-source">Interactive map fallback</object> remains reviewable after import.</p>', $blocks);
+
+        $disabled = (new MarkdownReader(['htmlRawHtml' => false]))->read($fixture);
+        $disabledNative = (new NativeWriter(['blocksOnly' => true]))->write($disabled);
+        $disabledBlocks = (new WordPressBlockWriter())->write($disabled);
+        $t->true(!str_contains($disabledNative, 'RawInline'), 'Disabled raw HTML import should keep object/embed as structured spans, not raw inline HTML.');
+        $t->contains('<p><object id="imported-object" class="interactive-object" data="/wp-content/uploads/imported-map.svg" type="image/svg+xml" width="320" height="200" data-source="object-source"><param id="object-quality" name="quality" value="high" data-source="param-source"><embed id="object-fallback" class="legacy-embed" src="/wp-content/uploads/imported-map-fallback.swf" type="application/x-shockwave-flash" width="320" height="200" data-source="embed-source">Interactive map fallback</object> remains reviewable after import.</p>', $disabledBlocks);
     },
     'maps upstream html reader standalone applet inline fragments' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-standalone-applet-inline.html');
@@ -15812,6 +16228,78 @@ NATIVE;
         $t->same('Import log fallback', $paragraph->children[1]->children[0]->attr('text'));
         $t->same('</noscript>', $paragraph->children[2]->attr('html'));
         $t->contains('<p><noscript><a href="/wp-content/uploads/import-log.txt">Import log fallback</a></noscript> remains visible when scripts are unavailable.</p>', $blocks);
+    },
+    'maps upstream html reader standalone bdi inline fragments' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read('<bdi id="buyer" class="isolate" dir="auto">Adam <strong>Zielinski</strong></bdi> remains isolated.');
+        $paragraph = $document->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same([
+            'span',
+            'text',
+        ], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $bdi = $paragraph->children[0];
+        $t->same(['bdi', 'isolate'], $bdi->attr('classes'));
+        $t->same('auto', $bdi->attr('attributes')['dir'] ?? null);
+        $t->same('Adam ', $bdi->children[0]->attr('text'));
+        $t->same('Zielinski', $bdi->children[1]->children[0]->attr('text'));
+        $t->same(' remains isolated.', $paragraph->children[1]->attr('text'));
+        $t->contains('<p><bdi id="buyer" class="isolate" dir="auto">Adam <strong>Zielinski</strong></bdi> remains isolated.</p>', $blocks);
+    },
+    'maps upstream html reader standalone data meter output inline fragments' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read('<data id="sku" class="part-number" value="sku-001">SKU <strong>001</strong></data>, stock <meter id="stock" min="0" max="10" value="7">7/10</meter>, total <output id="total" for="qty price" name="line-total">82.14</output>, progress <progress id="download-progress" value="7" max="10">70%</progress>.');
+        $paragraph = $document->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same([
+            'span',
+            'text',
+            'span',
+            'text',
+            'span',
+            'text',
+            'span',
+            'text',
+        ], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $data = $paragraph->children[0];
+        $meter = $paragraph->children[2];
+        $output = $paragraph->children[4];
+        $progress = $paragraph->children[6];
+        $t->same(['data', 'part-number'], $data->attr('classes'));
+        $t->same('sku-001', $data->attr('attributes')['value'] ?? null);
+        $t->same('SKU ', $data->children[0]->attr('text'));
+        $t->same('001', $data->children[1]->children[0]->attr('text'));
+        $t->same(', stock ', $paragraph->children[1]->attr('text'));
+        $t->same(['meter'], $meter->attr('classes'));
+        $t->same('7', $meter->attr('attributes')['value'] ?? null);
+        $t->same('0', $meter->attr('attributes')['min'] ?? null);
+        $t->same('10', $meter->attr('attributes')['max'] ?? null);
+        $t->same('7/10', $meter->children[0]->attr('text'));
+        $t->same(', total ', $paragraph->children[3]->attr('text'));
+        $t->same(['output'], $output->attr('classes'));
+        $t->same('qty price', $output->attr('attributes')['for'] ?? null);
+        $t->same('line-total', $output->attr('attributes')['name'] ?? null);
+        $t->same('82.14', $output->children[0]->attr('text'));
+        $t->same(', progress ', $paragraph->children[5]->attr('text'));
+        $t->same(['progress'], $progress->attr('classes'));
+        $t->same('7', $progress->attr('attributes')['value'] ?? null);
+        $t->same('10', $progress->attr('attributes')['max'] ?? null);
+        $t->same('70%', $progress->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[7]->attr('text'));
+        $t->contains('<p><data id="sku" class="part-number" value="sku-001">SKU <strong>001</strong></data>, stock <meter id="stock" min="0" max="10" value="7">7/10</meter>, total <output id="total" for="qty price" name="line-total">82.14</output>, progress <progress id="download-progress" value="7" max="10">70%</progress>.</p>', $blocks);
+    },
+    'maps xhtml details summary blocks as raw html containers' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader(['htmlNativeDivs' => true]))->read('<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><details id="answer" class="reveal" open="open" epub:type="learning-resource"><summary id="sum">Answer key</summary><p>Visible explanation.</p></details></body></html>');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($document->children));
+        $t->same('raw_html', $document->children[0]->type);
+        $t->same('<details id="answer" class="reveal" open="open" epub:type="learning-resource"><summary id="sum">Answer key</summary><p>Visible explanation.</p></details>', $document->children[0]->attr('html'));
+        $t->same(1, substr_count($blocks, '<!-- wp:html -->'));
+        $t->contains('<details id="answer" class="reveal" open="open" epub:type="learning-resource"><summary id="sum">Answer key</summary><p>Visible explanation.</p></details>', $blocks);
+        $t->true(!str_contains($blocks, 'Answer keyVisible explanation'), 'XHTML details should not flatten summary and body text into one paragraph.');
     },
     'maps upstream html reader standalone ins inline fragments' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-standalone-ins-inline.html');
