@@ -18194,6 +18194,88 @@ XML;
         $t->true(!str_contains($diagnosticsJson, 'missing-manifest-required-property'), 'Generated symbol variant MathML should not self-diagnose missing manifest properties.');
         $t->true(!str_contains($diagnosticsJson, 'malformed-spine-xhtml'), 'Generated symbol variant MathML XHTML should not self-diagnose malformed XHTML.');
     },
+    'writes epub3 tex unicode identifiers and prime shorthand as mathml' => static function (TestRunner $t): void {
+        $inlineTex = "α_1 + β' + γ'' + ∂f/∂x";
+        $displayTex = "F'_n(x) + θ^{2} + Δ x ≤ 10";
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Unicode Identifier Prime MathML EPUB',
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Unicode Identifier Prime MathML EPUB'], [
+                new AstNode('text', ['text' => 'Unicode Identifier Prime MathML EPUB']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Inline Unicode identifier prime math ']),
+                new AstNode('math', [
+                    'display' => false,
+                    'text' => $inlineTex,
+                ]),
+                new AstNode('text', ['text' => '.']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('math', [
+                    'display' => true,
+                    'text' => $displayTex,
+                ]),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-25T13:47:00Z',
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-unicode-identifier-prime-mathml-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary Unicode identifier prime MathML EPUB path');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated Unicode identifier prime MathML EPUB package');
+            }
+
+            $package = $zip->getFromName('OEBPS/package.opf');
+            $chapter = $zip->getFromName('OEBPS/text/chapter.xhtml');
+            if (!is_string($package) || !is_string($chapter)) {
+                throw new RuntimeException('Generated EPUB package is missing Unicode identifier prime MathML files');
+            }
+
+            $t->contains('<item id="chapter-1" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml"/>', $package);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>α</mi><mn>1</mn></msub><mo>+</mo><msup><mi>β</mi><mo>′</mo></msup><mo>+</mo><msup><mi>γ</mi><mo>″</mo></msup><mo>+</mo><mo>∂</mo><mi>f</mi><mo>/</mo><mo>∂</mo><mi>x</mi></mrow><annotation encoding="application/x-tex">α_1 + β&#039; + γ&#039;&#039; + ∂f/∂x</annotation></semantics></math>', $chapter);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msubsup><mi>F</mi><mi>n</mi><mo>′</mo></msubsup><mo>(</mo><mi>x</mi><mo>)</mo><mo>+</mo><msup><mi>θ</mi><mn>2</mn></msup><mo>+</mo><mi>Δ</mi><mi>x</mi><mo>≤</mo><mn>10</mn></mrow><annotation encoding="application/x-tex">F&#039;_n(x) + θ^{2} + Δ x ≤ 10</annotation></semantics></math>', $chapter);
+            $t->true(!str_contains($chapter, '�'), 'Generated Unicode MathML should not contain replacement characters from byte-wise tokenization.');
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+
+        $roundTrip = PandocConverter::read($epub, 'epub');
+        $meta = $roundTrip->attr('meta');
+        $paragraph = $roundTrip->children[1] ?? null;
+        $displayParagraph = $roundTrip->children[2] ?? null;
+        if (!$paragraph instanceof AstNode || !$displayParagraph instanceof AstNode) {
+            throw new RuntimeException('Round-tripped EPUB is missing Unicode identifier prime math paragraphs.');
+        }
+
+        $inlineMath = $paragraph->children[1] ?? null;
+        $displayMath = $displayParagraph->children[0] ?? null;
+        if (!$inlineMath instanceof AstNode || !$displayMath instanceof AstNode) {
+            throw new RuntimeException('Round-tripped EPUB is missing Unicode identifier prime math nodes.');
+        }
+
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+        $t->same(['mathml'], $meta['epubSpineItemRefs'][0]['manifestProperties'] ?? null);
+        $t->same('math', $inlineMath->type);
+        $t->same(false, $inlineMath->attr('display'));
+        $t->same($inlineTex, $inlineMath->attr('text'));
+        $t->same('math', $displayMath->type);
+        $t->same(true, $displayMath->attr('display'));
+        $t->same($displayTex, $displayMath->attr('text'));
+        $t->true(!str_contains($diagnosticsJson, 'missing-manifest-required-property'), 'Generated Unicode identifier prime MathML should not self-diagnose missing manifest properties.');
+        $t->true(!str_contains($diagnosticsJson, 'malformed-spine-xhtml'), 'Generated Unicode identifier prime MathML XHTML should not self-diagnose malformed XHTML.');
+    },
     'writes epub3 tex miscellaneous symbols as mathml' => static function (TestRunner $t): void {
         $inlineTex = '\neg P + \top \vdash Q + R \models S + \bot';
         $displayTex = '\clubsuit + \spadesuit + \heartsuit + \diamondsuit + \flat + \natural + \sharp + \Box + \Diamond';

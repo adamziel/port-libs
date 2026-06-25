@@ -2918,6 +2918,13 @@ final class HtmlWriter
         while ($offset < $length) {
             $this->skipTexMathWhitespace($source, $offset);
             $marker = $source[$offset] ?? '';
+            if ($marker === "'") {
+                $argument = $this->consumeTexMathPrimeSuffix($source, $offset);
+                if ($argument !== '') {
+                    $superscript .= $argument;
+                }
+                continue;
+            }
             if ($marker !== '^' && $marker !== '_') {
                 break;
             }
@@ -3031,12 +3038,35 @@ final class HtmlWriter
         if (ctype_digit($char)) {
             return '<mn>' . $this->esc($this->readTexMathNumber($source, $offset)) . '</mn>';
         }
-        if (ctype_alpha($char)) {
-            return '<mi>' . $this->esc($this->readTexMathLetters($source, $offset)) . '</mi>';
+        $identifier = $this->readTexMathIdentifier($source, $offset);
+        if ($identifier !== '') {
+            return '<mi>' . $this->esc($identifier) . '</mi>';
         }
 
-        $offset++;
-        return '<mo>' . $this->esc($char) . '</mo>';
+        return '<mo>' . $this->esc($this->readTexMathCharacter($source, $offset)) . '</mo>';
+    }
+
+    private function consumeTexMathPrimeSuffix(string $source, int &$offset): string
+    {
+        $count = 0;
+        $length = strlen($source);
+        while ($offset < $length && $source[$offset] === "'") {
+            $count++;
+            $offset++;
+        }
+
+        if ($count === 0) {
+            return '';
+        }
+
+        $prime = [
+            1 => '′',
+            2 => '″',
+            3 => '‴',
+            4 => '⁗',
+        ][$count] ?? str_repeat('′', $count);
+
+        return '<mo>' . $this->esc($prime) . '</mo>';
     }
 
     private function parseTexMathCommand(string $source, int &$offset): string
@@ -4179,15 +4209,33 @@ final class HtmlWriter
         return substr($source, $start, $offset - $start);
     }
 
-    private function readTexMathLetters(string $source, int &$offset): string
+    private function readTexMathIdentifier(string $source, int &$offset): string
     {
-        $start = $offset;
-        $length = strlen($source);
-        while ($offset < $length && ctype_alpha($source[$offset])) {
+        $remaining = substr($source, $offset);
+        if (preg_match('/^\p{L}[\p{L}\p{M}\p{N}]*/u', $remaining, $match) !== 1) {
+            return '';
+        }
+
+        $offset += strlen($match[0]);
+
+        return $match[0];
+    }
+
+    private function readTexMathCharacter(string $source, int &$offset): string
+    {
+        $remaining = substr($source, $offset);
+        if (preg_match('/^./us', $remaining, $match) === 1) {
+            $offset += strlen($match[0]);
+
+            return $match[0];
+        }
+
+        $char = $source[$offset] ?? '';
+        if ($char !== '') {
             $offset++;
         }
 
-        return substr($source, $start, $offset - $start);
+        return $char;
     }
 
     private function readTexMathBalancedText(string $source, int &$offset): string
