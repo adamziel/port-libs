@@ -3441,6 +3441,13 @@ final class HtmlWriter
             }
         }
 
+        if (in_array($command, ['hspace', 'mspace', 'kern', 'mkern'], true)) {
+            $spacing = $this->parseTexMathDimensionedSpacing($source, $offset, $command);
+            if ($spacing !== null) {
+                return $spacing;
+            }
+        }
+
         if ($command === 'operatorname') {
             if (($source[$offset] ?? '') === '*') {
                 $offset++;
@@ -3487,6 +3494,56 @@ final class HtmlWriter
         }
 
         return '<mi>' . $this->esc($command) . '</mi>';
+    }
+
+    private function parseTexMathDimensionedSpacing(string $source, int &$offset, string $command): ?string
+    {
+        $cursor = $offset;
+        $attributes = '';
+        if ($command === 'hspace' && ($source[$cursor] ?? '') === '*') {
+            $attributes = ' linebreak="nobreak"';
+            $cursor++;
+        }
+
+        $raw = $this->readTexMathRawGroup($source, $cursor);
+        if ($raw === null && ($command === 'kern' || $command === 'mkern')) {
+            $raw = $this->readTexMathDimensionToken($source, $cursor);
+        }
+        if ($raw === null) {
+            return null;
+        }
+
+        $dimension = $this->normalizeTexMathSpacingDimension($raw);
+        if ($dimension === null) {
+            return null;
+        }
+
+        $offset = $cursor;
+
+        return '<mspace width="' . $this->esc($dimension) . '"' . $attributes . '/>';
+    }
+
+    private function readTexMathDimensionToken(string $source, int &$offset): ?string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        $remaining = substr($source, $offset);
+        if (preg_match('/^[+\-]?(?:\d+(?:\.\d+)?|\.\d+)(?:em|ex|px|pt|pc|in|cm|mm|mu)\b/', $remaining, $match) !== 1) {
+            return null;
+        }
+
+        $offset += strlen($match[0]);
+
+        return $match[0];
+    }
+
+    private function normalizeTexMathSpacingDimension(string $dimension): ?string
+    {
+        $dimension = trim($dimension);
+        if (preg_match('/^[+\-]?(?:\d+(?:\.\d+)?|\.\d+)(?:em|ex|px|pt|pc|in|cm|mm|mu)$/', $dimension) !== 1) {
+            return null;
+        }
+
+        return str_starts_with($dimension, '+') ? substr($dimension, 1) : $dimension;
     }
 
     private function parseTexMathArgument(string $source, int &$offset): string

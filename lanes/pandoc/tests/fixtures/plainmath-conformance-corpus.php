@@ -197,6 +197,18 @@ return [
             'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>x</mi><mspace width="0.222em"/><mi>y</mi></mrow><annotation encoding="application/x-tex">x\ y</annotation></semantics></math>',
         ],
         [
+            'id' => 'dimensioned-spacing',
+            'family' => 'spacing',
+            'tex' => 'x\hspace{1.5em}y\mspace{-2mu}z+\kern 12pt q+\mkern{.25em}r+a\hspace*{.25in}b',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'src/Text/TeXMath/Readers/TeX.hs dimensioned spacing commands',
+                'writer' => 'src/Text/TeXMath/Writers/MathML.hs ESpace/mspace subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>x</mi><mspace width="1.5em"/><mi>y</mi><mspace width="-2mu"/><mi>z</mi><mo>+</mo><mspace width="12pt"/><mi>q</mi><mo>+</mo><mspace width=".25em"/><mi>r</mi><mo>+</mo><mi>a</mi><mspace linebreak="nobreak" width=".25in"/><mi>b</mi></mrow><annotation encoding="application/x-tex">x\hspace{1.5em}y\mspace{-2mu}z+\kern 12pt q+\mkern{.25em}r+a\hspace*{.25in}b</annotation></semantics></math>',
+        ],
+        [
             'id' => 'align-environment',
             'family' => 'environments',
             'tex' => '\begin{align}a&=b+c\\\\d&=e\end{align}',
