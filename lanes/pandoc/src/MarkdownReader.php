@@ -283,6 +283,18 @@ final class MarkdownReader
                 array_push($blocks, ...$rawHtmlContainer);
                 continue;
             }
+            if (
+                $paragraph !== []
+                && $listStack === []
+                && $this->isCommonMarkParagraphInterruptingRawHtmlBlockStart($line)
+            ) {
+                $this->flushParagraph($paragraph, $blocks);
+                $rawHtmlBlock = $this->tryReadRawHtmlBlock($lines, $index);
+                if ($rawHtmlBlock !== null) {
+                    $blocks[] = $rawHtmlBlock;
+                    continue;
+                }
+            }
             $rawHtmlBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlBlock($lines, $index) : null;
             if ($rawHtmlBlock !== null) {
                 $blocks[] = $rawHtmlBlock;
@@ -1381,24 +1393,98 @@ final class MarkdownReader
      */
     private function tryReadRawHtmlBlock(array $lines, int &$index): ?AstNode
     {
+        if (!$this->htmlRawHtmlEnabled()) {
+            return null;
+        }
+
         $line = $lines[$index] ?? '';
         if (preg_match('/^ {0,3}<!--/', $line) === 1) {
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
-        if (preg_match('/^ {0,3}<(script|style|textarea)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
-            return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
+        if (preg_match('/^ {0,3}<\?/', $line) === 1) {
+            return $this->readRawHtmlUntilMarker($lines, $index, '?>');
         }
 
-        if (preg_match('/^ {0,3}<table(?:\s+[^>]*)?>/i', $line) === 1) {
+        if (preg_match('/^ {0,3}<!\[CDATA\[/', $line) === 1) {
+            return $this->readRawHtmlUntilMarker($lines, $index, ']]>');
+        }
+
+        if (preg_match('/^ {0,3}<![A-Za-z]/', $line) === 1) {
+            return $this->readRawHtmlUntilMarker($lines, $index, '>');
+        }
+
+        $tag = $this->tryParseRawHtmlOpeningTag($line);
+        if (
+            $tag !== null
+            && in_array($tag['name'], ['script', 'style', 'pre', 'textarea', 'noscript', 'xmp'], true)
+        ) {
+            return $this->readRawHtmlUntilClosingTag($lines, $index, $tag['name']);
+        }
+
+        if ($tag !== null && $tag['name'] === 'table') {
             return $this->readRawHtmlUntilClosingTag($lines, $index, 'table', true);
         }
 
-        if (preg_match('/^ {0,3}<hr(?:\s+[^>]*)?\/?>[ \t]*$/i', $line) === 1) {
+        if ($tag !== null && $tag['name'] === 'hr' && preg_match('/^ {0,3}<hr(?:\s+[^>]*)?\/?>[ \t]*$/i', $line) === 1) {
             return new AstNode('raw_html', ['html' => trim($line)]);
         }
 
+        if (
+            $tag !== null
+            && (
+                $this->isCommonMarkBlankTerminatedRawHtmlTag($tag['name'])
+                || $this->isRawHtmlCustomTagName($tag['name'])
+            )
+        ) {
+            return $this->readRawHtmlUntilBlankLine($lines, $index);
+        }
+
         return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function readRawHtmlUntilMarker(array $lines, int &$index, string $marker): AstNode
+    {
+        $content = [];
+        $cursor = $index;
+        $count = count($lines);
+        while ($cursor < $count) {
+            $content[] = $this->normalizeRawHtmlLine($lines[$cursor]);
+            if (str_contains($lines[$cursor], $marker)) {
+                break;
+            }
+            $cursor++;
+        }
+
+        $index = min($cursor, $count - 1);
+
+        return new AstNode('raw_html', ['html' => implode("\n", $content)]);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function readRawHtmlUntilBlankLine(array $lines, int &$index): AstNode
+    {
+        $content = [];
+        $cursor = $index;
+        $count = count($lines);
+        while ($cursor < $count) {
+            $line = $this->normalizeRawHtmlLine($lines[$cursor]);
+            if ($cursor > $index && trim($line) === '') {
+                break;
+            }
+
+            $content[] = $line;
+            $cursor++;
+        }
+
+        $index = max($index, min($cursor - 1, $count - 1));
+
+        return new AstNode('raw_html', ['html' => implode("\n", $content)]);
     }
 
     /**
@@ -1863,7 +1949,12 @@ final class MarkdownReader
             }
         }
 
-        $document = $content === [] ? null : $this->parseHtmlDocument(implode("\n", $content));
+        $html = implode("\n", $content);
+        if (preg_match('/<html\b/i', $html) !== 1) {
+            return null;
+        }
+
+        $document = $this->parseHtmlDocument($html);
         if ($document === null) {
             return null;
         }
@@ -2428,6 +2519,10 @@ final class MarkdownReader
 
         for ($cursor = $index; $cursor < $count; $cursor++) {
             $line = $this->normalizeRawHtmlLine($lines[$cursor]);
+            if ($cursor > $index && trim($line) === '') {
+                return null;
+            }
+
             if ($cursor > $index && $this->htmlLineStartsImplicitParagraphClose($line)) {
                 return [implode("\n", $content), $cursor - 1];
             }
@@ -2438,11 +2533,7 @@ final class MarkdownReader
             }
         }
 
-        if ($content === []) {
-            return null;
-        }
-
-        return [implode("\n", $content), $count - 1];
+        return null;
     }
 
     private function htmlLineStartsImplicitParagraphClose(string $line): bool
@@ -7372,6 +7463,174 @@ final class MarkdownReader
         return new AstNode('raw_html', ['html' => implode("\n", $content)]);
     }
 
+    /**
+     * @return array{name:string, selfClosing:bool}|null
+     */
+    private function tryParseRawHtmlOpeningTag(string $line): ?array
+    {
+        $line = $this->expandTabsToSpaces($line);
+        if (preg_match('/^ {0,3}<([A-Za-z][A-Za-z0-9:-]*)/i', $line, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        $cursor = $match[1][1] + strlen($match[1][0]);
+        $length = strlen($line);
+        while ($cursor < $length) {
+            while ($cursor < $length && ($line[$cursor] === ' ' || $line[$cursor] === "\t")) {
+                $cursor++;
+            }
+
+            if ($cursor >= $length) {
+                return null;
+            }
+
+            if ($line[$cursor] === '>') {
+                return [
+                    'name' => strtolower($match[1][0]),
+                    'selfClosing' => false,
+                ];
+            }
+
+            if ($line[$cursor] === '/' && ($line[$cursor + 1] ?? '') === '>') {
+                return [
+                    'name' => strtolower($match[1][0]),
+                    'selfClosing' => true,
+                ];
+            }
+
+            if (preg_match('/\G[A-Za-z_:][A-Za-z0-9_.:-]*/', $line, $attribute, 0, $cursor) !== 1) {
+                return null;
+            }
+
+            $cursor += strlen($attribute[0]);
+            while ($cursor < $length && ($line[$cursor] === ' ' || $line[$cursor] === "\t")) {
+                $cursor++;
+            }
+
+            if (($line[$cursor] ?? '') !== '=') {
+                continue;
+            }
+
+            $cursor++;
+            while ($cursor < $length && ($line[$cursor] === ' ' || $line[$cursor] === "\t")) {
+                $cursor++;
+            }
+
+            if ($cursor >= $length) {
+                return null;
+            }
+
+            $quote = $line[$cursor];
+            if ($quote === '"' || $quote === "'") {
+                $end = strpos($line, $quote, $cursor + 1);
+                if ($end === false) {
+                    return null;
+                }
+                $cursor = $end + 1;
+                continue;
+            }
+
+            if (preg_match('/\G[^\s"\'=<>`]+/', $line, $value, 0, $cursor) !== 1) {
+                return null;
+            }
+
+            $cursor += strlen($value[0]);
+        }
+
+        return null;
+    }
+
+    private function isCommonMarkParagraphInterruptingRawHtmlBlockStart(string $line): bool
+    {
+        $expanded = $this->expandTabsToSpaces($line);
+        if (
+            preg_match('/^ {0,3}<!--/', $expanded) === 1
+            || preg_match('/^ {0,3}<\?/', $expanded) === 1
+            || preg_match('/^ {0,3}<![A-Za-z]/', $expanded) === 1
+            || preg_match('/^ {0,3}<!\[CDATA\[/', $expanded) === 1
+        ) {
+            return $this->htmlRawHtmlEnabled();
+        }
+
+        if (preg_match('/^ {0,3}<(script|pre|style|textarea)(?:[ \t>]|\/>)/i', $expanded) === 1) {
+            return $this->htmlRawHtmlEnabled();
+        }
+
+        $tag = $this->tryParseRawHtmlOpeningTag($expanded);
+        if ($tag === null) {
+            return false;
+        }
+
+        return $this->htmlRawHtmlEnabled() && $this->isCommonMarkBlankTerminatedRawHtmlTag($tag['name']);
+    }
+
+    private function isCommonMarkBlankTerminatedRawHtmlTag(string $tag): bool
+    {
+        return in_array($tag, [
+            'address',
+            'article',
+            'aside',
+            'base',
+            'basefont',
+            'blockquote',
+            'body',
+            'caption',
+            'center',
+            'col',
+            'colgroup',
+            'dd',
+            'details',
+            'dialog',
+            'dir',
+            'div',
+            'dl',
+            'dt',
+            'fieldset',
+            'figcaption',
+            'figure',
+            'footer',
+            'form',
+            'frame',
+            'frameset',
+            'h1',
+            'h2',
+            'h3',
+            'h4',
+            'h5',
+            'h6',
+            'head',
+            'header',
+            'hr',
+            'html',
+            'iframe',
+            'legend',
+            'li',
+            'link',
+            'main',
+            'menu',
+            'menuitem',
+            'nav',
+            'noframes',
+            'ol',
+            'optgroup',
+            'option',
+            'p',
+            'param',
+            'section',
+            'summary',
+            'table',
+            'tbody',
+            'td',
+            'tfoot',
+            'th',
+            'thead',
+            'title',
+            'tr',
+            'track',
+            'ul',
+        ], true);
+    }
+
     private function normalizeRawHtmlLine(string $line): string
     {
         return rtrim($this->expandTabsToSpaces($line));
@@ -7693,7 +7952,20 @@ final class MarkdownReader
 
             $indent = $this->countIndentColumns($line);
             if ($indent >= $contentIndent) {
-                $paragraph[] = trim($this->stripIndentColumns($line, $contentIndent));
+                $continuation = rtrim($this->stripIndentColumns($line, $contentIndent));
+                if ($this->lineCanStartRawHtmlBlock($continuation)) {
+                    $rawLines = $this->collectListItemIndentedContinuationLines($lines, $cursor, $baseIndent, $contentIndent);
+                    $rawIndex = 0;
+                    $rawHtmlBlock = $this->tryReadRawHtmlBlock($rawLines, $rawIndex);
+                    if ($rawHtmlBlock !== null) {
+                        $this->flushListItemParagraph($paragraph, $parts);
+                        $parts[] = $rawHtmlBlock;
+                        $cursor += $rawIndex + 1;
+                        continue;
+                    }
+                }
+
+                $paragraph[] = trim($continuation);
                 $cursor++;
                 continue;
             }
@@ -7717,6 +7989,57 @@ final class MarkdownReader
             'number' => $marker['start'],
             'taskChecked' => $taskChecked,
         ];
+    }
+
+    private function lineCanStartRawHtmlBlock(string $line): bool
+    {
+        if (!$this->htmlRawHtmlEnabled()) {
+            return false;
+        }
+
+        $expanded = $this->expandTabsToSpaces($line);
+        if (
+            preg_match('/^ {0,3}<!--/', $expanded) === 1
+            || preg_match('/^ {0,3}<\?/', $expanded) === 1
+            || preg_match('/^ {0,3}<![A-Za-z]/', $expanded) === 1
+            || preg_match('/^ {0,3}<!\[CDATA\[/', $expanded) === 1
+        ) {
+            return true;
+        }
+
+        return $this->tryParseRawHtmlOpeningTag($expanded) !== null;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function collectListItemIndentedContinuationLines(array $lines, int $cursor, int $baseIndent, int $contentIndent): array
+    {
+        $content = [];
+        $count = count($lines);
+        while ($cursor < $count) {
+            $line = $lines[$cursor];
+            if (trim($line) === '') {
+                $content[] = '';
+                $cursor++;
+                continue;
+            }
+
+            $lineMarker = $this->matchListMarker($line, $cursor);
+            if ($lineMarker !== null && $lineMarker['indent'] <= $baseIndent) {
+                break;
+            }
+
+            if ($this->countIndentColumns($line) < $contentIndent) {
+                break;
+            }
+
+            $content[] = rtrim($this->stripIndentColumns($line, $contentIndent));
+            $cursor++;
+        }
+
+        return $content;
     }
 
     /**
@@ -9773,6 +10096,10 @@ final class MarkdownReader
      */
     private function tryParseRawHtmlInline(string $text, int $offset): ?array
     {
+        if (!$this->htmlRawHtmlEnabled()) {
+            return null;
+        }
+
         if (($text[$offset] ?? '') !== '<' || $this->isEscapedInlinePosition($text, $offset)) {
             return null;
         }
@@ -9803,7 +10130,207 @@ final class MarkdownReader
             }
         }
 
+        foreach ([
+            '~\G<!--.*?-->~su',
+            '~\G<\?.*?\?>~su',
+            '~\G<!\[CDATA\[.*?\]\]>~su',
+            '~\G<![A-Za-z][^>]*>~su',
+        ] as $pattern) {
+            if (preg_match($pattern, $text, $match, 0, $offset) === 1) {
+                return [
+                    'node' => new AstNode('raw_html_inline', ['html' => $match[0]]),
+                    'next' => $offset + strlen($match[0]),
+                ];
+            }
+        }
+
+        if (
+            preg_match('~\G</([A-Za-z][A-Za-z0-9:-]*)\s*>~u', $text, $match, 0, $offset) === 1
+            && $this->isRawHtmlInlineTagName($match[1])
+        ) {
+            return [
+                'node' => new AstNode('raw_html_inline', ['html' => $match[0]]),
+                'next' => $offset + strlen($match[0]),
+            ];
+        }
+
+        if (
+            preg_match('~\G<([A-Za-z][A-Za-z0-9:-]*)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*/?>~u', $text, $match, 0, $offset) === 1
+            && $this->isRawHtmlInlineTagName($match[1])
+        ) {
+            return [
+                'node' => new AstNode('raw_html_inline', ['html' => $match[0]]),
+                'next' => $offset + strlen($match[0]),
+            ];
+        }
+
         return null;
+    }
+
+    private function isRawHtmlInlineTagName(string $name): bool
+    {
+        $name = strtolower($name);
+
+        return $this->isRawHtmlCustomTagName($name)
+            || in_array($name, [
+                'a',
+                'abbr',
+                'address',
+                'area',
+                'article',
+                'aside',
+                'audio',
+                'b',
+                'base',
+                'basefont',
+                'bdi',
+                'bdo',
+                'blink',
+                'blockquote',
+                'body',
+                'br',
+                'button',
+                'canvas',
+                'caption',
+                'center',
+                'cite',
+                'code',
+                'col',
+                'colgroup',
+                'data',
+                'datalist',
+                'dd',
+                'del',
+                'details',
+                'dfn',
+                'dialog',
+                'dir',
+                'div',
+                'dl',
+                'dt',
+                'em',
+                'embed',
+                'fieldset',
+                'figcaption',
+                'figure',
+                'footer',
+                'form',
+                'frame',
+                'frameset',
+                'h1',
+                'h2',
+                'h3',
+                'h4',
+                'h5',
+                'h6',
+                'head',
+                'header',
+                'hr',
+                'html',
+                'i',
+                'iframe',
+                'img',
+                'input',
+                'ins',
+                'kbd',
+                'label',
+                'legend',
+                'li',
+                'link',
+                'main',
+                'map',
+                'mark',
+                'menu',
+                'menuitem',
+                'meta',
+                'meter',
+                'nav',
+                'noembed',
+                'noframes',
+                'noscript',
+                'object',
+                'ol',
+                'optgroup',
+                'option',
+                'output',
+                'p',
+                'param',
+                'picture',
+                'pre',
+                'progress',
+                'q',
+                'rp',
+                'rt',
+                'ruby',
+                's',
+                'samp',
+                'script',
+                'search',
+                'section',
+                'select',
+                'slot',
+                'small',
+                'source',
+                'span',
+                'strong',
+                'style',
+                'sub',
+                'summary',
+                'sup',
+                'svg',
+                'table',
+                'tbody',
+                'td',
+                'template',
+                'textarea',
+                'tfoot',
+                'th',
+                'thead',
+                'time',
+                'title',
+                'tr',
+                'track',
+                'u',
+                'ul',
+                'var',
+                'video',
+                'wbr',
+                'xmp',
+                'annotation',
+                'annotation-xml',
+                'circle',
+                'clippath',
+                'defs',
+                'desc',
+                'ellipse',
+                'g',
+                'glyph',
+                'line',
+                'lineargradient',
+                'malignmark',
+                'math',
+                'metadata',
+                'mglyph',
+                'mi',
+                'mn',
+                'mo',
+                'mrow',
+                'ms',
+                'mtext',
+                'path',
+                'polygon',
+                'polyline',
+                'rect',
+                'semantics',
+                'text',
+                'textpath',
+                'tspan',
+            ], true);
+    }
+
+    private function isRawHtmlCustomTagName(string $name): bool
+    {
+        return str_contains($name, '-') || str_contains($name, ':');
     }
 
     /**
