@@ -2886,6 +2886,103 @@ XML);
         $t->same('OPS/chapter.xhtml', $meta['epubSpineItemRefs'][0]['path'] ?? null);
         $t->contains('Readable meta prefix diagnostics content.', $blocks);
     },
+    'records epub3 opf identifier and metadata refines target diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-opf-id-refines-diagnostics-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="cover-image">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:opf-identifier-refines-direct</dc:identifier>
+    <dc:title id="title-main">OPF Identifier Refines Diagnostics</dc:title>
+    <dc:creator id="package-wide-dupe">Port Libs</dc:creator>
+    <dc:language>en</dc:language>
+    <meta id="book-id" property="title-type" refines="#title-main">duplicate metadata id</meta>
+    <meta id="9bad" property="source-of" refines="#title-main">invalid metadata id</meta>
+    <meta id="title-kind" property="title-type" refines="#title-main">main</meta>
+    <meta id="missing-target" property="source-of" refines="#missing-id">missing package id</meta>
+    <meta id="absolute-target" property="source-of" refines="https://example.test/record.xml#r1">absolute target</meta>
+    <meta id="sidecar-source" property="source-of" refines="metadata/sidecar.xml#sidecar-record">valid sidecar target</meta>
+    <meta id="sidecar-missing-fragment" property="source-of" refines="metadata/sidecar.xml#missing-record">missing sidecar fragment</meta>
+    <meta id="missing-sidecar" property="source-of" refines="metadata/missing.xml#record">missing sidecar resource</meta>
+    <meta property="dcterms:modified">2026-06-25T09:40:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="cover-image" href="images/cover.png" media-type="image/png"/>
+    <item id="package-wide-dupe" href="images/dupe.png" media-type="image/png"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>OPF Identifier Refines Diagnostics</h1><p>Readable identifier/refines diagnostics content.</p></body></html>');
+        $zip->addFromString('OPS/nav.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">OPF Identifier Refines Diagnostics</a></li></ol></nav></body></html>');
+        $zip->addFromString('OPS/metadata/sidecar.xml', '<record-set><record id="sidecar-record">Sidecar metadata</record></record-set>');
+        $zip->addFromString('OPS/images/cover.png', 'cover');
+        $zip->addFromString('OPS/images/dupe.png', 'dupe');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $diagnostics = $meta['epubDiagnostics'] ?? [];
+        $byCode = [];
+        foreach ($diagnostics as $diagnostic) {
+            $code = (string) ($diagnostic['code'] ?? '');
+            if ($code !== '') {
+                $byCode[$code][] = $diagnostic;
+            }
+        }
+
+        $propertiesById = [];
+        foreach ($meta['epubMetadataProperties'] ?? [] as $property) {
+            if (is_array($property) && isset($property['id'])) {
+                $propertiesById[$property['id']] = $property;
+            }
+        }
+
+        $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
+        $t->same(8, $meta['epubDiagnosticErrorCount']);
+        $t->same(0, $meta['epubDiagnosticWarningCount']);
+        $t->same(1, count($byCode['invalid-unique-identifier-target'] ?? []));
+        $t->same('cover-image', $byCode['invalid-unique-identifier-target'][0]['id'] ?? null);
+        $t->same('item', $byCode['invalid-unique-identifier-target'][0]['target'] ?? null);
+        $t->same('not-dc-identifier', $byCode['invalid-unique-identifier-target'][0]['reason'] ?? null);
+        $t->same(1, count($byCode['duplicate-package-id'] ?? []));
+        $t->same('package-wide-dupe', $byCode['duplicate-package-id'][0]['id'] ?? null);
+        $t->same(1, count($byCode['duplicate-metadata-id'] ?? []));
+        $t->same('book-id', $byCode['duplicate-metadata-id'][0]['id'] ?? null);
+        $t->same(1, count($byCode['invalid-metadata-id'] ?? []));
+        $t->same('9bad', $byCode['invalid-metadata-id'][0]['id'] ?? null);
+        $t->same(1, count($byCode['invalid-metadata-refines'] ?? []));
+        $t->same('absolute-url', $byCode['invalid-metadata-refines'][0]['reason'] ?? null);
+        $t->same(1, count($byCode['missing-metadata-refines-resource'] ?? []));
+        $t->same('OPS/metadata/missing.xml', $byCode['missing-metadata-refines-resource'][0]['path'] ?? null);
+        $t->same(1, count($byCode['missing-metadata-refines-fragment'] ?? []));
+        $t->same('missing-record', $byCode['missing-metadata-refines-fragment'][0]['fragment'] ?? null);
+        $t->same(1, count($byCode['missing-metadata-refines-target'] ?? []));
+        $t->same('missing-id', $byCode['missing-metadata-refines-target'][0]['target'] ?? null);
+        $t->same('#title-main', $propertiesById['title-kind']['refines'] ?? null);
+        $t->same('metadata/sidecar.xml#sidecar-record', $propertiesById['sidecar-source']['refines'] ?? null);
+        $t->same('OPS/chapter.xhtml', $meta['epubSpineItemRefs'][0]['path'] ?? null);
+        $t->contains('Readable identifier/refines diagnostics content.', $blocks);
+    },
     'records epub3 opf property undeclared prefix diagnostics' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-opf-property-prefix-diagnostics-');
         if ($path === false) {
