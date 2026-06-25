@@ -16780,6 +16780,90 @@ XML;
         $t->true(!str_contains($diagnosticsJson, 'missing-manifest-required-property'), 'Generated styled MathML should not self-diagnose missing manifest properties.');
         $t->true(!str_contains($diagnosticsJson, 'malformed-spine-xhtml'), 'Generated styled MathML XHTML should not self-diagnose malformed XHTML.');
     },
+    'writes epub3 tex extended style aliases as mathml' => static function (TestRunner $t): void {
+        $inlineTex = '\mathup{x} + \mathsfup{y} + \boldsymbol{\alpha} + \bm{\beta} + \symbf{a} + \mathbold{b} + \pmb{c} + \mathbfup{d}';
+        $displayTex = '\mathds{N} + \mathscr{L} + \mathbfit{v} + \mathbfsfup{A} + \mathbfsfit{B} + \mathbfscr{C} + \mathbffrak{D} + \mathbfcal{E} + \mathsfit{F}';
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Extended Styled MathML EPUB',
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Extended Styled MathML EPUB'], [
+                new AstNode('text', ['text' => 'Extended Styled MathML EPUB']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Inline extended styled math ']),
+                new AstNode('math', [
+                    'display' => false,
+                    'text' => $inlineTex,
+                ]),
+                new AstNode('text', ['text' => '.']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('math', [
+                    'display' => true,
+                    'text' => $displayTex,
+                ]),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-24T00:14:00Z',
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-extended-styled-mathml-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary extended styled MathML EPUB path');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated extended styled MathML EPUB package');
+            }
+
+            $package = $zip->getFromName('OEBPS/package.opf');
+            $chapter = $zip->getFromName('OEBPS/text/chapter.xhtml');
+            if (!is_string($package) || !is_string($chapter)) {
+                throw new RuntimeException('Generated EPUB package is missing extended styled MathML files');
+            }
+
+            $t->contains('<item id="chapter-1" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml"/>', $package);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle mathvariant="normal"><mi>x</mi></mstyle><mo>+</mo><mstyle mathvariant="sans-serif"><mi>y</mi></mstyle><mo>+</mo><mstyle mathvariant="bold"><mi>α</mi></mstyle><mo>+</mo><mstyle mathvariant="bold"><mi>β</mi></mstyle><mo>+</mo><mstyle mathvariant="bold"><mi>a</mi></mstyle><mo>+</mo><mstyle mathvariant="bold"><mi>b</mi></mstyle><mo>+</mo><mstyle mathvariant="bold"><mi>c</mi></mstyle><mo>+</mo><mstyle mathvariant="bold"><mi>d</mi></mstyle></mrow><annotation encoding="application/x-tex">\mathup{x} + \mathsfup{y} + \boldsymbol{\alpha} + \bm{\beta} + \symbf{a} + \mathbold{b} + \pmb{c} + \mathbfup{d}</annotation></semantics></math>', $chapter);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mstyle mathvariant="double-struck"><mi>N</mi></mstyle><mo>+</mo><mstyle mathvariant="script"><mi>L</mi></mstyle><mo>+</mo><mstyle mathvariant="bold-italic"><mi>v</mi></mstyle><mo>+</mo><mstyle mathvariant="bold-sans-serif"><mi>A</mi></mstyle><mo>+</mo><mstyle mathvariant="sans-serif-bold-italic"><mi>B</mi></mstyle><mo>+</mo><mstyle mathvariant="bold-script"><mi>C</mi></mstyle><mo>+</mo><mstyle mathvariant="bold-fraktur"><mi>D</mi></mstyle><mo>+</mo><mstyle mathvariant="bold-script"><mi>E</mi></mstyle><mo>+</mo><mstyle mathvariant="sans-serif-italic"><mi>F</mi></mstyle></mrow><annotation encoding="application/x-tex">\mathds{N} + \mathscr{L} + \mathbfit{v} + \mathbfsfup{A} + \mathbfsfit{B} + \mathbfscr{C} + \mathbffrak{D} + \mathbfcal{E} + \mathsfit{F}</annotation></semantics></math>', $chapter);
+            foreach (['<mi>mathup</mi>', '<mi>mathsfup</mi>', '<mi>boldsymbol</mi>', '<mi>bm</mi>', '<mi>symbf</mi>', '<mi>mathbold</mi>', '<mi>pmb</mi>', '<mi>mathbfup</mi>', '<mi>mathds</mi>', '<mi>mathscr</mi>', '<mi>mathbfit</mi>', '<mi>mathbfsfup</mi>', '<mi>mathbfsfit</mi>', '<mi>mathbfscr</mi>', '<mi>mathbffrak</mi>', '<mi>mathbfcal</mi>', '<mi>mathsfit</mi>'] as $fallback) {
+                $t->true(!str_contains($chapter, $fallback), "TeX extended style command should not fall back to a literal identifier: {$fallback}.");
+            }
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+
+        $roundTrip = PandocConverter::read($epub, 'epub');
+        $meta = $roundTrip->attr('meta');
+        $paragraph = $roundTrip->children[1] ?? null;
+        $displayParagraph = $roundTrip->children[2] ?? null;
+        if (!$paragraph instanceof AstNode || !$displayParagraph instanceof AstNode) {
+            throw new RuntimeException('Round-tripped EPUB is missing extended styled math paragraphs.');
+        }
+
+        $inlineMath = $paragraph->children[1] ?? null;
+        $displayMath = $displayParagraph->children[0] ?? null;
+        if (!$inlineMath instanceof AstNode || !$displayMath instanceof AstNode) {
+            throw new RuntimeException('Round-tripped EPUB is missing extended styled math nodes.');
+        }
+
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+        $t->same(['mathml'], $meta['epubSpineItemRefs'][0]['manifestProperties'] ?? null);
+        $t->same('math', $inlineMath->type);
+        $t->same(false, $inlineMath->attr('display'));
+        $t->same($inlineTex, $inlineMath->attr('text'));
+        $t->same('math', $displayMath->type);
+        $t->same(true, $displayMath->attr('display'));
+        $t->same($displayTex, $displayMath->attr('text'));
+        $t->true(!str_contains($diagnosticsJson, 'missing-manifest-required-property'), 'Generated extended styled MathML should not self-diagnose missing manifest properties.');
+        $t->true(!str_contains($diagnosticsJson, 'malformed-spine-xhtml'), 'Generated extended styled MathML XHTML should not self-diagnose malformed XHTML.');
+    },
     'writes epub3 tex named spacing commands as mathml' => static function (TestRunner $t): void {
         $inlineTex = 'a\quad b\thinspace c';
         $displayTex = 'x\qquad y\enspace z\negthinspace w';
