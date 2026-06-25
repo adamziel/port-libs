@@ -4817,7 +4817,9 @@ final class EpubWriter
                 if (!is_array($entry)) {
                     continue;
                 }
-                $overlayId = $this->validManifestId($this->entryString($entry, 'overlayId'));
+                $overlayId = $this->validManifestId(
+                    $this->entryString($entry, 'overlayId') ?: $this->entryString($entry, 'mediaOverlay')
+                );
                 if ($overlayId === '') {
                     continue;
                 }
@@ -10801,7 +10803,9 @@ final class EpubWriter
             if (!is_array($entry)) {
                 continue;
             }
-            $id = $this->validManifestId($this->entryString($entry, 'overlayId'));
+            $id = $this->validManifestId(
+                $this->entryString($entry, 'overlayId') ?: $this->entryString($entry, 'mediaOverlay')
+            );
             $path = $this->entryPackagePath($entry, 'overlayPath', '');
             if ($path === '') {
                 $path = $this->entryPackagePath($entry, 'overlayHref', $packageDir);

@@ -3755,6 +3755,87 @@ XML);
         $t->same('mo-chapter', $meta['epubSpineItemRefs'][0]['mediaOverlay']);
         $t->same('mo-chapter', $meta['epubManifestResources'][0]['mediaOverlay']);
     },
+    'records epub3 remote media overlay resources when nav precedes content manifest item' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-remote-mo-order-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $remoteAudio = 'https://cdn.example.test/audio/remote-overlay.mp3';
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:remote-media-overlay-manifest-order</dc:identifier>
+    <dc:title>Remote Media Overlay Manifest Order</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T09:45:00Z</meta>
+    <meta property="media:duration">0:00:04.000</meta>
+    <meta property="media:duration" refines="#mo-remote">0:00:04.000</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter-remote" href="text/chapter.xhtml" media-type="application/xhtml+xml" media-overlay="mo-remote"/>
+    <item id="mo-remote" href="overlays/remote.smil" media-type="application/smil+xml" properties="remote-resources"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter-remote"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body id="chapter"><h1>Remote Media Overlay Manifest Order</h1><p id="p1">Remote narration target.</p></body></html>');
+        $zip->addFromString('OPS/nav.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="text/chapter.xhtml">Remote Media Overlay Manifest Order</a></li></ol></nav></body></html>');
+        $zip->addFromString('OPS/overlays/remote.smil', <<<XML
+<?xml version="1.0"?>
+<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops" version="3.0">
+  <body>
+    <seq id="seq-remote" epub:textref="../text/chapter.xhtml#chapter">
+      <par id="par-remote">
+        <text id="text-remote" src="../text/chapter.xhtml#p1"/>
+        <audio id="audio-remote" src="{$remoteAudio}" clipBegin="0:00:00.000" clipEnd="0:00:04.000"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $overlay = $meta['epubMediaOverlays'][0] ?? [];
+        $chapterResource = null;
+        foreach ($meta['epubManifestResources'] ?? [] as $resource) {
+            if (is_array($resource) && ($resource['id'] ?? '') === 'chapter-remote') {
+                $chapterResource = $resource;
+                break;
+            }
+        }
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+
+        $t->same(1, $meta['epubMediaOverlayCount'] ?? null);
+        $t->same(['OPS/overlays/remote.smil'], $meta['epubMediaOverlayResources'] ?? null);
+        $t->same('chapter-remote', $overlay['contentId'] ?? null);
+        $t->same('OPS/text/chapter.xhtml', $overlay['contentPath'] ?? null);
+        $t->same('mo-remote', $overlay['overlayId'] ?? null);
+        $t->same('OPS/overlays/remote.smil', $overlay['overlayPath'] ?? null);
+        $t->same('0:00:04.000', $overlay['duration'] ?? null);
+        $t->same(['OPS/text/chapter.xhtml#p1'], $overlay['textTargets'] ?? null);
+        $t->same([$remoteAudio], $overlay['audioTargets'] ?? null);
+        $t->same('mo-remote', $meta['epubSpineItemRefs'][0]['mediaOverlay'] ?? null);
+        $t->same('mo-remote', $chapterResource['mediaOverlay'] ?? null);
+        $t->true(!str_contains($diagnosticsJson, 'missing-manifest-required-property'), 'Remote-audio SMIL overlays with remote-resources should satisfy required property checks.');
+        $t->true(!str_contains($diagnosticsJson, 'missing-media-overlay-audio-resource'), 'Remote overlay audio sources should not require packaged audio bytes.');
+    },
     'records invalid epub3 media duration metadata diagnostics' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-media-duration-diagnostics-');
         if ($path === false) {

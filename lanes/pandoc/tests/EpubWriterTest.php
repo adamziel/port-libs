@@ -26910,6 +26910,98 @@ XML;
         $t->same($smil, base64_decode($meta['epubResourcePayloads']['OEBPS/overlays/mo-generated.smil']['data'] ?? '', true));
         $t->same($audio, base64_decode($meta['epubResourcePayloads']['OEBPS/audio/generated.mp3']['data'] ?? '', true));
     },
+    'writes generated epub3 media overlay aliases with remote audio resources' => static function (TestRunner $t): void {
+        $remoteAudio = 'https://cdn.example.test/audio/alias-overlay.mp3';
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Generated Overlay Alias Export',
+                'lang' => 'en',
+                'epubMediaDuration' => '0:00:04.000',
+                'epubMediaOverlays' => [
+                    [
+                        'contentPath' => 'OEBPS/text/chapter.xhtml',
+                        'mediaOverlay' => 'mo-alias',
+                        'overlayPath' => 'OEBPS/overlays/alias-source.smil',
+                        'duration' => '0:00:04.000',
+                        'pairs' => [
+                            [
+                                'id' => 'par-alias',
+                                'text' => 'OEBPS/text/chapter.xhtml#generated-overlay-alias-export',
+                                'audio' => $remoteAudio,
+                                'clipBegin' => '0:00:00.000',
+                                'clipEnd' => '0:00:04.000',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Generated Overlay Alias Export'], [
+                new AstNode('text', ['text' => 'Generated Overlay Alias Export']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Narrated alias overlay paragraph.']),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-25T09:45:00Z',
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-generated-overlay-alias-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated EPUB package');
+            }
+
+            $package = $zip->getFromName('OEBPS/package.opf');
+            $smil = $zip->getFromName('OEBPS/overlays/alias-source.smil');
+            if (!is_string($package) || !is_string($smil)) {
+                throw new RuntimeException('Generated EPUB package is missing overlay alias files');
+            }
+
+            $t->contains('<item id="chapter-1" href="text/chapter.xhtml" media-type="application/xhtml+xml" media-overlay="mo-alias"/>', $package);
+            $t->contains('<item id="mo-alias" href="overlays/alias-source.smil" media-type="application/smil+xml" properties="remote-resources"/>', $package);
+            $t->contains('<meta property="media:duration">0:00:04.000</meta>', $package);
+            $t->contains('<meta property="media:duration" refines="#mo-alias">0:00:04.000</meta>', $package);
+            $t->contains('<audio src="' . $remoteAudio . '" clipBegin="0:00:00.000" clipEnd="0:00:04.000"/>', $smil);
+            $t->same(false, $zip->locateName('OEBPS/audio/alias-overlay.mp3'));
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+
+        $roundTrip = PandocConverter::read($epub, 'epub');
+        $meta = $roundTrip->attr('meta');
+        $overlay = $meta['epubMediaOverlays'][0] ?? [];
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+
+        $t->same(1, $meta['epubMediaOverlayCount'] ?? null);
+        $t->same(['OEBPS/overlays/alias-source.smil'], $meta['epubMediaOverlayResources'] ?? null);
+        $t->same('chapter-1', $overlay['contentId'] ?? null);
+        $t->same('OEBPS/text/chapter.xhtml', $overlay['contentPath'] ?? null);
+        $t->same('mo-alias', $overlay['overlayId'] ?? null);
+        $t->same('OEBPS/overlays/alias-source.smil', $overlay['overlayPath'] ?? null);
+        $t->same('0:00:04.000', $overlay['duration'] ?? null);
+        $t->same(['OEBPS/text/chapter.xhtml#generated-overlay-alias-export'], $overlay['textTargets'] ?? null);
+        $t->same([$remoteAudio], $overlay['audioTargets'] ?? null);
+        $t->same('mo-alias', $meta['epubSpineItemRefs'][0]['mediaOverlay'] ?? null);
+        $chapterResource = null;
+        foreach ($meta['epubManifestResources'] ?? [] as $resource) {
+            if (is_array($resource) && ($resource['id'] ?? '') === 'chapter-1') {
+                $chapterResource = $resource;
+                break;
+            }
+        }
+        $t->same('mo-alias', $chapterResource['mediaOverlay'] ?? null);
+        $t->true(!str_contains($diagnosticsJson, 'missing-manifest-required-property'), 'Generated remote-audio SMIL overlay should declare remote-resources.');
+        $t->true(!str_contains($diagnosticsJson, 'missing-media-overlay-audio'), 'Generated remote-audio SMIL overlay should not require packaged audio bytes.');
+    },
     'writes epub3 package attributes bindings collections and manifest fallbacks' => static function (TestRunner $t): void {
         $script = 'window.demoWidget = true;';
         $style = 'body { color: #111; }';

@@ -26,6 +26,41 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Future EPUB3 parity notes should continue to distinguish preservation and
   diagnostics from script execution or cryptographic trust validation.
 
+## 2026-06-25 EPUB3 Media Overlay Resource Closure Slice
+
+- Focused PHP coverage is now 1,145 behavior tests and 21,700 full-suite
+  assertions across the Pandoc lane. This implementation slice tightens bounded
+  EPUB3 media overlay alias/linkage and remote-resource manifest behavior.
+- `EpubWriter` now treats `epubMediaOverlays[*].mediaOverlay` as an alias for
+  `overlayId` when mapping content paths to media-overlay IDs and when applying
+  manifest ID overrides. This keeps generated overlay exports stable when an
+  explicit `overlayPath` basename differs from the intended SMIL manifest ID.
+- Focused reader coverage builds a nav-first package manifest with a chapter
+  `media-overlay`, a remote-audio SMIL item declaring `remote-resources`,
+  duration metadata, and no packaged audio. It asserts overlay targets, spine
+  and manifest linkage, and no missing required-property or audio-resource
+  diagnostics.
+- Focused writer coverage builds generated overlay metadata using
+  `mediaOverlay`, explicit `overlayPath`, and a remote audio URL. It asserts OPF
+  linkage, SMIL payload, remote-resource property inference, no remote audio
+  packaging, duration refinements, and round-trip `EpubReader` metadata.
+- Verification: `php -l` passed for `EpubWriter.php`, `EpubReaderTest.php`,
+  and `EpubWriterTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubReaderTest.php` passed 1 file, 4,869 assertions, 0
+  failures; `php tools/run-tests.php lanes/pandoc/tests/EpubWriterTest.php`
+  passed 1 file, 10,273 assertions, 0 failures; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubReaderTest.php
+  lanes/pandoc/tests/EpubWriterTest.php` passed 2 files, 15,142 assertions, 0
+  failures; and `php tools/run-tests.php lanes/pandoc/tests` passed 11 files,
+  21,700 assertions, 0 failures with pass-count verification `pass=1145
+  fail=0`.
+- Dependency-closure checkpoint: this closes bounded EPUB3 generated SMIL
+  overlay alias/linkage and remote-audio manifest resource handling for the
+  covered reader/writer paths. It does not claim EPUBCheck validation, reading
+  system synchronization behavior, remote audio fetching, full upstream Haskell
+  runner parity, full EPUB fixture corpus parity, arbitrary multi-rendition EPUB
+  graph validation, DRM decryption, or XML signature cryptographic validation.
+
 ## 2026-06-25 EPUB OCF Container-Link Traversal Closure Slice
 
 - Focused PHP coverage is now 1,143 behavior tests and 21,672 full-suite
