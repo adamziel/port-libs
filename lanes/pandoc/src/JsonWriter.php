@@ -758,19 +758,19 @@ final class JsonWriter
      */
     private function listAttributesData(AstNode $node): array
     {
+        $styleConstructor = $this->listStyleConstructor((string) $node->attr('style', 'decimal'));
+        $delimiterConstructor = $this->listDelimiterConstructor((string) $node->attr('delimiter', 'period'));
+
         return [
             (int) $node->attr('start', 1),
-            $this->listStyleData((string) $node->attr('style', 'decimal')),
-            $this->listDelimiterData((string) $node->attr('delimiter', 'period')),
+            $this->enumData($node->attr('listStyleNative'), $styleConstructor),
+            $this->enumData($node->attr('listDelimiterNative'), $delimiterConstructor),
         ];
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function listStyleData(string $style): array
+    private function listStyleConstructor(string $style): string
     {
-        return $this->tagged(match ($style) {
+        return match ($style) {
             'default' => 'DefaultStyle',
             'lower_alpha' => 'LowerAlpha',
             'upper_alpha' => 'UpperAlpha',
@@ -778,20 +778,30 @@ final class JsonWriter
             'upper_roman' => 'UpperRoman',
             'example' => 'Example',
             default => 'Decimal',
-        });
+        };
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function listDelimiterData(string $delimiter): array
+    private function listDelimiterConstructor(string $delimiter): string
     {
-        return $this->tagged(match ($delimiter) {
+        return match ($delimiter) {
             'default' => 'DefaultDelim',
             'one_paren' => 'OneParen',
             'two_parens' => 'TwoParens',
             default => 'Period',
-        });
+        };
+    }
+
+    private function enumData(mixed $native, string $constructor): mixed
+    {
+        if (is_string($native) && $native === $constructor) {
+            return $native;
+        }
+
+        if (is_array($native) && !array_is_list($native) && ($native['t'] ?? null) === $constructor) {
+            return $native;
+        }
+
+        return $this->tagged($constructor);
     }
 
     /**

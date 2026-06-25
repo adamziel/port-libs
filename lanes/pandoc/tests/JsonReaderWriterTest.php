@@ -373,6 +373,49 @@ return [
         $t->same('\\beta', $decoded['blocks'][1]['c'][0]['c'][1]);
         $t->same('opml', $decoded['blocks'][2]['c'][0]);
     },
+    'preserves ordered list enum payload shapes through json output' => static function (TestRunner $t): void {
+        $source = [
+            'pandoc-api-version' => [1, 23, 1, 2],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'OrderedList', 'c' => [
+                    [4, 'Example', 'Period'],
+                    [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Example']]]]],
+                ]],
+                ['t' => 'OrderedList', 'c' => [
+                    [5, ['t' => 'LowerAlpha'], 'OneParen'],
+                    [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Alpha']]]]],
+                ]],
+            ],
+        ];
+
+        $document = (new JsonReader())->read(json_encode($source, JSON_THROW_ON_ERROR));
+        $first = $document->children[0];
+        $second = $document->children[1];
+
+        $t->same('ordered_list', $first->type);
+        $t->same('example', $first->attr('style'));
+        $t->same('Example', $first->attr('listStyleNative'));
+        $t->same('period', $first->attr('delimiter'));
+        $t->same('Period', $first->attr('listDelimiterNative'));
+        $t->same('lower_alpha', $second->attr('style'));
+        $t->same(['t' => 'LowerAlpha'], $second->attr('listStyleNative'));
+        $t->same('one_paren', $second->attr('delimiter'));
+        $t->same('OneParen', $second->attr('listDelimiterNative'));
+
+        $decoded = json_decode((new JsonWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $t->same('Example', $decoded['blocks'][0]['c'][0][1]);
+        $t->same('Period', $decoded['blocks'][0]['c'][0][2]);
+        $t->same(['t' => 'LowerAlpha'], $decoded['blocks'][1]['c'][0][1]);
+        $t->same('OneParen', $decoded['blocks'][1]['c'][0][2]);
+
+        $nativeDocument = (new NativeReader())->read('[ OrderedList ( 6 , UpperRoman , TwoParens ) [ [ Plain [ Str "Native" ] ] ] ]');
+        $nativeDecoded = json_decode((new JsonWriter())->write($nativeDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('upper_roman', $nativeDocument->children[0]->attr('style'));
+        $t->same('UpperRoman', $nativeDecoded['blocks'][0]['c'][0][1]);
+        $t->same('TwoParens', $nativeDecoded['blocks'][0]['c'][0][2]);
+    },
     'rejects incompatible pandoc json api versions' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             (new JsonReader())->read(json_encode([
