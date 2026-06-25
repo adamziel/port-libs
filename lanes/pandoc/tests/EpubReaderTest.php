@@ -14580,6 +14580,132 @@ HTML);
         $t->contains('First ordered content.', $blocks);
         $t->contains('Second ordered content.', $blocks);
     },
+    'records epub3 page-list collision precedence in reading order diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-page-list-collision-precedence-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:page-list-collision-precedence</dc:identifier>
+    <dc:title>Page List Collision Precedence</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine>
+    <itemref id="chapter-first" idref="chapter"/>
+    <itemref id="chapter-second" idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><h1 id="start">Page List Collision Precedence</h1><span id="p0" epub:type="pagebreak" title="0"></span><span id="p1" epub:type="pagebreak" title="1"></span><span id="p2" epub:type="pagebreak" title="2"></span><p>Readable page-list collision content.</p></body></html>');
+        $zip->addFromString('OPS/nav.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol><li><a href="text/chapter.xhtml#start">Start</a></li></ol>
+    </nav>
+    <nav id="pages" epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="text/chapter.xhtml#p1">1</a></li>
+        <li><a epub:type="pagebreak" href="./text/../text/chapter.xhtml#p1" value="1">1 duplicate</a></li>
+        <li><a epub:type="pagebreak" href="text/chapter.xhtml#p2">2</a></li>
+        <li><a epub:type="pagebreak" href="text/chapter.xhtml#p0">0</a></li>
+        <li><a href="https://example.invalid/page#remote">remote</a></li>
+        <li><a href="/absolute.xhtml#p3">absolute</a></li>
+        <li><a href="#local-note">local note</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+HTML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $diagnostics = $meta['epubDiagnostics'] ?? [];
+        $byCode = [];
+        foreach ($diagnostics as $diagnostic) {
+            $code = (string) ($diagnostic['code'] ?? '');
+            if ($code !== '') {
+                $byCode[$code][] = $diagnostic;
+            }
+        }
+
+        $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
+        $t->same(5, $meta['epubDiagnosticErrorCount']);
+        $t->same(0, $meta['epubDiagnosticWarningCount']);
+        foreach ([
+            'duplicate-spine-itemref-idref',
+            'duplicate-nav-page-list-target',
+            'out-of-order-nav-page-list-entry',
+            'invalid-nav-link-href-path',
+        ] as $code) {
+            $t->true(isset($byCode[$code]), "Expected EPUB diagnostic {$code}.");
+        }
+
+        $t->same('chapter-second', $byCode['duplicate-spine-itemref-idref'][0]['id'] ?? null);
+        $t->same('chapter', $byCode['duplicate-spine-itemref-idref'][0]['idref'] ?? null);
+        $t->same('chapter-first', $byCode['duplicate-spine-itemref-idref'][0]['firstId'] ?? null);
+
+        $duplicate = $byCode['duplicate-nav-page-list-target'][0] ?? [];
+        $t->same('pages', $duplicate['navId'] ?? null);
+        $t->same('./text/../text/chapter.xhtml#p1', $duplicate['linkHref'] ?? null);
+        $t->same('text/chapter.xhtml#p1', $duplicate['firstLinkHref'] ?? null);
+        $t->same('OPS/text/chapter.xhtml#p1', $duplicate['target'] ?? null);
+        $t->same('1 duplicate', $duplicate['label'] ?? null);
+
+        $pageOrder = $byCode['out-of-order-nav-page-list-entry'][0] ?? [];
+        $t->same('OPS/text/chapter.xhtml', $pageOrder['targetPath'] ?? null);
+        $t->same('#p0', $pageOrder['targetSuffix'] ?? null);
+        $t->same('0', $pageOrder['text'] ?? null);
+        $t->same('0', $pageOrder['value'] ?? null);
+        $t->same('chapter', $pageOrder['idref'] ?? null);
+        $t->same(1, $pageOrder['spineOrder'] ?? null);
+        $t->same('OPS/text/chapter.xhtml', $pageOrder['previousTargetPath'] ?? null);
+        $t->same('p2', $pageOrder['previousFragment'] ?? null);
+        $t->same('chapter', $pageOrder['previousIdref'] ?? null);
+        $t->same(1, $pageOrder['previousSpineOrder'] ?? null);
+        $t->true(($pageOrder['targetElementOrder'] ?? 999) < ($pageOrder['previousTargetElementOrder'] ?? -1), 'Earlier same-spine pagebreak should be reported after the later pagebreak.');
+
+        $invalidPaths = $byCode['invalid-nav-link-href-path'] ?? [];
+        $t->same(2, count($invalidPaths));
+        $t->same('/absolute.xhtml#p3', $invalidPaths[0]['linkHref'] ?? null);
+        $t->same('absolute-path', $invalidPaths[0]['reason'] ?? null);
+        $t->same('#local-note', $invalidPaths[1]['linkHref'] ?? null);
+        $t->same('empty-path', $invalidPaths[1]['reason'] ?? null);
+        $t->same('pages', $invalidPaths[1]['navId'] ?? null);
+
+        $serializedDiagnostics = json_encode($diagnostics, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($serializedDiagnostics, 'remote'), 'Remote page-list links should not enter local page-list target diagnostics.');
+        foreach (['missing-nav-page-list-spine-target', 'nav-page-list-target-non-linear-spine', 'missing-nav-link-fragment', 'nav-page-list-target-not-pagebreak'] as $code) {
+            $t->true(!isset($byCode[$code]), "Unexpected EPUB diagnostic {$code}.");
+        }
+        $t->same(7, $meta['epubPageListEntryCount']);
+        $t->same('OPS/text/chapter.xhtml#p1', $meta['epubPageListEntries'][0]['href'] ?? null);
+        $t->same('OPS/text/chapter.xhtml#p0', $meta['epubPageListEntries'][3]['href'] ?? null);
+        $t->same('https://example.invalid/page#remote', $meta['epubPageListEntries'][4]['href'] ?? null);
+        $t->same('#local-note', $meta['epubPageListEntries'][6]['href'] ?? null);
+        $t->contains('Readable page-list collision content.', $blocks);
+    },
     'records epub ncx content src path diagnostics' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-ncx-src-path-diagnostics-');
         if ($path === false) {
