@@ -31271,6 +31271,183 @@ XML;
             $t->true(!str_contains($diagnosticsJson, $code), "Generated package metadata properties should not self-diagnose {$code}.");
         }
     },
+    'writes epub3 package metadata property refines to later ids without invalid self diagnostics' => static function (TestRunner $t): void {
+        $onix = '<onix><record id="record">Forward metadata record</record></onix>';
+        $document = new AstNode('document', [
+            'meta' => [
+                'identifier' => 'urn:uuid:forward-package-metadata-property-refines',
+                'title' => 'Forward Package Metadata Property Refines',
+                'lang' => 'en',
+                'epubPackageUniqueIdentifierId' => '9bad id',
+                'epubDublinCoreMetadata' => [
+                    [
+                        'element' => 'identifier',
+                        'id' => 'book-id',
+                        'value' => 'urn:uuid:forward-package-metadata-property-refines',
+                    ],
+                    [
+                        'element' => 'title',
+                        'id' => 'title-main',
+                        'value' => 'Forward Package Metadata Property Refines',
+                    ],
+                    [
+                        'element' => 'creator',
+                        'id' => 'creator-main',
+                        'value' => 'Port Libs',
+                    ],
+                    [
+                        'element' => 'language',
+                        'value' => 'en',
+                    ],
+                ],
+                'epubMetadataProperties' => [
+                    [
+                        'property' => 'file-as',
+                        'id' => 'creator-sort',
+                        'refines' => '#creator-main',
+                        'value' => 'Libs, Port',
+                    ],
+                    [
+                        'property' => 'title-type',
+                        'id' => 'title-kind',
+                        'refines' => '#title-detail',
+                        'value' => 'main',
+                    ],
+                    [
+                        'property' => 'display-seq',
+                        'id' => 'title-detail',
+                        'refines' => '#title-main',
+                        'value' => '1',
+                    ],
+                    [
+                        'property' => 'source-of',
+                        'id' => 'sidecar-source',
+                        'refines' => 'metadata/onix.xml#record',
+                        'value' => 'metadata sidecar',
+                    ],
+                    [
+                        'property' => 'source-of',
+                        'id' => 'missing-sidecar',
+                        'refines' => 'metadata/missing.xml#record',
+                        'value' => 'missing metadata sidecar',
+                    ],
+                    [
+                        'property' => 'source-of',
+                        'id' => 'self-refines',
+                        'refines' => '#self-refines',
+                        'value' => 'self target',
+                    ],
+                    [
+                        'property' => 'source-of',
+                        'id' => 'title-main',
+                        'value' => 'duplicate dublin core title id',
+                    ],
+                    [
+                        'property' => 'source-of',
+                        'id' => '1bad-id',
+                        'value' => 'invalid ncname id',
+                    ],
+                ],
+                'epubResourcePayloads' => [
+                    'OEBPS/metadata/onix.xml' => [
+                        'id' => 'onix-record',
+                        'mediaType' => 'application/xml',
+                        'encoding' => 'base64',
+                        'bytes' => strlen($onix),
+                        'data' => base64_encode($onix),
+                    ],
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Forward Package Metadata Property Refines'], [
+                new AstNode('text', ['text' => 'Forward Package Metadata Property Refines']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Forward package metadata property refines body.']),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-25T09:45:00Z',
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-forward-package-refines-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary generated EPUB path');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated EPUB package');
+            }
+            $package = $zip->getFromName('OEBPS/package.opf');
+            if (!is_string($package)) {
+                throw new RuntimeException('Generated EPUB package is missing package file');
+            }
+
+            $t->same($onix, $zip->getFromName('OEBPS/metadata/onix.xml'));
+            $t->contains('unique-identifier="book-id"', $package);
+            $t->contains('<dc:identifier id="book-id">urn:uuid:forward-package-metadata-property-refines</dc:identifier>', $package);
+            $t->contains('<dc:title id="title-main">Forward Package Metadata Property Refines</dc:title>', $package);
+            $t->contains('<dc:creator id="creator-main">Port Libs</dc:creator>', $package);
+            $t->contains('<meta property="file-as" id="creator-sort" refines="#creator-main">Libs, Port</meta>', $package);
+            $t->contains('<meta property="title-type" id="title-kind" refines="#title-detail">main</meta>', $package);
+            $t->contains('<meta property="display-seq" id="title-detail" refines="#title-main">1</meta>', $package);
+            $t->contains('<meta property="source-of" id="sidecar-source" refines="metadata/onix.xml#record">metadata sidecar</meta>', $package);
+            $t->contains('<meta property="source-of" id="missing-sidecar">missing metadata sidecar</meta>', $package);
+            $t->contains('<meta property="source-of" id="self-refines">self target</meta>', $package);
+            $t->contains('<meta property="source-of">duplicate dublin core title id</meta>', $package);
+            $t->contains('<meta property="source-of">invalid ncname id</meta>', $package);
+            $t->true(!str_contains($package, 'unique-identifier="9bad id"'), 'Invalid package unique-identifier IDs should not be emitted.');
+            $t->true(!str_contains($package, 'refines="metadata/missing.xml#record"'), 'Missing metadata resource refines should not be emitted.');
+            $t->true(!str_contains($package, 'refines="#self-refines"'), 'Self-targeting metadata property refines should not be emitted.');
+            $t->true(!str_contains($package, '<meta property="source-of" id="title-main">duplicate dublin core title id</meta>'), 'Duplicate package IDs should not be reused by metadata properties.');
+            $t->true(!str_contains($package, 'id="1bad-id"'), 'Invalid NCName metadata property IDs should not be emitted.');
+
+            $previous = libxml_use_internal_errors(true);
+            $dom = new DOMDocument('1.0', 'UTF-8');
+            $ok = $dom->loadXML($package);
+            $errors = libxml_get_errors();
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+            $t->true($ok, 'Generated OPF package should parse as XML: ' . implode('; ', array_map(static fn (LibXMLError $error): string => trim($error->message), $errors)));
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+
+        $roundTrip = PandocConverter::read($epub, 'epub', ['extractResources' => true]);
+        $meta = $roundTrip->attr('meta');
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+        $metadataPropertiesById = [];
+        foreach ($meta['epubMetadataProperties'] ?? [] as $property) {
+            if (is_array($property) && isset($property['id'])) {
+                $metadataPropertiesById[$property['id']] = $property;
+            }
+        }
+
+        $t->same('title-type', $metadataPropertiesById['title-kind']['property'] ?? null);
+        $t->same('#title-detail', $metadataPropertiesById['title-kind']['refines'] ?? null);
+        $t->same('display-seq', $metadataPropertiesById['title-detail']['property'] ?? null);
+        $t->same('#title-main', $metadataPropertiesById['title-detail']['refines'] ?? null);
+        $t->same('metadata/onix.xml#record', $metadataPropertiesById['sidecar-source']['refines'] ?? null);
+        $t->true(!array_key_exists('refines', $metadataPropertiesById['missing-sidecar'] ?? []), 'Missing resource metadata refines should not round-trip.');
+        $t->true(!array_key_exists('refines', $metadataPropertiesById['self-refines'] ?? []), 'Self-targeting metadata refines should not round-trip.');
+        $t->same($onix, base64_decode($meta['epubResourcePayloads']['OEBPS/metadata/onix.xml']['data'] ?? '', true));
+        foreach ([
+            'invalid-package-unique-identifier-idref',
+            'invalid-metadata-id',
+            'duplicate-metadata-id',
+            'duplicate-package-id',
+            'invalid-metadata-refines',
+            'missing-metadata-refines-resource',
+            'missing-metadata-refines-target',
+            'missing-metadata-refines-fragment',
+        ] as $code) {
+            $t->true(!str_contains($diagnosticsJson, $code), "Generated forward metadata-property refines should not self-diagnose {$code}.");
+        }
+    },
     'writes epub3 package metadata links without invalid self diagnostics' => static function (TestRunner $t): void {
         $onix = '<onix><record>metadata</record></onix>';
         $broken = '<onix><record id="record">Broken metadata link';

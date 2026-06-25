@@ -2504,6 +2504,7 @@ final class EpubWriter
         $items = [];
         $seen = [];
         $seenIds = $this->metadataIdsFromXmlLines($existingMetadataXml);
+        $metadataPropertyTargetIds = $this->metadataPropertyTargetIds($source, $declaredPrefixes, $existingMetadataXml, $packageElementIds);
         foreach ($source as $entry) {
             if (!is_array($entry)) {
                 continue;
@@ -2535,7 +2536,7 @@ final class EpubWriter
                 $this->entryString($entry, 'refines'),
                 $packageDir,
                 $packagePath,
-                array_replace($packageElementIds, $seenIds),
+                array_diff_key(array_replace($packageElementIds, $metadataPropertyTargetIds, $seenIds), isset($attrs['id']) ? [$attrs['id'] => true] : []),
                 $resourcePaths,
                 $xmlResourcePayloads
             );
@@ -2584,6 +2585,51 @@ final class EpubWriter
         }
 
         return $items;
+    }
+
+    /**
+     * @param list<array<string, mixed>|mixed> $source
+     * @param array<string, true> $declaredPrefixes
+     * @param list<string> $existingMetadataXml
+     * @param array<string, true> $packageElementIds
+     * @return array<string, true>
+     */
+    private function metadataPropertyTargetIds(array $source, array $declaredPrefixes, array $existingMetadataXml, array $packageElementIds): array
+    {
+        $ids = [];
+        $seenIds = $this->metadataIdsFromXmlLines($existingMetadataXml);
+        foreach ($source as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $property = $this->entryString($entry, 'property');
+            if (
+                $property === ''
+                || !$this->validPropertyValue($property)
+                || !$this->propertyValuePrefixIsDeclared($property, $declaredPrefixes)
+            ) {
+                continue;
+            }
+
+            $value = $this->entryString($entry, 'value');
+            if ($value === '') {
+                $value = $this->entryString($entry, 'content');
+            }
+            if ($value === '') {
+                continue;
+            }
+
+            $id = $this->entryString($entry, 'id');
+            if ($id === '' || !$this->validXmlId($id) || isset($seenIds[$id]) || isset($packageElementIds[$id])) {
+                continue;
+            }
+
+            $ids[$id] = true;
+            $seenIds[$id] = true;
+        }
+
+        return $ids;
     }
 
     /**
