@@ -66,10 +66,15 @@ $packet = [
     ],
 ];
 
-$documents = static fn (): array => [
-    'json' => (new PandocJsonReader())->readPacket($packet),
-    'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
-];
+$documents = static function () use ($packet): array {
+    $jsonDocument = (new PandocJsonReader())->readPacket($packet);
+    $nativeText = (new NativeWriter(['blocksOnly' => true]))->write($jsonDocument);
+
+    return [
+        'json' => $jsonDocument,
+        'native' => (new NativeReader())->read($nativeText),
+    ];
+};
 
 $tests = [];
 
@@ -85,35 +90,56 @@ $tests['maps pandoc json native adjacent raw html aliases through markdown and w
             $disabledRawInline = $paragraph->children[2] ?? new AstNode('missing');
 
             $jsonPacket = (new PandocJsonWriter())->toArray($document);
-            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
-            $markdown = (new MarkdownWriter(['format' => 'commonmark']))->write($document);
+            $nativeText = (new NativeWriter(['blocksOnly' => true]))->write($document);
+            $nativeRoundTripPacket = (new PandocJsonWriter())->toArray((new NativeReader())->read($nativeText));
+            $markdown = (new MarkdownWriter(['format' => 'commonmark', 'rawAttribute' => false]))->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same(['raw_html', 'raw_html', 'paragraph', 'raw_block'], array_map(static fn (AstNode $node): string => $node->type, $document->children), "{$source} block adjacency types");
             $t->same('html4', $rawHtml4Block->attr('format'), "{$source} html4 block format");
             $t->same($aside, $rawHtml4Block->attr('html'), "{$source} html4 block html");
             $t->same('xhtml', $rawXhtmlBlock->attr('format'), "{$source} xhtml block format");
-            $t->same(['t' => 'Format', 'c' => 'xhtml'], $rawXhtmlBlock->attr('formatNative'), "{$source} xhtml block format helper");
+            if ($source === 'json') {
+                $t->same(['t' => 'Format', 'c' => 'xhtml'], $rawXhtmlBlock->attr('formatNative'), "{$source} xhtml block format helper");
+            }
             $t->same($section, $rawXhtmlBlock->attr('html'), "{$source} xhtml block html");
             $t->same(['raw_html_inline', 'raw_html_inline', 'raw_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children), "{$source} inline adjacency types");
             $t->same('html5', $rawHtml5Inline->attr('format'), "{$source} html5 inline format");
             $t->same($span, $rawHtml5Inline->attr('html'), "{$source} html5 inline html");
             $t->same('xhtml', $rawXhtmlInline->attr('format'), "{$source} xhtml inline format");
-            $t->same(['t' => 'Format', 'c' => 'xhtml'], $rawXhtmlInline->attr('formatNative'), "{$source} xhtml inline format helper");
+            if ($source === 'json') {
+                $t->same(['t' => 'Format', 'c' => 'xhtml'], $rawXhtmlInline->attr('formatNative'), "{$source} xhtml inline format helper");
+            }
             $t->same($em, $rawXhtmlInline->attr('html'), "{$source} xhtml inline html");
             $t->same('opml', $disabledRawInline->attr('format'), "{$source} unsupported inline format remains diagnostic");
             $t->same($disabledInline, $disabledRawInline->attr('text'), "{$source} unsupported inline text remains round-trippable");
             $t->same('opml', $disabledRawBlock->attr('format'), "{$source} unsupported block format remains diagnostic");
             $t->same($disabledBlock, $disabledRawBlock->attr('text'), "{$source} unsupported block text remains round-trippable");
-            $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} json writer preserves adjacent raw payloads");
-            $t->same($packet['blocks'], $nativePacket['blocks'], "{$source} native writer preserves adjacent raw payloads");
-            $t->same($aside . "\n\n" . $section . "\n\n" . $span . $em . 'Tail', $markdown, "{$source} markdown keeps raw boundaries stable");
+            if ($source === 'json') {
+                $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} json writer preserves adjacent raw payloads");
+            } else {
+                $t->same($nativeRoundTripPacket['blocks'], $jsonPacket['blocks'], "{$source} json writer preserves normalized native raw payloads");
+            }
+            $t->contains('RawBlock (Format "html4")', $nativeText, "{$source} native writer keeps html4 block alias");
+            $t->contains('RawBlock (Format "xhtml")', $nativeText, "{$source} native writer keeps xhtml block alias");
+            $t->contains('RawInline (Format "html5")', $nativeText, "{$source} native writer keeps html5 inline alias");
+            $t->contains('RawInline (Format "xhtml")', $nativeText, "{$source} native writer keeps xhtml inline alias");
+            $t->same(['html4', $aside], $nativeRoundTripPacket['blocks'][0]['c'], "{$source} native round-trip html4 block payload");
+            $t->same(['xhtml', $section], $nativeRoundTripPacket['blocks'][1]['c'], "{$source} native round-trip xhtml block payload");
+            $t->same(['html5', $span], $nativeRoundTripPacket['blocks'][2]['c'][0]['c'], "{$source} native round-trip html5 inline payload");
+            $t->same(['xhtml', $em], $nativeRoundTripPacket['blocks'][2]['c'][1]['c'], "{$source} native round-trip xhtml inline payload");
+            $t->same(['opml', $disabledInline], $nativeRoundTripPacket['blocks'][2]['c'][2]['c'], "{$source} native round-trip disabled inline diagnostic payload");
+            $t->same(['opml', $disabledBlock], $nativeRoundTripPacket['blocks'][3]['c'], "{$source} native round-trip disabled block diagnostic payload");
+            $t->same($aside . "\n" . $section . "\n\n" . $span . $em . 'Tail', $markdown, "{$source} markdown keeps raw boundaries stable");
             $t->true(!str_contains($markdown, '<outline'), "{$source} markdown suppresses unsupported raw fallback");
             $t->true(!str_contains($markdown, '</aside><section'), "{$source} markdown keeps adjacent raw blocks separated");
             $t->true(!str_contains($markdown, "\n\n\n"), "{$source} markdown avoids surplus raw block boundaries");
             $t->contains('<!-- wp:html -->' . "\n" . $aside . "\n" . '<!-- /wp:html -->', $blocks, "{$source} wordpress html4 raw block");
             $t->contains('<!-- wp:html -->' . "\n" . $section . "\n" . '<!-- /wp:html -->', $blocks, "{$source} wordpress xhtml raw block");
-            $t->contains('<p>' . $span . $em . 'Tail</p>', $blocks, "{$source} wordpress adjacent raw inlines");
+            $t->contains('<p>' . $span . $em . '<span class="pandoc-raw-opml" data-pandoc-raw-format="opml">&lt;outline text=&quot;disabled-inline&quot;/&gt;</span>Tail</p>', $blocks, "{$source} wordpress adjacent raw inlines and disabled diagnostic");
+            $t->contains('data-pandoc-raw-format="opml"', $blocks, "{$source} wordpress exposes disabled raw diagnostic format");
+            $t->contains('&lt;outline text=&quot;disabled-inline&quot;/&gt;', $blocks, "{$source} wordpress escapes disabled inline raw payload");
+            $t->contains('&lt;outline text=&quot;disabled-block&quot;/&gt;', $blocks, "{$source} wordpress escapes disabled block raw payload");
             $t->true(!str_contains($blocks, '<outline'), "{$source} wordpress suppresses unsupported raw fallback");
         }
     };
@@ -155,7 +181,7 @@ $tests['regenerates edited adjacent raw html aliases without stale native sideca
 
         foreach ([
             'json' => (new PandocJsonWriter())->toArray($edited),
-            'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            'native' => (new PandocJsonWriter())->toArray((new NativeReader())->read((new NativeWriter(['blocksOnly' => true]))->write($edited))),
         ] as $writer => $packet) {
             $blocks = $packet['blocks'];
             $inlines = $blocks[2]['c'];
@@ -164,14 +190,14 @@ $tests['regenerates edited adjacent raw html aliases without stale native sideca
             $t->same(['html4', '<aside data-boundary="html4">Edited alpha</aside>'], $blocks[0]['c'], "{$writer} edited html4 block payload");
             $t->same(false, array_key_exists('reviewQueue', $blocks[0]), "{$writer} edited html4 block drops review sidecar");
             $t->same(false, array_key_exists('sourcepos', $blocks[0]), "{$writer} edited html4 block drops source sidecar");
-            $t->same(['t' => 'Format', 'c' => 'xhtml'], $blocks[1]['c'][0], "{$writer} edited xhtml block keeps format helper");
+            $t->same($writer === 'json' ? ['t' => 'Format', 'c' => 'xhtml'] : 'xhtml', $blocks[1]['c'][0], "{$writer} edited xhtml block keeps format");
             $t->same('<section data-boundary="xhtml">Edited beta</section>', $blocks[1]['c'][1], "{$writer} edited xhtml block payload");
             $t->same(false, array_key_exists('reviewQueue', $blocks[1]), "{$writer} edited xhtml block drops review sidecar");
             $t->same(false, array_key_exists('sourcepos', $blocks[1]), "{$writer} edited xhtml block drops source sidecar");
             $t->same(['html5', '<span data-boundary="html5">Edited gamma</span>'], $inlines[0]['c'], "{$writer} edited html5 inline payload");
             $t->same(false, array_key_exists('reviewQueue', $inlines[0]), "{$writer} edited html5 inline drops review sidecar");
             $t->same(false, array_key_exists('sourcepos', $inlines[0]), "{$writer} edited html5 inline drops source sidecar");
-            $t->same(['t' => 'Format', 'c' => 'xhtml'], $inlines[1]['c'][0], "{$writer} edited xhtml inline keeps format helper");
+            $t->same($writer === 'json' ? ['t' => 'Format', 'c' => 'xhtml'] : 'xhtml', $inlines[1]['c'][0], "{$writer} edited xhtml inline keeps format");
             $t->same('<em data-boundary="xhtml">Edited delta</em>', $inlines[1]['c'][1], "{$writer} edited xhtml inline payload");
             $t->same(false, array_key_exists('reviewQueue', $inlines[1]), "{$writer} edited xhtml inline drops review sidecar");
             $t->same(false, array_key_exists('sourcepos', $inlines[1]), "{$writer} edited xhtml inline drops source sidecar");

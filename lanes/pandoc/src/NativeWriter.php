@@ -190,9 +190,9 @@ final class NativeWriter
             'line_block' => 'LineBlock [ ' . implode(' , ', array_map(fn (AstNode $line): string => $this->renderInlineList($this->lineInlines($line)), $node->children)) . ' ]',
             'figure' => 'Figure ' . $this->renderAttrTuple($node) . ' ' . $this->renderCaption($node) . ' ' . $this->renderBlockList($this->figureBlocks($node), $indent),
             'table' => $this->renderTable($node, $indent),
-            'raw_html' => 'RawBlock (Format "html") ' . $this->quote((string) $node->attr('html', $node->attr('text', ''))),
-            'raw_tex' => 'RawBlock (Format "tex") ' . $this->quote((string) $node->attr('tex', $node->attr('text', ''))),
-            'raw_block', 'raw_markdown' => 'RawBlock (Format ' . $this->quote((string) $node->attr('format', 'markdown')) . ') ' . $this->quote((string) $node->attr('text', '')),
+            'raw_html' => 'RawBlock (Format ' . $this->quote($this->rawFormat($node, 'html')) . ') ' . $this->quote($this->rawText($node, 'html')),
+            'raw_tex' => 'RawBlock (Format ' . $this->quote($this->rawFormat($node, 'tex')) . ') ' . $this->quote($this->rawText($node, 'tex')),
+            'raw_block', 'raw_markdown' => 'RawBlock (Format ' . $this->quote($this->rawFormat($node, 'markdown')) . ') ' . $this->quote($this->rawText($node, 'markdown')),
             'div' => 'Div ' . $this->renderAttrTuple($node) . ' ' . $this->renderBlockList($node->children, $indent),
             default => throw new \InvalidArgumentException("Native writer does not support block node '{$node->type}'"),
         };
@@ -486,11 +486,28 @@ final class NativeWriter
             'quoted' => ['Quoted ' . (((string) $node->attr('kind', 'double')) === 'single' ? 'SingleQuote' : 'DoubleQuote') . ' ' . $this->renderInlineList($node->children)],
             'math' => ['Math ' . ($this->mathIsDisplay($node) ? 'DisplayMath' : 'InlineMath') . ' ' . $this->quote((string) $node->attr('text', ''))],
             'citation' => [$this->renderCitation($node)],
-            'raw_html_inline' => ['RawInline (Format "html") ' . $this->quote((string) $node->attr('html', $node->attr('text', '')))],
-            'raw_tex_inline' => ['RawInline (Format "tex") ' . $this->quote((string) $node->attr('tex', $node->attr('text', '')))],
-            'raw_inline' => ['RawInline (Format ' . $this->quote((string) $node->attr('format', 'markdown')) . ') ' . $this->quote((string) $node->attr('text', ''))],
+            'raw_html_inline' => ['RawInline (Format ' . $this->quote($this->rawFormat($node, 'html')) . ') ' . $this->quote($this->rawText($node, 'html'))],
+            'raw_tex', 'raw_tex_inline' => ['RawInline (Format ' . $this->quote($this->rawFormat($node, 'tex')) . ') ' . $this->quote($this->rawText($node, 'tex'))],
+            'raw_markdown', 'raw_inline' => ['RawInline (Format ' . $this->quote($this->rawFormat($node, 'markdown')) . ') ' . $this->quote($this->rawText($node, 'markdown'))],
             'span' => ['Span ' . $this->renderAttrTuple($node) . ' ' . $this->renderInlineList($node->children)],
             default => throw new \InvalidArgumentException("Native writer does not support inline node '{$node->type}'"),
+        };
+    }
+
+    private function rawFormat(AstNode $node, string $default): string
+    {
+        $format = (string) $node->attr('format', '');
+
+        return $format === '' ? $default : $format;
+    }
+
+    private function rawText(AstNode $node, string $kind): string
+    {
+        return match ($kind) {
+            'html' => (string) $node->attr('text', $node->attr('html', '')),
+            'tex' => (string) $node->attr('text', $node->attr('tex', '')),
+            'markdown' => (string) $node->attr('text', $node->attr('markdown', '')),
+            default => (string) $node->attr('text', ''),
         };
     }
 

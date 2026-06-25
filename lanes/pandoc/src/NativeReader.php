@@ -420,9 +420,12 @@ final class NativeReader
         $format = $this->parseFormatTuple();
         $text = $this->expectString();
 
+        if ($this->isHtmlRawFormat($format)) {
+            return new AstNode('raw_html', ['format' => $format, 'text' => $text, 'html' => $text]);
+        }
+
         return match ($format) {
-            'html' => new AstNode('raw_html', ['html' => $text]),
-            'tex' => new AstNode('raw_tex', ['tex' => $text]),
+            'tex' => new AstNode('raw_tex', ['format' => $format, 'text' => $text, 'tex' => $text]),
             default => new AstNode('raw_block', ['format' => $format, 'text' => $text]),
         };
     }
@@ -557,11 +560,23 @@ final class NativeReader
         $format = $this->parseFormatTuple();
         $text = $this->expectString();
 
+        if ($this->isHtmlRawFormat($format)) {
+            return new AstNode('raw_html_inline', ['format' => $format, 'text' => $text, 'html' => $text]);
+        }
+
         return match ($format) {
-            'html' => new AstNode('raw_html_inline', ['html' => $text]),
-            'tex' => new AstNode('raw_tex_inline', ['tex' => $text]),
+            'tex' => new AstNode('raw_tex_inline', ['format' => $format, 'text' => $text, 'tex' => $text]),
             default => new AstNode('raw_inline', ['format' => $format, 'text' => $text]),
         };
+    }
+
+    private function isHtmlRawFormat(string $format): bool
+    {
+        $normalized = strtolower(str_replace('-', '+', $format));
+        $baseFormat = explode('+', $normalized, 2)[0];
+
+        return in_array($normalized, ['html', 'html4', 'html5', 'xhtml'], true)
+            || in_array($baseFormat, ['html', 'html4', 'html5', 'xhtml'], true);
     }
 
     /**

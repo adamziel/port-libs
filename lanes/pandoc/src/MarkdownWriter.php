@@ -5380,7 +5380,7 @@ final class MarkdownWriter
     {
         [$format, $text] = $this->rawBlockFormatAndText($node);
 
-        return in_array($format, ['html', 'html4', 'html5'], true)
+        return $this->isRawHtmlFormat($format)
             && preg_match('/^\s*<details\b[^>]*>\s*$/i', $text) === 1;
     }
 
@@ -5388,7 +5388,7 @@ final class MarkdownWriter
     {
         [$format, $text] = $this->rawBlockFormatAndText($node);
 
-        return in_array($format, ['html', 'html4', 'html5'], true)
+        return $this->isRawHtmlFormat($format)
             && preg_match('/^\s*<\/details\s*>\s*$/i', $text) === 1;
     }
 
@@ -5662,31 +5662,20 @@ final class MarkdownWriter
         }
 
         if ($this->isCommonMarkVariant()) {
-            if (in_array($format, [
-                'commonmark',
-                'commonmark_x',
-                'gfm',
-                'markdown',
-            ], true)) {
+            if ($this->isRawMarkdownFormat($format)) {
                 return $this->indentedLines($text, $indent);
             }
 
-            if (in_array($format, ['html', 'html4', 'html5'], true)) {
+            if ($this->isRawHtmlFormat($format)) {
                 return $this->indentedLines($this->removeBlankLinesInRawHtml($text), $indent);
             }
         }
 
-        if (!$this->isCommonMarkVariant() && ($format === '' || in_array($format, [
-            'markdown',
-            'markdown_github',
-            'markdown_phpextra',
-            'markdown_mmd',
-            'markdown_strict',
-        ], true))) {
+        if (!$this->isCommonMarkVariant() && ($format === '' || $this->isRawMarkdownFormat($format))) {
             return $this->indentedLines($text, $indent);
         }
 
-        if (in_array($format, ['html', 'html4', 'html5'], true)) {
+        if ($this->isRawHtmlFormat($format)) {
             if ($this->markdownAttributeEnabled()) {
                 return $this->indentedLines($this->addMarkdownAttributeToRawHtml($text), $indent);
             }
@@ -6541,24 +6530,10 @@ final class MarkdownWriter
         }
 
         if ($this->isCommonMarkVariant()) {
-            if (in_array($format, [
-                'commonmark',
-                'commonmark_x',
-                'gfm',
-                'markdown',
-            ], true)) {
+            if ($this->isRawMarkdownFormat($format)) {
                 return $text;
             }
-        } elseif (in_array($format, [
-            'commonmark',
-            'commonmark_x',
-            'gfm',
-            'markdown',
-            'markdown_github',
-            'markdown_mmd',
-            'markdown_phpextra',
-            'markdown_strict',
-        ], true)) {
+        } elseif ($this->isRawMarkdownFormat($format)) {
             return $text;
         }
 
@@ -6569,7 +6544,7 @@ final class MarkdownWriter
             ]));
         }
 
-        if (in_array($format, ['html', 'html4', 'html5'], true) && $this->rawHtmlEnabled()) {
+        if ($this->isRawHtmlFormat($format) && $this->rawHtmlEnabled()) {
             return $text;
         }
 
@@ -6585,21 +6560,21 @@ final class MarkdownWriter
      */
     private function rawInlineFormatAndText(AstNode $node): array
     {
-        $format = (string) $node->attr('format', '');
+        $format = $this->rawNodeFormat($node);
 
         if ($node->type === 'raw_tex' || $node->type === 'raw_tex_inline') {
-            return [$format === '' ? 'tex' : $format, (string) $node->attr('text', $node->attr('tex', ''))];
+            return [$format === '' ? 'tex' : $format, $this->rawNodeText($node, ['text', 'tex', 'literal', 'content', 'value', 'raw'])];
         }
 
         if ($node->type === 'raw_html_inline') {
-            return [$format === '' ? 'html' : $format, (string) $node->attr('text', $node->attr('html', ''))];
+            return [$format === '' ? 'html' : $format, $this->rawNodeText($node, ['text', 'html', 'content', 'literal', 'value', 'raw'])];
         }
 
         if ($node->type === 'raw_markdown') {
-            return [$format === '' ? 'markdown' : $format, (string) $node->attr('text', $node->attr('markdown', ''))];
+            return [$format === '' ? 'markdown' : $format, $this->rawNodeText($node, ['text', 'markdown', 'value', 'literal', 'content', 'raw'])];
         }
 
-        return [$format, (string) $node->attr('text', $node->attr('markdown', $node->attr('html', '')))];
+        return [$format, $this->rawNodeText($node, ['text', 'markdown', 'html', 'content', 'literal', 'value', 'raw'])];
     }
 
     /**
@@ -6607,21 +6582,62 @@ final class MarkdownWriter
      */
     private function rawBlockFormatAndText(AstNode $node): array
     {
-        $format = (string) $node->attr('format', '');
+        $format = $this->rawNodeFormat($node);
 
         if ($node->type === 'raw_html') {
-            return [$format === '' ? 'html' : $format, (string) $node->attr('text', $node->attr('html', ''))];
+            return [$format === '' ? 'html' : $format, $this->rawNodeText($node, ['text', 'html', 'raw', 'content', 'literal', 'value'])];
         }
 
         if ($node->type === 'raw_tex') {
-            return [$format === '' ? 'tex' : $format, (string) $node->attr('text', $node->attr('tex', ''))];
+            return [$format === '' ? 'tex' : $format, $this->rawNodeText($node, ['text', 'tex', 'raw', 'content', 'literal', 'value'])];
         }
 
         if ($node->type === 'raw_markdown') {
-            return [$format === '' ? 'markdown' : $format, (string) $node->attr('text', $node->attr('markdown', ''))];
+            return [$format === '' ? 'markdown' : $format, $this->rawNodeText($node, ['text', 'markdown', 'raw', 'content', 'literal', 'value'])];
         }
 
-        return [$format, (string) $node->attr('text', $node->attr('markdown', $node->attr('html', $node->attr('tex', ''))))];
+        return [$format, $this->rawNodeText($node, ['text', 'markdown', 'html', 'tex', 'raw', 'content', 'literal', 'value'])];
+    }
+
+    private function rawNodeFormat(AstNode $node): string
+    {
+        foreach (['format', 'raw_format', 'format_name'] as $name) {
+            $format = $node->attr($name, null);
+            if (is_string($format) && $format !== '') {
+                return $format;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private function rawNodeText(AstNode $node, array $names): string
+    {
+        foreach ($names as $name) {
+            $text = $node->attr($name, null);
+            if (is_string($text)) {
+                return $text;
+            }
+        }
+
+        return '';
+    }
+
+    private function isRawHtmlFormat(string $format): bool
+    {
+        $normalized = strtolower(str_replace('-', '+', $format));
+        $baseFormat = explode('+', $normalized, 2)[0];
+
+        return in_array($normalized, ['html', 'html4', 'html5', 'xhtml'], true)
+            || in_array($baseFormat, ['html', 'html4', 'html5', 'xhtml'], true);
+    }
+
+    private function isRawMarkdownFormat(string $format): bool
+    {
+        return MarkdownFormatProfile::canonicalMarkdownFormat($format) !== null;
     }
 
     private function renderMark(AstNode $node): string
@@ -8171,25 +8187,17 @@ final class MarkdownWriter
 
     private function rawHtmlEnabled(): bool
     {
-        return (bool) ($this->options['rawHtml'] ?? true);
+        return MarkdownFormatProfile::rawHtmlEnabled($this->options, true);
     }
 
     private function rawAttributeEnabled(): bool
     {
-        if (array_key_exists('rawAttribute', $this->options)) {
-            return (bool) $this->options['rawAttribute'];
-        }
-
-        return !$this->isCommonMarkVariant() || $this->writerVariant() === 'commonmark-x';
+        return MarkdownFormatProfile::rawAttributeEnabled($this->options, true);
     }
 
     private function rawTexEnabled(): bool
     {
-        if (array_key_exists('rawTex', $this->options)) {
-            return (bool) $this->options['rawTex'];
-        }
-
-        return !$this->isCommonMarkVariant();
+        return MarkdownFormatProfile::rawTexEnabled($this->options, true);
     }
 
     private function opmlNoteMarkdownEnabled(): bool
@@ -8228,7 +8236,9 @@ final class MarkdownWriter
 
     private function writerVariant(): string
     {
-        return strtolower(str_replace('_', '-', (string) ($this->options['variant'] ?? 'markdown')));
+        $format = $this->options['variant'] ?? $this->options['format'] ?? 'markdown';
+
+        return strtolower(str_replace('_', '-', MarkdownFormatProfile::canonicalFormat($format)));
     }
 
     private function isCommonMarkVariant(): bool
