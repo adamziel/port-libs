@@ -47,7 +47,7 @@ the target branch's parity notes.
 - Style commands emit `mstyle mathvariant=...`; they do not convert styled
   characters to Mathematical Alphanumeric Symbols.
 
-The PlainMath corpus currently has 32 passing `mathml` fixtures, 6 fallback
+The PlainMath corpus currently has 43 passing `mathml` fixtures, 6 fallback
 fixtures, and 4 `knownGaps` entries. Relevant fixture IDs include
 `pmatrix-two-by-two`, `align-environment`, `alignat-environment`,
 `flalign-star-environment`, `gather-environment`, `multline-environment`,
@@ -159,6 +159,6 @@ Commands run from the port-libs worktree:
 - `php -l lanes/pandoc/tests/fixtures/plainmath-conformance-corpus.php`
 - `php -l lanes/pandoc/tests/PlainMathConformanceTest.php`
 - `php tools/run-tests.php lanes/pandoc/tests/PlainMathConformanceTest.php`
-  - Result: 1 test file, 240 assertions, 0 failures on the updated target
+  - Result: 1 test file, 306 assertions, 0 failures on the updated target
     branch.
 - `git diff --check origin/plainmath-parity-20260625...HEAD`

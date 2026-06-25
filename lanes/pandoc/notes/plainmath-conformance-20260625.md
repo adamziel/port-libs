@@ -35,6 +35,8 @@
 - Upstream reference: local TexMath cache at commit `17089967`, matching the
   supervisor brief's `1708996` family. The runnable PHP tests snapshot selected
   expectations rather than reading that cache at runtime.
+- Current corpus count after `plib-wj70q.18`: 43 passing MathML fixtures, 6
+  fallback fixtures, and 4 known gaps.
 - Initial passing corpus:
   - `script-super`: `x^2`, from `test/reader/tex/03.test` and
     `test/writer/mml/03.test` subsets.
@@ -61,9 +63,26 @@
   - `align-environment`: AMS `align` table parsing.
   - `equation-environment`: `equation` parses as a grouped formula rather than
     a table.
+- `plib-wj70q.18` fixture expansion promoted ten additional passing,
+  upstream-derived cases from local TexMath reader/writer families:
+  - `quadratic-formula`: `test/reader/tex/01.test`.
+  - `nested-left-right-fraction`: `test/reader/tex/02.test`.
+  - `text-subscript-grouped-power`: `test/reader/tex/04.test`.
+  - `integral-thin-negative-spaces`: `test/reader/tex/05.test`.
+  - `double-sum-thin-space`: `test/reader/tex/06.test`.
+  - `lim-arrow-subscript`: `test/reader/tex/09.test`.
+  - `cases-mbox`: `test/reader/tex/12.test`.
+  - `fraction-tfrac-control-space`: `test/reader/tex/14.test`.
+  - `substack-sum`: `test/reader/tex/substack.test`.
+  - `stackrel-arrow`: `test/reader/tex/stackrel.test`.
 - Fallback corpus:
   - `empty-source-span`: empty TeX source returns an inline math span instead of
     partial MathML.
+  - `recursive-macro-span`: recursive macro expansion stays a plain math span
+    rather than emitting partial MathML.
+  - malformed structural spans: incomplete fractions, roots, fences, and matrix
+    environments preserve the original source span rather than emitting partial
+    MathML.
 
 ## Gaps And Blockers
 - `macro-environments`: TexMath expands `\newenvironment` and

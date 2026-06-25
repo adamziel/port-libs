@@ -104,8 +104,8 @@
 
 ## Phase Two Fanout - Full Generic TeX Parser Parity
 
-After the first wave landed, the branch covers 27 static PlainMath MathML
-fixtures, 2 fallback fixtures, and 4 known gaps. The next wave should prefer
+After the fixture expansion lane, the branch covers 43 static PlainMath MathML
+fixtures, 6 fallback fixtures, and 4 known gaps. Further work should prefer
 deep parser semantics over more alias-table expansion.
 
 Active backlog:
