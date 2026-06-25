@@ -177,6 +177,33 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   dialect detection, schema/type inference, streaming import, malformed-row
   recovery beyond bounded parsing, CSV writer support, or TSV writer support.
 
+## 2026-06-25 RIS Reader Metadata/Bibliography Slice
+
+- `RisReader` is now registered as partial native PHP support for upstream
+  Pandoc input format `ris`. The reader parses `TY`/`ER` records, common RIS
+  fields, repeated authors/editors/keywords, page ranges, publication years,
+  generated IDs, and duplicate ID suffixes.
+- The first RIS reader slice maps records into upstream-shaped `references`
+  metadata plus wildcard `nocite` metadata, while also emitting visible
+  `csl-bib-body` / `csl-entry` blocks so WordPress conversion does not produce
+  an empty post body for bibliography-only inputs.
+- `PandocConverter` now accepts `ris` input and can convert RIS sources
+  directly to WordPress block markup through the existing `blocks`/`wp` output
+  alias. `PandocFormatRegistry` now counts 23 partial PHP upstream input
+  formats and 28 unsupported input formats.
+- Verification: `php -l` passed for `RisReader.php`,
+  `PandocConverter.php`, `PandocFormatRegistry.php`, `RisReaderTest.php`, and
+  `PandocFormatRegistryTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/RisReaderTest.php
+  lanes/pandoc/tests/PandocFormatRegistryTest.php` passed 2 files, 265
+  assertions, 0 failures; and `php tools/run-tests.php lanes/pandoc/tests`
+  passed 25 files, 23,542 assertions, 0 failures with pass-count verification
+  `pass=1218 fail=0`.
+- This is reader-only RIS progress for downstream WordPress bibliography
+  conversion. It does not claim full upstream Haskell RIS reader parity,
+  citeproc locale rendering, complete RIS tag coverage, full name-particle
+  handling, bibliography sorting, bibliography validation, or writer support.
+
 ## 2026-06-25 EPUB3 CSS Image-Set Resource Policy Closure
 
 - `EpubReader` and `EpubWriter` now treat top-level quoted string candidates

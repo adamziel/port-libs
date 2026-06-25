@@ -13,9 +13,9 @@
         "source": "Pandoc User's Guide 2026-06-03 plus upstream source commit 912bfa5e2e3f5c74eb125dfc19404f67c61ca58b",
         "inputFormats": 51,
         "outputFormats": 75,
-        "partialPhpInputFormats": 22,
+        "partialPhpInputFormats": 23,
         "partialPhpOutputFormats": 16,
-        "unsupportedPhpInputFormats": 29,
+        "unsupportedPhpInputFormats": 28,
         "unsupportedPhpOutputFormats": 59,
         "registry": "lanes/pandoc/src/PandocFormatRegistry.php",
         "test": "lanes/pandoc/tests/PandocFormatRegistryTest.php",
@@ -28,6 +28,8 @@
         "bibTexTest": "lanes/pandoc/tests/BibTexReaderTest.php",
         "pptxReader": "lanes/pandoc/src/PptxReader.php",
         "pptxTest": "lanes/pandoc/tests/PptxReaderTest.php",
+        "risReader": "lanes/pandoc/src/RisReader.php",
+        "risTest": "lanes/pandoc/tests/RisReaderTest.php",
         "xlsxReader": "lanes/pandoc/src/XlsxReader.php",
         "xlsxTest": "lanes/pandoc/tests/XlsxReaderTest.php"
     },
@@ -3255,9 +3257,11 @@
     "bibTexReaderFocusedAssertions": 264,
     "mappedCsvReaderCases": 3,
     "csvReaderFocusedAssertions": 264,
-    "lastUpdated": "2026-06-25T22:39:44Z",
-    "phpPass": 1215,
+    "mappedRisReaderCases": 3,
+    "risReaderFocusedAssertions": 265,
+    "lastUpdated": "2026-06-25T22:44:06Z",
+    "phpPass": 1218,
     "phpFail": 0,
-    "phpAssertions": 23510,
-    "latestPandocSlice": "The 2026-06-25 CSV/TSV reader slice registers csv and tsv as partial native PHP input formats and adds CsvReader. The reader maps comma-delimited CSV with quoted fields, escaped quotes, multiline cells, first-row table headers, default table alignments, table metadata, empty input handling, and tab-delimited TSV without quote interpretation into the shared AST for WordPress block conversion. PandocConverter now routes csv and tsv input through CsvReader, and PandocFormatRegistry moves csv and tsv from unsupported to partial input support, bringing partial PHP input formats to 22 and unsupported inputs to 29. Verification passed php -l for CsvReader.php, PandocConverter.php, PandocFormatRegistry.php, CsvReaderTest.php, and PandocFormatRegistryTest.php. php tools/run-tests.php lanes/pandoc/tests/CsvReaderTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php passed 2 files, 264 assertions, 0 failures. php tools/run-tests.php lanes/pandoc/tests passed 24 files, 23,510 assertions, 0 failures with pass-count verification pass=1,215 fail=0. This is reader-only CSV/TSV progress for downstream WordPress table conversion and does not claim full upstream Haskell CSV option parity, dialect detection, schema/type inference, streaming import, malformed-row recovery beyond bounded parsing, CSV writer support, or TSV writer support."
+    "phpAssertions": 23542,
+    "latestPandocSlice": "The 2026-06-25 RIS reader slice registers ris as a partial native PHP input format and adds RisReader. The reader parses TY/ER records, common RIS fields, repeated authors/editors/keywords, page ranges, publication years, generated IDs, duplicate ID suffixes, upstream-style references metadata, wildcard nocite metadata, and visible csl-bib-body bibliography blocks for WordPress block conversion. PandocConverter now routes ris input through RisReader, and PandocFormatRegistry moves ris from unsupported to partial input support, bringing partial PHP input formats to 23 and unsupported inputs to 28. Verification passed php -l for RisReader.php, PandocConverter.php, PandocFormatRegistry.php, RisReaderTest.php, and PandocFormatRegistryTest.php. php tools/run-tests.php lanes/pandoc/tests/RisReaderTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php passed 2 files, 265 assertions, 0 failures. php tools/run-tests.php lanes/pandoc/tests passed 25 files, 23,542 assertions, 0 failures with pass-count verification pass=1,218 fail=0. This is reader-only RIS progress for downstream WordPress bibliography conversion and does not claim full upstream Haskell RIS reader parity, citeproc locale rendering, complete RIS tag coverage, full name-particle handling, bibliography sorting, bibliography validation, or writer support."
 }

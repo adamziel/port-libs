@@ -274,6 +274,11 @@ final class PandocFormatRegistry
             'implementation' => PptxReader::class,
             'notes' => 'Bounded PPTX package reader resolves presentation.xml through OPC relationships, follows ordered slides, extracts slide titles, text boxes, styled text runs, hyperlinks, bullet/numbered lists, pictures, DrawingML tables, notes text, core properties, slide size, and media references into the shared AST. Full PPTX parity remains open.',
         ],
+        'ris' => [
+            'status' => 'partial',
+            'implementation' => RisReader::class,
+            'notes' => 'Bounded RIS bibliography reader parses TY/ER records, common reference fields, person names, page ranges, generated and duplicate IDs, upstream-style references/nocite metadata, and visible bibliography blocks. Full RIS/citeproc parity remains open.',
+        ],
         'xlsx' => [
             'status' => 'partial',
             'implementation' => XlsxReader::class,
