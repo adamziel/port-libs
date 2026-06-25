@@ -26,6 +26,36 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Future EPUB3 parity notes should continue to distinguish preservation and
   diagnostics from script execution or cryptographic trust validation.
 
+## 2026-06-25 EPUB OCF Container-Link Traversal Closure Slice
+
+- Focused PHP coverage is now 1,143 behavior tests and 21,672 full-suite
+  assertions across the Pandoc lane. This slice tightens OCF `container.xml`
+  link path validation for EPUB3 package sidecar links.
+- `EpubReader` now treats literal `..` path segments in container link `href`
+  values as `invalid-container-link-href-path` with reason `traversal` before
+  any `META-INF`-relative normalization happens. This closes the case where a
+  source link such as `../META-INF/metadata/present.xml` could be laundered
+  into a valid-looking sidecar path.
+- `EpubWriter` uses the same validation rule for metadata-authored container
+  links, so literal traversal links are omitted even when the referenced
+  sidecar payload exists. Existing encoded dot-segment, data/file URL,
+  absolute-path, protocol-relative, backslash, missing-sidecar, invalid token,
+  refines, language, direction, and media-type sanitation remain covered.
+- Focused verification on 2026-06-25 after the OCF container-link traversal
+  slice: `php -l` passed for `lanes/pandoc/src/EpubReader.php`,
+  `lanes/pandoc/src/EpubWriter.php`, `lanes/pandoc/tests/EpubReaderTest.php`,
+  and `lanes/pandoc/tests/EpubWriterTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubReaderTest.php` passed 1 file, 4,859 assertions, and
+  0 failures; `php tools/run-tests.php lanes/pandoc/tests/EpubWriterTest.php`
+  passed 1 file, 10,255 assertions, and 0 failures; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubReaderTest.php lanes/pandoc/tests/EpubWriterTest.php`
+  passed 2 files, 15,114 assertions, and 0 failures; `php tools/run-tests.php
+  lanes/pandoc/tests` passed 11 files, 21,672 assertions, and 0 failures.
+- No EPUBCheck validation, upstream Haskell runner, full EPUB fixture corpus,
+  arbitrary multi-rendition graph validation beyond covered container
+  rootfile/link paths, DRM decryption, XML signature cryptographic validation,
+  broader TeX/MathML parser parity, or full EPUB2 output parity is claimed.
+
 ## 2026-06-25 EPUB3 OPF Unique-Identifier Reconcile Slice
 
 - Focused PHP coverage is now 1,145 behavior tests and 21,703 full-suite

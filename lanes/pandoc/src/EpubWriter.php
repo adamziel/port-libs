@@ -536,6 +536,11 @@ final class EpubWriter
         if (trim($hrefPath) === '' && $suffix !== '') {
             return 'empty-path';
         }
+        foreach (explode('/', $hrefPath) as $segment) {
+            if ($segment === '..') {
+                return 'traversal';
+            }
+        }
 
         return $this->encodedDotSegmentPathDiagnosticReason($hrefPath);
     }

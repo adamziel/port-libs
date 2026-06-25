@@ -32331,6 +32331,11 @@ XML;
                         'id' => 'encoded-dot-sidecar',
                     ],
                     [
+                        'href' => '../META-INF/metadata/catalog.json',
+                        'rel' => 'record',
+                        'id' => 'literal-traversal-sidecar',
+                    ],
+                    [
                         'href' => 'META-INF/metadata/catalog.json',
                         'rel' => 'record',
                         'id' => 'bad id',
@@ -32385,6 +32390,7 @@ XML;
             $t->true(!str_contains($container, 'sideways'), 'Invalid container link dir values should not be emitted.');
             $t->true(!str_contains($container, 'data:application/xml'), 'Unsafe container link hrefs should not be emitted.');
             $t->true(!str_contains($container, '%2e%2e'), 'Encoded dot-segment container link hrefs should not be emitted.');
+            $t->true(!str_contains($container, 'literal-traversal-sidecar'), 'Literal traversal container link hrefs should not be emitted.');
             $t->true(!str_contains($container, 'missing-sidecar'), 'Local container links without packaged sidecars should not be emitted.');
             $t->true(!str_contains($package, 'metadata/catalog.json'), 'OCF container link sidecar was incorrectly written into the OPF manifest.');
         } finally {

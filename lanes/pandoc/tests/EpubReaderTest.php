@@ -11031,6 +11031,7 @@ XML);
     <link id="bad-fragment" href="metadata/fragmented.xml#bad%20record" rel="record" media-type="application/xml"/>
     <link id="missing-fragment" href="metadata/fragmented.xml#missing-record" rel="record" media-type="application/xml"/>
     <link id="malformed-fragment" href="metadata/broken.xml#record" rel="record" media-type="application/xml"/>
+    <link id="literal-traversal" href="../META-INF/metadata/present.xml" rel="record" media-type="application/xml"/>
   </links>
 </container>
 XML);
@@ -11103,7 +11104,7 @@ XML);
         }
 
         $t->same('OPS/package.opf', $meta['epubRootfile']);
-        $t->same(25, $meta['epubContainerLinkCount']);
+        $t->same(26, $meta['epubContainerLinkCount']);
         $t->same('META-INF/metadata/present.xml', $meta['epubContainerLinks'][0]['href']);
         $t->same('present-record', $meta['epubContainerLinks'][0]['id']);
         $t->true(!isset($meta['epubContainerLinks'][1]['href']));
@@ -11154,7 +11155,7 @@ XML);
         $t->same('record', $byCode['duplicate-container-link-property'][0]['property'] ?? null);
         $t->same('bad-refines', $byCode['invalid-container-link-refines'][0]['id'] ?? null);
         $t->same('not-fragment', $byCode['invalid-container-link-refines'][0]['refines'] ?? null);
-        $t->same(5, count($byCode['invalid-container-link-href-path'] ?? []));
+        $t->same(6, count($byCode['invalid-container-link-href-path'] ?? []));
         $t->same('query-only', $byCode['invalid-container-link-href-path'][0]['id'] ?? null);
         $t->same('?trace=1', $byCode['invalid-container-link-href-path'][0]['href'] ?? null);
         $t->same('empty-path', $byCode['invalid-container-link-href-path'][0]['reason'] ?? null);
@@ -11170,6 +11171,9 @@ XML);
         $t->same('encoded-dot-segment', $byCode['invalid-container-link-href-path'][4]['id'] ?? null);
         $t->same('metadata/%2e%2e/missing.xml', $byCode['invalid-container-link-href-path'][4]['href'] ?? null);
         $t->same('encoded-dot-segment', $byCode['invalid-container-link-href-path'][4]['reason'] ?? null);
+        $t->same('literal-traversal', $byCode['invalid-container-link-href-path'][5]['id'] ?? null);
+        $t->same('../META-INF/metadata/present.xml', $byCode['invalid-container-link-href-path'][5]['href'] ?? null);
+        $t->same('traversal', $byCode['invalid-container-link-href-path'][5]['reason'] ?? null);
         $t->same(1, count($byCode['missing-container-link-resource'] ?? []));
         $t->same('missing-local', $byCode['missing-container-link-resource'][0]['id'] ?? null);
         $t->same('META-INF/metadata/missing.xml', $byCode['missing-container-link-resource'][0]['path'] ?? null);
@@ -11194,7 +11198,7 @@ XML);
         $t->true(!str_contains($serializedDiagnostics, 'present-fragment'), 'Existing container link fragments should not be reported.');
         $t->true(!str_contains($serializedDiagnostics, 'remote-record'), 'Remote container links should not be reported as missing ZIP entries.');
         $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
-        $t->same(22, $meta['epubDiagnosticErrorCount']);
+        $t->same(23, $meta['epubDiagnosticErrorCount']);
         $t->same(0, $meta['epubDiagnosticWarningCount']);
         $t->contains('Readable container link diagnostic content.', $blocks);
     },
