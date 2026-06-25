@@ -5216,8 +5216,9 @@ final class EpubPackage
                 continue;
             }
 
+            $id = is_string($link['id'] ?? null) ? $link['id'] : null;
             $addTarget(
-                is_string($link['id'] ?? null) ? $link['id'] : null,
+                $id !== null && self::isXmlNcName($id) ? $id : null,
                 'metadata-link',
                 [
                     'index' => (int) $index,
@@ -5281,8 +5282,9 @@ final class EpubPackage
                         continue;
                     }
 
+                    $id = is_string($link['id'] ?? null) ? $link['id'] : null;
                     $addTarget(
-                        is_string($link['id'] ?? null) ? $link['id'] : null,
+                        $id !== null && self::isXmlNcName($id) ? $id : null,
                         'collection-link',
                         [
                             'index' => (int) $linkIndex,
@@ -5363,12 +5365,83 @@ final class EpubPackage
         $externalItems = [];
         $packageRelativeItems = [];
         $diagnostics = [];
+        $refinementSources = [];
 
         foreach (is_array($metadata['meta'] ?? null) ? $metadata['meta'] : [] as $index => $entry) {
             if (!is_array($entry)) {
                 continue;
             }
 
+            $refinementSources[] = [
+                'source' => 'metadata-meta',
+                'sourceIndex' => (int) $index,
+                'metaIndex' => (int) $index,
+                'entry' => $entry,
+            ];
+        }
+
+        foreach ($packageLinks as $index => $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+
+            $refinementSources[] = [
+                'source' => 'metadata-link',
+                'sourceIndex' => (int) $index,
+                'linkIndex' => (int) $index,
+                'entry' => $link,
+            ];
+        }
+
+        $appendCollectionRefinementSources = static function (array $items, array $path = []) use (&$appendCollectionRefinementSources, &$refinementSources): void {
+            foreach ($items as $collectionIndex => $collection) {
+                if (!is_array($collection)) {
+                    continue;
+                }
+
+                $currentPath = array_merge($path, [(int) $collectionIndex]);
+                $collectionId = is_string($collection['id'] ?? null) ? $collection['id'] : null;
+                foreach (is_array($collection['links'] ?? null) ? $collection['links'] : [] as $linkIndex => $link) {
+                    if (!is_array($link)) {
+                        continue;
+                    }
+
+                    $refinementSources[] = [
+                        'source' => 'collection-link',
+                        'sourceIndex' => (int) $linkIndex,
+                        'linkIndex' => (int) $linkIndex,
+                        'collectionPath' => $currentPath,
+                        'collectionId' => $collectionId,
+                        'entry' => $link,
+                    ];
+                }
+
+                $collectionMetadata = is_array($collection['metadata'] ?? null) ? $collection['metadata'] : [];
+                foreach (is_array($collectionMetadata['meta'] ?? null) ? $collectionMetadata['meta'] : [] as $metaIndex => $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+
+                    $refinementSources[] = [
+                        'source' => 'collection-metadata-meta',
+                        'sourceIndex' => (int) $metaIndex,
+                        'metaIndex' => (int) $metaIndex,
+                        'collectionPath' => $currentPath,
+                        'collectionId' => $collectionId,
+                        'entry' => $entry,
+                    ];
+                }
+
+                $appendCollectionRefinementSources(
+                    is_array($collection['children'] ?? null) ? $collection['children'] : [],
+                    $currentPath,
+                );
+            }
+        };
+        $appendCollectionRefinementSources($collections);
+
+        foreach ($refinementSources as $sourceEntry) {
+            $entry = is_array($sourceEntry['entry'] ?? null) ? $sourceEntry['entry'] : [];
             $refines = is_string($entry['refines'] ?? null) ? trim($entry['refines']) : '';
             if ($refines === '') {
                 continue;
@@ -5388,34 +5461,58 @@ final class EpubPackage
                 $targets,
             )));
             $itemDiagnostics = [];
+            $source = (string) ($sourceEntry['source'] ?? 'metadata-meta');
+            $sourceIndex = (int) ($sourceEntry['sourceIndex'] ?? 0);
+            $diagnosticContext = [
+                'source' => $source,
+                'sourceIndex' => $sourceIndex,
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'property' => is_string($entry['property'] ?? null) ? $entry['property'] : null,
+                'refines' => $refines,
+            ];
+            if (isset($sourceEntry['metaIndex'])) {
+                $diagnosticContext['metaIndex'] = (int) $sourceEntry['metaIndex'];
+            }
+            if (isset($sourceEntry['linkIndex'])) {
+                $diagnosticContext['linkIndex'] = (int) $sourceEntry['linkIndex'];
+            }
+            if (isset($sourceEntry['collectionPath'])) {
+                $diagnosticContext['collectionPath'] = $sourceEntry['collectionPath'];
+            }
+            if (isset($sourceEntry['collectionId'])) {
+                $diagnosticContext['collectionId'] = $sourceEntry['collectionId'];
+            }
             if ($subjectId === '') {
-                $itemDiagnostics[] = [
+                $itemDiagnostics[] = $diagnosticContext + [
                     'type' => 'invalid-metadata-refinement-target',
-                    'metaIndex' => (int) $index,
-                    'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
-                    'property' => is_string($entry['property'] ?? null) ? $entry['property'] : null,
-                    'refines' => $refines,
                     'message' => 'EPUB OPF metadata refinement target must include a fragment identifier',
                 ];
+            } elseif (!self::isXmlNcName($subjectId)) {
+                $itemDiagnostics[] = $diagnosticContext + [
+                    'type' => 'invalid-metadata-refinement-fragment',
+                    'subjectId' => $subjectId,
+                    'message' => 'EPUB OPF metadata refinement fragment must be an XML NCName-style identifier',
+                ];
             } elseif ($targetLocal && $targets === []) {
-                $itemDiagnostics[] = [
+                $itemDiagnostics[] = $diagnosticContext + [
                     'type' => 'unresolved-metadata-refinement-target',
-                    'metaIndex' => (int) $index,
-                    'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
-                    'property' => is_string($entry['property'] ?? null) ? $entry['property'] : null,
-                    'refines' => $refines,
                     'subjectId' => $subjectId,
                     'message' => 'EPUB OPF metadata refinement points at a local package subject id that was not found in the compact handoff target inventory',
                 ];
             }
 
             $item = [
-                'metaIndex' => (int) $index,
+                'source' => $source,
+                'sourceIndex' => $sourceIndex,
                 'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
                 'property' => is_string($entry['property'] ?? null) ? $entry['property'] : null,
+                'rel' => is_array($entry['rel'] ?? null) ? array_values($entry['rel']) : [],
+                'href' => is_string($entry['href'] ?? null) ? $entry['href'] : null,
                 'refines' => $refines,
                 'subjectId' => $subjectId === '' ? null : $subjectId,
-                'value' => self::metadataEntryValue($entry),
+                'value' => in_array($source, ['metadata-meta', 'collection-metadata-meta'], true)
+                    ? self::metadataEntryValue($entry)
+                    : null,
                 'targetLocal' => $targetLocal,
                 'targetExternal' => $targetExternal,
                 'targetPackageRelative' => $targetPackageRelative,
@@ -5425,6 +5522,18 @@ final class EpubPackage
                 'targets' => $targets,
                 'diagnostics' => $itemDiagnostics,
             ];
+            if (isset($sourceEntry['metaIndex'])) {
+                $item['metaIndex'] = (int) $sourceEntry['metaIndex'];
+            }
+            if (isset($sourceEntry['linkIndex'])) {
+                $item['linkIndex'] = (int) $sourceEntry['linkIndex'];
+            }
+            if (isset($sourceEntry['collectionPath'])) {
+                $item['collectionPath'] = $sourceEntry['collectionPath'];
+            }
+            if (isset($sourceEntry['collectionId'])) {
+                $item['collectionId'] = $sourceEntry['collectionId'];
+            }
             $items[] = $item;
 
             if ($item['resolved']) {
@@ -7667,6 +7776,11 @@ final class EpubPackage
         $subject = substr($refines, $fragmentOffset + 1);
 
         return $subject === '' ? null : $subject;
+    }
+
+    private static function isXmlNcName(string $value): bool
+    {
+        return preg_match('/^[A-Za-z_][A-Za-z0-9._-]*$/D', $value) === 1;
     }
 
     private static function metadataElementScheme(\DOMElement $element): ?string
@@ -13318,6 +13432,58 @@ final class EpubPackage
             $links[] = self::parsePackageLink($linkElement, $index, $opfPartName, $package, $manifestByPart, $prefixBindings);
         }
 
+        return self::linksWithIdDiagnostics($links, 'package', 'EPUB OPF metadata link');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @return list<array<string, mixed>>
+     */
+    private static function linksWithIdDiagnostics(array $links, string $source, string $label): array
+    {
+        $ids = [];
+        foreach ($links as $index => $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+
+            $id = is_string($link['id'] ?? null) ? trim($link['id']) : '';
+            if ($id === '') {
+                continue;
+            }
+
+            if (!self::isXmlNcName($id)) {
+                $links[$index]['diagnostics'][] = [
+                    'type' => 'invalid-' . $source . '-link-id',
+                    'id' => $id,
+                    'message' => $label . ' id must be an XML NCName-style identifier',
+                ];
+            }
+
+            $ids[$id][] = $index;
+        }
+
+        foreach ($ids as $id => $indexes) {
+            if (count($indexes) < 2) {
+                continue;
+            }
+
+            foreach ($indexes as $index) {
+                $links[$index]['diagnostics'][] = [
+                    'type' => 'duplicate-' . $source . '-link-id',
+                    'id' => $id,
+                    'duplicateIndexes' => $indexes,
+                    'message' => $label . ' id is duplicated within the same OPF link scope',
+                ];
+            }
+        }
+
+        foreach ($links as $index => $link) {
+            if (is_array($link)) {
+                $links[$index]['diagnosticCount'] = count(is_array($link['diagnostics'] ?? null) ? $link['diagnostics'] : []);
+            }
+        }
+
         return $links;
     }
 
@@ -13489,6 +13655,7 @@ final class EpubPackage
         foreach (self::childElements($collectionElement, 'link', self::OPF_NAMESPACE) as $linkIndex => $linkElement) {
             $links[] = self::parseCollectionLink($linkElement, $linkIndex, $opfPartName, $package, $manifestByPart, $prefixBindings);
         }
+        $links = self::linksWithIdDiagnostics($links, 'collection', 'EPUB OPF collection link');
 
         $children = [];
         foreach (self::childElements($collectionElement, 'collection', self::OPF_NAMESPACE) as $childIndex => $childElement) {
@@ -13610,6 +13777,8 @@ final class EpubPackage
             $provenance['canExposeBytes'] = false;
         }
 
+        $refines = self::emptyToNull($linkElement->getAttribute('refines'));
+
         return [
             'index' => $index,
             'id' => self::emptyToNull($linkElement->getAttribute('id')),
@@ -13629,7 +13798,8 @@ final class EpubPackage
             'hreflang' => self::emptyToNull($linkElement->getAttribute('hreflang')),
             'language' => self::metadataElementLanguage($linkElement),
             'direction' => self::metadataElementDirection($linkElement),
-            'refines' => self::emptyToNull($linkElement->getAttribute('refines')),
+            'refines' => $refines,
+            'subjectId' => self::metadataRefinementSubject($refines),
             'hrefHasQuery' => $hrefSuffix['hasQuery'],
             'hrefQuery' => $hrefSuffix['query'],
             'hrefHasFragment' => $hrefSuffix['hasFragment'],

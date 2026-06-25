@@ -1658,6 +1658,114 @@ XML;
         $t->same($targets['diagnostics'], $summary['wordpressImport']['metadataRefinementTargetDiagnostics']);
     },
 
+    'reports OPF package and collection link refines sanitation for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3NavXml): void {
+        $opfWithLinkRefines = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" id="package-record" version="3.0" unique-identifier="bookid" xml:lang="en" prefix="schema: https://schema.org/">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:link-refines-sanitation</dc:identifier>
+    <dc:title id="main-title">Link Refines Sanitation</dc:title>
+    <dc:creator id="creator">Sanitation Desk</dc:creator>
+    <dc:language>en-US</dc:language>
+    <meta property="dcterms:modified">2026-06-25T09:45:00Z</meta>
+    <meta id="package-label" refines="#package-self" property="schema:name">Package document self reference</meta>
+    <link id="creator-record" rel="record" refines="#creator" href="meta/creator.json" media-type="application/json"/>
+    <link id="package-self" rel="record" refines="#package-record" href="#package-record" media-type="application/oebps-package+xml"/>
+    <link id="missing-package-link" rel="record" refines="#missing-package-target" href="meta/missing.json" media-type="application/json"/>
+    <link id="bad fragment link" rel="record" refines="#bad fragment" href="meta/creator.json" media-type="application/json"/>
+    <link id="dup-record" rel="record" refines="#bookid" href="meta/creator.json" media-type="application/json"/>
+    <link id="dup-record" rel="alternate" refines="meta/foreign.opf#foreign" href="https://example.invalid/remote.json" media-type="application/json"/>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="creator-json" href="meta/creator.json" media-type="application/json"/>
+    <item id="series-json" href="meta/series.json" media-type="application/json"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+  <collection id="series" role="series" xml:lang="en" dir="ltr">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title id="series-title">Series Packet</dc:title>
+      <meta id="series-title-script" refines="#series-title" property="alternate-script" xml:lang="pl" dir="ltr">Pakiet serii</meta>
+    </metadata>
+    <link id="series-record" rel="record" refines="#series-title-script" href="meta/series.json" media-type="application/json"/>
+    <link id="series-missing" rel="record" refines="#missing-collection-target" href="meta/missing-series.json" media-type="application/json"/>
+    <link id="bad collection link" rel="record" refines="#series-title" href="meta/series.json" media-type="application/json"/>
+  </collection>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithLinkRefines],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Sanitation</h1></body></html>'],
+            ['name' => 'EPUB/meta/creator.json', 'data' => '{"name":"Sanitation Desk"}'],
+            ['name' => 'EPUB/meta/series.json', 'data' => '{"name":"Series Packet"}'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $targets = $metadata['refinementTargets'];
+        $collections = $epub->collections();
+        $collectionMetadataMeta = $collections[0]['metadata']['meta'][0];
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+        $find = static function (string $source, string $refines, ?string $id = null) use ($targets): array {
+            foreach ($targets['items'] as $item) {
+                if (($item['source'] ?? null) !== $source || ($item['refines'] ?? null) !== $refines) {
+                    continue;
+                }
+                if ($id !== null && ($item['id'] ?? null) !== $id) {
+                    continue;
+                }
+
+                return $item;
+            }
+
+            throw new RuntimeException('Missing refinement item: ' . $source . ' ' . $refines);
+        };
+
+        $packageLinkDiagnostics = array_column($metadata['linkDiagnostics'], 'type');
+        $collectionLinkDiagnostics = array_column($collections[0]['diagnostics'], 'type');
+
+        $t->same(true, $targets['present']);
+        $t->same(11, $targets['refinementCount']);
+        $t->same(7, $targets['resolvedRefinementCount']);
+        $t->same(4, $targets['unresolvedRefinementCount']);
+        $t->same(1, $targets['packageRelativeRefinementCount']);
+        $t->same(['unresolved-metadata-refinement-target', 'invalid-metadata-refinement-fragment', 'unresolved-metadata-refinement-target'], array_column($targets['diagnostics'], 'type'));
+
+        $t->same(['dc-metadata'], $find('metadata-link', '#creator', 'creator-record')['targetKinds']);
+        $t->same(['package'], $find('metadata-link', '#package-record', 'package-self')['targetKinds']);
+        $t->same(['metadata-link'], $find('metadata-meta', '#package-self', 'package-label')['targetKinds']);
+        $t->same(false, $find('metadata-link', '#missing-package-target', 'missing-package-link')['resolved']);
+        $t->same('invalid-metadata-refinement-fragment', $find('metadata-link', '#bad fragment', 'bad fragment link')['diagnostics'][0]['type']);
+        $t->same(true, $find('metadata-link', 'meta/foreign.opf#foreign', 'dup-record')['targetPackageRelative']);
+
+        $t->same(['collection-dc-metadata'], $find('collection-metadata-meta', '#series-title', 'series-title-script')['targetKinds']);
+        $t->same('series-title-script', $collectionMetadataMeta['id']);
+        $t->same('pl', $collectionMetadataMeta['language']);
+        $t->same('ltr', $collectionMetadataMeta['direction']);
+        $t->same(['collection-metadata-meta'], $find('collection-link', '#series-title-script', 'series-record')['targetKinds']);
+        $t->same(false, $find('collection-link', '#missing-collection-target', 'series-missing')['resolved']);
+        $t->same(['collection-dc-metadata'], $find('collection-link', '#series-title', 'bad collection link')['targetKinds']);
+
+        $t->true(in_array('invalid-package-link-id', $packageLinkDiagnostics, true), 'Invalid package link id should be diagnosed');
+        $t->same(2, count(array_filter($packageLinkDiagnostics, static fn (string $type): bool => $type === 'duplicate-package-link-id')));
+        $t->true(in_array('external-package-link-target', $packageLinkDiagnostics, true), 'External package link target should be diagnosed');
+        $t->true(in_array('missing-package-link-target', $packageLinkDiagnostics, true), 'Missing package link target should be diagnosed');
+        $t->true(in_array('invalid-collection-link-id', $collectionLinkDiagnostics, true), 'Invalid collection link id should be diagnosed');
+        $t->true(in_array('missing-collection-link-target', $collectionLinkDiagnostics, true), 'Missing collection link target should be diagnosed');
+
+        $t->same(false, $validation['metadata']['valid']);
+        $t->same(false, $validation['metadata']['refinementTargetValid']);
+        $t->same($targets, $validation['metadata']['refinementTargets']);
+        $t->same($targets, $summary['metadataRefinementTargets']);
+        $t->same($targets['diagnostics'], $summary['wordpressImport']['metadataRefinementTargetDiagnostics']);
+    },
+
     'summarizes compact OPF creator contributor display order for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithAgentOrder = str_replace(
             '<dc:creator id="creator">Data Liberation Team</dc:creator>',

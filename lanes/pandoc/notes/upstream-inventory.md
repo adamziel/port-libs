@@ -8008,3 +8008,39 @@ Root aggregate verification on 2026-05-24 after this slice was not assigned to
 this lane worker, so no no-argument root harness was started. Per lane
 instructions, focused pandoc evidence was recorded and root aggregate
 verification remains pending for the supervisor/integrator.
+
+## 2026-06-25 EPUB3 OPF Package Link Refines Sanitation Slice
+
+The existing compact EPUB package coverage already records OPF collection
+authoring direction and language (`collection dir/xml:lang`), collection link
+direction and language (`link dir/xml:lang`), and package-level
+`belongs-to-collection` metadata direction. This slice adds direct collection
+metadata meta coverage inside the OPF refines sanitation fixture:
+`<meta id="series-title-script" refines="#series-title" xml:lang="pl"
+dir="ltr">` is asserted as collection metadata and participates in refinement
+target resolution.
+
+The closed gap is compact native PHP OPF package-link/refines sanitation.
+`EpubPackage` now reports package metadata links, collection links, and
+collection metadata meta entries as refinement sources. Package and collection
+link ids are checked as XML NCName-style identifiers, duplicate link ids are
+diagnosed within the package-link or collection-link scope, and invalid link
+ids are not admitted into the local refinement target inventory. The focused
+fixture covers local package metadata targets, collection metadata targets,
+package-document self-reference, malformed fragment subjects, missing local
+resource targets, missing local refinement subjects, external link targets,
+duplicate link ids, invalid link ids, and package-relative cross-package
+`refines` values that should remain package-relative instead of local.
+
+Focused local verification on 2026-06-25: `php -l` passed for
+`lanes/pandoc/src/EpubPackage.php` and
+`lanes/pandoc/tests/EpubPackageTest.php`; `php tools/run-tests.php
+lanes/pandoc/tests/EpubPackageTest.php` passed 1 file, 4,176 assertions, and
+0 failures; `php tools/run-tests.php lanes/pandoc/tests/EpubReaderTest.php
+lanes/pandoc/tests/EpubWriterTest.php` passed 2 files, 219 assertions, and
+0 failures. `php tools/run-tests.php lanes/pandoc/tests` was executed after
+rebasing on current `origin/main` and is not green for unrelated backlog:
+276 test files, 105,632 assertions, and 10,830 failures, with failures spread across
+Markdown surge tests, Citation/CSL/BibTeX tests, `UnicodeTextTest.php`,
+`PandocJsonNativeAstTest.php`, `YamlMetadataReviewTest.php`, and other
+non-EPUB areas.
