@@ -30,6 +30,18 @@ final class PlainWriter
      *     softWrapBreakCount:int,
      *     wrapSplitLineCount:int,
      *     generatedWrapBreakCount:int,
+     *     maxGeneratedWrapBreaksPerSourceLine:int,
+     *     wrappedSourceLines:list<array{
+     *       blockIndex:int,
+     *       lineIndex:int,
+     *       sourceDisplayWidth:int,
+     *       outputLineCount:int,
+     *       generatedBreakCount:int,
+     *       maxOutputDisplayWidth:int,
+     *       forcedWrapBreakCount:int,
+     *       text:string,
+     *       truncated:bool
+     *     }>,
      *     outputLineCount:int,
      *     blankSourceLineCount:int,
      *     blankOutputLineCount:int,
@@ -112,6 +124,8 @@ final class PlainWriter
         $softWrapBreakCount = 0;
         $wrapSplitLineCount = 0;
         $generatedWrapBreakCount = 0;
+        $maxGeneratedWrapBreaksPerSourceLine = 0;
+        $wrappedSourceLines = [];
         $outputLineCount = 0;
         $blankSourceLineCount = 0;
         $blankOutputLineCount = 0;
@@ -168,6 +182,19 @@ final class PlainWriter
             $wrapMetrics = $this->wrapLineMetrics($source, $columns, $wrapMode, $ambiguousWidth);
             $wrapSplitLineCount += $wrapMetrics['splitLineCount'];
             $generatedWrapBreakCount += $wrapMetrics['generatedBreakCount'];
+            $maxGeneratedWrapBreaksPerSourceLine = max(
+                $maxGeneratedWrapBreaksPerSourceLine,
+                $wrapMetrics['maxGeneratedBreaksPerSourceLine']
+            );
+            foreach ($wrapMetrics['wrappedSourceLines'] as $lineDiagnostic) {
+                if (count($wrappedSourceLines) >= 16) {
+                    break;
+                }
+
+                $wrappedSourceLines[] = [
+                    'blockIndex' => $index,
+                ] + $lineDiagnostic;
+            }
 
             $sourceMax = $this->maxDisplayWidth($sourceLines, $ambiguousWidth);
             $outputMax = $this->maxDisplayWidth($wrappedLines, $ambiguousWidth);
@@ -258,6 +285,8 @@ final class PlainWriter
                 'softWrapBreakCount' => $softWrapBreakCount,
                 'wrapSplitLineCount' => $wrapSplitLineCount,
                 'generatedWrapBreakCount' => $generatedWrapBreakCount,
+                'maxGeneratedWrapBreaksPerSourceLine' => $maxGeneratedWrapBreaksPerSourceLine,
+                'wrappedSourceLines' => $wrappedSourceLines,
                 'outputLineCount' => $outputLineCount,
                 'blankSourceLineCount' => $blankSourceLineCount,
                 'blankOutputLineCount' => $blankOutputLineCount,
@@ -748,12 +777,31 @@ final class PlainWriter
     }
 
     /**
-     * @return array{splitLineCount:int, generatedBreakCount:int}
+     * @return array{
+     *   splitLineCount:int,
+     *   generatedBreakCount:int,
+     *   maxGeneratedBreaksPerSourceLine:int,
+     *   wrappedSourceLines:list<array{
+     *     lineIndex:int,
+     *     sourceDisplayWidth:int,
+     *     outputLineCount:int,
+     *     generatedBreakCount:int,
+     *     maxOutputDisplayWidth:int,
+     *     forcedWrapBreakCount:int,
+     *     text:string,
+     *     truncated:bool
+     *   }>
+     * }
      */
     private function wrapLineMetrics(string $source, int $columns, string $wrapMode, string $ambiguousWidth): array
     {
         if ($wrapMode !== 'auto' || $columns <= 0) {
-            return ['splitLineCount' => 0, 'generatedBreakCount' => 0];
+            return [
+                'splitLineCount' => 0,
+                'generatedBreakCount' => 0,
+                'maxGeneratedBreaksPerSourceLine' => 0,
+                'wrappedSourceLines' => [],
+            ];
         }
 
         $sourceLines = preg_split('/\R/u', $source);
@@ -763,7 +811,9 @@ final class PlainWriter
 
         $splitLineCount = 0;
         $generatedBreakCount = 0;
-        foreach ($sourceLines as $line) {
+        $maxGeneratedBreaksPerSourceLine = 0;
+        $wrappedSourceLines = [];
+        foreach ($sourceLines as $lineIndex => $line) {
             $wrapped = UnicodeText::wrapByDisplayWidth($line, $columns, '', $ambiguousWidth);
             $generatedBreaks = max(0, count($wrapped) - 1);
             if ($generatedBreaks === 0) {
@@ -772,9 +822,30 @@ final class PlainWriter
 
             ++$splitLineCount;
             $generatedBreakCount += $generatedBreaks;
+            $maxGeneratedBreaksPerSourceLine = max($maxGeneratedBreaksPerSourceLine, $generatedBreaks);
+            if (count($wrappedSourceLines) >= 16) {
+                continue;
+            }
+
+            [$text, $truncated] = $this->diagnosticTextSample($line);
+            $wrappedSourceLines[] = [
+                'lineIndex' => $lineIndex,
+                'sourceDisplayWidth' => UnicodeText::displayWidth($line, $ambiguousWidth),
+                'outputLineCount' => count($wrapped),
+                'generatedBreakCount' => $generatedBreaks,
+                'maxOutputDisplayWidth' => $this->maxDisplayWidth($wrapped, $ambiguousWidth),
+                'forcedWrapBreakCount' => $this->forcedWrapBreakCountForLine($line, $columns, $ambiguousWidth),
+                'text' => $text,
+                'truncated' => $truncated,
+            ];
         }
 
-        return ['splitLineCount' => $splitLineCount, 'generatedBreakCount' => $generatedBreakCount];
+        return [
+            'splitLineCount' => $splitLineCount,
+            'generatedBreakCount' => $generatedBreakCount,
+            'maxGeneratedBreaksPerSourceLine' => $maxGeneratedBreaksPerSourceLine,
+            'wrappedSourceLines' => $wrappedSourceLines,
+        ];
     }
 
     /**
@@ -820,6 +891,16 @@ final class PlainWriter
 
             ++$breaks;
             $remaining = $tail;
+        }
+
+        return $breaks;
+    }
+
+    private function forcedWrapBreakCountForLine(string $line, int $columns, string $ambiguousWidth): int
+    {
+        $breaks = 0;
+        foreach ($this->unbreakableWrapSegments($line) as $segment) {
+            $breaks += $this->forcedWrapBreaksForSegment($segment, $columns, $ambiguousWidth);
         }
 
         return $breaks;

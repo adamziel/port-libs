@@ -218,6 +218,49 @@ return [
         $t->same(3, $result['diagnostics']['blocks'][0]['generatedWrapBreakCount']);
         $t->same(30, $result['diagnostics']['blocks'][0]['maxSourceDisplayWidth']);
     },
+    'reports wrapped source line records in plain writer diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => "Alpha beta gamma delta\nShort\nReviewerIdentifier"]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 10]))->writeWithDiagnostics($document);
+
+        $t->same(implode("\n", [
+            'Alpha beta',
+            'gamma',
+            'delta',
+            'Short',
+            'ReviewerId',
+            'entifier',
+        ]), $result['text']);
+        $t->same(2, $result['diagnostics']['wrapSplitLineCount']);
+        $t->same(3, $result['diagnostics']['generatedWrapBreakCount']);
+        $t->same(2, $result['diagnostics']['maxGeneratedWrapBreaksPerSourceLine']);
+        $t->same([
+            [
+                'blockIndex' => 0,
+                'lineIndex' => 0,
+                'sourceDisplayWidth' => 22,
+                'outputLineCount' => 3,
+                'generatedBreakCount' => 2,
+                'maxOutputDisplayWidth' => 10,
+                'forcedWrapBreakCount' => 0,
+                'text' => 'Alpha beta gamma delta',
+                'truncated' => false,
+            ],
+            [
+                'blockIndex' => 0,
+                'lineIndex' => 2,
+                'sourceDisplayWidth' => 18,
+                'outputLineCount' => 2,
+                'generatedBreakCount' => 1,
+                'maxOutputDisplayWidth' => 10,
+                'forcedWrapBreakCount' => 1,
+                'text' => 'ReviewerIdentifier',
+                'truncated' => false,
+            ],
+        ], $result['diagnostics']['wrappedSourceLines']);
+    },
     'reports over column lines in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('code_block', ['text' => "LongIdentifierWithoutBreaks short\nTiny\nReviewer diagnostics overflow"]),
