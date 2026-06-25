@@ -3463,29 +3463,19 @@ final class HtmlWriter
             return $namedOperator;
         }
 
-        $mathVariant = $this->texMathStyleCommandVariant($command);
-        if ($mathVariant !== null) {
-            if (str_starts_with($command, 'text')) {
-                $text = $this->readTexMathRawGroup($source, $offset);
-                if ($text !== null) {
-                    return '<mstyle mathvariant="' . $this->esc($mathVariant) . '"><mtext>' . $this->esc($text) . '</mtext></mstyle>';
-                }
-            } else {
-                $base = $this->parseTexMathArgument($source, $offset);
-                if ($base !== '') {
-                    return '<mstyle mathvariant="' . $this->esc($mathVariant) . '">' . $this->mathMLRow($base) . '</mstyle>';
-                }
+        if ($this->isTexMathTextModeCommand($command)) {
+            $text = $this->readTexMathRawGroup($source, $offset);
+            if ($text !== null) {
+                return $this->texMathTextModeElement($text, $this->texMathTextModeCommandVariant($command));
             }
         }
 
-        if ($command === 'text') {
-            $text = $this->readTexMathBalancedText($source, $offset);
-            return $text === '' ? '' : '<mtext>' . $this->esc($text) . '</mtext>';
-        }
-
-        if (in_array($command, ['mbox', 'hbox'], true)) {
-            $text = $this->readTexMathBalancedText($source, $offset);
-            return $text === '' ? '' : '<mtext>' . $this->esc($text) . '</mtext>';
+        $mathVariant = $this->texMathStyleCommandVariant($command);
+        if ($mathVariant !== null) {
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($base !== '') {
+                return '<mstyle mathvariant="' . $this->esc($mathVariant) . '">' . $this->mathMLRow($base) . '</mstyle>';
+            }
         }
 
         $mapped = $this->texMathCommandElement($command);
@@ -3601,6 +3591,133 @@ final class HtmlWriter
         $text = str_replace(['\\{', '\\}'], ['{', '}'], $text);
 
         return preg_replace('/\s+/', ' ', $text) ?? $text;
+    }
+
+    private function isTexMathTextModeCommand(string $command): bool
+    {
+        return in_array($command, [
+            'emph',
+            'hbox',
+            'mbox',
+            'text',
+            'textbf',
+            'textit',
+            'textmd',
+            'textnormal',
+            'textrm',
+            'textsf',
+            'texttt',
+            'textup',
+        ], true);
+    }
+
+    private function texMathTextModeCommandVariant(string $command): ?string
+    {
+        return [
+            'emph' => 'italic',
+            'textbf' => 'bold',
+            'textit' => 'italic',
+            'textmd' => 'normal',
+            'textnormal' => 'normal',
+            'textrm' => 'normal',
+            'textsf' => 'sans-serif',
+            'texttt' => 'monospace',
+            'textup' => 'normal',
+        ][$command] ?? null;
+    }
+
+    private function texMathTextModeElement(string $text, ?string $variant): string
+    {
+        $content = $this->texMathTextModeContentToMathML($text);
+        if ($content === '') {
+            return '';
+        }
+        if ($variant === null) {
+            return $content;
+        }
+
+        return '<mstyle mathvariant="' . $this->esc($variant) . '">' . $this->mathMLRow($content) . '</mstyle>';
+    }
+
+    private function texMathTextModeContentToMathML(string $text): string
+    {
+        $nodes = [];
+        $buffer = '';
+        $offset = 0;
+        $length = strlen($text);
+        while ($offset < $length) {
+            $char = $text[$offset];
+            if ($char !== '\\') {
+                $buffer .= $char;
+                $offset++;
+                continue;
+            }
+
+            $commandStart = $offset;
+            $commandOffset = $offset + 1;
+            $command = $this->readTexMathCommandName($text, $commandOffset);
+            $literal = $this->texMathTextModeLiteralCommand($command);
+            if ($literal !== null) {
+                $buffer .= $literal;
+                $offset = $commandOffset;
+                continue;
+            }
+
+            if ($this->isTexMathTextModeCommand($command)) {
+                $textOffset = $commandOffset;
+                $group = $this->readTexMathRawGroup($text, $textOffset);
+                if ($group !== null) {
+                    $this->appendTexMathTextModeBuffer($nodes, $buffer);
+                    $nodes[] = $this->texMathTextModeElement($group, $this->texMathTextModeCommandVariant($command));
+                    $offset = $textOffset;
+                    continue;
+                }
+            }
+
+            if ($this->texMathStyleDeclarationAttributes($command) !== null) {
+                $mathOffset = $commandStart;
+                $math = $this->parseTexMathRow($text, $mathOffset, '');
+                if ($math !== '' && trim(substr($text, $mathOffset)) === '') {
+                    $this->appendTexMathTextModeBuffer($nodes, $buffer);
+                    $nodes[] = $this->mathMLRow($math);
+                    $offset = $mathOffset;
+                    continue;
+                }
+            }
+
+            $buffer .= '\\' . $command;
+            $offset = $commandOffset;
+        }
+
+        $this->appendTexMathTextModeBuffer($nodes, $buffer);
+
+        return implode('', $nodes);
+    }
+
+    private function texMathTextModeLiteralCommand(string $command): ?string
+    {
+        return match ($command) {
+            '&', '%', '$', '#', '_', '{', '}' => $command,
+            ' ' => ' ',
+            'LaTeX' => 'LaTeX',
+            'TeX' => 'TeX',
+            'dots', 'ldots' => '…',
+            'textbackslash' => '\\',
+            default => null,
+        };
+    }
+
+    /**
+     * @param list<string> $nodes
+     */
+    private function appendTexMathTextModeBuffer(array &$nodes, string &$buffer): void
+    {
+        if ($buffer === '') {
+            return;
+        }
+
+        $nodes[] = '<mtext>' . $this->esc($buffer) . '</mtext>';
+        $buffer = '';
     }
 
     private function texMathFractionDisplayStyle(string $command): ?bool
@@ -4692,39 +4809,6 @@ final class HtmlWriter
         }
 
         return $char;
-    }
-
-    private function readTexMathBalancedText(string $source, int &$offset): string
-    {
-        $this->skipTexMathWhitespace($source, $offset);
-        if (($source[$offset] ?? '') !== '{') {
-            return '';
-        }
-
-        $offset++;
-        $start = $offset;
-        $depth = 1;
-        $length = strlen($source);
-        while ($offset < $length && $depth > 0) {
-            $char = $source[$offset];
-            if ($char === '\\') {
-                $offset += 2;
-                continue;
-            }
-            if ($char === '{') {
-                $depth++;
-            } elseif ($char === '}') {
-                $depth--;
-                if ($depth === 0) {
-                    $text = substr($source, $start, $offset - $start);
-                    $offset++;
-                    return $text;
-                }
-            }
-            $offset++;
-        }
-
-        return substr($source, $start);
     }
 
     private function texMathCommandElement(string $command): ?string

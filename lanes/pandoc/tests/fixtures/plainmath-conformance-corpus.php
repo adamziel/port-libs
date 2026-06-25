@@ -233,6 +233,18 @@ return [
             'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">\begin{equation}x^2+1\end{equation}</annotation></semantics></math>',
         ],
         [
+            'id' => 'recursive-text-mode-styles',
+            'family' => 'text-mode',
+            'tex' => '\text{outer \textbf{bold \textit{inner}} tail} + \mbox{box \textsf{sans}} + \text{\textstyle{x^2 + y}}',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'Text.TeXMath.Readers.TeX text/mbox/textstyle command subset',
+                'writer' => 'Text.TeXMath.Writers.MathML EStyled/EText subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mtext>outer </mtext><mstyle mathvariant="bold"><mrow><mtext>bold </mtext><mstyle mathvariant="italic"><mtext>inner</mtext></mstyle></mrow></mstyle><mtext> tail</mtext><mo>+</mo><mtext>box </mtext><mstyle mathvariant="sans-serif"><mtext>sans</mtext></mstyle><mo>+</mo><mstyle displaystyle="false" scriptlevel="0"><mrow><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mi>y</mi></mrow></mstyle></mrow><annotation encoding="application/x-tex">\text{outer \textbf{bold \textit{inner}} tail} + \mbox{box \textsf{sans}} + \text{\textstyle{x^2 + y}}</annotation></semantics></math>',
+        ],
+        [
             'id' => 'unicode-identifiers-prime-shorthand',
             'family' => 'unicode-and-scripts',
             'tex' => 'α_1 + β\' + γ\'\' + ∂f/∂x',
