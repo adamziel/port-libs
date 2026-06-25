@@ -2922,6 +2922,14 @@ final class HtmlWriter
             }
         }
 
+        $styleDeclarationAttributes = $this->texMathStyleDeclarationAttributes($command);
+        if ($styleDeclarationAttributes !== null) {
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($base !== '') {
+                return '<mstyle ' . $styleDeclarationAttributes . '>' . $this->mathMLRow($base) . '</mstyle>';
+            }
+        }
+
         $enclosureNotation = $this->texMathEnclosureNotation($command);
         if ($enclosureNotation !== null) {
             $base = $this->parseTexMathArgument($source, $offset);
@@ -3121,6 +3129,16 @@ final class HtmlWriter
         }
 
         return '<mstyle displaystyle="' . ($displayStyle ? 'true' : 'false') . '">' . $element . '</mstyle>';
+    }
+
+    private function texMathStyleDeclarationAttributes(string $command): ?string
+    {
+        return [
+            'displaystyle' => 'displaystyle="true" scriptlevel="0"',
+            'textstyle' => 'displaystyle="false" scriptlevel="0"',
+            'scriptstyle' => 'displaystyle="false" scriptlevel="1"',
+            'scriptscriptstyle' => 'displaystyle="false" scriptlevel="2"',
+        ][$command] ?? null;
     }
 
     private function texMathMStyleElement(string $attribute, string $value, string $body): string

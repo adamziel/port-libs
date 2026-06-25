@@ -17026,6 +17026,90 @@ XML;
         $t->true(!str_contains($diagnosticsJson, 'missing-manifest-required-property'), 'Generated large operator limits MathML should not self-diagnose missing manifest properties.');
         $t->true(!str_contains($diagnosticsJson, 'malformed-spine-xhtml'), 'Generated large operator limits MathML XHTML should not self-diagnose malformed XHTML.');
     },
+    'writes epub3 tex math style declarations as mathml' => static function (TestRunner $t): void {
+        $inlineTex = '\displaystyle \frac{x}{y} + \textstyle \sum_{i=1}^{n} i';
+        $displayTex = 'x^{\scriptstyle{n+1}} + y_{\scriptscriptstyle{k}}';
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Style Declaration MathML EPUB',
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Style Declaration MathML EPUB'], [
+                new AstNode('text', ['text' => 'Style Declaration MathML EPUB']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Inline style declaration math ']),
+                new AstNode('math', [
+                    'display' => false,
+                    'text' => $inlineTex,
+                ]),
+                new AstNode('text', ['text' => '.']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('math', [
+                    'display' => true,
+                    'text' => $displayTex,
+                ]),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-25T11:58:00Z',
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-style-declaration-mathml-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary style declaration MathML EPUB path');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated style declaration MathML EPUB package');
+            }
+
+            $package = $zip->getFromName('OEBPS/package.opf');
+            $chapter = $zip->getFromName('OEBPS/text/chapter.xhtml');
+            if (!is_string($package) || !is_string($chapter)) {
+                throw new RuntimeException('Generated EPUB package is missing style declaration MathML files');
+            }
+
+            $t->contains('<item id="chapter-1" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml"/>', $package);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle displaystyle="true" scriptlevel="0"><mfrac><mi>x</mi><mi>y</mi></mfrac></mstyle><mo>+</mo><msubsup><mstyle displaystyle="false" scriptlevel="0"><mo>∑</mo></mstyle><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup><mi>i</mi></mrow><annotation encoding="application/x-tex">\displaystyle \frac{x}{y} + \textstyle \sum_{i=1}^{n} i</annotation></semantics></math>', $chapter);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msup><mi>x</mi><mstyle displaystyle="false" scriptlevel="1"><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></mstyle></msup><mo>+</mo><msub><mi>y</mi><mstyle displaystyle="false" scriptlevel="2"><mi>k</mi></mstyle></msub></mrow><annotation encoding="application/x-tex">x^{\scriptstyle{n+1}} + y_{\scriptscriptstyle{k}}</annotation></semantics></math>', $chapter);
+            foreach (['<mi>displaystyle</mi>', '<mi>textstyle</mi>', '<mi>scriptstyle</mi>', '<mi>scriptscriptstyle</mi>'] as $fallback) {
+                $t->true(!str_contains($chapter, $fallback), "TeX math style declaration should not fall back to a literal identifier: {$fallback}.");
+            }
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+
+        $roundTrip = PandocConverter::read($epub, 'epub');
+        $meta = $roundTrip->attr('meta');
+        $paragraph = $roundTrip->children[1] ?? null;
+        $displayParagraph = $roundTrip->children[2] ?? null;
+        if (!$paragraph instanceof AstNode || !$displayParagraph instanceof AstNode) {
+            throw new RuntimeException('Round-tripped EPUB is missing style declaration math paragraphs.');
+        }
+
+        $inlineMath = $paragraph->children[1] ?? null;
+        $displayMath = $displayParagraph->children[0] ?? null;
+        if (!$inlineMath instanceof AstNode || !$displayMath instanceof AstNode) {
+            throw new RuntimeException('Round-tripped EPUB is missing style declaration math nodes.');
+        }
+
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+        $t->same(['mathml'], $meta['epubSpineItemRefs'][0]['manifestProperties'] ?? null);
+        $t->same('math', $inlineMath->type);
+        $t->same(false, $inlineMath->attr('display'));
+        $t->same($inlineTex, $inlineMath->attr('text'));
+        $t->same('math', $displayMath->type);
+        $t->same(true, $displayMath->attr('display'));
+        $t->same($displayTex, $displayMath->attr('text'));
+        $t->true(!str_contains($diagnosticsJson, 'missing-manifest-required-property'), 'Generated style declaration MathML should not self-diagnose missing manifest properties.');
+        $t->true(!str_contains($diagnosticsJson, 'malformed-spine-xhtml'), 'Generated style declaration MathML XHTML should not self-diagnose malformed XHTML.');
+    },
     'writes epub3 tex integral variants as mathml' => static function (TestRunner $t): void {
         $inlineTex = '\oint_C f(z)\,dz + \iint_D g(x,y)\,dxdy + \iiint_E h\,dV + \smallint_a^b f';
         $displayTex = '\oiint\limits_S F\cdot n + \oiiint_V h + \iiiint_Q k + \idotsint\limits_R m';

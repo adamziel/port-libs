@@ -60,6 +60,35 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   cryptographic validation, or broader package graph validation beyond the
   covered primary-package metadata fixture.
 
+## 2026-06-25 EPUB3 TeX Math Style Declaration MathML Slice
+
+- Focused PHP coverage now exercises bounded EPUB3 MathML generation for TeX
+  style declaration commands that previously fell through as literal MathML
+  identifiers.
+- `HtmlWriter` now maps `\displaystyle`, `\textstyle`, `\scriptstyle`, and
+  `\scriptscriptstyle` to MathML `mstyle` wrappers around the next parsed atom
+  or group when the EPUB writer forces `writerHTMLMathMethod` to `mathml`.
+- Focused EPUB writer/read-back coverage writes inline and display formulas
+  using the four style declarations, asserts exact generated `mstyle` output,
+  confirms the commands do not leak as `<mi>...</mi>` fallback identifiers,
+  preserves the OPF `mathml` spine manifest property, round-trips through
+  `EpubReader`, and avoids missing manifest-property and malformed XHTML
+  self-diagnostics.
+- Verification: `php -l` passed for `HtmlWriter.php` and
+  `EpubWriterTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubWriterTest.php` passed 1 file, 10,498 assertions, 0
+  failures; `php tools/run-tests.php lanes/pandoc/tests/EpubReaderTest.php
+  lanes/pandoc/tests/EpubWriterTest.php` passed 2 files, 15,764 assertions, 0
+  failures; and `php tools/run-tests.php lanes/pandoc/tests` passed 11 files,
+  22,322 assertions, 0 failures with pass-count verification `pass=1162
+  fail=0`.
+- Dependency-closure checkpoint: this is a bounded EPUB TeX-to-MathML generation
+  slice for four style declaration commands. It does not claim full PlainMath
+  or generic TeX parser parity, EPUBCheck validation, upstream Haskell runner
+  parity, full EPUB fixture corpus parity, arbitrary multi-rendition EPUB graph
+  validation, DRM decryption, XML signature cryptographic validation, or
+  broader TeX/MathML parser parity beyond the native tests above.
+
 ## 2026-06-25 EPUB3 OPF Package-Link Refines Sanitation Closure
 
 - Focused PHP coverage remains 1,151 behavior tests and now covers 21,940
