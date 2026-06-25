@@ -321,6 +321,58 @@ return [
             $t->same(true, in_array('raw_html_inline', $noteTrailingTypes, true), "{$source} reader keeps trailing note raw inline inside Plain");
         }
     },
+    'preserves tagged raw format constructors after json edits' => static function (TestRunner $t): void {
+        $source = [
+            'pandoc-api-version' => [1, 23, 1, 2],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'RawBlock', 'c' => [
+                    ['t' => 'Format', 'c' => 'html'],
+                    '<section>Raw</section>',
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'RawInline', 'c' => [
+                        ['t' => 'Format', 'c' => 'tex'],
+                        '\\alpha',
+                    ]],
+                ]],
+                ['t' => 'RawBlock', 'c' => ['opml', '<outline text="Bare"/>']],
+            ],
+        ];
+
+        $document = (new JsonReader())->read(json_encode($source, JSON_THROW_ON_ERROR));
+        $rawBlock = $document->children[0];
+        $rawInline = $document->children[1]->children[0];
+        $bareBlock = $document->children[2];
+
+        $t->same('raw_html', $rawBlock->type);
+        $t->same('Format', $rawBlock->attr('formatConstructor'));
+        $t->same(['t' => 'Format', 'c' => 'html'], $rawBlock->attr('formatNative'));
+        $t->same('raw_tex_inline', $rawInline->type);
+        $t->same('Format', $rawInline->attr('formatConstructor'));
+        $t->same(['t' => 'Format', 'c' => 'tex'], $rawInline->attr('formatNative'));
+        $t->same('raw_block', $bareBlock->type);
+        $t->same(null, $bareBlock->attr('formatNative'));
+
+        $edited = new AstNode('document', [], [
+            new AstNode($rawBlock->type, array_replace($rawBlock->attrs, [
+                'html' => '<section>Edited</section>',
+            ])),
+            new AstNode('paragraph', [], [
+                new AstNode($rawInline->type, array_replace($rawInline->attrs, [
+                    'tex' => '\\beta',
+                ])),
+            ]),
+            $bareBlock,
+        ]);
+        $decoded = json_decode((new JsonWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(['t' => 'Format', 'c' => 'html'], $decoded['blocks'][0]['c'][0]);
+        $t->same('<section>Edited</section>', $decoded['blocks'][0]['c'][1]);
+        $t->same(['t' => 'Format', 'c' => 'tex'], $decoded['blocks'][1]['c'][0]['c'][0]);
+        $t->same('\\beta', $decoded['blocks'][1]['c'][0]['c'][1]);
+        $t->same('opml', $decoded['blocks'][2]['c'][0]);
+    },
     'rejects incompatible pandoc json api versions' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             (new JsonReader())->read(json_encode([
