@@ -284,6 +284,11 @@ final class PandocFormatRegistry
             'implementation' => RisReader::class,
             'notes' => 'Bounded RIS bibliography reader parses TY/ER records, common reference fields, person names, page ranges, generated and duplicate IDs, upstream-style references/nocite metadata, and visible bibliography blocks. Full RIS/citeproc parity remains open.',
         ],
+        'rst' => [
+            'status' => 'partial',
+            'implementation' => RstReader::class,
+            'notes' => 'Bounded reStructuredText reader maps common section adornments, paragraphs, inline emphasis/strong/literals, interpreted code roles, reference links, field lists, literal/code directives, image/figure directives, bullet/ordered lists, block quotes, raw/class directives, and simple/grid tables into the shared AST. Full docutils directive, substitution, role, citation, footnote, and table parity remain open.',
+        ],
         'xlsx' => [
             'status' => 'partial',
             'implementation' => XlsxReader::class,

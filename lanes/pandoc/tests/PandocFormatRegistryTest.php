@@ -21,6 +21,7 @@ use PortLibs\Pandoc\PandocFormatRegistry;
 use PortLibs\Pandoc\PdfReader;
 use PortLibs\Pandoc\PptxReader;
 use PortLibs\Pandoc\RisReader;
+use PortLibs\Pandoc\RstReader;
 use PortLibs\Pandoc\XmlHtmlDom;
 use PortLibs\Pandoc\XlsxReader;
 
@@ -153,9 +154,11 @@ return [
         $t->same(RisReader::class, $support['ris']['implementation']);
         $t->same('partial', $support['mediawiki']['status']);
         $t->same(MediaWikiReader::class, $support['mediawiki']['implementation']);
+        $t->same('partial', $support['rst']['status']);
+        $t->same(RstReader::class, $support['rst']['implementation']);
         $t->same('partial', $support['xlsx']['status']);
         $t->same(XlsxReader::class, $support['xlsx']['implementation']);
-        $t->same(27, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(26, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();
