@@ -416,6 +416,72 @@ return [
         $t->same('UpperRoman', $nativeDecoded['blocks'][0]['c'][0][1]);
         $t->same('TwoParens', $nativeDecoded['blocks'][0]['c'][0][2]);
     },
+    'normalizes compatible pandoc json metadata envelopes and literal t c maps' => static function (TestRunner $t): void {
+        $source = [
+            'pandoc-api-version' => [1, 23, 1, 2],
+            'meta' => ['t' => 'MetaMap', 'c' => [
+                'reviewStatus' => ['t' => 'MetaString', 'c' => 'accepted'],
+                'visible' => ['t' => 'MetaBool', 'c' => true],
+                'literalShape' => ['t' => 'workflow', 'c' => 'draft'],
+            ]],
+            'blocks' => [],
+        ];
+
+        $document = (new JsonReader())->read(json_encode($source, JSON_THROW_ON_ERROR));
+        $meta = $document->attr('meta');
+
+        $t->same('accepted', $meta['reviewStatus']);
+        $t->same(true, $meta['visible']);
+        $t->same('MetaMap', $meta['literalShape']['type']);
+        $t->same('workflow', $meta['literalShape']['value']['t']);
+        $t->same('draft', $meta['literalShape']['value']['c']);
+
+        $legacyDocument = (new JsonReader())->read(json_encode([
+            'pandoc-api-version' => [1, 23, 1, 2],
+            'meta' => ['unMeta' => [
+                'legacy' => ['t' => 'MetaString', 'c' => 'unwrapped'],
+            ]],
+            'blocks' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $t->same('unwrapped', $legacyDocument->attr('meta')['legacy']);
+
+        $literalUnMetaDocument = (new JsonReader())->read(json_encode([
+            'pandoc-api-version' => [1, 23, 1, 2],
+            'meta' => [
+                'unMeta' => ['t' => 'MetaString', 'c' => 'literal field'],
+            ],
+            'blocks' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $t->same('literal field', $literalUnMetaDocument->attr('meta')['unMeta']);
+
+        $decoded = json_decode((new JsonWriter())->write(new AstNode('document', [
+            'meta' => ['t' => 'MetaMap', 'c' => [
+                'reviewStatus' => ['t' => 'MetaString', 'c' => 'accepted'],
+                'visible' => ['t' => 'MetaBool', 'c' => true],
+                'literalShape' => ['t' => 'workflow', 'c' => 'draft'],
+            ]],
+        ])), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('MetaString', $decoded['meta']['reviewStatus']['t']);
+        $t->same('accepted', $decoded['meta']['reviewStatus']['c']);
+        $t->same('MetaBool', $decoded['meta']['visible']['t']);
+        $t->same(true, $decoded['meta']['visible']['c']);
+        $t->same('MetaMap', $decoded['meta']['literalShape']['t']);
+        $t->same('MetaString', $decoded['meta']['literalShape']['c']['t']['t']);
+        $t->same('workflow', $decoded['meta']['literalShape']['c']['t']['c']);
+        $t->same('draft', $decoded['meta']['literalShape']['c']['c']['c']);
+
+        $literalDecoded = json_decode((new JsonWriter())->write(new AstNode('document', [
+            'meta' => [
+                'unMeta' => ['t' => 'MetaString', 'c' => 'literal field'],
+            ],
+        ])), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('MetaString', $literalDecoded['meta']['unMeta']['t']);
+        $t->same('literal field', $literalDecoded['meta']['unMeta']['c']);
+    },
     'rejects incompatible pandoc json api versions' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             (new JsonReader())->read(json_encode([

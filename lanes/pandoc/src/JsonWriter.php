@@ -6,6 +6,16 @@ namespace PortLibs\Pandoc;
 
 final class JsonWriter
 {
+    /** @var array<string, true> */
+    private const META_VALUE_TAGS = [
+        'MetaMap' => true,
+        'MetaList' => true,
+        'MetaBool' => true,
+        'MetaString' => true,
+        'MetaInlines' => true,
+        'MetaBlocks' => true,
+    ];
+
     public function write(AstNode $document): string
     {
         if ($document->type !== 'document') {
@@ -27,6 +37,22 @@ final class JsonWriter
     {
         if (!is_array($meta)) {
             return [];
+        }
+        if ($this->isTaggedMetaValue($meta)) {
+            return $meta['t'] === 'MetaMap' && is_array($meta['c'] ?? null)
+                ? $this->metaMapData($meta['c'])
+                : [];
+        }
+        if (($meta['type'] ?? null) === 'MetaMap' && is_array($meta['value'] ?? null)) {
+            return $this->metaMapData($meta['value']);
+        }
+        if (
+            count($meta) === 1
+            && array_key_exists('unMeta', $meta)
+            && is_array($meta['unMeta'])
+            && (!$this->isTaggedMetaValue($meta['unMeta']) || ($meta['unMeta']['t'] ?? null) === 'MetaMap')
+        ) {
+            return $this->metaData($meta['unMeta']);
         }
 
         $data = [];
@@ -91,6 +117,10 @@ final class JsonWriter
 
     private function metaValueData(mixed $value): array
     {
+        if ($this->isTaggedMetaValue($value)) {
+            return $this->taggedMetaValueData($value);
+        }
+
         if (is_array($value) && isset($value['type'])) {
             $type = (string) $value['type'];
             $payload = $value['value'] ?? null;
@@ -140,6 +170,62 @@ final class JsonWriter
         }
 
         return $this->tagged('MetaString', (string) $value);
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return array<string, mixed>
+     */
+    private function taggedMetaValueData(array $value): array
+    {
+        $type = (string) $value['t'];
+        $payload = $value['c'] ?? null;
+
+        return match ($type) {
+            'MetaMap' => $this->tagged('MetaMap', $this->metaMapData(is_array($payload) ? $payload : [])),
+            'MetaList' => $this->tagged('MetaList', array_map(fn (mixed $item): array => $this->metaValueData($item), $this->listData($this->isListPayload($payload) ? $payload : []))),
+            'MetaBool' => $this->tagged('MetaBool', (bool) $payload),
+            'MetaString' => $this->tagged('MetaString', (string) $payload),
+            'MetaInlines' => $this->tagged('MetaInlines', $this->metaInlinePayloadData($payload)),
+            'MetaBlocks' => $this->tagged('MetaBlocks', $this->metaBlockPayloadData($payload)),
+            default => $this->tagged('MetaString', (string) $payload),
+        };
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function metaInlinePayloadData(mixed $payload): array
+    {
+        if (is_array($payload) && $this->isPandocTaggedList($payload)) {
+            return array_values($payload);
+        }
+        if (is_array($payload) && $this->isAstNodeList($payload)) {
+            return $this->inlineListData($payload);
+        }
+        if (is_string($payload)) {
+            return $this->inlineListData($this->textInlines($payload));
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function metaBlockPayloadData(mixed $payload): array
+    {
+        if (is_array($payload) && $this->isPandocTaggedList($payload)) {
+            return array_values($payload);
+        }
+        if (is_array($payload) && $this->isAstNodeList($payload)) {
+            return $this->blockListData($payload);
+        }
+        if (is_string($payload) && $payload !== '') {
+            return $this->blockListData([new AstNode('plain', [], $this->textInlines($payload))]);
+        }
+
+        return [];
     }
 
     /**
@@ -1036,6 +1122,37 @@ final class JsonWriter
             'raw_inline',
             'span',
         ], true);
+    }
+
+    private function isTaggedMetaValue(mixed $value): bool
+    {
+        return is_array($value)
+            && !$this->isList($value)
+            && isset($value['t'])
+            && is_string($value['t'])
+            && isset(self::META_VALUE_TAGS[$value['t']]);
+    }
+
+    private function isListPayload(mixed $value): bool
+    {
+        return is_array($value) && $this->isList($value);
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function isPandocTaggedList(array $value): bool
+    {
+        if (!$this->isList($value)) {
+            return false;
+        }
+        foreach ($value as $item) {
+            if (!is_array($item) || !isset($item['t']) || !is_string($item['t'])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

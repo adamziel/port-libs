@@ -8,6 +8,15 @@ final class JsonReader
 {
     /** @var list<int> */
     public const PANDOC_API_VERSION = [1, 23, 1, 2];
+    /** @var array<string, true> */
+    private const META_VALUE_TAGS = [
+        'MetaMap' => true,
+        'MetaList' => true,
+        'MetaBool' => true,
+        'MetaString' => true,
+        'MetaInlines' => true,
+        'MetaBlocks' => true,
+    ];
 
     public function read(string $json): AstNode
     {
@@ -49,7 +58,7 @@ final class JsonReader
      */
     private function parseMeta(mixed $value): array
     {
-        $entries = $this->expectMap($value, 'meta');
+        $entries = $this->metaEntries($value);
         $meta = [];
         foreach ($entries as $key => $entry) {
             $parsed = $this->parseMetaValue($entry);
@@ -87,8 +96,53 @@ final class JsonReader
         return $meta;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function metaEntries(mixed $value): array
+    {
+        if ($this->isTaggedMetaValue($value)) {
+            [$type, $payload] = $this->tagged($value, 'meta');
+            if ($type !== 'MetaMap') {
+                throw new \InvalidArgumentException("Expected root meta to be a map, got '{$type}'");
+            }
+
+            return $this->expectMap($payload, 'MetaMap');
+        }
+
+        $entries = $this->expectMap($value, 'meta');
+        if (
+            count($entries) === 1
+            && array_key_exists('unMeta', $entries)
+            && is_array($entries['unMeta'])
+            && (!$this->isTaggedMetaValue($entries['unMeta']) || ($entries['unMeta']['t'] ?? null) === 'MetaMap')
+        ) {
+            return $this->metaEntries($entries['unMeta']);
+        }
+
+        return $entries;
+    }
+
     private function parseMetaValue(mixed $value): mixed
     {
+        if (!$this->isTaggedMetaValue($value)) {
+            if (is_bool($value)) {
+                return $value;
+            }
+            if (is_string($value) || is_int($value) || is_float($value)) {
+                return (string) $value;
+            }
+            if (is_array($value)) {
+                if ($this->isList($value)) {
+                    return ['type' => 'MetaList', 'value' => array_map(fn (mixed $item): mixed => $this->parseMetaValue($item), array_values($value))];
+                }
+
+                return ['type' => 'MetaMap', 'value' => $this->parseMetaMap($value)];
+            }
+
+            throw new \InvalidArgumentException('Unsupported Pandoc JSON meta value');
+        }
+
         [$type, $payload] = $this->tagged($value, 'meta value');
 
         return match ($type) {
@@ -787,6 +841,15 @@ final class JsonReader
         return is_array($value)
             && ($value['type'] ?? null) === $type
             && array_key_exists('value', $value);
+    }
+
+    private function isTaggedMetaValue(mixed $value): bool
+    {
+        return is_array($value)
+            && !$this->isList($value)
+            && isset($value['t'])
+            && is_string($value['t'])
+            && isset(self::META_VALUE_TAGS[$value['t']]);
     }
 
     /**
