@@ -265,6 +265,87 @@ final class PandocFormatRegistry
         ],
     ];
 
+    /** @var list<string> */
+    private const XML_JATS_BITS_INPUT_FORMATS = [
+        'xml',
+        'jats',
+        'bits',
+    ];
+
+    /** @var array<string, int> */
+    private const XML_JATS_BITS_LOCAL_EVIDENCE_COUNTERS = [
+        'mappedPandocXmlDirectInputRegistryCases' => 1,
+        'pandocXmlDirectInputRegistryAssertions' => 58,
+        'mappedXmlHtmlDomNamespaceCollisionCases' => 2,
+        'xmlHtmlDomNamespaceCollisionAssertions' => 94,
+    ];
+
+    /**
+     * @var array<string, array{diagnosticImplementation:string, reviewMethod:string, reviewPolicy:string, boundedDiagnostics:list<string>, reviewPacketFields:list<string>, remainingReaderGaps:list<string>}>
+     */
+    private const XML_JATS_BITS_DIAGNOSTIC_SURFACES = [
+        'xml' => [
+            'diagnosticImplementation' => XmlHtmlDom::class,
+            'reviewMethod' => 'summarizeXmlNamespaceUsage',
+            'reviewPolicy' => 'xml-namespace-usage-diagnostics-review-only',
+            'boundedDiagnostics' => [
+                'safe XML loading with external entity and processing-instruction rejection',
+                'namespace-aware root, element, language, id, and attribute provenance for package-reader handoff',
+                'bounded element and attribute namespace collision summaries for shared local names',
+                'bounded namespace prefix and URI frequency summaries for generic XML review packets',
+                'default namespace usage and transition diagnostics for generic XML review packets',
+                'unbound namespace prefixes are rejected before DOM review because PHP DOM cannot represent them safely',
+            ],
+            'reviewPacketFields' => [
+                'directReaderParity',
+                'directReaderDiagnosticCodes',
+                'directReaderDiagnostics',
+                'namespaceReview',
+                'namespacePrefixFrequencies',
+                'namespacePrefixFrequencyRows',
+                'namespaceUriFrequencies',
+                'namespaceUriFrequencyRows',
+                'elementNamespaceCollisionCount',
+                'elementNamespaceCollisions',
+                'attributeNamespaceCollisionCount',
+                'attributeNamespaceCollisions',
+                'defaultNamespaceUseCount',
+                'defaultNamespaceUris',
+                'defaultNamespaceUriCount',
+                'defaultNamespaceTransitionCount',
+                'defaultNamespaceTransitions',
+                'sameUriMultiplePrefixes',
+                'samePrefixMultipleUris',
+            ],
+            'remainingReaderGaps' => [
+                'full Pandoc XML input mapping into the shared AST',
+                'reader-level body, block, inline, table, figure, citation, and metadata parity',
+            ],
+        ],
+        'jats' => [
+            'diagnosticImplementation' => '',
+            'reviewMethod' => '',
+            'reviewPolicy' => 'jats-direct-reader-unregistered',
+            'boundedDiagnostics' => [],
+            'reviewPacketFields' => ['directReaderParity'],
+            'remainingReaderGaps' => [
+                'full JATS body and back-matter mapping into the shared AST',
+                'tables, figures, references, and citation-reader parity',
+            ],
+        ],
+        'bits' => [
+            'diagnosticImplementation' => '',
+            'reviewMethod' => '',
+            'reviewPolicy' => 'bits-direct-reader-unregistered',
+            'boundedDiagnostics' => [],
+            'reviewPacketFields' => ['directReaderParity'],
+            'remainingReaderGaps' => [
+                'full BITS book body and book-part mapping into the shared AST',
+                'tables, figures, references, and citation-reader parity',
+            ],
+        ],
+    ];
+
     /**
      * @var array<string, array{status:string, implementation:string, notes:string}>
      */
@@ -437,6 +518,176 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return list<string>
+     */
+    public static function xmlJatsBitsInputFormats(): array
+    {
+        return self::XML_JATS_BITS_INPUT_FORMATS;
+    }
+
+    /**
+     * @return array<string, array{status:string, implementation:string, notes:string}>
+     */
+    public static function xmlJatsBitsInputSupport(): array
+    {
+        $support = self::phpInputSupport();
+        $selected = [];
+        foreach (self::XML_JATS_BITS_INPUT_FORMATS as $format) {
+            $selected[$format] = $support[$format];
+        }
+
+        return $selected;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedXmlJatsBitsInputFormats(): array
+    {
+        return self::formatsWithStatus(self::xmlJatsBitsInputSupport(), 'unsupported');
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public static function xmlJatsBitsLocalEvidenceCounters(): array
+    {
+        return self::XML_JATS_BITS_LOCAL_EVIDENCE_COUNTERS;
+    }
+
+    /**
+     * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
+     */
+    public static function xmlJatsBitsFormatDirections(): array
+    {
+        $inputSupport = self::xmlJatsBitsInputSupport();
+        $directions = [];
+        foreach (self::XML_JATS_BITS_INPUT_FORMATS as $format) {
+            $directions[$format] = [
+                'input' => true,
+                'output' => false,
+                'direction' => 'input-only',
+                'inputStatus' => $inputSupport[$format]['status'],
+                'outputStatus' => 'not-applicable',
+            ];
+        }
+
+        return $directions;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function xmlJatsBitsDirectReaderCapabilityPacket(): array
+    {
+        $inputSupport = self::xmlJatsBitsInputSupport();
+        $directions = self::xmlJatsBitsFormatDirections();
+        $unsupportedInputFormats = self::unsupportedXmlJatsBitsInputFormats();
+        $formats = [];
+        $registeredDiagnosticImplementations = 0;
+        $boundedDiagnosticSurfaceCount = 0;
+
+        foreach (self::XML_JATS_BITS_INPUT_FORMATS as $format) {
+            $support = $inputSupport[$format];
+            $direction = $directions[$format];
+            $diagnosticSurface = self::XML_JATS_BITS_DIAGNOSTIC_SURFACES[$format];
+
+            if ($diagnosticSurface['diagnosticImplementation'] !== '') {
+                ++$registeredDiagnosticImplementations;
+                ++$boundedDiagnosticSurfaceCount;
+            }
+
+            $formats[$format] = [
+                'input' => $direction['input'],
+                'output' => $direction['output'],
+                'direction' => $direction['direction'],
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'inputImplementation' => $support['implementation'],
+                'inputNotes' => $support['notes'],
+                'unsupportedDirectReaderReason' => [
+                    'code' => 'full-direct-reader-missing',
+                    'message' => $support['notes'],
+                    'status' => 'unsupported',
+                    'directReaderParity' => false,
+                ],
+                'diagnosticImplementation' => $diagnosticSurface['diagnosticImplementation'],
+                'reviewMethod' => $diagnosticSurface['reviewMethod'],
+                'reviewPolicy' => $diagnosticSurface['reviewPolicy'],
+                'directReaderParity' => false,
+                'registeredDirectReaderRecord' => false,
+                'aliasedTo' => self::INPUT_ALIASES[$format] ?? null,
+                'boundedDiagnostics' => $diagnosticSurface['boundedDiagnostics'],
+                'reviewPacketFields' => $diagnosticSurface['reviewPacketFields'],
+                'remainingReaderGaps' => $diagnosticSurface['remainingReaderGaps'],
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormats' => self::XML_JATS_BITS_INPUT_FORMATS,
+            'unsupportedInputFormats' => $unsupportedInputFormats,
+            'unsupportedInputCount' => count($unsupportedInputFormats),
+            'inputSupportStatusCounts' => self::supportStatusCounts($inputSupport),
+            'localEvidenceCounters' => self::XML_JATS_BITS_LOCAL_EVIDENCE_COUNTERS,
+            'unsupportedDirectReaderFormats' => self::XML_JATS_BITS_INPUT_FORMATS,
+            'unsupportedDirectReaderCount' => count(self::XML_JATS_BITS_INPUT_FORMATS),
+            'directReaderParitySupported' => false,
+            'registeredDirectReaderImplementations' => 0,
+            'registeredDirectReaderRecords' => 0,
+            'registeredDirectReaderRecordFormats' => [],
+            'registeredDiagnosticImplementations' => $registeredDiagnosticImplementations,
+            'boundedDiagnosticSurfaceCount' => $boundedDiagnosticSurfaceCount,
+            'explicitUnsupportedVerdict' => true,
+            'reviewNote' => 'XML, JATS, and BITS have no native PHP direct reader parity registered; XML has bounded namespace diagnostics for review packets only.',
+            'formats' => $formats,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function xmlNamespaceUsageReviewPacket(\DOMDocument $dom): array
+    {
+        $namespacePacket = XmlHtmlDom::summarizeXmlNamespaceUsage($dom);
+        $capabilityPacket = self::xmlJatsBitsDirectReaderCapabilityPacket();
+        $xmlFormat = $capabilityPacket['formats']['xml'];
+        $unsupportedDirectReaderReason = $xmlFormat['unsupportedDirectReaderReason'];
+
+        return array_merge($namespacePacket, [
+            'format' => 'xml',
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormat' => 'xml',
+            'inputStatus' => $xmlFormat['inputStatus'],
+            'inputImplementation' => $xmlFormat['inputImplementation'],
+            'inputNotes' => $xmlFormat['inputNotes'],
+            'diagnosticImplementation' => $xmlFormat['diagnosticImplementation'],
+            'reviewMethod' => $xmlFormat['reviewMethod'],
+            'reviewPolicy' => $xmlFormat['reviewPolicy'],
+            'boundedDiagnostics' => $xmlFormat['boundedDiagnostics'],
+            'reviewPacketFields' => $xmlFormat['reviewPacketFields'],
+            'remainingReaderGaps' => $xmlFormat['remainingReaderGaps'],
+            'directReaderParity' => false,
+            'directReaderParityStatus' => 'unsupported',
+            'unsupportedDirectReaderReason' => $unsupportedDirectReaderReason['code'],
+            'unsupportedDirectReaderDetail' => $unsupportedDirectReaderReason['message'],
+            'unsupportedDirectReaderDiagnostic' => $unsupportedDirectReaderReason,
+            'registeredDirectReaderImplementations' => 0,
+            'registeredDirectReaderRecords' => 0,
+            'registeredDirectReaderRecordFormats' => [],
+            'registeredDiagnosticImplementations' => 1,
+            'namespacePrefixFrequencyRows' => $namespacePacket['namespacePrefixFrequencies'],
+            'namespacePrefixFrequencyRowCount' => $namespacePacket['namespacePrefixFrequencyCount'],
+            'namespaceUriFrequencyRows' => $namespacePacket['namespaceUriFrequencies'],
+            'namespaceUriFrequencyRowCount' => $namespacePacket['namespaceUriFrequencyCount'],
+        ]);
+    }
+
+    /**
      * @param list<string> $formats
      * @param array<string, array{status:string, implementation:string, notes:string}> $implemented
      * @return array<string, array{status:string, implementation:string, notes:string}>
@@ -469,5 +720,21 @@ final class PandocFormatRegistry
         }
 
         return $formats;
+    }
+
+    /**
+     * @param array<string, array{status:string, implementation:string, notes:string}> $support
+     * @return array<string, int>
+     */
+    private static function supportStatusCounts(array $support): array
+    {
+        $counts = [];
+        foreach ($support as $entry) {
+            $status = $entry['status'];
+            $counts[$status] = ($counts[$status] ?? 0) + 1;
+        }
+        ksort($counts, SORT_STRING);
+
+        return $counts;
     }
 }
