@@ -1486,6 +1486,339 @@ HTML);
             ],
         ], $meta['epubNcxNavLists']);
     },
+    'isolates primary alternate and auxiliary epub nav structures with ncx compatibility' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-nav-closure-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', <<<'XML'
+<?xml version="1.0"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml" id="primary-rendition"/>
+    <rootfile full-path="ALT/package.opf" media-type="application/oebps-package+xml" id="alternate-rendition" properties="rendition:layout-pre-paginated"/>
+  </rootfiles>
+</container>
+XML);
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:dcterms="http://purl.org/dc/terms/"
+         prefix="rendition: http://www.idpf.org/vocab/rendition/#"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:primary-nav-closure</dc:identifier>
+    <dc:title>Primary Navigation Closure</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T12:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="chapter1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter2" href="chapter2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="chapter1"/>
+    <itemref idref="chapter2"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/nav.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc" id="primary-toc">
+      <h1>Contents</h1>
+      <ol>
+        <li><a href="chapter1.xhtml#start">Start</a></li>
+        <li><a href="chapter2.xhtml#start">Chapter Two</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="landmarks" id="primary-landmarks">
+      <h2>Landmarks</h2>
+      <ol>
+        <li><a epub:type="bodymatter" href="chapter1.xhtml#start">Begin reading</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list pagebreaks" id="primary-pages">
+      <h2>Pages</h2>
+      <ol>
+        <li><a epub:type="pagebreak" href="chapter1.xhtml#page-1">1</a></li>
+        <li><a epub:type="pagebreak" href="chapter2.xhtml#page-2">2</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="loi" id="primary-figures">
+      <h2>Figures</h2>
+      <ol>
+        <li><a epub:type="figure" href="chapter1.xhtml#fig-1">Figure One</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('OPS/toc.ncx', <<<'XML'
+<?xml version="1.0"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:primary-nav-closure"/>
+    <meta name="dtb:depth" content="1"/>
+    <meta name="dtb:totalPageCount" content="2"/>
+    <meta name="dtb:maxPageNumber" content="2"/>
+  </head>
+  <docTitle><text>Primary Navigation Closure</text></docTitle>
+  <navMap>
+    <navPoint id="primary-ncx-start" playOrder="1">
+      <navLabel><text>NCX Start</text></navLabel>
+      <content src="chapter1.xhtml#start"/>
+    </navPoint>
+    <navPoint id="primary-ncx-chapter-two" playOrder="2">
+      <navLabel><text>NCX Chapter Two</text></navLabel>
+      <content src="chapter2.xhtml#start"/>
+    </navPoint>
+  </navMap>
+  <pageList>
+    <navLabel><text>Primary NCX Pages</text></navLabel>
+    <pageTarget id="primary-ncx-page-1" playOrder="3" type="normal" value="1">
+      <navLabel><text>1</text></navLabel>
+      <content src="chapter1.xhtml#page-1"/>
+    </pageTarget>
+    <pageTarget id="primary-ncx-page-2" playOrder="4" type="normal" value="2">
+      <navLabel><text>2</text></navLabel>
+      <content src="chapter2.xhtml#page-2"/>
+    </pageTarget>
+  </pageList>
+  <navList id="primary-ncx-figures" class="loi">
+    <navLabel><text>NCX Figures</text></navLabel>
+    <navTarget id="primary-ncx-fig-1" playOrder="5" class="figure">
+      <navLabel><text>NCX Figure One</text></navLabel>
+      <content src="chapter1.xhtml#fig-1"/>
+    </navTarget>
+  </navList>
+</ncx>
+XML);
+        $zip->addFromString('OPS/chapter1.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <h1 id="start">Start</h1>
+    <span id="page-1" epub:type="pagebreak" role="doc-pagebreak" title="1"></span>
+    <figure id="fig-1"><figcaption>Figure one.</figcaption></figure>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('OPS/chapter2.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <h1 id="start">Chapter two</h1>
+    <span id="page-2" epub:type="pagebreak" role="doc-pagebreak" title="2"></span>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('ALT/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:dcterms="http://purl.org/dc/terms/"
+         version="3.0"
+         unique-identifier="alternate-id">
+  <metadata>
+    <dc:identifier id="alternate-id">urn:uuid:alternate-nav-closure</dc:identifier>
+    <dc:title>Alternate Navigation Closure</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T12:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('ALT/nav.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc" id="alternate-toc">
+      <h1>Alternate Contents</h1>
+      <ol>
+        <li><a href="chapter.xhtml#alt-start">Alternate Start</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="landmarks" id="alternate-landmarks">
+      <h2>Alternate Landmarks</h2>
+      <ol>
+        <li><a epub:type="bodymatter" href="chapter.xhtml#alt-start">Alternate Begin</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list" id="alternate-pages">
+      <h2>Alternate Pages</h2>
+      <ol>
+        <li><a epub:type="pagebreak" href="chapter.xhtml#alt-page-10">10</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="lot" id="alternate-tables">
+      <h2>Alternate Tables</h2>
+      <ol>
+        <li><a epub:type="table" href="chapter.xhtml#alt-table-1">Alternate Table One</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('ALT/toc.ncx', <<<'XML'
+<?xml version="1.0"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:alternate-nav-closure"/>
+    <meta name="dtb:depth" content="1"/>
+    <meta name="dtb:totalPageCount" content="1"/>
+    <meta name="dtb:maxPageNumber" content="10"/>
+  </head>
+  <docTitle><text>Alternate Navigation Closure</text></docTitle>
+  <navMap>
+    <navPoint id="alternate-ncx-start" playOrder="1">
+      <navLabel><text>Alternate NCX Start</text></navLabel>
+      <content src="chapter.xhtml#alt-start"/>
+    </navPoint>
+  </navMap>
+  <pageList>
+    <navLabel><text>Alternate NCX Pages</text></navLabel>
+    <pageTarget id="alternate-ncx-page-10" playOrder="2" type="normal" value="10">
+      <navLabel><text>10</text></navLabel>
+      <content src="chapter.xhtml#alt-page-10"/>
+    </pageTarget>
+  </pageList>
+  <navList id="alternate-ncx-tables" class="lot">
+    <navLabel><text>Alternate NCX Tables</text></navLabel>
+    <navTarget id="alternate-ncx-table-1" playOrder="3" class="table">
+      <navLabel><text>Alternate NCX Table One</text></navLabel>
+      <content src="chapter.xhtml#alt-table-1"/>
+    </navTarget>
+  </navList>
+</ncx>
+XML);
+        $zip->addFromString('ALT/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <h1 id="alt-start">Alternate start</h1>
+    <span id="alt-page-10" epub:type="pagebreak" role="doc-pagebreak" title="10"></span>
+    <table id="alt-table-1"><tbody><tr><td>Alternate table.</td></tr></tbody></table>
+  </body>
+</html>
+HTML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+        $rootfiles = $meta['epubContainerRootfiles'] ?? [];
+        $alternate = $meta['epubAlternateRootfilePackages']['ALT/package.opf'] ?? [];
+        $alternateDiagnosticsJson = json_encode($alternate['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+
+        $t->same('OPS/package.opf', $meta['epubRootfile']);
+        $t->same(['OPS/package.opf', 'ALT/package.opf'], array_column($rootfiles, 'path'));
+        $t->same([true, null], array_map(static fn (array $rootfile): ?bool => $rootfile['selected'] ?? null, $rootfiles));
+        $t->same(1, $meta['epubAlternateRootfilePackageCount'] ?? null);
+        $t->same('Alternate Navigation Closure', $alternate['title'] ?? null);
+
+        $t->same(['OPS/nav.xhtml', 'OPS/toc.ncx'], $meta['epubTocResources']);
+        $t->same(4, $meta['epubTocEntryCount']);
+        $t->same([
+            ['text' => 'Start', 'href' => 'OPS/chapter1.xhtml#start', 'level' => 1],
+            ['text' => 'Chapter Two', 'href' => 'OPS/chapter2.xhtml#start', 'level' => 1],
+            ['text' => 'NCX Start', 'href' => 'OPS/chapter1.xhtml#start', 'level' => 1, 'id' => 'primary-ncx-start', 'playOrder' => 1],
+            ['text' => 'NCX Chapter Two', 'href' => 'OPS/chapter2.xhtml#start', 'level' => 1, 'id' => 'primary-ncx-chapter-two', 'playOrder' => 2],
+        ], $meta['epubTocEntries']);
+        $t->same(1, $meta['epubLandmarkEntryCount']);
+        $t->same([
+            ['text' => 'Begin reading', 'href' => 'OPS/chapter1.xhtml#start', 'level' => 1, 'type' => 'bodymatter'],
+        ], $meta['epubLandmarkEntries']);
+        $t->same(2, $meta['epubPageListEntryCount']);
+        $t->same([
+            ['text' => '1', 'href' => 'OPS/chapter1.xhtml#page-1', 'level' => 1, 'type' => 'pagebreak', 'value' => '1', 'playOrder' => 3],
+            ['text' => '2', 'href' => 'OPS/chapter2.xhtml#page-2', 'level' => 1, 'type' => 'pagebreak', 'value' => '2', 'playOrder' => 4],
+        ], $meta['epubPageListEntries']);
+        $t->same(1, $meta['epubAuxiliaryNavSectionCount']);
+        $t->same(1, $meta['epubAuxiliaryNavEntryCount']);
+        $t->same('loi', $meta['epubAuxiliaryNavSections'][0]['type'] ?? null);
+        $t->same('Figures', $meta['epubAuxiliaryNavSections'][0]['title'] ?? null);
+        $t->same('Figure One', $meta['epubAuxiliaryNavSections'][0]['entries'][0]['text'] ?? null);
+        $t->same([
+            [
+                'label' => 'NCX Figures',
+                'entries' => [
+                    ['text' => 'NCX Figure One', 'href' => 'OPS/chapter1.xhtml#fig-1', 'level' => 1, 'id' => 'primary-ncx-fig-1', 'type' => 'figure', 'playOrder' => 5],
+                ],
+                'id' => 'primary-ncx-figures',
+                'type' => 'loi',
+            ],
+        ], $meta['epubNcxNavLists']);
+        $t->same('Primary NCX Pages', $meta['epubNcxPageListLabel'] ?? null);
+        foreach ([
+            'missing-nav-document',
+            'missing-nav-toc',
+            'missing-nav-page-list-entry',
+            'missing-nav-landmark-entry',
+            'missing-nav-link-resource',
+            'missing-nav-link-fragment',
+            'nav-page-list-target-not-pagebreak',
+            'missing-ncx-nav-map',
+            'missing-ncx-page-list-entry',
+            'missing-ncx-nav-list-entry',
+        ] as $diagnosticCode) {
+            $t->true(!str_contains($diagnosticsJson, $diagnosticCode), "Primary nav closure fixture should not self-diagnose {$diagnosticCode}.");
+        }
+
+        $t->same(['ALT/nav.xhtml', 'ALT/toc.ncx'], $alternate['epubTocResources'] ?? null);
+        $t->same(2, $alternate['epubTocEntryCount'] ?? null);
+        $t->same([
+            ['text' => 'Alternate Start', 'href' => 'ALT/chapter.xhtml#alt-start', 'level' => 1],
+            ['text' => 'Alternate NCX Start', 'href' => 'ALT/chapter.xhtml#alt-start', 'level' => 1, 'id' => 'alternate-ncx-start', 'playOrder' => 1],
+        ], $alternate['epubTocEntries'] ?? null);
+        $t->same([
+            ['text' => 'Alternate Begin', 'href' => 'ALT/chapter.xhtml#alt-start', 'level' => 1, 'type' => 'bodymatter'],
+        ], $alternate['epubLandmarkEntries'] ?? null);
+        $t->same([
+            ['text' => '10', 'href' => 'ALT/chapter.xhtml#alt-page-10', 'level' => 1, 'type' => 'pagebreak', 'value' => '10', 'playOrder' => 2],
+        ], $alternate['epubPageListEntries'] ?? null);
+        $t->same('lot', $alternate['epubAuxiliaryNavSections'][0]['type'] ?? null);
+        $t->same('Alternate Tables', $alternate['epubAuxiliaryNavSections'][0]['title'] ?? null);
+        $t->same('Alternate Table One', $alternate['epubAuxiliaryNavSections'][0]['entries'][0]['text'] ?? null);
+        $t->same([
+            [
+                'label' => 'Alternate NCX Tables',
+                'entries' => [
+                    ['text' => 'Alternate NCX Table One', 'href' => 'ALT/chapter.xhtml#alt-table-1', 'level' => 1, 'id' => 'alternate-ncx-table-1', 'type' => 'table', 'playOrder' => 3],
+                ],
+                'id' => 'alternate-ncx-tables',
+                'type' => 'lot',
+            ],
+        ], $alternate['epubNcxNavLists'] ?? null);
+        foreach ([
+            'missing-nav-document',
+            'missing-nav-toc',
+            'missing-nav-page-list-entry',
+            'missing-nav-landmark-entry',
+            'missing-nav-link-resource',
+            'missing-nav-link-fragment',
+            'nav-page-list-target-not-pagebreak',
+            'missing-ncx-nav-map',
+            'missing-ncx-page-list-entry',
+            'missing-ncx-nav-list-entry',
+        ] as $diagnosticCode) {
+            $t->true(!str_contains($alternateDiagnosticsJson, $diagnosticCode), "Alternate nav closure fixture should not self-diagnose {$diagnosticCode}.");
+        }
+    },
     'reads epub3 nav document even when legacy spine toc points at nav item' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-nav-spine-toc-');
         if ($path === false) {
