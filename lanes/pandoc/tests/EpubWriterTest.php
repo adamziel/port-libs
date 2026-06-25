@@ -28528,6 +28528,22 @@ XML;
                             ],
                             [
                                 'name' => 'link',
+                                'id' => 'bad-voicing-missing-target',
+                                'href' => 'audio/title.mp3',
+                                'rel' => 'voicing',
+                                'mediaType' => 'audio/mpeg',
+                                'refines' => '#missing-series-title',
+                            ],
+                            [
+                                'name' => 'link',
+                                'id' => 'bad-alternate-missing-target',
+                                'href' => 'audio/title.mp3',
+                                'rel' => 'alternate voicing',
+                                'mediaType' => 'audio/mpeg',
+                                'refines' => '#missing-series-title',
+                            ],
+                            [
+                                'name' => 'link',
                                 'id' => 'valid-voicing',
                                 'href' => 'audio/title.mp3',
                                 'rel' => 'voicing',
@@ -28614,9 +28630,11 @@ XML;
 
             $t->contains('<link href="metadata/series.xml" rel="record" media-type="application/xml" id="record-bad-media"/>', $package);
             $t->contains('<link href="audio/title.mp3" rel="alternate" media-type="audio/mpeg" id="bad-voicing-invalid-refines"/>', $package);
+            $t->contains('<link href="audio/title.mp3" rel="alternate" media-type="audio/mpeg" id="bad-alternate-missing-target"/>', $package);
             $t->contains('<link href="audio/title.mp3" rel="voicing" media-type="audio/mpeg" refines="#series-title" dir="rtl" id="valid-voicing"/>', $package);
             $t->contains('<link href="text/chapter.xhtml" rel="contents" id="bad-media-direct"/>', $package);
             $t->true(!str_contains($package, 'bad-voicing-missing-refines'), 'Metadata voicing links without refines should not be emitted.');
+            $t->true(!str_contains($package, 'bad-voicing-missing-target'), 'Metadata voicing links with refines outside the collection should not be emitted.');
             $t->true(!str_contains($package, 'bad-metadata-fragment'), 'Metadata links with invalid fragments should not be emitted.');
             $t->true(!str_contains($package, 'bad-data-link'), 'Collection links with data URLs should not be emitted.');
             $t->true(!str_contains($package, 'bad-absolute-path-link'), 'Collection links with absolute paths should not be emitted.');
@@ -28646,6 +28664,9 @@ XML;
         $t->true(!isset($metadataLinksById['bad-voicing-missing-refines']), 'Voicing metadata links without valid refines should not round-trip.');
         $t->same('alternate', $metadataLinksById['bad-voicing-invalid-refines']['rel'] ?? null);
         $t->true(!array_key_exists('refines', $metadataLinksById['bad-voicing-invalid-refines'] ?? []), 'Invalid metadata-link refines values should not round-trip.');
+        $t->true(!isset($metadataLinksById['bad-voicing-missing-target']), 'Voicing metadata links with missing refines targets should not round-trip.');
+        $t->same('alternate', $metadataLinksById['bad-alternate-missing-target']['rel'] ?? null);
+        $t->true(!array_key_exists('refines', $metadataLinksById['bad-alternate-missing-target'] ?? []), 'Metadata links with missing refines targets should keep only non-refining relations.');
         $t->same('voicing', $metadataLinksById['valid-voicing']['rel'] ?? null);
         $t->same('#series-title', $metadataLinksById['valid-voicing']['refines'] ?? null);
         $t->same('rtl', $metadataLinksById['valid-voicing']['dir'] ?? null);
@@ -28669,6 +28690,7 @@ XML;
             'invalid-package-link-dir',
             'invalid-package-link-record-refines',
             'missing-package-link-voicing-refines',
+            'collection-metadata-refines-outside',
         ] as $code) {
             $t->true(!str_contains($diagnosticsJson, $code), "Generated collection link href/media/refines values should not self-diagnose {$code}.");
         }

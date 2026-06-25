@@ -4341,6 +4341,10 @@ final class EpubWriter
                 if ($linkId !== '' && (isset($seenIds[$linkId]) || isset($seenPackageIds[$linkId]))) {
                     $candidate['id'] = '';
                 }
+                $refines = $this->validMetadataRefinesValue($this->entryString($candidate, 'refines'));
+                if ($refines !== '' && !isset($refinesTargetIds[substr($refines, 1)])) {
+                    $candidate['refines'] = '';
+                }
                 $link = $this->collectionLinkElementXml($candidate, $packageDir, $packagePath, $resourcePaths, $itemPad, $declaredPrefixes, true, true, $xmlResourcePayloads);
                 if ($link !== '') {
                     if ($linkId !== '' && !isset($seenIds[$linkId]) && !isset($seenPackageIds[$linkId])) {
