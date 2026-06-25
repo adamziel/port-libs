@@ -26,6 +26,39 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Future EPUB3 parity notes should continue to distinguish preservation and
   diagnostics from script execution or cryptographic trust validation.
 
+## 2026-06-25 EPUB3 Package-Document Link Closure Slice
+
+- Focused PHP coverage is now 1,139 behavior tests and 21,547
+  full-suite assertions across the Pandoc lane.
+- `EpubReader` now reports `invalid-package-link-package-document-reference`
+  when OPF package links target the package document itself without a fragment,
+  not only when they use `package.opf#id` or fragment-only hrefs.
+- Bare package-document diagnostics preserve the offending `href`, resolved OPF
+  path, and package/collection parent context, while omitting fragment context
+  for hrefs that do not contain one.
+- `EpubWriter` now treats bare package-document package links as invalid for
+  top-level metadata links, collection metadata links, direct collection member
+  links, and nested collection links. Generated OPF output omits those members
+  rather than accepting `package.opf` as a valid local linked resource.
+- Dependency-closure checkpoint: this is limited to native PHP OPF package-link
+  handling for references back to the package document itself. It does not claim
+  full EPUBCheck validation, full upstream Haskell runner parity, full EPUB
+  fixture corpus parity, arbitrary cross-rendition graph validation, browser
+  rendering behavior, DRM decryption, XML signature cryptographic validation,
+  or broader package metadata vocabulary parity.
+- Evidence: `php -l lanes/pandoc/src/EpubReader.php`, `php -l
+  lanes/pandoc/src/EpubWriter.php`, `php -l
+  lanes/pandoc/tests/EpubReaderTest.php`, and `php -l
+  lanes/pandoc/tests/EpubWriterTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubReaderTest.php` passed 1 file, 4,804 assertions, 0
+  failures; `php tools/run-tests.php lanes/pandoc/tests/EpubWriterTest.php`
+  passed 1 file, 10,185 assertions, 0 failures; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubReaderTest.php lanes/pandoc/tests/EpubWriterTest.php`
+  passed 2 files, 14,989 assertions, 0 failures; `php tools/run-tests.php
+  lanes/pandoc/tests` passed 11 files, 21,547 assertions, 0 failures, with
+  1,139 counted `PASS` lines in
+  `/tmp/pandoc-epub-package-doc-link-full-rebased-20260625.log`.
+
 ## 2026-06-25 EPUB NCX Direct-Child Navigation Import Slice
 
 - Focused PHP coverage is now 1,139 behavior tests and 21,527 full-suite

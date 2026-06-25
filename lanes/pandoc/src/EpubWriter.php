@@ -2686,7 +2686,7 @@ final class EpubWriter
             if ($href === '' || !$this->validPackageLinkHref($href)) {
                 continue;
             }
-            if ($this->packageLinkHrefTargetsPackageDocumentFragment($href, $packageDir, $packagePath)) {
+            if ($this->packageLinkHrefTargetsPackageDocument($href, $packageDir, $packagePath)) {
                 continue;
             }
             if (!$this->packageLinkHrefTargetsAvailableResource($href, $packageDir, $packagePath, $resourcePaths, $xmlResourcePayloads)) {
@@ -3203,12 +3203,9 @@ final class EpubWriter
         return false;
     }
 
-    private function packageLinkHrefTargetsPackageDocumentFragment(string $href, string $packageDir, string $packagePath): bool
+    private function packageLinkHrefTargetsPackageDocument(string $href, string $packageDir, string $packagePath): bool
     {
         $href = trim($href);
-        if ($this->urlFragmentIdentifier($href) === '') {
-            return false;
-        }
         if (str_starts_with($href, '#')) {
             return true;
         }
@@ -4633,7 +4630,7 @@ final class EpubWriter
         if ($href === '' || !$this->validPackageLinkHref($href)) {
             return '';
         }
-        if ($this->packageLinkHrefTargetsPackageDocumentFragment($href, $packageDir, $packagePath)) {
+        if ($this->packageLinkHrefTargetsPackageDocument($href, $packageDir, $packagePath)) {
             return '';
         }
         if (!$this->packageLinkHrefTargetsAvailableResource($href, $packageDir, $packagePath, $resourcePaths, $xmlResourcePayloads)) {
