@@ -13,6 +13,7 @@ use PortLibs\Pandoc\JsonWriter;
 use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\MediaWikiReader;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\OdtReader;
@@ -150,9 +151,11 @@ return [
         $t->same(PptxReader::class, $support['pptx']['implementation']);
         $t->same('partial', $support['ris']['status']);
         $t->same(RisReader::class, $support['ris']['implementation']);
+        $t->same('partial', $support['mediawiki']['status']);
+        $t->same(MediaWikiReader::class, $support['mediawiki']['implementation']);
         $t->same('partial', $support['xlsx']['status']);
         $t->same(XlsxReader::class, $support['xlsx']['implementation']);
-        $t->same(28, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(27, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();

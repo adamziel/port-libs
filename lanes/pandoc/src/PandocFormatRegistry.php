@@ -259,6 +259,11 @@ final class PandocFormatRegistry
             'implementation' => MarkdownReader::class,
             'notes' => 'Strict Markdown uses the shared reader without a complete extension disabling matrix.',
         ],
+        'mediawiki' => [
+            'status' => 'partial',
+            'implementation' => MediaWikiReader::class,
+            'notes' => 'Bounded MediaWiki reader maps common article content, links, images, code/pre blocks, lists, definition lists, basic tables, categories, behavior switches, and raw templates into the shared AST. Full MediaWiki template expansion, parser-function, image-layout, and table semantic parity remain open.',
+        ],
         'native' => [
             'status' => 'partial',
             'implementation' => NativeReader::class,

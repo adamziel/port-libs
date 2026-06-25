@@ -13,10 +13,10 @@
         "source": "Pandoc User's Guide 2026-06-03 plus upstream source commit 912bfa5e2e3f5c74eb125dfc19404f67c61ca58b",
         "inputFormats": 51,
         "outputFormats": 75,
-        "partialPhpInputFormats": 23,
-        "partialPhpOutputFormats": 16,
-        "unsupportedPhpInputFormats": 28,
-        "unsupportedPhpOutputFormats": 59,
+        "partialPhpInputFormats": 24,
+        "partialPhpOutputFormats": 17,
+        "unsupportedPhpInputFormats": 27,
+        "unsupportedPhpOutputFormats": 58,
         "registry": "lanes/pandoc/src/PandocFormatRegistry.php",
         "test": "lanes/pandoc/tests/PandocFormatRegistryTest.php",
         "csvReader": "lanes/pandoc/src/CsvReader.php",
@@ -31,7 +31,9 @@
         "risReader": "lanes/pandoc/src/RisReader.php",
         "risTest": "lanes/pandoc/tests/RisReaderTest.php",
         "xlsxReader": "lanes/pandoc/src/XlsxReader.php",
-        "xlsxTest": "lanes/pandoc/tests/XlsxReaderTest.php"
+        "xlsxTest": "lanes/pandoc/tests/XlsxReaderTest.php",
+        "mediaWikiReader": "lanes/pandoc/src/MediaWikiReader.php",
+        "mediaWikiTest": "lanes/pandoc/tests/MediaWikiReaderTest.php"
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
@@ -3259,9 +3261,11 @@
     "csvReaderFocusedAssertions": 264,
     "mappedRisReaderCases": 3,
     "risReaderFocusedAssertions": 265,
-    "lastUpdated": "2026-06-25T22:44:06Z",
-    "phpPass": 1218,
+    "mappedMediaWikiReaderCases": 3,
+    "mediaWikiReaderFocusedAssertions": 283,
+    "lastUpdated": "2026-06-25T22:56:56Z",
+    "phpPass": 1221,
     "phpFail": 0,
-    "phpAssertions": 23542,
-    "latestPandocSlice": "The 2026-06-25 RIS reader slice registers ris as a partial native PHP input format and adds RisReader. The reader parses TY/ER records, common RIS fields, repeated authors/editors/keywords, page ranges, publication years, generated IDs, duplicate ID suffixes, upstream-style references metadata, wildcard nocite metadata, and visible csl-bib-body bibliography blocks for WordPress block conversion. PandocConverter now routes ris input through RisReader, and PandocFormatRegistry moves ris from unsupported to partial input support, bringing partial PHP input formats to 23 and unsupported inputs to 28. Verification passed php -l for RisReader.php, PandocConverter.php, PandocFormatRegistry.php, RisReaderTest.php, and PandocFormatRegistryTest.php. php tools/run-tests.php lanes/pandoc/tests/RisReaderTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php passed 2 files, 265 assertions, 0 failures. php tools/run-tests.php lanes/pandoc/tests passed 25 files, 23,542 assertions, 0 failures with pass-count verification pass=1,218 fail=0. This is reader-only RIS progress for downstream WordPress bibliography conversion and does not claim full upstream Haskell RIS reader parity, citeproc locale rendering, complete RIS tag coverage, full name-particle handling, bibliography sorting, bibliography validation, or writer support."
+    "phpAssertions": 23590,
+    "latestPandocSlice": "The 2026-06-25 MediaWiki reader slice registers mediawiki as a partial native PHP input format and adds MediaWikiReader. The reader maps common article headings, paragraphs, emphasis and strong text, internal and external links, image figures with captions and dimensions, categories, behavior switches, code/pre/syntaxhighlight blocks, blockquotes, bullet/ordered/definition lists, basic MediaWiki tables with captions, header/body cells, row attributes, spans, and styles, math tags, nowiki text, and raw templates into the shared AST for WordPress block conversion. PandocConverter now routes mediawiki input through MediaWikiReader, and PandocFormatRegistry moves mediawiki from unsupported to partial input support, bringing partial PHP input formats to 24 and unsupported inputs to 27. Verification passed php -l for MediaWikiReader.php, PandocConverter.php, PandocFormatRegistry.php, MediaWikiReaderTest.php, and PandocFormatRegistryTest.php. php tools/run-tests.php lanes/pandoc/tests/MediaWikiReaderTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php passed 2 files, 283 assertions, 0 failures. php tools/run-tests.php lanes/pandoc/tests passed 26 files, 23,590 assertions, 0 failures with pass-count verification pass=1,221 fail=0. This is reader-only MediaWiki progress for downstream WordPress block conversion and does not claim full upstream Haskell MediaWiki reader parity, template expansion, parser-function evaluation, full image layout semantics, complete MediaWiki table syntax, behavior-switch rendering, or writer support."
 }

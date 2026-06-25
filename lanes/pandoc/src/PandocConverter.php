@@ -170,6 +170,7 @@ final class PandocConverter
             EpubReader::class => new EpubReader($options),
             MarkdownReader::class => new MarkdownReader(self::markdownReaderOptions($format, $options)),
             JsonReader::class => new JsonReader(),
+            MediaWikiReader::class => new MediaWikiReader(),
             NativeReader::class => new NativeReader(),
             OdtReader::class => new OdtReader(),
             PdfReader::class => new PdfReader($options),
