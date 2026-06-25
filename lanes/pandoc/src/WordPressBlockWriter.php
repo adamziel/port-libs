@@ -1686,6 +1686,15 @@ final class WordPressBlockWriter
 
     private function renderInlineNode(AstNode $node): string
     {
+        $rendered = $node->attr('rendered', null);
+        if (
+            ($node->type === 'citation' || $node->type === 'citation_group')
+            && is_scalar($rendered)
+            && (string) $rendered !== ''
+        ) {
+            return $this->esc((string) $rendered);
+        }
+
         return match ($node->type) {
             'text' => $this->esc((string) $node->attr('text', '')),
             'emph' => '<em>' . $this->renderInlines($node) . '</em>',

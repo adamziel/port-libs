@@ -460,6 +460,7 @@ final class CitationCslProcessor
 
     public function apply(AstNode $document): AstNode
     {
+        $document = $this->coalesceMarkdownCitationClusters($document);
         $state = $this->emptyCitationPositionState();
         $positioned = $this->annotateCitationPositions($document, $state);
         $firstReferenceNoteNumbers = $this->firstReferenceNoteNumbersForDocument($positioned);
@@ -5559,6 +5560,126 @@ final class CitationCslProcessor
         }
 
         return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+    }
+
+    private function coalesceMarkdownCitationClusters(AstNode $node): AstNode
+    {
+        if ($node->children === []) {
+            return $node;
+        }
+
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $child) {
+            $mapped = $this->coalesceMarkdownCitationClusters($child);
+            $children[] = $mapped;
+            $changed = $changed || $mapped !== $child;
+        }
+
+        $coalesced = $this->coalesceMarkdownCitationClusterChildren($children);
+        $changed = $changed || $coalesced !== $children;
+
+        return $changed ? new AstNode($node->type, $node->attrs, $coalesced) : $node;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function coalesceMarkdownCitationClusterChildren(array $children): array
+    {
+        $coalesced = [];
+        $count = count($children);
+        for ($index = 0; $index < $count; $index++) {
+            $node = $children[$index];
+            if ($node->type !== 'text') {
+                $coalesced[] = $node;
+                continue;
+            }
+
+            $text = (string) $node->attr('text', '');
+            if (!str_ends_with($text, '[')) {
+                $coalesced[] = $node;
+                continue;
+            }
+
+            $cluster = $this->readMarkdownCitationCluster($children, $index + 1);
+            if ($cluster === null) {
+                $coalesced[] = $node;
+                continue;
+            }
+
+            $before = substr($text, 0, -1);
+            if ($before !== '') {
+                $coalesced[] = new AstNode('text', ['text' => $before]);
+            }
+            $coalesced[] = new AstNode('citation_group', ['text' => $cluster['source']], $cluster['citations']);
+            if ($cluster['after'] !== '') {
+                $coalesced[] = new AstNode('text', ['text' => $cluster['after']]);
+            }
+            $index = $cluster['end'];
+        }
+
+        return $coalesced;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return array{end:int, source:string, after:string, citations:list<AstNode>}|null
+     */
+    private function readMarkdownCitationCluster(array $children, int $offset): ?array
+    {
+        $citations = [];
+        $source = '[';
+        $index = $offset;
+        $count = count($children);
+
+        while ($index < $count) {
+            $citation = $children[$index] ?? null;
+            if (!$citation instanceof AstNode || $citation->type !== 'citation' || (string) $citation->attr('mode', '') !== 'author_in_text') {
+                return null;
+            }
+
+            $citations[] = $this->markdownCitationClusterEntry($citation);
+            $source .= (string) $citation->attr('text', $this->plainInlineText($citation->children));
+            $index++;
+
+            $separator = $children[$index] ?? null;
+            if (!$separator instanceof AstNode || $separator->type !== 'text') {
+                return null;
+            }
+
+            $separatorText = (string) $separator->attr('text', '');
+            if (str_starts_with($separatorText, ']')) {
+                return [
+                    'end' => $index,
+                    'source' => $source . ']',
+                    'after' => substr($separatorText, 1),
+                    'citations' => $citations,
+                ];
+            }
+
+            if (preg_match('/^\s*;\s*$/', $separatorText) !== 1) {
+                return null;
+            }
+
+            $source .= $separatorText;
+            $index++;
+        }
+
+        return null;
+    }
+
+    private function markdownCitationClusterEntry(AstNode $citation): AstNode
+    {
+        return new AstNode(
+            'citation',
+            [
+                ...$citation->attrs,
+                'mode' => 'normal',
+            ],
+            $citation->children
+        );
     }
 
     /**

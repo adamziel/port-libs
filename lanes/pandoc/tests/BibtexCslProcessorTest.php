@@ -1751,6 +1751,54 @@ XML);
         $t->contains('Date addendum: first source capture', $blocks);
         $t->contains('Event date addendum: hybrid review window', $blocks);
     },
+    'coalesces markdown bracket citation runs for legacy csl wordpress handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@misc{cluster-alpha,
+  author = {Alpha, Ada},
+  title  = {Alpha Cluster Packet},
+  date   = {2026}
+}
+
+@misc{cluster-beta,
+  author = {Beta, Bea},
+  title  = {Beta Cluster Packet},
+  date   = {2025}
+}
+BIB;
+
+        $items = (new BibtexCslProcessor())->cslItems($source);
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="issued"><date-part name="year"/></date>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $document = (new MarkdownReader())->read('Cluster review [@cluster-alpha; @cluster-beta] stays resolved.');
+        $rawBlocks = (new WordPressBlockWriter())->write($document);
+        $processed = $styled->apply($document);
+        $group = $processed->children[0]->children[1];
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->contains('class="pandoc-citation"', $rawBlocks);
+        $t->same('citation_group', $group->type);
+        $t->same('[Alpha Cluster Packet | 2026; Beta Cluster Packet | 2025]', $group->attr('rendered'));
+        $t->contains('<p>Cluster review [Alpha Cluster Packet | 2026; Beta Cluster Packet | 2025] stays resolved.</p>', $blocks);
+        $t->contains('<dt>Alpha 2026</dt><dd>Alpha Cluster Packet :: 2026</dd>', $blocks);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');
