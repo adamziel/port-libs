@@ -4982,6 +4982,176 @@ XML);
             ],
         ], $meta['epubCollections']);
     },
+    'records epub3 package root authoring summaries for review' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-package-authoring-summary-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:review="https://example.invalid/epub-review"
+         version="3.0"
+         unique-identifier="pub-id"
+         xml:lang="en"
+         dir="rtl"
+         xml:base="https://example.invalid/packages/source/"
+         data-review="primary"
+         review:source="wp-import">
+  <metadata>
+    <dc:identifier id="pub-id">urn:uuid:package-authoring-summary</dc:identifier>
+    <dc:title>Package Authoring Summary</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Package Authoring Summary</h1></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $package = $meta['epubPackageSummary'];
+        $authoring = $meta['epubPackageAuthoring'];
+        $authoringSummary = $authoring['summary'];
+
+        $t->same($package, $document->attr('package'));
+        $t->same('3.0', $package['version']);
+        $t->same('pub-id', $package['uniqueIdentifierId']);
+        $t->same('OPS/package.opf', $package['rootfile']);
+        $t->same('OPS', $package['basePath']);
+        $t->same('en', $package['language']);
+        $t->same('rtl', $package['direction']);
+        $t->same('https://example.invalid/packages/source/', $package['base']);
+        $t->same(7, $package['attributeCount']);
+        $t->same([
+            'data-review' => 'primary',
+            'review:source' => 'wp-import',
+        ], $package['customAttributes']);
+        $t->same(2, $package['customAttributeCount']);
+        $t->same($authoringSummary, $package['authoring']);
+
+        $t->same(true, $authoring['present']);
+        $t->same(7, $authoring['attributeCount']);
+        $t->same(5, $authoring['structuralAttributeCount']);
+        $t->same('pub-id', $authoring['structuralAttributes']['unique-identifier']);
+        $t->same(2, $authoring['customAttributeCount']);
+        $t->same(true, $authoring['hasCustomAttributes']);
+        $t->same(true, $authoring['hasBase']);
+        $t->same('reported-not-applied-to-package-paths', $authoring['baseResolutionPolicy']);
+        $t->same(false, $authoring['baseResolution']['appliesToPackagePaths']);
+        $t->same(true, $authoring['baseResolution']['metadataOnly']);
+        $t->same(1, $authoringSummary['baseSourceCount']);
+        $t->same(1, $authoringSummary['languageSourceCount']);
+        $t->same(1, $authoringSummary['directionSourceCount']);
+        $t->same(0, $authoringSummary['diagnosticCount']);
+        $t->same([], $authoringSummary['diagnosticTypes']);
+    },
+    'records epub3 package root authoring conflict summaries for review' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-package-authoring-conflicts-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:review="https://example.invalid/epub-review"
+         version="3.0"
+         unique-identifier="pub-id"
+         xml:lang="en"
+         lang="fr"
+         dir="rtl"
+         review:direction="ltr"
+         xml:base="https://example.invalid/packages/source/"
+         base="../relative/"
+         review:base="https://cdn.example.invalid/package/"
+         data-review="primary"
+         review:source="wp-import">
+  <metadata>
+    <dc:identifier id="pub-id">urn:uuid:package-authoring-conflicts</dc:identifier>
+    <dc:title>Package Authoring Conflicts</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Package Authoring Conflicts</h1></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $package = $meta['epubPackageSummary'];
+        $authoring = $meta['epubPackageAuthoring'];
+        $authoringSummary = $authoring['summary'];
+
+        $t->same($package, $document->attr('package'));
+        $t->same('en', $package['language']);
+        $t->same('rtl', $package['direction']);
+        $t->same('https://example.invalid/packages/source/', $package['base']);
+        $t->same(11, $package['attributeCount']);
+        $t->same(6, $package['customAttributeCount']);
+        $t->same($authoringSummary, $package['authoring']);
+        $t->same('fr', $authoring['customAttributes']['lang']);
+        $t->same('../relative/', $authoring['customAttributes']['base']);
+        $t->same('ltr', $authoring['customAttributes']['review:direction']);
+
+        $t->same(3, $authoring['baseSourceCount']);
+        $t->same(['base', 'review:base', 'xml:base'], array_map(static fn (array $source): string => $source['attribute'], $authoring['baseSources']));
+        $t->same([false, false, true], array_map(static fn (array $source): bool => $source['selected'], $authoring['baseSources']));
+        $t->same(2, $authoring['languageSourceCount']);
+        $t->same(['lang', 'xml:lang'], array_map(static fn (array $source): string => $source['attribute'], $authoring['languageSources']));
+        $t->same([false, true], array_map(static fn (array $source): bool => $source['selected'], $authoring['languageSources']));
+        $t->same(2, $authoring['directionSourceCount']);
+        $t->same(['dir', 'review:direction'], array_map(static fn (array $source): string => $source['attribute'], $authoring['directionSources']));
+        $t->same([true, false], array_map(static fn (array $source): bool => $source['selected'], $authoring['directionSources']));
+
+        $t->same(['base', 'language', 'direction'], $authoring['duplicateAuthoringFields']);
+        $t->same(3, $authoringSummary['duplicateAuthoringFieldCount']);
+        $t->same(3, $authoringSummary['conflictCount']);
+        $t->same(3, $authoringSummary['customConflictCount']);
+        $t->same(true, $authoringSummary['hasConflicts']);
+        $t->same(true, $authoringSummary['baseResolutionMetadataOnly']);
+        $t->same(false, $authoringSummary['baseResolutionAppliesToPackagePaths']);
+        $t->same('reported-not-applied-to-package-paths', $authoringSummary['baseResolutionPolicy']);
+        $t->same([
+            'conflicting-opf-package-base-authoring',
+            'conflicting-opf-package-language-authoring',
+            'conflicting-opf-package-direction-authoring',
+        ], $authoringSummary['diagnosticTypes']);
+        $t->same('base', $authoring['conflicts'][0]['field']);
+        $t->same(2, $authoring['conflicts'][0]['customAttributeCount']);
+        $t->same('https://example.invalid/packages/source/', $authoring['conflicts'][0]['selectedValue']);
+        $t->same(['base', 'review:base', 'xml:base'], $authoring['conflicts'][0]['attributes']);
+        $t->same(3, $authoringSummary['diagnosticCount']);
+    },
     'records epub3 manifest fallback chains without core media type resources' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-manifest-fallback-core-');
         if ($path === false) {
