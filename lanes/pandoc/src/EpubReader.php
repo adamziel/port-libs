@@ -1129,6 +1129,7 @@ final class EpubReader
     {
         $diagnostics = [];
         $seenRootfileIds = [];
+        $seenRootfilePaths = [];
         foreach ($rootfiles as $index => $rootfile) {
             $fullPath = (string) ($rootfile['fullPath'] ?? '');
             $path = (string) ($rootfile['path'] ?? '');
@@ -1204,6 +1205,29 @@ final class EpubReader
                     'EPUB OCF rootfile must declare a usable full-path attribute.',
                     $context
                 );
+            }
+
+            if ($path !== '') {
+                if (isset($seenRootfilePaths[$path])) {
+                    $duplicateContext = $context + [
+                        'path' => $path,
+                        'previousRootfileIndex' => $seenRootfilePaths[$path]['index'],
+                    ];
+                    if ($seenRootfilePaths[$path]['fullPath'] !== $fullPath) {
+                        $duplicateContext['previousFullPath'] = $seenRootfilePaths[$path]['fullPath'];
+                    }
+                    $diagnostics[] = $this->epubDiagnostic(
+                        'error',
+                        'duplicate-container-rootfile-full-path',
+                        'EPUB OCF rootfile full-path values must not resolve to the same package document path.',
+                        $duplicateContext
+                    );
+                } else {
+                    $seenRootfilePaths[$path] = [
+                        'index' => $index,
+                        'fullPath' => $fullPath,
+                    ];
+                }
             }
 
             if ($mediaType === '') {

@@ -10766,6 +10766,7 @@ XML);
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
   <rootfiles>
     <rootfile id="primary" full-path="OPS/package.opf" media-type="application/oebps-package+xml"/>
+    <rootfile id="duplicate-path" full-path="OPS/./package.opf" media-type="application/oebps-package+xml"/>
     <rootfile id="bad id" full-path="OPS/secondary.opf" media-type="application/oebps-package+xml"/>
     <rootfile id="primary" full-path="OPS/duplicate.opf" media-type="application/oebps-package+xml"/>
     <rootfile id="bad-property" full-path="OPS/property.opf" media-type="application/oebps-package+xml" properties="rendition:layout-pre-paginated bad:"/>
@@ -10823,6 +10824,7 @@ XML);
         foreach ([
             'invalid-container-rootfile-id',
             'duplicate-container-rootfile-id',
+            'duplicate-container-rootfile-full-path',
             'invalid-container-rootfile-property',
             'duplicate-container-rootfile-property',
         ] as $code) {
@@ -10830,20 +10832,26 @@ XML);
         }
 
         $t->same('OPS/package.opf', $meta['epubRootfile']);
-        $t->same(5, count($meta['epubContainerRootfiles']));
-        $t->same('bad id', $meta['epubContainerRootfiles'][1]['id']);
-        $t->same('primary', $meta['epubContainerRootfiles'][2]['id']);
-        $t->same(['rendition:layout-pre-paginated', 'bad:'], $meta['epubContainerRootfiles'][3]['properties']);
-        $t->same(['rendition:layout-pre-paginated', 'rendition:layout-pre-paginated', 'rendition:spread-none'], $meta['epubContainerRootfiles'][4]['properties']);
+        $t->same(6, count($meta['epubContainerRootfiles']));
+        $t->same('OPS/package.opf', $meta['epubContainerRootfiles'][1]['path']);
+        $t->same('OPS/./package.opf', $meta['epubContainerRootfiles'][1]['fullPath']);
+        $t->same('bad id', $meta['epubContainerRootfiles'][2]['id']);
+        $t->same('primary', $meta['epubContainerRootfiles'][3]['id']);
+        $t->same(['rendition:layout-pre-paginated', 'bad:'], $meta['epubContainerRootfiles'][4]['properties']);
+        $t->same(['rendition:layout-pre-paginated', 'rendition:layout-pre-paginated', 'rendition:spread-none'], $meta['epubContainerRootfiles'][5]['properties']);
         $t->same('bad id', $byCode['invalid-container-rootfile-id'][0]['id'] ?? null);
         $t->same('primary', $byCode['duplicate-container-rootfile-id'][0]['id'] ?? null);
         $t->same(0, $byCode['duplicate-container-rootfile-id'][0]['previousRootfileIndex'] ?? null);
+        $t->same('duplicate-path', $byCode['duplicate-container-rootfile-full-path'][0]['id'] ?? null);
+        $t->same('OPS/package.opf', $byCode['duplicate-container-rootfile-full-path'][0]['path'] ?? null);
+        $t->same('OPS/package.opf', $byCode['duplicate-container-rootfile-full-path'][0]['previousFullPath'] ?? null);
+        $t->same(0, $byCode['duplicate-container-rootfile-full-path'][0]['previousRootfileIndex'] ?? null);
         $t->same('bad-property', $byCode['invalid-container-rootfile-property'][0]['id'] ?? null);
         $t->same('bad:', $byCode['invalid-container-rootfile-property'][0]['property'] ?? null);
         $t->same('duplicate-property', $byCode['duplicate-container-rootfile-property'][0]['id'] ?? null);
         $t->same('rendition:layout-pre-paginated', $byCode['duplicate-container-rootfile-property'][0]['property'] ?? null);
         $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
-        $t->same(4, $meta['epubDiagnosticErrorCount']);
+        $t->same(5, $meta['epubDiagnosticErrorCount']);
         $t->same(0, $meta['epubDiagnosticWarningCount']);
         $t->contains('Readable rootfile attribute content.', $blocks);
     },
