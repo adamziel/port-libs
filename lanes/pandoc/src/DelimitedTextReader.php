@@ -1114,6 +1114,8 @@ final class DelimitedTextReader
                 'code' => 'delimited-text-blank-rows-skipped',
                 'severity' => 'info',
                 'message' => 'Blank source rows were skipped before table construction and preserved in review metadata.',
+                'blankRowCount' => $rowWidthSummary['blankRowCount'],
+                'rows' => $rowWidthSummary['blankRows'] ?? [],
             ];
         }
 
@@ -1122,6 +1124,7 @@ final class DelimitedTextReader
                 'code' => 'delimited-text-trailing-empty-fields-preserved',
                 'severity' => 'info',
                 'message' => 'Rows with trailing empty fields were preserved before table padding.',
+                'rows' => $rowWidthSummary['trailingEmptyFieldRows'],
             ];
         }
 
@@ -1130,6 +1133,10 @@ final class DelimitedTextReader
                 'code' => 'delimited-text-strict-row-width-mismatch',
                 'severity' => 'warning',
                 'message' => 'Strict row-width policy would reject rows whose field counts differ from the first/header row.',
+                'policy' => $rowWidthSummary['strict']['policy'] ?? 'first-row',
+                'expectedColumnCount' => $rowWidthSummary['strict']['expectedColumnCount'] ?? 0,
+                'mismatchCount' => $rowWidthSummary['strict']['mismatchCount'] ?? 0,
+                'mismatches' => $rowWidthSummary['strict']['mismatches'] ?? [],
             ];
         }
 
@@ -1138,6 +1145,10 @@ final class DelimitedTextReader
                 'code' => 'delimited-text-row-widths-uneven',
                 'severity' => 'warning',
                 'message' => 'Delimited text rows have uneven field counts; shorter rows were padded in the native table.',
+                'policy' => $rowWidthSummary['relaxed']['policy'] ?? 'pad-to-wide-row',
+                'columnCount' => $rowWidthSummary['relaxed']['columnCount'] ?? 0,
+                'paddedRowCount' => $rowWidthSummary['relaxed']['paddedRowCount'] ?? 0,
+                'paddedRows' => $rowWidthSummary['relaxed']['paddedRows'] ?? [],
             ];
         }
 
@@ -1146,6 +1157,10 @@ final class DelimitedTextReader
                 'code' => 'delimited-text-header-width-mismatch',
                 'severity' => 'warning',
                 'message' => 'Header and body row field counts differ; column names were normalized to the padded table width.',
+                'headerColumnCount' => $rowWidthSummary['header']['headerColumnCount'] ?? 0,
+                'dataColumnCounts' => $rowWidthSummary['header']['dataColumnCounts'] ?? [],
+                'mismatchCount' => $rowWidthSummary['header']['mismatchCount'] ?? 0,
+                'mismatches' => $rowWidthSummary['header']['mismatches'] ?? [],
             ];
         }
 

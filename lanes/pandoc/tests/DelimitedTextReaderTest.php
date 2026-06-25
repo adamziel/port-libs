@@ -729,6 +729,10 @@ return [
         $widthSummary = $packet['rowWidthSummary'] ?? [];
         $repairSummary = $packet['rowRepairSummary'] ?? [];
         $codes = array_map(static fn (array $diagnostic): string => $diagnostic['code'], $packet['diagnostics'] ?? []);
+        $diagnosticsByCode = [];
+        foreach ($packet['diagnostics'] ?? [] as $diagnostic) {
+            $diagnosticsByCode[$diagnostic['code']] = $diagnostic;
+        }
 
         $t->same('csv', $packet['format'] ?? null);
         $t->same(['id', 'title', 'published', ''], $packet['columnNames'] ?? null);
@@ -771,6 +775,21 @@ return [
             'delimited-text-row-widths-uneven',
             'delimited-text-header-width-mismatch',
         ], $codes);
+        $strictDiagnostic = $diagnosticsByCode['delimited-text-strict-row-width-mismatch'] ?? [];
+        $relaxedDiagnostic = $diagnosticsByCode['delimited-text-row-widths-uneven'] ?? [];
+        $headerDiagnostic = $diagnosticsByCode['delimited-text-header-width-mismatch'] ?? [];
+        $t->same('header-row', $strictDiagnostic['policy'] ?? null);
+        $t->same(3, $strictDiagnostic['expectedColumnCount'] ?? null);
+        $t->same(2, $strictDiagnostic['mismatchCount'] ?? null);
+        $t->same(['source-row-2', 'source-row-3'], array_column($strictDiagnostic['mismatches'] ?? [], 'rowLabel'));
+        $t->same('pad-to-wide-row', $relaxedDiagnostic['policy'] ?? null);
+        $t->same(4, $relaxedDiagnostic['columnCount'] ?? null);
+        $t->same(3, $relaxedDiagnostic['paddedRowCount'] ?? null);
+        $t->same(['source-row-0', 'source-row-1', 'source-row-3'], array_column($relaxedDiagnostic['paddedRows'] ?? [], 'rowLabel'));
+        $t->same(3, $headerDiagnostic['headerColumnCount'] ?? null);
+        $t->same([3, 4, 2], $headerDiagnostic['dataColumnCounts'] ?? null);
+        $t->same(2, $headerDiagnostic['mismatchCount'] ?? null);
+        $t->same(['source-row-2', 'source-row-3'], array_column($headerDiagnostic['mismatches'] ?? [], 'rowLabel'));
         $t->same('', $table->children[0]->children[0]->children[3]->attr('text'));
         $t->same("Two\nline title", $table->children[1]->children[1]->children[1]->attr('text'));
         $t->same('extra', $table->children[1]->children[1]->children[3]->attr('text'));
@@ -790,6 +809,10 @@ return [
         $widthSummary = $packet['rowWidthSummary'] ?? [];
         $repairSummary = $packet['rowRepairSummary'] ?? [];
         $codes = array_map(static fn (array $diagnostic): string => $diagnostic['code'], $packet['diagnostics'] ?? []);
+        $diagnosticsByCode = [];
+        foreach ($packet['diagnostics'] ?? [] as $diagnostic) {
+            $diagnosticsByCode[$diagnostic['code']] = $diagnostic;
+        }
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
@@ -827,6 +850,26 @@ return [
             'delimited-text-row-widths-uneven',
             'delimited-text-header-width-mismatch',
         ], $codes);
+        $blankDiagnostic = $diagnosticsByCode['delimited-text-blank-rows-skipped'] ?? [];
+        $trailingDiagnostic = $diagnosticsByCode['delimited-text-trailing-empty-fields-preserved'] ?? [];
+        $strictDiagnostic = $diagnosticsByCode['delimited-text-strict-row-width-mismatch'] ?? [];
+        $relaxedDiagnostic = $diagnosticsByCode['delimited-text-row-widths-uneven'] ?? [];
+        $headerDiagnostic = $diagnosticsByCode['delimited-text-header-width-mismatch'] ?? [];
+        $t->same(1, $blankDiagnostic['blankRowCount'] ?? null);
+        $t->same([1], $blankDiagnostic['rows'] ?? null);
+        $t->same([0, 2, 4], $trailingDiagnostic['rows'] ?? null);
+        $t->same('header-row', $strictDiagnostic['policy'] ?? null);
+        $t->same(3, $strictDiagnostic['expectedColumnCount'] ?? null);
+        $t->same(1, $strictDiagnostic['mismatchCount'] ?? null);
+        $t->same(['source-row-3'], array_column($strictDiagnostic['mismatches'] ?? [], 'rowLabel'));
+        $t->same('pad-to-wide-row', $relaxedDiagnostic['policy'] ?? null);
+        $t->same(3, $relaxedDiagnostic['columnCount'] ?? null);
+        $t->same(1, $relaxedDiagnostic['paddedRowCount'] ?? null);
+        $t->same(['source-row-3'], array_column($relaxedDiagnostic['paddedRows'] ?? [], 'rowLabel'));
+        $t->same(3, $headerDiagnostic['headerColumnCount'] ?? null);
+        $t->same([3, 2, 3], $headerDiagnostic['dataColumnCounts'] ?? null);
+        $t->same(1, $headerDiagnostic['mismatchCount'] ?? null);
+        $t->same(['source-row-3'], array_column($headerDiagnostic['mismatches'] ?? [], 'rowLabel'));
         $t->same('', $table->children[0]->children[0]->children[2]->attr('text'));
         $t->same('', $table->children[1]->children[0]->children[2]->attr('text'));
         $t->same('', $table->children[1]->children[1]->children[2]->attr('text'));
