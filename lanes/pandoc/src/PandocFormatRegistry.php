@@ -254,6 +254,11 @@ final class PandocFormatRegistry
             'implementation' => PptxReader::class,
             'notes' => 'Bounded PPTX package reader resolves presentation.xml through OPC relationships, follows ordered slides, extracts slide titles, text boxes, styled text runs, hyperlinks, bullet/numbered lists, pictures, DrawingML tables, notes text, core properties, slide size, and media references into the shared AST. Full PPTX parity remains open.',
         ],
+        'xlsx' => [
+            'status' => 'partial',
+            'implementation' => XlsxReader::class,
+            'notes' => 'Bounded XLSX package reader resolves workbook.xml through OPC relationships, follows ordered worksheets, parses shared strings, inline strings, simple numeric/boolean/string cell values, font styles, core properties, and dense worksheet tables into the shared AST. Full XLSX parity remains open.',
+        ],
     ];
 
     /**

@@ -90,6 +90,36 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   hierarchy, animations, comments, masters/layout inheritance, embedded OLE, or
   PPTX writer support.
 
+## 2026-06-25 XLSX Reader Workbook/Sheet/Table Slice
+
+- `XlsxReader` is now registered as partial native PHP support for upstream
+  Pandoc input format `xlsx`. The reader resolves `xl/workbook.xml` through OPC
+  root relationships, follows ordered worksheet relationships from
+  `xl/_rels/workbook.xml.rels`, and loads shared strings and styles from their
+  workbook relationships.
+- The first XLSX reader slice maps core properties, workbook path, sheet count,
+  package entry count, shared string count, font style count, sheet wrapper
+  `Div` nodes, sheet headings, shared-string cells, inline-string cells,
+  simple numeric, boolean, and string cell values, bold/italic/underline font
+  styles, and dense worksheet tables into the shared AST used by
+  `WordPressBlockWriter`.
+- `PandocConverter` now accepts `xlsx` input and can convert XLSX bytes or
+  files directly to WordPress block markup through the existing `blocks`/`wp`
+  output alias. `PandocFormatRegistry` now counts 18 partial PHP upstream input
+  formats and 33 unsupported input formats.
+- Verification: `php -l` passed for `XlsxReader.php`,
+  `PandocConverter.php`, `PandocFormatRegistry.php`, `XlsxReaderTest.php`, and
+  `PandocFormatRegistryTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/XlsxReaderTest.php
+  lanes/pandoc/tests/PandocFormatRegistryTest.php` passed 2 files, 250
+  assertions, 0 failures; and `php tools/run-tests.php lanes/pandoc/tests`
+  passed 22 files, 23,436 assertions, 0 failures with pass-count verification
+  `pass=1209 fail=0`.
+- This is reader-only XLSX progress for downstream WordPress table conversion.
+  It does not claim full upstream Haskell XLSX reader parity, formula
+  evaluation, date/number-format semantics, merged cells, charts, comments,
+  drawings, hidden sheets, pivot tables, or XLSX writer support.
+
 ## 2026-06-25 EPUB3 CSS Image-Set Resource Policy Closure
 
 - `EpubReader` and `EpubWriter` now treat top-level quoted string candidates
