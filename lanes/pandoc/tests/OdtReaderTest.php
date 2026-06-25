@@ -18,6 +18,15 @@ return [
             throw new RuntimeException('Unable to create temporary ODT package');
         }
         $zip->addFromString('mimetype', 'application/vnd.oasis.opendocument.text');
+        $zip->addFromString('META-INF/manifest.xml', <<<'XML'
+<?xml version="1.0"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/image.png" manifest:media-type="image/png" manifest:size="68"/>
+</manifest:manifest>
+XML);
         $zip->addFromString('meta.xml', <<<'XML'
 <?xml version="1.0"?>
 <office:document-meta
@@ -103,6 +112,16 @@ XML);
         $t->true(($meta['odtTextStyleCount'] ?? 0) >= 2);
         $t->same(1, $meta['odtListStyleCount']);
         $t->true(($meta['odtPackageEntries'] ?? 0) >= 4);
+        $t->same(4, $meta['odtManifestEntryCount']);
+        $t->same([
+            'application/vnd.oasis.opendocument.text' => 1,
+            'image/png' => 1,
+            'text/xml' => 2,
+        ], $meta['odtManifestMediaTypes']);
+        $t->same('/', $meta['odtManifestEntries'][0]['path']);
+        $t->same('Pictures/image.png', $meta['odtManifestEntries'][3]['path']);
+        $t->same(68, $meta['odtManifestEntries'][3]['size']);
+        $t->true(!isset($meta['odtPackageDiagnostics']));
         $t->same(['Pictures/image.png'], $meta['odtReferencedResources']);
         $t->same(['Pictures/image.png'], $meta['odtImageResources']);
         $t->same('bullet_list', $document->children[2]->type);
@@ -119,6 +138,51 @@ XML);
         $t->contains('<!-- wp:table -->', $blocks);
         $t->contains('Pictures/image.png', $blocks);
         $t->contains('<!-- wp:list -->', $converterBlocks);
+    },
+    'records odt manifest package diagnostics without blocking body import' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-manifest-diagnostics-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('content.xml', '<?xml version="1.0"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><office:body><office:text><text:h text:outline-level="1">Manifest Diagnostics</text:h><text:p>Readable body survives package diagnostics.</text:p></office:text></office:body></office:document-content>');
+        $zip->addFromString('META-INF/manifest.xml', <<<'XML'
+<?xml version="1.0"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0">
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="../outside.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:media-type="text/plain"/>
+</manifest:manifest>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Manifest Diagnostics', $document->children[0]->attr('text'));
+        $t->same('Readable body survives package diagnostics.', $document->children[1]->attr('text'));
+        $t->same(3, $meta['odtManifestEntryCount']);
+        $t->same([
+            'image/png' => 2,
+            'text/xml' => 1,
+        ], $meta['odtManifestMediaTypes']);
+        $t->same(3, $meta['odtPackageDiagnosticCount']);
+        $diagnostics = $meta['odtPackageDiagnostics'];
+        $t->same('missing-manifest-resource', $diagnostics[0]['code']);
+        $t->same('Pictures/missing.png', $diagnostics[0]['path']);
+        $t->same('invalid-manifest-full-path', $diagnostics[1]['code']);
+        $t->same('traversal', $diagnostics[1]['reason']);
+        $t->same('../outside.png', $diagnostics[1]['path']);
+        $t->same('missing-manifest-full-path', $diagnostics[2]['code']);
     },
     'reads odt bytes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');

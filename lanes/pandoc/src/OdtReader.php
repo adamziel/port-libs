@@ -11,6 +11,7 @@ final class OdtReader
     private const STYLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:style:1.0';
     private const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
     private const XLINK_NS = 'http://www.w3.org/1999/xlink';
+    private const MANIFEST_NS = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0';
 
     /** @var array<string, array{strong?: bool, emph?: bool}> */
     private array $textStyles = [];
@@ -47,6 +48,7 @@ final class OdtReader
             $content_xml = $package->requireRead('content.xml', 'ODT package is missing content.xml.');
             $styles_xml = $package->read('styles.xml');
             $meta_xml = $package->read('meta.xml');
+            $manifest_xml = $package->read('META-INF/manifest.xml');
             $entries = $package->entryNames();
             $image_resources = [];
             foreach ($entries as $name) {
@@ -57,6 +59,9 @@ final class OdtReader
         } finally {
             $package->close();
         }
+        $manifest = is_string($manifest_xml)
+            ? $this->manifestSummary($manifest_xml, $entries)
+            : ['entries' => [], 'diagnostics' => []];
 
         return $this->readPackage(
             $content_xml,
@@ -64,14 +69,26 @@ final class OdtReader
             $meta_xml ?? '',
             $entries,
             array_values(array_unique($image_resources)),
+            $manifest['entries'],
+            $manifest['diagnostics'],
         );
     }
 
     /**
      * @param list<string> $entries
      * @param list<string> $image_resources
+     * @param list<array<string, mixed>> $manifest_entries
+     * @param list<array<string, mixed>> $manifest_diagnostics
      */
-    private function readPackage(string $content_xml, string $styles_xml = '', string $meta_xml = '', array $entries = [], array $image_resources = []): AstNode
+    private function readPackage(
+        string $content_xml,
+        string $styles_xml = '',
+        string $meta_xml = '',
+        array $entries = [],
+        array $image_resources = [],
+        array $manifest_entries = [],
+        array $manifest_diagnostics = []
+    ): AstNode
     {
         $content = $this->loadXml($content_xml, 'ODT content.xml');
         $this->textStyles = array_replace(
@@ -106,6 +123,15 @@ final class OdtReader
         $metadata['odtImageResources'] = $image_resources !== []
             ? $image_resources
             : array_values(array_filter($referenced_resources, fn (string $path): bool => $this->pathLooksLikeImage($path)));
+        if ($manifest_entries !== []) {
+            $metadata['odtManifestEntries'] = $manifest_entries;
+            $metadata['odtManifestEntryCount'] = count($manifest_entries);
+            $metadata['odtManifestMediaTypes'] = $this->manifestMediaTypes($manifest_entries);
+        }
+        if ($manifest_diagnostics !== []) {
+            $metadata['odtPackageDiagnostics'] = $manifest_diagnostics;
+            $metadata['odtPackageDiagnosticCount'] = count($manifest_diagnostics);
+        }
 
         return new AstNode('document', ['meta' => $metadata], $children);
     }
@@ -566,6 +592,162 @@ final class OdtReader
         }
 
         return $meta;
+    }
+
+    /**
+     * @param list<string> $package_entries
+     * @return array{entries: list<array<string, mixed>>, diagnostics: list<array<string, mixed>>}
+     */
+    private function manifestSummary(string $manifest_xml, array $package_entries): array
+    {
+        try {
+            $dom = $this->loadXml($manifest_xml, 'ODT manifest.xml');
+        } catch (\InvalidArgumentException) {
+            return [
+                'entries' => [],
+                'diagnostics' => [
+                    $this->odtDiagnostic('error', 'malformed-manifest-xml', 'ODT META-INF/manifest.xml is not valid XML.'),
+                ],
+            ];
+        }
+
+        $package_entry_set = [];
+        foreach ($package_entries as $entry) {
+            $path = $this->normalizePackagePath($entry);
+            if ($path !== '') {
+                $package_entry_set[$path] = true;
+            }
+        }
+
+        $manifest_entries = [];
+        $diagnostics = [];
+        $seen_paths = [];
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || $element->localName !== 'file-entry') {
+                continue;
+            }
+
+            $full_path = $this->attr($element, self::MANIFEST_NS, 'full-path');
+            if ($full_path === '') {
+                $diagnostics[] = $this->odtDiagnostic(
+                    'warning',
+                    'missing-manifest-full-path',
+                    'ODT manifest file-entry is missing manifest:full-path.'
+                );
+                continue;
+            }
+
+            $media_type = $this->attr($element, self::MANIFEST_NS, 'media-type');
+            $entry = [
+                'fullPath' => $full_path,
+            ];
+            if ($media_type !== '') {
+                $entry['mediaType'] = $media_type;
+            }
+            $size = $this->attr($element, self::MANIFEST_NS, 'size');
+            if ($size !== '' && ctype_digit($size)) {
+                $entry['size'] = (int) $size;
+            }
+
+            $path_issue = $this->manifestPathIssue($full_path);
+            if ($path_issue !== '') {
+                $diagnostics[] = $this->odtDiagnostic(
+                    'warning',
+                    'invalid-manifest-full-path',
+                    'ODT manifest file-entry has an unsafe package path.',
+                    ['path' => $full_path, 'reason' => $path_issue]
+                );
+                $manifest_entries[] = $entry;
+                continue;
+            }
+
+            $normalized_path = $full_path === '/' ? '' : $this->normalizePackagePath($full_path);
+            $entry['path'] = $full_path === '/' ? '/' : $normalized_path;
+            if (isset($seen_paths[$entry['path']])) {
+                $diagnostics[] = $this->odtDiagnostic(
+                    'warning',
+                    'duplicate-manifest-entry',
+                    'ODT manifest declares the same package path more than once.',
+                    ['path' => $entry['path']]
+                );
+            }
+            $seen_paths[$entry['path']] = true;
+
+            if (
+                $normalized_path !== ''
+                && !str_ends_with($full_path, '/')
+                && !isset($package_entry_set[$normalized_path])
+            ) {
+                $diagnostics[] = $this->odtDiagnostic(
+                    'warning',
+                    'missing-manifest-resource',
+                    'ODT manifest declares a package resource that is missing from the ZIP payload.',
+                    ['path' => $normalized_path]
+                );
+            }
+
+            $manifest_entries[] = $entry;
+        }
+
+        return [
+            'entries' => $manifest_entries,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest_entries
+     * @return array<string, int>
+     */
+    private function manifestMediaTypes(array $manifest_entries): array
+    {
+        $media_types = [];
+        foreach ($manifest_entries as $entry) {
+            $media_type = (string) ($entry['mediaType'] ?? '');
+            if ($media_type === '') {
+                continue;
+            }
+            $media_types[$media_type] = ($media_types[$media_type] ?? 0) + 1;
+        }
+        ksort($media_types);
+
+        return $media_types;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    private function odtDiagnostic(string $severity, string $code, string $message, array $context = []): array
+    {
+        return array_merge([
+            'severity' => $severity,
+            'code' => $code,
+            'message' => $message,
+        ], $context);
+    }
+
+    private function manifestPathIssue(string $path): string
+    {
+        if ($path === '' || $path === '/') {
+            return '';
+        }
+        if (str_contains($path, '\\')) {
+            return 'backslash';
+        }
+        if ($this->isAbsoluteUrl($path)) {
+            return 'absolute-url';
+        }
+        if (str_starts_with($path, '/')) {
+            return 'absolute-path';
+        }
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '..') {
+                return 'traversal';
+            }
+        }
+
+        return '';
     }
 
     private function loadXml(string $xml, string $label): \DOMDocument
