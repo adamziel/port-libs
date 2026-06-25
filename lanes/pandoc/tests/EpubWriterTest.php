@@ -43210,6 +43210,233 @@ HTML;
         $t->true(!str_contains($diagnosticsJson, 'missing-container-rootfile-resource'), 'Generated multiple-rendition graph rootfiles should not self-diagnose missing resources.');
         $t->true(!str_contains($diagnosticsJson, 'missing-manifest-resource'), 'Generated multiple-rendition package resources should not self-diagnose missing manifest resources.');
     },
+    'writes generated mixed epub2 and epub3 alternate rootfiles with isolated graph sidecars' => static function (TestRunner $t): void {
+        $printJson = '{"rendition":"print","package":"2.0"}';
+        $tabletJson = '{"rendition":"tablet","package":"3.0"}';
+        $printCss = 'body { font-family: serif; }';
+        $tabletCss = 'body { font-family: sans-serif; }';
+        $printDocument = new AstNode('document', [], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Print EPUB2 Rendition'], [
+                new AstNode('text', ['text' => 'Print EPUB2 Rendition']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Print alternate body for the EPUB2 package.']),
+            ]),
+        ]);
+        $tabletDocument = new AstNode('document', [], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Tablet EPUB3 Rendition'], [
+                new AstNode('text', ['text' => 'Tablet EPUB3 Rendition']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Tablet alternate body for the EPUB3 package.']),
+            ]),
+        ]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'identifier' => 'urn:uuid:generated-mixed-rootfile-renditions',
+                'title' => 'Generated Mixed Rootfile Renditions',
+                'lang' => 'en',
+                'epubContainerLinks' => [
+                    [
+                        'href' => 'META-INF/metadata/print.json',
+                        'rel' => 'record alternate',
+                        'mediaType' => 'application/json',
+                        'id' => 'print-record',
+                        'refines' => '#print-epub2-rendition',
+                    ],
+                    [
+                        'href' => 'META-INF/metadata/tablet.json',
+                        'rel' => 'record alternate',
+                        'mediaType' => 'application/json',
+                        'id' => 'tablet-record',
+                        'refines' => '#tablet-epub3-rendition',
+                    ],
+                ],
+                'epubOcfSidecarPayloads' => [
+                    'META-INF/metadata/print.json' => [
+                        'kind' => 'container-link',
+                        'encoding' => 'base64',
+                        'bytes' => strlen($printJson),
+                        'data' => base64_encode($printJson),
+                    ],
+                    'META-INF/metadata/tablet.json' => [
+                        'kind' => 'container-link',
+                        'encoding' => 'base64',
+                        'bytes' => strlen($tabletJson),
+                        'data' => base64_encode($tabletJson),
+                    ],
+                ],
+                'epubAlternateRootfiles' => [
+                    [
+                        'path' => 'PRINT/package.opf',
+                        'id' => 'print-epub2-rendition',
+                        'mediaType' => 'application/oebps-package+xml',
+                        'properties' => ['rendition:layout-pre-paginated'],
+                        'packageVersion' => '2.0',
+                        'identifier' => 'urn:uuid:generated-print-epub2-rendition',
+                        'title' => 'Print EPUB2 Rendition',
+                        'lang' => 'en-GB',
+                        'chapterPath' => 'PRINT/text/print.xhtml',
+                        'navPath' => 'PRINT/should-not-exist-nav.xhtml',
+                        'ncxPath' => 'PRINT/print-toc.ncx',
+                        'coverImage' => 'PRINT/images/cover.jpg',
+                        'resources' => [
+                            'PRINT/styles/print.css' => $printCss,
+                            'PRINT/images/cover.jpg' => 'print-cover-bytes',
+                        ],
+                        'guideReferences' => [
+                            ['type' => 'text', 'title' => 'Print Start', 'href' => 'PRINT/text/print.xhtml#print-epub2-rendition'],
+                        ],
+                        'document' => $printDocument,
+                    ],
+                    [
+                        'path' => 'TABLET/package.opf',
+                        'id' => 'tablet-epub3-rendition',
+                        'mediaType' => 'application/oebps-package+xml',
+                        'properties' => ['rendition:spread-none'],
+                        'writerFormat' => 'epub3',
+                        'identifier' => 'urn:uuid:generated-tablet-epub3-rendition',
+                        'title' => 'Tablet EPUB3 Rendition',
+                        'lang' => 'en-US',
+                        'chapterPath' => 'TABLET/text/tablet.xhtml',
+                        'navPath' => 'TABLET/tablet-nav.xhtml',
+                        'resources' => [
+                            'TABLET/styles/tablet.css' => $tabletCss,
+                        ],
+                        'document' => $tabletDocument,
+                    ],
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Generated Mixed Rootfile Renditions'], [
+                new AstNode('text', ['text' => 'Generated Mixed Rootfile Renditions']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Primary mixed rootfile body.']),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-25T09:40:00Z',
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-generated-mixed-rootfiles-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary generated mixed-rootfile EPUB path');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated mixed-rootfile EPUB package');
+            }
+            $container = $zip->getFromName('META-INF/container.xml');
+            $primaryPackage = $zip->getFromName('OEBPS/package.opf');
+            $printPackage = $zip->getFromName('PRINT/package.opf');
+            $printChapter = $zip->getFromName('PRINT/text/print.xhtml');
+            $printNcx = $zip->getFromName('PRINT/print-toc.ncx');
+            $tabletPackage = $zip->getFromName('TABLET/package.opf');
+            $tabletNav = $zip->getFromName('TABLET/tablet-nav.xhtml');
+            $missingFiles = [];
+            foreach ([
+                'META-INF/container.xml' => $container,
+                'OEBPS/package.opf' => $primaryPackage,
+                'PRINT/package.opf' => $printPackage,
+                'PRINT/text/print.xhtml' => $printChapter,
+                'PRINT/print-toc.ncx' => $printNcx,
+                'TABLET/package.opf' => $tabletPackage,
+                'TABLET/tablet-nav.xhtml' => $tabletNav,
+            ] as $name => $bytes) {
+                if (!is_string($bytes)) {
+                    $missingFiles[] = $name;
+                }
+            }
+            if ($missingFiles !== []) {
+                throw new RuntimeException('Generated mixed-rootfile EPUB package is missing expected files: ' . implode(', ', $missingFiles));
+            }
+
+            $t->contains('<rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/>', $container);
+            $t->contains('<rootfile full-path="PRINT/package.opf" media-type="application/oebps-package+xml" id="print-epub2-rendition" properties="rendition:layout-pre-paginated"/>', $container);
+            $t->contains('<rootfile full-path="TABLET/package.opf" media-type="application/oebps-package+xml" id="tablet-epub3-rendition" properties="rendition:spread-none"/>', $container);
+            $t->contains('<link href="metadata/print.json" rel="record alternate" media-type="application/json" id="print-record" refines="#print-epub2-rendition"/>', $container);
+            $t->contains('<link href="metadata/tablet.json" rel="record alternate" media-type="application/json" id="tablet-record" refines="#tablet-epub3-rendition"/>', $container);
+            $t->contains('version="3.0"', $primaryPackage);
+            $t->contains('properties="nav"', $primaryPackage);
+            $t->contains('version="2.0"', $printPackage);
+            $t->contains('<dc:title>Print EPUB2 Rendition</dc:title>', $printPackage);
+            $t->contains('<item id="toc" href="print-toc.ncx" media-type="application/x-dtbncx+xml"/>', $printPackage);
+            $t->contains('<spine toc="toc">', $printPackage);
+            $t->contains('<reference type="text" title="Print Start" href="text/print.xhtml#print-epub2-rendition"/>', $printPackage);
+            $t->true(!str_contains($printPackage, 'properties="nav"'), 'Generated EPUB2 alternate package should not include an EPUB3 nav item.');
+            $t->true(!str_contains($printPackage, 'should-not-exist-nav.xhtml'), 'Generated EPUB2 alternate package should ignore navPath output.');
+            $t->true(!str_contains($printPackage, 'dcterms:modified'), 'Generated EPUB2 alternate package should not emit EPUB3 modified metadata.');
+            $t->same(false, $zip->locateName('PRINT/should-not-exist-nav.xhtml'));
+            $t->contains('<content src="text/print.xhtml#print-epub2-rendition"/>', $printNcx);
+            $t->contains('<h1 id="print-epub2-rendition">Print EPUB2 Rendition</h1>', $printChapter);
+            $t->contains('version="3.0"', $tabletPackage);
+            $t->contains('<dc:title>Tablet EPUB3 Rendition</dc:title>', $tabletPackage);
+            $t->contains('<item id="nav" href="tablet-nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>', $tabletPackage);
+            $t->contains('dcterms:modified', $tabletPackage);
+            $t->contains('<a href="text/tablet.xhtml#tablet-epub3-rendition">Tablet EPUB3 Rendition</a>', $tabletNav);
+            $t->same($printJson, $zip->getFromName('META-INF/metadata/print.json'));
+            $t->same($tabletJson, $zip->getFromName('META-INF/metadata/tablet.json'));
+            $t->same($printCss, $zip->getFromName('PRINT/styles/print.css'));
+            $t->same($tabletCss, $zip->getFromName('TABLET/styles/tablet.css'));
+            $t->true(!str_contains($primaryPackage, 'PRINT/package.opf'), 'Print alternate OPF leaked into the primary OPF manifest.');
+            $t->true(!str_contains($primaryPackage, 'TABLET/package.opf'), 'Tablet alternate OPF leaked into the primary OPF manifest.');
+            $t->true(!str_contains($printPackage, 'TABLET/styles/tablet.css'), 'Tablet resources leaked into the EPUB2 alternate OPF.');
+            $t->true(!str_contains($tabletPackage, 'PRINT/styles/print.css'), 'Print resources leaked into the EPUB3 alternate OPF.');
+            $t->true(!str_contains($tabletPackage, 'print-toc.ncx'), 'EPUB2 NCX leaked into the EPUB3 alternate OPF.');
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+
+        $roundTrip = PandocConverter::read($epub, 'epub', ['extractResources' => true]);
+        $meta = $roundTrip->attr('meta');
+        $alternates = $meta['epubAlternateRootfilePackages'] ?? [];
+        $print = $alternates['PRINT/package.opf'] ?? [];
+        $tablet = $alternates['TABLET/package.opf'] ?? [];
+        $printPayloads = $print['epubResourcePayloads'] ?? [];
+        $tabletPayloads = $tablet['epubResourcePayloads'] ?? [];
+        $diagnosticsJson = json_encode(array_merge($meta['epubDiagnostics'] ?? [], $print['epubDiagnostics'] ?? [], $tablet['epubDiagnostics'] ?? []), JSON_THROW_ON_ERROR);
+
+        $t->same('3.0', $meta['epubPackageVersion'] ?? null);
+        $t->same(3, count($meta['epubContainerRootfiles'] ?? []));
+        $t->same(2, $meta['epubAlternateRootfilePackageCount'] ?? null);
+        $t->same('print-epub2-rendition', $meta['epubContainerRootfiles'][1]['id'] ?? null);
+        $t->same('tablet-epub3-rendition', $meta['epubContainerRootfiles'][2]['id'] ?? null);
+        $t->same('#print-epub2-rendition', $meta['epubContainerLinks'][0]['refines'] ?? null);
+        $t->same('#tablet-epub3-rendition', $meta['epubContainerLinks'][1]['refines'] ?? null);
+        $t->same($printJson, base64_decode($meta['epubOcfSidecarPayloads']['META-INF/metadata/print.json']['data'] ?? '', true));
+        $t->same($tabletJson, base64_decode($meta['epubOcfSidecarPayloads']['META-INF/metadata/tablet.json']['data'] ?? '', true));
+        $t->same('2.0', $print['epubPackageVersion'] ?? null);
+        $t->same('Print EPUB2 Rendition', $print['title'] ?? null);
+        $t->same('en-GB', $print['lang'] ?? null);
+        $t->same(['PRINT/print-toc.ncx'], $print['epubTocResources'] ?? null);
+        $t->same(['PRINT/text/print.xhtml'], $print['epubReadableResources'] ?? null);
+        $t->same('Print EPUB2 Rendition Print alternate body for the EPUB2 package.', $print['epubBodyText'] ?? null);
+        $t->same($printCss, base64_decode($printPayloads['PRINT/styles/print.css']['data'] ?? '', true));
+        $t->same('3.0', $tablet['epubPackageVersion'] ?? null);
+        $t->same('Tablet EPUB3 Rendition', $tablet['title'] ?? null);
+        $t->same('en-US', $tablet['lang'] ?? null);
+        $t->same(['TABLET/tablet-nav.xhtml'], $tablet['epubTocResources'] ?? null);
+        $t->same(['TABLET/text/tablet.xhtml'], $tablet['epubReadableResources'] ?? null);
+        $t->same('Tablet EPUB3 Rendition Tablet alternate body for the EPUB3 package.', $tablet['epubBodyText'] ?? null);
+        $t->same($tabletCss, base64_decode($tabletPayloads['TABLET/styles/tablet.css']['data'] ?? '', true));
+        $t->true(!isset($printPayloads['TABLET/styles/tablet.css']), 'EPUB3 alternate resources should not appear under the EPUB2 alternate package.');
+        $t->true(!isset($tabletPayloads['PRINT/styles/print.css']), 'EPUB2 alternate resources should not appear under the EPUB3 alternate package.');
+        foreach ([
+            'missing-container-link-resource',
+            'missing-container-rootfile-resource',
+            'missing-manifest-resource',
+            'missing-package-modified',
+            'invalid-package-opf2-meta',
+            'unsupported-package-version',
+        ] as $diagnosticCode) {
+            $t->true(!str_contains($diagnosticsJson, $diagnosticCode), "Generated mixed EPUB2/EPUB3 rootfiles should not self-diagnose {$diagnosticCode}.");
+        }
+    },
     'writes generated alternate epub rootfile package link graph sidecars without cross package leakage' => static function (TestRunner $t): void {
         $printRecord = '{"record":"print"}';
         $printSeries = '{"series":"print"}';

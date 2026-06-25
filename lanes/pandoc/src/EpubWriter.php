@@ -156,15 +156,36 @@ final class EpubWriter
         $zip->addFromString($packagePath, $this->packageOpf($document, $chapters, $navHref, $resources, $packageDir, $packagePath, $ncxId, $ncxHref));
     }
 
-    private function writerFormat(): string
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function writerFormat(array $meta = []): string
     {
-        $format = $this->normalizedWriterFormat($this->options['writerFormat'] ?? $this->options['format'] ?? null);
-        if ($format !== '') {
-            return $format;
+        $sources = $this->preferMetadataOverOptions
+            ? [
+                [$meta, ['epubWriterFormat', 'writerFormat'], ['epubVersion', 'epubPackageVersion', 'packageVersion']],
+                [$this->options, ['writerFormat', 'format'], ['epubVersion']],
+            ]
+            : [
+                [$this->options, ['writerFormat', 'format'], ['epubVersion']],
+                [$meta, ['epubWriterFormat', 'writerFormat'], ['epubVersion', 'epubPackageVersion', 'packageVersion']],
+            ];
+        foreach ($sources as [$source, $formatKeys, $versionKeys]) {
+            foreach ($formatKeys as $key) {
+                $format = $this->normalizedWriterFormat($source[$key] ?? null);
+                if ($format !== '') {
+                    return $format;
+                }
+            }
+            foreach ($versionKeys as $key) {
+                $version = $this->epubMajorVersion($source[$key] ?? null);
+                if ($version !== null) {
+                    return $version === 2 ? 'epub2' : 'epub3';
+                }
+            }
         }
 
-        $version = $this->epubMajorVersion($this->options['epubVersion'] ?? null);
-        return $version === 2 ? 'epub2' : 'epub3';
+        return 'epub3';
     }
 
     private function normalizedWriterFormat(mixed $value): string
@@ -200,7 +221,7 @@ final class EpubWriter
      */
     private function isEpub2(array $meta = []): bool
     {
-        return $this->writerFormat() === 'epub2';
+        return $this->writerFormat($meta) === 'epub2';
     }
 
     /**
@@ -10266,6 +10287,9 @@ final class EpubWriter
         }
         foreach ([
             'identifier',
+            'writerFormat',
+            'epubWriterFormat',
+            'epubVersion',
             'title',
             'lang',
             'language',
