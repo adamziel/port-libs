@@ -3350,6 +3350,14 @@ final class HtmlWriter
             }
         }
 
+        $atomCoercionType = $this->texMathAtomCoercionType($command);
+        if ($atomCoercionType !== null) {
+            $base = $this->parseTexMathArgument($source, $offset);
+            if ($base !== '') {
+                return $this->texMathCoercedAtomElement($atomCoercionType, $base);
+            }
+        }
+
         $styleDeclarationAttributes = $this->texMathStyleDeclarationAttributes($command);
         if ($styleDeclarationAttributes !== null) {
             $base = $this->parseTexMathArgument($source, $offset);
@@ -3598,6 +3606,157 @@ final class HtmlWriter
         }
 
         return $this->mathMLRow($content);
+    }
+
+    private function texMathAtomCoercionType(string $command): ?string
+    {
+        return [
+            'mathop' => 'op',
+            'mathrel' => 'rel',
+            'mathbin' => 'bin',
+            'mathord' => 'ord',
+            'mathopen' => 'open',
+            'mathclose' => 'close',
+            'mathpunct' => 'pun',
+        ][$command] ?? null;
+    }
+
+    private function texMathCoercedAtomElement(string $atomType, string $body): string
+    {
+        $singleToken = $this->texMathSingleTokenText($body);
+        if ($singleToken !== null) {
+            return $this->texMathSymbolElementForAtomType($atomType, $singleToken);
+        }
+
+        if ($atomType === 'op') {
+            $operatorName = $this->texMathOperatorNameFromMathML($body);
+            if ($operatorName !== null && $operatorName !== '') {
+                return '<mi mathvariant="normal">' . $this->esc($operatorName) . '</mi>';
+            }
+        }
+
+        return $this->mathMLRow($body);
+    }
+
+    private function texMathSymbolElementForAtomType(string $atomType, string $text): string
+    {
+        $escaped = $this->esc($text);
+
+        return match ($atomType) {
+            'ord' => '<mi>' . $escaped . '</mi>',
+            'open' => '<mo form="prefix" stretchy="false">' . $escaped . '</mo>',
+            'close' => '<mo form="postfix" stretchy="false">' . $escaped . '</mo>',
+            default => '<mo>' . $escaped . '</mo>',
+        };
+    }
+
+    private function texMathSingleTokenText(string $content): ?string
+    {
+        $root = $this->texMathFragmentRoot($content);
+        if (!$root instanceof \DOMElement) {
+            return null;
+        }
+
+        $element = $this->texMathSingleFragmentElement($root);
+        if (!$element instanceof \DOMElement) {
+            return null;
+        }
+
+        return in_array(strtolower($element->localName), ['mi', 'mn', 'mo', 'mtext'], true)
+            ? $element->textContent
+            : null;
+    }
+
+    private function texMathOperatorNameFromMathML(string $content): ?string
+    {
+        $root = $this->texMathFragmentRoot($content);
+        if (!$root instanceof \DOMElement) {
+            return null;
+        }
+
+        $text = $this->texMathOperatorNameFromChildren($root);
+        if ($text === null) {
+            return null;
+        }
+
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+        $text = trim($text);
+
+        return $text === '' ? null : $text;
+    }
+
+    private function texMathOperatorNameFromChildren(\DOMElement $element): ?string
+    {
+        $text = '';
+        foreach ($element->childNodes as $child) {
+            $part = $this->texMathOperatorNameFromNode($child);
+            if ($part === null) {
+                return null;
+            }
+            $text .= $part;
+        }
+
+        return $text;
+    }
+
+    private function texMathOperatorNameFromNode(\DOMNode $node): ?string
+    {
+        if ($node instanceof \DOMText) {
+            return trim($node->wholeText) === '' ? '' : $node->wholeText;
+        }
+
+        if (!$node instanceof \DOMElement) {
+            return null;
+        }
+
+        $name = strtolower($node->localName);
+        if (in_array($name, ['mi', 'mn', 'mo', 'mtext'], true)) {
+            return strtr($node->textContent, [
+                '−' => '-',
+                '′' => "'",
+                '″' => "''",
+                '‴' => "'''",
+                '⁗' => "''''",
+                'ʹ' => "'",
+            ]);
+        }
+
+        if ($name === 'mspace') {
+            return ' ';
+        }
+
+        if ($name === 'mrow' || $name === 'mstyle') {
+            return $this->texMathOperatorNameFromChildren($node);
+        }
+
+        return null;
+    }
+
+    private function texMathFragmentRoot(string $content): ?\DOMElement
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $ok = $dom->loadXML('<root>' . $content . '</root>', LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        return $ok && $dom->documentElement instanceof \DOMElement ? $dom->documentElement : null;
+    }
+
+    private function texMathSingleFragmentElement(\DOMElement $root): ?\DOMElement
+    {
+        $elements = [];
+        foreach ($root->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->wholeText) === '') {
+                continue;
+            }
+            if (!$child instanceof \DOMElement) {
+                return null;
+            }
+            $elements[] = $child;
+        }
+
+        return count($elements) === 1 ? $elements[0] : null;
     }
 
     private function texMathNamedOperatorElement(string $command): ?string

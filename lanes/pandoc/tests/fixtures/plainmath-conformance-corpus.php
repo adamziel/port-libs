@@ -328,6 +328,54 @@ return [
             ],
             'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mtable columnalign="right center left"><mtr><mtd><mi>x</mi></mtd><mtd><mo>=</mo></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><mi>y</mi></mtd><mtd><mo>=</mo></mtd><mtd><mn>2</mn></mtd></mtr></mtable><annotation encoding="application/x-tex">\begin{eqnarray}x&amp;=&amp;1\\\\y&amp;=&amp;2\end{eqnarray}</annotation></semantics></math>',
         ],
+        [
+            'id' => 'mathrel-text-coercion',
+            'family' => 'atom-coercion',
+            'tex' => 'a > b \mathrel{\text{or}} a > c',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'test/reader/tex/issue109.test',
+                'writer' => 'src/Text/TeXMath/Writers/MathML.hs ESymbol Rel',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>a</mi><mo>&gt;</mo><mi>b</mi><mo>or</mo><mi>a</mi><mo>&gt;</mo><mi>c</mi></mrow><annotation encoding="application/x-tex">a &gt; b \mathrel{\text{or}} a &gt; c</annotation></semantics></math>',
+        ],
+        [
+            'id' => 'mathbin-mathord-coercion',
+            'family' => 'atom-coercion',
+            'tex' => 'x \mathbin{*} y + \mathord{+}',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'src/Text/TeXMath/Readers/TeX.hs mathopWith Bin/Ord',
+                'writer' => 'src/Text/TeXMath/Writers/MathML.hs ESymbol Bin/Ord',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>x</mi><mo>*</mo><mi>y</mi><mo>+</mo><mi>+</mi></mrow><annotation encoding="application/x-tex">x \mathbin{*} y + \mathord{+}</annotation></semantics></math>',
+        ],
+        [
+            'id' => 'mathopen-mathclose-mathpunct-coercion',
+            'family' => 'atom-coercion',
+            'tex' => '\mathopen{[}x\mathclose{]}\mathpunct{,}y',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'src/Text/TeXMath/Readers/TeX.hs mathopWith Open/Close/Pun',
+                'writer' => 'src/Text/TeXMath/Writers/MathML.hs ESymbol Open/Close/Pun',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo form="prefix" stretchy="false">[</mo><mi>x</mi><mo form="postfix" stretchy="false">]</mo><mo>,</mo><mi>y</mi></mrow><annotation encoding="application/x-tex">\mathopen{[}x\mathclose{]}\mathpunct{,}y</annotation></semantics></math>',
+        ],
+        [
+            'id' => 'mathop-styled-operator-name',
+            'family' => 'atom-coercion',
+            'tex' => '\mathop{\mathrm{lim}} x_n',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'src/Text/TeXMath/Readers/TeX.hs mathopWith Op grouped operator name',
+                'writer' => 'src/Text/TeXMath/Writers/MathML.hs EMathOperator',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">lim</mi><msub><mi>x</mi><mi>n</mi></msub></mrow><annotation encoding="application/x-tex">\mathop{\mathrm{lim}} x_n</annotation></semantics></math>',
+        ],
     ],
     'fallback' => [
         [
@@ -369,6 +417,12 @@ return [
             'upstream' => 'test/reader/tex/unicode.test and Text.TeXMath.Unicode.ToTeX',
             'tex' => 'α + β',
             'gap' => 'Direct UTF-8 identifiers/operators now tokenize safely, but HtmlWriter does not retain TexMath Unicode symbol categories for Bin/Rel/Open/Close/Pun/Ord correction, form attributes, or function-application insertion.',
+        ],
+        [
+            'id' => 'atom-coercion-bin-context-correction',
+            'upstream' => 'Text.TeXMath.Readers.TeX fixBinList rules after mathopWith Bin',
+            'tex' => '+\mathbin{+}a\mathrel{=}b',
+            'gap' => 'The bounded HtmlWriter coercion retags the explicit command argument, but it still emits direct MathML strings and has no typed post-parse fixBinList pass to demote Bin atoms at row boundaries or after Bin/Op/Rel/Open/Pun atoms.',
         ],
     ],
 ];
