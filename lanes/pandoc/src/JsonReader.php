@@ -177,13 +177,13 @@ final class JsonReader
     private function parseRawBlock(mixed $payload): AstNode
     {
         $items = $this->expectTuple($payload, 2, 'RawBlock');
-        $format = $this->parseFormat($items[0]);
+        [$format, $formatAttrs] = $this->parseFormat($items[0]);
         $text = $this->expectString($items[1], 'RawBlock text');
 
         return match ($format) {
-            'html' => new AstNode('raw_html', ['html' => $text]),
-            'tex' => new AstNode('raw_tex', ['tex' => $text]),
-            default => new AstNode('raw_block', ['format' => $format, 'text' => $text]),
+            'html' => new AstNode('raw_html', array_replace(['html' => $text], $formatAttrs)),
+            'tex' => new AstNode('raw_tex', array_replace(['tex' => $text], $formatAttrs)),
+            default => new AstNode('raw_block', array_replace(['format' => $format, 'text' => $text], $formatAttrs)),
         };
     }
 
@@ -372,13 +372,13 @@ final class JsonReader
     private function parseRawInline(mixed $payload): AstNode
     {
         $items = $this->expectTuple($payload, 2, 'RawInline');
-        $format = $this->parseFormat($items[0]);
+        [$format, $formatAttrs] = $this->parseFormat($items[0]);
         $text = $this->expectString($items[1], 'RawInline text');
 
         return match ($format) {
-            'html' => new AstNode('raw_html_inline', ['html' => $text]),
-            'tex' => new AstNode('raw_tex_inline', ['tex' => $text]),
-            default => new AstNode('raw_inline', ['format' => $format, 'text' => $text]),
+            'html' => new AstNode('raw_html_inline', array_replace(['html' => $text], $formatAttrs)),
+            'tex' => new AstNode('raw_tex_inline', array_replace(['tex' => $text], $formatAttrs)),
+            default => new AstNode('raw_inline', array_replace(['format' => $format, 'text' => $text], $formatAttrs)),
         };
     }
 
@@ -666,9 +666,21 @@ final class JsonReader
         };
     }
 
-    private function parseFormat(mixed $value): string
+    /**
+     * @return array{0:string, 1:array<string, mixed>}
+     */
+    private function parseFormat(mixed $value): array
     {
-        return strtolower($this->expectString($value, 'Format'));
+        if (is_array($value) && !array_is_list($value) && ($value['t'] ?? null) === 'Format') {
+            $format = strtolower($this->expectString($value['c'] ?? null, 'Format content'));
+
+            return [$format, [
+                'formatConstructor' => 'Format',
+                'formatNative' => $value,
+            ]];
+        }
+
+        return [strtolower($this->expectString($value, 'Format')), []];
     }
 
     /**

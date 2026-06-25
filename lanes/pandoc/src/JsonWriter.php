@@ -176,9 +176,9 @@ final class JsonWriter
             'paragraph' => $this->tagged('Para', $this->inlineListData($node->children)),
             'line_block' => $this->tagged('LineBlock', array_map(fn (AstNode $line): array => $this->inlineListData($this->lineInlines($line)), $node->children)),
             'code_block' => $this->tagged('CodeBlock', [$this->attrData($node), (string) $node->attr('text', '')]),
-            'raw_html' => $this->tagged('RawBlock', ['html', (string) $node->attr('html', $node->attr('text', ''))]),
-            'raw_tex' => $this->tagged('RawBlock', ['tex', (string) $node->attr('tex', $node->attr('text', ''))]),
-            'raw_block', 'raw_markdown' => $this->tagged('RawBlock', [(string) $node->attr('format', 'markdown'), (string) $node->attr('text', '')]),
+            'raw_html' => $this->tagged('RawBlock', [$this->rawFormatData($node, 'html'), (string) $node->attr('html', $node->attr('text', ''))]),
+            'raw_tex' => $this->tagged('RawBlock', [$this->rawFormatData($node, 'tex'), (string) $node->attr('tex', $node->attr('text', ''))]),
+            'raw_block', 'raw_markdown' => $this->tagged('RawBlock', [$this->rawFormatData($node, 'markdown'), (string) $node->attr('text', '')]),
             'blockquote' => $this->tagged('BlockQuote', $this->blockListData($this->blockContainerBlocks($node->children))),
             'ordered_list' => $this->tagged('OrderedList', [$this->listAttributesData($node), $this->listItemsData($node->children)]),
             'bullet_list' => $this->tagged('BulletList', $this->listItemsData($node->children)),
@@ -455,9 +455,9 @@ final class JsonWriter
             'citation' => [$this->citationData($node)],
             'code' => [$this->tagged('Code', [$this->attrData($node), (string) $node->attr('text', '')])],
             'math' => [$this->tagged('Math', [$this->tagged($this->mathIsDisplay($node) ? 'DisplayMath' : 'InlineMath'), (string) $node->attr('text', '')])],
-            'raw_html_inline' => [$this->tagged('RawInline', ['html', (string) $node->attr('html', $node->attr('text', ''))])],
-            'raw_tex_inline' => [$this->tagged('RawInline', ['tex', (string) $node->attr('tex', $node->attr('text', ''))])],
-            'raw_inline' => [$this->tagged('RawInline', [(string) $node->attr('format', 'markdown'), (string) $node->attr('text', '')])],
+            'raw_html_inline' => [$this->tagged('RawInline', [$this->rawFormatData($node, 'html'), (string) $node->attr('html', $node->attr('text', ''))])],
+            'raw_tex_inline' => [$this->tagged('RawInline', [$this->rawFormatData($node, 'tex'), (string) $node->attr('tex', $node->attr('text', ''))])],
+            'raw_inline' => [$this->tagged('RawInline', [$this->rawFormatData($node, 'markdown'), (string) $node->attr('text', '')])],
             'link' => [$this->tagged('Link', [$this->attrData($node), $this->inlineListData($node->children), [(string) $node->attr('url', ''), (string) $node->attr('title', '')]])],
             'image' => [$this->tagged('Image', [
                 $this->attrData($node),
@@ -966,6 +966,22 @@ final class JsonWriter
         }
 
         return $data;
+    }
+
+    private function rawFormatData(AstNode $node, string $default): mixed
+    {
+        $format = (string) $node->attr('format', $default);
+        $native = $node->attr('formatNative');
+        if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== 'Format') {
+            return $format;
+        }
+
+        $nativeFormat = $native['c'] ?? null;
+        if (is_string($nativeFormat) && strtolower($nativeFormat) === strtolower($format)) {
+            return $native;
+        }
+
+        return $this->tagged('Format', $format);
     }
 
     /**
