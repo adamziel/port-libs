@@ -209,4 +209,67 @@ return [
         $t->same('unsupported', $support['pdf']['status']);
         $t->same(58, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
+    'tracks wiki format registry status without claiming direct parity' => static function (TestRunner $t): void {
+        $registry = PandocFormatRegistry::wikiFormatRegistry();
+
+        $t->same(['creole', 'dokuwiki', 'jira', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'], PandocFormatRegistry::wikiInputFormats());
+        $t->same(['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'], PandocFormatRegistry::wikiOutputFormats());
+        $t->same(['creole', 'dokuwiki', 'jira', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki', 'xwiki', 'zimwiki'], array_keys($registry));
+        $t->same(['dokuwiki' => 'dokuwiki', 'wiki' => 'mediawiki'], PandocFormatRegistry::wikiExtensionInference());
+        $t->same('dokuwiki', PandocFormatRegistry::inferWikiFormatFromExtension('.DOKUWIKI'));
+        $t->same('mediawiki', PandocFormatRegistry::inferWikiFormatFromExtension(' wiki '));
+        $t->same(null, PandocFormatRegistry::inferWikiFormatFromExtension('vimwiki'));
+
+        foreach (['dokuwiki', 'jira', 'mediawiki'] as $format) {
+            $t->same('input-output', $registry[$format]['direction'], "{$format} should be tracked in both wiki directions");
+        }
+
+        foreach (['creole', 'tikiwiki', 'twiki', 'vimwiki'] as $format) {
+            $t->same('input-only', $registry[$format]['direction'], "{$format} should be an input-only wiki token");
+            $t->same('not-applicable', $registry[$format]['output']['status']);
+            $t->same(false, $registry[$format]['directWriterParityClaimed']);
+        }
+
+        foreach (['xwiki', 'zimwiki'] as $format) {
+            $t->same('output-only', $registry[$format]['direction'], "{$format} should be an output-only wiki token");
+            $t->same('not-applicable', $registry[$format]['input']['status']);
+            $t->same(false, $registry[$format]['directReaderParityClaimed']);
+        }
+
+        foreach (['creole', 'dokuwiki', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'] as $format) {
+            $t->same('unsupported', $registry[$format]['input']['status'], "{$format} reader remains unsupported");
+            $t->same('', $registry[$format]['input']['implementation']);
+            $t->same(false, $registry[$format]['directReaderParityClaimed']);
+        }
+
+        $t->same('partial', $registry['jira']['input']['status']);
+        $t->same(JiraReader::class, $registry['jira']['input']['implementation']);
+        $t->same(false, $registry['jira']['directReaderParityClaimed']);
+
+        foreach (['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'] as $format) {
+            $t->same('unsupported', $registry[$format]['output']['status'], "{$format} writer remains unsupported");
+            $t->same('', $registry[$format]['output']['implementation']);
+            $t->same(false, $registry[$format]['directWriterParityClaimed']);
+        }
+
+        $t->same(['dokuwiki'], $registry['dokuwiki']['extensionInferences']);
+        $t->same(['wiki'], $registry['mediawiki']['extensionInferences']);
+        $t->same([], $registry['vimwiki']['extensionInferences']);
+    },
+    'summarizes wiki registry direction and support buckets' => static function (TestRunner $t): void {
+        $summary = PandocFormatRegistry::wikiFormatRegistrySummary();
+
+        $t->same(7, count($summary['inputFormats']));
+        $t->same(5, count($summary['outputFormats']));
+        $t->same(9, count($summary['uniqueFormats']));
+        $t->same(['dokuwiki', 'jira', 'mediawiki'], $summary['directionBuckets']['input-output']);
+        $t->same(['creole', 'tikiwiki', 'twiki', 'vimwiki'], $summary['directionBuckets']['input-only']);
+        $t->same(['xwiki', 'zimwiki'], $summary['directionBuckets']['output-only']);
+        $t->same(['jira'], $summary['inputStatusBuckets']['partial']);
+        $t->same(['creole', 'dokuwiki', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'], $summary['inputStatusBuckets']['unsupported']);
+        $t->same(['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'], $summary['outputStatusBuckets']['unsupported']);
+        $t->same(['dokuwiki' => 'dokuwiki', 'wiki' => 'mediawiki'], $summary['extensionInference']);
+        $t->same(false, $summary['directReaderParityClaimed']);
+        $t->same(false, $summary['directWriterParityClaimed']);
+    },
 ];

@@ -166,6 +166,45 @@ final class PandocFormatRegistry
         'markdown_github' => 'gfm',
     ];
 
+    /** @var list<string> */
+    private const WIKI_INPUT_FORMATS = [
+        'creole',
+        'dokuwiki',
+        'jira',
+        'mediawiki',
+        'tikiwiki',
+        'twiki',
+        'vimwiki',
+    ];
+
+    /** @var list<string> */
+    private const WIKI_OUTPUT_FORMATS = [
+        'dokuwiki',
+        'jira',
+        'mediawiki',
+        'xwiki',
+        'zimwiki',
+    ];
+
+    /** @var array<string, string> */
+    private const WIKI_FORMAT_LABELS = [
+        'creole' => 'Creole wiki',
+        'dokuwiki' => 'DokuWiki',
+        'jira' => 'Jira wiki markup',
+        'mediawiki' => 'MediaWiki',
+        'tikiwiki' => 'TikiWiki',
+        'twiki' => 'TWiki',
+        'vimwiki' => 'Vimwiki',
+        'xwiki' => 'XWiki',
+        'zimwiki' => 'ZimWiki',
+    ];
+
+    /** @var array<string, string> */
+    private const WIKI_EXTENSION_INFERENCE = [
+        'dokuwiki' => 'dokuwiki',
+        'wiki' => 'mediawiki',
+    ];
+
     /**
      * @var array<string, array{status:string, implementation:string, notes:string}>
      */
@@ -487,6 +526,128 @@ final class PandocFormatRegistry
         return self::OUTPUT_ALIASES;
     }
 
+    /**
+     * @return list<string>
+     */
+    public static function wikiInputFormats(): array
+    {
+        return self::WIKI_INPUT_FORMATS;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function wikiOutputFormats(): array
+    {
+        return self::WIKI_OUTPUT_FORMATS;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function wikiExtensionInference(): array
+    {
+        return self::WIKI_EXTENSION_INFERENCE;
+    }
+
+    public static function inferWikiFormatFromExtension(string $extension): ?string
+    {
+        $extension = strtolower(ltrim(trim($extension), '.'));
+
+        return self::WIKI_EXTENSION_INFERENCE[$extension] ?? null;
+    }
+
+    /**
+     * @return array<string, array{
+     *     label:string,
+     *     direction:string,
+     *     input:array{status:string, implementation:string, notes:string},
+     *     output:array{status:string, implementation:string, notes:string},
+     *     extensionInferences:list<string>,
+     *     directReaderParityClaimed:bool,
+     *     directWriterParityClaimed:bool
+     * }>
+     */
+    public static function wikiFormatRegistry(): array
+    {
+        $inputSupport = self::phpInputSupport();
+        $outputSupport = self::phpOutputSupport();
+        $formats = array_values(array_unique(array_merge(self::WIKI_INPUT_FORMATS, self::WIKI_OUTPUT_FORMATS)));
+        $registry = [];
+
+        foreach ($formats as $format) {
+            $hasInput = in_array($format, self::WIKI_INPUT_FORMATS, true);
+            $hasOutput = in_array($format, self::WIKI_OUTPUT_FORMATS, true);
+            $input = $hasInput ? $inputSupport[$format] : self::notApplicableSupport('Not an upstream Pandoc wiki reader format.');
+            $output = $hasOutput ? $outputSupport[$format] : self::notApplicableSupport('Not an upstream Pandoc wiki writer format.');
+
+            $registry[$format] = [
+                'label' => self::WIKI_FORMAT_LABELS[$format],
+                'direction' => self::formatDirection($hasInput, $hasOutput),
+                'input' => $input,
+                'output' => $output,
+                'extensionInferences' => self::extensionInferencesForFormat($format),
+                'directReaderParityClaimed' => $input['status'] === 'complete',
+                'directWriterParityClaimed' => $output['status'] === 'complete',
+            ];
+        }
+
+        return $registry;
+    }
+
+    /**
+     * @return array{
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>,
+     *     uniqueFormats:list<string>,
+     *     directionBuckets:array<string, list<string>>,
+     *     inputStatusBuckets:array<string, list<string>>,
+     *     outputStatusBuckets:array<string, list<string>>,
+     *     extensionInference:array<string, string>,
+     *     directReaderParityClaimed:bool,
+     *     directWriterParityClaimed:bool
+     * }
+     */
+    public static function wikiFormatRegistrySummary(): array
+    {
+        $registry = self::wikiFormatRegistry();
+        $directionBuckets = [
+            'input-output' => [],
+            'input-only' => [],
+            'output-only' => [],
+        ];
+        $inputStatusBuckets = [];
+        $outputStatusBuckets = [];
+        $directReaderParityClaimed = true;
+        $directWriterParityClaimed = true;
+
+        foreach ($registry as $format => $entry) {
+            $directionBuckets[$entry['direction']][] = $format;
+
+            if ($entry['input']['status'] !== 'not-applicable') {
+                $inputStatusBuckets[$entry['input']['status']][] = $format;
+                $directReaderParityClaimed = $directReaderParityClaimed && $entry['directReaderParityClaimed'];
+            }
+
+            if ($entry['output']['status'] !== 'not-applicable') {
+                $outputStatusBuckets[$entry['output']['status']][] = $format;
+                $directWriterParityClaimed = $directWriterParityClaimed && $entry['directWriterParityClaimed'];
+            }
+        }
+
+        return [
+            'inputFormats' => self::WIKI_INPUT_FORMATS,
+            'outputFormats' => self::WIKI_OUTPUT_FORMATS,
+            'uniqueFormats' => array_keys($registry),
+            'directionBuckets' => $directionBuckets,
+            'inputStatusBuckets' => $inputStatusBuckets,
+            'outputStatusBuckets' => $outputStatusBuckets,
+            'extensionInference' => self::WIKI_EXTENSION_INFERENCE,
+            'directReaderParityClaimed' => $directReaderParityClaimed,
+            'directWriterParityClaimed' => $directWriterParityClaimed,
+        ];
+    }
+
     public static function inferTabularDataFormatFromExtension(string $extension): ?string
     {
         $extension = strtolower(ltrim(trim($extension), '.'));
@@ -555,6 +716,46 @@ final class PandocFormatRegistry
         }
 
         return $support;
+    }
+
+    /**
+     * @return array{status:string, implementation:string, notes:string}
+     */
+    private static function notApplicableSupport(string $notes): array
+    {
+        return [
+            'status' => 'not-applicable',
+            'implementation' => '',
+            'notes' => $notes,
+        ];
+    }
+
+    private static function formatDirection(bool $hasInput, bool $hasOutput): string
+    {
+        if ($hasInput && $hasOutput) {
+            return 'input-output';
+        }
+
+        if ($hasInput) {
+            return 'input-only';
+        }
+
+        return 'output-only';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function extensionInferencesForFormat(string $format): array
+    {
+        $extensions = [];
+        foreach (self::WIKI_EXTENSION_INFERENCE as $extension => $inferredFormat) {
+            if ($inferredFormat === $format) {
+                $extensions[] = $extension;
+            }
+        }
+
+        return $extensions;
     }
 
     /**
