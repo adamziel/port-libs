@@ -114,56 +114,18 @@ return [
             'infix-choose',
         ], $coveredIds, 'PlainMath parser should cover the first reader chunk fixtures.');
     },
-    'parses expanded upstream-derived tex reader fixtures through typed expressions' => static function (TestRunner $t) use ($corpus, $assertMathML): void {
-        $casesById = [];
-        foreach ($corpus['mathml'] as $case) {
-            $casesById[$case['id']] = $case;
-        }
-
-        $coveredIds = [
-            'direct-unicode-identifiers',
-            'typed-atom-category-prototype',
-            'sqrt-subscript',
-            'surd-root',
-            'infix-over',
-            'infix-atop',
-            'boxed-enclosure',
-            'align-environment',
-            'equation-environment',
-            'unicode-identifiers-prime-shorthand',
-            'infix-brack-brace-bangle',
-            'left-angle-middle-right-angle',
-            'left-null-right-bar-scripts',
-            'alignat-environment',
-            'flalign-star-environment',
-            'gather-environment',
-            'multline-environment',
-            'eqnarray-environment',
-            'quadratic-formula',
-            'nested-left-right-fraction',
-            'text-subscript-grouped-power',
-            'integral-thin-negative-spaces',
-            'double-sum-thin-space',
-            'lim-arrow-subscript',
-            'cases-mbox',
-            'fraction-tfrac-control-space',
-            'substack-sum',
-            'stackrel-arrow',
-        ];
-
+    'parses all upstream-derived tex reader mathml fixtures through typed expressions' => static function (TestRunner $t) use ($corpus, $assertMathML): void {
         $parser = new TexParser();
         $writer = new MathMlWriter();
-        foreach ($coveredIds as $id) {
-            $case = $casesById[$id] ?? null;
-            $t->true(is_array($case), 'PlainMath fixture should exist for parser case ' . $id . '.');
-            if (!is_array($case)) {
-                continue;
-            }
+        $coveredIds = [];
 
+        foreach ($corpus['mathml'] as $case) {
+            $id = (string) $case['id'];
+            $coveredIds[] = $id;
             $result = $parser->parse((string) $case['tex']);
-            $t->true($result->ok(), 'PlainMath parser should accept expanded expression fixture ' . $id . ': ' . var_export($result->diagnostics, true));
+            $t->true($result->ok(), 'PlainMath parser should accept typed expression fixture ' . $id . ': ' . var_export($result->diagnostics, true));
             $expression = $result->expression();
-            $t->true($expression instanceof Expression, 'PlainMath parser should return an expression for expanded fixture ' . $id . '.');
+            $t->true($expression instanceof Expression, 'PlainMath parser should return an expression for typed fixture ' . $id . '.');
             if (!$expression instanceof Expression) {
                 continue;
             }
@@ -174,6 +136,8 @@ return [
                 $writer->writeDocument($expression, (bool) $case['display'], (string) $case['tex'])
             );
         }
+
+        $t->same(count($corpus['mathml']), count($coveredIds), 'PlainMath typed parser should cover every MathML corpus case.');
     },
     'reports diagnostics for unsupported core reader constructs' => static function (TestRunner $t): void {
         $result = (new TexParser())->parse('\begin{tikzpicture}a&=b\end{tikzpicture}');

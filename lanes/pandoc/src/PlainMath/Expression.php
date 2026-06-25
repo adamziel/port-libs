@@ -163,6 +163,14 @@ final class Expression
     /**
      * @param array<string, mixed> $attributes
      */
+    public static function underOver(Expression $base, Expression $underscript, Expression $overscript, array $attributes = []): self
+    {
+        return new self('underover', null, [$base, $underscript, $overscript], $attributes);
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
     public static function enclosed(Expression $body, string $notation, array $attributes = []): self
     {
         return new self('enclosed', null, [$body], ['notation' => $notation] + $attributes);

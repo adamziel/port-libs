@@ -9,10 +9,24 @@ final class TexParser
     /** @var list<array{code:string,message:string,offset?:int}> */
     private array $diagnostics = [];
 
+    public function __construct(
+        private readonly TexPreprocessor $preprocessor = new TexPreprocessor(),
+    ) {
+    }
+
     public function parse(string $source): TexParseResult
     {
         $this->diagnostics = [];
-        $stream = new TexTokenStream($source);
+        $parseSource = $this->preprocessor->preprocess($source);
+        if ($parseSource === null) {
+            return new TexParseResult($source, [], [[
+                'code' => 'preprocessor-expansion-failed',
+                'message' => 'TeX macro or environment expansion did not converge.',
+                'offset' => 0,
+            ]], 0);
+        }
+
+        $stream = new TexTokenStream($parseSource);
         [$expressions, $stream] = $this->parseRow($stream);
         $stream = $stream->skipWhitespace();
         if (!$stream->atEnd()) {
@@ -48,7 +62,11 @@ final class TexParser
             if ($atom === null) {
                 break;
             }
-            $items[] = $atom;
+            if ($atom->kind === 'row' && ($atom->attributes['plainmathTransparent'] ?? false) === true) {
+                array_push($items, ...$atom->children);
+            } else {
+                $items[] = $atom;
+            }
             $stream = $stream->skipWhitespace();
             if ($this->isFunctionOperatorExpression($atom) && $this->nextAtomCanBeFunctionArgument($stream)) {
                 $items[] = Expression::operator("\u{2061}");
@@ -68,6 +86,7 @@ final class TexParser
             return [null, $stream];
         }
 
+        [$limitModifier, $stream] = $this->consumeLimitModifier($stream);
         $subscript = null;
         $superscript = null;
         while (($marker = $stream->peekByte()) === '_' || $marker === '^') {
@@ -96,6 +115,18 @@ final class TexParser
                 $stream = $stream->withOffset($stream->offset() + 1);
             }
             $superscript = Expression::operator($this->primeSymbol(strlen($prime)));
+        }
+
+        $useUnderOverLimits = $limitModifier !== 'nolimits'
+            && ($limitModifier === 'limits' || $this->hasDefaultLimits($base));
+        if ($useUnderOverLimits && $subscript !== null && $superscript !== null) {
+            return [Expression::underOver($base, $subscript, $superscript), $stream];
+        }
+        if ($useUnderOverLimits && $subscript !== null) {
+            return [Expression::under($base, $subscript), $stream];
+        }
+        if ($useUnderOverLimits && $superscript !== null) {
+            return [Expression::over($base, $superscript), $stream];
         }
 
         if ($subscript !== null && $superscript !== null) {
@@ -174,6 +205,9 @@ final class TexParser
             'boxed', 'fbox' => $this->parseEnclosureCommand($command['stream'], $command['span']['start'], 'box'),
             'text', 'mbox', 'hbox' => $this->parseTextCommand($command['stream'], $command['span']['start']),
             'operatorname' => $this->parseOperatorNameCommand($command['stream'], $command['span']['start']),
+            'mathop', 'mathrel', 'mathbin', 'mathord', 'mathopen', 'mathclose', 'mathpunct' => $this->parseAtomCoercionCommand($command['command'], $command['stream'], $command['span']['start']),
+            'mathrm', 'mathup', 'mathbf', 'mathit', 'mathsf', 'mathtt' => $this->parseStyleCommand($command['command'], $command['stream'], $command['span']['start']),
+            'displaystyle', 'textstyle', 'scriptstyle', 'scriptscriptstyle' => $this->parseStyleDeclarationCommand($command['command'], $command['stream'], $command['span']['start']),
             'stackrel', 'overset' => $this->parseOversetCommand($command['stream'], $command['span']['start']),
             'substack' => $this->parseSubstackCommand($command['stream'], $command['span']['start']),
             'left' => $this->parseLeftRightCommand($command['stream'], $command['span']['start']),
@@ -274,7 +308,12 @@ final class TexParser
             return [null, $stream];
         }
 
-        return [Expression::text($this->textModeLiteral($group['value'])), $group['stream']];
+        $body = $this->textModeExpression($group['value']);
+        if ($body->kind === 'row') {
+            $body = Expression::row($body->children, ['plainmathTransparent' => true]);
+        }
+
+        return [$body, $group['stream']];
     }
 
     /**
@@ -283,7 +322,9 @@ final class TexParser
     private function parseOperatorNameCommand(TexTokenStream $stream, int $offset): array
     {
         $stream = $stream->skipWhitespace();
+        $starred = false;
         if ($stream->peekByte() === '*') {
+            $starred = true;
             $stream = $stream->withOffset($stream->offset() + 1);
         }
 
@@ -298,7 +339,58 @@ final class TexParser
             return [null, $stream];
         }
 
-        return [Expression::mathOperator($this->operatorNameText($group['value'])), $group['stream']];
+        return [Expression::mathOperator(
+            $this->operatorNameText($group['value']),
+            $starred ? ['plainmathDefaultLimits' => true] : []
+        ), $group['stream']];
+    }
+
+    /**
+     * @return array{0:?Expression,1:TexTokenStream}
+     */
+    private function parseAtomCoercionCommand(string $command, TexTokenStream $stream, int $offset): array
+    {
+        [$body, $stream] = $this->parseRequiredGroupedArgument($stream, 'atom-coercion-body', $offset);
+        if ($body === null) {
+            return [null, $stream];
+        }
+
+        $text = $this->expressionText($body);
+        $coerced = match ($command) {
+            'mathop' => Expression::mathOperator($text, ['plainmathNoApplyFunction' => true]),
+            'mathord' => Expression::identifier($text),
+            'mathopen' => Expression::operator($text, ['form' => 'prefix', 'stretchy' => 'false']),
+            'mathclose' => Expression::operator($text, ['form' => 'postfix', 'stretchy' => 'false']),
+            default => Expression::operator($text),
+        };
+
+        return [$coerced, $stream];
+    }
+
+    /**
+     * @return array{0:?Expression,1:TexTokenStream}
+     */
+    private function parseStyleCommand(string $command, TexTokenStream $stream, int $offset): array
+    {
+        [$body, $stream] = $this->parseRequiredGroupedArgument($stream, 'style-body', $offset);
+        if ($body === null) {
+            return [null, $stream];
+        }
+
+        return [Expression::style($body, ['mathvariant' => $this->mathVariantForCommand($command)]), $stream];
+    }
+
+    /**
+     * @return array{0:?Expression,1:TexTokenStream}
+     */
+    private function parseStyleDeclarationCommand(string $command, TexTokenStream $stream, int $offset): array
+    {
+        [$body, $stream] = $this->parseRequiredGroupedArgument($stream, 'style-declaration-body', $offset);
+        if ($body === null) {
+            return [null, $stream];
+        }
+
+        return [Expression::style($body, $this->styleDeclarationAttributes($command)), $stream];
     }
 
     /**
@@ -814,11 +906,14 @@ final class TexParser
 
     private function isFunctionOperatorExpression(Expression $expression): bool
     {
+        if (($expression->attributes['plainmathNoApplyFunction'] ?? false) === true) {
+            return false;
+        }
         if ($expression->kind === 'mathOperator') {
             return true;
         }
 
-        return in_array($expression->kind, ['sub', 'super', 'subsup', 'under', 'over'], true)
+        return in_array($expression->kind, ['sub', 'super', 'subsup', 'under', 'over', 'underover'], true)
             && isset($expression->children[0])
             && $this->isFunctionOperatorExpression($expression->children[0]);
     }
@@ -858,6 +953,35 @@ final class TexParser
             'brace',
             'bangle',
         ], true);
+    }
+
+    /**
+     * @return array{0:?string,1:TexTokenStream}
+     */
+    private function consumeLimitModifier(TexTokenStream $stream): array
+    {
+        $stream = $stream->skipWhitespace();
+        if ($stream->peekByte() !== '\\') {
+            return [null, $stream];
+        }
+
+        $command = $stream->readCommand();
+        if ($command === null || !in_array($command['command'], ['limits', 'nolimits', 'displaylimits'], true)) {
+            return [null, $stream];
+        }
+
+        return [$command['command'], $command['stream']->skipWhitespace()];
+    }
+
+    private function hasDefaultLimits(Expression $expression): bool
+    {
+        if (($expression->attributes['plainmathDefaultLimits'] ?? false) === true) {
+            return true;
+        }
+
+        return in_array($expression->kind, ['sub', 'super', 'subsup'], true)
+            && isset($expression->children[0])
+            && $this->hasDefaultLimits($expression->children[0]);
     }
 
     /**
@@ -1225,6 +1349,165 @@ final class TexParser
         );
 
         return str_replace(['\\dots', '\\ldots'], '…', $text);
+    }
+
+    private function textModeExpression(string $text): Expression
+    {
+        $nodes = [];
+        $buffer = '';
+        $offset = 0;
+        $length = strlen($text);
+
+        while ($offset < $length) {
+            if ($text[$offset] !== '\\') {
+                $read = (new TexTokenStream($text, $offset))->readUtf8Char();
+                if ($read === null) {
+                    break;
+                }
+                $buffer .= $read['char'];
+                $offset = $read['stream']->offset();
+                continue;
+            }
+
+            $command = (new TexTokenStream($text, $offset))->readCommand();
+            if ($command === null) {
+                $buffer .= '\\';
+                $offset++;
+                continue;
+            }
+
+            $literal = $this->textModeLiteralCommand($command['command']);
+            if ($literal !== null) {
+                $buffer .= $literal;
+                $offset = $command['stream']->offset();
+                continue;
+            }
+
+            if ($this->isTextModeStyleCommand($command['command'])) {
+                $group = $command['stream']->skipWhitespace()->readRawGroup();
+                if ($group !== null) {
+                    $this->appendTextModeBuffer($nodes, $buffer);
+                    $nodes[] = Expression::style(
+                        $this->textModeExpression($group['value']),
+                        ['mathvariant' => $this->textModeVariant($command['command'])]
+                    );
+                    $offset = $group['stream']->offset();
+                    continue;
+                }
+            }
+
+            $styleAttributes = $this->styleDeclarationAttributes($command['command']);
+            if ($styleAttributes !== []) {
+                $group = $command['stream']->skipWhitespace()->readRawGroup();
+                if ($group !== null) {
+                    $result = (new self())->parse($group['value']);
+                    if ($result->ok() && $result->expression() !== null) {
+                        $this->appendTextModeBuffer($nodes, $buffer);
+                        $nodes[] = Expression::style($result->expression(), $styleAttributes);
+                        $offset = $group['stream']->offset();
+                        continue;
+                    }
+                }
+            }
+
+            $buffer .= '\\' . $command['command'];
+            $offset = $command['stream']->offset();
+        }
+
+        $this->appendTextModeBuffer($nodes, $buffer);
+
+        return $this->rowExpression($nodes);
+    }
+
+    /**
+     * @param list<Expression> $nodes
+     */
+    private function appendTextModeBuffer(array &$nodes, string &$buffer): void
+    {
+        if ($buffer === '') {
+            return;
+        }
+
+        $nodes[] = Expression::text($this->textModeLiteral($buffer));
+        $buffer = '';
+    }
+
+    private function textModeLiteralCommand(string $command): ?string
+    {
+        return match ($command) {
+            '&', '%', '$', '#', '_', '{', '}' => $command,
+            ' ' => ' ',
+            'LaTeX' => 'LaTeX',
+            'TeX' => 'TeX',
+            'dots', 'ldots' => '…',
+            'textbackslash' => '\\',
+            default => null,
+        };
+    }
+
+    private function isTextModeStyleCommand(string $command): bool
+    {
+        return in_array($command, ['emph', 'textbf', 'textit', 'textmd', 'textnormal', 'textrm', 'textsf', 'texttt', 'textup'], true);
+    }
+
+    private function textModeVariant(string $command): string
+    {
+        return [
+            'emph' => 'italic',
+            'textbf' => 'bold',
+            'textit' => 'italic',
+            'textmd' => 'normal',
+            'textnormal' => 'normal',
+            'textrm' => 'normal',
+            'textsf' => 'sans-serif',
+            'texttt' => 'monospace',
+            'textup' => 'normal',
+        ][$command] ?? 'normal';
+    }
+
+    private function mathVariantForCommand(string $command): string
+    {
+        return [
+            'mathrm' => 'normal',
+            'mathup' => 'normal',
+            'mathbf' => 'bold',
+            'mathit' => 'italic',
+            'mathsf' => 'sans-serif',
+            'mathtt' => 'monospace',
+        ][$command] ?? 'normal';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function styleDeclarationAttributes(string $command): array
+    {
+        return [
+            'displaystyle' => ['displaystyle' => 'true', 'scriptlevel' => '0'],
+            'textstyle' => ['displaystyle' => 'false', 'scriptlevel' => '0'],
+            'scriptstyle' => ['displaystyle' => 'false', 'scriptlevel' => '1'],
+            'scriptscriptstyle' => ['displaystyle' => 'false', 'scriptlevel' => '2'],
+        ][$command] ?? [];
+    }
+
+    private function expressionText(Expression $expression): string
+    {
+        if ($expression->value !== null) {
+            return $expression->value;
+        }
+
+        $text = '';
+        foreach ($expression->children as $child) {
+            $text .= $this->expressionText($child);
+        }
+
+        return strtr($text, [
+            '−' => '-',
+            '′' => "'",
+            '″' => "''",
+            '‴' => "'''",
+            '⁗' => "''''",
+        ]);
     }
 
     private function primeSymbol(int $count): string

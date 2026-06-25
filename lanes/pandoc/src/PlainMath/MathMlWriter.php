@@ -69,6 +69,7 @@ final class MathMlWriter
             'root' => $this->fixedArityElement('mroot', $expression, 2),
             'over' => $this->fixedArityElement('mover', $expression, 2),
             'under' => $this->fixedArityElement('munder', $expression, 2),
+            'underover' => $this->fixedArityElement('munderover', $expression, 3),
             'enclosed' => $this->fixedArityElement('menclose', $expression, 1),
             'style' => $this->fixedArityElement('mstyle', $expression, 1),
             'delimited' => $this->writeDelimited($expression),
@@ -84,7 +85,20 @@ final class MathMlWriter
         return $this->builder->element(
             $element,
             $this->builder->text((string) $expression->value),
-            $expression->attributes
+            $this->publicAttributes($expression->attributes)
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     * @return array<string, mixed>
+     */
+    private function publicAttributes(array $attributes): array
+    {
+        return array_filter(
+            $attributes,
+            static fn (string $key): bool => !str_starts_with($key, 'plainmath'),
+            ARRAY_FILTER_USE_KEY
         );
     }
 

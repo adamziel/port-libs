@@ -26,6 +26,41 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Future EPUB3 parity notes should continue to distinguish preservation and
   diagnostics from script execution or cryptographic trust validation.
 
+## 2026-06-25 PlainMath Typed TeX Macro/Preprocessor Slice
+
+- `TexPreprocessor` now gives the typed PlainMath parser a native macro
+  expansion boundary for TeX comments, ignorable `\label`, `\tag`, `\notag`,
+  `\nonumber`, and `\allowbreak` commands, `\DeclareMathOperator`, bounded
+  `\newcommand`, `\renewcommand`, and `\providecommand` expansion with optional
+  defaults, and bounded `\newenvironment`/`\renewenvironment` expansion with
+  optional defaults.
+- `TexParser` now preprocesses sources before typed parsing, reports
+  non-converging expansion as a parser diagnostic, supports operator
+  `\limits`/`\nolimits` and default-limits output through `munder`, `mover`,
+  and `munderover`, parses recursive text-mode style commands, math style
+  wrappers, style declarations, and atom coercion commands such as `\mathop`,
+  `\mathrel`, `\mathbin`, `\mathord`, `\mathopen`, `\mathclose`, and
+  `\mathpunct`.
+- The typed PlainMath parser now accepts every committed upstream-derived
+  MathML corpus case, 51 of 51. The broad runtime `HtmlWriter` TeX-to-MathML
+  path intentionally remains on the existing fallback parser until the typed
+  parser has an explicit safe-adapter gate, because the fallback still covers a
+  larger symbol/layout command surface.
+- Verification: `php -l` passed for `TexPreprocessor.php`, `TexParser.php`,
+  `Expression.php`, `MathMlWriter.php`, and `HtmlWriter.php`; `php
+  tools/run-tests.php lanes/pandoc/tests/PlainMathParserTest.php
+  lanes/pandoc/tests/PlainMathWriterTest.php
+  lanes/pandoc/tests/PlainMathTokenStreamTest.php
+  lanes/pandoc/tests/PlainMathConformanceTest.php` passed 4 files, 596
+  assertions, 0 failures; the integrated PlainMath/HTML/EPUB writer gate
+  passed 6 files, 11,210 assertions, 0 failures; and `php tools/run-tests.php
+  lanes/pandoc/tests` passed 20 files, 23,381 assertions, 0 failures with
+  pass-count verification `pass=1205 fail=0`.
+- This is TeX/PlainMath reader progress only. It does not claim full upstream
+  Haskell TeX reader parity, TeX writer work, safe HtmlWriter typed-parser
+  preference, complete symbol/category normalization, or the later requested
+  PPTX/XLSX/BibTeX/CSV/RIS/MediaWiki/RST/XML readers.
+
 ## 2026-06-25 EPUB3 CSS Image-Set Resource Policy Closure
 
 - `EpubReader` and `EpubWriter` now treat top-level quoted string candidates
