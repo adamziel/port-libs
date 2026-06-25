@@ -2892,7 +2892,7 @@ final class HtmlWriter
 
         $commandOffset = $offset + 1;
         $command = $this->readTexMathCommandName($source, $commandOffset);
-        if (!in_array($command, ['over', 'atop', 'choose', 'brack', 'brace'], true)) {
+        if (!in_array($command, ['over', 'atop', 'choose', 'brack', 'brace', 'bangle'], true)) {
             return null;
         }
 
@@ -3148,7 +3148,7 @@ final class HtmlWriter
                 return $this->texMathMalformedEnvironmentFallback($source, $offset, $commandStart);
             }
 
-            $fences = is_string($environment) ? $this->texMathMatrixEnvironmentFences($environment) : null;
+            $fences = $environment === null ? null : $this->texMathMatrixEnvironmentFences($environment);
             if ($fences !== null) {
                 $bodyOffset = $environmentOffset;
                 if ($this->texMathEnvironmentConsumesLeadingGroup($environment)) {
@@ -3218,7 +3218,7 @@ final class HtmlWriter
             }
         }
 
-        if ($command === 'sqrt') {
+        if ($command === 'sqrt' || ($command === 'surd' && $this->texMathHasGroupedRootArgument($source, $offset))) {
             $rootIndex = $this->parseTexMathOptionalBracketArgument($source, $offset);
             $radicand = $this->parseTexMathArgument($source, $offset);
             if ($radicand !== '') {
@@ -3543,6 +3543,7 @@ final class HtmlWriter
             'choose' => $this->texMathFencedRow($fraction, '(', ')'),
             'brack' => $this->texMathFencedRow($fraction, '[', ']'),
             'brace' => $this->texMathFencedRow($fraction, '{', '}'),
+            'bangle' => $this->texMathFencedRow($fraction, '⟨', '⟩'),
             default => $fraction,
         };
     }
@@ -3726,6 +3727,17 @@ final class HtmlWriter
         return '';
     }
 
+    private function texMathHasGroupedRootArgument(string $source, int $offset): bool
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        if (($source[$offset] ?? '') === '[') {
+            $this->parseTexMathOptionalBracketArgument($source, $offset);
+            $this->skipTexMathWhitespace($source, $offset);
+        }
+
+        return ($source[$offset] ?? '') === '{';
+    }
+
     private function readTexMathRawGroup(string $source, int &$offset): ?string
     {
         $this->skipTexMathWhitespace($source, $offset);
@@ -3769,7 +3781,12 @@ final class HtmlWriter
 
         if ($char !== '\\') {
             $offset++;
-            return $char === '.' ? null : $char;
+            return match ($char) {
+                '.' => null,
+                '<' => '⟨',
+                '>' => '⟩',
+                default => $char,
+            };
         }
 
         $offset++;
