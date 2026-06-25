@@ -63,6 +63,40 @@
    `HtmlWriter` defaults.
 10. Remove old `HtmlWriter` helpers only by covered family.
 
+## Reader-Only Work Chunks
+
+The project does not need a TeX writer. The remaining TeX work is a reader:
+native PHP TeX/PlainMath source to typed `Expression` nodes, then existing
+MathML output. Work should be sliced as:
+
+1. **Core reader**
+   Parse atoms, rows, groups, scripts, `\frac`, `\sqrt`, infix `\choose`, and
+   `pmatrix` into `Expression` nodes. Gate this on the existing
+   `expectedExpression` corpus metadata and the shadow `MathMlWriter`.
+   Status: first slice implemented by `PlainMath\TexParser` and
+   `PlainMathParserTest.php` for the initial five expression-shape fixtures.
+
+2. **Preprocessor reader front end**
+   Extract macro/comment/label/operator/environment definition handling from
+   `HtmlWriter` into `TexPreprocessor`, returning normalized TeX plus
+   diagnostics. This is still reader work because it feeds parse input.
+
+3. **Reader category normalization**
+   Add `SymbolCatalog` and a post-parse normalization pass for TexMath-style
+   `Ord`, `Bin`, `Rel`, `Open`, `Close`, `Pun`, and `Op` categories, including
+   bin-to-ord correction and atom coercion. This is the highest-value parity
+   blocker.
+
+4. **Structural reader families**
+   Move operators, arrays/environments, text/style/enclosure, spacing, and
+   remaining structural commands from `HtmlWriter` helpers into `TexParser`
+   family by family.
+
+5. **HtmlWriter adapter**
+   Add `PlainMath\HtmlMathRenderer` and dual-run covered families before
+   switching production rendering. Delete old helpers only after the typed
+   reader owns the corresponding fixture family.
+
 ## Quality Gates
 
 - Every code slice gets focused tests and `php -l` on touched PHP files.
@@ -88,7 +122,7 @@
 | P0 | Expression shape fixtures | `plainmath-conformance-corpus.php`, `PlainMathWriterTest.php` | Corpus metadata round-trips through `Expression` and `MathMlWriter`. |
 | P0 | Token stream skeleton | `PlainMath/TexTokenStream.php`, `PlainMathTokenStreamTest.php` | Cursor tests for commands, groups, optional brackets, spans, and UTF-8. |
 | P0 | Preprocessor extraction | `PlainMath/TexPreprocessor.php`, `PlainMathPreprocessorTest.php`, narrow `HtmlWriter` delegation later | Macro/operator/environment fixtures and recursive fallback diagnostics. |
-| P0 | Core typed parser | `PlainMath/TexParser.php`, `SymbolCatalog.php`, `MathMlWriter.php` | Atoms, rows, scripts, fractions, roots, infix fractions, and delimiters match selected corpus. |
+| P0 | Core typed parser | `PlainMath/TexParser.php`, `SymbolCatalog.php`, `MathMlWriter.php` | First slice covers atoms, rows, scripts, fractions, roots, infix `\choose`, and `pmatrix`; next slice adds symbol catalog and delimiter/operator breadth. |
 | P0 | Category normalization | `SymbolCatalog.php`, parser normalizer tests | Promote `atom-coercion-bin-context-correction` from known gap. |
 | P1 | Structural operators | `TexParser.php`, `Expression.php`, `MathMlWriter.php` | Declared/operatorname/limits fixtures use typed operator metadata. |
 | P1 | Typed arrays/environments | `TexParser.php`, `Expression.php`, `MathMlWriter.php` | AMS/matrix/cases fixtures preserve table shape and enable per-cell fidelity. |

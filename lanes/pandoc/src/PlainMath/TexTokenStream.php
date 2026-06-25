@@ -40,9 +40,21 @@ final class TexTokenStream
         return $this->offset >= $this->length;
     }
 
+    public function peekByte(int $relativeOffset = 0): ?string
+    {
+        $offset = $this->offset + $relativeOffset;
+
+        return $offset >= 0 && $offset < $this->length ? $this->source[$offset] : null;
+    }
+
     public function withOffset(int $offset): self
     {
         return new self($this->source, $offset);
+    }
+
+    public function slice(int $start, int $end): string
+    {
+        return $this->sourceSpan($start, $end)['text'];
     }
 
     /**

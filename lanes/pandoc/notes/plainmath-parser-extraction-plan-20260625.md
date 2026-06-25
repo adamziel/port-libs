@@ -206,7 +206,14 @@ Concrete first slice:
 - Added a shadow `PlainMath\TexTokenStream` skeleton with immutable cursor,
   span, command, raw group, optional bracket, comment/whitespace, and UTF-8
   character tests.
+- Added `PlainMath\TexParseResult` and the first `PlainMath\TexParser` reader
+  slice. It parses the initial expression-shape corpus families into typed
+  `Expression` nodes: atoms/rows, groups, scripts, `\frac`, `\sqrt`, infix
+  `\choose`, and `pmatrix`.
 - Did not modify `HtmlWriter.php` in this extraction slice.
+
+The next reader-only chunk is preprocessor extraction, followed by a
+`SymbolCatalog` plus category-normalization pass. No TeX writer is planned.
 
 ## Test Strategy
 
