@@ -9460,6 +9460,202 @@ HTML;
         $t->same(['article', 'aside', 'nav', 'main', 'header', 'footer', 'css-shell'], $semanticById('semantic-css')['classes'] ?? null);
         $t->same('CSS semantic classes', $semanticById('semantic-css')['text'] ?? null);
     },
+    'writes epub3 residual html5 semantic block tags through xhtml spine' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Residual HTML5 Semantic Blocks EPUB',
+                'lang' => 'en',
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Residual HTML5 Semantic Blocks EPUB'], [
+                $text('Residual HTML5 Semantic Blocks EPUB'),
+            ]),
+            new AstNode('div', [
+                'id' => 'contact-block',
+                'classes' => ['address', 'source-contact'],
+                'attributes' => ['source' => 'address-source'],
+                'htmlAttributes' => [
+                    'id' => 'contact-block',
+                    'class' => 'address source-contact',
+                    'epub:type' => 'contributor',
+                    'role' => 'doc-credit',
+                    'data-source' => 'address-source',
+                ],
+            ], [
+                $paragraph('Editorial team'),
+            ]),
+            new AstNode('div', [
+                'id' => 'title-group',
+                'classes' => ['hgroup', 'source-title'],
+                'attributes' => ['source' => 'hgroup-source'],
+                'htmlAttributes' => [
+                    'id' => 'title-group',
+                    'class' => 'hgroup source-title',
+                    'title' => 'Title group',
+                    'data-source' => 'hgroup-source',
+                ],
+            ], [
+                new AstNode('heading', ['level' => 2, 'text' => 'Feature Import'], [
+                    $text('Feature Import'),
+                ]),
+                $paragraph('Deck copy.'),
+            ]),
+            new AstNode('div', [
+                'id' => 'action-menu',
+                'classes' => ['menu', 'source-actions'],
+                'attributes' => ['source' => 'menu-source'],
+                'htmlAttributes' => [
+                    'id' => 'action-menu',
+                    'class' => 'menu source-actions',
+                    'role' => 'list',
+                    'data-source' => 'menu-source',
+                ],
+            ], [
+                $paragraph('Archive'),
+                $paragraph('Publish'),
+            ]),
+            new AstNode('div', [
+                'id' => 'site-search',
+                'classes' => ['search', 'source-search'],
+                'attributes' => ['source' => 'search-source'],
+                'htmlAttributes' => [
+                    'id' => 'site-search',
+                    'class' => 'search source-search',
+                    'role' => 'search',
+                    'aria-label' => 'Catalog search',
+                    'data-source' => 'search-source',
+                ],
+            ], [
+                $paragraph('Search the catalog.'),
+            ]),
+            new AstNode('div', [
+                'id' => 'review-dialog',
+                'classes' => ['dialog', 'source-dialog'],
+                'attributes' => ['open' => 'open', 'source' => 'dialog-source'],
+                'htmlAttributes' => [
+                    'id' => 'review-dialog',
+                    'class' => 'dialog source-dialog',
+                    'open' => 'open',
+                    'aria-modal' => 'true',
+                    'data-source' => 'dialog-source',
+                ],
+            ], [
+                $paragraph('Modal notice.'),
+            ]),
+            new AstNode('div', [
+                'id' => 'residual-css',
+                'classes' => ['address', 'hgroup', 'menu', 'search', 'dialog', 'css-shell'],
+                'attributes' => ['source' => 'residual-css'],
+                'htmlAttributes' => [
+                    'id' => 'residual-css',
+                    'class' => 'address hgroup menu search dialog css-shell',
+                    'data-source' => 'residual-css',
+                ],
+            ], [
+                $paragraph('CSS residual classes.'),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-21T00:00:00Z',
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-writer-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated EPUB package');
+            }
+
+            $chapter = $zip->getFromName('OEBPS/text/chapter.xhtml');
+            if (!is_string($chapter)) {
+                throw new RuntimeException('Generated EPUB package is missing residual semantic block chapter file');
+            }
+
+            $t->contains(implode("\n", [
+                '<address id="contact-block" class="source-contact" epub:type="contributor" role="doc-credit" data-source="address-source">',
+                '<p>Editorial team</p>',
+                '</address>',
+            ]), $chapter);
+            $t->contains(implode("\n", [
+                '<hgroup id="title-group" class="source-title" title="Title group" data-source="hgroup-source">',
+                '<h2>Feature Import</h2>',
+                '<p>Deck copy.</p>',
+                '</hgroup>',
+            ]), $chapter);
+            $t->contains(implode("\n", [
+                '<menu id="action-menu" class="source-actions" role="list" data-source="menu-source">',
+                '<p>Archive</p>',
+                '<p>Publish</p>',
+                '</menu>',
+            ]), $chapter);
+            $t->contains(implode("\n", [
+                '<search id="site-search" class="source-search" role="search" aria-label="Catalog search" data-source="search-source">',
+                '<p>Search the catalog.</p>',
+                '</search>',
+            ]), $chapter);
+            $t->contains(implode("\n", [
+                '<dialog id="review-dialog" class="source-dialog" open="open" aria-modal="true" data-source="dialog-source">',
+                '<p>Modal notice.</p>',
+                '</dialog>',
+            ]), $chapter);
+            $t->contains(implode("\n", [
+                '<div id="residual-css" class="address hgroup menu search dialog css-shell" data-source="residual-css">',
+                '<p>CSS residual classes.</p>',
+                '</div>',
+            ]), $chapter);
+            foreach (['contact-block', 'title-group', 'action-menu', 'site-search', 'review-dialog'] as $id) {
+                $t->true(!str_contains($chapter, '<div id="' . $id . '"'), "Generated {$id} XHTML should not use a fallback div for native residual HTML5 metadata.");
+            }
+
+            $previous = libxml_use_internal_errors(true);
+            $dom = new DOMDocument('1.0', 'UTF-8');
+            $ok = $dom->loadXML($chapter);
+            $errors = libxml_get_errors();
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+            $t->true($ok, 'Generated EPUB residual HTML5 semantic block XHTML should parse as XML: ' . implode('; ', array_map(static fn (LibXMLError $error): string => trim($error->message), $errors)));
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+
+        $roundTrip = PandocConverter::read($epub, 'epub');
+        $meta = $roundTrip->attr('meta');
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($diagnosticsJson, 'malformed-spine-xhtml'), 'Round-tripped generated residual HTML5 semantic EPUB should not report malformed spine XHTML.');
+
+        $semanticElements = is_array($meta['epubSpineItemRefs'][0]['semanticElements'] ?? null) ? $meta['epubSpineItemRefs'][0]['semanticElements'] : [];
+        $semanticById = static function (string $id) use ($semanticElements): ?array {
+            return array_values(array_filter($semanticElements, static fn (array $entry): bool => ($entry['id'] ?? '') === $id))[0] ?? null;
+        };
+
+        $t->same('address', $semanticById('contact-block')['element'] ?? null);
+        $t->same('contributor', $semanticById('contact-block')['epubType'] ?? null);
+        $t->same('doc-credit', $semanticById('contact-block')['role'] ?? null);
+        $t->same(['source-contact'], $semanticById('contact-block')['classes'] ?? null);
+        $t->same('hgroup', $semanticById('title-group')['element'] ?? null);
+        $t->same('Title group', $semanticById('title-group')['title'] ?? null);
+        $t->same(['data-source' => 'hgroup-source'], $semanticById('title-group')['htmlAttributes'] ?? null);
+        $t->same('menu', $semanticById('action-menu')['element'] ?? null);
+        $t->same('list', $semanticById('action-menu')['role'] ?? null);
+        $t->same('Archive Publish', $semanticById('action-menu')['text'] ?? null);
+        $t->same('search', $semanticById('site-search')['element'] ?? null);
+        $t->same('search', $semanticById('site-search')['role'] ?? null);
+        $t->same('Catalog search', $semanticById('site-search')['ariaLabel'] ?? null);
+        $t->same('dialog', $semanticById('review-dialog')['element'] ?? null);
+        $t->same('true', $semanticById('review-dialog')['ariaModal'] ?? null);
+        $t->same(true, $semanticById('review-dialog')['open'] ?? null);
+        $t->same(['data-source' => 'dialog-source'], $semanticById('review-dialog')['htmlAttributes'] ?? null);
+        $t->same('div', $semanticById('residual-css')['element'] ?? null);
+        $t->same(['address', 'hgroup', 'menu', 'search', 'dialog', 'css-shell'], $semanticById('residual-css')['classes'] ?? null);
+    },
     'writes epub3 heading html attributes through xhtml spine and round trips reader attributes' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $document = new AstNode('document', [
