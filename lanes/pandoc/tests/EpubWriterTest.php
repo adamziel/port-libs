@@ -41760,6 +41760,151 @@ HTML;
         $t->same('scrolled-doc', $spineItems[1]['renditionFlow'] ?? null);
         $t->same('Itemref Alias One First itemref alias page. Itemref Alias Two Second itemref alias page.', $alternate['epubBodyText'] ?? null);
     },
+    'writes alternate epub rootfile split spine rendition refinements without itemref self conflicts' => static function (TestRunner $t): void {
+        $splitDocument = new AstNode('document', [], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Conflict Fixed Page One'], [
+                new AstNode('text', ['text' => 'Conflict Fixed Page One']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'First fixed layout page keeps explicit itemref rendition properties.']),
+            ]),
+            new AstNode('heading', ['level' => 1, 'text' => 'Conflict Fixed Page Two'], [
+                new AstNode('text', ['text' => 'Conflict Fixed Page Two']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Second fixed layout page keeps matching scoped metadata.']),
+            ]),
+        ]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'identifier' => 'urn:uuid:alternate-spine-rendition-conflict-sanitized',
+                'title' => 'Alternate Spine Rendition Conflict Sanitized EPUB',
+                'lang' => 'en',
+                'epubAlternateRootfiles' => [
+                    [
+                        'path' => 'ALT/rendition-conflict.opf',
+                        'id' => 'rendition-conflict',
+                        'mediaType' => 'application/oebps-package+xml',
+                        'identifier' => 'urn:uuid:alternate-spine-rendition-conflict-sanitized-rendition',
+                        'title' => 'Alternate Spine Rendition Conflict Sanitized Rendition',
+                        'lang' => 'en',
+                        'chapterPath' => 'ALT/text/rendition-conflict.xhtml',
+                        'navPath' => 'ALT/rendition-conflict-nav.xhtml',
+                        'splitLevel' => 1,
+                        'pageProgressionDirection' => 'rtl',
+                        'renditionViewport' => ['width' => 1024, 'height' => 768],
+                        'spineItemRefs' => [
+                            [
+                                'id' => 'conflict-page-one-ref',
+                                'properties' => [
+                                    'rendition:page-spread-right',
+                                    'rendition:layout-reflowable',
+                                    'rendition:orientation-landscape',
+                                    'rendition:spread-none',
+                                    'rendition:flow-paginated',
+                                ],
+                                'pageSpread' => 'right',
+                                'renditionLayout' => 'pre-paginated',
+                                'renditionOrientation' => 'portrait',
+                                'renditionSpread' => 'both',
+                                'renditionFlow' => 'scrolled-doc',
+                                'viewport' => ['width' => 1200, 'height' => 900],
+                                'metadataProperties' => [
+                                    ['property' => 'rendition:layout', 'value' => 'pre-paginated'],
+                                    ['property' => 'rendition:flow', 'value' => 'scrolled-doc'],
+                                ],
+                            ],
+                            [
+                                'id' => 'conflict-page-two-ref',
+                                'properties' => [
+                                    'rendition:page-spread-left',
+                                    'rendition:layout-pre-paginated',
+                                    'rendition:orientation-portrait',
+                                    'rendition:spread-none',
+                                    'rendition:flow-scrolled-doc',
+                                ],
+                                'pageSpread' => 'left',
+                                'renditionLayout' => 'pre-paginated',
+                                'renditionOrientation' => 'portrait',
+                                'renditionSpread' => 'none',
+                                'renditionFlow' => 'scrolled-doc',
+                                'viewport' => ['width' => 900, 'height' => 1200],
+                            ],
+                        ],
+                        'document' => $splitDocument,
+                    ],
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Alternate Spine Rendition Conflict Sanitized EPUB'], [
+                new AstNode('text', ['text' => 'Alternate Spine Rendition Conflict Sanitized EPUB']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Primary rendition conflict body.']),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-25T09:55:00Z',
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-alt-rendition-conflict-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary generated EPUB path');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated EPUB package');
+            }
+            $alternatePackage = $zip->getFromName('ALT/rendition-conflict.opf');
+            $pageOne = $zip->getFromName('ALT/text/rendition-conflict.xhtml');
+            $pageTwo = $zip->getFromName('ALT/text/rendition-conflict-2.xhtml');
+            if (!is_string($alternatePackage) || !is_string($pageOne) || !is_string($pageTwo)) {
+                throw new RuntimeException('Generated EPUB package is missing alternate rendition conflict files');
+            }
+
+            $t->contains('<spine page-progression-direction="rtl">', $alternatePackage);
+            $t->contains('<meta property="rendition:viewport">width=1024, height=768</meta>', $alternatePackage);
+            $t->contains('<itemref id="conflict-page-one-ref" idref="chapter-1" properties="rendition:page-spread-right rendition:layout-reflowable rendition:orientation-landscape rendition:spread-none rendition:flow-paginated"/>', $alternatePackage);
+            $t->contains('<itemref id="conflict-page-two-ref" idref="chapter-2" properties="rendition:page-spread-left rendition:layout-pre-paginated rendition:orientation-portrait rendition:spread-none rendition:flow-scrolled-doc"/>', $alternatePackage);
+            $t->contains('<meta property="rendition:viewport" refines="#conflict-page-one-ref">width=1200, height=900</meta>', $alternatePackage);
+            $t->contains('<meta property="rendition:viewport" refines="#conflict-page-two-ref">width=900, height=1200</meta>', $alternatePackage);
+            $t->contains('<meta property="rendition:layout" refines="#conflict-page-two-ref">pre-paginated</meta>', $alternatePackage);
+            $t->contains('<meta property="rendition:flow" refines="#conflict-page-two-ref">scrolled-doc</meta>', $alternatePackage);
+            $t->true(!str_contains($alternatePackage, '<meta property="rendition:layout" refines="#conflict-page-one-ref">pre-paginated</meta>'), 'Conflicting first-page layout refinement should be suppressed.');
+            $t->true(!str_contains($alternatePackage, '<meta property="rendition:orientation" refines="#conflict-page-one-ref">portrait</meta>'), 'Conflicting first-page orientation refinement should be suppressed.');
+            $t->true(!str_contains($alternatePackage, '<meta property="rendition:spread" refines="#conflict-page-one-ref">both</meta>'), 'Conflicting first-page spread refinement should be suppressed.');
+            $t->true(!str_contains($alternatePackage, '<meta property="rendition:flow" refines="#conflict-page-one-ref">scrolled-doc</meta>'), 'Conflicting first-page flow refinement should be suppressed.');
+            $t->contains('<meta name="viewport" content="width=1200, height=900" />', $pageOne);
+            $t->contains('<meta name="viewport" content="width=900, height=1200" />', $pageTwo);
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+
+        $roundTrip = PandocConverter::read($epub, 'epub');
+        $meta = $roundTrip->attr('meta');
+        $alternate = $meta['epubAlternateRootfilePackages']['ALT/rendition-conflict.opf'] ?? [];
+        $spineItems = $alternate['epubSpineItemRefs'] ?? [];
+        $diagnosticsJson = json_encode($alternate['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+
+        $t->same('rtl', $alternate['epubPageProgressionDirection'] ?? null);
+        $t->same('reflowable', $spineItems[0]['renditionLayout'] ?? null);
+        $t->same('landscape', $spineItems[0]['renditionOrientation'] ?? null);
+        $t->same('none', $spineItems[0]['renditionSpread'] ?? null);
+        $t->same('paginated', $spineItems[0]['renditionFlow'] ?? null);
+        $t->same(['width' => 1200, 'height' => 900, 'content' => 'width=1200, height=900'], $spineItems[0]['viewport'] ?? null);
+        $t->same('pre-paginated', $spineItems[1]['renditionLayout'] ?? null);
+        $t->same('portrait', $spineItems[1]['renditionOrientation'] ?? null);
+        $t->same('none', $spineItems[1]['renditionSpread'] ?? null);
+        $t->same('scrolled-doc', $spineItems[1]['renditionFlow'] ?? null);
+        $t->same(['width' => 900, 'height' => 1200, 'content' => 'width=900, height=1200'], $spineItems[1]['viewport'] ?? null);
+        $t->true(!str_contains($diagnosticsJson, 'conflicting-rendition-itemref-metadata'), 'Sanitized alternate spine should not self-diagnose itemref/refinement conflicts.');
+        $t->true(!str_contains($diagnosticsJson, 'conflicting-rendition-spine-metadata'), 'Sanitized alternate spine should not create cross-target rendition conflicts.');
+        $t->same('Conflict Fixed Page One First fixed layout page keeps explicit itemref rendition properties. Conflict Fixed Page Two Second fixed layout page keeps matching scoped metadata.', $alternate['epubBodyText'] ?? null);
+    },
     'writes alternate epub rootfile split spine xhtml metadata alias arrays' => static function (TestRunner $t): void {
         $splitDocument = new AstNode('document', [], [
             new AstNode('heading', ['level' => 1, 'text' => 'XHTML Alias One'], [

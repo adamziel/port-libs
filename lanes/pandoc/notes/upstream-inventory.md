@@ -131,7 +131,40 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   parity, DRM decryption, XML signature cryptographic validation, arbitrary
   multi-rendition graph validation beyond covered paths, broader TeX/MathML
   parser parity, or full EPUB2 output parity beyond existing bounded NCX tests.
+## 2026-06-25 EPUB3 Split Itemref Rendition Conflict Slice
 
+- Focused PHP coverage is now 21,644 full-suite assertions across the Pandoc
+  lane. This implementation slice closes a generated EPUB3 fixed-layout
+  self-conflict path for alternate rootfiles with split spine metadata.
+- `EpubWriter` now suppresses per-spine `rendition:*` refinements whose
+  structured metadata conflicts with explicit itemref rendition properties for
+  the same spine entry. Explicit itemref properties remain the deterministic
+  source for layout, orientation, spread, and flow in that conflict case, while
+  non-conflicting viewport refinements and same-value scoped rendition metadata
+  are still emitted.
+- Focused coverage writes an alternate EPUB3 rootfile with split fixed-layout
+  spine pages, explicit `rendition:layout-*`, `rendition:orientation-*`,
+  `rendition:spread-*`, and `rendition:flow-*` itemref properties, plus
+  conflicting structured metadata fields. The regression verifies generated OPF
+  output omits only the self-conflicting refinements, preserves viewport
+  fallback metadata in the OPF and XHTML heads, and reads back through
+  `EpubReader` without conflicting itemref/refinement or cross-target
+  diagnostics.
+- Verification: `php -l lanes/pandoc/src/EpubWriter.php` and `php -l
+  lanes/pandoc/tests/EpubWriterTest.php` passed; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubWriterTest.php` passed 1 file, 10,254 assertions, 0
+  failures; `php tools/run-tests.php lanes/pandoc/tests/EpubReaderTest.php
+  lanes/pandoc/tests/EpubWriterTest.php` passed 2 files, 15,086 assertions, 0
+  failures; and `php tools/run-tests.php lanes/pandoc/tests` passed 11 files,
+  21,644 assertions, 0 failures.
+- Dependency-closure checkpoint: this is limited to generated EPUB3
+  itemref/refinement conflict sanitation for the covered split-spine
+  alternate-rootfile writer path and the shared per-spine metadata helper. It
+  does not claim reading-system rendering, EPUBCheck validation, arbitrary
+  multi-rendition graph validation, full upstream Haskell runner parity, full
+  EPUB fixture corpus parity, DRM decryption, XML signature cryptographic
+  validation, or broader OPF vocabulary validation beyond existing focused
+  diagnostics.
 ## 2026-06-24 EPUB3 Samp/Var Source Handoff Slice
 
 - Focused PHP coverage remains 1,137 behavior tests and is now 21,494

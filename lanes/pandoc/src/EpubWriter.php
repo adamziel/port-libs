@@ -2349,6 +2349,7 @@ final class EpubWriter
     {
         $records = [];
         $seenProperties = [];
+        $itemrefRenditionValues = $this->itemrefRenditionMetadataValues($entry);
         foreach (['renditionViewport', 'epubRenditionViewport', 'viewport', 'epubViewport', 'viewportContent'] as $key) {
             if (!array_key_exists($key, $entry)) {
                 continue;
@@ -2372,7 +2373,11 @@ final class EpubWriter
                     break;
                 }
             }
-            if ($value !== '' && in_array($value, $config['allowed'], true)) {
+            if (
+                $value !== ''
+                && in_array($value, $config['allowed'], true)
+                && !$this->itemrefRenditionMetadataConflicts($itemrefRenditionValues, $property, $value)
+            ) {
                 $records[] = [
                     'property' => $property,
                     'value' => $value,
@@ -2421,6 +2426,9 @@ final class EpubWriter
             if (!in_array($value, $config['allowed'], true)) {
                 continue;
             }
+            if ($this->itemrefRenditionMetadataConflicts($itemrefRenditionValues, $property, $value)) {
+                continue;
+            }
 
             $entryRecord = [
                 'property' => $property,
@@ -2437,6 +2445,59 @@ final class EpubWriter
         }
 
         return $records;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, list<string>>
+     */
+    private function itemrefRenditionMetadataValues(array $entry): array
+    {
+        if (!array_key_exists('properties', $entry)) {
+            return [];
+        }
+
+        $values = [];
+        $propertyMap = [
+            'rendition:layout-' => 'rendition:layout',
+            'rendition:orientation-' => 'rendition:orientation',
+            'rendition:spread-' => 'rendition:spread',
+            'rendition:flow-' => 'rendition:flow',
+        ];
+        foreach ($this->propertyTokens($entry['properties']) as $property) {
+            $property = strtolower(trim($property));
+            foreach ($propertyMap as $prefix => $metadataProperty) {
+                if (!str_starts_with($property, $prefix)) {
+                    continue;
+                }
+                $config = $this->renditionSpinePropertyConfig()[$prefix] ?? null;
+                if ($config === null) {
+                    continue;
+                }
+                $value = substr($property, strlen($prefix));
+                if ($value === '' || !in_array($value, $config['allowed'], true)) {
+                    continue;
+                }
+                if (!in_array($value, $values[$metadataProperty] ?? [], true)) {
+                    $values[$metadataProperty][] = $value;
+                }
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, list<string>> $itemrefRenditionValues
+     */
+    private function itemrefRenditionMetadataConflicts(array $itemrefRenditionValues, string $property, string $value): bool
+    {
+        $values = $itemrefRenditionValues[$property] ?? [];
+        if ($values === []) {
+            return false;
+        }
+
+        return count($values) !== 1 || $values[0] !== $value;
     }
 
     /**
