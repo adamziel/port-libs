@@ -13,9 +13,9 @@ network services.
 
 | Bucket | Status | Count | Notes |
 | --- | --- | ---: | --- |
-| `mathml` | pass | 47 | Static upstream-derived cases cover scripts, roots, fractions, enclosures, matrices, infix fractions, command macros, optional macros, declared operators, labels/comments, AMS alignment/equation/gather/multline/eqnarray, delimiters, direct Unicode identifiers/operators, prime shorthand, atom coercion commands, recursive styled text, dimensioned spacing, typed atom diagnostics, operator application, nested delimiters, operator limits, substack, cases text, and representative spacing. |
-| `fallback` | pass | 6 | Empty source, recursive macro expansion, and malformed structural commands remain plain math spans and do not emit partial MathML. |
-| `knownGaps` | documented | 4 | The fixture metadata records blocked upstream cases that should not be counted as passing parity. |
+| `mathml` | pass | 51 | Static upstream-derived cases cover scripts, roots, fractions, enclosures, matrices, infix fractions, command macros, optional macros, custom environment macros, declared operators, labels/comments, AMS alignment/equation/gather/multline/eqnarray, delimiters, direct Unicode identifiers/operators, prime shorthand, atom coercion commands, recursive styled text, dimensioned spacing, typed atom diagnostics, operator application, nested delimiters, operator limits, substack, cases text, and representative spacing. |
+| `fallback` | pass | 7 | Empty source, recursive macro expansion, malformed structural commands, and unclosed custom environments remain plain math spans and do not emit partial MathML. |
+| `knownGaps` | documented | 3 | The fixture metadata records blocked upstream cases that should not be counted as passing parity. |
 
 The evaluator added one low-risk corpus case,
 `unicode-identifiers-prime-shorthand`, because the integrated branch now
@@ -35,7 +35,7 @@ local TexMath cache at `17089967`: `01.test`, `02.test`, `04.test`, `05.test`,
 | --- | --- | --- |
 | Inventory | accepted | It identifies TexMath `readTeX` plus `writeMathML` as the ground truth, names fixture families, and separates parser gaps from bounded EPUB behavior. |
 | Architecture | accepted with caveat | It correctly calls out the main blocker: `HtmlWriter` still parses directly to MathML strings instead of a typed expression tree. The migration plan remains necessary for full parity. |
-| Conformance harness | accepted | The harness is static, hermetic, XML-normalized, and now tracks 47 passing MathML cases, six fallback cases, and known gaps. |
+| Conformance harness | accepted | The harness is static, hermetic, XML-normalized, and now tracks 51 passing MathML cases, seven fallback cases, and known gaps. |
 | Macro/operator preprocessing | accepted as partial parity | `\newcommand`, optional defaults, `\providecommand`, `\renewcommand`, comments, labels/tags, and `\DeclareMathOperator` have representative fixtures. Environment macros and typed operator metadata remain gaps. |
 | Symbols/operators/scripts | accepted as partial parity | Direct Unicode tokenization and prime shorthand are covered. Command alias table growth is acceptable only where driven through formulas; category correction remains unimplemented. |
 | Environments/arrays | accepted as bounded parser parity | AMS align/gather/matrix/cases families have tests. Layout-only TeX details remain out of scope for current MathML semantics. |
@@ -61,7 +61,6 @@ unless paired with representative formula tests.
 
 | Gap | Impact | Evidence |
 | --- | --- | --- |
-| `\newenvironment` and `\renewenvironment` | Command macro expansion is covered, but custom environment definitions remain unsupported. | `knownGaps.macro-environments`. |
 | Atom coercion beyond explicit commands | `\mathop`, `\mathrel`, `\mathbin`, `\mathord`, `\mathopen`, `\mathclose`, and `\mathpunct` have bounded fixture coverage, but broader bin-to-ord correction and ordinary delimiter categories still need typed categories. | Corpus atom-coercion fixtures and `knownGaps.atom-coercion-bin-context-correction`. |
 | Operator semantics beyond bounded limits | `\operatorname*`, `\DeclareMathOperator*`, `\limits`, and `\nolimits` have representative coverage; broader TeX operator behavior still depends on a typed expression model instead of direct MathML fragments. | Corpus operator application fixtures and typed atom prototype note. |
 | Text-mode semantics beyond recursive styles | Representative recursive `\text`/`\mbox`/style nesting is covered; TexMath still has richer text/style behavior and styled Unicode conversion. | Corpus `recursive-text-mode-styles` and style/text note. |
@@ -97,6 +96,6 @@ Out of scope for this effort:
 - `php -l lanes/pandoc/tests/fixtures/plainmath-conformance-corpus.php`
   - No syntax errors detected.
 - `php tools/run-tests.php lanes/pandoc/tests/PlainMathConformanceTest.php lanes/pandoc/tests/HtmlWriterTest.php lanes/pandoc/tests/EpubWriterTest.php`
-  - 3 files, 10,951 assertions, 0 failures.
+  - 3 files, 10,973 assertions, 0 failures.
 - `php tools/run-tests.php lanes/pandoc/tests`
-  - 13 files, 22,775 assertions, 0 failures.
+  - 13 files, 22,797 assertions, 0 failures.

@@ -188,6 +188,54 @@ return [
             'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mrow><mo stretchy="true">‖</mo><mi>x</mi><mo stretchy="true">‖</mo></mrow><mn>2</mn></msub><mo>+</mo><msub><mrow><mo stretchy="true">‖</mo><mi>y</mi><mo stretchy="true">‖</mo></mrow><mn>1</mn></msub></mrow><annotation encoding="application/x-tex">\newcommand{\norm}[2][2]{\left\lVert #2 \right\rVert_#1}\norm{x}+\norm[1]{y}</annotation></semantics></math>',
         ],
         [
+            'id' => 'newenvironment-delimiters',
+            'family' => 'macro-environments',
+            'tex' => '\newenvironment{foo}{\left(}{\right)}\begin{foo}x\end{foo}',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'test/reader/tex/macros.test newenvironment subset',
+                'writer' => 'test/writer/mml/macros.test derived subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="true">(</mo><mi>x</mi><mo stretchy="true">)</mo></mrow><annotation encoding="application/x-tex">\newenvironment{foo}{\left(}{\right)}\begin{foo}x\end{foo}</annotation></semantics></math>',
+        ],
+        [
+            'id' => 'renewenvironment-delimiters',
+            'family' => 'macro-environments',
+            'tex' => '\newenvironment{foo}{\left(}{\right)}\renewenvironment{foo}{\left[}{\right]}\begin{foo}y\end{foo}',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'test/reader/tex/macros.test renewenvironment subset',
+                'writer' => 'test/writer/mml/macros.test derived subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="true">[</mo><mi>y</mi><mo stretchy="true">]</mo></mrow><annotation encoding="application/x-tex">\newenvironment{foo}{\left(}{\right)}\renewenvironment{foo}{\left[}{\right]}\begin{foo}y\end{foo}</annotation></semantics></math>',
+        ],
+        [
+            'id' => 'newenvironment-optional-default',
+            'family' => 'macro-environments',
+            'tex' => '\newenvironment{shift}[2][2]{#2_{#1}+}{}\begin{shift}[3]{x}y\end{shift}',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'test/reader/tex/macros.test environment optional argument subset',
+                'writer' => 'test/writer/mml/macros.test derived subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mn>3</mn></msub><mo>+</mo><mi>y</mi></mrow><annotation encoding="application/x-tex">\newenvironment{shift}[2][2]{#2_{#1}+}{}\begin{shift}[3]{x}y\end{shift}</annotation></semantics></math>',
+        ],
+        [
+            'id' => 'newenvironment-array-wrapper',
+            'family' => 'macro-environments',
+            'tex' => '\newenvironment{ary}{\begin{array}{cc}}{\end{array}}\begin{ary}2 & 3\\\\4 & 5\end{ary}',
+            'display' => true,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'test/reader/tex/macros.test environment array subset',
+                'writer' => 'test/writer/mml/19.test array subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mtable columnalign="center center"><mtr><mtd><mn>2</mn></mtd><mtd><mn>3</mn></mtd></mtr><mtr><mtd><mn>4</mn></mtd><mtd><mn>5</mn></mtd></mtr></mtable><annotation encoding="application/x-tex">\newenvironment{ary}{\begin{array}{cc}}{\end{array}}\begin{ary}2 &amp; 3\\\\4 &amp; 5\end{ary}</annotation></semantics></math>',
+        ],
+        [
             'id' => 'declared-operator',
             'family' => 'macros-and-operators',
             'tex' => '\DeclareMathOperator*{\argmax}{arg\,max}\argmax_{x} f(x)',
@@ -634,14 +682,15 @@ return [
             'expectedHtml' => '<span class="math display">\begin{pmatrix}a&amp;b</span>',
             'reason' => 'Unclosed table environments should preserve the original source span instead of emitting mtext MathML.',
         ],
+        [
+            'id' => 'unclosed-custom-environment-span',
+            'tex' => '\newenvironment{foo}{\left(}{\right)}\begin{foo}x',
+            'display' => false,
+            'expectedHtml' => '<span class="math inline">\newenvironment{foo}{\left(}{\right)}\begin{foo}x</span>',
+            'reason' => 'Unclosed custom environments should preserve the original source span instead of emitting partial MathML.',
+        ],
     ],
     'knownGaps' => [
-        [
-            'id' => 'macro-environments',
-            'upstream' => 'test/reader/tex/macros.test',
-            'tex' => '\newenvironment{foo}{\left(}{\right)}\begin{foo}x\end{foo}',
-            'gap' => 'TexMath expands newenvironment definitions; current HtmlWriter only expands command macros and declared operators.',
-        ],
         [
             'id' => 'recursive-macro-diagnostics',
             'upstream' => 'Text.TeXMath.Readers.TeX.Macros applyMacros fixed-point fallback',

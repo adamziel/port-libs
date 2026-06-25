@@ -60,7 +60,7 @@ scope.
 
 The conformance harness currently proves the integrated behavior by rendering
 through `HtmlWriter(['writerHTMLMathMethod' => 'mathml'])`. The corpus records
-47 passing MathML cases, six fallback cases, and four known gaps. The important
+51 passing MathML cases, seven fallback cases, and three known gaps. The important
 remaining architectural blocker is that parser output is already serialized
 MathML, so there is nowhere durable to hold TexMath-like atom categories,
 operator metadata, source spans, or diagnostics.

@@ -35,8 +35,8 @@
 - Upstream reference: local TexMath cache at commit `17089967`, matching the
   supervisor brief's `1708996` family. The runnable PHP tests snapshot selected
   expectations rather than reading that cache at runtime.
-- Current corpus count after `plib-wj70q.14`: 47 passing MathML fixtures, 6
-  fallback fixtures, and 4 known gaps.
+- Current corpus count after custom environment expansion: 51 passing MathML
+  fixtures, 7 fallback fixtures, and 3 known gaps.
 - Initial passing corpus:
   - `script-super`: `x^2`, from `test/reader/tex/03.test` and
     `test/writer/mml/03.test` subsets.
@@ -55,6 +55,8 @@
   - `macro-square`: one-argument `\newcommand` expansion.
   - `macro-optional-default`: optional/default macro argument expansion through
     fenced norm notation.
+  - custom environment macros: `\newenvironment` and `\renewenvironment`
+    expansion for delimiters, optional/default arguments, and array wrappers.
   - `declared-operator`: `\DeclareMathOperator*` expansion to
     `\operatorname*`.
   - `ignorable-label-tag-comment`: TeX comments, labels, tags, `\nonumber`,
@@ -81,13 +83,10 @@
   - `recursive-macro-span`: recursive macro expansion stays a plain math span
     rather than emitting partial MathML.
   - malformed structural spans: incomplete fractions, roots, fences, and matrix
-    environments preserve the original source span rather than emitting partial
-    MathML.
+    environments, including custom macro environments, preserve the original
+    source span rather than emitting partial MathML.
 
 ## Gaps And Blockers
-- `macro-environments`: TexMath expands `\newenvironment` and
-  `\renewenvironment`; current `HtmlWriter` only expands command macros and
-  declared operators.
 - `writer-style-attrs`: TexMath MathML often adds `form`, `columnalign`, and
   text-align style attributes not emitted by the local bounded writer. The
   initial passing corpus snapshots current XHTML-safe output and records

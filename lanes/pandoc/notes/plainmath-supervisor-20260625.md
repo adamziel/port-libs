@@ -104,14 +104,12 @@
 
 ## Phase Two Fanout - Full Generic TeX Parser Parity
 
-After the operator and typed-atom lanes, the branch covers 47 static PlainMath MathML
-fixtures, 6 fallback fixtures, and 4 known gaps. Further work should prefer
+After custom environment expansion, the branch covers 51 static PlainMath MathML
+fixtures, 7 fallback fixtures, and 3 known gaps. Further work should prefer
 deep parser semantics over more alias-table expansion.
 
 Remaining active backlog:
 
-- `newenvironment` / `renewenvironment`: expand simple begin/end custom
-  environments through preprocessing and cover nested/custom delimiter fixtures.
 - Typed expression extraction: move from direct MathML string fragments to a
   parser/writer boundary so category correction, source spans, and diagnostics
   can be represented structurally.
