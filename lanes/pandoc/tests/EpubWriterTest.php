@@ -6303,6 +6303,100 @@ HTML;
             ['type' => 'toc', 'title' => 'Contents', 'href' => 'OEBPS/nav.xhtml'],
         ], $meta['epubGuideReferences']);
     },
+    'writes epub3 nav landmarks and page-list without duplicate normalized targets' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [
+            'meta' => [
+                'identifier' => 'urn:uuid:nav-normalized-target-dedupe',
+                'title' => 'Navigation Target Dedupe',
+                'lang' => 'en',
+                'epubLandmarkEntries' => [
+                    ['text' => 'Body Start', 'href' => 'OEBPS/text/chapter.xhtml#nav-dedupe-start', 'level' => 1, 'type' => 'bodymatter'],
+                    ['text' => 'Body Duplicate', 'href' => 'OEBPS/text/./chapter.xhtml#nav-dedupe-start', 'level' => 1, 'type' => 'bodymatter'],
+                    ['text' => 'Body Duplicate Child', 'href' => 'OEBPS/text/chapter.xhtml#nav-dedupe-page-2', 'level' => 2, 'type' => 'bodymatter'],
+                    ['text' => 'Chapter Target', 'href' => 'OEBPS/text/chapter.xhtml#nav-dedupe-start', 'level' => 1, 'type' => 'chapter'],
+                ],
+                'epubPageListEntries' => [
+                    ['text' => '1', 'href' => 'OEBPS/text/chapter.xhtml#nav-dedupe-page-1', 'level' => 1, 'type' => 'pagebreak', 'value' => '1'],
+                    ['text' => '1 Duplicate', 'href' => 'OEBPS/text/./chapter.xhtml#nav-dedupe-page-1', 'level' => 1, 'type' => 'pagebreak', 'value' => '1'],
+                    ['text' => '1 Duplicate Child', 'href' => 'OEBPS/text/chapter.xhtml#nav-dedupe-page-2', 'level' => 2, 'type' => 'pagebreak', 'value' => '2'],
+                    ['text' => '2', 'href' => 'OEBPS/text/chapter.xhtml#nav-dedupe-page-2', 'level' => 1, 'type' => 'pagebreak', 'value' => '2'],
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Navigation Target Dedupe', 'id' => 'nav-dedupe-start'], [
+                new AstNode('text', ['text' => 'Navigation Target Dedupe']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('span', [
+                    'id' => 'nav-dedupe-page-1',
+                    'classes' => ['pagebreak'],
+                    'attributes' => ['title' => '1'],
+                ]),
+                new AstNode('text', ['text' => 'First deduped page marker.']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('span', [
+                    'id' => 'nav-dedupe-page-2',
+                    'classes' => ['pagebreak'],
+                    'attributes' => ['title' => '2'],
+                ]),
+                new AstNode('text', ['text' => 'Second deduped page marker.']),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-25T00:10:00Z',
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-nav-dedupe-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated EPUB package');
+            }
+
+            $nav = $zip->getFromName('OEBPS/nav.xhtml');
+            $chapter = $zip->getFromName('OEBPS/text/chapter.xhtml');
+            if (!is_string($nav) || !is_string($chapter)) {
+                throw new RuntimeException('Generated EPUB package is missing nav or chapter files');
+            }
+
+            $t->same(1, substr_count($nav, '<a epub:type="bodymatter" href="text/chapter.xhtml#nav-dedupe-start">Body Start</a>'));
+            $t->contains('<a epub:type="chapter" href="text/chapter.xhtml#nav-dedupe-start">Chapter Target</a>', $nav);
+            $t->same(1, substr_count($nav, 'href="text/chapter.xhtml#nav-dedupe-page-1"'));
+            $t->contains('<a epub:type="pagebreak" href="text/chapter.xhtml#nav-dedupe-page-2">2</a>', $nav);
+            $t->true(!str_contains($nav, '>Body Duplicate</a>'), 'Duplicate normalized landmark target should not be emitted.');
+            $t->true(!str_contains($nav, 'Body Duplicate Child'), 'Duplicate normalized landmark branches should not be reparented.');
+            $t->true(!str_contains($nav, '>1 Duplicate</a>'), 'Duplicate normalized page-list target should not be emitted.');
+            $t->true(!str_contains($nav, '1 Duplicate Child'), 'Duplicate normalized page-list branches should not be reparented.');
+            $t->contains('<span id="nav-dedupe-page-1" class="pagebreak" title="1" role="doc-pagebreak" epub:type="pagebreak"></span>', $chapter);
+            $t->contains('<span id="nav-dedupe-page-2" class="pagebreak" title="2" role="doc-pagebreak" epub:type="pagebreak"></span>', $chapter);
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+
+        $roundTrip = PandocConverter::read($epub, 'epub');
+        $meta = $roundTrip->attr('meta');
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+        $t->same(2, $meta['epubLandmarkEntryCount']);
+        $t->same([
+            ['text' => 'Body Start', 'href' => 'OEBPS/text/chapter.xhtml#nav-dedupe-start', 'level' => 1, 'type' => 'bodymatter'],
+            ['text' => 'Chapter Target', 'href' => 'OEBPS/text/chapter.xhtml#nav-dedupe-start', 'level' => 1, 'type' => 'chapter'],
+        ], $meta['epubLandmarkEntries']);
+        $t->same(2, $meta['epubPageListEntryCount']);
+        $t->same([
+            ['text' => '1', 'href' => 'OEBPS/text/chapter.xhtml#nav-dedupe-page-1', 'level' => 1, 'type' => 'pagebreak', 'value' => '1'],
+            ['text' => '2', 'href' => 'OEBPS/text/chapter.xhtml#nav-dedupe-page-2', 'level' => 1, 'type' => 'pagebreak', 'value' => '2'],
+        ], $meta['epubPageListEntries']);
+        $t->true(!str_contains($diagnosticsJson, 'duplicate-nav-landmark-link'), 'Generated nav should not self-diagnose duplicate landmark type/target pairs.');
+        $t->true(!str_contains($diagnosticsJson, 'duplicate-nav-page-list-target'), 'Generated nav should not self-diagnose duplicate page-list targets.');
+        $t->true(!str_contains($diagnosticsJson, 'nav-page-list-value-mismatch'), 'Deduped page-list targets should retain matching page values.');
+    },
     'writes split epub3 explicit nav landmarks across spine pages' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'meta' => [

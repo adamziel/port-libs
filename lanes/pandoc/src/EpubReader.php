@@ -113,6 +113,10 @@ final class EpubReader
                 $package_diagnostics,
                 $this->xhtmlNavigationTargetDiagnostics($landmark_entry_group, 'landmarks', $spine_items, $manifest, $base_path)
             );
+            $package_diagnostics = array_merge(
+                $package_diagnostics,
+                $this->navLandmarkReadingOrderDiagnostics($zip, $landmark_entry_group, $spine_items, $manifest, $base_path)
+            );
         }
         foreach ($navigation['pageListTargetGroups'] as $page_list_entry_group) {
             $package_diagnostics = array_merge(
@@ -13378,6 +13382,17 @@ final class EpubReader
     }
 
     /**
+     * @param list<array<string, mixed>> $landmarkEntries
+     * @param list<array{idref: string, linear: bool, properties: list<string>, id?: string}> $spineItems
+     * @param array<string, array{href: string, media-type: string, properties: list<string>, fallback: string, fallback-style: string, media-overlay: string}> $manifest
+     * @return list<array<string, mixed>>
+     */
+    private function navLandmarkReadingOrderDiagnostics(\ZipArchive $zip, array $landmarkEntries, array $spineItems, array $manifest, string $base_path): array
+    {
+        return $this->specializedNavigationReadingOrderDiagnostics($zip, $landmarkEntries, $spineItems, $manifest, $base_path, 'landmarks');
+    }
+
+    /**
      * @param list<array<string, mixed>> $pageListEntries
      * @param list<array{idref: string, linear: bool, properties: list<string>, id?: string}> $spineItems
      * @param array<string, array{href: string, media-type: string, properties: list<string>, fallback: string, fallback-style: string, media-overlay: string}> $manifest
@@ -13385,7 +13400,18 @@ final class EpubReader
      */
     private function navPageListReadingOrderDiagnostics(\ZipArchive $zip, array $pageListEntries, array $spineItems, array $manifest, string $base_path): array
     {
-        if ($pageListEntries === [] || $spineItems === []) {
+        return $this->specializedNavigationReadingOrderDiagnostics($zip, $pageListEntries, $spineItems, $manifest, $base_path, 'page-list');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<array{idref: string, linear: bool, properties: list<string>, id?: string}> $spineItems
+     * @param array<string, array{href: string, media-type: string, properties: list<string>, fallback: string, fallback-style: string, media-overlay: string}> $manifest
+     * @return list<array<string, mixed>>
+     */
+    private function specializedNavigationReadingOrderDiagnostics(\ZipArchive $zip, array $entries, array $spineItems, array $manifest, string $base_path, string $navType): array
+    {
+        if ($entries === [] || $spineItems === []) {
             return [];
         }
 
@@ -13397,7 +13423,7 @@ final class EpubReader
         $previousElementOrder = null;
         $previousContext = null;
 
-        foreach ($pageListEntries as $entry) {
+        foreach ($entries as $entry) {
             $href = (string) ($entry['href'] ?? '');
             if ($href === '' || !$this->isPackageRelativeResourceUrl($href)) {
                 continue;
@@ -13452,8 +13478,10 @@ final class EpubReader
             if ($outOfOrder) {
                 $diagnostics[] = $this->epubDiagnostic(
                     'error',
-                    'out-of-order-nav-page-list-entry',
-                    'EPUB page-list navigation entry appears before a previous page-list target in the linear spine reading order.',
+                    $navType === 'page-list' ? 'out-of-order-nav-page-list-entry' : 'out-of-order-nav-landmark-entry',
+                    $navType === 'page-list'
+                        ? 'EPUB page-list navigation entry appears before a previous page-list target in the linear spine reading order.'
+                        : 'EPUB landmarks navigation entry appears before a previous landmark target in the linear spine reading order.',
                     $context + [
                         'previousHref' => $previousContext['href'] ?? null,
                         'previousTargetPath' => $previousContext['targetPath'] ?? null,
@@ -17833,6 +17861,10 @@ final class EpubReader
             $diagnostics = array_merge(
                 $diagnostics,
                 $this->xhtmlNavigationTargetDiagnostics($landmarkEntryGroup, 'landmarks', $spineItems, $manifest, $basePath)
+            );
+            $diagnostics = array_merge(
+                $diagnostics,
+                $this->navLandmarkReadingOrderDiagnostics($zip, $landmarkEntryGroup, $spineItems, $manifest, $basePath)
             );
         }
         foreach ($navigation['pageListTargetGroups'] as $pageListEntryGroup) {
