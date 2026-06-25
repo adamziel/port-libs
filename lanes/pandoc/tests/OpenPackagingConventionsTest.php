@@ -425,6 +425,12 @@ return [
         $t->same(false, $summary['isSupportedByBoundedReader']);
         $t->same(true, $summary['zipCentralDirectoryValid']);
         $t->same([], $summary['centralDirectoryIssues']);
+        $t->same(false, $summary['localHeaderNamesValid']);
+        $t->same(['local-header-name-mismatch', 'local-header-decoded-name-mismatch'], $summary['localHeaderNameIssues']);
+        $t->same(null, $summary['localHeaderNamePreflightError']);
+        $t->same(1, $summary['localHeaderNameMismatchEntryCount']);
+        $t->same('word/document.xml', $summary['localHeaderNameMismatchedEntries'][0]['centralName']);
+        $t->same('word/otherdoc.xml', $summary['localHeaderNameMismatchedEntries'][0]['localName']);
         $t->same(8, $summary['declaredEntryCount']);
         $t->same(8, $summary['entryCount']);
         $t->same(7, $summary['fileEntryCount']);
@@ -441,10 +447,26 @@ return [
         $t->same(1, $summary['mediaPartCandidateCount']);
         $t->same(5, $summary['xmlPayloadPartCount']);
         $t->same(2, $summary['binaryPayloadPartCount']);
-        $t->same(['orphan-relationship-part' => 1], $summary['issueCounts']);
-        $t->same(['orphan-relationship-part'], $summary['issues']);
-        $t->same(['orphan-relationship-part' => ['word/_rels/orphan.xml.rels']], $summary['entryNamesByIssue']);
-        $t->same(['orphan-relationship-part' => ['/word/_rels/orphan.xml.rels']], $summary['partNamesByIssue']);
+        $t->same([
+            'local-header-decoded-name-mismatch' => 1,
+            'local-header-name-mismatch' => 1,
+            'orphan-relationship-part' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'local-header-name-mismatch',
+            'local-header-decoded-name-mismatch',
+            'orphan-relationship-part',
+        ], $summary['issues']);
+        $t->same([
+            'local-header-decoded-name-mismatch' => ['word/document.xml'],
+            'local-header-name-mismatch' => ['word/document.xml'],
+            'orphan-relationship-part' => ['word/_rels/orphan.xml.rels'],
+        ], $summary['entryNamesByIssue']);
+        $t->same([
+            'local-header-decoded-name-mismatch' => ['/word/document.xml'],
+            'local-header-name-mismatch' => ['/word/document.xml'],
+            'orphan-relationship-part' => ['/word/_rels/orphan.xml.rels'],
+        ], $summary['partNamesByIssue']);
         $t->same([
             'content-types' => 1,
             'directory' => 1,
@@ -491,6 +513,13 @@ return [
         $t->same('content-types+xml', $entries['[Content_Types].xml']['handoffKind']);
         $t->same('package-relationships', $entries['_rels/.rels']['role']);
         $t->same('/', $entries['_rels/.rels']['relationshipSource']);
+        $t->same('word/document.xml', $entries['word/document.xml']['centralName']);
+        $t->same('word/otherdoc.xml', $entries['word/document.xml']['localHeaderName']);
+        $t->same(false, $entries['word/document.xml']['localHeaderNameMatchesCentral']);
+        $t->same(false, $entries['word/document.xml']['localHeaderDecodedNameMatchesCentral']);
+        $t->same(true, $entries['word/document.xml']['localHeaderGeneralPurposeFlagsMatchCentral']);
+        $t->same(['local-header-name-mismatch', 'local-header-decoded-name-mismatch'], $entries['word/document.xml']['localHeaderNameIssues']);
+        $t->same(['local-header-name-mismatch', 'local-header-decoded-name-mismatch'], $entries['word/document.xml']['issues']);
         $t->same('part-relationships', $entries['word/_rels/document.xml.rels']['role']);
         $t->same('/word/document.xml', $entries['word/_rels/document.xml.rels']['relationshipSource']);
         $t->same(true, $entries['word/_rels/document.xml.rels']['relationshipSourceExists']);
@@ -498,6 +527,75 @@ return [
         $t->same(['orphan-relationship-part'], $entries['word/_rels/orphan.xml.rels']['issues']);
         $t->same('/word/orphan.xml', $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSource']);
         $t->same(false, $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSourceExists']);
+    },
+    'preflights raw OPC central directory local header name mismatches before package construction' => static function (TestRunner $t): void {
+        $zip = ZipPackage::build([
+            ['name' => '[Content_Types].xml', 'data' => '<Types/>', 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>', 'compressionMethod' => 0],
+        ]);
+
+        $documentEntry = null;
+        foreach (ZipPackage::centralDirectorySizePreflight($zip)['entries'] as $entry) {
+            if ($entry['name'] === 'word/document.xml') {
+                $documentEntry = $entry;
+                break;
+            }
+        }
+        $t->true(is_array($documentEntry));
+
+        $zip = substr_replace(
+            $zip,
+            'word/otherdoc.xml',
+            $documentEntry['localHeaderOffset'] + 30,
+            strlen('word/document.xml')
+        );
+        $t->throws(RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+
+        $summary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(true, $summary['zipCentralDirectoryValid']);
+        $t->same([], $summary['centralDirectoryIssues']);
+        $t->same(false, $summary['localHeaderNamesValid']);
+        $t->same(['local-header-name-mismatch', 'local-header-decoded-name-mismatch'], $summary['localHeaderNameIssues']);
+        $t->same(null, $summary['localHeaderNamePreflightError']);
+        $t->same(1, $summary['localHeaderNameMismatchEntryCount']);
+        $t->same([
+            'local-header-decoded-name-mismatch' => 1,
+            'local-header-name-mismatch' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'local-header-name-mismatch',
+            'local-header-decoded-name-mismatch',
+        ], $summary['issues']);
+        $t->same([
+            'local-header-decoded-name-mismatch' => ['word/document.xml'],
+            'local-header-name-mismatch' => ['word/document.xml'],
+        ], $summary['entryNamesByIssue']);
+        $t->same([
+            'local-header-decoded-name-mismatch' => ['/word/document.xml'],
+            'local-header-name-mismatch' => ['/word/document.xml'],
+        ], $summary['partNamesByIssue']);
+        $t->same('word/document.xml', $summary['localHeaderNameMismatchedEntries'][0]['centralName']);
+        $t->same('word/otherdoc.xml', $summary['localHeaderNameMismatchedEntries'][0]['localName']);
+
+        $document = $entries['word/document.xml'];
+        $t->same('word/document.xml', $document['centralName']);
+        $t->same('word/otherdoc.xml', $document['localHeaderName']);
+        $t->same(false, $document['localHeaderNameMatchesCentral']);
+        $t->same(false, $document['localHeaderDecodedNameMatchesCentral']);
+        $t->same(true, $document['localHeaderGeneralPurposeFlagsMatchCentral']);
+        $t->same(['local-header-name-mismatch', 'local-header-decoded-name-mismatch'], $document['localHeaderNameIssues']);
+        $t->same(['local-header-name-mismatch', 'local-header-decoded-name-mismatch'], $document['issues']);
+        $t->same(false, $document['valid']);
+        $t->same('xml-part', $document['role']);
+        $t->same('xml', $document['handoffKind']);
     },
     'preflights raw OPC central directory manifest ZIP64 byte sentinels before package construction' => static function (TestRunner $t): void {
         $contentTypesXml = '<Types/>';

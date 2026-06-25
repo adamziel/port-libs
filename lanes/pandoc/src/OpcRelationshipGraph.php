@@ -1015,6 +1015,17 @@ final class OpcRelationshipGraph
         foreach ($localHeaderOrder['entries'] as $orderEntry) {
             $localHeaderOrderByCentralDirectoryIndex[$orderEntry['centralDirectoryIndex']] = $orderEntry;
         }
+        $localHeaderNames = null;
+        $localHeaderNamePreflightError = null;
+        $localHeaderNameByCentralDirectoryIndex = [];
+        try {
+            $localHeaderNames = ZipPackage::localHeaderNamePreflight($bytes);
+            foreach ($localHeaderNames['entries'] as $nameEntry) {
+                $localHeaderNameByCentralDirectoryIndex[$nameEntry['centralDirectoryIndex']] = $nameEntry;
+            }
+        } catch (\Throwable $exception) {
+            $localHeaderNamePreflightError = $exception->getMessage();
+        }
         $entries = [];
         $contentTypesItems = [];
         $contentTypesEntryIndexes = [];
@@ -1030,6 +1041,10 @@ final class OpcRelationshipGraph
             $contentTypesItem = false;
             $byteCountsAreExact = !$centralEntry['hasZip64SizeSentinel'];
             $orderEntry = $localHeaderOrderByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $localHeaderNameEntry = $localHeaderNameByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            if ($localHeaderNameEntry !== null && $localHeaderNameEntry['issues'] !== []) {
+                $issues = array_values(array_unique(array_merge($issues, $localHeaderNameEntry['issues'])));
+            }
 
             if (!$isDirectory) {
                 try {
@@ -1061,6 +1076,14 @@ final class OpcRelationshipGraph
                 'localHeaderNameAtCentralDirectoryIndex' => $orderEntry['localHeaderNameAtCentralDirectoryIndex'] ?? $centralEntry['name'],
                 'centralDirectoryNameAtLocalHeaderOrder' => $orderEntry['centralDirectoryNameAtLocalHeaderOrder'] ?? $centralEntry['name'],
                 'matchesCentralDirectoryOrder' => $orderEntry['matchesCentralDirectoryOrder'] ?? true,
+                'centralName' => $localHeaderNameEntry['centralName'] ?? $centralEntry['name'],
+                'localHeaderName' => $localHeaderNameEntry['localName'] ?? null,
+                'localHeaderRawName' => $localHeaderNameEntry['localRawName'] ?? null,
+                'localHeaderNameEncoding' => $localHeaderNameEntry['localNameEncoding'] ?? null,
+                'localHeaderNameMatchesCentral' => $localHeaderNameEntry['rawNameMatchesCentral'] ?? null,
+                'localHeaderDecodedNameMatchesCentral' => $localHeaderNameEntry['decodedNameMatchesCentral'] ?? null,
+                'localHeaderGeneralPurposeFlagsMatchCentral' => $localHeaderNameEntry['generalPurposeFlagsMatchCentral'] ?? null,
+                'localHeaderNameIssues' => $localHeaderNameEntry['issues'] ?? [],
                 'isDirectory' => $isDirectory,
                 'isPackagePart' => !$isDirectory,
                 'centralDirectoryIndex' => $centralEntry['centralDirectoryIndex'],
@@ -1199,6 +1222,10 @@ final class OpcRelationshipGraph
         $partNamesByIssue = [];
         foreach ($issues as $issue) {
             $issueCounts[$issue] = 1;
+        }
+        if ($localHeaderNamePreflightError !== null) {
+            $issueCounts['local-header-name-preflight-error'] = 1;
+            self::appendUniqueString($issues, 'local-header-name-preflight-error');
         }
         $roleCounts = [];
         $byteCountsByRole = [];
@@ -1418,6 +1445,14 @@ final class OpcRelationshipGraph
             'isSupportedByBoundedReader' => $issues === [],
             'zipCentralDirectoryValid' => $centralDirectory['isSupportedByBoundedReader'],
             'centralDirectoryIssues' => $centralDirectory['issues'],
+            'localHeaderNamesValid' => $localHeaderNames !== null
+                && $localHeaderNames['isSupportedByBoundedReader'],
+            'localHeaderNameIssues' => $localHeaderNames['issues'] ?? (
+                $localHeaderNamePreflightError === null ? [] : ['local-header-name-preflight-error']
+            ),
+            'localHeaderNamePreflightError' => $localHeaderNamePreflightError,
+            'localHeaderNameMismatchEntryCount' => $localHeaderNames['mismatchedEntryCount'] ?? 0,
+            'localHeaderNameMismatchedEntries' => $localHeaderNames['mismatchedEntries'] ?? [],
             'byteCountsAreExact' => $centralDirectory['totalsAreExact'],
             'unknownByteCountEntryCount' => count($unknownByteCountEntries),
             'declaredEntryCount' => $centralDirectory['declaredEntryCount'],
@@ -1465,6 +1500,7 @@ final class OpcRelationshipGraph
             'largestPayloadEntries' => $largestPayloadEntries,
             'unknownByteCountEntries' => $unknownByteCountEntries,
             'localHeaderOrder' => $localHeaderOrder,
+            'localHeaderNames' => $localHeaderNames,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
             'relationshipParts' => $relationshipParts,
