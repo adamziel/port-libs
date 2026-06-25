@@ -169,6 +169,16 @@ final class PandocFormatRegistry
      * @var array<string, array{status:string, implementation:string, notes:string}>
      */
     private const PHP_INPUT_SUPPORT = [
+        'bibtex' => [
+            'status' => 'partial',
+            'implementation' => BibTexReader::class,
+            'notes' => 'Bounded BibTeX reader parses entries, string macros, preambles, comments, common scalar fields, person names, DOI/URL fields, and upstream-style references/nocite metadata into the shared AST. Full citeproc, locale, and BibTeX semantic parity remain open.',
+        ],
+        'biblatex' => [
+            'status' => 'partial',
+            'implementation' => BibTexReader::class,
+            'notes' => 'Bounded BibLaTeX reader uses the BibTeX parser with BibLaTeX field aliases such as journaltitle, subtitle, date, online, and related URL/DOI fields. Full BibLaTeX semantic parity remains open.',
+        ],
         'commonmark' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,

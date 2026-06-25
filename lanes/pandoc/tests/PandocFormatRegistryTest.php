@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\Pandoc\HtmlWriter;
+use PortLibs\Pandoc\BibTexReader;
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\EpubReader;
 use PortLibs\Pandoc\EpubWriter;
+use PortLibs\Pandoc\HtmlWriter;
 use PortLibs\Pandoc\JsonReader;
 use PortLibs\Pandoc\JsonWriter;
 use PortLibs\Pandoc\LatexWriter;
@@ -122,6 +123,10 @@ return [
         $support = PandocFormatRegistry::phpInputSupport();
 
         $t->same(PandocFormatRegistry::upstreamInputFormats(), array_keys($support));
+        $t->same('partial', $support['bibtex']['status']);
+        $t->same(BibTexReader::class, $support['bibtex']['implementation']);
+        $t->same('partial', $support['biblatex']['status']);
+        $t->same(BibTexReader::class, $support['biblatex']['implementation']);
         $t->same('partial', $support['markdown']['status']);
         $t->same(MarkdownReader::class, $support['markdown']['implementation']);
         $t->same('partial', $support['native']['status']);
@@ -139,7 +144,7 @@ return [
         $t->same(PptxReader::class, $support['pptx']['implementation']);
         $t->same('partial', $support['xlsx']['status']);
         $t->same(XlsxReader::class, $support['xlsx']['implementation']);
-        $t->same(33, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();

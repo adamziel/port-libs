@@ -120,6 +120,35 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   evaluation, date/number-format semantics, merged cells, charts, comments,
   drawings, hidden sheets, pivot tables, or XLSX writer support.
 
+## 2026-06-25 BibTeX/BibLaTeX Reader Metadata/Bibliography Slice
+
+- `BibTexReader` is now registered as partial native PHP support for upstream
+  Pandoc input formats `bibtex` and `biblatex`. The reader parses `@string`
+  macros, `@preamble` and `@comment` records, common bibliography entries,
+  braced, quoted, bare, and concatenated values, common month macros, person
+  names, and common BibLaTeX title/date/journaltitle/url/doi aliases.
+- The first BibTeX/BibLaTeX reader slice maps records into upstream-shaped
+  `references` metadata plus wildcard `nocite` metadata, while also emitting
+  visible `csl-bib-body` / `csl-entry` blocks so WordPress conversion does not
+  produce an empty post body for bibliography-only inputs.
+- `PandocConverter` now accepts `bibtex` and `biblatex` input and can convert
+  bibliography sources directly to WordPress block markup through the existing
+  `blocks`/`wp` output alias. `PandocFormatRegistry` now counts 20 partial PHP
+  upstream input formats and 31 unsupported input formats.
+- Verification: `php -l` passed for `BibTexReader.php`,
+  `PandocConverter.php`, `PandocFormatRegistry.php`, `BibTexReaderTest.php`,
+  and `PandocFormatRegistryTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/BibTexReaderTest.php
+  lanes/pandoc/tests/PandocFormatRegistryTest.php` passed 2 files, 264
+  assertions, 0 failures; and `php tools/run-tests.php lanes/pandoc/tests`
+  passed 23 files, 23,475 assertions, 0 failures with pass-count verification
+  `pass=1212 fail=0`.
+- This is reader-only BibTeX/BibLaTeX progress for downstream WordPress
+  bibliography conversion. It does not claim full upstream Haskell
+  BibTeX/BibLaTeX reader parity, citeproc locale rendering, crossref/xdata
+  inheritance, full TeX decoding, CSL style processing, bibliography sorting,
+  bibliography validation, or writer support.
+
 ## 2026-06-25 EPUB3 CSS Image-Set Resource Policy Closure
 
 - `EpubReader` and `EpubWriter` now treat top-level quoted string candidates
