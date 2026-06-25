@@ -14817,6 +14817,121 @@ HTML);
         $t->contains('Lowercase chapter body.', $blocks);
         $t->contains('Case-sensitive chapter body.', $blocks);
     },
+    'records epub3 page-list reading order summary metadata' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-page-list-reading-order-summary-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:page-list-reading-order-summary</dc:identifier>
+    <dc:title>Page List Reading Order Summary</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="appendix" href="appendix.xhtml" media-type="application/xhtml+xml"/>
+    <item id="loose" href="loose.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine>
+    <itemref id="chapter-first" idref="chapter"/>
+    <itemref id="appendix-ref" idref="appendix" linear="no"/>
+    <itemref id="chapter-second" idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><h1>Chapter</h1><span id="p1" epub:type="pagebreak" title="1"></span><p>Readable page-list summary content.</p></body></html>');
+        $zip->addFromString('OPS/appendix.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><h1>Appendix</h1><span id="pa" epub:type="pagebreak" title="A"></span></body></html>');
+        $zip->addFromString('OPS/loose.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><h1>Loose</h1><span id="pl" epub:type="pagebreak" title="L"></span></body></html>');
+        $zip->addFromString('OPS/nav.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol><li><a href="text/chapter.xhtml">Chapter</a></li></ol>
+    </nav>
+    <nav id="pages" epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="text/chapter.xhtml#p1">1</a></li>
+        <li><a epub:type="pagebreak" href="appendix.xhtml#pa">A</a></li>
+        <li><a epub:type="pagebreak" href="loose.xhtml#pl">L</a></li>
+        <li><a epub:type="pagebreak" href="missing.xhtml#pm">M</a></li>
+        <li><a epub:type="pagebreak" href="./text/chapter.xhtml#p1">1 repeat</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+HTML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same(['text', 'href', 'level', 'type', 'value'], array_keys($meta['epubPageListEntries'][0]));
+        $report = $meta['epubPageListReadingOrder'] ?? [];
+        $t->same(true, $report['present'] ?? false);
+        $t->same(5, $report['itemCount'] ?? null);
+        $t->same(5, $report['targetedItemCount'] ?? null);
+        $t->same(4, $report['manifestTargetCount'] ?? null);
+        $t->same(2, $report['spineReadingOrderTargetCount'] ?? null);
+        $t->same(2, $report['linearTargetCount'] ?? null);
+        $t->same(1, $report['nonlinearTargetCount'] ?? null);
+        $t->same(1, $report['missingManifestTargetCount'] ?? null);
+        $t->same(2, $report['outsideSpineTargetCount'] ?? null);
+        $t->same(1, $report['duplicatePageTargetCount'] ?? null);
+        $t->same(2, $report['duplicatePageTargetItemCount'] ?? null);
+        $t->same(1, $report['duplicateSpineTargetCount'] ?? null);
+        $t->same(2, $report['duplicateSpineTargetItemCount'] ?? null);
+        $t->same(1, $report['repeatedFragmentTargetCount'] ?? null);
+        $t->same([
+            'OPS/text/chapter.xhtml#p1',
+            'OPS/appendix.xhtml#pa',
+            'OPS/loose.xhtml#pl',
+            'OPS/missing.xhtml#pm',
+            'OPS/text/chapter.xhtml#p1',
+        ], array_column($report['readingOrder'] ?? [], 'target'));
+        $t->same([0, 4], array_column($report['readingOrderByTarget']['OPS/text/chapter.xhtml#p1'] ?? [], 'index'));
+        $t->same([1], array_column($report['readingOrderByTarget']['OPS/appendix.xhtml#pa'] ?? [], 'index'));
+        $t->same([3], array_column($report['readingOrderByTarget']['OPS/missing.xhtml#pm'] ?? [], 'index'));
+        $t->same([0, 4], array_column($report['readingOrderBySpineIndex'][0] ?? [], 'index'));
+        $t->same([1], array_column($report['readingOrderBySpineIndex'][1] ?? [], 'index'));
+        $t->same([0, 4], array_column($report['readingOrderBySpineIndex'][2] ?? [], 'index'));
+        $t->same(['chapter', 'chapter'], $report['items'][0]['spineIdrefs'] ?? []);
+        $t->same([0, 2], $report['items'][0]['readingSpineIndexes'] ?? []);
+        $t->same([], $report['items'][0]['nonlinearSpineIndexes'] ?? []);
+        $t->same(['appendix'], $report['items'][1]['spineIdrefs'] ?? []);
+        $t->same([1], $report['items'][1]['nonlinearSpineIndexes'] ?? []);
+        $t->same([], $report['items'][2]['spineIndexes'] ?? []);
+        $t->same(null, $report['items'][3]['manifestId'] ?? null);
+        $t->same(true, $report['items'][4]['duplicatePageTarget'] ?? false);
+        $t->same([
+            'duplicate-page-list-target',
+            'page-list-target-duplicate-spine-itemref',
+            'page-list-target-nonlinear-spine-item',
+            'page-list-target-outside-spine-reading-order',
+            'page-list-target-outside-spine-reading-order',
+            'missing-page-list-manifest-item',
+            'duplicate-page-list-target',
+            'page-list-target-duplicate-spine-itemref',
+            'page-list-reading-order-regression',
+        ], array_column($report['issues'] ?? [], 'type'));
+        $t->same($report['issues'] ?? [], $report['diagnostics'] ?? null);
+        $t->contains('Readable page-list summary content.', $blocks);
+    },
     'records epub ncx content src path diagnostics' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-ncx-src-path-diagnostics-');
         if ($path === false) {

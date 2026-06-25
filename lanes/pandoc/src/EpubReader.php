@@ -406,6 +406,15 @@ final class EpubReader
         if ($navigation['pageList'] !== []) {
             $metadata['epubPageListEntries'] = $navigation['pageList'];
         }
+        $page_list_reading_order = $this->pageListReadingOrderSummary(
+            $navigation['pageListTargetGroups'],
+            $spine_items,
+            $manifest,
+            $base_path
+        );
+        if ($page_list_reading_order['present']) {
+            $metadata['epubPageListReadingOrder'] = $page_list_reading_order;
+        }
         if (($navigation['ncxNavLists'] ?? []) !== []) {
             $metadata['epubNcxNavLists'] = $navigation['ncxNavLists'];
         }
@@ -13709,6 +13718,412 @@ final class EpubReader
     }
 
     /**
+     * @param list<list<array<string, mixed>>> $pageListEntryGroups
+     * @param list<array{idref: string, linear: bool, properties: list<string>, id?: string}> $spineItems
+     * @param array<string, array{href: string, media-type: string, properties: list<string>, fallback: string, fallback-style: string, media-overlay: string}> $manifest
+     * @return array<string, mixed>
+     */
+    private function pageListReadingOrderSummary(array $pageListEntryGroups, array $spineItems, array $manifest, string $base_path): array
+    {
+        $entries = [];
+        foreach ($pageListEntryGroups as $groupIndex => $entryGroup) {
+            foreach ($entryGroup as $groupEntryIndex => $entry) {
+                $entries[] = [
+                    'index' => count($entries),
+                    'groupIndex' => $groupIndex,
+                    'groupEntryIndex' => $groupEntryIndex,
+                    'entry' => $entry,
+                ];
+            }
+        }
+        if ($entries === []) {
+            return ['present' => false];
+        }
+
+        $manifestPaths = [];
+        foreach ($manifest as $id => $item) {
+            $path = $this->packageResourceZipPath($base_path, $item['href']);
+            if ($path !== '' && !isset($manifestPaths[$path])) {
+                $manifestPaths[$path] = [
+                    'id' => $id,
+                    'href' => $item['href'],
+                    'mediaType' => $item['media-type'],
+                ];
+            }
+        }
+
+        $spineMatchesByPath = [];
+        foreach ($spineItems as $spineIndex => $spineItem) {
+            $idref = $spineItem['idref'];
+            if (!isset($manifest[$idref])) {
+                continue;
+            }
+
+            $path = $this->packageResourceZipPath($base_path, $manifest[$idref]['href']);
+            if ($path === '') {
+                continue;
+            }
+
+            $spineEntry = [
+                'index' => $spineIndex,
+                'idref' => $idref,
+                'linear' => $spineItem['linear'],
+            ];
+            if (isset($spineItem['id']) && $spineItem['id'] !== '') {
+                $spineEntry['id'] = $spineItem['id'];
+            }
+            $spineMatchesByPath[$path][] = $spineEntry;
+
+            $readable = $this->readableSpineManifestItem($manifest, $idref, $base_path);
+            if ($readable === null || $readable['path'] === $path) {
+                continue;
+            }
+
+            $fallbackEntry = $spineEntry;
+            $fallbackEntry['fallbackIdref'] = $readable['idref'];
+            $fallbackEntry['fallbackPath'] = $readable['path'];
+            $spineMatchesByPath[$readable['path']][] = $fallbackEntry;
+        }
+
+        $targetItems = [];
+        foreach ($entries as $entryRecord) {
+            $entry = $entryRecord['entry'];
+            $href = (string) ($entry['href'] ?? '');
+            if ($href === '' || !$this->isPackageRelativeResourceUrl($href) || $this->navLinkHrefPathDiagnosticReason($href) !== '') {
+                continue;
+            }
+
+            [$targetPath, $targetSuffix] = $this->navigationTargetPath($href);
+            if ($targetPath === '') {
+                continue;
+            }
+
+            $target = $targetPath . $targetSuffix;
+            $targetItems[$target][] = [
+                'index' => (int) ($entryRecord['index'] ?? 0),
+                'text' => (string) ($entry['text'] ?? ''),
+                'value' => (string) ($entry['value'] ?? ''),
+                'href' => $href,
+                'target' => $target,
+                'path' => $targetPath,
+                'fragment' => $this->urlFragmentIdentifier($href),
+            ];
+        }
+
+        $duplicatePageTargets = [];
+        $duplicatePageTargetsByTarget = [];
+        $duplicatePageTargetItemCount = 0;
+        foreach ($targetItems as $target => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $group = [
+                'target' => $target,
+                'path' => (string) ($items[0]['path'] ?? ''),
+                'fragment' => (string) ($items[0]['fragment'] ?? ''),
+                'count' => count($items),
+                'indexes' => array_map(static fn (array $item): int => (int) ($item['index'] ?? 0), $items),
+                'hrefs' => array_map(static fn (array $item): string => (string) ($item['href'] ?? ''), $items),
+                'labels' => array_map(static fn (array $item): string => (string) ($item['text'] ?? ''), $items),
+                'items' => array_values($items),
+            ];
+            $duplicatePageTargets[] = $group;
+            $duplicatePageTargetsByTarget[$target] = $group;
+            $duplicatePageTargetItemCount += count($items);
+        }
+
+        $items = [];
+        $readingOrder = [];
+        $readingOrderByTarget = [];
+        $readingOrderBySpineIndex = [];
+        $issues = [];
+        $duplicateSpineTargetsByPath = [];
+        $duplicateSpineTargetItemCount = 0;
+        $repeatedFragmentTargets = [];
+        $targetedItemCount = 0;
+        $manifestTargetCount = 0;
+        $spineReadingOrderTargetCount = 0;
+        $linearTargetCount = 0;
+        $nonlinearTargetCount = 0;
+        $missingManifestTargetCount = 0;
+        $outsideSpineTargetCount = 0;
+        $externalTargetCount = 0;
+        $invalidTargetCount = 0;
+        $unresolvedTargetCount = 0;
+        $previousSpineIndex = null;
+
+        foreach ($entries as $entryRecord) {
+            $entry = $entryRecord['entry'];
+            $index = count($items);
+            $href = (string) ($entry['href'] ?? '');
+            $text = (string) ($entry['text'] ?? '');
+            $value = (string) ($entry['value'] ?? $text);
+            $external = $href !== '' && !$this->isPackageRelativeResourceUrl($href);
+            $invalidReason = '';
+            $targetPath = '';
+            $targetSuffix = '';
+            $fragment = '';
+            if ($href !== '' && !$external) {
+                $invalidReason = $this->navLinkHrefPathDiagnosticReason($href);
+                if ($invalidReason === '') {
+                    [$targetPath, $targetSuffix] = $this->navigationTargetPath($href);
+                    $fragment = $this->urlFragmentIdentifier($href);
+                    if ($targetPath === '') {
+                        $invalidReason = 'empty-path';
+                    }
+                }
+            }
+            $target = $targetPath !== '' ? $targetPath . $targetSuffix : ($external ? $href : '');
+            $manifestItem = $targetPath !== '' ? ($manifestPaths[$targetPath] ?? null) : null;
+            $spineMatches = $targetPath !== '' ? ($spineMatchesByPath[$targetPath] ?? []) : [];
+            $readingSpineMatches = array_values(array_filter(
+                $spineMatches,
+                static fn (array $spineItem): bool => ($spineItem['linear'] ?? false) === true
+            ));
+            $nonlinearSpineMatches = array_values(array_filter(
+                $spineMatches,
+                static fn (array $spineItem): bool => ($spineItem['linear'] ?? false) !== true
+            ));
+            $firstSpineItem = $spineMatches[0] ?? null;
+            $spineIndexes = array_map(static fn (array $spineItem): int => (int) ($spineItem['index'] ?? 0), $spineMatches);
+            $readingSpineIndexes = array_map(static fn (array $spineItem): int => (int) ($spineItem['index'] ?? 0), $readingSpineMatches);
+            $nonlinearSpineIndexes = array_map(static fn (array $spineItem): int => (int) ($spineItem['index'] ?? 0), $nonlinearSpineMatches);
+            $spineIdrefs = array_map(static fn (array $spineItem): string => (string) ($spineItem['idref'] ?? ''), $spineMatches);
+            $spineIndex = is_array($firstSpineItem) ? (int) ($firstSpineItem['index'] ?? 0) : null;
+            $spineIdref = is_array($firstSpineItem) ? (string) ($firstSpineItem['idref'] ?? '') : null;
+            $linear = is_array($firstSpineItem) ? (($firstSpineItem['linear'] ?? false) === true) : null;
+            $duplicatePageTarget = $target !== '' ? ($duplicatePageTargetsByTarget[$target] ?? null) : null;
+            $duplicateSpineTarget = count($spineMatches) > 1;
+            $itemIssues = [];
+            $addIssue = static function (array $issue) use (&$itemIssues, &$issues, $index): void {
+                $itemIssues[] = $issue;
+                $issues[] = ['index' => $index] + $issue;
+            };
+
+            if ($href !== '') {
+                ++$targetedItemCount;
+            } else {
+                ++$unresolvedTargetCount;
+            }
+            if ($external) {
+                ++$externalTargetCount;
+            }
+            if ($invalidReason !== '') {
+                ++$invalidTargetCount;
+            }
+            if (is_array($manifestItem)) {
+                ++$manifestTargetCount;
+            } elseif ($targetPath !== '') {
+                ++$missingManifestTargetCount;
+            }
+            if ($readingSpineMatches !== []) {
+                ++$spineReadingOrderTargetCount;
+            }
+            if ($linear === true) {
+                ++$linearTargetCount;
+            } elseif ($linear === false) {
+                ++$nonlinearTargetCount;
+            }
+            if (is_array($manifestItem) && $readingSpineMatches === []) {
+                ++$outsideSpineTargetCount;
+            }
+            if ($duplicateSpineTarget && $targetPath !== '' && !isset($duplicateSpineTargetsByPath[$targetPath])) {
+                $duplicateSpineTargetsByPath[$targetPath] = [
+                    'path' => $targetPath,
+                    'count' => count($spineMatches),
+                    'spineIndexes' => $spineIndexes,
+                    'idrefs' => $spineIdrefs,
+                ];
+            }
+            if ($duplicateSpineTarget) {
+                ++$duplicateSpineTargetItemCount;
+            }
+
+            if (is_array($duplicatePageTarget)) {
+                $addIssue([
+                    'type' => 'duplicate-page-list-target',
+                    'href' => $href,
+                    'target' => $target,
+                    'path' => $targetPath,
+                    'fragment' => $fragment,
+                    'count' => (int) ($duplicatePageTarget['count'] ?? 0),
+                    'indexes' => is_array($duplicatePageTarget['indexes'] ?? null) ? $duplicatePageTarget['indexes'] : [],
+                ]);
+            }
+            if ($duplicateSpineTarget) {
+                $addIssue([
+                    'type' => 'page-list-target-duplicate-spine-itemref',
+                    'href' => $href,
+                    'target' => $target,
+                    'path' => $targetPath,
+                    'fragment' => $fragment,
+                    'manifestId' => is_array($manifestItem) ? (string) ($manifestItem['id'] ?? '') : null,
+                    'count' => count($spineMatches),
+                    'spineIndexes' => $spineIndexes,
+                    'idrefs' => $spineIdrefs,
+                ]);
+            }
+            if ($linear === false) {
+                $addIssue([
+                    'type' => 'page-list-target-nonlinear-spine-item',
+                    'href' => $href,
+                    'target' => $target,
+                    'path' => $targetPath,
+                    'fragment' => $fragment,
+                    'spineIndex' => $spineIndex,
+                    'spineIdref' => $spineIdref,
+                ]);
+            }
+            if ($previousSpineIndex !== null && $spineIndex !== null && $spineIndex < $previousSpineIndex) {
+                $addIssue([
+                    'type' => 'page-list-reading-order-regression',
+                    'href' => $href,
+                    'target' => $target,
+                    'path' => $targetPath,
+                    'fragment' => $fragment,
+                    'previousSpineIndex' => $previousSpineIndex,
+                    'spineIndex' => $spineIndex,
+                ]);
+            }
+            if ($spineIndex !== null) {
+                $previousSpineIndex = $spineIndex;
+            }
+            if ($external) {
+                $addIssue([
+                    'type' => 'external-page-list-reference',
+                    'href' => $href,
+                    'target' => $target,
+                ]);
+            } elseif ($invalidReason !== '') {
+                $addIssue([
+                    'type' => 'invalid-page-list-target',
+                    'href' => $href,
+                    'reason' => $invalidReason,
+                ]);
+            } elseif ($targetPath !== '' && !is_array($manifestItem)) {
+                $addIssue([
+                    'type' => 'missing-page-list-manifest-item',
+                    'href' => $href,
+                    'target' => $target,
+                    'path' => $targetPath,
+                ]);
+            } elseif (is_array($manifestItem) && $readingSpineMatches === []) {
+                $addIssue([
+                    'type' => 'page-list-target-outside-spine-reading-order',
+                    'href' => $href,
+                    'target' => $target,
+                    'path' => $targetPath,
+                    'manifestId' => (string) ($manifestItem['id'] ?? ''),
+                    'spineIndex' => $spineIndex,
+                    'spineIndexes' => $spineIndexes,
+                    'readingSpineIndexes' => $readingSpineIndexes,
+                    'spineLinear' => $linear,
+                    'reason' => $spineMatches === [] ? 'not-in-spine' : 'nonlinear-spine-item',
+                ]);
+            }
+
+            $summary = [
+                'index' => $index,
+                'groupIndex' => (int) ($entryRecord['groupIndex'] ?? 0),
+                'groupEntryIndex' => (int) ($entryRecord['groupEntryIndex'] ?? 0),
+                'text' => $text,
+                'label' => $text,
+                'value' => $value,
+                'href' => $href,
+                'target' => $target,
+                'path' => $targetPath,
+                'fragment' => $fragment,
+                'external' => $external,
+                'invalidTargetReason' => $invalidReason,
+                'manifestId' => is_array($manifestItem) ? (string) ($manifestItem['id'] ?? '') : null,
+                'mediaType' => is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null,
+                'spineIndex' => $spineIndex,
+                'spineIndexes' => $spineIndexes,
+                'readingSpineIndexes' => $readingSpineIndexes,
+                'nonlinearSpineIndexes' => $nonlinearSpineIndexes,
+                'spineIdref' => $spineIdref,
+                'spineIdrefs' => $spineIdrefs,
+                'linear' => $linear,
+                'inSpineReadingOrder' => $readingSpineMatches !== [],
+                'duplicatePageTarget' => is_array($duplicatePageTarget),
+                'duplicatePageTargetCount' => is_array($duplicatePageTarget) ? (int) ($duplicatePageTarget['count'] ?? 0) : 0,
+                'duplicateSpineTarget' => $duplicateSpineTarget,
+                'duplicateSpineTargetCount' => count($spineMatches),
+            ];
+            $item = $summary;
+            $item['diagnostics'] = $itemIssues;
+            $items[] = $item;
+            $readingOrder[] = $summary;
+            if ($target !== '') {
+                $readingOrderByTarget[$target][] = $summary;
+                if ($fragment !== '') {
+                    $repeatedFragmentTargets[$target][] = [
+                        'index' => $index,
+                        'label' => $text,
+                        'href' => $href,
+                        'target' => $target,
+                        'path' => $targetPath,
+                        'fragment' => $fragment,
+                    ];
+                }
+            }
+            foreach ($spineIndexes as $spineItemIndex) {
+                $readingOrderBySpineIndex[$spineItemIndex][] = $summary;
+            }
+        }
+
+        $repeatedFragmentTargetSummaries = [];
+        foreach ($repeatedFragmentTargets as $target => $targetGroup) {
+            if (count($targetGroup) < 2) {
+                continue;
+            }
+
+            $repeatedFragmentTargetSummaries[] = [
+                'target' => $target,
+                'path' => (string) ($targetGroup[0]['path'] ?? ''),
+                'fragment' => (string) ($targetGroup[0]['fragment'] ?? ''),
+                'indexes' => array_map(static fn (array $item): int => (int) ($item['index'] ?? 0), $targetGroup),
+                'labels' => array_map(static fn (array $item): string => (string) ($item['label'] ?? ''), $targetGroup),
+                'hrefs' => array_map(static fn (array $item): string => (string) ($item['href'] ?? ''), $targetGroup),
+                'items' => array_values($targetGroup),
+            ];
+        }
+        ksort($readingOrderBySpineIndex);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'targetedItemCount' => $targetedItemCount,
+            'manifestTargetCount' => $manifestTargetCount,
+            'spineReadingOrderTargetCount' => $spineReadingOrderTargetCount,
+            'linearTargetCount' => $linearTargetCount,
+            'nonlinearTargetCount' => $nonlinearTargetCount,
+            'missingManifestTargetCount' => $missingManifestTargetCount,
+            'outsideSpineTargetCount' => $outsideSpineTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'invalidTargetCount' => $invalidTargetCount,
+            'unresolvedTargetCount' => $unresolvedTargetCount,
+            'duplicatePageTargetCount' => count($duplicatePageTargets),
+            'duplicatePageTargetItemCount' => $duplicatePageTargetItemCount,
+            'duplicatePageTargets' => $duplicatePageTargets,
+            'duplicateSpineTargetCount' => count($duplicateSpineTargetsByPath),
+            'duplicateSpineTargetItemCount' => $duplicateSpineTargetItemCount,
+            'duplicateSpineTargets' => array_values($duplicateSpineTargetsByPath),
+            'repeatedFragmentTargetCount' => count($repeatedFragmentTargetSummaries),
+            'repeatedFragmentTargets' => $repeatedFragmentTargetSummaries,
+            'readingOrder' => $readingOrder,
+            'readingOrderByTarget' => $readingOrderByTarget,
+            'readingOrderBySpineIndex' => $readingOrderBySpineIndex,
+            'items' => $items,
+            'issueCount' => count($issues),
+            'issues' => $issues,
+            'diagnosticCount' => count($issues),
+            'diagnostics' => $issues,
+        ];
+    }
+
+    /**
      * @param list<array<string, mixed>> $entries
      * @param list<array{idref: string, linear: bool, properties: list<string>, id?: string}> $spineItems
      * @param array<string, array{href: string, media-type: string, properties: list<string>, fallback: string, fallback-style: string, media-overlay: string}> $manifest
@@ -18100,6 +18515,15 @@ final class EpubReader
         $navigation = $this->navigation($zip, $basePath, $manifest, $spineMetadata['toc']);
         $navigation = $this->navigationWithGuideDerivedLandmarks($navigation, $zip, $package, $spineItems, $manifest, $basePath);
         $summary = $this->alternateNavigationSummary($summary, $navigation);
+        $pageListReadingOrder = $this->pageListReadingOrderSummary(
+            $navigation['pageListTargetGroups'],
+            $spineItems,
+            $manifest,
+            $basePath
+        );
+        if ($pageListReadingOrder['present']) {
+            $summary['epubPageListReadingOrder'] = $pageListReadingOrder;
+        }
         $diagnostics = $this->alternatePackageDiagnostics(
             $zip,
             $package,
