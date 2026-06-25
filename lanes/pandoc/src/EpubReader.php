@@ -48,31 +48,19 @@ final class EpubReader
 
     public function readEpubFile(string $path): AstNode
     {
-        if (!class_exists(\ZipArchive::class)) {
-            throw new \RuntimeException('EPUB analysis needs PHP ZipArchive, which is unavailable in this runtime.');
-        }
-
-        $zip = new \ZipArchive();
-        if ($zip->open($path) !== true) {
-            throw new \InvalidArgumentException("Unable to open EPUB package '{$path}'.");
-        }
+        $package = ZipOpcPackage::open($path, 'EPUB');
+        $zip = $package->zipArchive();
 
         try {
-            $container_xml = $zip->getFromName('META-INF/container.xml');
-            if (!is_string($container_xml)) {
-                throw new \InvalidArgumentException('EPUB package is missing META-INF/container.xml.');
-            }
+            $container_xml = $package->requireRead('META-INF/container.xml', 'EPUB package is missing META-INF/container.xml.');
 
             $container = $this->containerMetadata($container_xml);
             $rootfile = $container['selectedRootfile'];
-            $opf_xml = $zip->getFromName($rootfile);
-            if (!is_string($opf_xml)) {
-                throw new \InvalidArgumentException("EPUB package is missing OPF rootfile '{$rootfile}'.");
-            }
+            $opf_xml = $package->requireRead($rootfile, "EPUB package is missing OPF rootfile '{$rootfile}'.");
 
             return $this->readPackage($zip, $rootfile, $opf_xml, $container, $path);
         } finally {
-            $zip->close();
+            $package->close();
         }
     }
 
@@ -17997,7 +17985,7 @@ final class EpubReader
             $entry['firstEntry'] = $firstEntry;
         }
         if ($path !== '') {
-            $localHeader = $this->zipFirstLocalFileHeader($path);
+            $localHeader = ZipOpcPackage::firstLocalFileHeaderFromPath($path);
             if ($localHeader !== null) {
                 $entry['localHeaderName'] = $localHeader['name'];
                 $entry['localHeaderExtraBytes'] = $localHeader['extraBytes'];
@@ -18125,50 +18113,6 @@ final class EpubReader
         }
 
         return $diagnostics;
-    }
-
-    /**
-     * @return array{name: string, extraBytes: int}|null
-     */
-    private function zipFirstLocalFileHeader(string $path): ?array
-    {
-        $handle = @fopen($path, 'rb');
-        if (!is_resource($handle)) {
-            return null;
-        }
-
-        try {
-            $header = fread($handle, 30);
-            if (!is_string($header) || strlen($header) < 30) {
-                return null;
-            }
-
-            $fields = unpack(
-                'Vsignature/vversionNeeded/vflags/vcompressionMethod/vmodTime/vmodDate/Vcrc32/VcompressedSize/VuncompressedSize/vfileNameLength/vextraFieldLength',
-                $header
-            );
-            if (!is_array($fields) || ($fields['signature'] ?? null) !== 0x04034b50) {
-                return null;
-            }
-
-            $nameLength = (int) ($fields['fileNameLength'] ?? 0);
-            $extraLength = (int) ($fields['extraFieldLength'] ?? 0);
-            if ($nameLength <= 0 || $nameLength > 65535 || $extraLength < 0 || $extraLength > 65535) {
-                return null;
-            }
-
-            $name = fread($handle, $nameLength);
-            if (!is_string($name) || strlen($name) !== $nameLength) {
-                return null;
-            }
-
-            return [
-                'name' => $name,
-                'extraBytes' => $extraLength,
-            ];
-        } finally {
-            fclose($handle);
-        }
     }
 
     /**
@@ -20691,24 +20635,11 @@ final class EpubReader
 
     private function dirname(string $path): string
     {
-        $dir = str_replace('\\', '/', dirname($path));
-        return $dir === '.' ? '' : $dir;
+        return ZipOpcPackage::dirname($path);
     }
 
     private function normalizeZipPath(string $path): string
     {
-        $parts = [];
-        foreach (explode('/', str_replace('\\', '/', $path)) as $part) {
-            if ($part === '' || $part === '.') {
-                continue;
-            }
-            if ($part === '..') {
-                array_pop($parts);
-                continue;
-            }
-            $parts[] = $part;
-        }
-
-        return implode('/', $parts);
+        return ZipOpcPackage::normalizePath($path);
     }
 }

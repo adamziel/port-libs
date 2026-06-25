@@ -50,50 +50,34 @@ final class DocxReader
 
     public function readDocxFile(string $path): AstNode
     {
-        if (!class_exists(\ZipArchive::class)) {
-            throw new \RuntimeException('DOCX analysis needs PHP ZipArchive, which is unavailable in this runtime.');
-        }
-
-        $zip = new \ZipArchive();
-        if ($zip->open($path) !== true) {
-            throw new \InvalidArgumentException("Unable to open DOCX package '{$path}'.");
-        }
+        $package = ZipOpcPackage::open($path, 'DOCX');
 
         try {
-            $document_xml = $zip->getFromName('word/document.xml');
-            if (!is_string($document_xml)) {
-                throw new \InvalidArgumentException('DOCX package is missing word/document.xml.');
-            }
-            $styles_xml = $zip->getFromName('word/styles.xml');
-            $numbering_xml = $zip->getFromName('word/numbering.xml');
-            $rels_xml = $zip->getFromName('word/_rels/document.xml.rels');
-            $core_xml = $zip->getFromName('docProps/core.xml');
-            $footnotes_xml = $zip->getFromName('word/footnotes.xml');
-            $endnotes_xml = $zip->getFromName('word/endnotes.xml');
-            $comments_xml = $zip->getFromName('word/comments.xml');
+            $document_xml = $package->requireRead('word/document.xml', 'DOCX package is missing word/document.xml.');
+            $styles_xml = $package->read('word/styles.xml');
+            $numbering_xml = $package->read('word/numbering.xml');
+            $rels_xml = $package->read('word/_rels/document.xml.rels');
+            $core_xml = $package->read('docProps/core.xml');
+            $footnotes_xml = $package->read('word/footnotes.xml');
+            $endnotes_xml = $package->read('word/endnotes.xml');
+            $comments_xml = $package->read('word/comments.xml');
 
-            $entries = [];
+            $entries = $package->entryNames();
             $media = [];
             $header_xmls = [];
             $footer_xmls = [];
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $stat = $zip->statIndex($i);
-                $name = is_array($stat) ? (string) ($stat['name'] ?? '') : '';
-                if ($name === '') {
-                    continue;
-                }
-                $entries[] = $name;
+            foreach ($entries as $name) {
                 if (str_starts_with($name, 'word/media/')) {
                     $media[] = $name;
                 }
                 if (preg_match('#^word/header\d*\.xml$#', $name) === 1) {
-                    $xml = $zip->getFromName($name);
+                    $xml = $package->read($name);
                     if (is_string($xml)) {
                         $header_xmls[$name] = $xml;
                     }
                 }
                 if (preg_match('#^word/footer\d*\.xml$#', $name) === 1) {
-                    $xml = $zip->getFromName($name);
+                    $xml = $package->read($name);
                     if (is_string($xml)) {
                         $footer_xmls[$name] = $xml;
                     }
@@ -102,18 +86,18 @@ final class DocxReader
             ksort($header_xmls);
             ksort($footer_xmls);
         } finally {
-            $zip->close();
+            $package->close();
         }
 
         return $this->readPackage(
             $document_xml,
-            is_string($styles_xml) ? $styles_xml : '',
-            is_string($numbering_xml) ? $numbering_xml : '',
-            is_string($rels_xml) ? $rels_xml : '',
-            is_string($core_xml) ? $core_xml : '',
-            is_string($footnotes_xml) ? $footnotes_xml : '',
-            is_string($endnotes_xml) ? $endnotes_xml : '',
-            is_string($comments_xml) ? $comments_xml : '',
+            $styles_xml ?? '',
+            $numbering_xml ?? '',
+            $rels_xml ?? '',
+            $core_xml ?? '',
+            $footnotes_xml ?? '',
+            $endnotes_xml ?? '',
+            $comments_xml ?? '',
             $header_xmls,
             $footer_xmls,
             $entries,

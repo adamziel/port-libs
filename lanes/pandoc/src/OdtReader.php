@@ -41,43 +41,27 @@ final class OdtReader
 
     public function readOdtFile(string $path): AstNode
     {
-        if (!class_exists(\ZipArchive::class)) {
-            throw new \RuntimeException('ODT analysis needs PHP ZipArchive, which is unavailable in this runtime.');
-        }
-
-        $zip = new \ZipArchive();
-        if ($zip->open($path) !== true) {
-            throw new \InvalidArgumentException("Unable to open ODT package '{$path}'.");
-        }
+        $package = ZipOpcPackage::open($path, 'ODT');
 
         try {
-            $content_xml = $zip->getFromName('content.xml');
-            if (!is_string($content_xml)) {
-                throw new \InvalidArgumentException('ODT package is missing content.xml.');
-            }
-            $styles_xml = $zip->getFromName('styles.xml');
-            $meta_xml = $zip->getFromName('meta.xml');
-            $entries = [];
+            $content_xml = $package->requireRead('content.xml', 'ODT package is missing content.xml.');
+            $styles_xml = $package->read('styles.xml');
+            $meta_xml = $package->read('meta.xml');
+            $entries = $package->entryNames();
             $image_resources = [];
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $stat = $zip->statIndex($i);
-                $name = is_array($stat) ? (string) ($stat['name'] ?? '') : '';
-                if ($name === '') {
-                    continue;
-                }
-                $entries[] = $name;
+            foreach ($entries as $name) {
                 if ($this->pathLooksLikeImage($name)) {
                     $image_resources[] = $this->normalizePackagePath($name);
                 }
             }
         } finally {
-            $zip->close();
+            $package->close();
         }
 
         return $this->readPackage(
             $content_xml,
-            is_string($styles_xml) ? $styles_xml : '',
-            is_string($meta_xml) ? $meta_xml : '',
+            $styles_xml ?? '',
+            $meta_xml ?? '',
             $entries,
             array_values(array_unique($image_resources)),
         );
@@ -655,19 +639,7 @@ final class OdtReader
 
     private function normalizePackagePath(string $path): string
     {
-        $parts = [];
-        foreach (explode('/', str_replace('\\', '/', $path)) as $part) {
-            if ($part === '' || $part === '.') {
-                continue;
-            }
-            if ($part === '..') {
-                array_pop($parts);
-                continue;
-            }
-            $parts[] = $part;
-        }
-
-        return implode('/', $parts);
+        return ZipOpcPackage::normalizePath($path);
     }
 
     private function pathLooksLikeImage(string $path): bool
