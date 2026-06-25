@@ -1246,7 +1246,7 @@ final class EpubWriter
             return '';
         }
 
-        $list = $this->navListXhtml($entries, $navDir, $packageDir, true, 4);
+        $list = $this->navListXhtml($entries, $navDir, $packageDir, true, 4, $this->navTargetUniquenessPolicy($type));
         $heading = $this->navSectionTitle($sectionAttributes, $title);
         $headingTag = 'h' . $this->navSectionHeadingLevel($sectionAttributes, 2);
         $headingAttributes = $this->navSectionHeadingAttributes($sectionAttributes);
@@ -7967,9 +7967,12 @@ final class EpubWriter
     /**
      * @param list<array{text: string, level: int, href?: string, type?: string, value?: string}> $entries
      */
-    private function navListXhtml(array $entries, string $navDir, string $packageDir, bool $rewriteHrefs, int $indent): string
+    private function navListXhtml(array $entries, string $navDir, string $packageDir, bool $rewriteHrefs, int $indent, string $targetUniqueness = ''): string
     {
         $normalized = $this->normalizedNavEntries($entries, $navDir, $packageDir, $rewriteHrefs);
+        if ($targetUniqueness !== '') {
+            $normalized = $this->uniqueNavTargetEntries($normalized, $targetUniqueness);
+        }
         if ($normalized === []) {
             return str_repeat(' ', $indent) . '<ol></ol>';
         }
@@ -8051,6 +8054,55 @@ final class EpubWriter
         }
 
         return $normalized;
+    }
+
+    private function navTargetUniquenessPolicy(string $type): string
+    {
+        return match ($type) {
+            'landmarks' => 'type-target',
+            'page-list' => 'target',
+            default => '',
+        };
+    }
+
+    /**
+     * @param list<array{text: string, level: int, href?: string, type?: string, value?: string}> $entries
+     * @return list<array{text: string, level: int, href?: string, type?: string, value?: string}>
+     */
+    private function uniqueNavTargetEntries(array $entries, string $targetUniqueness): array
+    {
+        $unique = [];
+        $seen = [];
+        $skipDescendantLevel = null;
+        foreach ($entries as $entry) {
+            $level = max(1, (int) ($entry['level'] ?? 1));
+            if ($skipDescendantLevel !== null) {
+                if ($level > $skipDescendantLevel) {
+                    continue;
+                }
+                $skipDescendantLevel = null;
+            }
+
+            $href = trim((string) ($entry['href'] ?? ''));
+            if ($href === '') {
+                $unique[] = $entry;
+                continue;
+            }
+
+            $key = $href;
+            if ($targetUniqueness === 'type-target') {
+                $key = strtolower(trim((string) ($entry['type'] ?? ''))) . "\0" . $href;
+            }
+            if (isset($seen[$key])) {
+                $skipDescendantLevel = $level;
+                continue;
+            }
+
+            $seen[$key] = true;
+            $unique[] = $entry;
+        }
+
+        return $unique;
     }
 
     /**

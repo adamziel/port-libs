@@ -26,6 +26,38 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Future EPUB3 parity notes should continue to distinguish preservation and
   diagnostics from script execution or cryptographic trust validation.
 
+## 2026-06-25 EPUB3 Nav Landmark/Page-List Ordering Closure
+
+- Focused PHP coverage now exercises EPUB3 nav `landmarks` and `page-list`
+  entries with accessible fallback labels, nested anchors, `./` normalized
+  duplicate targets, and backward target ordering across spine documents and
+  same-document fragments.
+- `EpubReader` now reports `out-of-order-nav-landmark-entry` when a landmarks
+  nav entry moves backward in the linear spine reading order, including
+  same-document fragment element order context, alongside the existing
+  page-list order diagnostics.
+- `EpubWriter` now de-duplicates EPUB3 nav page-list entries by normalized
+  rewritten target and landmarks by normalized rewritten `epub:type`/target
+  pair, while preserving same-target landmarks with distinct types and dropping
+  duplicate descendant branches instead of reparenting them.
+- Writer read-back coverage proves generated `nav.xhtml` omits duplicate
+  normalized landmark/page-list links and avoids duplicate self diagnostics.
+- Verification: `php -l` passed for `EpubReader.php`, `EpubWriter.php`,
+  `EpubReaderTest.php`, and `EpubWriterTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubReaderTest.php` passed 1 file, 4,906 assertions, 0
+  failures; `php tools/run-tests.php lanes/pandoc/tests/EpubWriterTest.php`
+  passed 1 file, 10,271 assertions, 0 failures; the integrated `php
+  tools/run-tests.php lanes/pandoc/tests/EpubReaderTest.php
+  lanes/pandoc/tests/EpubWriterTest.php` pass covered 2 files, 15,342
+  assertions, 0 failures; and the integrated `php tools/run-tests.php
+  lanes/pandoc/tests` pass covered 11 files, 21,900 assertions, 0 failures with
+  pass-count verification `pass=1151 fail=0`.
+- Dependency-closure checkpoint: this is limited to native PHP EPUB3 nav
+  reader/writer behavior for landmarks, page-list entries, normalized nav
+  targets, accessible nav labels, and generated nav output. It does not claim
+  EPUBCheck validation, Pandoc binary parity, browser/reading-system rendering
+  behavior, arbitrary upstream fixture parity, or external validator coverage.
+
 ## 2026-06-25 EPUB3 Media Overlay Resource Closure Slice
 
 - Focused PHP coverage is now 1,145 behavior tests and 21,700 full-suite

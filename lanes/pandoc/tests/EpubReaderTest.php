@@ -14262,7 +14262,7 @@ HTML);
         }
 
         $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
-        $t->same(12, $meta['epubDiagnosticErrorCount']);
+        $t->same(13, $meta['epubDiagnosticErrorCount']);
         $t->same(3, $meta['epubDiagnosticWarningCount']);
         $t->same(2, $byCode['multiple-nav-landmarks'][0]['count'] ?? null);
         $t->same(2, $byCode['multiple-nav-page-list'][0]['count'] ?? null);
@@ -14290,6 +14290,13 @@ HTML);
         $t->same('chapter.xhtml#start', $byCode['duplicate-nav-landmark-link'][0]['linkHref'] ?? null);
         $t->same('chapter.xhtml#start', $byCode['duplicate-nav-landmark-link'][0]['firstLinkHref'] ?? null);
         $t->same('OPS/chapter.xhtml#start', $byCode['duplicate-nav-landmark-link'][0]['target'] ?? null);
+        $t->same('OPS/chapter.xhtml', $byCode['out-of-order-nav-landmark-entry'][0]['targetPath'] ?? null);
+        $t->same('#page-2', $byCode['out-of-order-nav-landmark-entry'][0]['targetSuffix'] ?? null);
+        $t->same('Second Start', $byCode['out-of-order-nav-landmark-entry'][0]['text'] ?? null);
+        $t->same('bodymatter', $byCode['out-of-order-nav-landmark-entry'][0]['type'] ?? null);
+        $t->same('chapter', $byCode['out-of-order-nav-landmark-entry'][0]['idref'] ?? null);
+        $t->same('index', $byCode['out-of-order-nav-landmark-entry'][0]['previousFragment'] ?? null);
+        $t->same('OPS/chapter.xhtml', $byCode['out-of-order-nav-landmark-entry'][0]['previousTargetPath'] ?? null);
         $t->same('pages-a', $byCode['duplicate-nav-page-list-target'][0]['navId'] ?? null);
         $t->same('chapter.xhtml#page-1', $byCode['duplicate-nav-page-list-target'][0]['linkHref'] ?? null);
         $t->same('chapter.xhtml#page-1', $byCode['duplicate-nav-page-list-target'][0]['firstLinkHref'] ?? null);
@@ -14439,6 +14446,139 @@ HTML);
         $t->contains('Second readable chapter.', $blocks);
         $t->contains('Third readable chapter.', $blocks);
         $t->true(!str_contains($blocks, 'Appendix'), 'Non-linear spine content should not be imported into readable body blocks.');
+    },
+    'records epub3 navigation landmark and page-list order collisions' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-nav-order-collisions-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:nav-order-collisions</dc:identifier>
+    <dc:title>Nav Order Collisions</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="one" href="one.xhtml" media-type="application/xhtml+xml"/>
+    <item id="two" href="two.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine>
+    <itemref idref="one"/>
+    <itemref idref="two"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/one.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><h1 id="start">One</h1><section id="late">Late first-chapter landmark.</section><span id="p1" epub:type="pagebreak" title="1"></span><span id="p1-late" epub:type="pagebreak" title="1a"></span><p>First ordered content.</p></body></html>');
+        $zip->addFromString('OPS/two.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><h1 id="second">Two</h1><span id="p2" epub:type="pagebreak" title="2"></span><p>Second ordered content.</p></body></html>');
+        $zip->addFromString('OPS/nav.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="one.xhtml#start">One</a></li>
+        <li><a href="two.xhtml#second">Two</a></li>
+      </ol>
+    </nav>
+    <nav id="landmarks" epub:type="landmarks">
+      <ol>
+        <li><a epub:type="bodymatter" href="one.xhtml#start" aria-label="Start landmark"></a></li>
+        <li><span><a epub:type="bodymatter" href="./one.xhtml#start"><img alt="Start duplicate"/></a></span></li>
+        <li><a epub:type="bodymatter" href="two.xhtml#second">Second landmark</a></li>
+        <li><a epub:type="bodymatter" href="one.xhtml#late" title="Late first landmark"></a></li>
+      </ol>
+    </nav>
+    <nav id="pages" epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="one.xhtml#p1" aria-label="1"></a></li>
+        <li><span><a epub:type="pagebreak" href="./one.xhtml#p1"><img alt="1"/></a></span></li>
+        <li><a epub:type="pagebreak" href="two.xhtml#p2">2</a></li>
+        <li><a epub:type="pagebreak" href="one.xhtml#p1-late" title="1a"></a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+HTML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $diagnostics = $meta['epubDiagnostics'] ?? [];
+        $byCode = [];
+        foreach ($diagnostics as $diagnostic) {
+            $code = (string) ($diagnostic['code'] ?? '');
+            if ($code !== '') {
+                $byCode[$code][] = $diagnostic;
+            }
+        }
+
+        $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
+        $t->same(4, $meta['epubDiagnosticErrorCount']);
+        $t->same(0, $meta['epubDiagnosticWarningCount']);
+        foreach ([
+            'duplicate-nav-landmark-link',
+            'duplicate-nav-page-list-target',
+            'out-of-order-nav-landmark-entry',
+            'out-of-order-nav-page-list-entry',
+        ] as $code) {
+            $t->true(isset($byCode[$code]), "Expected EPUB diagnostic {$code}.");
+        }
+
+        $t->same('landmarks', $byCode['duplicate-nav-landmark-link'][0]['navId'] ?? null);
+        $t->same('bodymatter', $byCode['duplicate-nav-landmark-link'][0]['type'] ?? null);
+        $t->same('./one.xhtml#start', $byCode['duplicate-nav-landmark-link'][0]['linkHref'] ?? null);
+        $t->same('one.xhtml#start', $byCode['duplicate-nav-landmark-link'][0]['firstLinkHref'] ?? null);
+        $t->same('OPS/one.xhtml#start', $byCode['duplicate-nav-landmark-link'][0]['target'] ?? null);
+        $t->same('pages', $byCode['duplicate-nav-page-list-target'][0]['navId'] ?? null);
+        $t->same('./one.xhtml#p1', $byCode['duplicate-nav-page-list-target'][0]['linkHref'] ?? null);
+        $t->same('one.xhtml#p1', $byCode['duplicate-nav-page-list-target'][0]['firstLinkHref'] ?? null);
+        $t->same('OPS/one.xhtml#p1', $byCode['duplicate-nav-page-list-target'][0]['target'] ?? null);
+        $t->same('1', $byCode['duplicate-nav-page-list-target'][0]['label'] ?? null);
+
+        $landmarkOrder = $byCode['out-of-order-nav-landmark-entry'][0] ?? [];
+        $t->same('OPS/one.xhtml', $landmarkOrder['targetPath'] ?? null);
+        $t->same('#late', $landmarkOrder['targetSuffix'] ?? null);
+        $t->same('Late first landmark', $landmarkOrder['text'] ?? null);
+        $t->same('bodymatter', $landmarkOrder['type'] ?? null);
+        $t->same('one', $landmarkOrder['idref'] ?? null);
+        $t->same(0, $landmarkOrder['spineOrder'] ?? null);
+        $t->same('OPS/two.xhtml', $landmarkOrder['previousTargetPath'] ?? null);
+        $t->same('two', $landmarkOrder['previousIdref'] ?? null);
+        $t->same(1, $landmarkOrder['previousSpineOrder'] ?? null);
+
+        $pageOrder = $byCode['out-of-order-nav-page-list-entry'][0] ?? [];
+        $t->same('OPS/one.xhtml', $pageOrder['targetPath'] ?? null);
+        $t->same('#p1-late', $pageOrder['targetSuffix'] ?? null);
+        $t->same('1a', $pageOrder['text'] ?? null);
+        $t->same('1a', $pageOrder['value'] ?? null);
+        $t->same('one', $pageOrder['idref'] ?? null);
+        $t->same(0, $pageOrder['spineOrder'] ?? null);
+        $t->same('OPS/two.xhtml', $pageOrder['previousTargetPath'] ?? null);
+        $t->same('p2', $pageOrder['previousFragment'] ?? null);
+        $t->same('two', $pageOrder['previousIdref'] ?? null);
+        $t->same(1, $pageOrder['previousSpineOrder'] ?? null);
+        $t->true(!isset($byCode['missing-nav-landmark-label']), 'Accessible landmark labels should suppress missing-label diagnostics.');
+        $t->true(!isset($byCode['missing-nav-page-list-label']), 'Accessible page-list labels should suppress missing-label diagnostics.');
+        $t->true(!isset($byCode['missing-nav-link-fragment']), 'Normalized duplicate targets should still resolve existing fragments.');
+        $t->same(4, $meta['epubLandmarkEntryCount']);
+        $t->same(4, $meta['epubPageListEntryCount']);
+        $t->contains('First ordered content.', $blocks);
+        $t->contains('Second ordered content.', $blocks);
     },
     'records epub ncx content src path diagnostics' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-ncx-src-path-diagnostics-');
