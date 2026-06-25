@@ -14528,11 +14528,12 @@ HTML);
         }
 
         $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
-        $t->same(6, $meta['epubDiagnosticErrorCount']);
+        $t->same(7, $meta['epubDiagnosticErrorCount']);
         $t->same(0, $meta['epubDiagnosticWarningCount']);
         foreach ([
             'duplicate-nav-landmark-link',
             'duplicate-nav-page-list-target',
+            'cross-section-normalized-nav-target-collision',
             'normalized-nav-target-collision',
             'out-of-order-nav-landmark-entry',
             'out-of-order-nav-page-list-entry',
@@ -14540,6 +14541,7 @@ HTML);
             $t->true(isset($byCode[$code]), "Expected EPUB diagnostic {$code}.");
         }
         $t->same(2, count($byCode['normalized-nav-target-collision'] ?? []));
+        $t->same(1, count($byCode['cross-section-normalized-nav-target-collision'] ?? []));
 
         $t->same('landmarks', $byCode['duplicate-nav-landmark-link'][0]['navId'] ?? null);
         $t->same('bodymatter', $byCode['duplicate-nav-landmark-link'][0]['type'] ?? null);
@@ -14931,6 +14933,119 @@ HTML);
         ], array_column($report['issues'] ?? [], 'type'));
         $t->same($report['issues'] ?? [], $report['diagnostics'] ?? null);
         $t->contains('Readable page-list summary content.', $blocks);
+    },
+    'reports epub3 cross-section normalized nav target collisions in stable section order' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-cross-section-nav-collisions-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:cross-section-nav-collisions</dc:identifier>
+    <dc:title>Cross Section Nav Collisions</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><h1 id="start">Cross Section Nav Collisions</h1><span id="p1" epub:type="pagebreak" title="1"></span><p>Readable cross-section collision content.</p></body></html>');
+        $zip->addFromString('OPS/nav.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="pages-review" epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="text/chapter.xhtml#p1">1</a></li>
+        <li><a epub:type="pagebreak" href="text/%63hapter.xhtml#p1">1</a></li>
+      </ol>
+    </nav>
+    <nav id="toc-review" epub:type="toc">
+      <ol>
+        <li><a href="text/%63hapter.xhtml#p1">Encoded page target</a></li>
+        <li><a href="./text/../text/chapter.xhtml#p1">Dotted page target</a></li>
+      </ol>
+    </nav>
+    <nav id="landmark-review" epub:type="landmarks">
+      <ol>
+        <li><a epub:type="bodymatter" href="text/chapter.xhtml#p1">Start</a></li>
+        <li><a epub:type="bodymatter" href="./text/chapter.xhtml#p1">Start copy</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+HTML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $diagnostics = $meta['epubDiagnostics'] ?? [];
+        $byCode = [];
+        foreach ($diagnostics as $diagnostic) {
+            $code = (string) ($diagnostic['code'] ?? '');
+            if ($code !== '') {
+                $byCode[$code][] = $diagnostic;
+            }
+        }
+        $normalized = $byCode['normalized-nav-target-collision'] ?? [];
+        $cross = $byCode['cross-section-normalized-nav-target-collision'] ?? [];
+
+        $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
+        $t->same(6, $meta['epubDiagnosticErrorCount']);
+        $t->same(0, $meta['epubDiagnosticWarningCount']);
+        $t->same(3, count($normalized));
+        $t->same(1, count($cross));
+        $t->same(['toc', 'landmarks', 'page-list'], array_column($normalized, 'sectionType'));
+        $t->same([1, 2, 0], array_column($normalized, 'sectionIndex'));
+        $t->same([
+            'ops/text/chapter.xhtml#p1',
+            'ops/text/chapter.xhtml#p1',
+            'ops/text/chapter.xhtml#p1',
+        ], array_column($normalized, 'normalizedTarget'));
+
+        $crossSection = $cross[0] ?? [];
+        $t->same('ops/text/chapter.xhtml#p1', $crossSection['normalizedTarget'] ?? null);
+        $t->same(3, $crossSection['sectionCount'] ?? null);
+        $t->same(['toc', 'landmarks', 'page-list'], $crossSection['sectionTypes'] ?? null);
+        $t->same([1, 2, 0], $crossSection['sectionIndexes'] ?? null);
+        $t->same(['toc-review', 'landmark-review', 'pages-review'], $crossSection['navIds'] ?? null);
+        $t->same(6, $crossSection['itemCount'] ?? null);
+        $t->same(4, $crossSection['rawHrefCount'] ?? null);
+        $t->same(['toc', 'toc', 'landmarks', 'landmarks', 'page-list', 'page-list'], array_column($crossSection['itemRefs'] ?? [], 'sectionType'));
+        $t->same([
+            'text/%63hapter.xhtml#p1',
+            './text/../text/chapter.xhtml#p1',
+            'text/chapter.xhtml#p1',
+            './text/chapter.xhtml#p1',
+        ], $crossSection['hrefs'] ?? null);
+        foreach (['percent-encoding', 'dot-segment', 'fragment'] as $kind) {
+            $t->true(in_array($kind, $crossSection['collisionKinds'] ?? [], true), "Expected cross-section collision kind {$kind}.");
+        }
+
+        $t->same(1, count($byCode['duplicate-nav-landmark-link'] ?? []));
+        $t->same(1, count($byCode['duplicate-nav-page-list-target'] ?? []));
+        $t->same(['text', 'href', 'level'], array_keys($meta['epubTocEntries'][0] ?? []));
+        $t->same(['text', 'href', 'level', 'type', 'value'], array_keys($meta['epubPageListEntries'][0] ?? []));
+        $t->contains('Readable cross-section collision content.', $blocks);
     },
     'records epub ncx content src path diagnostics' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-ncx-src-path-diagnostics-');
