@@ -72,6 +72,22 @@ final class Expression
     }
 
     /**
+     * @param array<string, mixed> $attributes
+     */
+    public static function text(string $value, array $attributes = []): self
+    {
+        return new self('text', $value, [], $attributes);
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
+    public static function space(array $attributes = []): self
+    {
+        return new self('space', null, [], $attributes);
+    }
+
+    /**
      * @param list<Expression> $children
      * @param array<string, mixed> $attributes
      */
@@ -118,6 +134,46 @@ final class Expression
     public static function sqrt(Expression $body, array $attributes = []): self
     {
         return new self('sqrt', null, [$body], $attributes);
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
+    public static function root(Expression $body, Expression $index, array $attributes = []): self
+    {
+        return new self('root', null, [$body, $index], $attributes);
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
+    public static function over(Expression $base, Expression $overscript, array $attributes = []): self
+    {
+        return new self('over', null, [$base, $overscript], $attributes);
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
+    public static function under(Expression $base, Expression $underscript, array $attributes = []): self
+    {
+        return new self('under', null, [$base, $underscript], $attributes);
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
+    public static function enclosed(Expression $body, string $notation, array $attributes = []): self
+    {
+        return new self('enclosed', null, [$body], ['notation' => $notation] + $attributes);
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     */
+    public static function style(Expression $body, array $attributes = []): self
+    {
+        return new self('style', null, [$body], $attributes);
     }
 
     /**
